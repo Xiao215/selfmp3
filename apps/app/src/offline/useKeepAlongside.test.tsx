@@ -44,9 +44,7 @@ jest.mock('../connection/ConnectionProvider', () => ({
 jest.mock('./DownloadsProvider', () => ({
   useDownloads: () => ({ state: { index: {} }, installed: true }),
 }))
-jest.mock('./lyricsCache', () => ({}))
-jest.mock('./motionCache', () => ({}))
-jest.mock('./playlistCache', () => ({ writeCachedPlaylist: () => undefined }))
+jest.mock('./caches', () => ({ playlistCache: { write: () => undefined } }))
 jest.mock('../replica', () => ({
   library: {
     cloudPicturesNow: () => ({

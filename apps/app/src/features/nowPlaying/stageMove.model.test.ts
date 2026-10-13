@@ -5,7 +5,9 @@ import {
   coverPose,
   laidOutRadius,
   moveKeyframes,
+  restingRun,
   stackedTabsTop,
+  turnMove,
   stageCover,
   wordsFrame,
   wordsPose,
@@ -126,5 +128,26 @@ describe('a stacked page (T05)', () => {
   it('moves the cover into the header under the status bar in Focus', () => {
     const cover = stageCover(tall)
     expect(seenCover(coverPose(cover, 1, 24), cover).top).toBeCloseTo(10 + 24)
+  })
+})
+
+describe('turning the move', () => {
+  const linear = (t: number): number => t
+
+  it('does nothing for a mode it is already in', () => {
+    expect(turnMove(restingRun(0), 0, 1_000, linear)).toBeNull()
+  })
+
+  it('takes the whole move from rest', () => {
+    expect(turnMove(restingRun(0), 1, 1_000, linear)).toEqual({ from: 0, share: 1 })
+  })
+
+  it('takes only the share of the move that is left when it turns back part-way', () => {
+    // A tenth of the way to Focus when it is called back to the stage: on a
+    // phone this was another whole 520 ms, and read as two moves.
+    const going = { from: 0, to: 1, start: 0, ms: 520 }
+    const turn = turnMove(going, 0, 52, linear)
+    expect(turn?.from).toBeCloseTo(0.1)
+    expect(turn?.share).toBeCloseTo(0.1)
   })
 })

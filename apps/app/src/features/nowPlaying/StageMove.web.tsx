@@ -1,14 +1,17 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Easing, View } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
+import type { ViewStyle } from 'react-native'
 import {
   laidOutRadius,
   MOVE_EASING,
   moveKeyframes,
+  restingRun,
+  turnMove,
   type MovePose,
-  type PoseAt,
+  type MoveRun,
 } from './stageMove.model'
+import type { MovingProps } from './stageMove.types'
 import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs } from '../../ui/motion'
 
@@ -33,43 +36,20 @@ interface StageMove {
   readonly subscribe: (listener: Listener) => () => void
 }
 
-interface Run {
-  readonly from: number
-  readonly to: number
-  readonly start: number
-  /** How long this run was given, so a run cut short is read at the right point of its curve. */
-  readonly ms: number
-}
-
 export function useStageMove(focus: boolean): StageMove {
   const target = focus ? 1 : 0
   const listeners = useRef(new Set<Listener>())
-  // Settled wherever the page opened: no move until the mode changes.
-  const run = useRef<Run>({ from: target, to: target, start: Number.NEGATIVE_INFINITY, ms: 0 })
+  const run = useRef<MoveRun>(restingRun(target))
 
   // Before the browser paints the new mode's layout, or it would flash there
   // for a frame before the animations pull it back to where it was.
   useLayoutEffect(() => {
     const now = performance.now()
-    const current = run.current
-    /*
-     * Where the move has got to, eased: `m` is not the share of the time gone
-     * but the curve of it, so a turn half a second in leaves from the pose that
-     * is on screen and no frame repeats it.
-     *
-     * And it is given only the time the rest of the way is worth. The whole
-     * distance is 1 — the stage to Focus — so a run of `|to - at|` of it takes
-     * that share of `MOVE_MS.stageMove`: a reversal a tenth of the way along is
-     * a tenth-and-a-bit of the length, not another 520 ms of it. Without that
-     * the cover left an eased midpoint at full speed, slowed into a new
-     * ease-in, and read as two moves rather than one that changed its mind.
-     */
-    const progress = current.ms > 0 ? ease(Math.min(1, (now - current.start) / current.ms)) : 1
-    const at = current.from + (current.to - current.from) * progress
-    if (at === target && current.to === target) return
-    const ms = motionMs(MOVE_MS.stageMove * Math.abs(target - at))
-    run.current = { from: at, to: target, start: now, ms }
-    for (const listener of listeners.current) listener(at, target, ms)
+    const turn = turnMove(run.current, target, now, ease)
+    if (!turn) return
+    const ms = motionMs(MOVE_MS.stageMove * turn.share)
+    run.current = { from: turn.from, to: target, start: now, ms }
+    for (const listener of listeners.current) listener(turn.from, target, ms)
   }, [target])
 
   const subscribe = useCallback((listener: Listener) => {
@@ -82,15 +62,6 @@ export function useStageMove(focus: boolean): StageMove {
   return useMemo(() => ({ target, subscribe }), [target, subscribe])
 }
 
-export interface MovingProps {
-  readonly move: StageMove
-  /** Where this piece is at each point of the move, from its own laid-out place. */
-  readonly pose: PoseAt
-  readonly style?: StyleProp<ViewStyle>
-  readonly pointerEvents?: 'none' | 'auto'
-  readonly children?: ReactNode
-}
-
 /** The subset of a DOM element this needs, since a React Native ref is typed as a view. */
 interface Animatable {
   animate: (
@@ -100,7 +71,13 @@ interface Animatable {
 }
 
 /** A view drawn where the move ends, carried there by the browser from where it was. */
-export function Moving({ move, pose, style, pointerEvents, children }: MovingProps): ReactNode {
+export function Moving({
+  move,
+  pose,
+  style,
+  pointerEvents,
+  children,
+}: MovingProps<StageMove>): ReactNode {
   const ref = useRef<View>(null)
   // The pose for the layout just committed: a move that starts in this commit
   // reads it, and a child's layout effects run before its parent's.

@@ -30,12 +30,19 @@ class FakeDirectory {
     for (const path of [...disk.keys()])
       if (path === this.uri || path.startsWith(`${this.uri}/`)) disk.delete(path)
   }
+  list(): { name: string }[] {
+    return [...disk.keys()]
+      .filter(path => path.startsWith(`${this.uri}/`))
+      .map(path => ({ name: path.slice(this.uri.length + 1) }))
+  }
 }
 
 class FakeFile {
   readonly uri: string
+  readonly name: string
   constructor(parent: FakeDirectory, name: string) {
     this.uri = `${parent.uri}/${name}`
+    this.name = name
   }
   get exists(): boolean {
     return disk.has(this.uri)
@@ -106,6 +113,12 @@ const song = (id: number): { id: number; path: string } => ({
   path: `audio/${HASH(id)}.m4a`,
 })
 const cached = (id: number): string => `file:///cache/recent-songs/${HASH(id)}.m4a`
+/** The same song after its audio was replaced: a new hash, so a new name. */
+const replaced = (id: number): { id: number; path: string } => ({
+  id,
+  path: `audio/${'f'.repeat(64)}.m4a`,
+})
+const replacedCopy = `file:///cache/recent-songs/${'f'.repeat(64)}.m4a`
 
 async function port(): Promise<typeof import('./recentCopies')> {
   return import('./recentCopies')
@@ -124,7 +137,7 @@ beforeEach(() => {
 describe('keeping a song that was played', () => {
   it('fetches it from the bucket with the bearer, and has an address for it after', async () => {
     const recent = await port()
-    expect(recent.recentUri(1)).toBeNull()
+    expect(recent.recentUri(song(1))).toBeNull()
 
     await recent.keepRecentlyPlayed(song(1))
 
@@ -134,7 +147,7 @@ describe('keeping a song that was played', () => {
         headers: { Authorization: 'Bearer t' },
       },
     ])
-    expect(recent.recentUri(1)).toBe(cached(1))
+    expect(recent.recentUri(song(1))).toBe(cached(1))
     expect(recent.recentIds()).toEqual(new Set([1]))
   })
 
@@ -158,7 +171,7 @@ describe('keeping a song that was played', () => {
     await recent.keepRecentlyPlayed(song(1))
 
     // Half a file played as a song is silence after the first minute.
-    expect(recent.recentUri(1)).toBeNull()
+    expect(recent.recentUri(song(1))).toBeNull()
     expect([...disk.keys()].filter(path => path.includes(HASH(1)))).toEqual([])
     expect(recent.recentIds().size).toBe(0)
   })
@@ -166,7 +179,7 @@ describe('keeping a song that was played', () => {
   it('remembers across a restart', async () => {
     await (await port()).keepRecentlyPlayed(song(1))
     vi.resetModules()
-    expect((await port()).recentUri(1)).toBe(cached(1))
+    expect((await port()).recentUri(song(1))).toBe(cached(1))
   })
 })
 
@@ -177,7 +190,7 @@ describe('what the system cleared', () => {
     disk.delete(cached(1))
     // A `file://` with nothing behind it would play as silence in place of a
     // song that could have streamed.
-    expect(recent.recentUri(1)).toBeNull()
+    expect(recent.recentUri(song(1))).toBeNull()
   })
 
   it('is fetched again the next time it is played, and dropped from the note meanwhile', async () => {
@@ -190,7 +203,7 @@ describe('what the system cleared', () => {
 
     await recent.keepRecentlyPlayed(song(1))
     expect(downloads).toHaveLength(3)
-    expect(recent.recentUri(1)).toBe(cached(1))
+    expect(recent.recentUri(song(1))).toBe(cached(1))
   })
 })
 
@@ -264,6 +277,40 @@ describe('a song asked for by hand', () => {
   })
 })
 
+describe('a song whose audio has changed', () => {
+  it('is not played from the copy of the old audio', async () => {
+    const recent = await port()
+    await recent.keepRecentlyPlayed(song(1))
+    expect(recent.recentUri(replaced(1))).toBeNull()
+  })
+
+  it('is fetched again when played, and the old copy goes', async () => {
+    const recent = await port()
+    await recent.keepRecentlyPlayed(song(1))
+
+    await recent.keepRecentlyPlayed(replaced(1))
+
+    expect(downloads).toHaveLength(2)
+    expect(disk.has(cached(1))).toBe(false)
+    expect(recent.recentUri(replaced(1))).toBe(replacedCopy)
+  })
+
+  it('is downloaded, not given the old copy', async () => {
+    const recent = await port()
+    await recent.keepRecentlyPlayed(song(1))
+    const destination = new FakeFile(
+      new FakeDirectory('file:///document', 'songs'),
+      `${'f'.repeat(64)}.m4a`,
+    )
+
+    // A download of the old audio under the new name would play the old song.
+    expect(await recent.adoptRecent(replaced(1), destination as never)).toBeNull()
+    expect(disk.has(destination.uri)).toBe(false)
+    expect(disk.has(cached(1))).toBe(false)
+    expect(recent.recentIds().size).toBe(0)
+  })
+})
+
 describe('removing', () => {
   it('deletes the copy of a song removed by hand', async () => {
     const recent = await port()
@@ -273,8 +320,8 @@ describe('removing', () => {
     recent.forgetRecent([1])
 
     expect(disk.has(cached(1))).toBe(false)
-    expect(recent.recentUri(1)).toBeNull()
-    expect(recent.recentUri(2)).toBe(cached(2))
+    expect(recent.recentUri(song(1))).toBeNull()
+    expect(recent.recentUri(song(2))).toBe(cached(2))
   })
 
   it('clears every copy with "remove all downloads"', async () => {

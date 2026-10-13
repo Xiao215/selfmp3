@@ -3,10 +3,7 @@ import { useRouter } from 'expo-router'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { library as cloudLibrary, session as cloudSession } from '../../replica'
 import { forgetCovers } from '../../offline/covers'
-import { clearCachedLibrary } from '../../offline/libraryCache'
-import { clearCachedLyrics } from '../../offline/lyricsCache'
-import { clearCachedMotion } from '../../offline/motionCache'
-import { clearCachedPlaylists } from '../../offline/playlistCache'
+import { libraryCache, lyricsCache, motionCache, playlistCache } from '../../offline/caches'
 import { clearRecent } from '../../ports/recentCopies'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -39,14 +36,14 @@ export function useSignOut(): () => Promise<void> {
           return downloadQueue.removeAll()
         },
         forgetSavedLibrary: async () => {
-          await clearCachedLibrary()
+          await libraryCache.clear()
           // All found by id, and another account's library hands the same
           // ids to other songs and playlists: anything kept would be the
           // wrong words, curve, members or picture.
           await Promise.all([
-            clearCachedPlaylists(),
-            clearCachedLyrics(),
-            clearCachedMotion(),
+            playlistCache.clear(),
+            lyricsCache.clear(),
+            motionCache.clear(),
             forgetCovers(),
           ])
         },

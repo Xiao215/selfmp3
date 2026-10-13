@@ -8,7 +8,6 @@ import {
   uncacheSong,
 } from './offline.web'
 import { desktopRecentCopies } from './desktop/recentCopies.desktop'
-import { desktop } from './desktop/bridge'
 import { prefs } from './prefs'
 
 /**
@@ -41,7 +40,7 @@ function browserRecentIds(): ReadonlySet<number> {
  * service worker answers the song's ordinary address from it. A phone, which
  * keeps files, has one to give (the twin).
  */
-function browserRecentUri(_songId: number): string | null {
+function browserRecentUri(_song: Pick<Song, 'id' | 'path'> | undefined): string | null {
   return null
 }
 
@@ -128,7 +127,7 @@ const browserRecentCopies = {
   keepRecentlyPlayed: browserKeepRecentlyPlayed,
 }
 
-const chosen: typeof browserRecentCopies = desktop ? desktopRecentCopies : browserRecentCopies
+const chosen: typeof browserRecentCopies = desktopRecentCopies ?? browserRecentCopies
 
 export const recentIds = chosen.recentIds
 export const recentUri = chosen.recentUri

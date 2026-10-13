@@ -4,16 +4,12 @@ import {
   parseIndex,
   type DownloadIndex,
   type DownloadStorage,
-  type DownloadTransfer,
   type ServerConnection,
-  type TransferProgress,
 } from '@selfmp3/client'
-import { bucketHold } from '@selfmp3/replica'
 
-import { askWhyRefused } from '../bucketRefusal'
-import { sourceFor } from '../songSource'
+import { transferInto, type TransferFiles } from '../downloadTransfer'
 import { desktop } from './bridge'
-import { adoptRecent } from './recentCopies.desktop'
+import { desktopRecentCopies } from './recentCopies.desktop'
 
 /**
  * Where the installed desktop app keeps songs: files on disk, beside a JSON
@@ -28,42 +24,29 @@ import { adoptRecent } from './recentCopies.desktop'
  * here written through `files` — so `parseIndex` and `DownloadIndex` from
  * `packages/client` are reused exactly as they are. Which songs are kept is the
  * index's to say, and it can be, because unlike a cache nothing removes a file
- * behind the app's back.
+ * behind the app's back. The steps of one song's transfer, words and cover
+ * included, are the phone's too (`downloadTransfer.ts`).
  */
 
 const INDEX_NAME = 'downloads.json'
-/** The index is a file like any other, so it lives with the songs. */
-const INDEX_KIND = 'songs'
+/** The songs, and the index with them: it is a file like any other. */
+const SONGS = 'songs'
 
 let connection: ServerConnection | null = null
 
 /** A transfer id the shell can be told to cancel. */
 let nextId = 0
 
-function transferFor(
-  song: Song,
-  onProgress: (progress: TransferProgress) => void,
-): DownloadTransfer {
+/** The desktop's half of a transfer (`downloadTransfer.ts` has the steps). */
+function filesFor(song: Song): TransferFiles {
   const bridge = desktop
   if (!bridge) throw new Error('no desktop bridge')
-
   const id = `song-${song.id}-${++nextId}`
-  const name = fileNameFor(song)
-  let cancelled = false
 
   return {
-    async run() {
-      if (cancelled) throw new Error('cancelled')
-      // Played lately, so a copy may be here already (recentCopies.desktop.ts):
-      // the same bytes, moved into place rather than fetched a second time.
-      const adopted = await adoptRecent(song).catch(() => null)
-      if (adopted !== null) return adopted
-      const from = await sourceFor(song, connection)
-      if (cancelled) throw new Error('cancelled')
-      // The bucket refusing reads for the day: this one would be refused too.
-      const held = from.headers ? bucketHold('read') : null
-      if (held) throw new Error(held.message)
+    adopt: async () => (await desktopRecentCopies?.adoptRecent(song, SONGS)) ?? null,
 
+    async download(url, headers, onProgress) {
       const stop = bridge.onProgress(progress => {
         if (progress.id === id) {
           onProgress({ bytesWritten: progress.bytesWritten, totalBytes: progress.totalBytes })
@@ -72,33 +55,28 @@ function transferFor(
       try {
         const result = await bridge.files.download({
           id,
-          kind: 'songs',
-          name,
-          url: from.url,
-          ...(from.headers ? { headers: from.headers } : {}),
+          kind: SONGS,
+          name: fileNameFor(song),
+          url,
+          ...(headers ? { headers } : {}),
         })
         // `null` is the port's "stopped, not failed"; the queue resumes it.
         return result.state === 'done' ? result.bytes : null
-      } catch (error) {
-        if (cancelled || !from.headers) throw error
-        // From the bucket: the doorman is asked why, the way a phone asks, so
-        // a refusal for the day holds the other downloads too.
-        const why = await askWhyRefused(from.url, from.headers)
-        if (why === null) throw error
-        throw new Error(why, { cause: error })
       } finally {
         stop()
       }
     },
 
+    // The `.part` stays behind on a pause, and the shell continues it with a
+    // `Range:` when the transfer runs again — which is the whole difference
+    // between this and the browser's storage.
+    resume: () => null,
+
     pause() {
-      // The `.part` stays behind, and `run()` again continues from it — which
-      // is the whole difference between this and the browser's storage.
       void bridge.files.cancel(id)
     },
 
     cancel() {
-      cancelled = true
       void bridge.files.cancel(id)
     },
   }
@@ -115,7 +93,7 @@ export const downloadStorage: DownloadStorage = {
   async readIndex(): Promise<DownloadIndex | null> {
     if (!desktop) return null
     try {
-      const url = desktop.mediaUrl(INDEX_KIND, INDEX_NAME)
+      const url = desktop.mediaUrl(SONGS, INDEX_NAME)
       const response = await fetch(url)
       if (!response.ok) return null
       return parseIndex(await response.json())
@@ -132,32 +110,32 @@ export const downloadStorage: DownloadStorage = {
      * that fetches, and a blob URL belongs to the renderer that created it, so
      * the main process cannot read one at all (`net::ERR_UNKNOWN_URL_SCHEME`).
      */
-    await desktop.files.write(INDEX_KIND, INDEX_NAME, JSON.stringify(index))
+    await desktop.files.write(SONGS, INDEX_NAME, JSON.stringify(index))
   },
 
   localUri(entry) {
     // What makes the player play from disk: `streamAddress` prefers this over
     // the stream URL, and the shell answers it with a proper 206 so seeking works.
-    return desktop ? desktop.mediaUrl('songs', entry.fileName) : null
+    return desktop ? desktop.mediaUrl(SONGS, entry.fileName) : null
   },
 
   begin(song, _expectedBytes, onProgress) {
-    return transferFor(song, onProgress)
+    return transferInto(song, connection, filesFor(song), onProgress)
   },
 
   discard(song) {
-    void desktop?.files.delete('songs', fileNameFor(song))
+    void desktop?.files.delete(SONGS, fileNameFor(song))
   },
 
   async delete(entry) {
     // Awaited, and its rejection passed on: the shell's `rm` is forced, so it
     // fails only when the file genuinely would not go, and that is the one
     // case the queue must hear about to keep the entry.
-    await desktop?.files.delete('songs', entry.fileName)
+    await desktop?.files.delete(SONGS, entry.fileName)
   },
 
   async clear() {
     if (!desktop) return
-    await desktop.files.clear('songs')
+    await desktop.files.clear(SONGS)
   },
 }

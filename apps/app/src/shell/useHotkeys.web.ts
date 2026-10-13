@@ -3,6 +3,7 @@ import { menuOwnedCombinations } from '@selfmp3/desktop-bridge'
 
 import type { HotkeyOptions, Hotkeys } from './useHotkeys'
 import { isComposing } from './composing'
+import { focusOwnsKey } from './keyOwner'
 import { desktop } from '../ports/desktop/bridge'
 
 export type { HotkeyOptions, Hotkeys }
@@ -38,20 +39,7 @@ export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOp
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (isComposing(event)) return
-      const target = event.target
-      if (target instanceof HTMLElement) {
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable ||
-          target.closest('[role="combobox"], [role="listbox"], [role="menu"], [role="dialog"]') !==
-            null
-        ) {
-          return
-        }
-      }
+      if (isComposing(event) || focusOwnsKey(event.target, { typing: true })) return
       const parts: string[] = []
       if (event.metaKey) parts.push('meta')
       if (event.ctrlKey) parts.push('ctrl')

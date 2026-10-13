@@ -1,4 +1,4 @@
-import type { ServerEvent } from '@selfmp3/shared'
+import { ServerEventSchema, type ServerEvent } from '@selfmp3/shared'
 
 /**
  * `ServerEventStream` — the server's live stream, however this platform can hear it.
@@ -29,4 +29,20 @@ export interface ServerEventStream {
     onOpen: () => void
     onClose: () => void
   }): () => void
+}
+
+/**
+ * One frame's `data`, as an event — or null for a frame that is not JSON or
+ * not an event, which is dropped rather than thrown: a bad frame must not take
+ * the stream down. Both platforms' streams read their frames with this.
+ */
+export function parseServerEventData(data: string): ServerEvent | null {
+  let raw: unknown
+  try {
+    raw = JSON.parse(data)
+  } catch {
+    return null
+  }
+  const parsed = ServerEventSchema.safeParse(raw)
+  return parsed.success ? parsed.data : null
 }

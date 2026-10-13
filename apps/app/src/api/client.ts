@@ -27,10 +27,7 @@ import {
 } from '@selfmp3/client'
 
 import { cloudRequest, library as cloudLibrary } from '../replica'
-import { readCachedLibrary, writeCachedLibrary } from '../offline/libraryCache'
-import { readCachedLyrics, writeCachedLyrics } from '../offline/lyricsCache'
-import { readCachedMotion, writeCachedMotion } from '../offline/motionCache'
-import { readCachedPlaylist, writeCachedPlaylist } from '../offline/playlistCache'
+import { libraryCache, lyricsCache, motionCache, playlistCache } from '../offline/caches'
 
 /** A slow request is almost always a sleeping server; do not hang forever. */
 const REQUEST_TIMEOUT_MS = 15_000
@@ -125,29 +122,28 @@ export const api = createApi({
 configureClient({
   api,
   librarySnapshot: {
-    read: readCachedLibrary,
-    // Nothing to await: a phone writes the file before this returns, and a
-    // browser hands the write to IndexedDB and lets it land when it lands.
+    read: libraryCache.read,
+    // Nothing to await: a cache's write lands when it lands (offline/schemaCache.ts).
     write: async library => {
-      writeCachedLibrary(library)
+      libraryCache.write(library)
     },
   },
   playlistSnapshot: {
-    read: readCachedPlaylist,
+    read: playlistId => playlistCache.read(playlistId),
     write: async songs => {
-      writeCachedPlaylist(songs)
+      playlistCache.write(songs.playlistId, songs)
     },
   },
   lyricsSnapshot: {
-    read: readCachedLyrics,
+    read: songId => lyricsCache.read(songId),
     write: async (songId, lyrics) => {
-      writeCachedLyrics(songId, lyrics)
+      lyricsCache.write(songId, lyrics)
     },
   },
   motionSnapshot: {
-    read: readCachedMotion,
+    read: songId => motionCache.read(songId),
     write: async (songId, motion) => {
-      writeCachedMotion(songId, motion)
+      motionCache.write(songId, motion)
     },
   },
   later: (ms, run) => {

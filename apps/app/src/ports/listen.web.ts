@@ -1,3 +1,4 @@
+import { createSilenceWatch, previewStatus } from '../features/import/listen.model'
 import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
 
 /**
@@ -25,32 +26,53 @@ const EVENTS = [
 
 /**
  * Read from the element rather than from which event fired: switching tracks
- * fires the old one's `pause` after the new one has started loading.
+ * fires the old one's `pause` after the new one has started loading. Whether
+ * it is paused is what was last asked of it; the rest is `previewStatus`'s.
  */
-function statusOf(audio: HTMLAudioElement): ListenStatus {
-  if (audio.error) return 'error'
-  if (audio.paused) return 'paused'
-  if (audio.seeking || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) return 'loading'
-  return 'playing'
+function statusOf(audio: HTMLAudioElement, silent: boolean): ListenStatus {
+  return previewStatus(audio.paused ? 'pause' : 'play', {
+    failed: silent || audio.error !== null,
+    ready: !audio.seeking && audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA,
+  })
 }
 
 export function createListenAudio(): ListenAudio | null {
   const audio = new Audio()
   audio.preload = 'auto'
   const listeners = new Set<(state: ListenState) => void>()
+  /** Set when the element, asked to play, said nothing for too long; cleared by the next play. */
+  let silent = false
 
   const sync = (): void => {
     if (!audio.getAttribute('src')) return
     const state = {
-      status: statusOf(audio),
+      status: statusOf(audio, silent),
       currentTime: audio.currentTime,
       duration: audio.duration,
     }
+    silence.heard(state.status)
     for (const listener of listeners) listener(state)
   }
   for (const name of EVENTS) audio.addEventListener(name, sync)
 
+  // A request the browser left hanging says nothing at all: no error, no
+  // `canplay`, a spinner for good.
+  const silence = createSilenceWatch(() => {
+    if (!audio.getAttribute('src') || audio.paused) return
+    console.warn('preview said nothing for too long', audio.src)
+    silent = true
+    audio.pause()
+    sync()
+  })
+  const playFromHere = (): void => {
+    silent = false
+    silence.watch()
+    // A refusal lands in the element's own error, which `sync` reads.
+    void audio.play().catch(() => undefined)
+  }
+
   const stop = (): void => {
+    silence.stop()
     audio.pause()
     audio.removeAttribute('src')
     audio.load()
@@ -59,14 +81,16 @@ export function createListenAudio(): ListenAudio | null {
   return {
     play: src => {
       audio.src = src
-      // A refusal lands in the element's own error, which `sync` reads.
-      void audio.play().catch(() => undefined)
+      playFromHere()
     },
     resume: () => {
-      if (audio.error) audio.load()
-      void audio.play().catch(() => undefined)
+      if (audio.error || silent) audio.load()
+      playFromHere()
     },
-    pause: () => audio.pause(),
+    pause: () => {
+      silence.stop()
+      audio.pause()
+    },
     seek: seconds => {
       audio.currentTime = seconds
     },

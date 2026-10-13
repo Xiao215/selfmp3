@@ -1,15 +1,18 @@
 import TrackPlayer, { Event, State, type Track } from 'react-native-track-player'
-import type {
-  EngineCapabilities,
-  EngineWiring,
-  EngineState,
-  FrequencyAnalyser,
-  LoadOptions,
-  PlaybackEngine,
-  TrackMetadata,
+import {
+  audibleLevel,
+  EngineHub,
+  lookaheadId,
+  unplayableState,
+  volumeChange,
+  type EngineCapabilities,
+  type EngineState,
+  type EngineWiring,
+  type FrequencyAnalyser,
+  type LoadOptions,
+  type PlaybackEngine,
+  type TrackMetadata,
 } from '@selfmp3/client'
-
-import { clamp01 } from '@selfmp3/shared'
 
 import { ensurePlayer } from '../player/setup'
 import { askWhyRefused } from './bucketRefusal'
@@ -46,7 +49,7 @@ import { askWhyRefused } from './bucketRefusal'
  * provider agrees with what already started, `load()` recognises the song is
  * playing and leaves it alone rather than starting it again — which is the
  * difference between a gapless join and an audible stutter every time a song
- * ends.
+ * ends. (`LoadOptions` makes that every engine's rule.)
  */
 
 const capabilities: EngineCapabilities = {
@@ -54,26 +57,6 @@ const capabilities: EngineCapabilities = {
   crossfade: false,
   // No Web Audio graph to tap; the visualiser stays a browser thing.
   analyser: false,
-}
-
-const IDLE: EngineState = {
-  playing: false,
-  currentTime: 0,
-  duration: 0,
-  volume: 1,
-  muted: false,
-  stalled: false,
-  error: null,
-}
-
-/** No queue owner yet: every question the engine asks goes unanswered. */
-const UNWIRED: EngineWiring = {
-  onTrackEnd: null,
-  nextTrackId: null,
-  streamUrl: null,
-  streamHeaders: null,
-  trackMetadata: null,
-  onProgress: null,
 }
 
 /** A Track that remembers which song it came from. */
@@ -101,8 +84,8 @@ function cardKey(meta: TrackMetadata): string {
 class NativeEngine implements PlaybackEngine {
   readonly capabilities = capabilities
 
-  #state: EngineState = IDLE
-  #listeners = new Set<(state: EngineState) => void>()
+  /** State, listeners and wiring, as the browser's engine keeps them (`@selfmp3/client`). */
+  readonly #hub = new EngineHub()
   #subscriptions: { remove: () => void }[] = []
   #currentSongId: number | null = null
   /** What we last handed the player as the song after this one, and where it was to come from. */
@@ -114,17 +97,13 @@ class NativeEngine implements PlaybackEngine {
   #destroyed = false
   /** What each song handed to the player was shown as on the card (`cardKey`), so an unchanged one is not sent again. */
   #cardShown = new Map<number, string>()
-  #volume = 1
-  #muted = false
-  /** Whoever owns the queue, as handed over through `connect`. */
-  #wiring: EngineWiring = UNWIRED
 
   constructor() {
     void this.#wire()
   }
 
   get state(): EngineState {
-    return this.#state
+    return this.#hub.state
   }
 
   get currentSongId(): number | null {
@@ -136,13 +115,11 @@ class NativeEngine implements PlaybackEngine {
     // promise, so the freshest tick stands in. Progress fires every second,
     // which is fine for telling whether Previous restarts the song; the
     // visual runs its own clock between ticks (`PlayheadClock`).
-    return this.#state.currentTime
+    return this.#hub.state.currentTime
   }
 
   subscribe(listener: (state: EngineState) => void): () => void {
-    this.#listeners.add(listener)
-    listener(this.#state)
-    return () => this.#listeners.delete(listener)
+    return this.#hub.subscribe(listener)
   }
 
   configure(): void {
@@ -160,7 +137,7 @@ class NativeEngine implements PlaybackEngine {
     const overtaken = (): boolean => generation !== this.#loadGeneration
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
-    this.#patch({ error: null })
+    this.#hub.patch({ error: null })
     await ensurePlayer()
     if (this.#destroyed || overtaken()) return
 
@@ -189,7 +166,14 @@ class NativeEngine implements PlaybackEngine {
     try {
       const track = this.#trackFor(songId)
       if (!track) {
-        this.#patch({ error: `Song ${songId} cannot be played from this device yet.` })
+        // Nowhere to play it from. The song before it is not this one either:
+        // the queue has moved on, and left sounding it played on under this
+        // song's name while the provider retried from its position.
+        this.#currentSongId = null
+        this.#queuedNext = null
+        await TrackPlayer.pause()
+        if (overtaken()) return
+        this.#hub.patch(unplayableState(songId))
         return
       }
 
@@ -209,10 +193,12 @@ class NativeEngine implements PlaybackEngine {
       if (startAt !== undefined && startAt > 0) await TrackPlayer.seekTo(startAt)
       if (overtaken()) return
       if (autoplay) await TrackPlayer.play()
-      this.#patch({ error: null })
+      this.#hub.patch({ error: null })
     } catch (error) {
       if (!overtaken()) {
-        this.#patch({ error: error instanceof Error ? error.message : 'could not play that song' })
+        this.#hub.patch({
+          error: error instanceof Error ? error.message : 'could not play that song',
+        })
       }
     } finally {
       if (!overtaken()) this.#loading = false
@@ -237,7 +223,7 @@ class NativeEngine implements PlaybackEngine {
 
   async #refreshNowPlaying(songId: number): Promise<void> {
     if (this.#destroyed || this.#loading || this.#currentSongId !== songId) return
-    const meta = this.#wiring.trackMetadata?.(songId)
+    const meta = this.#hub.wiring.trackMetadata?.(songId)
     if (!meta) return
     const key = cardKey(meta)
     if (this.#cardShown.get(songId) === key) return
@@ -270,6 +256,10 @@ class NativeEngine implements PlaybackEngine {
 
   pause(): void {
     void TrackPlayer.pause()
+    // Said now rather than left to the player's state event, as the browser's
+    // engine says it: a load straight after — the next song, put on paused —
+    // would otherwise draw a Pause button until the player caught up.
+    this.#hub.patch({ playing: false })
   }
 
   seek(seconds: number): void {
@@ -277,19 +267,14 @@ class NativeEngine implements PlaybackEngine {
   }
 
   setVolume(volume: number): void {
-    const clamped = clamp01(volume)
-    // Moving the level unmutes, unless it is moved to nothing: the browser's
-    // engine's rule, so a key or a slider means the same on both.
-    this.#muted = clamped === 0 ? this.#muted : false
-    this.#volume = clamped
-    void TrackPlayer.setVolume(this.#muted ? 0 : clamped)
-    this.#patch({ volume: clamped, muted: this.#muted })
+    const next = volumeChange(this.#hub.state, volume)
+    void TrackPlayer.setVolume(audibleLevel(next))
+    this.#hub.patch(next)
   }
 
   setMuted(muted: boolean): void {
-    this.#muted = muted
-    void TrackPlayer.setVolume(muted ? 0 : this.#volume)
-    this.#patch({ muted })
+    void TrackPlayer.setVolume(audibleLevel({ volume: this.#hub.state.volume, muted }))
+    this.#hub.patch({ muted })
   }
 
   analyser(): FrequencyAnalyser | null {
@@ -300,17 +285,13 @@ class NativeEngine implements PlaybackEngine {
     this.#destroyed = true
     for (const subscription of this.#subscriptions) subscription.remove()
     this.#subscriptions = []
-    this.#listeners.clear()
+    this.#hub.close()
     void TrackPlayer.reset()
   }
 
   /** See `PlaybackEngine.connect`. */
   connect(wiring: Partial<EngineWiring>): () => void {
-    const previous = this.#wiring
-    this.#wiring = { ...previous, ...wiring }
-    return () => {
-      this.#wiring = previous
-    }
+    return this.#hub.connect(wiring)
   }
 
   // --- the player's side -----------------------------------------------------
@@ -321,7 +302,7 @@ class NativeEngine implements PlaybackEngine {
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
-        this.#patch({
+        this.#hub.patch({
           playing: state === State.Playing,
           stalled: state === State.Loading || state === State.Buffering,
         })
@@ -330,8 +311,8 @@ class NativeEngine implements PlaybackEngine {
 
     this.#subscriptions.push(
       TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, ({ position, duration }) => {
-        this.#patch({ currentTime: position, duration })
-        this.#wiring.onProgress?.(position, duration)
+        this.#hub.patch({ currentTime: position, duration })
+        this.#hub.wiring.onProgress?.(position, duration)
       }),
     )
 
@@ -357,7 +338,7 @@ class NativeEngine implements PlaybackEngine {
         // usually agrees, and `load` then recognises this song and leaves it be.
         this.#currentSongId = songId
         this.#queuedNext = null
-        this.#wiring.onTrackEnd?.()
+        this.#hub.wiring.onTrackEnd?.()
       }),
     )
 
@@ -365,7 +346,7 @@ class NativeEngine implements PlaybackEngine {
       TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
         if (this.#loading) return
         // Nothing was lent, so the song simply ran out.
-        this.#wiring.onTrackEnd?.()
+        this.#hub.wiring.onTrackEnd?.()
       }),
     )
   }
@@ -379,11 +360,11 @@ class NativeEngine implements PlaybackEngine {
    */
   async #topUpLookahead(): Promise<void> {
     if (this.#destroyed) return
-    const nextId = this.#wiring.nextTrackId?.() ?? null
+    const nextId = lookaheadId(this.#hub.wiring.nextTrackId?.() ?? null, this.#currentSongId)
     // The same song from the same place is left alone. From somewhere new —
     // a copy kept on the disk since it was lent as a stream — it is lent
     // again, so it plays from the file.
-    const url = nextId === null ? null : (this.#wiring.streamUrl?.(nextId) ?? null)
+    const url = nextId === null ? null : (this.#hub.wiring.streamUrl?.(nextId) ?? null)
     if (nextId === (this.#queuedNext?.id ?? null) && url === (this.#queuedNext?.url ?? null)) return
 
     try {
@@ -416,24 +397,24 @@ class NativeEngine implements PlaybackEngine {
    * the same way (`#explainSource`).
    */
   async #explainFailure(songId: number | null, said: string): Promise<void> {
-    const url = songId === null ? null : (this.#wiring.streamUrl?.(songId) ?? null)
-    const headers = songId === null ? null : (this.#wiring.streamHeaders?.(songId) ?? null)
+    const url = songId === null ? null : (this.#hub.wiring.streamUrl?.(songId) ?? null)
+    const headers = songId === null ? null : (this.#hub.wiring.streamHeaders?.(songId) ?? null)
     // Only an address behind the doorman: a file here has nothing to ask.
     const why = url && headers && /^https?:/.test(url) ? await askWhyRefused(url, headers) : null
     // Another song was loaded while this was asked: its own state stands.
     if (this.#destroyed || this.#currentSongId !== null) return
-    this.#patch({ error: why ?? said })
+    this.#hub.patch({ error: why ?? said })
   }
 
   #trackFor(songId: number): SongTrack | null {
-    const url = this.#wiring.streamUrl?.(songId)
+    const url = this.#hub.wiring.streamUrl?.(songId)
     if (!url) return null
-    const meta = this.#wiring.trackMetadata?.(songId) ?? null
+    const meta = this.#hub.wiring.trackMetadata?.(songId) ?? null
     if (meta) this.#cardShown.set(songId, cardKey(meta))
     // The player sends these with every request it makes for the track, ranges
     // included — which is what lets a bucket song stream from behind the
     // doorman instead of having to be on the disk first.
-    const headers = this.#wiring.streamHeaders?.(songId) ?? null
+    const headers = this.#hub.wiring.streamHeaders?.(songId) ?? null
     return {
       songId,
       id: String(songId),
@@ -447,22 +428,6 @@ class NativeEngine implements PlaybackEngine {
       ...(meta?.contentType ? { contentType: meta.contentType } : {}),
       isLiveStream: false,
     }
-  }
-
-  #patch(change: Partial<EngineState>): void {
-    // The web engine's rule: nothing changed, nobody told. Progress arrives
-    // every second and PlaybackState repeats itself, and each notify is a
-    // render of the provider.
-    let changed = false
-    for (const [key, value] of Object.entries(change)) {
-      if (this.#state[key as keyof EngineState] !== value) {
-        changed = true
-        break
-      }
-    }
-    if (!changed) return
-    this.#state = { ...this.#state, ...change }
-    for (const listener of this.#listeners) listener(this.#state)
   }
 }
 

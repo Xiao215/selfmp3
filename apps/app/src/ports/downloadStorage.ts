@@ -1,36 +1,24 @@
 import { Directory, File, Paths, type DownloadProgress, type DownloadTask } from 'expo-file-system'
-import { API_ERROR, type Song } from '@selfmp3/shared'
+import type { Song } from '@selfmp3/shared'
 import {
-  ApiError,
   fileNameFor,
   parseIndex,
   type DownloadIndex,
   type DownloadStorage,
-  type DownloadTransfer,
   type ServerConnection,
-  type TransferProgress,
 } from '@selfmp3/client'
 
-import { bucketHold } from '@selfmp3/replica'
-import { api, mediaUrlFor } from '../api/client'
-import { askWhyRefused } from './bucketRefusal'
+import { transferInto, type TransferFiles } from './downloadTransfer'
 import { adoptRecent } from './recentCopies'
-import { sourceFor } from './songSource'
-import { ensureServerCover, KEPT_COVER_SIZE } from '../offline/covers'
-import { writeCachedLyrics } from '../offline/lyricsCache'
-import { writeCachedMotion } from '../offline/motionCache'
 
 /**
  * Where the phone keeps songs: files on disk, beside a JSON index.
  *
  * Ordering, pausing, progress and failure are the shared queue's, in
- * `packages/client`; what is left here is only where the bytes go and where
- * they come from — and it is the same files, in the same folder, with the
- * same index, so a phone that already has downloads keeps them.
- *
- * Resumable, which is why a transfer is an object: a paused download task
- * keeps the platform's resume data, and running it again continues the file
- * rather than starting it over.
+ * `packages/client`, and the steps of one song's transfer are shared with the
+ * desktop (`downloadTransfer.ts`); what is left here is only where the bytes
+ * go — the same files, in the same folder, with the same index, so a phone
+ * that already has downloads keeps them.
  */
 
 const SONGS_DIRECTORY = 'songs'
@@ -46,73 +34,32 @@ function indexFile(): File {
 
 let connection: ServerConnection | null = null
 
-/** A song's words onto this device, or nothing when it has none. Throws when the server could not be asked. */
-async function keepLyrics(song: Song): Promise<void> {
-  try {
-    writeCachedLyrics(song.id, await api.lyrics(song.id))
-  } catch (error) {
-    if (
-      error instanceof ApiError &&
-      (error.status === 404 || error.code === API_ERROR.instrumental)
-    )
-      return
-    throw error
-  }
-}
-
 /**
- * A song's motion curve onto this device, so its visuals follow it on the plane.
- * Never fails a download: a song not analysed yet is a 404, and a curve the
- * server could not send now is fetched by the catch-up pass (useKeepAlongside).
+ * The phone's half of a transfer (`downloadTransfer.ts` has the steps).
+ *
+ * Resumable, which is why a transfer is an object: a paused download task
+ * keeps the platform's resume data, and running it again continues the file
+ * rather than starting it over.
  */
-async function keepMotion(song: Song): Promise<void> {
-  try {
-    writeCachedMotion(song.id, await api.motion(song.id))
-  } catch {
-    // No curve: the visual follows the tempo instead.
-  }
-}
-
-function transferFor(
-  song: Song,
-  onProgress: (progress: TransferProgress) => void,
-): DownloadTransfer {
+function filesFor(song: Song): TransferFiles {
   const destination = new File(directory(), fileNameFor(song))
   let task: DownloadTask | null = null
-  let cancelled = false
+
+  /** What an earlier attempt left under the name; a move or a download into it would fail. */
+  function clearDestination(): void {
+    if (destination.exists) destination.delete()
+  }
 
   return {
-    async run() {
-      if (cancelled) throw new Error('cancelled')
-      if (task !== null) {
-        // Run again after a pause: continue the file.
-        const resumed = await task.resumeAsync()
-        return resumed === null ? null : resumed.size
-      }
+    adopt() {
+      clearDestination()
+      return adoptRecent(song, destination)
+    },
 
-      if (destination.exists) destination.delete()
-      // The words first, and the download is not a download without them: a
-      // song kept for the plane is kept with its lyrics. A song with none is a
-      // 404 (or marked instrumental) and is fine; the server not answering is
-      // not, and fails the download here before any of the file is fetched,
-      // so the queue tries the whole thing again later.
-      await keepLyrics(song)
-      // Beside the words, but never in the way of the file.
-      void keepMotion(song)
-      // Played lately, so a copy of it may be here already, kept as a cache
-      // (recentCopies.ts). Asking for the song turns that copy into this
-      // download: the same bytes, moved rather than fetched a second time.
-      const adopted = await adoptRecent(song, destination).catch(() => null)
-      if (adopted !== null) return adopted
-      const from = await sourceFor(song, connection)
-      // Called off while the source was being worked out.
-      if (cancelled) throw new Error('cancelled')
-      // The bucket refusing reads for the day: this one would be refused too.
-      const held = from.headers ? bucketHold('read') : null
-      if (held) throw new Error(held.message)
-
-      task = File.createDownloadTask(from.url, destination, {
-        ...(from.headers ? { headers: from.headers } : {}),
+    async download(url, headers, onProgress) {
+      clearDestination()
+      task = File.createDownloadTask(url, destination, {
+        ...(headers ? { headers } : {}),
         // Foreground, against the default. iOS's background URLSession is what
         // `createDownloadTask` reaches for, and every download failed against it
         // with `UnableToDownloadException: unknown error`. What it would buy is a
@@ -123,29 +70,13 @@ function transferFor(
         onProgress: ({ bytesWritten, totalBytes }: DownloadProgress) =>
           onProgress({ bytesWritten, totalBytes }),
       })
-      let finished: Awaited<ReturnType<DownloadTask['downloadAsync']>>
-      try {
-        finished = await task.downloadAsync()
-      } catch (error) {
-        // Called off: nothing went wrong, and nothing to ask the doorman.
-        if (cancelled) throw error
-        // From the bucket, the task says only that it failed: the doorman is
-        // asked why, and a refusal for the day holds the other downloads too.
-        const why = from.headers ? await askWhyRefused(from.url, from.headers) : null
-        if (why === null) throw error
-        throw new Error(why, { cause: error })
-      }
-      // A song kept for later wants its picture kept with it. The bucket's
-      // covers are fetched on their own path (offline/covers.ts); a server's are
-      // fetched here, while the server is known to be answering.
-      if (finished !== null && song.hasArt && from.headers === undefined && connection) {
-        void ensureServerCover(
-          song.id,
-          song.rev,
-          mediaUrlFor(connection).art(song.id, song.rev, KEPT_COVER_SIZE),
-        )
-      }
+      const finished = await task.downloadAsync()
       return finished === null ? null : finished.size
+    },
+
+    resume() {
+      // Run again after a pause: continue the file.
+      return task === null ? null : task.resumeAsync().then(resumed => resumed?.size ?? null)
     },
 
     pause() {
@@ -154,7 +85,6 @@ function transferFor(
     },
 
     cancel() {
-      cancelled = true
       task?.cancel()
     },
   }
@@ -196,7 +126,7 @@ export const downloadStorage: DownloadStorage = {
   },
 
   begin(song, _expectedBytes, onProgress) {
-    return transferFor(song, onProgress)
+    return transferInto(song, connection, filesFor(song), onProgress)
   },
 
   discard(song) {

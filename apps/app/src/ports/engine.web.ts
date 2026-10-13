@@ -1,6 +1,17 @@
-import type { EngineCapabilities, EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
+import {
+  audibleLevel,
+  EngineHub,
+  lookaheadId,
+  unplayableState,
+  volumeChange,
+  type EngineCapabilities,
+  type EngineState,
+  type EngineWiring,
+  type LoadOptions,
+  type PlaybackEngine,
+} from '@selfmp3/client'
 import { streamFailureMessage } from './streamFailure.model'
-import { clamp, clamp01 } from '@selfmp3/shared'
+import { clamp } from '@selfmp3/shared'
 
 /**
  * The web half of the `PlaybackEngine` port.
@@ -13,28 +24,6 @@ import { clamp, clamp01 } from '@selfmp3/shared'
  * `capabilities` declares what this engine can do, so the visualiser and
  * settings need not guess.
  */
-
-const INITIAL_STATE: EngineState = {
-  playing: false,
-  currentTime: 0,
-  duration: 0,
-  volume: 1,
-  muted: false,
-  stalled: false,
-  error: null,
-}
-
-type Listener = (state: EngineState) => void
-
-/** No queue owner yet: every question the engine asks goes unanswered. */
-const UNWIRED: EngineWiring = {
-  onTrackEnd: null,
-  nextTrackId: null,
-  streamUrl: null,
-  streamHeaders: null,
-  trackMetadata: null,
-  onProgress: null,
-}
 
 /** How early to start preloading the next track, in seconds. */
 const PRELOAD_LEAD = 20
@@ -61,27 +50,36 @@ class AudioEngine implements PlaybackEngine {
 
   /** Where to fetch a song, or null when this device has nowhere to play it from. */
   #urlFor(songId: number): string | null {
-    return this.#wiring.streamUrl?.(songId) || null
+    return this.#hub.wiring.streamUrl?.(songId) || null
   }
 
   #primary: HTMLAudioElement
   #secondary: HTMLAudioElement
 
-  #state: EngineState = INITIAL_STATE
-  readonly #listeners = new Set<Listener>()
+  /**
+   * State, listeners and wiring, as the phone's engine keeps them
+   * (`@selfmp3/client`).
+   *
+   * Two of the wiring's answers go unread here. `streamHeaders`: an `<audio>`
+   * element sends no headers of anyone's choosing, so a bucket song's address
+   * is the app's own and the service worker attaches the doorman's bearer on
+   * the way out (ports/bucketMedia.web.ts). `trackMetadata`: a browser draws
+   * its own now-playing UI, so there is no card for the operating system to
+   * fill in; `navigator.mediaSession` is the obvious next reader of it.
+   */
+  readonly #hub = new EngineHub()
 
   #crossfadeSeconds = 0
   #gapless = true
 
-  /** Song id currently loaded into the primary element. */
+  /**
+   * Song id currently loaded into the primary element — after a handover, the
+   * one faded or swapped in. Null after a failure, so asking again loads it
+   * afresh (`LoadOptions`).
+   */
   #currentId: number | null = null
   /** Song id preloaded into the secondary element, if any. */
   #preloadedId: number | null = null
-  /**
-   * The track a finished crossfade left playing, waiting for the `load()` that
-   * follows `onTrackEnd` to acknowledge it rather than reload it.
-   */
-  #handedOverId: number | null = null
   /** Counts loads, so one overtaken by a newer load stops after its await. */
   #loadGeneration = 0
   /**
@@ -103,25 +101,9 @@ class AudioEngine implements PlaybackEngine {
   #audioContext: AudioContext | null = null
   #analyser: AnalyserNode | null = null
 
-  /**
-   * Whoever owns the queue, as handed over through `connect`.
-   *
-   * Two of its answers go unread here. `streamHeaders`: an `<audio>` element
-   * sends no headers of anyone's choosing, so a bucket song's address is the
-   * app's own and the service worker attaches the doorman's bearer on the way
-   * out (ports/bucketMedia.web.ts). `trackMetadata`: a browser draws its own
-   * now-playing UI, so there is no card for the operating system to fill in;
-   * `navigator.mediaSession` is the obvious next reader of it.
-   */
-  #wiring: EngineWiring = UNWIRED
-
   /** See `PlaybackEngine.connect`. */
   connect(wiring: Partial<EngineWiring>): () => void {
-    const previous = this.#wiring
-    this.#wiring = { ...previous, ...wiring }
-    return () => {
-      this.#wiring = previous
-    }
+    return this.#hub.connect(wiring)
   }
 
   constructor() {
@@ -132,35 +114,17 @@ class AudioEngine implements PlaybackEngine {
 
   // --- subscription --------------------------------------------------------
 
-  subscribe(listener: Listener): () => void {
-    this.#listeners.add(listener)
-    listener(this.#state)
-    return () => this.#listeners.delete(listener)
+  subscribe(listener: (state: EngineState) => void): () => void {
+    return this.#hub.subscribe(listener)
   }
 
   get state(): EngineState {
-    return this.#state
+    return this.#hub.state
   }
 
   /** The song in the audio element, or null before anything has been loaded. */
   get currentSongId(): number | null {
     return this.#currentId
-  }
-
-  #update(patch: Partial<EngineState>): void {
-    // Skip the notify entirely when nothing actually changed; this runs on
-    // every timeupdate tick and would otherwise re-render constantly.
-    let changed = false
-    for (const [key, value] of Object.entries(patch)) {
-      if (this.#state[key as keyof EngineState] !== value) {
-        changed = true
-        break
-      }
-    }
-    if (!changed) return
-
-    this.#state = { ...this.#state, ...patch }
-    for (const listener of this.#listeners) listener(this.#state)
   }
 
   // --- configuration -------------------------------------------------------
@@ -177,44 +141,47 @@ class AudioEngine implements PlaybackEngine {
   /**
    * Load and play a song.
    *
-   * If the requested song is the one already preloaded in the secondary
-   * element, the two elements are swapped instead of reloading — which is what
-   * makes "next track" instant rather than a fresh network round trip.
+   * The song already in the element is carried on with (`LoadOptions`) — which
+   * is also how the handover a finished crossfade made is acknowledged, rather
+   * than reloaded from 0:00. If the requested song is the one already
+   * preloaded in the secondary element, the two elements are swapped instead
+   * of reloading — which is what makes "next track" instant rather than a
+   * fresh network round trip.
    */
-  async load(
-    songId: number,
-    options: { autoplay?: boolean; startAt?: number } = {},
-  ): Promise<void> {
-    const { autoplay = true, startAt = 0 } = options
+  async load(songId: number, options: LoadOptions = {}): Promise<void> {
+    const { autoplay = true } = options
     const generation = ++this.#loadGeneration
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
-    if (this.#state.error !== null) this.#update({ error: null })
+    this.#hub.patch({ error: null })
 
-    // A crossfade that just finished has already put this track on and faded
-    // it in. Anything else means we really are changing tracks.
-    const alreadyPlaying = this.#handedOverId === songId && startAt === 0
-    this.#handedOverId = null
+    if (songId === this.#currentId) {
+      // A fade under way is into the song after this one, which is not next any more.
+      this.#abortCrossfade()
+      this.#handoverArmed = false
+      if (options.startAt !== undefined) {
+        // Not fetched yet (`#startWhenPlayed`): the position waits with it.
+        if (this.#startWhenPlayed !== null) this.#startWhenPlayed = options.startAt
+        else this.seek(options.startAt)
+      }
+      if (autoplay) await this.play()
+      return
+    }
 
+    const startAt = options.startAt ?? 0
     this.#stopFade()
     this.#handoverArmed = false
 
-    if (alreadyPlaying) {
-      // Nothing to load: reloading here is what restarts it from 0:00.
-    } else if (this.#preloadedId === songId && startAt === 0) {
+    if (this.#preloadedId === songId && startAt === 0) {
       this.#swap()
     } else {
       const url = this.#urlFor(songId)
       if (url === null) {
-        // Not the song that was playing either: the queue has moved on from it.
+        // Nowhere to play it from. The song before it is not this one either:
+        // the queue has moved on from it.
         this.#primary.pause()
-        this.#currentId = songId
-        // The words the phone's engine uses for the same case.
-        this.#update({
-          error: `Song ${songId} cannot be played from this device yet.`,
-          playing: false,
-          stalled: false,
-        })
+        this.#currentId = null
+        this.#hub.patch(unplayableState(songId))
         return
       }
       // Paused: nothing is fetched until play (`#startWhenPlayed`).
@@ -237,11 +204,8 @@ class AudioEngine implements PlaybackEngine {
     this.#currentId = songId
     this.#preloadedId = null
     this.#secondary.removeAttribute('src')
-    this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
-    this.#update({
-      error: null,
-      currentTime: alreadyPlaying ? this.#primary.currentTime : startAt,
-    })
+    this.#primary.volume = audibleLevel(this.#hub.state)
+    this.#hub.patch({ error: null, currentTime: startAt })
 
     if (autoplay) await this.play()
   }
@@ -261,7 +225,7 @@ class AudioEngine implements PlaybackEngine {
       // is not worth showing as an error.
       const name = error instanceof Error ? error.name : ''
       if (name !== 'NotAllowedError' && name !== 'AbortError') {
-        this.#update({ error: error instanceof Error ? error.message : 'playback failed' })
+        this.#hub.patch({ error: error instanceof Error ? error.message : 'playback failed' })
       }
     }
   }
@@ -273,7 +237,7 @@ class AudioEngine implements PlaybackEngine {
     // queued, and a load straight after — the next song, put on paused when
     // the one playing is removed — clears the element's queued events, which
     // left a Pause button over a song that was not playing.
-    this.#update({ playing: false })
+    this.#hub.patch({ playing: false })
   }
 
   /**
@@ -330,24 +294,20 @@ class AudioEngine implements PlaybackEngine {
     const duration = this.#primary.duration
     const target = Number.isFinite(duration) ? Math.min(seconds, duration) : seconds
     this.#primary.currentTime = Math.max(0, target)
-    this.#update({ currentTime: this.#primary.currentTime })
+    this.#hub.patch({ currentTime: this.#primary.currentTime })
     // Seeking backwards past the handover point should re-arm it.
     this.#handoverArmed = false
   }
 
   setVolume(volume: number): void {
-    const clamped = clamp01(volume)
-    // Moving the level unmutes, unless it is moved to nothing. Decided before
-    // the element is told: told from the old flag, a level set while muted
-    // was drawn as unmuted and played as silence.
-    const muted = clamped === 0 ? this.#state.muted : false
-    this.#primary.volume = muted ? 0 : clamped
-    this.#update({ volume: clamped, muted })
+    const next = volumeChange(this.#hub.state, volume)
+    this.#primary.volume = audibleLevel(next)
+    this.#hub.patch(next)
   }
 
   setMuted(muted: boolean): void {
-    this.#primary.volume = muted ? 0 : this.#state.volume
-    this.#update({ muted })
+    this.#primary.volume = audibleLevel({ volume: this.#hub.state.volume, muted })
+    this.#hub.patch({ muted })
   }
 
   /** Free both elements. Called when the app unmounts. */
@@ -358,7 +318,7 @@ class AudioEngine implements PlaybackEngine {
       element.removeAttribute('src')
       element.load()
     }
-    this.#listeners.clear()
+    this.#hub.close()
   }
 
   // --- internals -----------------------------------------------------------
@@ -387,7 +347,7 @@ class AudioEngine implements PlaybackEngine {
     element.removeEventListener('error', this.#onError)
   }
 
-  readonly #onPlay = (): void => this.#update({ playing: true, stalled: false })
+  readonly #onPlay = (): void => this.#hub.patch({ playing: true, stalled: false })
   /*
    * The outgoing song running out mid-crossfade is not a pause.
    *
@@ -400,14 +360,14 @@ class AudioEngine implements PlaybackEngine {
    */
   readonly #onPause = (): void => {
     if (this.#fadeTimer !== null && !this.#secondary.paused) return
-    this.#update({ playing: false })
+    this.#hub.patch({ playing: false })
   }
-  readonly #onWaiting = (): void => this.#update({ stalled: true })
-  readonly #onPlaying = (): void => this.#update({ stalled: false })
+  readonly #onWaiting = (): void => this.#hub.patch({ stalled: true })
+  readonly #onPlaying = (): void => this.#hub.patch({ stalled: false })
 
   readonly #onDurationChange = (): void => {
     const duration = this.#primary.duration
-    this.#update({ duration: Number.isFinite(duration) ? duration : 0 })
+    this.#hub.patch({ duration: Number.isFinite(duration) ? duration : 0 })
   }
 
   readonly #onError = (): void => {
@@ -422,7 +382,8 @@ class AudioEngine implements PlaybackEngine {
         : code === MediaError.MEDIA_ERR_DECODE
           ? 'This file could not be decoded'
           : 'Could not play this song'
-    this.#update({ error: message, playing: false, stalled: false })
+    this.#currentId = null
+    this.#hub.patch({ error: message, playing: false, stalled: false })
   }
 
   /**
@@ -460,14 +421,15 @@ class AudioEngine implements PlaybackEngine {
       // No answer at all: the plain wording stands.
     }
     if (this.#primary.src !== src) return
-    this.#update({ error: message, playing: false, stalled: false })
+    this.#currentId = null
+    this.#hub.patch({ error: message, playing: false, stalled: false })
   }
 
   readonly #onTimeUpdate = (): void => {
     const currentTime = this.#primary.currentTime
     const duration = Number.isFinite(this.#primary.duration) ? this.#primary.duration : 0
-    this.#update({ currentTime, duration })
-    this.#wiring.onProgress?.(currentTime, duration)
+    this.#hub.patch({ currentTime, duration })
+    this.#hub.wiring.onProgress?.(currentTime, duration)
 
     if (duration <= 0) return
     const remaining = duration - currentTime
@@ -498,7 +460,7 @@ class AudioEngine implements PlaybackEngine {
     // With crossfade the handover has already happened, so ignore the ended
     // event from the element that faded out.
     if (this.#handoverArmed && this.#crossfadeSeconds > 0) return
-    this.#wiring.onTrackEnd?.()
+    this.#hub.wiring.onTrackEnd?.()
   }
 
   /**
@@ -509,14 +471,14 @@ class AudioEngine implements PlaybackEngine {
    */
   refreshLookahead(): void {
     if (this.#preloadedId === null || this.#fadeTimer !== null) return
-    if ((this.#wiring.nextTrackId?.() ?? null) === this.#preloadedId) return
+    if ((this.#hub.wiring.nextTrackId?.() ?? null) === this.#preloadedId) return
     this.#preloadedId = null
     this.#secondary.removeAttribute('src')
   }
 
   #preload(): void {
-    const nextId = this.#wiring.nextTrackId?.() ?? null
-    if (nextId === null || nextId === this.#currentId) return
+    const nextId = lookaheadId(this.#hub.wiring.nextTrackId?.() ?? null, this.#currentId)
+    if (nextId === null) return
     // Nowhere to fetch it from: its own load says so when it comes up.
     const url = this.#urlFor(nextId)
     if (url === null) return
@@ -551,7 +513,7 @@ class AudioEngine implements PlaybackEngine {
       const elapsed = performance.now() - startedAt
       const t = Math.min(1, elapsed / durationMs)
       // Read on every tick, so a volume change or mute during the fade is heard.
-      const target = this.#state.muted ? 0 : this.#state.volume
+      const target = audibleLevel(this.#hub.state)
 
       this.#primary.volume = Math.cos((t * Math.PI) / 2) * target
       this.#secondary.volume = Math.sin((t * Math.PI) / 2) * target
@@ -559,14 +521,12 @@ class AudioEngine implements PlaybackEngine {
       if (t >= 1) {
         this.#stopFade()
         this.#swap()
+        // The next track is already playing, faded all the way in: the `load()`
+        // that follows this callback finds it current and carries on with it.
         this.#currentId = this.#preloadedId
-        // The next track is already playing, faded all the way in. Say so, or
-        // the `load()` that follows this callback reloads the element it is
-        // playing from and starts it again from the beginning.
-        this.#handedOverId = this.#preloadedId
         this.#preloadedId = null
         this.#handoverArmed = false
-        this.#wiring.onTrackEnd?.()
+        this.#hub.wiring.onTrackEnd?.()
       }
     }, FADE_TICK_MS)
     return true
@@ -587,7 +547,7 @@ class AudioEngine implements PlaybackEngine {
     this.#secondary.pause()
     this.#secondary.currentTime = 0
     this.#secondary.volume = 0
-    this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
+    this.#primary.volume = audibleLevel(this.#hub.state)
     this.#handoverArmed = false
   }
 
@@ -609,10 +569,10 @@ class AudioEngine implements PlaybackEngine {
     this.#secondary = old
 
     this.#attach(this.#primary)
-    this.#primary.volume = this.#state.muted ? 0 : this.#state.volume
+    this.#primary.volume = audibleLevel(this.#hub.state)
     // The element being promoted has been playing for a whole crossfade
     // already, so no `play` event is coming: take the truth from the element.
-    this.#update({ playing: !this.#primary.paused })
+    this.#hub.patch({ playing: !this.#primary.paused })
   }
 }
 

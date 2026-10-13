@@ -1,3 +1,5 @@
+import { NOT_INSTALLED } from './notInstalled'
+
 /**
  * Whether the app opens when the person logs in.
  *
@@ -14,8 +16,4 @@ export interface LoginItem {
   set(open: boolean): Promise<boolean>
 }
 
-export const loginItem: LoginItem = {
-  available: false,
-  get: () => Promise.resolve(false),
-  set: () => Promise.resolve(false),
-}
+export const loginItem: LoginItem = NOT_INSTALLED.loginItem

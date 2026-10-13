@@ -7,6 +7,7 @@ import {
   type AudioStatus,
 } from 'expo-audio'
 import { AppState } from 'react-native'
+import { createSilenceWatch, previewStatus } from '../features/import/listen.model'
 import type { ListenAudio, ListenState, ListenStatus } from './listen.types'
 
 /**
@@ -54,26 +55,14 @@ const PREVIEW_BUFFER_S = 2
 
 /** How often the player says where it is: the bar moves four times a second. */
 const TICK_MS = 250
-/**
- * How long a stream may stay silent after play is asked before it counts as
- * failed. The server may hold a preview up to thirty seconds while it paces
- * its requests to YouTube; a stream that has said nothing after this has
- * gone wrong in a way the player does not always report — a refused address
- * left one spinning for good.
- */
-const SILENT_MS = 45_000
 
-/**
- * What the preview is doing, read from the player's report and from what was
- * last asked of it. A player told to play reports `playing` while it is still
- * waiting on the network, so the wait is read as loading until it is not
- * waiting; a player told to pause is paused whatever its buffer is doing.
- */
-function statusOf(status: AudioStatus, asked: 'play' | 'pause'): ListenStatus {
-  if (status.playbackState === 'failed') return 'error'
-  if (asked === 'pause') return 'paused'
+/** What the preview is doing, by the rule both twins read (`previewStatus`). */
+function statusOf(status: AudioStatus, asked: 'play' | 'pause', silent: boolean): ListenStatus {
   const waiting = status.isBuffering || status.timeControlStatus === 'waitingToPlayAtSpecifiedRate'
-  return status.isLoaded && status.playing && !waiting ? 'playing' : 'loading'
+  return previewStatus(asked, {
+    failed: silent || status.playbackState === 'failed',
+    ready: status.isLoaded && status.playing && !waiting,
+  })
 }
 
 export function createListenAudio(): ListenAudio | null {
@@ -94,8 +83,8 @@ export function createListenAudio(): ListenAudio | null {
   let asked: 'play' | 'pause' = 'pause'
   /** Which `play` the stream being opened is for; one opened for an earlier play is let go. */
   let opening = 0
-  /** Runs out when a stream asked to play has said nothing for `SILENT_MS`. */
-  let silence: ReturnType<typeof setTimeout> | null = null
+  /** Set when a stream asked to play said nothing for too long; cleared by the next play. */
+  let silent = false
   /** Where a preview let go in the background starts again, in seconds. */
   let startAt = 0
   /** The song's length as last reported, kept for a preview with no player. */
@@ -105,27 +94,24 @@ export function createListenAudio(): ListenAudio | null {
     for (const listener of listeners) listener(state)
   }
 
-  const clearSilence = (): void => {
-    if (silence !== null) clearTimeout(silence)
-    silence = null
-  }
-  const watchSilence = (uri: string): void => {
-    clearSilence()
-    silence = setTimeout(() => {
-      silence = null
-      if (src !== uri || asked !== 'play') return
-      console.warn('preview said nothing for too long', uri)
-      player?.pause()
-      tell({ status: 'error', currentTime: 0, duration: NaN })
-    }, SILENT_MS)
+  const silence = createSilenceWatch(() => {
+    if (src === null || asked !== 'play') return
+    console.warn('preview said nothing for too long', src)
+    silent = true
+    player?.pause()
+    tell({ status: 'error', currentTime: 0, duration: NaN })
+  })
+  const watchSilence = (): void => {
+    silent = false
+    silence.watch()
   }
 
   const report = (status: AudioStatus): void => {
     if (src === null) return
     // The end of the song is a pause the player made for itself.
     if (status.didJustFinish) asked = 'pause'
-    const state = statusOf(status, asked)
-    if (state !== 'loading') clearSilence()
+    const state = statusOf(status, asked, silent)
+    silence.heard(state)
     if (status.duration > 0) length = status.duration
     tell({ status: state, currentTime: status.currentTime, duration: length })
   }
@@ -166,7 +152,7 @@ export function createListenAudio(): ListenAudio | null {
       .catch((error: unknown) => {
         console.warn('preview could not start', error)
         if (mine !== opening || src !== uri) return
-        clearSilence()
+        silence.stop()
         tell({ status: 'error', currentTime: 0, duration: NaN })
       })
   }
@@ -188,7 +174,7 @@ export function createListenAudio(): ListenAudio | null {
   const backgrounded = AppState.addEventListener('change', state => {
     if (state !== 'background' || src === null || asked !== 'play') return
     asked = 'pause'
-    clearSilence()
+    silence.stop()
     // A stream still opening for this preview is let go when it arrives.
     opening++
     startAt = player?.currentTime ?? startAt
@@ -203,13 +189,13 @@ export function createListenAudio(): ListenAudio | null {
       startAt = 0
       length = NaN
       player?.pause()
-      watchSilence(uri)
+      watchSilence()
       open(uri)
     },
     resume: () => {
       if (src === null) return
       asked = 'play'
-      watchSilence(src)
+      watchSilence()
       // A player that failed does not recover, and one let go in the
       // background is gone; either is opened afresh, where it was.
       if (!player || player.currentStatus.playbackState === 'failed') open(src, startAt)
@@ -217,7 +203,7 @@ export function createListenAudio(): ListenAudio | null {
     },
     pause: () => {
       asked = 'pause'
-      clearSilence()
+      silence.stop()
       player?.pause()
     },
     seek: seconds => {
@@ -236,7 +222,7 @@ export function createListenAudio(): ListenAudio | null {
       asked = 'pause'
       src = null
       opening++
-      clearSilence()
+      silence.stop()
       player?.pause()
     },
     subscribe: listener => {
@@ -247,7 +233,7 @@ export function createListenAudio(): ListenAudio | null {
       backgrounded.remove()
       opening++
       src = null
-      clearSilence()
+      silence.stop()
       listeners.clear()
       letGo()
     },

@@ -10,7 +10,6 @@ import {
   DoormanListSchema,
   DoormanMeSchema,
   doormanRequest,
-  messageOf,
   parseChangesHeader,
   type CloudConnect,
   type DoormanCall,

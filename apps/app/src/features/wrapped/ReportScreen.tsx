@@ -4,14 +4,7 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import {
-  failureText,
-  leading,
-  type,
-  useLibrary,
-  withAlpha,
-  type ServerConnection,
-} from '@selfmp3/client'
+import { failureText, type, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -23,13 +16,15 @@ import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Download, Play } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
-import { card, floating, pageFrame, sectionTitle } from '../../ui/surfaces'
+import { card, floating, pageFrame } from '../../ui/surfaces'
 import { WrittenReport } from '../smart/WrittenReport'
 import { useStatsFor, useStatsSongs, useWrappedFor } from '../stats/statsSource'
 import { LOOK_VIEWS } from './looks'
@@ -188,35 +183,29 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
     </ReportFrame>
   )
 
-  if (isLoading && !wrapped) return shell(<Text style={styles.hint}>Working it out…</Text>)
+  if (isLoading && !wrapped) return shell(<PageLoading line="Working it out…" />)
 
   if (!wrapped) {
     return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>The report needs your library</Text>
-        <Text style={[styles.hint, styles.center]}>
-          It’ll be here when your library is reachable again.
-        </Text>
-      </View>,
+      <EmptyState
+        title="The report needs your library"
+        line="It’ll be here when your library is reachable again."
+      />,
     )
   }
 
   if (wrapped.totals.plays === 0) {
     return shell(
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>{emptyTitle(frame.range)}</Text>
-        <Text style={[styles.hint, styles.center]}>{emptyHint(frame.range)}</Text>
-        <View style={styles.emptyActions}>
-          {longerRanges(frame.range).map(option => (
-            <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
-          ))}
-          <Button
-            label="Go to the library"
-            icon={<Play size={15} color={theme.colors.textPrimary} />}
-            onPress={() => backTo('/library')}
-          />
-        </View>
-      </View>,
+      <EmptyState title={emptyTitle(frame.range)} line={emptyHint(frame.range)}>
+        {longerRanges(frame.range).map(option => (
+          <Button key={option} label={tryLabel(option)} onPress={() => frame.onRange(option)} />
+        ))}
+        <Button
+          label="Go to the library"
+          icon={<Play size={15} color={theme.colors.textPrimary} />}
+          onPress={() => backTo('/library')}
+        />
+      </EmptyState>,
     )
   }
 
@@ -517,17 +506,6 @@ const styles = StyleSheet.create(theme => ({
   swatchArt: { width: '100%', height: '100%' },
   pickLabel: { fontSize: type.tiny, fontWeight: '600', color: theme.colors.textSecondary },
   pickLabelActive: { color: theme.colors.textPrimary },
-  hint: { color: theme.colors.textMuted, fontSize: type.sub, lineHeight: leading.sub },
-  center: { textAlign: 'center', maxWidth: 420 },
-  empty: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: sectionTitle(theme.colors),
-  emptyActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
   // A card, with the danger in its ink rather than an edge.
   notice: { ...card(theme.colors), paddingVertical: 10, paddingHorizontal: 14 },
   noticeText: { color: theme.colors.danger, fontSize: type.sub },

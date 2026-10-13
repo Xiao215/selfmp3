@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -19,6 +19,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
 import { floating, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
@@ -61,7 +62,6 @@ const SORT_PREF = 'playlists.sort'
  */
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   // The app's own width, not the window's: an iPad in Split View is handed
   // half the screen and told about the whole of it (`shell/rootWidth.ts`).
@@ -154,7 +154,7 @@ export function PlaylistsScreen(): ReactNode {
         />
 
         {model.loading ? (
-          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+          <PageLoading />
         ) : model.unreachable ? (
           // Not "nothing of your own yet": nothing is known about them at all.
           <CantReach error={model.failure} onRetry={model.retry} />
@@ -391,5 +391,4 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   fabPressed: { transform: [{ scale: 0.95 }] },
-  spinner: { marginTop: space.xl },
 }))

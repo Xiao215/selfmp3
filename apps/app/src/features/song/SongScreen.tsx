@@ -27,11 +27,11 @@ import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
 import { Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, card, label as labelText, pageFrame, pageTitle, serif } from '../../ui/surfaces'
+import { artShadow, card, label as labelText, pageFrame, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { FixMetadata } from '../metadata/FixMetadata'
@@ -349,15 +349,13 @@ function Strip({ strip }: { strip: PlayStrip }): ReactNode {
 function SongMissing(): ReactNode {
   const router = useRouter()
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.missing} testID="song-missing">
-        <Text style={styles.missingTitle} accessibilityRole="header">
-          No such song
-        </Text>
-        <Text style={styles.missingText}>It may have been removed from your library.</Text>
-        <Button label="Library" onPress={() => router.replace('/library')} />
-      </View>
-    </SafeAreaView>
+    <MissingPage
+      testID="song-missing"
+      title="No such song"
+      line="It may have been removed from your library."
+      back="/library"
+      action={{ label: 'Library', onPress: () => router.replace('/library') }}
+    />
   )
 }
 
@@ -412,7 +410,4 @@ const styles = StyleSheet.create(theme => ({
   barPeak: { backgroundColor: theme.colors.accent },
   facts: { maxWidth: 600, paddingTop: space.sm },
   fix: { alignItems: 'flex-start' },
-  missing: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  missingTitle: pageTitle(theme.colors),
-  missingText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

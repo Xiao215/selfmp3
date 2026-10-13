@@ -702,7 +702,8 @@ Rule for this pass: one primitive per job, a lint rule where a raw building bloc
 
 ### G — Pages, forms and notices
 
-- [ ] **T-423** `PageHeader`/`Page` (back, title, top and gutter tokens); `BackButton` takes `onPress`; `MissingPage`; `PageLoading`; one onboarding page shell; `WhitePill` on `Press` with busy/disabled.
+- [x] **T-423** `PageHeader`/`Page` (back, title, top and gutter tokens); `BackButton` takes `onPress`; `MissingPage`; `PageLoading`; one onboarding page shell; `WhitePill` on `Press` with busy/disabled.
+  - Done as `PageHeader` + `pageFrame(wide)` (no `Page` wrapper: Settings, Library and Search own their scroll views). Every page title is the display face; the serif is for a person's name and numbers. Search's "‹ Songs 12" is a crumb, not a page's way back, and keeps its look.
 - [ ] **T-424** `TextField` (+ action slot, focus ring, schema limits); one bucket address form for Settings and Storage; `useNewTagForm` for the sidebar and Tags; sign-out confirm in one place.
 - [ ] **T-425** `Checkbox` with `onChange` and `aria-checked` everywhere; `NoticeCard`, `StatusLine`, `ServerAway` variants and one `JoinSharedButton`; `ProgressBar`; `Kbd`; `NavRow`; `HueSwatches` with options; Settings chips on `Chip`.
 

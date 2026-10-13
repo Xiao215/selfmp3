@@ -22,6 +22,8 @@ import { useAccent } from '../../ui/accent'
 import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Cover } from '../../ui/components/Cover'
@@ -84,19 +86,23 @@ export function SharedPlaylistScreen(): ReactNode {
   }, [playlist, index])
 
   if (!playlist) {
+    if (isLoading) {
+      return (
+        <SafeAreaView style={styles.screen} edges={['top']}>
+          <PageLoading />
+        </SafeAreaView>
+      )
+    }
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.page}>
-          <BackButton to="/playlists" />
-          <Text style={styles.big}>
-            {isLoading
-              ? 'Loading…'
-              : error
-                ? 'This playlist is not one of yours'
-                : 'No such playlist'}
-          </Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title={error ? 'This playlist is not one of yours' : 'No such playlist'}
+        line={
+          error
+            ? 'A shared playlist opens for the people in it.'
+            : 'It may have been deleted by whoever made it.'
+        }
+        back="/playlists"
+      />
     )
   }
 

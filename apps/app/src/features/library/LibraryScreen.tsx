@@ -1,7 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import type { GestureResponderEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -12,7 +12,6 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { HIT_TARGET, isDownloaded, leading, radius, space, type } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useAccent } from '../../ui/accent'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Downloaded, Play, Plus, Shuffle, SortLines } from '../../ui/components/Icons'
@@ -46,6 +45,7 @@ import { usePullToRefresh } from './usePullToRefresh'
 import { useSongTagLookup } from '../../ui/songTags'
 import { label, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 
@@ -61,7 +61,6 @@ import { ScrollView } from '../../ui/components/Scroll'
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const { wide, dense, finePointer } = useLayout()
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
@@ -617,7 +616,7 @@ export function LibraryScreen(): ReactNode {
         />
 
         {model.loading ? (
-          <ActivityIndicator style={styles.spinner} color={accent.accent} />
+          <PageLoading />
         ) : (
           <SongList
             arrivalKey={arrivalKey}
@@ -773,8 +772,5 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 7,
-  },
-  spinner: {
-    marginTop: space.xl,
   },
 }))

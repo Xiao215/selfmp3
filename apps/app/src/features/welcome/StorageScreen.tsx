@@ -1,30 +1,18 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+import { ActivityIndicator, Linking, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { CloudConnect } from '@selfmp3/shared'
-import { fonts, leading, radius, space, type } from '@selfmp3/client'
+import { leading, radius, space, type } from '@selfmp3/client'
 import { library as cloudLibrary, session as cloud } from '../../replica'
 import { deviceKind, deviceWord } from '../../ports/device'
 import { devicePlace } from '../settings/settings.model'
 import { installedApp } from '../../ports/install'
-import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { titleBarInset } from '../../ports/titleBarInset'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { card, serif } from '../../ui/surfaces'
 import { signOutWarning } from '../settings/signOut'
 import { useSignOut } from '../settings/useSignOut'
 import { useCloudSession } from '../profile/useCloudSession'
@@ -41,7 +29,7 @@ import {
   type StorageMode,
 } from './storage.model'
 import { WhitePill } from './WhitePill'
-import { ScrollView } from '../../ui/components/Scroll'
+import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './OnboardingPage'
 
 /**
  * Where it lives: the page between the first Google sign-in on an account and
@@ -160,7 +148,7 @@ export function StorageScreen(): ReactNode {
   )
 
   const backblazeFields = (
-    <View style={styles.card}>
+    <OnboardingCard>
       {field('Key ID', keyId, setKeyId, {
         placeholder: '004a1b2c3d4e5f0000000000f',
         testID: 'storage-key-id',
@@ -170,11 +158,11 @@ export function StorageScreen(): ReactNode {
         secret: true,
         testID: 'storage-application-key',
       })}
-    </View>
+    </OnboardingCard>
   )
 
   const addressFields = (
-    <View style={styles.card}>
+    <OnboardingCard>
       {field('Endpoint', address.endpoint, endpoint => setAddress({ ...address, endpoint }), {
         placeholder: 's3.us-west-004.backblazeb2.com',
         hint: 'On the bucket’s own page.',
@@ -202,11 +190,11 @@ export function StorageScreen(): ReactNode {
         applicationKey => setAddress({ ...address, applicationKey }),
         { secret: true, testID: 'storage-address-application-key' },
       )}
-    </View>
+    </OnboardingCard>
   )
 
   const helper = (
-    <View style={styles.card}>
+    <OnboardingCard>
       <Pressable
         onPress={() => setHelperOpen(open => !open)}
         accessibilityRole="button"
@@ -241,23 +229,19 @@ export function StorageScreen(): ReactNode {
           </View>
         </>
       ) : null}
-    </View>
+    </OnboardingCard>
   )
 
-  const column = (
-    <View style={[styles.column, wide && styles.columnWide]}>
-      <View style={styles.head}>
-        <Text style={[styles.title, wide && styles.titleWide]} accessibilityRole="header">
-          Where it lives
-          <Text style={styles.titleMark}>.</Text>
-        </Text>
-        <Text style={styles.lead}>
-          {mode === 'backblaze'
-            ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
-            : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'}
-        </Text>
-      </View>
-
+  return (
+    <OnboardingPage
+      title="Where it lives"
+      keyboard
+      lead={
+        mode === 'backblaze'
+          ? 'Your music goes in a bucket you own. Paste the key for it; self.mp3 asks Backblaze which bucket it opens, and where.'
+          : 'Your music goes in a bucket you own. Its address, its name, and a key for it with read and write.'
+      }
+    >
       <View style={styles.account}>
         <Text style={styles.accountText} numberOfLines={1}>
           {email ? `Signed in as ${email}` : 'Signed in'}
@@ -293,6 +277,7 @@ export function StorageScreen(): ReactNode {
         <WhitePill
           testID="storage-connect"
           label={busy ? 'Connecting…' : 'Connect'}
+          busy={busy}
           width={wide ? 240 : undefined}
           onPress={connect}
         />
@@ -309,9 +294,11 @@ export function StorageScreen(): ReactNode {
             setMode(mode === 'backblaze' ? 'address' : 'backblaze')
           }}
         />
-        <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-          The key goes to the sign-in service, sealed. This {device} never keeps it.
-        </Text>
+        <View style={styles.footnote}>
+          <OnboardingFootnote>
+            The key goes to the sign-in service, sealed. This {device} never keeps it.
+          </OnboardingFootnote>
+        </View>
       </View>
 
       <ConfirmDialog
@@ -326,36 +313,13 @@ export function StorageScreen(): ReactNode {
         }}
         onCancel={() => setLeaving(false)}
       />
-    </View>
-  )
-
-  return (
-    <SafeAreaView style={styles.screen}>
-      <KeyboardAvoidingView style={styles.screen} behavior={keyboardAvoidBehavior}>
-        <ScrollView contentContainerStyle={[styles.page, wide && styles.pageWide]}>
-          {column}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    </OnboardingPage>
   )
 }
 
 const styles = StyleSheet.create(theme => ({
-  screen: { flex: 1, backgroundColor: theme.colors.surface0 },
-  page: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 44 + titleBarInset, paddingBottom: 40 },
-  // On a computer the page is one column in the middle of the window, as First sync is (`C02`).
-  pageWide: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  column: { flexGrow: 1, gap: 22 },
-  columnWide: { flexGrow: 0, width: 560, maxWidth: '100%' },
-  head: { gap: space.sm },
-  // A page on the way in, so the serif: one weight, never bolded.
-  title: { ...serif(theme.colors, type.display), lineHeight: 48, letterSpacing: -0.5 },
-  titleWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -0.8 },
-  titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
-  lead: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
   account: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   accountText: { flex: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.sub },
-  card: { ...card(theme.colors, radius.cardLg), padding: 18, gap: 14 },
   field: { gap: 6 },
   fieldLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
   // A control on the card: a control's fill, a pill, no edge (as Welcome's address form).
@@ -401,12 +365,5 @@ const styles = StyleSheet.create(theme => ({
   error: { color: theme.colors.danger, fontSize: type.body, lineHeight: leading.body },
   actions: { marginTop: 'auto', gap: 4, alignItems: 'stretch' },
   actionsWide: { alignItems: 'flex-start' },
-  footnote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
-    textAlign: 'center',
-    paddingTop: space.sm,
-  },
-  footnoteWide: { textAlign: 'left', maxWidth: 420 },
+  footnote: { paddingTop: space.sm },
 }))

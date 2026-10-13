@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, formatBytes, type Song } from '@selfmp3/shared'
@@ -35,6 +35,8 @@ import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
+import { PageLoading } from '../../ui/components/PageLoading'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import {
   CheckSquare,
@@ -53,7 +55,6 @@ import {
   Trash,
 } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
@@ -212,11 +213,12 @@ export function PlaylistDetailScreen(): ReactNode {
 
   if (!library.isPending && !playlist) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <EmptyState title="Playlist not found">
-          <Button label="Back to playlists" onPress={() => router.replace('/playlists')} />
-        </EmptyState>
-      </SafeAreaView>
+      <MissingPage
+        title="No such playlist"
+        line="It may have been deleted, on this device or another."
+        back="/playlists"
+        action={{ label: 'All playlists', onPress: () => router.replace('/playlists') }}
+      />
     )
   }
 
@@ -384,7 +386,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // What stands where the songs would, when there are none (the list shows it
   // only then): loading, a server that is not answering, or an empty playlist.
   const empty = contents.isPending ? (
-    <ActivityIndicator style={styles.spinner} color={accent.accent} />
+    <PageLoading />
   ) : contents.isError ? (
     // The list is the server's; the library knows only how long it is.
     <EmptyState
@@ -603,5 +605,4 @@ const styles = StyleSheet.create(theme => ({
   },
   // Room between the menu's groups, rather than a line.
   divider: { height: space.sm },
-  spinner: { marginTop: space.xl },
 }))

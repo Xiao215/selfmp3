@@ -24,6 +24,7 @@ import { useAccent } from '../../ui/accent'
 import { label, pageTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -87,15 +88,16 @@ export function JoinScreen(): ReactNode {
   }
 
   if (!code.success) {
+    // A guest in a browser has nowhere in the app to go back to.
     return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <View style={styles.centre}>
-          <Text style={styles.big} accessibilityRole="header">
-            That is not a room code
-          </Text>
-          <Text style={styles.text}>A code is six letters and digits, like KQ7 482.</Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="That is not a room code"
+        line="A code is six letters and digits, like KQ7 482."
+        back={status === 'ready' ? '/' : undefined}
+        action={
+          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
+        }
+      />
     )
   }
 
@@ -164,18 +166,14 @@ export function RoomScreen(): ReactNode {
   const { status } = useConnection()
   if (!state) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-        <View style={styles.centre}>
-          <Text style={styles.big} accessibilityRole="header">
-            You are not in a room
-          </Text>
-          <Text style={styles.text}>
-            A room is Up next, shared: open one from Together in Up next, or join with a friend’s
-            code.
-          </Text>
-          {status === 'ready' ? <Button label="Home" onPress={() => router.replace('/')} /> : null}
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="You are not in a room"
+        line="A room is Up next, shared: open one from Together in Up next, or join with a friend’s code."
+        back={status === 'ready' ? '/' : undefined}
+        action={
+          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
+        }
+      />
     )
   }
   return (
@@ -211,12 +209,11 @@ export function PastRoomScreen(): ReactNode {
 
   if (!past) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.centre}>
-          <BackButton to="/" />
-          <Text style={styles.big}>That room is no longer kept</Text>
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        title="That room is no longer kept"
+        line="Recently played keeps the last few rooms you were in."
+        back="/"
+      />
     )
   }
 

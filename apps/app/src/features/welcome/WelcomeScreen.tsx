@@ -26,7 +26,7 @@ import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { floating, sectionTitle, serif } from '../../ui/surfaces'
+import { floating, sectionTitle } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
@@ -36,6 +36,7 @@ import {
 } from '../signIn/signIn.model'
 import { ServerAddress } from './ServerAddress'
 import { WhitePill } from './WhitePill'
+import { ONBOARDING_GUTTER, OnboardingFootnote, OnboardingTitle } from './OnboardingPage'
 import {
   FAN_POSES,
   WELCOME_FAN,
@@ -204,12 +205,11 @@ export function WelcomeScreen(): ReactNode {
         <BrandMark size={22} />
         <Text style={styles.brandName}>self.mp3</Text>
       </View>
-      <Text style={[styles.headline, wide && styles.headlineWide]} accessibilityRole="header">
+      <OnboardingTitle mark={copy.mark}>
         {copy.lead}
         {'\n'}
         {copy.rest}
-        <Text style={styles.mark}>{copy.mark}</Text>
-      </Text>
+      </OnboardingTitle>
       {copy.body ? <Text style={[styles.body, wide && styles.bodyWide]}>{copy.body}</Text> : null}
       {busy ? <ActivityIndicator color={theme.colors.accent} style={styles.spinner} /> : null}
     </View>
@@ -234,9 +234,7 @@ export function WelcomeScreen(): ReactNode {
         )}
         {stage.kind === 'idle' ? (
           <View style={[styles.footnotes, wide && styles.footnotesWide]}>
-            <Text style={[styles.footnote, wide && styles.footnoteWide]}>
-              {welcomeFootnote(device)}
-            </Text>
+            <OnboardingFootnote>{welcomeFootnote(device)}</OnboardingFootnote>
             {/* What signing in with Google keeps, on the page the app is published from. */}
             <Pressable
               onPress={() => void Linking.openURL(PRIVACY_POLICY_URL)}
@@ -245,9 +243,7 @@ export function WelcomeScreen(): ReactNode {
               hitSlop={8}
               style={({ pressed }) => pressed && styles.pressed}
             >
-              <Text style={[styles.footnote, styles.privacy, wide && styles.footnoteWide]}>
-                Privacy policy
-              </Text>
+              <OnboardingFootnote link>Privacy policy</OnboardingFootnote>
             </Pressable>
           </View>
         ) : (
@@ -392,7 +388,7 @@ const styles = StyleSheet.create(theme => ({
   narrow: {
     flexGrow: 1,
     justifyContent: 'flex-end',
-    paddingHorizontal: 28,
+    paddingHorizontal: ONBOARDING_GUTTER,
     paddingTop: space.xl + titleBarInset,
     paddingBottom: 60,
     gap: 22,
@@ -408,10 +404,6 @@ const styles = StyleSheet.create(theme => ({
   words: { gap: 10 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   brandName: sectionTitle(theme.colors),
-  // A welcome, so the serif: one weight, never bolded.
-  headline: { ...serif(theme.colors, type.display), lineHeight: 46, letterSpacing: -0.6 },
-  headlineWide: { fontSize: type.display, lineHeight: leading.display, letterSpacing: -1 },
-  mark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
   body: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
   bodyWide: { fontSize: type.title, lineHeight: leading.title, maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },
@@ -419,14 +411,6 @@ const styles = StyleSheet.create(theme => ({
   error: { color: theme.colors.danger, fontSize: type.body },
   footnotes: { gap: 4, alignItems: 'center' },
   footnotesWide: { alignItems: 'flex-start' },
-  footnote: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    lineHeight: leading.small,
-    textAlign: 'center',
-  },
-  footnoteWide: { fontSize: type.sub, lineHeight: leading.sub, maxWidth: 420, textAlign: 'left' },
-  privacy: { color: theme.colors.textSecondary, textDecorationLine: 'underline' },
   pressed: { opacity: 0.6 },
   tiles: {
     flexDirection: 'row',

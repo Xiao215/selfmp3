@@ -23,13 +23,12 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { More, Play, Shuffle, Sparkle } from '../../ui/components/Icons'
 import { BackButton } from '../../ui/components/BackButton'
+import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { Popover } from '../../ui/components/Popover'
-import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { showToast } from '../../ui/toast'
-import { serif } from '../../ui/surfaces'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
@@ -107,17 +106,13 @@ export function AnswerScreen(): ReactNode {
 
   if (!kept || !result) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.gone} testID="answer-gone">
-          <Text style={styles.goneTitle} accessibilityRole="header">
-            This answer is gone
-          </Text>
-          <Text style={styles.goneText}>
-            Answers are kept while the app is open. Ask again and it will pick again.
-          </Text>
-          <Button label="Search" onPress={() => router.replace('/search')} />
-        </View>
-      </SafeAreaView>
+      <MissingPage
+        testID="answer-gone"
+        title="This answer is gone"
+        line="Answers are kept while the app is open. Ask again and it will pick again."
+        back="/search"
+        action={{ label: 'Search', onPress: () => router.replace('/search') }}
+      />
     )
   }
 
@@ -324,7 +319,4 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 },
   note: { color: theme.colors.textMuted, fontSize: type.small },
   error: { color: theme.colors.danger, fontSize: type.sub },
-  gone: { padding: 24, gap: 12, alignItems: 'flex-start' },
-  goneTitle: { ...serif(theme.colors, type.page) },
-  goneText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },
 }))

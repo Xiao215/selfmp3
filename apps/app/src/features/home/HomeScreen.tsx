@@ -138,7 +138,7 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
 
   // The one Search, starting on All: the page on a phone, the palette over
   // this page on a computer (docs/ui-mock `P18`, `C05`).
-  const openSearch = useOpenSearch('all')
+  const openSearch = useOpenSearch()
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

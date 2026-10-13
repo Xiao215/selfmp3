@@ -70,7 +70,7 @@ export function LibraryScreen(): ReactNode {
   const shuffleIconOnly = contentWidth !== null && contentWidth < SHUFFLE_LABEL_WIDTH
   const player = usePlayerCommands()
   const { state: downloads, installed, streamBlocked } = useDownloads()
-  const openSearch = useOpenSearch('songs')
+  const openSearch = useOpenSearch()
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.

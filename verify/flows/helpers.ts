@@ -228,6 +228,7 @@ export interface LibraryTag {
   name: string
 }
 export interface LibrarySong {
+  artist: string
   tagIds: number[]
   missing: boolean
   playCount: number

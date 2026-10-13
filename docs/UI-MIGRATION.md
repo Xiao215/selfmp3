@@ -25,7 +25,8 @@ The answer that was agreed is not a reskin. It changes where things live:
   a row under You.
 - **A tag, an artist and a playlist are the same kind of page.** Tags open from Home. Artists
   become places with their own chip, and are never tags.
-- **One search page**, opened from anywhere; the door only sets the scope it starts on.
+- **One search page**, opened from anywhere, the same from every door. No scope pills
+  (dropped 2026-10-12): results come in sections, and a section's "See all" opens it alone.
 - **Up next** is one editable list that belongs to nothing, a sheet on a phone and a rail on
   a computer.
 - A calmer look: tone on tone with no hairlines, pills, a serif for greetings and big
@@ -110,7 +111,7 @@ the root view.
 |---|---|---|
 | `/` | Home | `P04`, `C03` |
 | `/library` | Library | `P12`, `C04` |
-| `/search?scope=` | Search | `P18`, `P19`, `C05` |
+| `/search` | Search | `P18`, `P19`, `C05` |
 | `/tags` | All tags | `P07` |
 | `/tag/[name]` | A tag | `P08`, `C06` |
 | `/artist/[name]` | An artist | `P10` |
@@ -208,7 +209,7 @@ The one phase in which navigation changes. Do it in one branch and merge it whol
 - **Home** (`features/home/`, with `home.model.ts`):
   - The greeting by the hour in the serif, and one quiet line under it. The line is the
     streak when there is one ("3 days in a row."), else nothing. No invented cheer.
-  - The search field. Tapping it opens `/search?scope=all`. Until Phase 3 it opens the
+  - The search field. Tapping it opens `/search`. Until Phase 3 it opens the
     palette on a computer and Library's search on a phone.
   - Four tag tiles, two by two, the most played tags, each with a tilted cover from the tag.
     Then "All N tags". With fewer than four tags show what exists; with none, one tile that
@@ -244,7 +245,7 @@ more tap than before, and all flows are green on both Playwright projects.
 - Before typing: your tags as chips, then recently played. No search history is stored
   anywhere; delete any that exists.
 - Results order in All: artists and tags, then songs, then lyric lines.
-- Library's inline box becomes a field that opens `/search?scope=songs`. The tag strip in
+- Library's inline box becomes a field that opens `/search`. The tag strip in
   Library stays; it is a filter, not a search.
 - Computer: the sidebar's Search row, Home's field and a list header's field all open the
   same thing, drawn as a palette over the page (`C05`). ⌘K keeps working in the installed
@@ -484,7 +485,7 @@ Per phase, in this order, and a phase is not done until all are green:
    and the swipe) and Phase 8 (first launch).
 
 testIDs: keep every testID whose thing still exists. New ones follow the old shape
-(`tab-home`, `home-tile-0`, `home-you`, `queue-row-0`, `search-scope-songs`). A flow is
+(`tab-home`, `home-tile-0`, `home-you`, `queue-row-0`, `search-see-all-songs`). A flow is
 rewritten in the phase that breaks it, never skipped.
 
 ## Risks, and what retires them

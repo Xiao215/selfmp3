@@ -116,7 +116,7 @@ phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The
 label (`label()`) is not a section heading either: it names a group of settings or a card's
 figure.
 
-**Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's scopes, Settings'
+**Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's tags before typing, Settings'
 sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
 
 **"On"** is said one of two ways. A pill, a chip, a segment or a section index that is chosen

@@ -4,9 +4,9 @@ import {
   allResults,
   beforeTyping,
   lyricsQueryFor,
-  parseScope,
+  placesOf,
   recentItems,
-  scopeCounts,
+  sectionCounts,
   searchLibrary,
   type RecentItem,
 } from './search.model'
@@ -28,15 +28,6 @@ const library = {
     { id: 9, name: 'empty', hue: 3, songCount: 0 },
   ] as never,
 }
-
-describe('where a search starts', () => {
-  it('starts on the scope the door asks for, and on All for anything else', () => {
-    expect(parseScope('songs')).toBe('songs')
-    expect(parseScope('tags')).toBe('tags')
-    expect(parseScope('nope')).toBe('all')
-    expect(parseScope(undefined)).toBe('all')
-  })
-})
 
 describe('before anything is typed', () => {
   it('offers your tags, fullest first, and what you played last', () => {
@@ -70,9 +61,9 @@ describe('searchLibrary', () => {
     expect(searchLibrary('  ', library)).toEqual({ songs: [], tags: [], artists: [] })
   })
 
-  it('counts every scope, lyrics included', () => {
+  it('counts every section, lyrics included', () => {
     const found = searchLibrary('yorushika', library)
-    expect(scopeCounts(found, 2)).toEqual({ all: 5, songs: 1, tags: 1, artists: 1, lyrics: 2 })
+    expect(sectionCounts(found, 2)).toEqual({ all: 5, places: 2, songs: 1, lyrics: 2 })
   })
 })
 
@@ -83,12 +74,15 @@ describe('All', () => {
     expect(songs.length).toBeGreaterThan(0)
   })
 
-  it('shows a few of each and leaves the rest to the scope', () => {
+  it('shows a few of each and leaves the rest to "See all"', () => {
     const many = {
       ...library,
-      songs: Array.from({ length: 20 }, (_, id) => song(id, `Night ${id}`)),
+      songs: Array.from({ length: 20 }, (_, id) => song(id, `Night ${id}`, `Night ${id}`)),
     }
-    expect(allResults(searchLibrary('night', many)).songs).toHaveLength(5)
+    const found = searchLibrary('night', many)
+    expect(allResults(found).songs).toHaveLength(5)
+    expect(allResults(found).places).toHaveLength(4)
+    expect(placesOf(found)).toHaveLength(20)
   })
 })
 

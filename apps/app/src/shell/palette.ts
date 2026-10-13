@@ -1,5 +1,4 @@
 import { useRouter } from 'expo-router'
-import type { SearchScope } from '../features/search/search.model'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useLayoutValue } from './useLayout'
@@ -21,15 +20,15 @@ export function usePaletteOpen(): boolean {
 }
 
 /**
- * The one Search, starting on `scope`: the page on a phone, the palette over
- * the page on a computer (docs/ui-mock `P18`, `P19`, `C05`). For the doors
- * into it on Home, Library and Tags.
+ * The one Search: the page on a phone, the palette over the page on a computer
+ * (docs/ui-mock `P18`, `P19`, `C05`). For the doors into it on Home, Library
+ * and Tags, which all open the same search.
  */
-export function useOpenSearch(scope: SearchScope): () => void {
+export function useOpenSearch(): () => void {
   const wide = useLayoutValue(layout => layout.wide)
   const router = useRouter()
   return () => {
     if (wide) setPaletteOpen(true)
-    else router.navigate({ pathname: '/search', params: { scope } })
+    else router.navigate('/search')
   }
 }

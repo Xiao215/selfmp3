@@ -23,13 +23,14 @@ import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
-import { IconButton } from '../../ui/components/IconButton'
-import { Mic, More, Next } from '../../ui/components/Icons'
+import { Mic, Next } from '../../ui/components/Icons'
+import { MoreButton } from '../../ui/components/MoreMenu'
 import { LikeButton } from '../../ui/components/LikeButton'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, card, label as labelText, pageFrame, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
@@ -129,16 +130,13 @@ function SongPage({ song }: { song: Song }): ReactNode {
           <BackButton to="/" always />
           <View style={styles.topRight}>
             <LikeButton song={song} filled />
-            <View ref={moreRef} collapsable={false}>
-              <IconButton
-                label={`More for ${song.title}`}
-                onPress={() => setMenuOpen(true)}
-                filled
-                testID="song-more"
-              >
-                <More size={18} tone="textPrimary" />
-              </IconButton>
-            </View>
+            <MoreButton
+              name={song.title}
+              anchorRef={moreRef}
+              onPress={() => setMenuOpen(open => !open)}
+              active={menuOpen}
+              testID="song-more"
+            />
           </View>
         </View>
 
@@ -213,7 +211,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           {isCurrent ? null : (
             <Button
               testID="song-play-next"
-              label="Play next"
+              label={SONG_ACTION_LABELS.playNext}
               icon={<Next size={16} tone="textPrimary" />}
               onPress={() => {
                 player.playNext([song.id])

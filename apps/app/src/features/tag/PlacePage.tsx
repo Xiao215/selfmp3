@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, RefObject } from 'react'
 import { Animated, Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
@@ -9,21 +9,23 @@ import { fonts, space, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { Button } from '../../ui/components/Button'
 import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
-import { IconButton } from '../../ui/components/IconButton'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { More, Play, Plus, Shuffle, User } from '../../ui/components/Icons'
+import { Plus, User } from '../../ui/components/Icons'
+import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
+import { PlayShuffle } from '../../ui/components/PlayShuffle'
+import { useListActions } from '../../ui/components/useListActions'
 import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
-import { useSelection } from '../../selection/useSelection'
+import { useSelection, type Selection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
 import {
@@ -34,7 +36,6 @@ import {
   type ListSource,
 } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
 import {
@@ -70,20 +71,22 @@ import {
  */
 export function PlacePage({
   places,
-  menu,
+  menuItems = [],
+  menuAnchor,
   onChange,
 }: {
   /** One tag or artist; or, on `/combined`, the several put together. */
   places: readonly Place[]
-  /** The ⋯ in the corner: what this kind of place offers. */
-  menu?: (anchor: View | null) => void
+  /** What this kind of place offers in its ⋯, after what every list offers. */
+  menuItems?: readonly MenuItem[]
+  /** The ⋯'s box, for a window of the place's own to hang from (a tag's editor). */
+  menuAnchor?: RefObject<View | null>
   /**
    * Given on a combination's own page: its chips can be taken off and added
    * to there. Without it the page is one place, and combining opens a new one.
    */
   onChange?: (places: readonly Place[]) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
   const player = usePlayerCommands()
@@ -98,8 +101,6 @@ export function PlacePage({
   const place = chosen[0] ?? places[0]!
   const combining = onChange !== undefined
   const [adding, setAdding] = useState(false)
-  const moreRef = useRef<View>(null)
-  const fly = useFlyToUpNext()
 
   const only = !combining && chosen.length === 1 ? chosen[0] : undefined
   const artistAlone = only?.kind === 'artist'
@@ -109,6 +110,7 @@ export function PlacePage({
     return artistAlone ? albumsOf(found).flatMap(group => group.songs) : found
   }, [chosen, library, artistAlone])
   const ids = useMemo(() => songs.map(song => song.id), [songs])
+  const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const leadArt = lead ? artFor(lead) : null
   const light = useSongColor(lead, leadArt)
@@ -175,6 +177,7 @@ export function PlacePage({
   })
   const heroRef = useRef<View>(null)
   const heroPlaced = useRef(false)
+  const listActions = useListActions(ids, { heroRef, selection })
   /** The hero's way between the tile and where it is laid out now. */
   const aimAtTile = (
     tile: NonNullable<typeof handed>,
@@ -272,18 +275,14 @@ export function PlacePage({
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}
           {backShown ? <BackButton to="/" onPress={back} /> : <View />}
-          {menu ? (
-            <View ref={moreRef} collapsable={false}>
-              <IconButton
-                label={`More for ${placeName(place)}`}
-                onPress={() => menu(moreRef.current)}
-                filled
-                testID="place-more"
-              >
-                <More size={18} tone="textPrimary" />
-              </IconButton>
-            </View>
-          ) : null}
+          <MoreMenu
+            name={title}
+            items={[...listActions, ...menuItems]}
+            title={title}
+            anchorRef={menuAnchor}
+            testID="place-more"
+            menuTestID="place-menu"
+          />
         </>
       }
       heroRef={heroRef}
@@ -320,26 +319,13 @@ export function PlacePage({
       }
       actions={
         <>
-          <PlayButton
-            testID="place-play"
-            label={`Play ${title}`}
-            icon={<Play size={24} color={theme.colors.onPrimary} />}
-            disabled={ids.length === 0}
-            onPress={() => {
-              fly(heroRef.current, ids)
-              player.playFrom(ids, 0, { source })
-            }}
-          />
-          <Button
-            testID="place-shuffle"
-            label="Shuffle"
-            accessibilityLabel={`Shuffle ${title}`}
-            icon={<Shuffle size={16} tone="textPrimary" />}
-            disabled={ids.length === 0}
-            onPress={() => {
-              fly(heroRef.current, ids)
-              player.playShuffled(ids, source)
-            }}
+          <PlayShuffle
+            name={title}
+            songIds={ids}
+            heroRef={heroRef}
+            onPlay={() => player.playFrom(ids, 0, { source })}
+            onShuffle={() => player.playShuffled(ids, source)}
+            testPrefix="place"
           />
           {combining ? null : (
             <Button
@@ -359,6 +345,7 @@ export function PlacePage({
     <View style={styles.screen}>
       <PlaceSongs
         songs={songs}
+        selection={selection}
         source={source}
         byAlbum={artistAlone}
         head={head}
@@ -419,6 +406,7 @@ function Chips({
  */
 function PlaceSongs({
   songs,
+  selection,
   source,
   byAlbum,
   head,
@@ -426,6 +414,8 @@ function PlaceSongs({
   scope,
 }: {
   songs: readonly Song[]
+  /** The page's selection, which its ⋯ can start. */
+  selection: Selection
   /** What Up next is called when a row plays the list, as the head's Play names it. */
   source: ListSource | null
   byAlbum: boolean
@@ -438,7 +428,6 @@ function PlaceSongs({
   const artFor = useArt()
   const { wide } = useLayout()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
-  const selection = useSelection(ids)
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
   // Always mounted, told when to show, so it rises and sinks rather than appearing.

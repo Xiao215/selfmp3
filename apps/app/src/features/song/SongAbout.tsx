@@ -9,6 +9,7 @@ import { Button } from '../../ui/components/Button'
 import { Sparkles } from '../../ui/components/Icons'
 import { FixMetadata } from '../metadata/FixMetadata'
 import { SongFacts } from './SongFacts'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 
 /**
  * What the app knows about a song, with "Fix song info…" beside the facts it
@@ -38,7 +39,7 @@ export function SongAbout({
       {isRoomTrackId(song.id) ? null : (
         <View style={styles.fix}>
           <Button
-            label="Fix song info…"
+            label={SONG_ACTION_LABELS.fixInfo}
             icon={<Sparkles size={15} tone="textSecondary" />}
             onPress={() => setFixing(true)}
             testID={testID}

@@ -8,6 +8,7 @@ import { leading, radius, space, type } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { useSongsById } from '../../ui/songsById'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import type { ListSource } from '../lists/lists.model'
@@ -22,7 +23,7 @@ import { useSmartServer } from './useSmartServer'
  * C1): one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
  * answer as a page, to look before listening. An answer about what plays
- * after this song (A8) leads with Add to Up next instead.
+ * after this song (A8) leads with Play next instead.
  */
 export function SongsAnswerCard({
   answer,
@@ -32,7 +33,7 @@ export function SongsAnswerCard({
 }: {
   answer: Extract<AskAnswer, { kind: 'songs' }>
   text: string
-  /** After Play or Add to Up next: Search has done its job. */
+  /** After Play or Play next: Search has done its job. */
   onPlayed: () => void
   /** Before the answer's page opens. */
   onOpen: () => void
@@ -94,8 +95,10 @@ export function SongsAnswerCard({
           <ChevronRight size={14} color={theme.colors.textMuted} />
         </Pressable>
         {next ? (
+          // Asked what plays after this song, it plays them next, and says so:
+          // "Add to Up next" puts songs at the end everywhere else (T-383).
           <Button
-            label="Add to Up next"
+            label={SONG_ACTION_LABELS.playNext}
             variant="primary"
             onPress={() => {
               fly(coverRef.current, ids)

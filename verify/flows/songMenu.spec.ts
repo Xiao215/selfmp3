@@ -69,7 +69,10 @@ test.describe('the song menu', () => {
     await libraryReady(page)
     await songRows(page).first().hover()
     await page.getByRole('button', { name: `More actions for ${title}` }).click()
-    await page.getByTestId('song-menu').getByRole('menuitem', { name: 'Tags', exact: true }).click()
+    await page
+      .getByTestId('song-menu')
+      .getByRole('menuitem', { name: 'Tags…', exact: true })
+      .click()
     const search = page.getByPlaceholder('Search or create a tag…')
     await expect(search).toBeVisible()
     await page.keyboard.press('Escape')

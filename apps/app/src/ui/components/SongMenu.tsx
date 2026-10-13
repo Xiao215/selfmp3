@@ -1,48 +1,20 @@
 import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter, type Href } from 'expo-router'
+import { StyleSheet } from 'react-native-unistyles'
+import type { Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import {
-  isDownloaded,
-  isRoomTrackId,
-  space,
-  type,
-  useAddToPlaylist,
-  useLibrary,
-} from '@selfmp3/client'
-import { playlistsToAddTo } from '../../features/playlists/playlists.model'
-import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
-import { playSimilar } from '../../features/song/playSimilar'
-import { songLink } from '../../features/song/song.model'
+import { isRoomTrackId, space, type, useLibrary } from '@selfmp3/client'
 import { useOpenTag } from '../../features/tag/useOpenTag'
 import { useArt } from '../../offline/useArt'
-import { useDownloads } from '../../offline/DownloadsProvider'
-import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
-import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Chip } from './Chip'
 import { RemoveSongs } from './ConfirmRemoveSongs'
 import { Cover } from './Cover'
 import { LikeButton } from './LikeButton'
-import {
-  CloudDownload,
-  CloudRemove,
-  Devices,
-  Info,
-  ListMusic,
-  Moon,
-  QueueAdd,
-  Sparkles,
-  Tag as TagIcon,
-  Trash,
-  X,
-} from './Icons'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
+import { Devices, Moon } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
+import { SongActionItems } from './SongActionItems'
 import { useSleepTimerStatus } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
@@ -150,14 +122,10 @@ export function SongMenu({
       onNowPlaying={context === 'nowPlaying'}
       extras={extras}
       onOpen={onOpen}
-      onTags={() => {
-        setTagging(song.id)
-        onClose()
-      }}
+      onTags={() => setTagging(song.id)}
       onRemove={() => {
         if (onRemove) onRemove(song)
         else setRemoving(song)
-        onClose()
       }}
     />
   ) : null
@@ -210,42 +178,24 @@ function Items({
   extras?: PlayerDoors
   onOpen?: (href: Href) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const router = useRouter()
-  const open = onOpen ?? ((href: Href) => router.navigate(href))
   const openTag = useOpenTag()
-  const player = usePlayerCommands()
-  const fly = useFlyToUpNext()
   const artFor = useArt()
   const { data: library } = useLibrary()
-  const addToPlaylist = useAddToPlaylist()
-  const removeFromPlaylist = usePlaylistRemoval()
-  const removeDownloads = useDownloadRemoval()
-  const { state: downloads, installed, requestDownload } = useDownloads()
-  const [playlistsOpen, setPlaylistsOpen] = useState(false)
 
   // The heart and the tags as they are now, not as they were when the menu opened.
   const song = library?.songs.find(item => item.id === given.id) ?? given
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
-  const held = isDownloaded(downloads.index, song.id)
-  // A live playlist's rules decide its songs, so it is not offered; nor is the
-  // playlist this menu was opened from.
-  const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
   const byline = [artistOr(song.artist), song.duration > 0 ? formatDuration(song.duration) : '']
     .filter(Boolean)
     .join(' · ')
 
-  // A friend's song in a room: nothing the library does applies to it.
-  const yours = !isRoomTrackId(song.id)
   // What the page it was opened on already shows, or what a room's song cannot have.
-  const showsOwn = onNowPlaying || !yours
+  const showsOwn = onNowPlaying || isRoomTrackId(song.id)
 
   const then = (run: () => void) => (): void => {
     run()
     onClose()
   }
-
-  const icon = (Glyph: typeof QueueAdd) => <Glyph size={16} color={theme.colors.textSecondary} />
 
   return (
     <>
@@ -276,107 +226,35 @@ function Items({
         {showsOwn ? null : <LikeButton song={song} filled size={44} />}
       </View>
 
-      {showsOwn ? null : <SheetItem icon={icon(TagIcon)} label="Tags" onPress={onTags} />}
-      {/* Opens in place rather than over the menu, so the song stays named above it. */}
-      {yours ? (
-        <SheetItem
-          icon={icon(ListMusic)}
-          label="Add to playlist"
-          detail={playlistsOpen ? '⌄' : '›'}
-          active={playlistsOpen}
-          onPress={() => setPlaylistsOpen(open => !open)}
-        />
-      ) : null}
-      {yours && playlistsOpen ? (
-        <View style={styles.nested}>
-          {manualPlaylists.length === 0 ? (
-            <Text style={styles.hint}>No playlists yet.</Text>
-          ) : (
-            manualPlaylists.map(list => (
-              <SheetItem
-                key={list.id}
-                label={list.name}
-                onPress={then(() =>
-                  addToPlaylist.mutate({ playlistId: list.id, songIds: [song.id] }),
-                )}
+      {/* What is done to the song, what it is to the list it was opened
+          from, and last, removing it: the same items the selection bar's
+          More offers for many songs. */}
+      <SongActionItems
+        songs={[song]}
+        playlist={playlist}
+        nowPlaying={onNowPlaying}
+        flyFrom={anchorRef}
+        onClose={onClose}
+        onTags={onTags}
+        onDelete={onRemove}
+        onOpen={onOpen}
+        beforeRemove={
+          extras ? (
+            <>
+              <Text style={styles.group}>This player</Text>
+              <SleepItem
+                icon={<Moon size={16} tone="textSecondary" />}
+                onPress={then(extras.onSleep)}
               />
-            ))
-          )}
-        </View>
-      ) : null}
-      {/* The song playing is already in Up next. */}
-      {showsOwn ? null : (
-        <SheetItem
-          icon={icon(QueueAdd)}
-          label="Add to Up next"
-          onPress={() => {
-            fly(anchorRef?.current ?? null, [song.id])
-            player.addToQueue([song.id])
-            onClose()
-          }}
-        />
-      )}
-      {yours ? (
-        <SheetItem
-          icon={icon(Sparkles)}
-          label="Play similar songs"
-          onPress={then(() => playSimilar(player, song))}
-        />
-      ) : null}
-      {/* A browser streams; only an installed app keeps songs. */}
-      {!installed || !yours ? null : held ? (
-        <SheetItem
-          icon={icon(CloudRemove)}
-          label={`Remove from this ${devicePlace(deviceKind())}`}
-          onPress={then(() => removeDownloads([song.id]))}
-        />
-      ) : (
-        <SheetItem
-          icon={icon(CloudDownload)}
-          label="Download"
-          // By hand, so a song removed by hand comes back, and mobile data is asked about.
-          onPress={then(() => requestDownload([song.id]))}
-        />
-      )}
-      {showsOwn ? null : (
-        <SheetItem
-          icon={icon(Info)}
-          label="Song details"
-          onPress={then(() => open(songLink(song.id)))}
-        />
-      )}
-
-      {/* What the song is to where the menu was opened. The groups are told
-          apart by the room between them, not a line. */}
-      {playlist ? (
-        <>
-          <View style={styles.gap} />
-          <SheetItem
-            icon={icon(X)}
-            label="Remove from this playlist"
-            onPress={then(() => removeFromPlaylist(playlist, [song]))}
-          />
-        </>
-      ) : null}
-      {extras ? (
-        <>
-          <Text style={styles.group}>This player</Text>
-          <SleepItem icon={icon(Moon)} onPress={then(extras.onSleep)} />
-          <SheetItem icon={icon(Devices)} label="Devices" onPress={then(extras.onDevices)} />
-        </>
-      ) : null}
-
-      {yours ? (
-        <>
-          <View style={styles.gap} />
-          <SheetItem
-            icon={<Trash size={16} color={theme.colors.danger} />}
-            label="Delete from library…"
-            danger
-            onPress={onRemove}
-          />
-        </>
-      ) : null}
+              <SheetItem
+                icon={<Devices size={16} tone="textSecondary" />}
+                label="Devices"
+                onPress={then(extras.onDevices)}
+              />
+            </>
+          ) : undefined
+        }
+      />
     </>
   )
 }
@@ -411,7 +289,6 @@ const styles = StyleSheet.create(theme => ({
   title: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
   byline: { color: theme.colors.textSecondary, fontSize: type.sub },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xs },
-  gap: { height: space.sm },
   /* A group's name, quiet, as a sheet's label title is. */
   group: {
     color: theme.colors.textMuted,
@@ -419,12 +296,5 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.md,
     paddingTop: space.md,
     paddingBottom: space.xs,
-  },
-  nested: { paddingLeft: space.lg },
-  hint: {
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
   },
 }))

@@ -315,6 +315,7 @@ export function SheetItem({
   danger = false,
   disabled = false,
   role = 'menuitem',
+  testID,
 }: {
   icon?: ReactNode
   label: string
@@ -325,6 +326,7 @@ export function SheetItem({
   disabled?: boolean
   /** A menu's action, or one of a list's choices (a `Select`'s options). */
   role?: 'menuitem' | 'option'
+  testID?: string
 }): ReactNode {
   const { theme } = useUnistyles()
   const dense = usePanelDense()
@@ -349,6 +351,7 @@ export function SheetItem({
       onHoverIn={dense ? () => setHovered(true) : undefined}
       onHoverOut={dense ? () => setHovered(false) : undefined}
       role={role}
+      testID={testID}
       aria-selected={role === 'option' ? active : undefined}
       accessibilityState={{ selected: active, disabled }}
       style={({ pressed }) => [

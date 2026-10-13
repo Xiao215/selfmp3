@@ -35,16 +35,16 @@
 }
 
 .options-intro > .logo {
-  font-size: 17px;
+  font-size: var(--type-title);
 }
 
 .options h1 {
   margin: 0;
   font-family: var(--font-serif);
-  font-size: 44px;
+  font-size: var(--type-display);
   font-weight: 400;
-  letter-spacing: -0.6px;
-  line-height: 46px;
+  letter-spacing: var(--tracking-serif);
+  line-height: var(--leading-display);
 }
 
 .options h1 i {
@@ -55,8 +55,8 @@
 
 .lede {
   margin: 0;
-  font-size: 15px;
-  line-height: 23px;
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
   color: var(--text-secondary);
 }
 
@@ -94,13 +94,13 @@
 }
 
 .account-name {
-  font-size: 14px;
+  font-size: var(--type-body);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .account-sub {
-  font-size: 12px;
+  font-size: var(--type-small);
   color: var(--text-secondary);
 }
 
@@ -113,8 +113,8 @@
 
 .account-in p {
   margin: 0;
-  font-size: 13px;
-  line-height: 19px;
+  font-size: var(--type-sub);
+  line-height: var(--leading-sub);
   color: var(--text-secondary);
 }
 
@@ -131,7 +131,7 @@
   gap: 10px;
   min-height: 54px;
   padding: 10px 16px;
-  font-size: 14px;
+  font-size: var(--type-body);
 }
 
 .setting > span:first-child {
@@ -162,7 +162,7 @@
   border: 0;
   padding: 0;
   background: none;
-  font-size: 14px;
+  font-size: var(--type-body);
   outline: none;
 }
 

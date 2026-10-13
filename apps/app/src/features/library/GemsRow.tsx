@@ -8,6 +8,7 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
+import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Press } from '../../ui/components/Press'
@@ -65,7 +66,10 @@ export function GemsRow(): ReactNode {
                 icon={<Play color={theme.colors.textPrimary} />}
                 onPress={() => play(0)}
               />
-              <Button label="Add to Up next" onPress={() => player.addToQueue(ids)} />
+              <Button
+                label={SONG_ACTION_LABELS.addToUpNext}
+                onPress={() => player.addToQueue(ids)}
+              />
             </>
           )
         }

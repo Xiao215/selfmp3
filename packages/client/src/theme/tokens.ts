@@ -1,4 +1,10 @@
-import { NATIVE_BACKGROUND, NATIVE_CARD } from '@selfmp3/shared'
+import {
+  NATIVE_BACKGROUND,
+  NATIVE_CARD,
+  NATIVE_RAISED,
+  NATIVE_TEXT_PRIMARY,
+  NATIVE_TEXT_SECONDARY,
+} from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
 /**
@@ -170,15 +176,16 @@ export type Accent = ReturnType<typeof buildAccent>
  */
 const DARK = {
   // The one colour a window, a splash and a launcher icon are filled with
-  // before any of this is running, so it is written down where they can read it.
+  // before any of this is running, so it is written down where they can read
+  // it; the widget reads the card, the inks and the raised tone from there too.
   surface0: NATIVE_BACKGROUND,
   surface1: NATIVE_CARD,
   surface2: '#1a1d25',
-  surface3: '#1f2330',
+  surface3: NATIVE_RAISED,
   surfaceSelected: '#2c3140',
 
-  textPrimary: '#f4f5f9',
-  textSecondary: '#aeb1b9',
+  textPrimary: NATIVE_TEXT_PRIMARY,
+  textSecondary: NATIVE_TEXT_SECONDARY,
   textMuted: '#7c8089',
 
   danger: '#f0555b',

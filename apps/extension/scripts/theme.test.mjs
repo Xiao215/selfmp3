@@ -126,6 +126,18 @@ describe('the generated theme', () => {
     }
   })
 
+  it('takes its type, line heights, corners and tracking from the tokens, never its own', () => {
+    // Written in pixels they drifted off the scale: 14px five times, an 11.5px
+    // hint, a 44px title on a 46px line beside the app's 46 on 50.
+    for (const path of ['ui/base.css', 'popup/popup.css', 'options/options.css']) {
+      const text = readFileSync(join(src, path), 'utf8')
+      expect(
+        text.match(/(font-size|line-height|border-radius|letter-spacing):\s*-?[\d.]+px/g),
+        path,
+      ).toBeNull()
+    }
+  })
+
   it('is the only place a colour is written: the stylesheets name tokens, never values', () => {
     for (const path of [
       'ui/base.css',

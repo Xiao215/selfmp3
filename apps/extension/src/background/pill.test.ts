@@ -97,7 +97,7 @@ describe('stateOfJob', () => {
     expect(stateOfJob(job({ status: 'done', step: 'finished' })).state).toBe('added')
     expect(stateOfJob(job({ status: 'error', error: 'Video unavailable' }))).toMatchObject({
       state: 'failed',
-      message: 'Video unavailable',
+      message: 'This video isn’t on YouTube any more.',
     })
     expect(stateOfJob(job({ status: 'cancelled' })).state).toBe('idle')
   })
@@ -117,7 +117,7 @@ describe('stateOfRequest', () => {
     expect(stateOfRequest(request({ state: 'done', songIds: [7] })).state).toBe('added')
     expect(stateOfRequest(request({ state: 'failed', error: 'Video unavailable' }))).toMatchObject({
       state: 'failed',
-      message: 'Video unavailable',
+      message: 'This video isn’t on YouTube any more.',
     })
     expect(stateOfRequest(request({ state: 'cancelled' })).state).toBe('idle')
   })

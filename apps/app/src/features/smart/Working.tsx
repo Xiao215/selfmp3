@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { space, type, withAlpha } from '@selfmp3/client'
+import { space, type, withAlpha, iconSize } from '@selfmp3/client'
 import { Check } from '../../ui/components/Icons'
 
 /** One step of a wait: what it says while it runs, once it is done, and from when. */
@@ -75,7 +75,7 @@ export function Working({
           <View key={step.key} style={styles.step}>
             {done ? (
               <View style={[styles.mark, { backgroundColor: withAlpha(theme.colors.good, 0.18) }]}>
-                <Check size={11} tone="good" />
+                <Check size={iconSize.tiny} tone="good" />
               </View>
             ) : (
               <View style={styles.mark}>

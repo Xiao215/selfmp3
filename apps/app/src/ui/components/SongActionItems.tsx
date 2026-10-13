@@ -14,6 +14,7 @@ import {
   useBulkLoved,
   useCreatePlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
@@ -45,17 +46,17 @@ import { SheetItem } from './Sheet'
 
 /** Each action's mark, beside its name. */
 const ICON: Record<SongActionId, ReactNode> = {
-  like: <Heart size={16} tone="textSecondary" />,
-  unlike: <Heart size={16} filled tone="danger" />,
-  tags: <TagIcon size={16} tone="textSecondary" />,
-  addToPlaylist: <ListMusic size={16} tone="textSecondary" />,
-  addToUpNext: <QueueAdd size={16} tone="textSecondary" />,
-  playSimilar: <Sparkles size={16} tone="textSecondary" />,
-  download: <CloudDownload size={16} tone="textSecondary" />,
-  removeDownload: <CloudRemove size={16} tone="textSecondary" />,
-  details: <Info size={16} tone="textSecondary" />,
+  like: <Heart size={iconSize.item} tone="textSecondary" />,
+  unlike: <Heart size={iconSize.item} filled tone="danger" />,
+  tags: <TagIcon size={iconSize.item} tone="textSecondary" />,
+  addToPlaylist: <ListMusic size={iconSize.item} tone="textSecondary" />,
+  addToUpNext: <QueueAdd size={iconSize.item} tone="textSecondary" />,
+  playSimilar: <Sparkles size={iconSize.item} tone="textSecondary" />,
+  download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
+  removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
+  details: <Info size={iconSize.item} tone="textSecondary" />,
   removeFromPlaylist: <X size={16} tone="textSecondary" />,
-  delete: <Trash size={16} tone="danger" />,
+  delete: <Trash size={iconSize.item} tone="danger" />,
 }
 
 /**
@@ -220,7 +221,7 @@ export function SongActionItems({
       {action.id === 'addToPlaylist' && playlistsOpen ? (
         <View style={styles.nested}>
           <SheetItem
-            icon={<Plus size={16} tone="textSecondary" />}
+            icon={<Plus tone="textSecondary" />}
             label={`New playlist with ${count === 1 ? 'this song' : `these ${count}`}`}
             onPress={() => {
               onClose()

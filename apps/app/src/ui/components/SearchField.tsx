@@ -110,7 +110,7 @@ export function SearchField({
           accessibilityRole="button"
           accessibilityLabel="Clear search"
         >
-          <X size={iconSize.small} tone="textMuted" />
+          <X size={iconSize.field} tone="textMuted" />
         </Pressable>
       ) : null}
     </View>

@@ -1,3 +1,4 @@
+import { cloneElement, isValidElement } from 'react'
 import type { ReactNode } from 'react'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ThemePalette } from '@selfmp3/client'
@@ -44,6 +45,23 @@ export function useInk(
 ): string {
   const { theme } = useUnistyles()
   return given ?? theme.colors[tone ?? fallback]
+}
+
+/**
+ * A glyph at the size of the slot it is handed to — a button's, a menu
+ * item's, a chip's — so a caller passes the glyph and its ink and the slot
+ * decides how big it is. `'fill'` only sizes a glyph given none, for a slot
+ * whose callers draw at their own sizes (an icon button's transport, the
+ * round Play's pause).
+ */
+export function sizedIcon(
+  icon: ReactNode,
+  size: number,
+  mode: 'force' | 'fill' = 'force',
+): ReactNode {
+  if (!isValidElement<{ size?: unknown }>(icon)) return icon
+  if (mode === 'fill' && icon.props.size !== undefined) return icon
+  return cloneElement(icon, { size })
 }
 
 /** The frame every icon is drawn in, in an ink already worked out. */

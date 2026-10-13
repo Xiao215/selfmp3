@@ -40,7 +40,7 @@ export function SongAbout({
         <View style={styles.fix}>
           <Button
             label={SONG_ACTION_LABELS.fixInfo}
-            icon={<Sparkles size={15} tone="textSecondary" />}
+            icon={<Sparkles tone="textSecondary" />}
             onPress={() => setFixing(true)}
             testID={testID}
           />

@@ -67,7 +67,7 @@ export function QueueViaBucket(): ReactNode {
       actions={
         <Button
           label={queue.isPending ? 'Adding…' : 'Add for later'}
-          icon={<CloudUpload size={13} color={accent.onAccent} />}
+          icon={<CloudUpload color={accent.onAccent} />}
           variant="primary"
           disabled={!ready}
           onPress={submit}

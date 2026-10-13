@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Href } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { isRoomTrackId, space, type, useLibrary } from '@selfmp3/client'
+import { isRoomTrackId, space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useOpenTag } from '../../features/tag/useOpenTag'
 import { useArt } from '../../offline/useArt'
 import { Chip } from './Chip'
@@ -243,11 +243,11 @@ function Items({
             <>
               <Text style={styles.group}>This player</Text>
               <SleepItem
-                icon={<Moon size={16} tone="textSecondary" />}
+                icon={<Moon size={iconSize.item} tone="textSecondary" />}
                 onPress={then(extras.onSleep)}
               />
               <SheetItem
-                icon={<Devices size={16} tone="textSecondary" />}
+                icon={<Devices tone="textSecondary" />}
                 label="Devices"
                 onPress={then(extras.onDevices)}
               />

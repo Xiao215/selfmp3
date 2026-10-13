@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlayer, usePlayerProgress, type PlayerApi } from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label, smallTitle } from '../../ui/surfaces'
@@ -94,7 +94,7 @@ export function PlayingNow({
       onOpen={onOpen}
       testID={`queue-row-${row.index}`}
     >
-      <PlayPauseButton size={44} glyph={20} />
+      <PlayPauseButton size={44} glyph={iconSize.nav} />
     </PlayingCard>
   )
 }

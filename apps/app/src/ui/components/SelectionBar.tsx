@@ -304,7 +304,7 @@ export function SelectionBar({
       {wide ? (
         <Button
           label="More"
-          icon={<More size={13} color={theme.colors.textPrimary} />}
+          icon={<More color={theme.colors.textPrimary} />}
           onPress={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
           disabled={count === 0}
           active={menuOpen}
@@ -317,7 +317,7 @@ export function SelectionBar({
           active={menuOpen}
           testID="selection-more"
         >
-          <More size={18} color={theme.colors.textPrimary} />
+          <More color={theme.colors.textPrimary} />
         </IconButton>
       )}
     </View>
@@ -490,7 +490,7 @@ export function SelectionBar({
         {wide ? null : (
           <>
             <SheetItem
-              icon={<CheckSquare size={16} tone="textSecondary" />}
+              icon={<CheckSquare tone="textSecondary" />}
               label={selectAllLabel}
               onPress={() => {
                 if (allSelected) onDeselectAll()
@@ -664,7 +664,7 @@ function BarButton({
       {wide ? (
         <Button
           label={action.label}
-          icon={<action.Glyph size={13} color={theme.colors.textPrimary} />}
+          icon={<action.Glyph color={theme.colors.textPrimary} />}
           onPress={press}
           disabled={disabled}
         />
@@ -675,7 +675,7 @@ function BarButton({
           disabled={disabled}
           filled={action.key === 'play'}
         >
-          <action.Glyph size={18} color={theme.colors.textPrimary} />
+          <action.Glyph color={theme.colors.textPrimary} />
         </IconButton>
       )}
     </View>

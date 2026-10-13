@@ -47,7 +47,7 @@ export function LibraryPanel({
       <Row label="Rescan the folder" hint={scanHint(scan.data)}>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
-          icon={<Refresh size={15} tone="textPrimary" />}
+          icon={<Refresh tone="textPrimary" />}
           disabled={scan.isPending}
           onPress={() => scan.mutate()}
         />
@@ -58,14 +58,14 @@ export function LibraryPanel({
       >
         <Button
           label={running ? 'Analysing…' : 'Analyse new songs'}
-          icon={<Sparkles size={15} tone="textPrimary" />}
+          icon={<Sparkles tone="textPrimary" />}
           disabled={running || startAnalysis.isPending}
           onPress={() => startAnalysis.mutate(false)}
         />
         {analysed > 0 && !running ? (
           <Button
             label="Redo all"
-            icon={<Refresh size={15} tone="textPrimary" />}
+            icon={<Refresh tone="textPrimary" />}
             onPress={() => onConfirm('redo-analysis')}
           />
         ) : null}
@@ -114,14 +114,14 @@ function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean })
         {running ? (
           <Button
             label="Stop looking"
-            icon={<X size={15} tone="textPrimary" />}
+            icon={<X tone="textPrimary" />}
             disabled={fixCovers.isPending}
             onPress={() => fixCovers.mutate('cancel')}
           />
         ) : (
           <Button
             label="Find missing art"
-            icon={<Sparkles size={15} tone="textPrimary" />}
+            icon={<Sparkles tone="textPrimary" />}
             disabled={fixCovers.isPending || missingArt === 0}
             onPress={() => fixCovers.mutate('start')}
           />

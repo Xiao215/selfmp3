@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { radius, space, type } from '@selfmp3/client'
+import { radius, space, type, iconSize } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
@@ -93,7 +93,7 @@ export function SongsAnswerCard({
               {plural(ids.length, 'song', 'songs')} · {formatLongDuration(seconds)}
             </Text>
           </View>
-          <ChevronRight size={14} color={theme.colors.textMuted} />
+          <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
         </Pressable>
         {next ? (
           // Asked what plays after this song, it plays them next, and says so:
@@ -112,7 +112,7 @@ export function SongsAnswerCard({
           <PlayButton
             label={`Play the songs picked for “${text}”`}
             size={40}
-            icon={<Play size={16} color={theme.colors.onPrimary} />}
+            icon={<Play color={theme.colors.onPrimary} />}
             onPress={() => {
               fly(coverRef.current, ids)
               player.playFrom(ids, 0, { source })

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { space } from '@selfmp3/client'
+import { space, iconSize } from '@selfmp3/client'
 import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue } from '../../shell/useLayout'
 import { EmptyState } from '../../ui/components/EmptyState'
@@ -32,7 +32,7 @@ export function EmptyNowPlaying({ onClose }: { onClose: () => void }): ReactNode
         {/* Filled on a phone, over a page of the song's colour; bare in the stage's head. */}
         <IconButton onPress={onClose} label="Close now playing" caption="Close" filled={!wide}>
           <ChevronDown
-            size={22}
+            size={iconSize.large}
             color={wide ? theme.colors.textSecondary : theme.colors.textPrimary}
           />
         </IconButton>

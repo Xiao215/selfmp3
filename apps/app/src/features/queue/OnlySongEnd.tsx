@@ -41,13 +41,13 @@ export function OnlySongEnd({
       <View style={styles.buttons}>
         <Button
           label="Songs like this"
-          icon={<Sparkles size={15} tone="textPrimary" />}
+          icon={<Sparkles tone="textPrimary" />}
           onPress={() => playSimilar(player, song)}
           testID="only-song-similar"
         />
         <Button
           label="Shuffle library"
-          icon={<Shuffle size={15} tone="textPrimary" />}
+          icon={<Shuffle tone="textPrimary" />}
           onPress={shuffleLibrary}
           testID="only-song-shuffle"
         />

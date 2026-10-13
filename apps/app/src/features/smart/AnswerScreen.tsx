@@ -13,6 +13,7 @@ import {
   useLibrary,
   textStyle,
   tracking,
+  iconSize,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -175,7 +176,7 @@ export function AnswerScreen(): ReactNode {
               {
                 key: 'save',
                 label: saving ? 'Saving…' : 'Save as playlist',
-                icon: <ListMusic size={16} tone="textSecondary" />,
+                icon: <ListMusic size={iconSize.item} tone="textSecondary" />,
                 disabled: ids.length === 0 || saving,
                 apart: true,
                 onPress: () => void save(),
@@ -189,7 +190,7 @@ export function AnswerScreen(): ReactNode {
       titles={
         <>
           <View style={listHeadText.kind}>
-            <Sparkle size={11} />
+            <Sparkle size={iconSize.tiny} />
             <Text style={listHeadText.kindText}>Picked for you</Text>
           </View>
           <Text

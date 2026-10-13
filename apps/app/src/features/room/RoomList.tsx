@@ -10,7 +10,16 @@ import {
   type RoomAction,
   type RoomState,
 } from '@selfmp3/shared'
-import { HIT_TARGET, fonts, radius, roomTrackSong, space, type, tracking } from '@selfmp3/client'
+import {
+  HIT_TARGET,
+  fonts,
+  radius,
+  roomTrackSong,
+  space,
+  type,
+  tracking,
+  iconSize,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
@@ -151,7 +160,7 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
       {mayToggle ? (
         <PlayPauseButton
           size={44}
-          glyph={20}
+          glyph={iconSize.nav}
           playing={playing}
           onPress={() => (host ? commands.toggle() : act({ type: playing ? 'pause' : 'play' }))}
           testID="room-toggle"
@@ -166,7 +175,7 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
           style={({ pressed }) => [styles.round, pressed && styles.roundPressed]}
           testID="room-skip"
         >
-          <Next size={18} color={theme.colors.textPrimary} />
+          <Next size={iconSize.medium} color={theme.colors.textPrimary} />
         </Pressable>
       ) : null}
     </PlayingCard>
@@ -220,7 +229,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
                 filled
                 onPress={() => act({ type: 'move', entryId: row.entry.id, to: 0 })}
               >
-                <ToTop size={16} color={theme.colors.textSecondary} />
+                <ToTop size={iconSize.item} color={theme.colors.textSecondary} />
               </IconButton>
             ) : null
           }
@@ -237,7 +246,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
         {mayAdd ? (
           <Button
             label="Add songs"
-            icon={<Plus size={16} color={theme.colors.textPrimary} />}
+            icon={<Plus color={theme.colors.textPrimary} />}
             onPress={() => openRoomSheet('add')}
             grow
             testID="room-add"
@@ -268,7 +277,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
                     filled
                     onPress={() => act({ type: 'again', entryId: row.entry.id })}
                   >
-                    <Plus size={16} color={theme.colors.textSecondary} />
+                    <Plus size={iconSize.item} color={theme.colors.textSecondary} />
                   </IconButton>
                 ) : null
               }
@@ -332,7 +341,7 @@ export function TogetherButton({ labelled = false }: { labelled?: boolean }): Re
     return (
       <Button
         label="Together"
-        icon={<People size={16} color={theme.colors.textPrimary} />}
+        icon={<People color={theme.colors.textPrimary} />}
         onPress={() => openRoomSheet('together')}
         testID="queue-together"
       />
@@ -346,7 +355,7 @@ export function TogetherButton({ labelled = false }: { labelled?: boolean }): Re
       onPress={() => openRoomSheet('together')}
       testID="queue-together"
     >
-      <People size={18} color={theme.colors.textPrimary} />
+      <People color={theme.colors.textPrimary} />
     </IconButton>
   )
 }

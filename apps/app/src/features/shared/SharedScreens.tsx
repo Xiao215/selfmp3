@@ -150,14 +150,14 @@ export function SharedPlaylistScreen(): ReactNode {
           <Button
             label="Play"
             variant="primary"
-            icon={<Play size={15} color={theme.colors.onPrimary} />}
+            icon={<Play color={theme.colors.onPrimary} />}
             disabled={ids.length === 0}
             onPress={() => playHere()}
             testID="shared-play"
           />
           <Button
             label={room.state && isHost(room.state) ? 'Add to the room' : 'Play together'}
-            icon={<People size={16} color={theme.colors.textPrimary} />}
+            icon={<People color={theme.colors.textPrimary} />}
             busy={busy}
             disabled={ids.length === 0}
             onPress={() => void playTogether()}
@@ -165,7 +165,7 @@ export function SharedPlaylistScreen(): ReactNode {
           />
           <Button
             label="Add songs"
-            icon={<Plus size={15} color={theme.colors.textPrimary} />}
+            icon={<Plus color={theme.colors.textPrimary} />}
             onPress={() => setSheet('add')}
             testID="shared-add"
           />

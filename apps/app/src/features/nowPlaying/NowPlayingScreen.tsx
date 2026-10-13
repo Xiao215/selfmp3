@@ -14,7 +14,7 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, withAlpha, iconSize } from '@selfmp3/client'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
@@ -489,7 +489,7 @@ function CoverView({
     <>
       <View style={styles.head}>
         <IconButton onPress={onClose} label="Close now playing" filled>
-          <ChevronDown size={22} color={theme.colors.textPrimary} />
+          <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
         </IconButton>
         {/* Play-and-tag takes the head's line: at the top, it stays clear of the editor's sheet. */}
         {tagging ? (
@@ -503,7 +503,7 @@ function CoverView({
               testID="now-playing-sleep"
               style={({ pressed }) => [styles.sleepPill, pressed && styles.sleepPillPressed]}
             >
-              <Moon size={14} color={theme.colors.accent} />
+              <Moon size={iconSize.field} color={theme.colors.accent} />
               <Text style={styles.sleepText} numberOfLines={1}>
                 {sleep.line}
               </Text>
@@ -515,7 +515,7 @@ function CoverView({
           </Text>
         )}
         <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
-          <Info size={20} color={theme.colors.textPrimary} />
+          <Info size={iconSize.nav} color={theme.colors.textPrimary} />
         </IconButton>
       </View>
 
@@ -533,10 +533,10 @@ function CoverView({
         <View style={styles.titleButtons}>
           <LikeButton song={song} filled />
           <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
-            <UpNext size={20} color={theme.colors.textPrimary} />
+            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
           <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
-            <More size={20} color={theme.colors.textPrimary} />
+            <More size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
       </View>
@@ -721,7 +721,7 @@ function WordsView({
     <View style={styles.wordsView} testID="now-playing-lyrics-view">
       <View style={styles.wordsHead}>
         <IconButton onPress={onBack} label="Back to the cover" filled>
-          <ChevronDown size={22} color={theme.colors.textPrimary} />
+          <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
         </IconButton>
         <Cover uri={uri} title={song.album || song.title} size={40} />
         <View style={styles.wordsTitles}>

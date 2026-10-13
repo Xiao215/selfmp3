@@ -12,6 +12,7 @@ import {
   useCreateTag,
   useLibrary,
   useSetSongTags,
+  iconSize,
 } from '@selfmp3/client'
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -408,7 +409,7 @@ export function TagSearchList({
           accessibilityRole="button"
           accessibilityLabel={`Create ${trimmed}`}
         >
-          <Plus size={14} color={accent.accent} />
+          <Plus size={iconSize.field} color={accent.accent} />
           <Text style={[styles.itemLabel, { color: accent.accent }]} numberOfLines={1}>
             Create <Text style={styles.createName}>{trimmed}</Text>
           </Text>

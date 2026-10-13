@@ -197,7 +197,7 @@ function Row({ row }: { row: ProfileRow }): ReactNode {
   const Icon = ICONS[row.id]
   return (
     <NavRow
-      icon={<Icon size={19} tone="textPrimary" />}
+      icon={<Icon tone="textPrimary" />}
       title={row.label}
       hint={row.hint}
       onPress={() => router.push(row.href)}

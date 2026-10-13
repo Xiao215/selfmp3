@@ -129,11 +129,7 @@ function SignIn({ status, again = false }: { status: CloudStatus; again?: boolea
   }
 
   const cancel = (
-    <Button
-      label="Cancel"
-      icon={<X size={15} tone="textPrimary" />}
-      onPress={() => cancelSignIn.mutate()}
-    />
+    <Button label="Cancel" icon={<X tone="textPrimary" />} onPress={() => cancelSignIn.mutate()} />
   )
 
   if (status.signingIn && lost) {
@@ -255,7 +251,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
       >
         <Button
           label={syncing ? 'Uploading…' : 'Publish now'}
-          icon={<Refresh size={15} tone="textPrimary" />}
+          icon={<Refresh tone="textPrimary" />}
           disabled={syncing || sync.isPending}
           onPress={() => sync.mutate()}
         />
@@ -295,7 +291,7 @@ function Connected({ status, onChange }: { status: CloudStatus; onChange: () => 
         ) : (
           <Button
             label="Disconnect"
-            icon={<Trash size={15} tone="danger" />}
+            icon={<Trash tone="danger" />}
             variant="danger"
             disabled={leave.pending}
             onPress={leave.ask}
@@ -384,7 +380,7 @@ function AccountMenu({
       >
         <SheetItem
           label="Sign out"
-          icon={<Trash size={15} tone="danger" />}
+          icon={<Trash tone="danger" />}
           danger
           onPress={() => {
             setOpen(false)
@@ -487,11 +483,11 @@ function BucketForm({
           />
         ) : null}
         {onCancel ? (
-          <Button label="Cancel" icon={<X size={15} tone="textPrimary" />} onPress={onCancel} />
+          <Button label="Cancel" icon={<X tone="textPrimary" />} onPress={onCancel} />
         ) : null}
         <Button
           label={action.isPending ? 'Checking the bucket…' : 'Connect'}
-          icon={<CloudUpload size={15} tone="onAccent" />}
+          icon={<CloudUpload tone="onAccent" />}
           variant="primary"
           disabled={!complete || action.isPending}
           onPress={submit}

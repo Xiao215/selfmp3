@@ -168,7 +168,7 @@ function ReportLink({ pill }: { pill: boolean }): ReactNode {
     <Button label="Report" onPress={open} testID="stats-report" />
   ) : (
     <NavRow
-      icon={<Sparkles size={19} tone="textPrimary" />}
+      icon={<Sparkles tone="textPrimary" />}
       title="Report"
       hint={REPORT_HINT}
       onPress={open}

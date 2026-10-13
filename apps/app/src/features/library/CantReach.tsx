@@ -53,7 +53,7 @@ export function CantReach({
         <>
           <Button
             label="Try again"
-            icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+            icon={<Refresh color={theme.colors.textPrimary} />}
             onPress={onRetry}
           />
           {capped ? (

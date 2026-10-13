@@ -124,7 +124,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
                       the icon says which of the two it is at a glance. */}
                   <Button
                     label={`Remove from this ${place}`}
-                    icon={<CloudRemove size={15} tone="textPrimary" />}
+                    icon={<CloudRemove tone="textPrimary" />}
                     onPress={() => removeDownloads([song.id])}
                   />
                 </View>

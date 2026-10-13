@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatDuration, fuzzyRank, type Song } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useAccent } from '../accent'
@@ -169,7 +169,7 @@ export function PickMark({
         }
         style={styles.addedMark}
       >
-        <Check size={14} color={accent.accent} />
+        <Check size={iconSize.field} color={accent.accent} />
         <Text style={[styles.state, { color: accent.accent }]}>{added}</Text>
       </Pressable>
     )
@@ -177,7 +177,7 @@ export function PickMark({
   if (disabled) return null
   return (
     <IconButton label={labels.add ?? `Add ${title}`} caption="Add" filled size={32} onPress={onAdd}>
-      <Plus size={15} tone="textPrimary" />
+      <Plus size={iconSize.button} tone="textPrimary" />
     </IconButton>
   )
 }

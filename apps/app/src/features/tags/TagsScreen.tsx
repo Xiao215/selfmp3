@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { radius, space, type, useLibrary, textStyle } from '@selfmp3/client'
+import { radius, space, type, useLibrary, textStyle, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -193,10 +193,10 @@ export function TagsScreen(): ReactNode {
         onPress={() => setAdding(open => !open)}
         testID="tags-new"
       >
-        <Plus size={18} tone="textPrimary" />
+        <Plus tone="textPrimary" />
       </IconButton>
       <IconButton label="Search tags" filled onPress={openSearch} testID="tags-search">
-        <Search size={18} tone="textPrimary" />
+        <Search tone="textPrimary" />
       </IconButton>
     </>
   )
@@ -389,7 +389,7 @@ function UntaggedCard({
       </View>
     ) : (
       <View style={styles.untaggedIcon}>
-        <TagIcon size={17} tone="textPrimary" />
+        <TagIcon size={iconSize.medium} tone="textPrimary" />
       </View>
     )
 
@@ -431,7 +431,7 @@ function UntaggedCard({
     onSuggest ? (
       <Button
         label="Suggest tags"
-        icon={<Sparkle size={15} />}
+        icon={<Sparkle />}
         variant={variant}
         onPress={onSuggest}
         testID="tags-untagged-suggest"
@@ -446,7 +446,7 @@ function UntaggedCard({
         {suggest('secondary')}
         <Button
           label="Tag while they play"
-          icon={<TagIcon size={15} color={theme.colors.textPrimary} />}
+          icon={<TagIcon color={theme.colors.textPrimary} />}
           onPress={onStart}
           testID="tags-untagged-start"
         />
@@ -466,7 +466,7 @@ function UntaggedCard({
       >
         {covers}
         {words}
-        <ChevronRight size={16} tone="textMuted" />
+        <ChevronRight size={iconSize.item} tone="textMuted" />
       </Pressable>
       {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
     </Animated.View>
@@ -594,7 +594,7 @@ const TagTile = memo(function TagTile({
               hitSlop={6}
               style={({ pressed }) => [styles.moreButton, pressed && styles.pressed]}
             >
-              <More size={16} tone="textPrimary" />
+              <More size={iconSize.item} tone="textPrimary" />
             </Pressable>
           </View>
         </>

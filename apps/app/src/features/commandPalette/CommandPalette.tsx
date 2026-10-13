@@ -4,7 +4,7 @@ import { Pressable, Text, type TextInput, useWindowDimensions, View } from 'reac
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
-import { radius, space, type, useLibrary, useScanLibrary } from '@selfmp3/client'
+import { radius, space, type, useLibrary, useScanLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -223,7 +223,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           node: (
             <>
               <View style={styles.figure}>
-                <Sparkle size={16} />
+                <Sparkle size={iconSize.item} />
               </View>
               <View style={styles.labelBox}>
                 <Text style={styles.label} numberOfLines={1}>

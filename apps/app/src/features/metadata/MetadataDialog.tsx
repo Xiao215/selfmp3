@@ -16,6 +16,7 @@ import {
   type,
   type ServerConnection,
   textStyle,
+  iconSize,
 } from '@selfmp3/client'
 import { useMetadataSource } from './metadataSource'
 import { useMetadataSuggestion } from './useMetadataSuggestion'
@@ -395,7 +396,7 @@ export function MetadataDialog({
         <Button
           label={applyLabel(count, apply.isPending)}
           variant="primary"
-          icon={<Check size={15} color={accent.onAccent} />}
+          icon={<Check color={accent.onAccent} />}
           disabled={count === 0 || apply.isPending}
           onPress={submit}
         />
@@ -426,7 +427,7 @@ function SuggestedCard({
 }): ReactNode {
   const accent = useAccent()
   const answer = state.data
-  const sparkle = <Sparkle size={14} color={accent.accent} />
+  const sparkle = <Sparkle size={iconSize.field} color={accent.accent} />
 
   if (state.isPending) {
     return (

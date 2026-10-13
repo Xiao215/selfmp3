@@ -17,7 +17,16 @@ import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from '
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
-import { fonts, isRoomTrackId, motion, radius, rgba, type, withAlpha } from '@selfmp3/client'
+import {
+  fonts,
+  isRoomTrackId,
+  motion,
+  radius,
+  rgba,
+  type,
+  withAlpha,
+  iconSize,
+} from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
@@ -659,7 +668,7 @@ function Stage({
           label={focus ? 'Back to the full page' : 'Close now playing'}
           caption={focus ? 'Back to the full page' : 'Close'}
         >
-          <ChevronDown size={22} color={theme.colors.textSecondary} />
+          <ChevronDown size={iconSize.large} color={theme.colors.textSecondary} />
         </IconButton>
         {focus ? (
           <View style={styles.headSong} pointerEvents="none">
@@ -758,9 +767,9 @@ function Stage({
             style={({ pressed }) => [styles.expand, pressed && styles.expandPressed]}
           >
             {focus ? (
-              <Collapse size={18} color={theme.colors.textSecondary} />
+              <Collapse size={iconSize.medium} color={theme.colors.textSecondary} />
             ) : (
-              <Expand size={18} color={theme.colors.textSecondary} />
+              <Expand size={iconSize.medium} color={theme.colors.textSecondary} />
             )}
           </Pressable>
         </Animated.View>
@@ -854,7 +863,7 @@ function StageUpNext({
           {artistOr(upNext.artist)}
         </Text>
       </View>
-      <Next size={16} color={theme.colors.textSecondary} />
+      <Next size={iconSize.item} color={theme.colors.textSecondary} />
     </AnimatedPressable>
   )
 }

@@ -14,6 +14,7 @@ import {
   uniqueName,
   useCreatePlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { TextField } from '../../ui/components/TextField'
@@ -222,14 +223,14 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         {step === 'kind' ? (
           <>
             <Option
-              icon={<ListMusic size={16} color={theme.colors.textSecondary} />}
+              icon={<ListMusic size={iconSize.item} color={theme.colors.textSecondary} />}
               title="Pick songs"
               sub="Start empty and add songs"
               onPress={() => choose('pick')}
               testID="new-playlist-pick"
             />
             <Option
-              icon={<TagIcon size={16} color={theme.colors.textSecondary} />}
+              icon={<TagIcon size={iconSize.item} color={theme.colors.textSecondary} />}
               title="Fills from tags"
               sub="Grows as you tag songs"
               onPress={() => choose('follow')}
@@ -237,7 +238,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             />
             {switches.ask ? (
               <Option
-                icon={<Sparkle size={16} />}
+                icon={<Sparkle size={iconSize.item} />}
                 title="Describe it"
                 sub="Ask picks songs from your library"
                 onPress={() => choose('describe')}

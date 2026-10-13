@@ -4,6 +4,7 @@ import { useUnistyles } from 'react-native-unistyles'
 import { usePageBack } from '../useBackTo'
 import { IconButton } from './IconButton'
 import { ChevronLeft } from './Icons'
+import { iconSize } from '@selfmp3/client'
 
 /** What a page's way back is told: where it falls back to, and whether it is its own. */
 export interface BackProps {
@@ -41,7 +42,7 @@ export function BackButton({ to = '/', onPress, always = false, testID }: BackPr
   if (!shown && !always) return null
   return (
     <IconButton label="Back" filled onPress={onPress ?? back} testID={testID}>
-      <ChevronLeft size={20} color={theme.colors.textPrimary} />
+      <ChevronLeft size={iconSize.nav} color={theme.colors.textPrimary} />
     </IconButton>
   )
 }

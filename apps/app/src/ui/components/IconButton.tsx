@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { StyleSheet } from 'react-native-unistyles'
-import { HIT_TARGET, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, withAlpha } from '@selfmp3/client'
+import { sizedIcon } from './Icons'
 import { useLayoutValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { Press } from './Press'
@@ -14,8 +15,8 @@ import { Press } from './Press'
  * `filled="primary"` is the white round of the one thing to do now (Ask's
  * Stop), and `filled="accent"` the accent's (a field's send).
  * Either way it is round and sinks to 0.96 on the spring while pressed. The
- * icon inside is the caller's, because every icon already takes its own size
- * and colour.
+ * icon inside is the caller's, with its colour; it is drawn at
+ * `iconSize.medium` unless the caller sizes it (the transport, a ring).
  */
 export function IconButton({
   children,
@@ -75,7 +76,7 @@ export function IconButton({
         disabled && styles.disabled,
       ]}
     >
-      {children}
+      {sizedIcon(children, iconSize.medium, 'fill')}
     </Press>
   )
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -115,7 +115,7 @@ export function LibraryAnswer({
               coverTitle={song.album || song.title}
               title={song.title}
               sub={artistOr(song.artist)}
-              trailing={<Play size={14} color={theme.colors.textSecondary} />}
+              trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
             />
           ))}
           {shown.length < songs.length ? (

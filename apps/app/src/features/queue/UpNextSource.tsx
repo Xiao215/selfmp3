@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { motion, radius, space, type } from '@selfmp3/client'
+import { motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useFade } from '../../ui/motion'
@@ -50,15 +50,15 @@ export const UpNextSource = memo(function UpNextSource({
         accessibilityLabel={open ? `Open ${line.label}` : `Playing from ${line.label}`}
         style={({ pressed }) => [styles.name, pressed && styles.pressed]}
       >
-        {line.asked ? <Sparkle size={12} /> : null}
+        {line.asked ? <Sparkle size={iconSize.small} /> : null}
         <Text style={styles.label} numberOfLines={1} testID="up-next-source-name">
           {line.label}
         </Text>
-        {open ? <ChevronRight size={12} color={theme.colors.textMuted} /> : null}
+        {open ? <ChevronRight size={iconSize.small} color={theme.colors.textMuted} /> : null}
       </Pressable>
       {saved ? (
         <Animated.View style={[styles.saved, { opacity: savedIn }]} testID="up-next-saved">
-          <Check size={13} color={theme.colors.good} />
+          <Check size={iconSize.sub} color={theme.colors.good} />
           <Text style={styles.savedText}>Saved</Text>
         </Animated.View>
       ) : plan ? (

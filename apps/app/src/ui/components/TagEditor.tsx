@@ -3,7 +3,15 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
-import { failureText, space, type, useDeleteTag, useRenameTag, useSetTagHue } from '@selfmp3/client'
+import {
+  failureText,
+  space,
+  type,
+  useDeleteTag,
+  useRenameTag,
+  useSetTagHue,
+  iconSize,
+} from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { Button } from './Button'
 import { TextField } from './TextField'
@@ -112,7 +120,7 @@ function Editor({
               onPress={submit}
               icon={
                 rename.isSuccess && !changed ? (
-                  <Check size={13} color={accent.onAccent} />
+                  <Check size={iconSize.sub} color={accent.onAccent} />
                 ) : undefined
               }
             />
@@ -136,7 +144,7 @@ function Editor({
 
       {!confirmingDelete ? (
         <SheetItem
-          icon={<Trash size={15} color={theme.colors.danger} />}
+          icon={<Trash color={theme.colors.danger} />}
           label="Delete tag…"
           danger
           onPress={() => setConfirmingDelete(true)}
@@ -148,7 +156,7 @@ function Editor({
             library.
           </Text>
           <SheetItem
-            icon={<Trash size={15} color={theme.colors.danger} />}
+            icon={<Trash color={theme.colors.danger} />}
             label="Delete tag"
             danger
             onPress={() => {

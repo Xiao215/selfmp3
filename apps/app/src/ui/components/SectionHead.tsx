@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space, type } from '@selfmp3/client'
+import { space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { label, sectionTitle } from '../surfaces'
 import { ChevronDown, ChevronRight } from './Icons'
@@ -93,9 +93,9 @@ export function SectionHead({
           style={styles.start}
         >
           {collapsible.collapsed ? (
-            <ChevronRight size={15} tone="textMuted" />
+            <ChevronRight size={iconSize.button} tone="textMuted" />
           ) : (
-            <ChevronDown size={15} tone="textMuted" />
+            <ChevronDown size={iconSize.button} tone="textMuted" />
           )}
           {named}
         </Pressable>

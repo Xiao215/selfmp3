@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable, Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { radius, type, withAlpha } from '@selfmp3/client'
+import { radius, type, withAlpha, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { Refresh, Romanize } from '../../ui/components/Icons'
 import { tip } from '../../ui/tip'
@@ -40,7 +40,10 @@ export function RomanizeButton({ lyrics }: { lyrics: SongLyrics }): ReactNode {
         on && styles.toolOn,
       ]}
     >
-      <Romanize size={14} color={on ? theme.colors.onPrimary : theme.colors.textSecondary} />
+      <Romanize
+        size={iconSize.field}
+        color={on ? theme.colors.onPrimary : theme.colors.textSecondary}
+      />
       <Text style={[styles.toolText, on && styles.toolTextOn]}>{name}</Text>
     </Pressable>
   )
@@ -65,7 +68,7 @@ export function FindLyricsButton({ onPress }: { onPress: () => void }): ReactNod
         pressed && styles.toolPressed,
       ]}
     >
-      <Refresh size={13} color={theme.colors.textSecondary} />
+      <Refresh size={iconSize.sub} color={theme.colors.textSecondary} />
       <Text style={styles.toolText}>Find lyrics</Text>
     </Pressable>
   )

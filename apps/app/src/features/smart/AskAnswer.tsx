@@ -5,7 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
-import { failureText, radius, space, STALE, type, textStyle } from '@selfmp3/client'
+import { failureText, radius, space, STALE, type, textStyle, iconSize } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -362,7 +362,7 @@ function Drawn({
                   style={({ pressed }) => [styles.try, pressed && styles.pressed]}
                   testID="ask-try"
                 >
-                  <Sparkle size={13} />
+                  <Sparkle size={iconSize.sub} />
                   <Text style={styles.tryText} numberOfLines={2}>
                     {each}
                   </Text>
@@ -436,7 +436,7 @@ function SongPicks({
           coverTitle={song.album || song.title}
           title={song.title}
           sub={why ? `${artistOr(song.artist)} · ${why}` : artistOr(song.artist)}
-          trailing={<Play size={14} color={theme.colors.textSecondary} />}
+          trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
         />
       ))}
     </>

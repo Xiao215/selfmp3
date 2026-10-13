@@ -11,7 +11,16 @@ import { FacesCover } from '../room/RoomFace'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
-import { fonts, radius, tagColors, type, useLibrary, textStyle, tracking } from '@selfmp3/client'
+import {
+  fonts,
+  radius,
+  tagColors,
+  type,
+  useLibrary,
+  textStyle,
+  tracking,
+  iconSize,
+} from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
@@ -281,7 +290,7 @@ function SundayLead({
             {lead ? lead.note : card.line}
           </Text>
         </View>
-        <ChevronRight size={16} color={tone.tint} />
+        <ChevronRight size={iconSize.item} color={tone.tint} />
       </Pressable>
     </Animated.View>
   )
@@ -336,7 +345,7 @@ function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
         style={[styles.firstCard, { backgroundColor: accent.accentPill }]}
       >
         <View style={styles.firstMark}>
-          <Plus size={22} color={accent.accent} />
+          <Plus size={iconSize.large} color={accent.accent} />
         </View>
         <Text style={styles.firstTitle}>
           Silence, for now
@@ -348,7 +357,7 @@ function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
         </Text>
         <View style={styles.firstAction}>
           <Text style={[styles.firstActionLabel, { color: accent.accent }]}>Import a link</Text>
-          <ChevronRight size={16} color={accent.accent} />
+          <ChevronRight size={iconSize.item} color={accent.accent} />
         </View>
       </Pressable>
     </Animated.View>
@@ -372,7 +381,7 @@ function PhoneHeader(): ReactNode {
           filled
           onPress={() => router.navigate('/import')}
         >
-          <Download size={18} tone="textPrimary" />
+          <Download tone="textPrimary" />
         </IconButton>
         <Pressable
           testID="home-you"
@@ -649,7 +658,7 @@ function Recents({
                 <PlaylistCover songIds={entry.songIds} size={size} />
                 {line.asked ? (
                   <View style={styles.recentBadge}>
-                    <Sparkle size={11} />
+                    <Sparkle size={iconSize.tiny} />
                   </View>
                 ) : null}
               </View>
@@ -840,7 +849,7 @@ function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
       style={[styles.importCard, style]}
     >
       <View style={styles.importIcon}>
-        <Download size={16} tone="textPrimary" />
+        <Download size={iconSize.item} tone="textPrimary" />
       </View>
       <View style={styles.importText}>
         <Text style={styles.importTitle}>Import a link</Text>

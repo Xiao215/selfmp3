@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
-import { motion, radius, space, type, textStyle } from '@selfmp3/client'
+import { motion, radius, space, type, textStyle, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
@@ -419,7 +419,7 @@ function Rail({
             <>
               {inRoom ? null : <TogetherButton />}
               <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
-                <ChevronRight size={15} color={theme.colors.textSecondary} />
+                <ChevronRight size={iconSize.button} color={theme.colors.textSecondary} />
               </IconButton>
             </>
           }
@@ -708,9 +708,9 @@ const RailRow = memo(function RailRow({
               artUri={artUri}
               mark={
                 downloaded ? (
-                  <Downloaded size={13} tone="good" />
+                  <Downloaded size={iconSize.sub} tone="good" />
                 ) : notDownloadedMark ? (
-                  <NotDownloaded size={13} tone="textMuted" />
+                  <NotDownloaded size={iconSize.sub} tone="textMuted" />
                 ) : null
               }
             />
@@ -741,7 +741,7 @@ function RowFace({
       leading={
         grip ? (
           <View style={styles.gripSlot}>
-            <Grip size={14} color={theme.colors.textMuted} />
+            <Grip size={iconSize.field} color={theme.colors.textMuted} />
           </View>
         ) : null
       }

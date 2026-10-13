@@ -3,7 +3,7 @@ import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, type Artist, type Tag } from '@selfmp3/shared'
-import { radius, type } from '@selfmp3/client'
+import { radius, type, iconSize } from '@selfmp3/client'
 import { User } from './Icons'
 import { SONG_LINE_COVER, SongLine } from './SongLine'
 import { TagDot } from './TagDot'
@@ -40,7 +40,7 @@ export function PlaceLine({
           {place.kind === 'tag' ? (
             <TagDot hue={place.tag.hue} size={10} />
           ) : (
-            <User size={15} tone="textSecondary" />
+            <User size={iconSize.button} tone="textSecondary" />
           )}
         </View>
       }

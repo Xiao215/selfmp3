@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useLocalSearchParams } from 'expo-router'
-import { useBulkTag, useCreateTag, useLibrary } from '@selfmp3/client'
+import { useBulkTag, useCreateTag, useLibrary, iconSize } from '@selfmp3/client'
 import { Tag as TagIcon } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
 import { showToast } from '../../ui/toast'
@@ -65,7 +65,7 @@ function useMakeTag(artist: Artist | null): MenuItem {
   return {
     key: 'make-tag',
     label: 'Make a tag from this artist',
-    icon: <TagIcon size={16} tone="textSecondary" />,
+    icon: <TagIcon size={iconSize.item} tone="textSecondary" />,
     apart: true,
     onPress: () => void make(),
   }

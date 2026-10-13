@@ -152,7 +152,7 @@ function AddSheetBody({
               key={placeKey(place)}
               label={placeName(place)}
               hue={place.kind === 'tag' ? place.tag.hue : undefined}
-              icon={place.kind === 'artist' ? <User size={12} tone="onPrimary" /> : undefined}
+              icon={place.kind === 'artist' ? <User tone="onPrimary" /> : undefined}
               selected
               compact
               onPress={() => setDraft(current => togglePlace(current, place))}

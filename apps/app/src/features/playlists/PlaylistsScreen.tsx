@@ -11,7 +11,7 @@ import {
   type Playlist,
   type SharedSummary,
 } from '@selfmp3/shared'
-import { radius, space, type, useGems } from '@selfmp3/client'
+import { radius, space, type, useGems, iconSize } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -141,7 +141,7 @@ export function PlaylistsScreen(): ReactNode {
                 {/* White, as `C07` draws it: `active` is the pill's white. */}
                 <Button
                   label="New"
-                  icon={<Plus size={15} color={theme.colors.onPrimary} />}
+                  icon={<Plus color={theme.colors.onPrimary} />}
                   active
                   onPress={() => setNewOpen(true)}
                   testID="playlists-new"
@@ -155,7 +155,7 @@ export function PlaylistsScreen(): ReactNode {
                 active={newOpen}
                 testID="playlists-new"
               >
-                <Plus size={20} color={theme.colors.textPrimary} />
+                <Plus size={iconSize.nav} color={theme.colors.textPrimary} />
               </IconButton>
             )
           }
@@ -303,7 +303,7 @@ const PlaylistTile = memo(function PlaylistTile({
           <PlaylistCover playlist={playlist} />
           {live ? (
             <View style={[styles.badge, styles.badgeRow]}>
-              <Live size={11} color={theme.colors.textPrimary} />
+              <Live size={iconSize.tiny} color={theme.colors.textPrimary} />
               <Text style={styles.badgeText}>{FOLLOWS_LABEL}</Text>
             </View>
           ) : null}
@@ -329,7 +329,7 @@ const PlaylistTile = memo(function PlaylistTile({
                   pressed && styles.fabPressed,
                 ]}
               >
-                <Play size={15} color={theme.colors.onPrimary} />
+                <Play size={iconSize.button} color={theme.colors.onPrimary} />
               </Pressable>
             )
           : undefined

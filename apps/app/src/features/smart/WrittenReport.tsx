@@ -4,7 +4,16 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AI_ERROR, type WrappedRange } from '@selfmp3/shared'
-import { ApiError, failureText, radius, space, STALE, type, textStyle } from '@selfmp3/client'
+import {
+  ApiError,
+  failureText,
+  radius,
+  space,
+  STALE,
+  type,
+  textStyle,
+  iconSize,
+} from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
@@ -55,7 +64,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   return (
     <View style={styles.card} testID="report-written">
       <View style={styles.head}>
-        <Sparkle size={12} />
+        <Sparkle size={iconSize.small} />
         <Text style={styles.label} accessibilityRole="header">
           In words
         </Text>
@@ -73,7 +82,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
         <Button
           label="Write it again"
           variant="text"
-          icon={<Refresh size={13} tone="textSecondary" />}
+          icon={<Refresh tone="textSecondary" />}
           busy={again}
           disabled={answer.isPending || !server.api}
           onPress={() => void writeAgain()}

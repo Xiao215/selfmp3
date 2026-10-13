@@ -1,7 +1,7 @@
 import type { RefObject } from 'react'
 import type { View } from 'react-native'
 import { formatBytes } from '@selfmp3/shared'
-import { bytesToDownload, isDownloaded, useManifest } from '@selfmp3/client'
+import { bytesToDownload, isDownloaded, useManifest, iconSize } from '@selfmp3/client'
 import { devicePlace } from '../../features/settings/settings.model'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -51,7 +51,7 @@ export function useListActions(
           {
             key: 'select',
             label: SONG_ACTION_LABELS.selectSongs,
-            icon: <CheckSquare size={16} tone="textSecondary" />,
+            icon: <CheckSquare size={iconSize.item} tone="textSecondary" />,
             disabled: nothing,
             onPress: () => selection.enter(),
           },
@@ -60,7 +60,7 @@ export function useListActions(
     {
       key: 'play-next',
       label: SONG_ACTION_LABELS.playNext,
-      icon: <Next size={16} tone="textSecondary" />,
+      icon: <Next size={iconSize.item} tone="textSecondary" />,
       disabled: nothing,
       onPress: () => {
         fly(heroRef?.current ?? null, songIds)
@@ -70,7 +70,7 @@ export function useListActions(
     {
       key: 'up-next',
       label: SONG_ACTION_LABELS.addToUpNext,
-      icon: <QueueAdd size={16} tone="textSecondary" />,
+      icon: <QueueAdd size={iconSize.item} tone="textSecondary" />,
       disabled: nothing,
       onPress: () => {
         fly(heroRef?.current ?? null, songIds)
@@ -86,7 +86,7 @@ export function useListActions(
             {
               key: 'remove-download',
               label: `Remove from this ${devicePlace(deviceKind())}`,
-              icon: <CloudRemove size={16} tone="textSecondary" />,
+              icon: <CloudRemove size={iconSize.item} tone="textSecondary" />,
               disabled: removing,
               onPress: () => removeDownloads(songIds),
             },
@@ -95,7 +95,7 @@ export function useListActions(
             {
               key: 'download',
               label: 'Download',
-              icon: <CloudDownload size={16} tone="textSecondary" />,
+              icon: <CloudDownload size={iconSize.item} tone="textSecondary" />,
               detail: pendingBytes > 0 ? formatBytes(pendingBytes) : undefined,
               // By hand, as a song's menu downloads.
               onPress: () => requestDownload(songIds),

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { HIT_TARGET, isDownloaded, radius, space, type, textStyle } from '@selfmp3/client'
+import { HIT_TARGET, isDownloaded, radius, space, type, textStyle, iconSize } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -246,7 +246,7 @@ export function LibraryScreen(): ReactNode {
                   onPress={() => setSorting(true)}
                   testID="library-sort-phone"
                 >
-                  <SortLines size={18} tone="textPrimary" />
+                  <SortLines tone="textPrimary" />
                 </IconButton>
                 {/* A row plays one song, so the whole list starts here. With
                     tags on, the transport row under the head does it. */}
@@ -258,7 +258,7 @@ export function LibraryScreen(): ReactNode {
                     onPress={() => player.playShuffled(songIds, source)}
                     testID="library-shuffle-phone"
                   >
-                    <Shuffle size={16} color={theme.colors.textPrimary} />
+                    <Shuffle size={iconSize.item} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
               </>
@@ -276,14 +276,14 @@ export function LibraryScreen(): ReactNode {
           <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
             <PlayButton
               label="Play these tags"
-              icon={<Play size={20} color={theme.colors.onPrimary} />}
+              icon={<Play color={theme.colors.onPrimary} />}
               disabled={visible.length === 0}
               onPress={() => playTags(false)}
               testID="library-play-tags"
             />
             <Button
               accessibilityLabel="Shuffle these tags"
-              icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
+              icon={<Shuffle color={theme.colors.textPrimary} />}
               disabled={visible.length === 0}
               onPress={() => playTags(true)}
             />
@@ -358,7 +358,7 @@ export function LibraryScreen(): ReactNode {
                 <Button
                   label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
                   accessibilityLabel="Shuffle"
-                  icon={<Shuffle size={15} color={theme.colors.textPrimary} />}
+                  icon={<Shuffle color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
                   testID="library-shuffle"
                   onPress={() =>
@@ -370,7 +370,7 @@ export function LibraryScreen(): ReactNode {
                     label="Play these tags"
                     // The size of the controls beside it, so the head stays one line.
                     size={dense ? 36 : HIT_TARGET}
-                    icon={<Play size={16} color={theme.colors.onPrimary} />}
+                    icon={<Play color={theme.colors.onPrimary} />}
                     disabled={visible.length === 0}
                     onPress={() => playTags(false)}
                     testID="library-play-tags"
@@ -418,7 +418,6 @@ export function LibraryScreen(): ReactNode {
               selected={filter.downloadedOnly}
               icon={
                 <Downloaded
-                  size={12}
                   color={
                     filter.downloadedOnly ? theme.colors.onPrimary : theme.colors.textSecondary
                   }
@@ -442,7 +441,7 @@ export function LibraryScreen(): ReactNode {
           <Chip
             testID="library-add-tag"
             label={choosingTags ? 'Done' : 'More tags'}
-            icon={<Plus size={13} color={theme.colors.textSecondary} />}
+            icon={<Plus color={theme.colors.textSecondary} />}
             selected={false}
             dashed
             onPress={() => setChoosingTags(open => !open)}

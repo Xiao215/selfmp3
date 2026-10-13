@@ -365,10 +365,32 @@ export const leading: { readonly [step in keyof typeof type]: number } = {
 }
 
 /**
- * Icon sizes, for the shared parts: a small one beside a hint or in a chip, the
- * one in a field or a row's action, and a large one at the head of an empty state.
+ * Icon sizes. A glyph beside words is the size of those words, and named for
+ * their step (`tiny` beside a count, `small` in a chip, `sub` beside a
+ * row's second line); the rest are named for what holds them. A button, a
+ * menu's item, a chip and an icon button size the glyph they are given, so
+ * their callers pass none; sixteen sizes written at each site had drifted
+ * apart, the same menu slot drawn 15 in one menu and 16 in the next.
  */
-export const iconSize = { small: 14, medium: 18, large: 22 } as const
+export const iconSize = {
+  tiny: 11,
+  small: 12,
+  sub: 13,
+  /** In a field, or a hint's. */
+  field: 14,
+  /** On a button. */
+  button: 15,
+  /** A menu's item, a row's action. */
+  item: 16,
+  /** An icon button's, a header's controls. */
+  medium: 18,
+  /** The way back, the mini player's controls. */
+  nav: 20,
+  /** Closing Now Playing, the head of an empty state. */
+  large: 22,
+  /** The round white Play. */
+  hero: 24,
+} as const
 
 /** A step of the type scale, by name. */
 export type TypeStep = keyof typeof type

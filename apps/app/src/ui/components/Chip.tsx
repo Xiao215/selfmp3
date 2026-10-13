@@ -3,8 +3,8 @@ import { Animated, Pressable, Text } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePressScale } from '../motion'
-import { radius, type } from '@selfmp3/client'
-import { Check } from './Icons'
+import { iconSize, radius, type } from '@selfmp3/client'
+import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
 import { TagDot } from './TagDot'
 import { plural } from '@selfmp3/shared'
@@ -113,9 +113,11 @@ export function Chip({
           pressed && styles.pressed,
         ]}
       >
-        {icon}
+        {sizedIcon(icon, iconSize.small)}
         {hue === undefined ? null : <TagDot hue={hue} size={7} />}
-        {choice && selected ? <Check size={compact ? 11 : 12} color={text} /> : null}
+        {choice && selected ? (
+          <Check size={compact ? iconSize.tiny : iconSize.small} color={text} />
+        ) : null}
         {name}
         {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
       </Pressable>

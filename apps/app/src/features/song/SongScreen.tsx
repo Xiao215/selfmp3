@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { radius, space, type, useLibrary, useSimilar, withAlpha } from '@selfmp3/client'
+import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -191,14 +191,14 @@ function SongPage({ song }: { song: Song }): ReactNode {
             testID="song-play"
             songId={song.id}
             playLabel={`Play ${song.title}`}
-            glyph={24}
+            glyph={iconSize.hero}
             // The song already loaded pauses and resumes; any other starts from the top.
             onPress={() => (isCurrent ? player.toggle() : player.playFrom([song.id], 0))}
           />
           <Button
             testID="song-lyrics"
             label="Lyrics"
-            icon={<Mic size={16} tone="textPrimary" />}
+            icon={<Mic tone="textPrimary" />}
             onPress={() => {
               // The words follow the song that is playing, so it has to be this one.
               if (!isCurrent) player.playFrom([song.id], 0)
@@ -211,7 +211,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
             <Button
               testID="song-play-next"
               label={SONG_ACTION_LABELS.playNext}
-              icon={<Next size={16} tone="textPrimary" />}
+              icon={<Next tone="textPrimary" />}
               onPress={() => {
                 player.playNext([song.id])
                 showToast('Plays next', 'good')

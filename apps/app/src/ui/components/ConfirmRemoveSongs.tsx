@@ -179,7 +179,7 @@ export function ConfirmRemoveSongs({
         <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
         <Button
           label={pending ? 'Working…' : only ? 'Delete song' : `Delete ${count} ${songWord}`}
-          icon={<Trash size={15} color={theme.colors.danger} />}
+          icon={<Trash color={theme.colors.danger} />}
           variant="danger"
           onPress={onConfirm}
           disabled={pending}

@@ -49,7 +49,7 @@ export function PlayShuffle({
       <PlayButton
         testID={`${testPrefix}-play`}
         label={`Play ${name}`}
-        icon={<Play size={24} color={theme.colors.onPrimary} />}
+        icon={<Play color={theme.colors.onPrimary} />}
         disabled={off}
         onPress={() => {
           fly(heroRef?.current ?? null, songIds)
@@ -60,7 +60,7 @@ export function PlayShuffle({
         testID={`${testPrefix}-shuffle`}
         label="Shuffle"
         accessibilityLabel={`Shuffle ${name}`}
-        icon={<Shuffle size={16} tone="textPrimary" />}
+        icon={<Shuffle tone="textPrimary" />}
         disabled={off}
         onPress={() => {
           fly(heroRef?.current ?? null, songIds)

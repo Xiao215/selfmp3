@@ -12,7 +12,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { ServerAway } from '../../connection/ServerAway'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
-import { type, textStyle } from '@selfmp3/client'
+import { type, textStyle, iconSize } from '@selfmp3/client'
 import { hint, textColumn } from '../../ui/surfaces'
 
 /**
@@ -78,7 +78,7 @@ export function SmartPanel({
   return (
     <Panel
       title="Smart features"
-      mark={<Sparkle size={12} />}
+      mark={<Sparkle size={iconSize.small} />}
       hint="through your library’s computer"
       anchor={anchor}
     >
@@ -172,7 +172,12 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
   }
 
   return (
-    <Panel title="Model" mark={<Sparkle size={12} />} hint="for smart features" anchor={anchor}>
+    <Panel
+      title="Model"
+      mark={<Sparkle size={iconSize.small} />}
+      hint="for smart features"
+      anchor={anchor}
+    >
       {server.reach.state !== 'reachable' ? (
         <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
@@ -211,7 +216,11 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
               {hops.map(hop => (
                 <View key={hop.line} style={styles.hop}>
                   <View style={styles.hopMark}>
-                    {hop.ok ? <Check size={14} tone="good" /> : <X size={14} tone="danger" />}
+                    {hop.ok ? (
+                      <Check size={iconSize.field} tone="good" />
+                    ) : (
+                      <X size={14} tone="danger" />
+                    )}
                   </View>
                   <View style={styles.hopText}>
                     <Text style={[styles.hopLine, !hop.ok && styles.hopFailed]}>{hop.line}</Text>

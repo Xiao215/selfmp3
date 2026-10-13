@@ -6,7 +6,7 @@ import {
   usePlayerStalled,
   usePlayingSongId,
 } from '../../player/PlayerProvider'
-import { PlayButton } from './Button'
+import { PlayButton, playGlyph } from './Button'
 import { IconButton } from './IconButton'
 import { PlayPauseIcon } from './PlayPauseIcon'
 
@@ -27,7 +27,7 @@ import { PlayPauseIcon } from './PlayPauseIcon'
  */
 export function PlayPauseButton({
   size = 56,
-  glyph = Math.round(size * 0.43),
+  glyph = playGlyph(size),
   bare = false,
   songId,
   playing: given,

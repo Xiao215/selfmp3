@@ -316,7 +316,6 @@ function SheetPanel({
                     label="Shuffle"
                     icon={
                       <Shuffle
-                        size={16}
                         color={
                           player.queue.shuffle ? theme.colors.onPrimary : theme.colors.textPrimary
                         }

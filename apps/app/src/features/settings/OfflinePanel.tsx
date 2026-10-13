@@ -174,7 +174,7 @@ export function OfflinePanel({
             />
             <Button
               label="Stop downloading"
-              icon={<X size={15} tone="textPrimary" />}
+              icon={<X tone="textPrimary" />}
               onPress={() => queue.cancelAll()}
             />
           </>
@@ -185,7 +185,7 @@ export function OfflinePanel({
                 ? `Everything is on this ${place}`
                 : `${tally.here === 0 ? 'Download everything' : 'Download what’s missing'} (${formatBytes(missingBytes)})`
             }
-            icon={<CloudDownload size={15} tone={missingBytes === 0 ? 'textMuted' : 'onAccent'} />}
+            icon={<CloudDownload tone={missingBytes === 0 ? 'textMuted' : 'onAccent'} />}
             variant="primary"
             disabled={missingBytes === 0}
             onPress={() => requestDownload(absentIds)}
@@ -214,7 +214,7 @@ export function OfflinePanel({
         {tally.kept > 0 ? (
           <Button
             label={removing ? 'Removing…' : `Remove all from this ${place}`}
-            icon={<Trash size={15} tone="danger" />}
+            icon={<Trash tone="danger" />}
             variant="danger"
             busy={removing}
             onPress={() => onConfirm('remove-downloads')}

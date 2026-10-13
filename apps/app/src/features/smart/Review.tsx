@@ -4,7 +4,7 @@ import { Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Song } from '@selfmp3/shared'
 import { clamp, plural, artistOr } from '@selfmp3/shared'
-import { onMac, radius, space, type, withAlpha, textStyle } from '@selfmp3/client'
+import { onMac, radius, space, type, withAlpha, textStyle, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -362,9 +362,9 @@ export function Review<T extends Reviewed>({
               testID={`${testID}-open`}
             >
               {opened ? (
-                <ChevronDown size={15} tone="textMuted" />
+                <ChevronDown size={iconSize.button} tone="textMuted" />
               ) : (
-                <ChevronRight size={15} tone="textMuted" />
+                <ChevronRight size={iconSize.button} tone="textMuted" />
               )}
             </Pressable>
           ) : null}
@@ -463,7 +463,7 @@ export function Review<T extends Reviewed>({
                 testID={`${testID}-section`}
               >
                 <Checkbox checked={all} mixed={on > 0 && !all} />
-                {model ? <Sparkle size={14} /> : null}
+                {model ? <Sparkle size={iconSize.field} /> : null}
                 <Text style={styles.bandTitle}>{text.title}</Text>
                 <Text style={styles.count}>
                   {on} of {list.length} ticked

@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { NAV_HEIGHT, radius, space, type } from '@selfmp3/client'
+import { NAV_HEIGHT, radius, space, type, iconSize } from '@selfmp3/client'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { navBottom } from '../../shell/bottomInset'
 import { useFade } from '../motion'
@@ -118,7 +118,7 @@ function TabInk({
   const lit = useFade(active, MOVE_MS.tab, MOVE_MS.tab)
   return (
     <>
-      <Icon size={20} tone="textSecondary" />
+      <Icon size={iconSize.nav} tone="textSecondary" />
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
@@ -130,7 +130,7 @@ function TabInk({
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        <Icon size={20} tone="onPrimary" />
+        <Icon size={iconSize.nav} tone="onPrimary" />
         <Text style={[styles.label, styles.labelOn]} numberOfLines={1}>
           {label}
         </Text>

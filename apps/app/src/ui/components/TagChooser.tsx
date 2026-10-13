@@ -59,7 +59,7 @@ export function TagChipRow({
       ))}
       <Chip
         label="tag"
-        icon={<Plus size={12} tone="textSecondary" />}
+        icon={<Plus tone="textSecondary" />}
         selected={false}
         dashed
         compact

@@ -10,7 +10,7 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated'
 import { StyleSheet } from 'react-native-unistyles'
-import { motion } from '@selfmp3/client'
+import { motion, iconSize } from '@selfmp3/client'
 import { EASE_IN_POINTS, EASE_OUT_POINTS } from '../motion.model'
 import { useMotionReduced } from '../motion'
 import { Check, Minus } from './Icons'
@@ -129,9 +129,9 @@ function Mark({ checked, mixed }: { checked: boolean; mixed: boolean }): ReactNo
           <Animated.View entering={moves.markIn} exiting={moves.markOut} pointerEvents="none">
             <Animated.View entering={moves.markGrow}>
               {checked ? (
-                <Check size={12} tone="onAccent" />
+                <Check size={iconSize.small} tone="onAccent" />
               ) : (
-                <Minus size={12} tone="textPrimary" />
+                <Minus size={iconSize.small} tone="textPrimary" />
               )}
             </Animated.View>
           </Animated.View>

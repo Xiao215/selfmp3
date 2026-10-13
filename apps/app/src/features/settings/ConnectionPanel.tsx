@@ -152,7 +152,7 @@ export function ConnectionPanel({
       <ButtonRow>
         <Button
           label="Refresh"
-          icon={<Refresh size={15} tone="textPrimary" />}
+          icon={<Refresh tone="textPrimary" />}
           onPress={() => void library.refetch()}
         />
       </ButtonRow>

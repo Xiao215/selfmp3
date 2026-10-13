@@ -4,7 +4,14 @@ import { ActivityIndicator, Image, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import type { WrappedRange } from '@selfmp3/shared'
-import { failureText, type, useLibrary, withAlpha, type ServerConnection } from '@selfmp3/client'
+import {
+  failureText,
+  type,
+  useLibrary,
+  withAlpha,
+  type ServerConnection,
+  iconSize,
+} from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerDirect } from '../../connection/useServerDirect'
@@ -156,7 +163,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
   const shareControl = !canSaveLook ? null : wide ? (
     <Button
       label={shareLabel}
-      icon={<Download size={15} color={theme.colors.textPrimary} />}
+      icon={<Download color={theme.colors.textPrimary} />}
       busy={sharing}
       disabled={!canShare}
       onPress={() => void share()}
@@ -173,7 +180,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
       {sharing ? (
         <ActivityIndicator size="small" color={theme.colors.textMuted} />
       ) : (
-        <Download size={18} color={theme.colors.textPrimary} />
+        <Download size={iconSize.medium} color={theme.colors.textPrimary} />
       )}
     </IconButton>
   )
@@ -203,7 +210,7 @@ function Report({ via, ...frame }: FrameState & { via: ServerConnection | undefi
         ))}
         <Button
           label="Go to the library"
-          icon={<Play size={15} color={theme.colors.textPrimary} />}
+          icon={<Play color={theme.colors.textPrimary} />}
           onPress={() => backTo('/library')}
         />
       </EmptyState>,

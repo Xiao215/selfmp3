@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
-import { ApiError, failureText, motion, radius, space, type } from '@selfmp3/client'
+import { ApiError, failureText, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useArrival, useFade } from '../../ui/motion'
@@ -209,7 +209,7 @@ export function ChangeField({
         style={[styles.layer, large && styles.layerLarge, fieldStyle]}
         pointerEvents={working ? 'none' : 'auto'}
       >
-        <Sparkle size={large ? 15 : 12} />
+        <Sparkle size={large ? iconSize.button : iconSize.small} />
         <TextInput
           ref={inputRef}
           value={value}
@@ -234,7 +234,7 @@ export function ChangeField({
             onPress={onSend}
             testID={`${testID}-send`}
           >
-            <ChevronRight size={14} color={theme.colors.onPrimary} />
+            <ChevronRight size={iconSize.field} color={theme.colors.onPrimary} />
           </IconButton>
         </Animated.View>
       </Animated.View>
@@ -284,7 +284,7 @@ export function TrailStep({
   return (
     <Animated.View style={[styles.step, arrival]}>
       {first ? (
-        <Sparkle size={11} color={theme.colors.textMuted} />
+        <Sparkle size={iconSize.tiny} color={theme.colors.textMuted} />
       ) : (
         <Text style={styles.arrow}>→</Text>
       )}

@@ -14,6 +14,7 @@ import {
   type,
   useDevices,
   type Api,
+  iconSize,
 } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -218,7 +219,7 @@ function DevicesList({
                 }
                 size={28}
               >
-                <Trash size={14} tone="textMuted" />
+                <Trash size={iconSize.field} tone="textMuted" />
               </IconButton>
             ) : null}
           </View>

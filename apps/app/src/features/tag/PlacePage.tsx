@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -296,7 +296,7 @@ export function PlacePage({
             {place.kind === 'tag' ? (
               <TagDot hue={place.tag.hue} size={7} />
             ) : (
-              <User size={12} tone="textSecondary" />
+              <User size={iconSize.small} tone="textSecondary" />
             )}
             <Text style={listHeadText.kindText}>{kindLabel}</Text>
           </View>
@@ -333,7 +333,7 @@ export function PlacePage({
               testID="place-combine"
               label="Combine with…"
               accessibilityLabel={`Combine ${title} with another tag or artist`}
-              icon={<Plus size={15} tone="textPrimary" />}
+              icon={<Plus tone="textPrimary" />}
               onPress={() => setAdding(true)}
             />
           )}
@@ -377,7 +377,7 @@ function Chips({
           key={placeKey(entry)}
           label={placeName(entry)}
           hue={entry.kind === 'tag' ? entry.tag.hue : undefined}
-          icon={entry.kind === 'artist' ? <User size={12} tone="onPrimary" /> : undefined}
+          icon={entry.kind === 'artist' ? <User tone="onPrimary" /> : undefined}
           selected
           compact
           onPress={() => undefined}

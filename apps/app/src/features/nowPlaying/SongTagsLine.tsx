@@ -4,7 +4,7 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { Href } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { isRoomTrackId, radius, type, withAlpha } from '@selfmp3/client'
+import { isRoomTrackId, radius, type, withAlpha, iconSize } from '@selfmp3/client'
 import { useSongTagLookup } from '../../ui/songTags'
 import { Chip } from '../../ui/components/Chip'
 import { Plus, TagPlus } from '../../ui/components/Icons'
@@ -81,11 +81,11 @@ export function SongTagsLine({
         {/* The dashed edge is the mark itself: an add chip (`S2`). */}
         {labelled ? (
           <>
-            <TagPlus size={14} color={theme.colors.textSecondary} />
+            <TagPlus size={iconSize.field} color={theme.colors.textSecondary} />
             <Text style={styles.addText}>{label}</Text>
           </>
         ) : (
-          <Plus size={13} color={theme.colors.textSecondary} />
+          <Plus size={iconSize.sub} color={theme.colors.textSecondary} />
         )}
       </Pressable>
     </View>

@@ -13,6 +13,7 @@ import {
   usePlaylistSongs,
   useReorderPlaylist,
   useUpdatePlaylist,
+  iconSize,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -202,7 +203,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const titles = (
     <>
       <View style={listHeadText.kind}>
-        {live ? <Live size={12} tone="textSecondary" /> : null}
+        {live ? <Live size={iconSize.small} tone="textSecondary" /> : null}
         <Text style={listHeadText.kindText}>
           {live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}
         </Text>
@@ -275,7 +276,7 @@ export function PlaylistDetailScreen(): ReactNode {
               {
                 key: 'save-copy',
                 label: 'Save a copy as playlist',
-                icon: <Copy size={16} tone="textSecondary" />,
+                icon: <Copy size={iconSize.item} tone="textSecondary" />,
                 disabled: songs.length === 0,
                 apart: true,
                 onPress: () => void makeCopy('manual'),
@@ -285,26 +286,26 @@ export function PlaylistDetailScreen(): ReactNode {
         {
           key: 'rename',
           label: 'Rename',
-          icon: <Pencil size={16} tone="textSecondary" />,
+          icon: <Pencil size={iconSize.item} tone="textSecondary" />,
           apart: !live,
           onPress: () => setRenaming(true),
         },
         {
           key: 'describe',
           label: playlist?.description ? 'Edit description' : 'Add a description',
-          icon: <Pencil size={16} tone="textSecondary" />,
+          icon: <Pencil size={iconSize.item} tone="textSecondary" />,
           onPress: () => setDescribing(true),
         },
         {
           key: 'duplicate',
           label: 'Duplicate',
-          icon: <Copy size={16} tone="textSecondary" />,
+          icon: <Copy size={iconSize.item} tone="textSecondary" />,
           onPress: () => void makeCopy(live ? 'live' : 'manual'),
         },
         {
           key: 'delete',
           label: 'Delete playlist…',
-          icon: <Trash size={16} tone="danger" />,
+          icon: <Trash size={iconSize.item} tone="danger" />,
           danger: true,
           apart: true,
           onPress: () => setConfirmingDelete(true),
@@ -359,7 +360,7 @@ export function PlaylistDetailScreen(): ReactNode {
             {manual && !emptyPlaylist ? (
               <Button
                 label="Add songs"
-                icon={<Plus size={15} tone="textPrimary" />}
+                icon={<Plus tone="textPrimary" />}
                 onPress={() => setAdding(true)}
                 testID="playlist-add-songs"
               />
@@ -413,7 +414,7 @@ export function PlaylistDetailScreen(): ReactNode {
       {live ? null : (
         <Button
           label="Add songs"
-          icon={<Plus size={15} color={theme.colors.textPrimary} />}
+          icon={<Plus color={theme.colors.textPrimary} />}
           onPress={() => setAdding(true)}
         />
       )}

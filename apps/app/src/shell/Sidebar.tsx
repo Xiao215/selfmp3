@@ -14,6 +14,7 @@ import {
   type,
   useAddToPlaylist,
   useLibrary,
+  iconSize,
 } from '@selfmp3/client'
 import { footNotice, footSummary } from '../features/library/library.model'
 import { profileName } from '../features/profile/profile.model'
@@ -142,7 +143,7 @@ function SidebarInner(): ReactNode {
               {...navItemProps(active)}
               testID={`nav-${row.id}`}
             >
-              <Icon size={18} tone={active ? 'textPrimary' : 'textMuted'} />
+              <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
               <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
                 {row.label}
               </Text>
@@ -191,7 +192,7 @@ function SearchRow(): ReactNode {
       testID="nav-search"
       style={({ pressed }) => [styles.search, (pressed || hovered) && styles.searchHovered]}
     >
-      <Search size={15} color={theme.colors.textMuted} />
+      <Search size={iconSize.button} color={theme.colors.textMuted} />
       <Text style={styles.searchText}>Search</Text>
       {SEARCH_KEYS ? (
         <View style={styles.searchKeys}>
@@ -248,7 +249,7 @@ function Playlists(): ReactNode {
           accessibilityLabel="New playlist"
           {...tip('New playlist')}
         >
-          <Plus size={14} tone="textMuted" />
+          <Plus size={iconSize.field} tone="textMuted" />
         </Pressable>
       </View>
 
@@ -319,7 +320,7 @@ function RailPlaylist({
         <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
-        {live ? <Live size={13} tone="textMuted" /> : null}
+        {live ? <Live size={iconSize.sub} tone="textMuted" /> : null}
       </Pressable>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </Animated.View>
@@ -390,7 +391,7 @@ function Tags(): ReactNode {
           accessibilityLabel="New tag"
           {...tip('New tag')}
         >
-          <Plus size={14} color={theme.colors.textMuted} />
+          <Plus size={iconSize.field} color={theme.colors.textMuted} />
         </Pressable>
       </View>
 
@@ -447,7 +448,7 @@ function Tags(): ReactNode {
         ) : null}
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
-            <TagIcon size={16} color={theme.colors.textMuted} />
+            <TagIcon size={iconSize.item} color={theme.colors.textMuted} />
             <Text style={styles.hint}>No tags yet. {noTagsLine(true)}</Text>
             <Pressable onPress={() => setAdding(true)} accessibilityRole="button">
               <Text style={styles.link}>Add your first tag</Text>
@@ -517,7 +518,7 @@ function TagRow({
           {...tip('Rename, recolour or delete')}
           accessibilityState={{ expanded: editing }}
         >
-          <More size={13} color={theme.colors.textMuted} />
+          <More size={iconSize.sub} color={theme.colors.textMuted} />
         </Pressable>
       </Animated.View>
 

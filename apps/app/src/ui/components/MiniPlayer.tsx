@@ -9,7 +9,15 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
-import { MINI_PLAYER_HEIGHT, motion, NAV_HEIGHT, radius, space, type } from '@selfmp3/client'
+import {
+  MINI_PLAYER_HEIGHT,
+  motion,
+  NAV_HEIGHT,
+  radius,
+  space,
+  type,
+  iconSize,
+} from '@selfmp3/client'
 import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
@@ -174,7 +182,7 @@ function MiniPlayerInner(): ReactNode {
       {/* Up next: the sheet over this card and the tab bar (docs/ui-mock `P25`). */}
       <UpNextTarget>
         <IconButton testID="mini-player-queue" onPress={openQueueSheet} label="Up next">
-          <UpNext size={20} color={theme.colors.textSecondary} />
+          <UpNext size={iconSize.nav} color={theme.colors.textSecondary} />
         </IconButton>
       </UpNextTarget>
       {/*
@@ -184,11 +192,11 @@ function MiniPlayerInner(): ReactNode {
       */}
       <PlayPauseButton
         bare
-        glyph={22}
+        glyph={iconSize.large}
         testID={playing => (playing ? 'mini-player-playing' : 'mini-player-paused')}
       />
       <IconButton testID="mini-player-next" onPress={player.next} label="Next">
-        <Next size={20} color={theme.colors.textSecondary} />
+        <Next size={iconSize.nav} color={theme.colors.textSecondary} />
       </IconButton>
     </Animated.View>
   )

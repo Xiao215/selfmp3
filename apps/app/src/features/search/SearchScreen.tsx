@@ -4,7 +4,7 @@ import { Pressable, Text, type TextInput, View, type ViewStyle } from 'react-nat
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { LyricsSearchHit, Song, Tag, Artist } from '@selfmp3/shared'
-import { space, type, useLibrary } from '@selfmp3/client'
+import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -173,7 +173,7 @@ export function SearchScreen(): ReactNode {
             hitSlop={4}
             testID="search-back"
           >
-            <ChevronLeft size={18} tone="textSecondary" />
+            <ChevronLeft size={iconSize.medium} tone="textSecondary" />
             <Text style={styles.backTitle} numberOfLines={1}>
               {SECTION_TITLES[section]}
             </Text>
@@ -266,7 +266,7 @@ function AskCard({
   return (
     <NavRow
       card
-      icon={<Sparkle size={17} />}
+      icon={<Sparkle />}
       accent
       title={`Ask for “${words}”`}
       hint={ASK_SUB}

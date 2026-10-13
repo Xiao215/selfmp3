@@ -60,7 +60,7 @@ export function ServerAway({
         {offered ? <JoinSharedButton onJoined={reach.lookAgain} testID={`${testID}-join`} /> : null}
         <Button
           label="Look again"
-          icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+          icon={<Refresh color={theme.colors.textPrimary} />}
           onPress={reach.lookAgain}
           testID={`${testID}-look-again`}
         />

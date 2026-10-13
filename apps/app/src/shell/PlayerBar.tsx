@@ -6,7 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
-import { isRoomTrackId } from '@selfmp3/client'
+import { isRoomTrackId, iconSize } from '@selfmp3/client'
 import { radius, space, type, withAlpha, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { UpNextTarget } from '../ui/components/CoverFlight'
@@ -130,7 +130,7 @@ export function PlayerBar(): ReactNode {
                 <Cover uri={art} title={song.album || song.title} size={54} />
                 {onPage ? (
                   <View style={styles.openChevron} pointerEvents="none">
-                    <ChevronDown size={22} color={CHEVRON_INK} />
+                    <ChevronDown size={iconSize.large} color={CHEVRON_INK} />
                   </View>
                 ) : null}
               </View>
@@ -157,7 +157,7 @@ export function PlayerBar(): ReactNode {
                     active={tagsOpen}
                   >
                     <TagPlus
-                      size={17}
+                      size={iconSize.medium}
                       color={tagsOpen ? songColor.color : theme.colors.textSecondary}
                     />
                   </IconButton>
@@ -192,12 +192,15 @@ export function PlayerBar(): ReactNode {
               label="Up next"
               active={queueOpen}
             >
-              <UpNext size={17} color={queueOpen ? songColor.color : theme.colors.textSecondary} />
+              <UpNext
+                size={iconSize.medium}
+                color={queueOpen ? songColor.color : theme.colors.textSecondary}
+              />
             </IconButton>
           </UpNextTarget>
           <View ref={devicesRef} collapsable={false}>
             <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
-              <Devices size={17} color={theme.colors.textSecondary} />
+              <Devices size={iconSize.medium} color={theme.colors.textSecondary} />
             </IconButton>
           </View>
         </View>
@@ -247,7 +250,7 @@ function ValuePill({
       {...tip(caption)}
       style={[styles.pill, { backgroundColor: withAlpha(tone.color, 0.18) }]}
     >
-      <Icon size={14} color={tone.tint} />
+      <Icon size={iconSize.field} color={tone.tint} />
       <Text style={[styles.pillText, { color: tone.tint }]}>{value}</Text>
     </Press>
   )
@@ -273,7 +276,7 @@ function SleepButton({ tone }: { tone: SongColors }): ReactNode {
         />
       ) : (
         <IconButton onPress={toggle} label="Sleep timer">
-          <Moon size={17} color={theme.colors.textSecondary} />
+          <Moon size={iconSize.medium} color={theme.colors.textSecondary} />
         </IconButton>
       )}
       <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
@@ -298,7 +301,7 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
       label={level.muted ? 'Unmute' : 'Mute'}
       active={level.muted}
     >
-      <Icon size={17} color={theme.colors.textSecondary} />
+      <Icon size={iconSize.medium} color={theme.colors.textSecondary} />
     </IconButton>
   )
   const slider = <VolumeSlider value={level.volume} onChange={player.setVolume} color={lit} />
@@ -319,7 +322,7 @@ function VolumeControl({ compact, tone }: { compact: boolean; tone: SongColors }
         label={`Volume: ${percent}%`}
         active={level.muted}
       >
-        <Icon size={17} color={level.muted ? lit : theme.colors.textSecondary} />
+        <Icon size={iconSize.medium} color={level.muted ? lit : theme.colors.textSecondary} />
       </IconButton>
       <Popover
         open={open}

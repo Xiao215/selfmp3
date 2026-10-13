@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { space, type } from '@selfmp3/client'
+import { iconSize, space, type } from '@selfmp3/client'
 import { card as cardSurface, rowTitle, textColumn } from '../surfaces'
-import { ChevronRight } from './Icons'
+import { ChevronRight, sizedIcon } from './Icons'
 import { Press } from './Press'
 
 /**
@@ -64,7 +64,11 @@ export function NavRow({
       ]}
     >
       {leading ??
-        (icon ? <View style={[styles.tile, accent && styles.tileAccent]}>{icon}</View> : null)}
+        (icon ? (
+          <View style={[styles.tile, accent && styles.tileAccent]}>
+            {sizedIcon(icon, iconSize.medium)}
+          </View>
+        ) : null)}
       <View style={styles.words}>
         <Text style={styles.title} numberOfLines={1}>
           {title}
@@ -75,7 +79,7 @@ export function NavRow({
           </Text>
         ) : null}
       </View>
-      <ChevronRight size={16} tone="textMuted" />
+      <ChevronRight size={iconSize.item} tone="textMuted" />
     </Press>
   )
 }

@@ -96,7 +96,7 @@ export function NotFoundScreen(): ReactNode {
           {wide && canGoBack ? (
             <Button
               label="Back"
-              icon={<ChevronLeft size={15} color={theme.colors.textPrimary} />}
+              icon={<ChevronLeft color={theme.colors.textPrimary} />}
               onPress={() => router.back()}
             />
           ) : null}

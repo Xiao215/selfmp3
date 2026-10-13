@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import { HIT_TARGET, motion, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import {
   chipBudget,
   CHIP_DOT,
@@ -420,7 +420,7 @@ export const SongRow = memo(function SongRow({
               {...tip('Play')}
               style={styles.indexPlay}
             >
-              <Play size={16} tone="textPrimary" />
+              <Play size={iconSize.item} tone="textPrimary" />
             </Pressable>
           ) : (
             <Text style={styles.indexNumber}>{index === undefined ? '' : index + 1}</Text>
@@ -469,7 +469,7 @@ export const SongRow = memo(function SongRow({
                 {...tip('Edit tags')}
                 style={styles.tagAdd}
               >
-                <Plus size={13} tone="textMuted" />
+                <Plus size={iconSize.sub} tone="textMuted" />
               </Pressable>
             </Reveal>
           ) : null}
@@ -574,8 +574,8 @@ function HereMark({
   downloaded: boolean
   notDownloadedMark: boolean
 }): ReactNode {
-  if (downloaded) return <Downloaded size={13} tone="good" />
-  if (notDownloadedMark) return <NotDownloaded size={13} tone="textMuted" />
+  if (downloaded) return <Downloaded size={iconSize.sub} tone="good" />
+  if (notDownloadedMark) return <NotDownloaded size={iconSize.sub} tone="textMuted" />
   return null
 }
 
@@ -600,7 +600,7 @@ function MoreButton({
         {...tip('More')}
         style={({ pressed }) => [style, pressed && styles.controlPressed]}
       >
-        <More size={16} tone="textMuted" />
+        <More size={iconSize.item} tone="textMuted" />
       </Pressable>
     </View>
   )

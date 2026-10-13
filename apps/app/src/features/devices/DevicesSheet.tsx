@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { shortDeviceName, space, type } from '@selfmp3/client'
+import { shortDeviceName, space, type, iconSize } from '@selfmp3/client'
 import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
@@ -57,7 +57,7 @@ export function DevicesSheet({
   const list = (
     <>
       <View style={styles.self}>
-        <Devices size={15} color={theme.colors.textSecondary} />
+        <Devices size={iconSize.button} color={theme.colors.textSecondary} />
         <Text style={styles.selfName} numberOfLines={1}>
           {shortDeviceName(devices.name)}
         </Text>
@@ -82,7 +82,7 @@ export function DevicesSheet({
           return (
             <View key={device.id} testID={`device-${device.id}`}>
               <SheetItem
-                icon={<Remote size={16} color={theme.colors.textSecondary} />}
+                icon={<Remote color={theme.colors.textSecondary} />}
                 label={shortDeviceName(device.name)}
                 detail={
                   !named

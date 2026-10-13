@@ -95,7 +95,7 @@ export function NoticeCard({
       </View>
       {onDismiss ? (
         <IconButton onPress={onDismiss} label="Dismiss">
-          <X size={iconSize.small} tone="textMuted" />
+          <X size={iconSize.field} tone="textMuted" />
         </IconButton>
       ) : null}
     </View>

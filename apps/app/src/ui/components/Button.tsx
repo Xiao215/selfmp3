@@ -6,7 +6,8 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { useMinimumBusy, usePresence } from '../motion'
 import { tip } from '../tip'
 import { Press } from './Press'
-import { HIT_TARGET, motion, radius, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, motion, radius, type, withAlpha } from '@selfmp3/client'
+import { sizedIcon } from './Icons'
 
 /**
  * A button, in one of the design's shapes and no others (docs/ui-mock `S2`,
@@ -135,7 +136,11 @@ export function Button({
           with no icon it takes its own room. */}
         {icon || spinner.mounted ? (
           <View style={styles.badge}>
-            {icon ? <Animated.View style={iconFade}>{icon}</Animated.View> : null}
+            {icon ? (
+              <Animated.View style={iconFade}>
+                {sizedIcon(icon, small ? iconSize.sub : iconSize.button)}
+              </Animated.View>
+            ) : null}
             {spinner.mounted ? (
               <Animated.View style={[icon ? styles.overIcon : undefined, spinnerFade]}>
                 <Spinner variant={variant} />
@@ -153,9 +158,15 @@ export function Button({
   )
 }
 
+/** The round Play's glyph, for a round `size` across: 24 in the 56. */
+export function playGlyph(size: number): number {
+  return Math.round(size * 0.43)
+}
+
 /**
  * The round white Play (`S2`): 56 across, the one primary on a page. Its icon
- * is the caller's, so it can be Play or Pause.
+ * is the caller's, so it can be Play or Pause, drawn at `playGlyph` unless
+ * the caller sizes it.
  */
 export function PlayButton({
   testID,
@@ -192,7 +203,7 @@ export function PlayButton({
         disabled && styles.disabled,
       ]}
     >
-      {icon}
+      {sizedIcon(icon, playGlyph(size), 'fill')}
     </Press>
   )
 }

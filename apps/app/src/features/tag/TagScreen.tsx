@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useLibrary } from '@selfmp3/client'
+import { useLibrary, iconSize } from '@selfmp3/client'
 import { Pencil, TagPlus } from '../../ui/components/Icons'
 import { TagEditor } from '../../ui/components/TagEditor'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
@@ -74,14 +74,14 @@ export function TagScreen(): ReactNode {
           {
             key: 'tag-songs',
             label: 'Tag songs…',
-            icon: <TagPlus size={16} tone="textSecondary" />,
+            icon: <TagPlus size={iconSize.item} tone="textSecondary" />,
             apart: true,
             onPress: () => setTagging(true),
           },
           {
             key: 'edit',
             label: 'Rename, colour or delete',
-            icon: <Pencil size={16} tone="textSecondary" />,
+            icon: <Pencil size={iconSize.item} tone="textSecondary" />,
             onPress: () => setEditing(true),
           },
         ]}

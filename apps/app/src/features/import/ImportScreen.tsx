@@ -36,6 +36,7 @@ import {
   type QueueChange,
   type ServerConnection,
   textStyle,
+  iconSize,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
@@ -234,14 +235,14 @@ export function ImportScreen({
         />
         {query !== null ? (
           <View style={styles.pasted} testID="import-pasted">
-            <Search size={13} tone="accent" />
+            <Search size={iconSize.sub} tone="accent" />
             <Text style={[styles.pastedText, styles.searchText]}>
               Search YouTube Music and 网易云
             </Text>
           </View>
         ) : pasted ? (
           <View style={styles.pasted} testID="import-pasted">
-            <Check size={13} tone="good" />
+            <Check size={iconSize.sub} tone="good" />
             <Text style={styles.pastedText}>{pasted}</Text>
           </View>
         ) : null}
@@ -285,7 +286,7 @@ export function ImportScreen({
           actions={
             <Button
               label="Check again"
-              icon={<Refresh size={13} color={theme.colors.textPrimary} />}
+              icon={<Refresh color={theme.colors.textPrimary} />}
               onPress={() => void refetchTools()}
             />
           }
@@ -876,7 +877,7 @@ function RowMore({
         {onNext ? (
           <SheetItem
             label="Import next"
-            icon={<Next size={15} tone="textPrimary" />}
+            icon={<Next tone="textPrimary" />}
             onPress={() => {
               onOpen(false)
               onNext()
@@ -886,7 +887,7 @@ function RowMore({
         ) : null}
         <SheetItem
           label="Remove from imports"
-          icon={<X size={15} color={theme.colors.danger} />}
+          icon={<X color={theme.colors.danger} />}
           danger
           onPress={() => {
             onOpen(false)

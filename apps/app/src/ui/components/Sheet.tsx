@@ -5,7 +5,8 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
-import { HIT_TARGET, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, iconSize, motion, radius, space, type, withAlpha } from '@selfmp3/client'
+import { sizedIcon } from './Icons'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
@@ -364,7 +365,7 @@ export function SheetItem({
         disabled && styles.itemDisabled,
       ]}
     >
-      {icon ? <View style={styles.itemIcon}>{icon}</View> : null}
+      {icon ? <View style={styles.itemIcon}>{sizedIcon(icon, iconSize.item)}</View> : null}
       <Text
         style={[styles.itemLabel, dense && styles.itemLabelDense, { color: ink }]}
         numberOfLines={1}

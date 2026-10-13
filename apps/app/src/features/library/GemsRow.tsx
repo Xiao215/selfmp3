@@ -62,7 +62,7 @@ export function GemsRow(): ReactNode {
             <>
               <Button
                 label="Play all"
-                icon={<Play size={13} color={theme.colors.textPrimary} />}
+                icon={<Play color={theme.colors.textPrimary} />}
                 onPress={() => play(0)}
               />
               <Button label="Add to Up next" onPress={() => player.addToQueue(ids)} />

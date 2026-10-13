@@ -11,6 +11,9 @@ import { forgetNoWords, rememberNoWords, useNoWords } from './noWords'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
+/** A song's words and the romanization switch, as `useSongWords` gives them. */
+export type SongLyrics = ReturnType<typeof useSongWords>
+
 /**
  * A song's words, and the romanization switch.
  *

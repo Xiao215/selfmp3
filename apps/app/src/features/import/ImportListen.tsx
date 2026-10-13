@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  ActivityIndicator,
-  PanResponder,
-  Pressable,
-  View,
-  type LayoutChangeEvent,
-} from 'react-native'
+import { ActivityIndicator, Pressable, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
-import { clamp } from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
@@ -18,14 +11,13 @@ import { createListenAudio } from '../../ports/listen'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Cover } from '../../ui/components/Cover'
 import { useToneColors } from '../../ui/useSongColor'
-import { useSeekHold } from '../../ui/components/SeekBar'
+import { Scrubber } from '../../ui/components/Scrubber'
+import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { Equalizer } from '../../ui/components/Equalizer'
 import { Play } from '../../ui/components/Icons'
 import {
   followAudio,
   listenLabel,
-  playedRatio,
-  seekAt,
   startListening,
   type Listening,
   type ListenTrack,
@@ -224,20 +216,15 @@ export function ListenCover({
   )
 }
 
-/** How thick the track is, and how wide the knob that rides it. */
-const TRACK = 4
-const KNOB = 14
-
 /**
  * The seek bar of a song not yet imported: a thin track filled to where the
  * song is in its cover's colour — the accent until that is known — with a
- * round knob to drag.
+ * round thumb to drag. Let go, it holds where it was left while the preview
+ * still reports the old place, as the song's own bar does (`Scrubber`).
  *
  * A plain bar, not a waveform: the audio is not downloaded yet, so there are
- * no peaks to draw, and a made-up shape only pretended to be one. Hand-built
- * on PanResponder for the reason `SeekBar` is: it keeps showing the dragged
- * place while the finger is down instead of fighting the audio's own reports
- * of where it is. `height` is the hit area, taller than the track it holds.
+ * no peaks to draw, and a made-up shape only pretended to be one. `height` is
+ * the hit area, taller than the track it holds.
  */
 export function ListenBar({
   position,
@@ -253,74 +240,18 @@ export function ListenBar({
   color?: string
   height?: number
 }): ReactNode {
-  const [width, setWidth] = useState(0)
-  const [dragging, setDragging] = useState<number | null>(null)
-  // Where the finger let go, until the preview says it is there (as the song page's bar).
-  const { held, hold } = useSeekHold(position)
-
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        // A drag along the bar that wanders is still a drag, not the list's scroll.
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: event =>
-          setDragging(seekAt(event.nativeEvent.locationX, width, duration)),
-        onPanResponderMove: event =>
-          setDragging(seekAt(event.nativeEvent.locationX, width, duration)),
-        onPanResponderRelease: event => {
-          const target = seekAt(event.nativeEvent.locationX, width, duration)
-          hold(target)
-          setDragging(null)
-          onSeek(target)
-        },
-        onPanResponderTerminate: () => setDragging(null),
-      }),
-    // Made afresh as the preview ticks, which a drag survives: every handler
-    // reads only where the finger is along the bar, never how far it has come.
-    [width, duration, onSeek, hold],
-  )
-
-  const shown = dragging ?? held ?? position
-  const ratio = playedRatio(shown, duration)
-
   return (
-    <View
-      style={[styles.bar, { height }]}
-      onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
-      accessibilityRole="adjustable"
-      accessibilityLabel="Seek"
-      accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(shown) }}
-      // As SeekBar does: react-native-web drops `accessibilityValue` from a slider.
-      aria-valuemin={0}
-      aria-valuemax={Math.round(duration)}
-      aria-valuenow={Math.round(shown)}
-      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-      onAccessibilityAction={event => {
-        const step = event.nativeEvent.actionName === 'increment' ? 10 : -10
-        const target = clamp(position + step, 0, duration)
-        hold(target)
-        onSeek(target)
-      }}
+    <Scrubber
+      value={position}
+      max={duration}
+      onCommit={onSeek}
+      hold
+      label="Seek"
+      step={SEEK_STEP_SECONDS}
+      color={color}
       testID="listen-bar"
-      {...responder.panHandlers}
-    >
-      {/* Draws only: every touch belongs to the bar, so locationX is always along it. */}
-      <View pointerEvents="none" style={styles.track}>
-        <View
-          style={[
-            styles.played,
-            { width: `${ratio * 100}%` },
-            color ? { backgroundColor: color } : null,
-          ]}
-        />
-      </View>
-      <View
-        pointerEvents="none"
-        style={[styles.knob, { left: width * ratio - KNOB / 2 }, dragging !== null && styles.held]}
-      />
-    </View>
+      style={[styles.bar, { height }]}
+    />
   )
 }
 
@@ -339,25 +270,6 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.surface0, 0.55),
   },
   hidden: { opacity: 0 },
-  // A pointing hand where there is a mouse: the bar is a control, not a picture.
-  bar: { justifyContent: 'center', alignSelf: 'stretch', cursor: 'pointer' },
-  track: {
-    height: TRACK,
-    borderRadius: TRACK / 2,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.surfaceSelected,
-  },
-  played: { height: '100%', backgroundColor: theme.colors.accent },
-  // The knob rides the track, with a soft ring to find it by; it grows a little under a drag.
-  knob: {
-    position: 'absolute',
-    top: '50%',
-    marginTop: -KNOB / 2,
-    width: KNOB,
-    height: KNOB,
-    borderRadius: KNOB / 2,
-    backgroundColor: theme.colors.textPrimary,
-    boxShadow: `0 0 0 4px ${withAlpha(theme.colors.textPrimary, 0.18)}`,
-  },
-  held: { transform: [{ scale: 1.15 }] },
+  // The row's width, and no room above and below the track but the hit height's.
+  bar: { alignSelf: 'stretch', paddingVertical: 0 },
 }))

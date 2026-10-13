@@ -10,19 +10,19 @@ import {
   type RoomAction,
   type RoomState,
 } from '@selfmp3/shared'
-import { HIT_TARGET, fonts, radius, roomTrackSong, space, type, withAlpha } from '@selfmp3/client'
+import { HIT_TARGET, fonts, radius, roomTrackSong, space, type } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
 import { roomTrack } from '../../player/roomTracks'
 import { label } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
-import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { More, Next, People, Plus, ToTop, X } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
+import { PlayingCard } from '../../ui/components/PlayingCard'
+import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { Toggle } from '../../ui/components/Toggle'
 import { RoomFace, RoomFaces } from './RoomFace'
 import {
@@ -64,7 +64,7 @@ export function RoomList({ head = true }: { head?: boolean }): ReactNode {
   return (
     <View style={styles.root} testID="room-list">
       {head ? <RoomHead state={state} link={link} /> : null}
-      <PlayingCard state={state} />
+      <RoomPlaying state={state} />
       <Upcoming state={state} />
     </View>
   )
@@ -109,15 +109,12 @@ export function RoomHead({
 }
 
 /** The song playing, who brought it, and what you may do to it. */
-function PlayingCard({ state }: { state: RoomState }): ReactNode {
+function RoomPlaying({ state }: { state: RoomState }): ReactNode {
   const { theme } = useUnistyles()
-  const artFor = useArt(ROW_COVER_SIZE)
   const commands = usePlayerCommands()
   const localPlaying = usePlayerPlaying()
   const row = playingRow(state)
   const song = row ? (roomTrack(row.trackId)?.song ?? roomTrackSong(row.entry)) : null
-  const art = song ? artFor(song) : null
-  const tone = useSongColor(song, art)
   if (!row || !song) {
     return (
       <View style={styles.empty}>
@@ -142,35 +139,23 @@ function PlayingCard({ state }: { state: RoomState }): ReactNode {
       ? 'yours'
       : `${row.owner.name}’s`
   return (
-    <View style={[styles.card, { backgroundColor: withAlpha(tone.color, 0.2) }]}>
-      <View>
-        <Cover uri={art} title={song.title} size={48} />
-        {row.face ? (
-          <View style={styles.badge}>
-            <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring />
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.cardText}>
-        <Text style={[styles.cardLabel, { color: tone.tint }]} numberOfLines={1}>
-          {paused ? 'Paused' : 'Playing'} · {whose}
-        </Text>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {song.title}
-        </Text>
-        <RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />
-      </View>
+    <PlayingCard
+      song={song}
+      label={`${paused ? 'Paused' : 'Playing'} · ${whose}`}
+      line={<RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />}
+      playing={playing}
+      badge={
+        row.face ? <RoomFace name={row.face.name} colour={row.face.colour} size={20} ring /> : null
+      }
+    >
       {mayToggle ? (
-        <Pressable
+        <PlayPauseButton
+          size={44}
+          glyph={20}
+          playing={playing}
           onPress={() => (host ? commands.toggle() : act({ type: playing ? 'pause' : 'play' }))}
-          accessibilityRole="button"
-          accessibilityLabel={playing ? 'Pause' : 'Play'}
-          {...tip(playing ? 'Pause' : 'Play')}
-          style={({ pressed }) => [styles.cardPlay, pressed && styles.roundPressed]}
           testID="room-toggle"
-        >
-          <PlayPauseIcon playing={playing} size={20} color={theme.colors.onPrimary} />
-        </Pressable>
+        />
       ) : null}
       {maySkip ? (
         <Pressable
@@ -184,7 +169,7 @@ function PlayingCard({ state }: { state: RoomState }): ReactNode {
           <Next size={18} color={theme.colors.textPrimary} />
         </Pressable>
       ) : null}
-    </View>
+    </PlayingCard>
   )
 }
 
@@ -207,12 +192,7 @@ function RoomClock({
     positionNow(state, currentRoom().offset, now),
     duration > 0 ? duration : Number.POSITIVE_INFINITY,
   )
-  return (
-    <Text style={styles.cardSub} numberOfLines={1}>
-      {artist} · {formatDuration(position)}
-      {duration > 0 ? ` of ${formatDuration(duration)}` : ''}
-    </Text>
-  )
+  return `${artist} · ${formatDuration(position)}${duration > 0 ? ` of ${formatDuration(duration)}` : ''}`
 }
 
 function Upcoming({ state }: { state: RoomState }): ReactNode {
@@ -448,28 +428,7 @@ const styles = StyleSheet.create(theme => ({
   },
   emptyTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   emptyText: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: 18 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    minHeight: 68,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radius.mini,
-  },
   badge: { position: 'absolute', right: -5, bottom: -5 },
-  cardText: { flex: 1, minWidth: 0, gap: 2 },
-  cardLabel: label(theme.colors),
-  cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  cardSub: { color: theme.colors.textSecondary, fontSize: type.sub, fontVariant: ['tabular-nums'] },
-  cardPlay: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.textPrimary,
-  },
   list: { gap: 2 },
   actions: { flexDirection: 'row', gap: space.sm, paddingTop: space.sm },
   label: { ...label(theme.colors), paddingBottom: space.xs },

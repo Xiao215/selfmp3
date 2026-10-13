@@ -1,14 +1,16 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { withAlpha } from '@selfmp3/client'
 import { clamp01 } from '@selfmp3/shared'
+import { usePlayerProgress } from '../../player/PlayerProvider'
 import { useSvgId } from '../useSvgId'
 
 /**
- * How far the song has got, as a wash behind everything on a bar.
+ * How far the playing song has got, as a wash behind everything on the mini
+ * player and the player bar.
  *
  * The song's colour fills the bar from the left, and the leading edge fades
  * out over `fade` points instead of stopping at a hard line, so it reads as
@@ -20,18 +22,12 @@ import { useSvgId } from '../useSvgId'
  * running behind the scrubber's own handle.
  */
 export function ProgressWash({
-  fraction,
   color,
-  alpha,
   fade,
   line,
 }: {
-  /** 0 to 1. */
-  fraction: number
-  /** `#rrggbb`. */
+  /** The playing song's colour, `#rrggbb`. */
   color: string
-  /** How strong the wash is behind the played part. */
-  alpha: number
   /** Points over which the leading edge fades out. */
   fade: number
   /**
@@ -42,6 +38,14 @@ export function ProgressWash({
    */
   line?: 'top' | 'foot'
 }): ReactNode {
+  const { theme } = useUnistyles()
+  // How strong the wash is behind the played part: the theme's, on the mini
+  // player and the player bar alike (the bar had its own 0.2).
+  const alpha = theme.colors.washAlpha
+  // Read here, the one part of either bar that moves with the song: every tick
+  // redraws this and not the cover, the words and the buttons around it.
+  const { position, duration } = usePlayerProgress()
+  const fraction = duration > 0 ? position / duration : 0
   // Gradient ids are document ids on the web: two bars must not share one.
   const id = useSvgId('wash')
   /*

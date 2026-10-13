@@ -6,9 +6,7 @@ import {
   listenDetail,
   listenLabel,
   listeningLeftReview,
-  playedRatio,
   previewStatus,
-  seekAt,
   startListening,
   waitingRowNext,
 } from './listen.model'
@@ -98,21 +96,6 @@ describe('listening before importing', () => {
     expect(listenDetail({ track: netease, status: 'error' })).toBe(
       'Couldn’t play this one from 网易云',
     )
-  })
-
-  it('fills the bar to where the song is, and nothing before its length is known', () => {
-    expect(playedRatio(62, 248)).toBeCloseTo(0.25)
-    expect(playedRatio(300, 248)).toBe(1)
-    expect(playedRatio(-1, 248)).toBe(0)
-    expect(playedRatio(10, 0)).toBe(0)
-    expect(playedRatio(10, NaN)).toBe(0)
-  })
-
-  it('seeks to where the bar is dragged, kept within the song', () => {
-    expect(seekAt(50, 200, 248)).toBe(62)
-    expect(seekAt(-20, 200, 248)).toBe(0)
-    expect(seekAt(260, 200, 248)).toBe(248)
-    expect(seekAt(50, 0, 248)).toBe(0)
   })
 
   it('opens a waiting row once its song plays, waits while it loads, and forgets it when another song takes the player', () => {

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useRouter, type Href } from 'expo-router'
-import { plural, type Tag } from '@selfmp3/shared'
+import { plural } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
-import { useSongTagLookup } from '../../ui/songTags'
 import { showToast, showUndoToast, UNDO_MS } from '../../ui/toast'
 import { noteTagUsed } from '../library/recentTags.store'
 import { tagLink } from '../tag/placeLinks'
@@ -37,8 +36,6 @@ export function useQueueEdits(
   remove: (index: number) => void
   /** Every song but the one playing out, with an Undo for five seconds. */
   clearRest: () => void
-  /** A song's tags, the same array for the same song (`songTagLookup`), so a row's memo holds. */
-  tagsOf: (song: { readonly tagIds: readonly number[] }) => readonly Tag[]
   openTag: (tagId: number) => void
 } {
   const player = usePlayer()
@@ -97,7 +94,6 @@ export function useQueueEdits(
   }, [])
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.
-  const tagsOf = useSongTagLookup()
   const tags = library?.tags
   const openTag = useCallback(
     (tagId: number) => {
@@ -111,5 +107,5 @@ export function useQueueEdits(
     [tags, router, go],
   )
 
-  return { player, rows, remove, clearRest, tagsOf, openTag }
+  return { player, rows, remove, clearRest, openTag }
 }

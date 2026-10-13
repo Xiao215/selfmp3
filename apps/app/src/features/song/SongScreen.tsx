@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
 import {
@@ -12,33 +12,32 @@ import {
   type,
   useLibrary,
   useSimilar,
-  useToggleLoved,
   withAlpha,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerStalled } from '../../player/PlayerProvider'
+import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout } from '../../shell/useLayout'
-import { Button, PlayButton } from '../../ui/components/Button'
+import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronLeft, Heart, Mic, More, Next, Sparkles } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
+import { ChevronLeft, Mic, More, Next } from '../../ui/components/Icons'
+import { LikeButton } from '../../ui/components/LikeButton'
+import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, card, label as labelText, pageTitle, serif } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
-import { FixMetadata } from '../metadata/FixMetadata'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
 import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
 import { tagLink } from '../tag/placeLinks'
-import { SongFacts } from './SongFacts'
+import { SongAbout } from './SongAbout'
 import {
   bylineRest,
   playStrip,
@@ -86,13 +85,11 @@ export function SongScreen(): ReactNode {
 }
 
 function SongPage({ song }: { song: Song }): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide } = useLayout()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
   const player = usePlayer()
-  const stalled = usePlayerStalled()
   const artFor = useArt()
   const { data: library } = useLibrary()
   const art = artFor(song)
@@ -101,10 +98,8 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const similarSongs = similar.isPlaceholderData ? [] : (similar.data?.songs ?? [])
   const [menuOpen, setMenuOpen] = useState(false)
   const [tagging, setTagging] = useState(false)
-  const [fixing, setFixing] = useState(false)
   const moreRef = useRef<View>(null)
   const addTagRef = useRef<View>(null)
-  const toggleLoved = useToggleLoved()
 
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
@@ -134,18 +129,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
             <ChevronLeft size={20} tone="textPrimary" />
           </IconButton>
           <View style={styles.topRight}>
-            <IconButton
-              label={song.loved ? 'Unlike' : 'Like'}
-              active={song.loved}
-              filled
-              onPress={() => toggleLoved.mutate({ id: song.id, loved: !song.loved })}
-            >
-              <Heart
-                size={18}
-                filled={song.loved}
-                color={song.loved ? theme.colors.danger : theme.colors.textPrimary}
-              />
-            </IconButton>
+            <LikeButton song={song} filled />
             <View ref={moreRef} collapsable={false}>
               <IconButton
                 label={`More for ${song.title}`}
@@ -207,17 +191,11 @@ function SongPage({ song }: { song: Song }): ReactNode {
         </View>
 
         <View style={styles.actions}>
-          <PlayButton
+          <PlayPauseButton
             testID="song-play"
-            label={isCurrent && player.isPlaying ? 'Pause' : `Play ${song.title}`}
-            icon={
-              <PlayPauseIcon
-                playing={isCurrent && player.isPlaying}
-                busy={isCurrent && stalled}
-                size={24}
-                color={theme.colors.onPrimary}
-              />
-            }
+            songId={song.id}
+            playLabel={`Play ${song.title}`}
+            glyph={24}
             // The song already loaded pauses and resumes; any other starts from the top.
             onPress={() => (isCurrent ? player.toggle() : player.playFrom([song.id], 0))}
           />
@@ -256,16 +234,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
           />
         ) : null}
 
-        <View style={styles.facts}>
-          <SongFacts song={song} plays={false} />
-          <View style={styles.fix}>
-            <Button
-              label="Fix song info…"
-              icon={<Sparkles size={15} tone="textSecondary" />}
-              onPress={() => setFixing(true)}
-            />
-          </View>
-        </View>
+        <SongAbout song={song} plays={false} style={styles.facts} />
       </ScrollView>
 
       <SongMenu
@@ -278,7 +247,6 @@ function SongPage({ song }: { song: Song }): ReactNode {
         anchorRef={addTagRef}
         onClose={() => setTagging(false)}
       />
-      {fixing ? <FixMetadata song={song} onClose={() => setFixing(false)} /> : null}
     </View>
   )
 }
@@ -413,7 +381,6 @@ const styles = StyleSheet.create(theme => ({
   },
   barPeak: { backgroundColor: theme.colors.accent },
   facts: { maxWidth: 600, paddingTop: space.sm },
-  fix: { alignItems: 'flex-start' },
   missing: { padding: 24, gap: 12, alignItems: 'flex-start' },
   missingTitle: pageTitle(theme.colors),
   missingText: { color: theme.colors.textSecondary, fontSize: type.body, lineHeight: leading.body },

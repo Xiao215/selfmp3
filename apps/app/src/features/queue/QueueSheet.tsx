@@ -6,44 +6,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { useRouter, type Href } from 'expo-router'
-import { artistOr, plural, formatDuration, type Song, type Tag } from '@selfmp3/shared'
-import {
-  fonts,
-  HIT_TARGET,
-  isDownloaded,
-  motion,
-  radius,
-  space,
-  type,
-  withAlpha,
-} from '@selfmp3/client'
-import { useDownloads } from '../../offline/DownloadsProvider'
+import type { Song, Tag } from '@selfmp3/shared'
+import { fonts, motion, radius, space, type } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
-import { usePlayer, usePlayerProgress } from '../../player/PlayerProvider'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
 import { ease, motionMs, spring, timing } from '../../ui/motion'
-import { MOVE_MS, PULL, overshootRange, roomShift } from '../../ui/motion.model'
+import { MOVE_MS, overshootRange, roomShift } from '../../ui/motion.model'
 import { label } from '../../ui/surfaces'
-import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
-import { Cover } from '../../ui/components/Cover'
-import { Equalizer } from '../../ui/components/Equalizer'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { Shuffle, X } from '../../ui/components/Icons'
-import { PlayPauseIcon } from '../../ui/components/PlayPauseIcon'
-import { SongRow } from '../../ui/components/SongRow'
+import { SheetBackdrop, SheetGrabber, useSheetPull } from '../../ui/components/Sheet'
+import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { sourceTagIds } from '../lists/lists.model'
-import { Toggle } from '../../ui/components/Toggle'
-import { tip } from '../../ui/tip'
 import { useSwallowSwipeClick } from '../../ports/swipeClick'
-import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { closeQueueSheet } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import {
-  autoMixLine,
   dragTarget,
   nextLabel,
   onlySongEnded,
@@ -54,6 +36,14 @@ import {
   type QueueRow,
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
+import {
+  AutoMixRow,
+  ClearRestButton,
+  PlayingNow,
+  UpNextList,
+  useQueueRowFacts,
+  useUpNextShown,
+} from './UpNextParts'
 import { RoomList, TogetherButton } from '../room/RoomList'
 import { useRoom } from '../room/room.store'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -82,17 +72,7 @@ const SHEET_TOP = 16
  * down before the page is pushed.
  */
 export function QueueSheet({ go }: { go?: (href: Href) => void }): ReactNode {
-  const open = useQueueSheetOpen()
-  const { wide } = useLayout()
-  const loaded = usePlayer().current !== null
-  // In a room, Up next is the room's, whether or not this device plays it.
-  const inRoom = useRoom().state !== null
-  const shown = open && (loaded || inRoom) && !wide
-
-  // Nothing left to show: the queue was cleared, or its last song removed.
-  useEffect(() => {
-    if (open && !loaded && !inRoom) closeQueueSheet()
-  }, [open, loaded, inRoom])
+  const shown = useUpNextShown(false)
 
   // Mounted from the moment it is asked for until its exit has played out,
   // as `Sheet` is. Adjusted during render so opening never shows a frame without it.
@@ -145,11 +125,13 @@ function SheetPanel({
   const { height } = useWindowDimensions()
   const router = useRouter()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { state: downloads, installed, streamBlocked } = useDownloads()
-  const { player, rows, remove, clearRest, tagsOf, openTag } = edits
+  const factsOf = useQueueRowFacts()
+  const { player, rows, remove, clearRest, openTag } = edits
   const inRoom = useRoom().state !== null
   const [progress] = useState(() => new Animated.Value(0))
-  const [pull] = useState(() => new Animated.Value(0))
+  // Pulled down by its head, as every sheet is (`useSheetPull`): only the
+  // head, not the list, so a pull on the rows is still a scroll.
+  const { pull, gesture: pullDown } = useSheetPull(closeQueueSheet)
   // The dim's opacity, a native node built once: the curve runs past 1 on the
   // way up; the dim does not.
   const [dim] = useState(() =>
@@ -182,28 +164,6 @@ function SheetPanel({
     timing(progress, 0, MOVE_MS.sheetDown, onGone, { easing: ease.in })
   }, [shown, progress, pull, onGone])
 
-  /*
-   * Pulled down by its head: the panel follows the finger, and far enough or
-   * fast enough puts it away. Only the head, not the list, so a pull on the
-   * rows is still a scroll.
-   */
-  const pullDown = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY(8)
-        .failOffsetX([-20, 20])
-        .runOnJS(true)
-        .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
-        .onEnd((event, success) => {
-          if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {
-            closeQueueSheet()
-          } else {
-            spring(pull, 0)
-          }
-        }),
-    [pull],
-  )
-
   // The row being held and the row it would land on; the travel is `dragY`,
   // which moves the lifted row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
@@ -224,16 +184,16 @@ function SheetPanel({
   const fromTags = useMemo(() => sourceTagIds(player.source), [player.source])
   // Its made-once parts on their own, so the row actions below are made once too.
   const { lift: liftScale, holding: holdRow, start: liftRow, drop: dropRow } = lift
-  // State rather than a ref: the rows making room read it while rendering.
-  const [rowHeight, setRowHeight] = useState(0)
   /*
-   * Shuffling a library makes the queue the whole library, and every row here
-   * carries two pan gestures and a cover: drawn in full, opening this sheet
-   * mounted one per song. Nobody scrolls three thousand rows in a sheet, and
-   * the ones that matter are the next few and the few just played.
+   * Every row is a song row's height, so the list draws only the rows in view
+   * (`UpNextList`) and a drag is counted in rows. Text enlarged in the
+   * system's settings can wrap past a row's cover, and then the first row's
+   * own height is taken instead. State rather than a ref: the rows making
+   * room read it while rendering.
    */
-  const shownNext = rows.next.slice(0, SHOWN_NEXT)
-  const shownPlayed = rows.played.slice(-SHOWN_PLAYED)
+  const promised = useSongRowHeight()
+  const [measured, setMeasured] = useState(0)
+  const rowHeight = promised ?? (measured || ROW_HEIGHT_GUESS)
   const first = rows.next[0]?.index ?? 0
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
@@ -275,7 +235,7 @@ function SheetPanel({
         const to = target(index, dy)
         if (to !== index) latest.current.player.reorderQueue(index, to)
       },
-      measured: setRowHeight,
+      measured: setMeasured,
       dragY,
       lift: liftScale,
     }
@@ -290,11 +250,11 @@ function SheetPanel({
     router.navigate('/now-playing')
   }
 
-  const row = (entry: QueueRow, movable: boolean): ReactNode => {
-    const here = isDownloaded(downloads.index, entry.song.id)
+  const row = (entry: QueueRow, kind: 'next' | 'played'): ReactNode => {
+    const movable = kind === 'next'
+    const facts = factsOf(entry.song)
     return (
       <SheetRow
-        key={entry.song.id}
         song={entry.song}
         index={entry.index}
         movable={movable}
@@ -303,12 +263,12 @@ function SheetPanel({
         carrying={drag !== null}
         lifted={drag?.from === entry.index}
         wearingLift={lift.wearing === entry.song.id}
-        measures={entry.index === first}
+        measures={promised === null && entry.index === first}
         artUri={artFor(entry.song)}
-        downloaded={here}
-        notDownloadedMark={installed && !here}
-        unavailable={streamBlocked && !here}
-        tags={tagsOf(entry.song)}
+        downloaded={facts.downloaded}
+        notDownloadedMark={facts.notDownloadedMark}
+        unavailable={facts.unavailable}
+        tags={facts.tags}
         hideTagIds={fromTags}
         actions={actions}
       />
@@ -317,13 +277,7 @@ function SheetPanel({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[styles.backdrop, { opacity: dim }]}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={closeQueueSheet}
-          accessibilityLabel="Close Up next"
-        />
-      </Animated.View>
+      <SheetBackdrop opacity={dim} onClose={closeQueueSheet} label="Close Up next" />
       <Animated.View
         testID="queue-sheet"
         role="dialog"
@@ -348,7 +302,7 @@ function SheetPanel({
               hitSlop={12}
               style={styles.grabberHit}
             >
-              <View style={styles.grabber} />
+              <SheetGrabber />
             </Pressable>
             {inRoom ? null : (
               <View style={styles.titleRow}>
@@ -371,23 +325,7 @@ function SheetPanel({
                     active={player.queue.shuffle}
                     onPress={player.toggleShuffle}
                   />
-                  {/* Outlined, so it is not read as a second mode beside Shuffle,
-                    and it says what it leaves: the song playing carries on. */}
-                  <Pressable
-                    onPress={clearRest}
-                    disabled={!clearable}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !clearable }}
-                    testID="queue-clear-rest"
-                    style={({ pressed }) => [
-                      styles.pill,
-                      styles.pillGhost,
-                      pressed && styles.pillGhostPressed,
-                      !clearable && styles.pillOff,
-                    ]}
-                  >
-                    <Text style={styles.pillText}>Clear the rest</Text>
-                  </Pressable>
+                  <ClearRestButton onPress={clearRest} enabled={clearable} />
                 </View>
               </View>
             )}
@@ -409,59 +347,36 @@ function SheetPanel({
         ) : null}
 
         {playing && !inRoom ? (
-          <PlayingCard
-            song={playing.song}
-            artUri={artFor(playing.song)}
-            playing={player.isPlaying}
-            ended={ended}
-            onOpen={openNowPlaying}
-            onToggle={player.toggle}
-          />
+          <View style={styles.card}>
+            <PlayingNow row={playing} ended={ended} onOpen={openNowPlaying} />
+          </View>
         ) : null}
 
         {inRoom ? null : (
-          <ScrollView
+          <UpNextList
             style={styles.list}
             contentContainerStyle={styles.listContent}
             scrollEnabled={drag === null}
-          >
-            {ended && playing ? (
-              <OnlySongEnd song={playing.song} player={player} />
-            ) : (
-              <Text style={styles.label}>{nextLabel(rows.next)}</Text>
-            )}
-            {shownNext.map(entry => row(entry, true))}
-            {rows.next.length > shownNext.length ? (
-              <Text style={styles.more}>
-                and {plural(rows.next.length - shownNext.length, 'song', 'songs')} after that
-              </Text>
-            ) : null}
-            {rows.played.length > 0 ? (
+            next={rows.next}
+            played={rows.played}
+            rowHeight={rowHeight}
+            renderRow={row}
+            raised={drag?.from ?? null}
+            labelStyle={styles.labelInset}
+            head={
+              ended && playing ? (
+                <OnlySongEnd song={playing.song} player={player} />
+              ) : (
+                <Text style={[styles.label, styles.labelInset]}>{nextLabel(rows.next)}</Text>
+              )
+            }
+            foot={
               <>
-                <Text style={[styles.label, styles.playedLabel]}>Played</Text>
-                {shownPlayed.map(entry => row(entry, false))}
+                <AutoMixRow player={player} upcoming={rows.next.length} style={styles.autoMix} />
+                <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
               </>
-            ) : null}
-
-            <View style={styles.autoMix}>
-              <Toggle
-                value={player.autoMix}
-                onChange={player.setAutoMix}
-                label="Auto-mix"
-                testID="auto-mix"
-              />
-              <Text style={styles.autoMixLabel}>Auto-mix</Text>
-              <Text style={styles.autoMixHint} numberOfLines={1}>
-                {autoMixLine({
-                  autoMix: player.autoMix,
-                  canCrossfade: player.canCrossfade,
-                  upcoming: rows.next.length,
-                  nextCrossfadeSeconds: player.nextCrossfadeSeconds,
-                })}
-              </Text>
-            </View>
-            <Text style={styles.hint}>Hold a song to move it · swipe left to remove it</Text>
-          </ScrollView>
+            }
+          />
         )}
       </Animated.View>
       {tagPicker}
@@ -600,76 +515,6 @@ function MakeRoom({
 }
 
 /**
- * The song playing, at the top of the sheet: its cover under the equaliser,
- * its colour washed behind it, and play and pause at the end. The rest of the
- * card opens Now Playing.
- */
-function PlayingCard({
-  song,
-  artUri,
-  playing,
-  ended,
-  onOpen,
-  onToggle,
-}: {
-  song: Song
-  artUri: string | null | undefined
-  playing: boolean
-  /** It ran out, played on its own: it is the song that was played, not the one playing. */
-  ended: boolean
-  onOpen: () => void
-  onToggle: () => void
-}): ReactNode {
-  const { theme } = useUnistyles()
-  const tone = useSongColor(song, artUri)
-  return (
-    <View style={[styles.card, { backgroundColor: withAlpha(tone.color, 0.2) }]}>
-      <Pressable
-        onPress={onOpen}
-        accessibilityRole="button"
-        accessibilityLabel={`Playing ${song.title}. Open now playing`}
-        style={styles.cardMain}
-      >
-        <View>
-          <Cover uri={artUri} title={song.album || song.title} size={48} />
-          <View style={styles.equalizer} pointerEvents="none">
-            <Equalizer paused={!playing} size={14} color={tone.tint} />
-          </View>
-        </View>
-        <View style={styles.cardText}>
-          <Text style={[styles.cardLabel, { color: tone.tint }]}>
-            {ended ? 'Played' : 'Playing'}
-          </Text>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {song.title}
-          </Text>
-          <PlayingLine artist={artistOr(song.artist)} />
-        </View>
-      </Pressable>
-      <Pressable
-        onPress={onToggle}
-        accessibilityRole="button"
-        accessibilityLabel={playing ? 'Pause' : 'Play'}
-        {...tip(playing ? 'Pause' : 'Play')}
-        style={({ pressed }) => [styles.cardPlay, pressed && styles.cardPlayPressed]}
-      >
-        <PlayPauseIcon playing={playing} size={20} color={theme.colors.onPrimary} />
-      </Pressable>
-    </View>
-  )
-}
-
-/** "Yorushika · 1:52 of 4:23", on its own so a tick redraws this line and not the sheet. */
-function PlayingLine({ artist }: { artist: string }): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  return (
-    <Text style={styles.cardSub} numberOfLines={1}>
-      {artist} · {formatDuration(position)} of {formatDuration(duration)}
-    </Text>
-  )
-}
-
-/**
  * A row that can be swiped left off the list, over the `remove` ground.
  *
  * The swipe is the row's only once the finger has gone sideways first
@@ -780,20 +625,10 @@ function SwipeToRemove({
   )
 }
 
-/** How much of a long queue the sheet draws: what is coming, and what just went. */
-const SHOWN_NEXT = 60
-const SHOWN_PLAYED = 10
+/** A row's height before the first has been measured, where a song row's cannot be promised. */
+const ROW_HEIGHT_GUESS = 64
 
 const styles = StyleSheet.create(theme => ({
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    // The dim every sheet in the app draws behind itself (`Sheet`).
-    backgroundColor: theme.colors.backdrop,
-  },
   panel: {
     position: 'absolute',
     left: 0,
@@ -809,12 +644,6 @@ const styles = StyleSheet.create(theme => ({
   },
   head: { gap: space.md, paddingHorizontal: 18 },
   grabberHit: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 20 },
-  grabber: {
-    width: 36,
-    height: 5,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface3,
-  },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sourceRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   source: { flex: 1, minWidth: 0 },
@@ -825,68 +654,12 @@ const styles = StyleSheet.create(theme => ({
     letterSpacing: -0.2,
   },
   pills: { flexDirection: 'row', gap: 6 },
-  // As tall as the Shuffle beside it.
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: HIT_TARGET,
-    paddingHorizontal: 14,
-    borderRadius: radius.pill,
-  },
-  pillGhost: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
-  },
-  pillGhostPressed: { backgroundColor: theme.colors.surface3 },
-  pillOff: { opacity: 0.4 },
-  pillText: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    height: 68,
-    marginHorizontal: 12,
-    paddingHorizontal: space.md,
-    borderRadius: radius.mini,
-  },
-  cardMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
-  equalizer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.cover,
-    // The shade a playing row lays over its cover (`SongRow`).
-    backgroundColor: theme.colors.coverShade,
-  },
-  cardText: { flex: 1, minWidth: 0, gap: 2 },
-  cardLabel: label(theme.colors),
-  cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
-  cardSub: {
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-    fontVariant: ['tabular-nums'],
-  },
-  cardPlay: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.textPrimary,
-  },
-  cardPlayPressed: { transform: [{ scale: 0.96 }] },
+  card: { marginHorizontal: 12 },
   list: { flex: 1 },
   listContent: { paddingBottom: space.lg },
   roomContent: { paddingHorizontal: 18, paddingBottom: space.lg },
-  label: { ...label(theme.colors), paddingHorizontal: 18, paddingBottom: space.xs },
-  playedLabel: { paddingTop: space.md },
-  more: { color: theme.colors.textMuted, fontSize: type.sub, paddingVertical: 10 },
+  label: { ...label(theme.colors), paddingBottom: space.xs },
+  labelInset: { paddingHorizontal: 18 },
   played: { opacity: 0.42 },
   liftedCell: { zIndex: 2 },
   swipe: { overflow: 'hidden' },
@@ -906,21 +679,7 @@ const styles = StyleSheet.create(theme => ({
   groundText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   // Opaque, so the ground shows only where the row has been swiped off it.
   swipeRow: { backgroundColor: theme.colors.surface1 },
-  autoMix: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingTop: space.lg,
-    paddingHorizontal: 18,
-  },
-  autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
-  autoMixHint: {
-    flex: 1,
-    minWidth: 0,
-    textAlign: 'right',
-    color: theme.colors.textMuted,
-    fontSize: type.small,
-  },
+  autoMix: { paddingTop: space.lg, paddingHorizontal: 18 },
   hint: {
     color: theme.colors.textMuted,
     fontSize: type.small,

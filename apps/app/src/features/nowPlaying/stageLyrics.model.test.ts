@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blurReach, lineTone, lyricBlur } from './stageLyrics.model'
+import { blurReach, lineTone, lyricBlur, lyricsStatusText } from './stageLyrics.model'
 
 describe('lineTone', () => {
   it('reads unsynced words all alike', () => {
@@ -43,5 +43,16 @@ describe('blurReach', () => {
     expect(blurReach(900, 54)).toBe(11)
     // Smaller type holds more.
     expect(blurReach(900, 30)).toBeGreaterThan(blurReach(900, 54))
+  })
+})
+
+describe('lyricsStatusText', () => {
+  it('says what stands in for the words, and nothing once there are some', () => {
+    expect(lyricsStatusText({ status: 'loading' })).toBe('Looking for lyrics…')
+    expect(lyricsStatusText({ status: 'missing', offline: false })).toBe('No lyrics for this song.')
+    expect(lyricsStatusText({ status: 'missing', offline: true })).toMatch(/once it’s reachable/)
+    expect(
+      lyricsStatusText({ status: 'lyrics', parsed: { synced: false, lines: [] }, roman: null }),
+    ).toBeNull()
   })
 })

@@ -15,6 +15,20 @@ const ME: CloudSession = {
   me: { email: 'me@example.com', name: null, picture: null, storage: null },
 }
 const ANSWER = { addresses: [SERVER], token: 'library-token'.padEnd(43, '0') }
+/** The same account once its bucket is connected. */
+const WITH_BUCKET: CloudSession = {
+  ...ME,
+  me: {
+    ...ME.me,
+    storage: {
+      endpoint: 'https://s3.us-west-004.backblazeb2.com',
+      region: 'us-west-004',
+      bucket: 'theirs',
+      prefix: 'selfmp3',
+      keyIdHint: '004abc…',
+    },
+  },
+}
 
 function memoryStore(): DeviceStore {
   const values = new Map<string, unknown>()
@@ -107,6 +121,48 @@ describe('the shared server, from a device', () => {
     const { shared, doorman } = setUp()
     expect((await shared.grants(ME)).grants.map(grant => grant.server)).toEqual([SERVER])
     await shared.removeGrant(ME, '0123456789abcdef')
-    expect(doorman).toEqual(['GET /v1/grants', 'DELETE /v1/grants/0123456789abcdef'])
+    expect(doorman).toEqual([
+      'GET /v1/grants',
+      'GET /v1/grants',
+      'DELETE /v1/grants/0123456789abcdef',
+    ])
+  })
+
+  it('joins by itself, once, when the bucket names no server', async () => {
+    const { shared, sent } = setUp()
+    const [first, second] = await Promise.all([
+      shared.automatic(WITH_BUCKET, null),
+      shared.automatic(WITH_BUCKET, null),
+    ])
+    expect(first).toEqual(ANSWER)
+    expect(second).toEqual(ANSWER)
+    expect(await shared.automatic(WITH_BUCKET, null)).toEqual(ANSWER)
+    expect(sent).toHaveLength(1)
+  })
+
+  it('leaves alone a library whose snapshot names a server, or that has no bucket yet', async () => {
+    const { shared, sent } = setUp()
+    const own = { addresses: ['https://mine.example.com'], token: 'own' }
+    expect(await shared.automatic(WITH_BUCKET, own)).toEqual(own)
+    expect(await shared.automatic(ME, null)).toBeNull()
+    expect(sent).toEqual([])
+  })
+
+  it('waits a while after a join that failed, rather than asking on every look', async () => {
+    const { shared, sent } = setUp(() => json({ error: 'busy' }, 502))
+    expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
+    expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
+    expect(sent).toHaveLength(1)
+  })
+
+  it('does not join again by itself once the shared server was removed here, until joined by hand', async () => {
+    const { shared, sent } = setUp()
+    await shared.automatic(WITH_BUCKET, null)
+    await shared.removeGrant(WITH_BUCKET, '0123456789abcdef')
+    expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
+    expect(sent).toHaveLength(1)
+
+    await shared.join(WITH_BUCKET)
+    expect(await shared.automatic(WITH_BUCKET, null)).toEqual(ANSWER)
   })
 })

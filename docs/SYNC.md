@@ -474,8 +474,8 @@ that finds none rather than waiting to be configured
 (`apps/server/src/repositories/auth.ts`), because an optional lock is an open door.
 
 When no address answers the screen is still drawn, and says why in its own words: not
-answering, or never having said where it is. A library that never had a server is offered
-the shared one this build knows of (`DEFAULT_SERVER_URL`), and one tap joins it
+answering, or never having said where it is. A library that never had a server joins the
+shared one this build knows of (`DEFAULT_SERVER_URL`) by itself
 ([features/shared-server.md](features/shared-server.md)). **A feature that is simply not drawn is
 indistinguishable, from where the user sits, from one that does not exist** — which is what
 Stats, the metadata lookup and the untagged inbox all looked like for months.

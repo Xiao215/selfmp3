@@ -62,10 +62,12 @@ from its next device.
 
 ## Joining
 
-A signed-in device whose bucket names no server shows **No computer works for your library
-yet**, with **Use the shared computer**. It shows this wherever it would have said the
-library's computer has not said where it is, and in Settings › Account › Computers.
-Pressing it sends the device's doorman session to the server's `POST /api/hub/join`, once:
+Joining happens by itself, with no button (Xiao, 2026-10-12). The first time a signed-in
+device with a bucket asks where its server is, and the bucket's snapshot names none, the
+device joins the shared one (`automatic` in `packages/replica/src/sharedServer.ts`). Every
+screen that needs the server asks, and so does presence while the app is in use, so a
+friend's first minute in the app is enough. The device sends its doorman session to the
+server's `POST /api/hub/join`, once:
 
 1. The server asks the doorman who the session belongs to (`GET /v1/me`, which now says
    `account`). An account with no bucket yet is turned away until it connects one.
@@ -76,7 +78,13 @@ Pressing it sends the device's doorman session to the server's `POST /api/hub/jo
 4. It answers the device with the same addresses and token. The device keeps them
    (`packages/replica/src/sharedServer.ts`) until that snapshot reaches it.
 
-Joining again is harmless: an account that already has a workspace gets its token back.
+Joining again is harmless: an account that already has a workspace gets its token back. A
+join that fails is tried again by itself ten minutes later.
+
+The button is for one case only. **Use the shared computer**, under **No computer works for
+your library yet** and in Settings › Account › Computers, appears when this device has
+removed the shared computer. Removing it there is remembered on that device, so it does not
+join again by itself; pressing the button joins by hand and forgets that.
 
 ## Grants
 

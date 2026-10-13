@@ -472,13 +472,13 @@ export function createCloudRoutes(
     // Asked every few seconds by every screen that might use the server, so
     // from this device's copy alone: as a library read, it was a look at the
     // bucket — two counted listings — every eighty seconds the app was open.
-    // A server this account has just joined goes in until the snapshot names
-    // it (sharedServer.ts): a minute or so, and then the snapshot says the same.
+    // With none named, the shared server: joined by itself the first time this
+    // is asked, then kept until the snapshot names it (sharedServer.ts).
     [
       'GET',
       '/api/cloud/server',
       async ({ session }) => ({
-        server: (await peekCloudLibrary(session)).server ?? (await shared.joined(session)),
+        server: await shared.automatic(session, (await peekCloudLibrary(session)).server),
       }),
     ],
     [

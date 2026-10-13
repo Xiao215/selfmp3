@@ -29,8 +29,9 @@ import { card } from '../ui/surfaces'
  * drawn is indistinguishable, from where the user sits, from one that does not
  * exist.
  *
- * A library that has never had a computer is offered the shared one
- * (docs/features/shared-server.md) — one tap, and the screen finds it.
+ * A library with no computer joins the shared one by itself
+ * (docs/features/shared-server.md); one that removed it here is offered it
+ * again — one tap, and the screen finds it.
  */
 export function ServerAway({
   reach,

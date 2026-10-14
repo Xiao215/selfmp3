@@ -9,6 +9,7 @@ import {
   shareStage,
   shareTimeLine,
   shareTracks,
+  shareWords,
   sourceName,
 } from './share.model'
 
@@ -113,6 +114,22 @@ describe('a share link’s words', () => {
     )
     expect(receivedLine(summary(), NOW)).toBe('Xiao · 6 days')
     expect(receivedLine(summary({ ended: { at: NOW, why: 'stopped' } }), NOW)).toBe('Xiao · Ended')
+  })
+})
+
+describe('the words that go with a link', () => {
+  it('are the song and its artist, or the list and how many songs it holds', () => {
+    expect(shareWords({ name: '干杯', kind: 'song', artist: '五月天', songs: 1 })).toBe(
+      '干杯 · 五月天',
+    )
+    expect(shareWords({ name: '干杯', kind: 'song', artist: ' ', songs: 1 })).toBe('干杯')
+    expect(shareWords({ name: '干杯', kind: 'song', artist: null, songs: 1 })).toBe('干杯')
+    expect(shareWords({ name: '五月天 精选', kind: 'list', artist: null, songs: 12 })).toBe(
+      '五月天 精选 · 12 songs',
+    )
+    expect(shareWords({ name: 'Picked', kind: 'list', artist: null, songs: 1 })).toBe(
+      'Picked · 1 song',
+    )
   })
 })
 

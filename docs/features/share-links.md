@@ -29,7 +29,24 @@ made in one tap, holds what you picked, and ends by itself.
 
 A link holds at most 100 songs (`SHARE_MAX_SONGS`). **Share link** opens the share sheet
 (`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it with
-its QR code, with **Share link** for the system's share sheet (a copy where there is none).
+its QR code, and two buttons:
+
+- **Share link**, for the system's share sheet (a copy where there is none);
+- **Share as picture**, a 1080 × 1920 poster for WeChat (`SharePoster.tsx`).
+
+**The words with the link** are `干杯 · 五月天` for a song and `五月天 精选 · 12 songs` for a
+list (`shareWords`). The link goes beside them, never inside them, so it is sent once: on
+iOS as the share's `url`, on Android after the words, which is the only place it has.
+
+**Why a picture.** WeChat draws a card for a pasted link only from a verified 公众号 on an
+ICP-registered domain, or a business-verified Open Platform app. So a song goes to WeChat
+the way 网易云 and QQ音乐 users send one: a picture whose QR code the friend presses and
+holds (识别图中二维码). The poster is the cover big (a 2×2 mosaic of the first four for a
+list) on a wash of its colour, the title and artist (or the song count), and at the foot
+the self.mp3 mark, *Xiao shared this · scan to listen* and the link's QR code. It is drawn
+off-screen at its own size and saved as the month's page is (`ports/sharePicture`): a phone
+hands it to its share sheet; a browser shares the file where it can and downloads it
+otherwise. Picked with Xiao on 2026-10-14 (link-preview proposal, E1 and D2).
 
 Only an account with a bucket can share, since the doorman lends from it. A song not in
 storage yet cannot be shared.

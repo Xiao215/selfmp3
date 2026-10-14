@@ -4,10 +4,11 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { plural, SHARE_MAX_SONGS, type RoomSong, type ShareLink } from '@selfmp3/shared'
-import { failureText, radius, shareLinkUrl, space, type, useLibrary } from '@selfmp3/client'
+import { failureText, radius, shareLinkUrl, space, type } from '@selfmp3/client'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
 import { lineSub } from '../../ui/surfaces'
+import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Sheet } from '../../ui/components/Sheet'
@@ -15,13 +16,16 @@ import { Spinner } from '../../ui/components/Spinner'
 import { useCloudSession } from '../profile/useCloudSession'
 import { RoomQr } from '../room/RoomQr'
 import { nameToJoinWith } from '../shared/shared.model'
+import { shareWords } from './share.model'
+import { SharePictureButton } from './SharePoster'
 import { createShareLink, useShareMade } from './shareLinks'
 import { closeShareSheet, useShareRequest, type ShareRequest } from './shareSheet.store'
 
 /**
  * The share sheet (docs/features/share-links.md, A1): the link is made as it
  * opens — Share link is what was asked for — and shown with its QR code and
- * the one line that says how long it lasts. Drawn once, by the shell, and by
+ * the one line that says how long it lasts. Share as picture is for
+ * WeChat, which draws no card for the link. Drawn once, by the shell, and by
  * the phone's Now Playing while it covers the shell.
  */
 
@@ -42,7 +46,7 @@ export function ShareSheet({ go = null }: { go?: ((href: Href) => void) | null }
   const request = useShareRequest()
   const router = useRouter()
   const { data: me } = useCloudSession()
-  const { data: library } = useLibrary()
+  const byId = useSongsById()
   const made = useShareMade()
   const [result, setResult] = useState<{ for: ShareRequest; made: Made } | null>(null)
   const shown = result && result.for === request ? result.made : null
@@ -96,12 +100,20 @@ export function ShareSheet({ go = null }: { go?: ((href: Href) => void) | null }
   const left = Math.max(0, count - SHARE_MAX_SONGS)
   const link = shown && 'link' in shown ? shown.link : null
   const url = link ? shareLinkUrl(appAddress(), link) : null
-  const song =
-    request?.kind === 'song' ? library?.songs.find(one => one.id === request.songIds[0]) : undefined
+  // Your own copies of what went in: the song's artist, and the picture's covers.
+  const yours =
+    request && link
+      ? request.songIds.slice(0, SHARE_MAX_SONGS).flatMap(id => byId.get(id) ?? [])
+      : []
   const words =
-    request?.kind === 'song' && song?.artist
-      ? `Listen to “${request.name}” by ${song.artist}:`
-      : `Listen to “${request?.name ?? ''}”:`
+    request && link
+      ? shareWords({
+          name: request.name,
+          kind: request.kind,
+          artist: yours[0]?.artist ?? null,
+          songs: link.entries.length,
+        })
+      : ''
 
   return (
     <Sheet
@@ -141,6 +153,17 @@ export function ShareSheet({ go = null }: { go?: ((href: Href) => void) | null }
               }
               testID="share-sheet-share"
             />
+            {request && link ? (
+              <SharePictureButton
+                name={request.name}
+                kind={request.kind}
+                songs={yours}
+                count={link.entries.length}
+                from={link.from.name}
+                url={url}
+                fileName={`selfmp3-${link.id}.png`}
+              />
+            ) : null}
             <Button
               label="Links you shared"
               variant="text"

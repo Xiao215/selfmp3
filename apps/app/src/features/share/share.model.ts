@@ -65,6 +65,29 @@ export function shareFromLine(link: Pick<ShareLink, 'kind' | 'from' | 'entries'>
   return `${link.from.name} sent you ${plural(link.entries.length, 'song', 'songs')}`
 }
 
+/**
+ * The words that go with a link (D2): "干杯 · 五月天" for a song, "五月天 精选 ·
+ * 12 songs" for a list. The link goes beside them, not inside them, so it is
+ * sent once (ports/shareLink).
+ */
+export function shareWords({
+  name,
+  kind,
+  artist,
+  songs,
+}: {
+  name: string
+  kind: 'song' | 'list'
+  /** The song's artist, when it is known. */
+  artist: string | null
+  /** How many songs the link holds. */
+  songs: number
+}): string {
+  if (kind === 'list') return `${name} · ${plural(songs, 'song', 'songs')}`
+  const by = artist?.trim()
+  return by ? `${name} · ${by}` : name
+}
+
 /** A link in your Links you shared (F2): who opened it, and how long it has. */
 export function sentLine(link: ShareSummary, now: number): string {
   const stage = shareStage(link, now)

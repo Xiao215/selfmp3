@@ -273,7 +273,7 @@ function JoinByCode(): ReactNode {
 function Invite({ state }: { state: RoomState }): ReactNode {
   const link = inviteLink(appAddress(), state.code)
   const share = async (): Promise<void> => {
-    const how = await shareLink(`Listen with me in ${roomTitle(state)}:`, link)
+    const how = await shareLink(`Listen with me in ${roomTitle(state)}`, link)
     if (how === 'copied') showToast('Invite link copied', 'good')
   }
   return (

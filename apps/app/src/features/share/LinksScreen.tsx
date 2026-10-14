@@ -21,7 +21,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { RoomFace } from '../room/RoomFace'
 import { sayRoomFailure } from '../room/roomFailure'
-import { sentLine, shareStage } from './share.model'
+import { sentLine, shareStage, shareWords } from './share.model'
 import { shareApi, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
 
@@ -110,11 +110,16 @@ export function LinksScreen(): ReactNode {
               label="Share link"
               onPress={() => {
                 setMenu(null)
-                void shareLink(`Listen to “${menu.name}”:`, shareLinkUrl(appAddress(), menu)).then(
-                  how => {
-                    if (how === 'copied') showToast('Link copied', 'good')
-                  },
-                )
+                // A summary carries no songs, so a song's goes without its artist.
+                const words = shareWords({
+                  name: menu.name,
+                  kind: menu.kind,
+                  artist: null,
+                  songs: menu.songs,
+                })
+                void shareLink(words, shareLinkUrl(appAddress(), menu)).then(how => {
+                  if (how === 'copied') showToast('Link copied', 'good')
+                })
               }}
             />
             {menu.ended?.why !== 'removed' ? (

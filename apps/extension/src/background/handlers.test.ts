@@ -134,7 +134,7 @@ describe('connecting', () => {
     expect(await store.read('server')).toBeNull()
   })
 
-  it('says a stored server is away when it does not answer, and there is no bucket behind it', async () => {
+  it('says a stored server is away when it does not answer, and there is no account to fall back on', async () => {
     const store = memoryStore()
     await store.write('server', { baseUrl: 'https://asleep.example', token: null })
     const handlers = createHandlers({ store, fetch: fakeServer(null).fetch })

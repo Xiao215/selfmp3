@@ -21,13 +21,13 @@ export type Route =
   | { readonly mode: 'server'; readonly connection: ServerConnection; readonly typed: boolean }
   /** Signed in, but nothing answered in time: leave the link in the bucket. */
   | { readonly mode: 'bucket' }
-  /** A typed-in server that is asleep, and no bucket to fall back to. */
+  /** A typed-in server that is asleep, and no account to leave the link in the bucket with. */
   | { readonly mode: 'away'; readonly connection: ServerConnection }
   /** Neither a server nor an account: the options page is the only way forward. */
   | { readonly mode: 'none' }
 
 export interface RouteSources {
-  /** The address someone typed into the options page, for a server with no bucket. */
+  /** The address someone typed into the options page, for a server the bucket does not name. */
   readonly typedServer: () => Promise<ServerConnection | null>
   readonly signedIn: () => Promise<boolean>
   /** The addresses the server last wrote into its snapshot, and its token. */
@@ -37,7 +37,8 @@ export interface RouteSources {
 
 /**
  * A typed-in address wins over the bucket's, because someone typed it: it is
- * the server they meant, and it is the only one a library with no bucket has.
+ * the server they meant, and it is the only one an extension that is not
+ * signed in has.
  * A signed-in extension whose typed server is asleep still falls back to the
  * bucket rather than stopping, which is the whole point of I3.
  */

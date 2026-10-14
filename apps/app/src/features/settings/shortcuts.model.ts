@@ -98,21 +98,26 @@ export function shortcutRows(items: readonly MenuKey[]): readonly ShortcutRow[] 
 }
 
 /**
- * A song list's own keys (`selection/useListKeys.web.ts`), which no menu item
+ * A song list's own keys (`selection/useListKeys`), which no menu item
  * carries: they mean something only with a list in front of you, and Space
  * and Enter there are the row's rather than the menu's. Written here, in
- * Electron's spelling, so they are drawn as the menu's are.
+ * Electron's spelling, so they are drawn as the menu's are. `rows` marks the
+ * ones that need a row the keyboard is on, which only a computer has.
  */
-const LIST_KEYS: readonly { accelerators: readonly string[]; label: string }[] = [
-  { accelerators: ['Up', 'Down'], label: 'Move between songs' },
-  { accelerators: ['Space', 'Return'], label: 'Tick / play the song you moved to' },
+const LIST_KEYS: readonly { accelerators: readonly string[]; label: string; rows?: true }[] = [
+  { accelerators: ['Up', 'Down'], label: 'Move between songs', rows: true },
+  { accelerators: ['Space', 'Return'], label: 'Tick / play the song you moved to', rows: true },
   { accelerators: ['CmdOrCtrl+A'], label: 'Select all songs' },
   { accelerators: ['Esc'], label: 'Clear the selection' },
 ]
 
-/** The rows for a song list's keys, drawn after the menu's. */
-export function listShortcutRows(): readonly ShortcutRow[] {
-  return LIST_KEYS.map(row => ({
+/**
+ * The rows for a song list's keys, drawn after the menu's. `rowsTakeKeys`:
+ * whether a row is somewhere the keyboard can be (`LIST_ROWS_TAKE_KEYS`) — on
+ * an iPad it is not, and only ⌘A and Escape apply.
+ */
+export function listShortcutRows(rowsTakeKeys: boolean): readonly ShortcutRow[] {
+  return LIST_KEYS.filter(row => rowsTakeKeys || !row.rows).map(row => ({
     keys: row.accelerators.flatMap(accelerator => {
       const { modifiers, key } = acceleratorKeys(accelerator)
       return [...modifiers, key]

@@ -31,7 +31,7 @@ import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
-import { menuCommands } from '../ports/menuKeys'
+import { useMenuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
 import { titleBarInset } from '../ports/titleBarInset'
 import { acceleratorKeys } from '../features/settings/shortcuts.model'
@@ -165,16 +165,17 @@ function SidebarInner(): ReactNode {
 }
 
 /**
- * The key the installed app's menu gives Search, drawn beside the row. Only
- * there: a browser tab has no ⌘K (its ⌘K is the browser's), and a row that
- * named a key that does nothing would teach the wrong thing.
+ * The key the menu gives Search, drawn beside the row: the installed app's, or
+ * an iPad's while a keyboard is attached. Only there: a browser tab has no ⌘K
+ * (its ⌘K is the browser's), and a row that named a key that does nothing
+ * would teach the wrong thing.
  */
-const SEARCH_KEYS = (() => {
-  const accelerator = menuCommands?.find(item => item.command === 'search')?.accelerator
+function useSearchKeys(): readonly string[] | null {
+  const accelerator = useMenuCommands()?.find(item => item.command === 'search')?.accelerator
   if (!accelerator) return null
   const { modifiers, key } = acceleratorKeys(accelerator)
   return [...modifiers, key]
-})()
+}
 
 /**
  * Search, at the top of the rail: opens the command palette. A button rather
@@ -187,6 +188,7 @@ const SEARCH_KEYS = (() => {
 function SearchRow(): ReactNode {
   const { theme } = useUnistyles()
   const [hovered, setHovered] = useState(false)
+  const searchKeys = useSearchKeys()
   return (
     <Press
       feedback="wash"
@@ -200,9 +202,9 @@ function SearchRow(): ReactNode {
     >
       <Search size={iconSize.button} color={theme.colors.textMuted} />
       <Text style={styles.searchText}>Search</Text>
-      {SEARCH_KEYS ? (
+      {searchKeys ? (
         <View style={styles.searchKeys}>
-          {SEARCH_KEYS.map(key => (
+          {searchKeys.map(key => (
             <Text key={key} style={styles.searchKey}>
               {key}
             </Text>

@@ -182,6 +182,10 @@ Notes for anyone extending it:
   `menu` or `dialog`, as they do for a text field (`shell/keyOwner.ts`). If you build a
   control with its own keyboard language, give it one of those roles. Open layers are listed
   in `shell/layers.ts`, for keys that must also stand aside while one is open (a list's ⌘A).
+- On an iPad or an iPhone with a hardware keyboard the same hooks register key commands
+  (`shell/keyRegistry.ts`, [MOBILE.md](../MOBILE.md), "A hardware keyboard"), and the same
+  layer stack decides which open layer Escape closes. A text field there is the only thing
+  that keeps keys: the module withdraws the ones it must have while it is being typed in.
 
 ## `data-tip` — hover captions
 

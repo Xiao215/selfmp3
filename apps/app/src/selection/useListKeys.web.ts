@@ -10,6 +10,9 @@ import { setTabbing, tabbing } from '../shell/tabbing'
 /** What the list's keys do, as the hook's other half declares it. */
 type ListKeyActions = Parameters<typeof SameShape>[0]
 
+/** See `useListKeys.ts`: here a row is a button the keyboard moves between. */
+export const LIST_ROWS_TAKE_KEYS = true
+
 /** The row's press target, which the arrows move focus to: `dataSet={{ rowPress }}`. */
 const ROW_PRESS = 'data-row-press'
 /** The row's song: `dataSet={{ songId }}`. */

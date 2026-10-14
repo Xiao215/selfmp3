@@ -26,8 +26,7 @@ import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame } from '../../ui/surfac
 import { SectionHead } from '../../ui/components/SectionHead'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
-import { menuCommands } from '../../ports/menuKeys'
-import { finePointer } from '../../ports/pointer'
+import { useMenuCommands } from '../../ports/menuKeys'
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
 import { forgetGuides } from '../guide/guideMemory'
@@ -104,19 +103,19 @@ export function SettingsScreen(): ReactNode {
   // it is the doorman's, and the doorman answers while the bucket will not.
   const capped = useBucketHold() !== null || bucketCapped(health.error)
 
-  // A mouse or trackpad stands in for a keyboard, and only the installed app —
-  // the one with a login item — has a menu of keys to list. A tab on a Mac is
-  // the one place the desktop app is offered from.
+  // Keys to list where they can be pressed: the installed app's menu, or an
+  // iPad's while a keyboard is attached, which comes and goes. A tab on a Mac
+  // is the one place the desktop app is offered from.
+  const shortcuts = useMenuCommands()
   const place = devicePlace(deviceKind())
   const sections = sectionsFor({
     crossfade: engineCapabilities.crossfade,
     installed: installedApp,
-    keyboard: finePointer,
+    keyboard: shortcuts !== null,
     shell: loginItem.available,
     place,
     offered: macApp.offered,
   })
-  const shortcuts = sections.some(section => section.id === 'shortcuts') ? menuCommands : null
   const indexed = settingsIndex(sections)
   const shown = (id: SectionId): boolean => sections.some(section => section.id === id)
   // The index is a column beside the panels where the page has room; a row of chips below.

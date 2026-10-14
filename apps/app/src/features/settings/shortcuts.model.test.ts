@@ -37,9 +37,16 @@ describe('keyboard shortcuts', () => {
   })
 
   it('lists a song list’s keys, drawn as the menu’s are', () => {
-    expect(listShortcutRows().map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([
+    expect(listShortcutRows(true).map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([
       '↑ ↓ Move between songs',
       'space ↵ Tick / play the song you moved to',
+      '⌘ A Select all songs',
+      'esc Clear the selection',
+    ])
+  })
+
+  it('leaves out the keys that need a row the keyboard is on, which an iPad has not', () => {
+    expect(listShortcutRows(false).map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([
       '⌘ A Select all songs',
       'esc Clear the selection',
     ])

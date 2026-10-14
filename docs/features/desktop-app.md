@@ -148,4 +148,6 @@ What was checked before choosing it:
   (Space, ⌘←, ⌘→, ⌥⌘←, ⌥⌘→). A registered Electron accelerator fires inside text
   fields too, so registering Space would take the space bar out of the search
   box. `pageKeeps` in the menu model marks them; the page handles them through
-  `useHotkeys`, which already stands aside while someone is typing.
+  `useHotkeys`, which already stands aside while someone is typing. An iPad with a
+  keyboard registers the same items as key commands, `pageKeeps` again marking the ones a
+  text field keeps ([MOBILE.md](../MOBILE.md), "A hardware keyboard").

@@ -47,13 +47,15 @@ describe('settings', () => {
     expect(sectionsFor({ crossfade: false }).map(section => section.id)).not.toContain('playback')
   })
 
-  it('lists keyboard shortcuts only in the installed app, which has a menu of them', () => {
+  it('lists keyboard shortcuts only where there are keys to press', () => {
     const ids = (device: Parameters<typeof sectionsFor>[0]) =>
       sectionsFor(device).map(section => section.id)
-    // A browser tab has a keyboard and no shortcuts of its own.
-    expect(ids({ installed: false, keyboard: true, shell: false })).not.toContain('shortcuts')
-    expect(ids({ installed: true, keyboard: false, shell: true })).not.toContain('shortcuts')
+    // A browser tab, and an iPad with no keyboard attached: nothing to list.
+    expect(ids({ installed: false, keyboard: false, shell: false })).not.toContain('shortcuts')
+    expect(ids({ installed: true, keyboard: false, shell: false })).not.toContain('shortcuts')
+    // The installed app's menu, and an iPad with a keyboard attached.
     expect(ids({ installed: true, keyboard: true, shell: true })).toContain('shortcuts')
+    expect(ids({ installed: true, keyboard: true, shell: false })).toContain('shortcuts')
     expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
   })
 
@@ -81,7 +83,7 @@ describe('settings', () => {
   })
 
   it('puts what runs the server under one Advanced chip at the end (O1)', () => {
-    const sections = sectionsFor({ shell: true })
+    const sections = sectionsFor({ shell: true, keyboard: true })
     expect(settingsIndex(sections).map(section => section.label)).toEqual([
       'Account',
       'Appearance',

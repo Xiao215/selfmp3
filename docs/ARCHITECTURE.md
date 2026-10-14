@@ -370,7 +370,9 @@ breakpoint and the caller does not know.
 menus and keyboard shortcuts exist wherever there is a pointer or a keyboard;
 long-press and swipe exist wherever there is a finger. `ports/pointer.ts` and
 `ports/keyboard.ts` report which are present, and `useLayout()` passes the
-pointer's answer on as `finePointer`. An iPad with a keyboard gets both.
+pointer's answer on as `finePointer`. An iPad with a keyboard gets both: the
+desktop menu's keys, Escape and a list's ⌘A arrive there as key commands
+(`ports/keyCommands.ts`).
 
 **7. Features declare their platforms.** Each note in `docs/features/` should
 have a "Where" line: which platforms carry the feature and, when one does not, why
@@ -399,6 +401,7 @@ phone, Playwright on the web. Nothing UI-shaped is left with zero coverage.
 | Service worker build | esbuild | The worker is one file with no imports, bundled to `public/sw.js` before `expo export`, which copies `public/` as it is. Metro cannot emit a separate worker entry. |
 | Offline, native | files + JSON index | Behind the same port. |
 | Icons | `react-native-svg` | One file for all three platforms. |
+| Hardware keyboard, iOS | **A local Expo module**, `apps/app/modules/key-commands` (Swift over `expo-modules-core`) | React Native delivers no key presses on iOS. The module puts `UIKeyCommand`s with a `discoverabilityTitle` on the root view controller, so holding ⌘ lists them, sends each press to JavaScript as `{ input, modifiers }`, withdraws the ones a text field must keep while one is being typed in, and says whether a keyboard is attached (`GCKeyboard`). Autolinked from `modules/`; iOS only, so Android and the web never build it. Passed over in September 2026: `react-native-key-command` (Expensify) needs an `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`; `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft keyboard only; `react-native-external-keyboard` is focus-scoped. |
 | Canvas work | A port twin per platform, sharing its model | The song visual is a canvas in a browser (`SongVisual.web.tsx`) and views moved by Reanimated on a phone (`SongVisual.tsx`), and both step the same `visualMotion.model.ts`. Expo DOM components (`'use dom'`) were the plan; a webview turned out to cost more than a second drawing, and nothing in the app uses one. |
 | Tests | vitest for packages and model files, jest-expo + RNTL for the app, Maestro and Playwright for flows | See foundation 8. Vitest cannot yet run React Native components; Jest stays for those. |
 | Repo tooling | npm workspaces, as now | pnpm + Turborepo is the 2026 default, and it is deliberately not adopted here: `docs/MOBILE.md` records how fragile the lockfile already is around React singletons, and a solo project gains nothing from a cached task graph. Revisit only when CI time hurts. |
@@ -431,6 +434,7 @@ interface each implements where a package declares one:
 | `clipboard` | copying words: a share link, the server's token | `navigator.clipboard` | `expo-clipboard` |
 | `install` | whether this is an installed app, which keeps songs | true only in the desktop app | true |
 | `pointer`, `keyboard` | which inputs are present | from media queries | a finger |
+| `menuKeys`, `keyCommands` | the menu's keys, and whether they can be pressed | the installed app's menu; none in a tab, whose keys are the window's | key commands from `modules/key-commands` while a hardware keyboard is attached (iOS); nothing on Android |
 | `widget` | the iOS home-screen widget's snapshot | nothing | `widget.ios.ts`; nothing on Android |
 
 The engine port declares capabilities — `crossfade`, `analyser` — and the visual and the

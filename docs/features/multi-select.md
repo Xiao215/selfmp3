@@ -56,7 +56,7 @@ Shift-click and Cmd/Ctrl-click work too, as accelerators, and so does a computer
 | ⌘A or Ctrl+A | Selects every song in the list | Same |
 | Escape | — | Clears the selection and stops selecting |
 
-**The keyboard, on a computer** (browser and the installed app; a phone has none). Every
+**The keyboard, on a computer** (browser and the installed app; an iPad's is below). Every
 list that selects answers it: Library, Search, a tag's, an artist's or a combination's page, a
 playlist and an Ask answer (`useListKeys`, wired once in `useSongRows`). Tab reaches a row, or
 a click leaves focus on one; the arrows then move from row to row, skipping an artist page's
@@ -76,6 +76,11 @@ dialog or list box, and while a sheet, popover or dialog is open over the page
 (`shell/layers.ts`), so the songs under an open More are not changed beneath it. Only the
 page in front listens: a page pushed over Library leaves Library mounted, and its ⌘A must not
 select Library's songs. Settings › Keyboard shortcuts lists these keys after the menu's.
+
+On an iPad or an iPhone with a hardware keyboard, ⌘A and Escape alone, as key commands
+(`useListKeys.ts`, [MOBILE.md](../MOBILE.md), "A hardware keyboard"): ⌘A stands aside in a
+text field and under an open layer as it does on a computer, but a native row is nowhere the
+keyboard can be, so there are no arrows, Space or Enter on a row.
 
 **What a hold means: two things, one rule** (Xiao chose D1, 2026-10-08). In a list whose order
 you set — a playlist you made, an Ask answer, Up next — holding a row lifts it to be moved: the

@@ -710,6 +710,13 @@ export function usePatchSong() {
 export const useBulkDeleteSongs = () =>
   useLibraryMutation((input: { songIds: number[] }) => clientApi().bulkDeleteSongs(input))
 
+/**
+ * Copies of one song folded into the one kept: their tags, love, playlist
+ * places and plays go to it, and then they are out of the library.
+ */
+export const useMergeSongs = () =>
+  useLibraryMutation((input: { keep: number; songIds: number[] }) => clientApi().mergeSongs(input))
+
 /** Many songs' own edits at once: Tidy up's approved changes. */
 export const useBulkEditSongs = () =>
   useLibraryMutation((input: BulkEditSongs) => clientApi().bulkEditSongs(input), {

@@ -20,12 +20,12 @@ import type { SyncRepository } from '../repositories/sync.js'
  */
 export class PlaysArchive {
   readonly #stats: Pick<StatsRepository, 'months' | 'monthPlays' | 'restore'>
-  readonly #sync: Pick<SyncRepository, 'songId'>
+  readonly #sync: Pick<SyncRepository, 'playedSongId'>
   readonly #deviceId: () => string
 
   constructor(deps: {
     stats: Pick<StatsRepository, 'months' | 'monthPlays' | 'restore'>
-    sync: Pick<SyncRepository, 'songId'>
+    sync: Pick<SyncRepository, 'playedSongId'>
     /** This server's name in the bucket, for the plays no device named. */
     deviceId: () => string
   }) {
@@ -72,7 +72,8 @@ export class PlaysArchive {
     }
     const plays = []
     for (const [uid, playedAt, msPlayed, completed, id] of parsed.plays) {
-      const songId = this.#sync.songId(uid)
+      // A copy since folded into another song: its plays are that song's.
+      const songId = this.#sync.playedSongId(uid)
       // A song since removed took its plays with it, here as everywhere.
       if (songId !== null) plays.push({ songId, playedAt, msPlayed, completed, id })
     }

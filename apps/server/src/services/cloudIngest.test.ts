@@ -150,6 +150,7 @@ describe('CloudIngest', () => {
       writtenAt: new Date(BASE),
       stamps: sync.allStamps(),
       aliases: sync.aliases(),
+      merged: sync.merges(),
       upTo: sync.cursors(),
     })
   }
@@ -176,6 +177,7 @@ describe('CloudIngest', () => {
           : playlist,
       ),
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
+      merged: library.merged.size > 0 ? Object.fromEntries(library.merged) : undefined,
     }
   }
 
@@ -188,6 +190,7 @@ describe('CloudIngest', () => {
       tags: byUid(snapshot.tags),
       playlists: byUid(snapshot.playlists),
       aliases: snapshot.aliases ?? {},
+      merged: snapshot.merged ?? {},
     }
   }
 
@@ -343,6 +346,100 @@ describe('CloudIngest', () => {
     expect(result.removed).toEqual([{ id: a, path: 'Alpha.m4a' }])
     expect(songs.byId(a)).toBeNull()
     expect(sync.allStamps().filter(stamp => stamp.uid === A)).toEqual([])
+    expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  it('folds a copy into the song kept as a phone does, losing none of it', () => {
+    const kept = addSong('Alpha')
+    const extra = addSong('Alpha (copy)', { year: 2020, lyrics: true, art: true })
+    songs.patch(extra, { album: 'THE BOOK', loved: true })
+    const chill = tags.create('chill', 10).id
+    const rain = tags.create('rain', 20).id
+    tags.setSongTags(kept, [chill])
+    tags.setSongTags(extra, [chill, rain])
+    const mix = playlists.create({ name: 'Mix', description: '', kind: 'manual', rules: null }).id
+    const road = playlists.create({ name: 'Road', description: '', kind: 'manual', rules: null }).id
+    const other = addSong('Other')
+    playlists.add(mix, [other, extra])
+    playlists.add(road, [kept, extra])
+    // Plays of both, in the history Stats and the bucket's plays files are made from.
+    for (const [id, at] of [
+      [kept, '2026-08-02 10:00:00'],
+      [extra, '2026-08-03 10:00:00'],
+      [extra, '2026-08-20 10:00:00'],
+    ] as const) {
+      stats.record(id, 60_000, true, at, null)
+      songs.recordPlay(id, at)
+    }
+    const months = stats.months()
+    // The album was cleared on the kept song after the fold was made: it stays clear.
+    now = BASE + 50_000
+    songs.patch(kept, { album: '' })
+    edits.songs([kept], ['album'])
+
+    const before = serverSnapshot()
+    const copied = cloud.states().get(extra)
+    const [KEPT, EXTRA] = [kept, extra].map(id => uidOf('songs', id)) as [string, string]
+    const RAIN = uidOf('tags', rain)
+    const changes: Change[] = [
+      { type: 'songMerged', hlc: at(10), uid: EXTRA, into: KEPT },
+      // Late, from a phone that still had the copy: its play and its tag land on the song kept.
+      {
+        type: 'songPlayed',
+        hlc: at(11),
+        uid: EXTRA,
+        playId: 'play-late-0001',
+        playedAt: '2026-09-01T09:00:00.000Z',
+        msPlayed: 30_000,
+        completed: false,
+      },
+      { type: 'songTagged', hlc: at(12), uid: EXTRA, tagUid: RAIN, on: false },
+      // A removal of the copy, or an edit of it, is about the copy, which is gone.
+      { type: 'songRemoved', hlc: at(13), uid: EXTRA },
+      { type: 'songEdited', hlc: at(14), uid: EXTRA, fields: { title: 'Back?' } },
+    ]
+    const result = ingest.apply(changes)
+    const after = serverSnapshot()
+
+    expect(comparable(after)).toEqual(comparable(replayed(before, changes)))
+    expect(result.removed).toEqual([{ id: extra, path: 'Alpha (copy).m4a' }])
+    const song = after.songs.find(each => each.uid === KEPT)
+    expect(song).toMatchObject({
+      title: 'Alpha',
+      album: '',
+      year: 2020,
+      loved: true,
+      playCount: 4,
+      lastPlayedAt: '2026-09-01 09:00:00',
+      cover: { key: copied?.coverKey },
+      lyrics: { key: copied?.lyricsKey, kind: 'synced' },
+    })
+    // The late "off" for rain is newer than the fold's "on".
+    expect(song?.tagUids).toEqual([uidOf('tags', chill)])
+    expect(after.songs.some(each => each.uid === EXTRA)).toBe(false)
+    expect(after.merged).toEqual({ [EXTRA]: KEPT })
+    const playlist = (id: number) =>
+      after.playlists.find(each => each.uid === uidOf('playlists', id))
+    expect(playlist(mix)?.songUids).toEqual([uidOf('songs', other), KEPT])
+    expect(playlist(road)?.songUids).toEqual([KEPT])
+    // Every play is the kept song's now, and the months they are in go up again.
+    const history = db
+      .prepare('SELECT song_id AS id, COUNT(*) AS n FROM play_events GROUP BY song_id')
+      .all()
+    expect(history).toEqual([{ id: kept, n: 4 }])
+    expect(stats.months().find(month => month.month === '2026-08')?.sig).not.toBe(
+      months.find(month => month.month === '2026-08')?.sig,
+    )
+  })
+
+  it('folds nothing when the song to keep is gone', () => {
+    const extra = addSong('Copy')
+    const before = serverSnapshot()
+    const changes: Change[] = [
+      { type: 'songMerged', hlc: at(1), uid: uidOf('songs', extra), into: '9'.repeat(32) },
+    ]
+    expect(ingest.apply(changes).applied).toBe(0)
+    expect(songs.byId(extra)).not.toBeNull()
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
   })
 

@@ -130,3 +130,125 @@ describe('GET /api/songs/:id/similar', () => {
     expect((await similar(1)).songs.find(song => song.id === 2)?.loved).toBe(true)
   })
 })
+
+/**
+ * A song held twice, folded into the copy kept when the server is asked
+ * itself (a device talking to it directly): the copy's tags, love, playlist
+ * places and plays are the kept song's after, and only the copy is gone.
+ * cloudIngest.test.ts holds the same fold, arriving from another device's
+ * log, to what a phone makes of it.
+ */
+describe('POST /api/songs/merge', () => {
+  const variables = [
+    'SELFMP3_DATA_DIR',
+    'SELFMP3_LIBRARY_DIR',
+    'SELFMP3_LOG_LEVEL',
+    'SELFMP3_CLOUD_DIR',
+  ] as const
+  const saved = new Map<string, string | undefined>()
+  let root = ''
+  let container: Container
+  let server: http.Server
+  let origin = ''
+
+  beforeAll(async () => {
+    for (const name of variables) saved.set(name, process.env[name])
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-merge-'))
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
+    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+    container = createContainer(loadConfig())
+    server = http.createServer(createApp(container))
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    container.close()
+    fs.rmSync(root, { recursive: true, force: true })
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  })
+
+  let files = 0
+  const insert = (title: string, album = '') =>
+    container.songs.insert({
+      path: `${title}-${++files}.m4a`,
+      title,
+      artist: 'YOASOBI',
+      album,
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 213,
+      sizeBytes: 1,
+      mime: 'audio/mp4',
+      mtimeMs: 0,
+      hasArt: false,
+      artExt: null,
+      lyricsKind: 'none',
+      sourceUrl: null,
+    })
+
+  const post = (url: string, body: unknown) =>
+    fetch(`${origin}${url}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${container.config.authToken ?? ''}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+  it('moves the copy’s tags, love, playlist places and plays to the song kept', async () => {
+    const kept = insert('アイドル')
+    const extra = insert('アイドル', 'アイドル')
+    container.songs.patch(extra, { loved: true })
+    const rain = container.tags.create('rain', 20).id
+    container.tags.setSongTags(extra, [rain])
+    const mix = container.playlists.create({
+      name: 'Mix',
+      description: '',
+      kind: 'manual',
+      rules: null,
+    }).id
+    container.playlists.add(mix, [extra])
+    for (const at of ['2026-08-03 10:00:00', '2026-08-20 10:00:00']) {
+      container.stats.record(extra, 60_000, true, at, null)
+      container.songs.recordPlay(extra, at)
+    }
+
+    const response = await post('/api/songs/merge', { keep: kept, songIds: [extra] })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ merged: 1 })
+
+    expect(container.songs.byId(extra)).toBeNull()
+    expect(container.songs.byId(kept)).toMatchObject({
+      album: 'アイドル',
+      loved: true,
+      playCount: 2,
+      tagIds: [rain],
+      lastPlayedAt: '2026-08-20 10:00:00',
+    })
+    expect(container.playlists.songIds(container.playlists.byId(mix)!)).toEqual([kept])
+    const plays = container.db.prepare('SELECT song_id AS id FROM play_events').all() as {
+      id: number
+    }[]
+    expect(plays).toEqual([{ id: kept }, { id: kept }])
+    // The tag stayed: the copy was not its last song.
+    expect(container.tags.all().map(tag => tag.name)).toEqual(['rain'])
+  })
+
+  it('folds nothing into a song that is not there, and nothing into itself', async () => {
+    const only = insert('Only')
+    expect(await (await post('/api/songs/merge', { keep: 9999, songIds: [only] })).json()).toEqual({
+      merged: 0,
+    })
+    expect((await post('/api/songs/merge', { keep: only, songIds: [only] })).status).toBe(400)
+    expect(container.songs.byId(only)).not.toBeNull()
+  })
+})

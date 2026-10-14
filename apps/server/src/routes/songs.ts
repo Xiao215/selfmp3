@@ -4,6 +4,7 @@ import {
   BulkDeleteSongsSchema,
   BulkEditSongsSchema,
   BulkLovedSchema,
+  MergeSongsSchema,
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
@@ -14,6 +15,7 @@ import {
   tagFlips,
   type Affected,
   type BulkDeleteResult,
+  type MergeSongsResult,
   type LyricsResponse,
   type PlayRecorded,
   type SimilarSongs,
@@ -94,6 +96,24 @@ export function songRoutes(container: Container): Router {
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
       const { removed, failed } = await container.songRemoval.remove(body.songIds)
       return { removed: removed.length, failed }
+    }),
+  )
+
+  /**
+   * Copies of one song folded into the one kept (`SongMerge`): each copy's
+   * tags, love, playlist places and plays go to it, what it lacks is filled in
+   * from them, and then the copies are removed as any song is. One stamp for
+   * the request, as a device's change would carry.
+   */
+  router.post(
+    '/songs/merge',
+    route({ body: MergeSongsSchema }, async ({ body }): Promise<MergeSongsResult> => {
+      const hlc = container.clock.tick()
+      const merged = container.db.transaction(() =>
+        [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+      )()
+      if (merged.length > 0) await container.songRemoval.remove(merged)
+      return { merged: merged.length }
     }),
   )
 

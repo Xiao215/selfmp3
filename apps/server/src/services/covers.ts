@@ -152,6 +152,27 @@ export class CoverService {
     return { path: file, contentType: CONTENT_TYPES[extension] ?? 'image/jpeg' }
   }
 
+  /**
+   * One song's cover, kept for another as well: the song a copy of it was
+   * folded into (`SongMerge`), which had none. Synchronous, because it runs
+   * inside the fold's transaction, before the copy's own file goes with it.
+   */
+  copy(fromId: number, intoId: number): void {
+    for (const extension of EXTENSIONS) {
+      const from = this.#pathFor(fromId, extension)
+      if (!fs.existsSync(from)) continue
+      try {
+        fs.copyFileSync(from, this.#pathFor(intoId, extension))
+      } catch (error) {
+        this.#logger.warn('could not keep a folded copy’s cover', {
+          songId: intoId,
+          message: messageOf(error),
+        })
+      }
+      return
+    }
+  }
+
   async delete(songId: number): Promise<void> {
     for (const extension of EXTENSIONS) {
       await fsp.rm(this.#pathFor(songId, extension), { force: true }).catch(() => undefined)

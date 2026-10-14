@@ -123,6 +123,25 @@ export const BulkDeleteSongsSchema = z.object({
 export type BulkDeleteSongs = z.infer<typeof BulkDeleteSongsSchema>
 
 /**
+ * Copies of one song folded into the one kept (`POST /api/songs/merge`):
+ * each copy's tags, love, playlist places and plays go to `keep`, gaps in it
+ * are filled from them, and then they are out of the library.
+ */
+export const MergeSongsSchema = z
+  .object({
+    keep: IdSchema,
+    songIds: z.array(IdSchema).min(1).max(200),
+  })
+  .refine(input => !input.songIds.includes(input.keep), { message: 'a song cannot go into itself' })
+export type MergeSongs = z.infer<typeof MergeSongsSchema>
+
+export const MergeSongsResultSchema = z.object({
+  /** Copies folded in; a copy or a kept song that is gone already is not counted. */
+  merged: z.number().int().nonnegative(),
+})
+export type MergeSongsResult = z.infer<typeof MergeSongsResultSchema>
+
+/**
  * What went wrong for one song in a batch.
  *
  * `removed` distinguishes "nothing happened to this song" from "the row went

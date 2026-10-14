@@ -161,6 +161,20 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
 }
 
 /**
+ * Copies of one song folded into the one kept (`songMerged`, docs/SYNC.md):
+ * the shared rule moves each copy's tags, love, playlist places and plays to
+ * it, here and on every device that replays the change, and the server moves
+ * the copy's play history with it. A copy that is gone, or the kept song
+ * itself, is left out; a kept song that is gone is refused.
+ */
+export function mergeSongs(ctx: EditContext, keep: number, ids: readonly number[]): Change[] {
+  const into = songUid(ctx, keep)
+  return knownSongs(ctx, ids)
+    .filter(([id]) => id !== keep)
+    .map(([, uid]) => ({ type: 'songMerged' as const, hlc: ctx.stamp(), uid, into }))
+}
+
+/**
  * A play, or nothing when this device has counted it already: the play
  * outbox sends one again when the answer to it was lost, and the server
  * answers that as a duplicate too.

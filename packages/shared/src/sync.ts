@@ -55,6 +55,8 @@ export interface SyncLibrary {
   readonly sound: CloudSound | null
   /** Plays counted during this replay, by id. */
   readonly counted: Set<string>
+  /** Songs folded into another copy (`songMerged`): the extra's uid, and the song kept. */
+  readonly merged: Map<string, string>
 }
 
 export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
@@ -67,6 +69,7 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     artists: snapshot?.artists ?? [],
     sound: snapshot?.sound ?? null,
     counted: new Set(),
+    merged: new Map(Object.entries(snapshot?.merged ?? {})),
   }
 }
 
@@ -85,6 +88,7 @@ export function snapshotOf(
     artists: [...library.artists],
     sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
+    ...(library.merged.size > 0 ? { merged: Object.fromEntries(library.merged) } : {}),
     ...(library.imports.size > 0 ? { imports: [...library.imports.values()] } : {}),
   }
 }
@@ -125,7 +129,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
     }
 
     case 'songTagged': {
-      const song = library.songs.get(change.uid)
+      const song = library.songs.get(resolveSong(library, change.uid))
       const tagUid = resolveTag(library, change.tagUid)
       if (!song || !library.tags.has(tagUid)) return false
       if (!hlcWins(change.hlc, song.tagStamps?.[tagUid])) return false
@@ -157,8 +161,27 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       return true
     }
 
+    case 'songMerged': {
+      const extra = library.songs.get(change.uid)
+      const kept = library.songs.get(resolveSong(library, change.into))
+      if (!extra || !kept || kept.uid === extra.uid) return false
+      library.songs.set(kept.uid, mergedSong(kept, extra, change.hlc))
+      library.songs.delete(extra.uid)
+      for (const playlist of library.playlists.values()) {
+        const placed = mergedPlaces(playlist, extra.uid, kept.uid)
+        if (placed) library.playlists.set(playlist.uid, placed)
+      }
+      // Late changes that name the extra copy land on the song kept, and so do
+      // those that named a copy folded into the extra before.
+      for (const [from, into] of library.merged) {
+        if (into === extra.uid) library.merged.set(from, kept.uid)
+      }
+      library.merged.set(extra.uid, kept.uid)
+      return true
+    }
+
     case 'songPlayed': {
-      const song = library.songs.get(change.uid)
+      const song = library.songs.get(resolveSong(library, change.uid))
       if (!song || library.counted.has(change.playId)) return false
       library.counted.add(change.playId)
       /*
@@ -304,19 +327,20 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
 
     case 'playlistSong': {
       const playlist = library.playlists.get(change.uid)
-      if (!playlist || playlist.kind !== 'manual' || !library.songs.has(change.songUid)) {
+      const songUid = resolveSong(library, change.songUid)
+      if (!playlist || playlist.kind !== 'manual' || !library.songs.has(songUid)) {
         return false
       }
-      if (!hlcWins(change.hlc, playlist.songStamps?.[change.songUid])) return false
-      const has = playlist.songUids.includes(change.songUid)
+      if (!hlcWins(change.hlc, playlist.songStamps?.[songUid])) return false
+      const has = playlist.songUids.includes(songUid)
       library.playlists.set(playlist.uid, {
         ...playlist,
         songUids: change.on
           ? has
             ? playlist.songUids
-            : [...playlist.songUids, change.songUid]
-          : playlist.songUids.filter(uid => uid !== change.songUid),
-        songStamps: { ...playlist.songStamps, [change.songUid]: change.hlc },
+            : [...playlist.songUids, songUid]
+          : playlist.songUids.filter(uid => uid !== songUid),
+        songStamps: { ...playlist.songStamps, [songUid]: change.hlc },
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
       })
       return true
@@ -354,6 +378,7 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       const playlist = library.playlists.get(change.uid)
       if (!playlist) return false
       if (!hlcWins(change.hlc, playlist.stamps?.['order'])) return false
+      const order = change.songUids.map(uid => resolveSong(library, uid))
       // A playlist that follows tags takes a hand order too, as the server's
       // does. Its rules say which songs are in it, worked out as it is shown
       // (`inKeptOrder`, in editRules.ts), so what it keeps here is only the order
@@ -361,16 +386,11 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
       // not in `songUids` yet, can still be put in place.
       const current =
         playlist.kind === 'live'
-          ? [
-              ...new Set([
-                ...playlist.songUids,
-                ...change.songUids.filter(uid => library.songs.has(uid)),
-              ]),
-            ]
+          ? [...new Set([...playlist.songUids, ...order.filter(uid => library.songs.has(uid))])]
           : playlist.songUids
       library.playlists.set(playlist.uid, {
         ...playlist,
-        songUids: reordered(current, change.songUids),
+        songUids: reordered(current, order),
         stamps: { ...playlist.stamps, order: change.hlc },
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
       })
@@ -413,6 +433,107 @@ export function reordered<T>(current: readonly T[], order: readonly T[]): T[] {
     first.push(item)
   }
   return [...first, ...current.filter(item => !placed.has(item))]
+}
+
+/**
+ * The fields a song kept takes from a copy folded into it, where it has none:
+ * the names a catalogue or a tag would give, never the title, which it has.
+ */
+export const MERGE_GAP_FIELDS = ['artist', 'album', 'albumArtist', 'year', 'trackNo'] as const
+
+/** Whether a field is empty: no name, or no number. */
+const blank = (value: unknown): boolean => value === null || value === ''
+
+/**
+ * A song with a copy of itself folded in (`songMerged`), as every device and
+ * the server's database (`SongMerge`) make it, held to the same answer by
+ * cloudIngest.test.ts:
+ *
+ * - its tags and the copy's, each the copy brought stamped when the copy was
+ *   folded in, unless the song's own tag changed later;
+ * - loved if either was, unless the song's love changed later;
+ * - an empty name or number (`MERGE_GAP_FIELDS`) filled from the copy, the
+ *   same way; the cover with its colour, the words, and the link it came
+ *   from, where the song has none;
+ * - the plays of both, and the later of the last times either was played.
+ *
+ * Nothing the song has is written over.
+ */
+export function mergedSong(kept: CloudSong, extra: CloudSong, hlc: string): CloudSong {
+  const next: Record<string, unknown> = { ...kept }
+  const stamps = { ...kept.stamps }
+  const tagStamps = { ...kept.tagStamps }
+  const tagUids = [...kept.tagUids]
+  for (const tagUid of extra.tagUids) {
+    if (tagUids.includes(tagUid) || !hlcWins(hlc, tagStamps[tagUid])) continue
+    tagUids.push(tagUid)
+    tagStamps[tagUid] = hlc
+  }
+  if (extra.loved && !kept.loved && hlcWins(hlc, stamps['loved'])) {
+    next['loved'] = true
+    stamps['loved'] = hlc
+  }
+  for (const field of MERGE_GAP_FIELDS) {
+    if (!blank(kept[field]) || blank(extra[field]) || !hlcWins(hlc, stamps[field])) continue
+    next[field] = extra[field]
+    stamps[field] = hlc
+  }
+  if (!kept.cover && extra.cover) {
+    next['cover'] = extra.cover
+    next['coverTone'] = extra.coverTone
+  }
+  if (!kept.lyrics && extra.lyrics) next['lyrics'] = extra.lyrics
+  if (kept.sourceUrl === null && extra.sourceUrl !== null) next['sourceUrl'] = extra.sourceUrl
+  const lastPlayedAt =
+    kept.lastPlayedAt === null ||
+    (extra.lastPlayedAt !== null && extra.lastPlayedAt > kept.lastPlayedAt)
+      ? extra.lastPlayedAt
+      : kept.lastPlayedAt
+  return {
+    ...(next as CloudSong),
+    tagUids,
+    playCount: kept.playCount + extra.playCount,
+    lastPlayedAt,
+    ...(Object.keys(stamps).length > 0 ? { stamps } : {}),
+    ...(Object.keys(tagStamps).length > 0 ? { tagStamps } : {}),
+  }
+}
+
+/**
+ * A playlist with a copy's place given to the song kept: where the playlist
+ * has the song already, the copy just leaves; otherwise the song takes the
+ * copy's place, and the later of their in-or-out stamps. Null when the copy
+ * was never in it.
+ */
+function mergedPlaces(playlist: CloudPlaylist, extra: string, kept: string): CloudPlaylist | null {
+  const inIt = playlist.songUids.includes(extra)
+  const stamp = playlist.songStamps?.[extra]
+  if (!inIt && stamp === undefined) return null
+  const keptIn = playlist.songUids.includes(kept)
+  const songUids = keptIn
+    ? playlist.songUids.filter(uid => uid !== extra)
+    : playlist.songUids.map(uid => (uid === extra ? kept : uid))
+  const songStamps: Record<string, string> = { ...playlist.songStamps }
+  delete songStamps[extra]
+  if (inIt && !keptIn && stamp !== undefined && hlcWins(stamp, songStamps[kept])) {
+    songStamps[kept] = stamp
+  }
+  const { songStamps: _was, ...rest } = playlist
+  return {
+    ...rest,
+    songUids,
+    ...(Object.keys(songStamps).length > 0 ? { songStamps } : {}),
+  }
+}
+
+/**
+ * The song a uid means now: itself, or the song it was folded into. Only plays,
+ * tags and playlist places follow a fold — an edit or a removal of the extra
+ * copy is about that copy, which is gone.
+ */
+function resolveSong(library: Pick<SyncLibrary, 'songs' | 'merged'>, uid: string): string {
+  if (library.songs.has(uid)) return uid
+  return library.merged.get(uid) ?? uid
 }
 
 /** The tag a uid means now: itself, or the tag it was folded into. */

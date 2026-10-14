@@ -52,6 +52,8 @@ interface SnapshotInput {
   readonly stamps?: readonly StampRow[]
   /** Second uids for tags made twice under one name, and the tag each means. */
   readonly aliases?: ReadonlyMap<string, string>
+  /** Copies folded into another song (`songMerged`), and the uid of the song each went into. */
+  readonly merged?: ReadonlyMap<string, string>
   /** How far into each device's log this library has read. */
   readonly upTo?: Readonly<Record<string, number>>
   /** Links other devices asked to import lately, and how each went. */
@@ -170,6 +172,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
     })
   }
   const aliases = [...(input.aliases ?? [])].filter(([, target]) => tagUidSet.has(target))
+  const merged = [...(input.merged ?? [])].filter(([, target]) => publishedUids.has(target))
 
   // Parsed on the way out as well as on the way in: a snapshot another device
   // would reject is a bug here, and it should fail here, loudly.
@@ -205,6 +208,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
         }
       : {}),
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
+    ...(merged.length > 0 ? { merged: Object.fromEntries(merged) } : {}),
     ...(input.imports && input.imports.length > 0
       ? {
           imports: input.imports.map(request => ({

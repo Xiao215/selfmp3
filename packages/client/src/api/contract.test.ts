@@ -41,6 +41,7 @@ const CALLS: Calls = {
   lyricsSearch: api => api.lyricsSearch('rain'),
   similar: api => api.similar(1, 5),
   bulkDeleteSongs: api => api.bulkDeleteSongs({ songIds: [1] }),
+  mergeSongs: api => api.mergeSongs({ keep: 1, songIds: [2] }),
   bulkEditSongs: api => api.bulkEditSongs({ edits: [] }),
   bulkLoved: api => api.bulkLoved({ songIds: [1], loved: true }),
   lookupMetadata: api => api.lookupMetadata(1),

@@ -76,6 +76,8 @@ import {
   ToolStatusSchema,
   type CreateTag,
   BulkDeleteResultSchema,
+  MergeSongsResultSchema,
+  type MergeSongs,
   CloudStatusSchema,
   type AddToPlaylist,
   type ApplyMetadata,
@@ -335,6 +337,10 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** The multi-select delete. */
     bulkDeleteSongs: (input: BulkDeleteSongs) =>
       request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
+
+    /** Copies of one song folded into the one kept, then out of the library (`MergeSongs`). */
+    mergeSongs: (input: MergeSongs) =>
+      request('POST', '/api/songs/merge', MergeSongsResultSchema, input),
 
     bulkEditSongs: (input: BulkEditSongs) =>
       request('POST', '/api/songs/bulk/edit', AffectedSchema, input),

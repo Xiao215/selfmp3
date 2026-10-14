@@ -621,8 +621,19 @@ bigger file, then the first added.
 
 The device's review (`CopiesReview.tsx`, over `Review.tsx`) lists each song with the copy kept
 ("Keeps one · THE BOOK · 4:21 · 12 plays") and opens to the extra copies, each with its album,
-length and plays; exact copies start ticked, the model's wait. Delete asks once more with the
-dialog every delete asks with (`RemoveSongs`), since deleting cannot be undone. Tried
+length and plays; exact copies start ticked, the model's wait.
+
+Deleting an extra copy loses nothing of it: it is folded into the copy kept first
+(`POST /api/songs/merge`, answered by the server and by a device's own copy of the library
+alike; the `songMerged` change in [SYNC.md](../SYNC.md), "How changes combine"). Its tags,
+love and places in playlists go to the kept copy (never twice in one playlist), its plays add
+up, and an album, a year, a track number, a cover, the words or the link the kept copy lacks
+are filled in from it, never written over. Then it is gone as a removal is. On a signed-in
+device the fold is a change in its log, done at once there, and the server, reading the log,
+moves the copy's play history too, so Stats and the bucket's plays files count those plays
+under the kept song; a play of the copy that arrives late lands there as well. So Delete
+asks once (`FoldCopies`), saying what moves and that the file is deleted, without the "can't
+be undone" a plain delete carries. Tried
 2026-10-14 through a local model: 夜に駆ける / Yoru ni Kakeru and アイドル / "アイドル (Official
 Music Video)" called copies; with every song's sound the same, Dream Aria / "Dream Aria (II)"
 and Liyue / "Liyue (Bayan)" left as versions.

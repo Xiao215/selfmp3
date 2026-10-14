@@ -93,21 +93,25 @@ export class StatsRepository {
 
   /**
    * Each month that has plays (UTC `YYYY-MM`), how many, and a signature that
-   * moves whenever a play in it is added, removed or changed — what the
+   * moves whenever a play in it is added, removed or changed — given to
+   * another song too, as a folded copy's plays are (`SongMerge`) — what the
    * bucket's copy of the month is compared by (docs/features/shared-server.md).
    */
   months(): { month: string; count: number; sig: string }[] {
     return this.#db
-      .prepare<[], { month: string; count: number; last: number; ms: number; done: number }>(
+      .prepare<
+        [],
+        { month: string; count: number; last: number; ms: number; done: number; songs: number }
+      >(
         `SELECT strftime('%Y-%m', played_at) AS month, COUNT(*) AS count, MAX(id) AS last,
-                SUM(ms_played) AS ms, SUM(completed) AS done
+                SUM(ms_played) AS ms, SUM(completed) AS done, SUM(song_id) AS songs
            FROM play_events GROUP BY month ORDER BY month`,
       )
       .all()
       .map(row => ({
         month: row.month,
         count: row.count,
-        sig: `${row.count}.${row.last}.${row.ms}.${row.done}`,
+        sig: `${row.count}.${row.last}.${row.ms}.${row.done}.${row.songs}`,
       }))
   }
 

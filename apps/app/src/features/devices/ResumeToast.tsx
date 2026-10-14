@@ -6,6 +6,7 @@ import { Circle, Svg } from 'react-native-svg'
 import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
 import {
   handoffTarget,
+  serverTime,
   radius,
   shortDeviceName,
   type,
@@ -41,7 +42,7 @@ const RESUME_TOAST_MS = 12_000
  */
 export function ResumeToast(): ReactNode {
   const { theme } = useUnistyles()
-  const { deviceId, devices } = useDeviceContext()
+  const { deviceId, devices, heard } = useDeviceContext()
   const player = usePlayer()
   const library = useLibrary()
   const accent = useAccent()
@@ -63,7 +64,7 @@ export function ResumeToast(): ReactNode {
 
   useEffect(() => {
     // After this device's own coming back has settled, never before: see `PlaybackMemory`.
-    if (decided.current || devices.length === 0 || !library.data || !memory.settled) {
+    if (decided.current || !heard || devices.length === 0 || !library.data || !memory.settled) {
       return undefined
     }
     // This device came back to its own last song. Offering another device's
@@ -80,14 +81,18 @@ export function ResumeToast(): ReactNode {
       decided.current = true
       const now = playerRef.current
       if (now.isPlaying) return
-      const picked = pickResumeState(devices, { thisDeviceId: deviceId, now: Date.now() })
+      // Ages are `lastSeenAt`, the server's clock, so "now" is too.
+      const picked = pickResumeState(devices, {
+        thisDeviceId: deviceId,
+        now: serverTime(heard, Date.now()),
+      })
       if (!picked) return
       if (picked.state.songId === (now.current?.id ?? null)) return
       if (!songs.some(song => song.id === picked.state.songId)) return
       setCandidate(picked)
     }, 0)
     return () => clearTimeout(timer)
-  }, [devices, library.data, deviceId, memory])
+  }, [devices, heard, library.data, deviceId, memory])
 
   useEffect(() => {
     if (!candidate) return undefined
@@ -107,7 +112,7 @@ export function ResumeToast(): ReactNode {
       <Press
         feedback="wash"
         onPress={() => {
-          const target = handoffTarget(candidate.state, Date.now())
+          const target = heard ? handoffTarget(candidate, heard, Date.now()) : null
           setCandidate(null)
           if (!target) return
           player.playFrom([...target.queueIds], target.index, {

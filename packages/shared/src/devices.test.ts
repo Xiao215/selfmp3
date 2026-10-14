@@ -99,11 +99,11 @@ describe('pickResumeState', () => {
 
 describe('extrapolatePosition', () => {
   it('advances a playing state by the elapsed time', () => {
-    expect(extrapolatePosition(state({ playing: true }), NOW + 4_000)).toBeCloseTo(34)
+    expect(extrapolatePosition(state({ playing: true }), NOW + 4_000, NOW)).toBeCloseTo(34)
   })
 
   it('leaves a paused state alone', () => {
-    expect(extrapolatePosition(state(), NOW + 4_000)).toBe(30)
+    expect(extrapolatePosition(state(), NOW + 4_000, NOW)).toBe(30)
   })
 
   /*
@@ -112,7 +112,7 @@ describe('extrapolatePosition', () => {
    * the other put the position wherever that difference happened to be — stuck
    * at the last heartbeat when the sender ran fast, jumped forward when slow.
    */
-  it('measures from when the reader heard it, when the reader says so', () => {
+  it('measures from when the reader says it was captured, not from updatedAt', () => {
     const playing = state({ playing: true })
 
     // A reader whose clock is two minutes ahead of the sender's.

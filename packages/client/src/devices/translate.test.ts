@@ -159,7 +159,11 @@ describe('a handoff between two cloud devices', () => {
       expect(uidOn(LAPTOP, arrived.songId)).toBe(uid)
 
       // What the laptop would actually play, queue and all, is that same song.
-      const target = handoffTarget(arrived, NOW)
+      const target = handoffTarget(
+        { state: arrived, lastSeenAt: NOW },
+        { serverNow: NOW, receivedAt: NOW },
+        NOW,
+      )
       expect(target).not.toBeNull()
       if (!target) continue
       expect(uidOn(LAPTOP, target.queueIds[target.index] ?? null)).toBe(uid)

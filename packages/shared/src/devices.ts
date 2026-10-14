@@ -63,18 +63,14 @@ function resumeRank(device: Device): number {
  * device reports every ten seconds, so "Play here" would otherwise start up to
  * ten seconds behind where the other device actually is.
  *
- * `since` is when `state` was observed, and has to be on the same clock as
- * `now`. It defaults to the device's own `updatedAt`, which is right only when
- * `now` comes from that same device: a reader looking at *another* device is
- * otherwise subtracting that device's clock from its own, and two clocks a few
- * seconds apart is ordinary. Such a reader should pass the moment it received
- * the heartbeat, by its own clock.
+ * `since` is when `state` was captured and `now` is the moment asked about,
+ * and the two must come from one clock. The state's own `updatedAt` is the
+ * *sending* device's clock, so it is no use to anyone reading another device:
+ * two clocks a few seconds apart is ordinary, and subtracting one from the
+ * other puts the position wherever that difference happens to be. A reader
+ * works out `since` on its own clock instead — `heardAt` in `packages/client`.
  */
-export function extrapolatePosition(
-  state: PlaybackState,
-  now: number,
-  since: number = state.updatedAt,
-): number {
+export function extrapolatePosition(state: PlaybackState, now: number, since: number): number {
   if (!state.playing) return state.position
   const elapsed = Math.max(0, (now - since) / 1000)
   return state.position + elapsed

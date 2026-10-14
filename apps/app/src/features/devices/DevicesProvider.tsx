@@ -24,6 +24,7 @@ import {
   queryKeys,
   translateCommand,
   translateState,
+  type ListHeard,
   type Reach,
   type SongIdLookup,
 } from '@selfmp3/client'
@@ -86,6 +87,11 @@ interface DevicesContextValue {
   readonly devices: readonly Device[]
   /** Online devices other than this one — what the sheet lists. */
   readonly others: readonly Device[]
+  /**
+   * When `devices` arrived, on both clocks: what turns a device's `lastSeenAt`
+   * into a moment on this device's clock (`heardAt`). Null before the first list.
+   */
+  readonly heard: ListHeard | null
   /** True while the event stream is up; false means the app is polling. */
   readonly connected: boolean
   /**
@@ -341,6 +347,18 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // What the server said, in the server's numbers.
   const reported = useMemo(() => devicesQuery.data?.devices ?? [], [devicesQuery.data])
+  /*
+   * The list's clock beside this device's. React Query stamps `dataUpdatedAt`
+   * with this device's clock whenever the entry is written — by this query's
+   * fetch, by the stream's `setQueryData`, by a heartbeat's answer or by
+   * Settings › Devices — so it is always the arrival of exactly the list held.
+   */
+  const serverNow = devicesQuery.data?.now
+  const receivedAt = devicesQuery.dataUpdatedAt
+  const heard = useMemo<ListHeard | null>(
+    () => (serverNow === undefined ? null : { serverNow, receivedAt }),
+    [serverNow, receivedAt],
+  )
   // The same list in this device's numbers, which is what everything else reads.
   const list = useMemo(
     () =>
@@ -369,12 +387,12 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     (device: Device): void => {
       // `device.state` is already in this device's numbers: the list it came
       // from is translated on the way out of the cache.
-      const target = handoffTarget(device.state, Date.now())
+      const target = heard ? handoffTarget(device, heard, Date.now()) : null
       if (!target) return
       playerRef.current.playFrom([...target.queueIds], target.index, { position: target.position })
       send(device.id, { type: 'pause' })
     },
-    [send],
+    [send, heard],
   )
 
   const playOn = useCallback(
@@ -448,13 +466,26 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       rename,
       devices: list,
       others,
+      heard,
       connected,
       reach: presence.reach,
       canPlayOn,
       playHere,
       playOn,
     }),
-    [deviceId, name, rename, list, others, connected, presence.reach, canPlayOn, playHere, playOn],
+    [
+      deviceId,
+      name,
+      rename,
+      list,
+      others,
+      heard,
+      connected,
+      presence.reach,
+      canPlayOn,
+      playHere,
+      playOn,
+    ],
   )
 
   return (

@@ -60,7 +60,9 @@ rather than by a hand-maintained list of React dependencies, so nothing has to r
 a beat.
 
 The payload is the whole playback state: song, position, playing, queue, queue index,
-shuffle, repeat, and the client's clock.
+shuffle, repeat, and the client's clock (`updatedAt`, which only that same device's later
+states are compared with). The state is captured as the beat is sent, and the server stamps
+the row's `lastSeenAt` with *its* clock when the beat arrives.
 
 Heartbeats land in a `devices` table in the account's workspace on the server, so a state
 survives a server restart and a phone that has been asleep since last night can still be
@@ -200,7 +202,13 @@ on a command sent to it. A different browser, or a private window, is a differen
 
 **Positions are extrapolated, not simulated.** Another device reports every ten seconds;
 between reports its position advances by the wall clock, so "Play here" starts where it is now
-rather than where it was at its last beat.
+rather than where it was at its last beat. The time since is measured without ever comparing
+two devices' clocks, which are routinely seconds or minutes apart: the server's half is
+`list.now − lastSeenAt` (both the server's clock, from the devices list), and this device's
+half is the time since that list arrived (both this device's clock, React Query's
+`dataUpdatedAt`). `heardAt` and `handoffTarget` in `packages/client/src/devices/handoff.ts`
+do the sum; the resume offer judges a state's age on the server's clock the same way
+(`serverTime`).
 
 **A device is forgotten after a week** without a heartbeat, checked at startup and every hour.
 Removing one by hand in Settings is immediate — but a device that is still open re-registers

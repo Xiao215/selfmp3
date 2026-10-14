@@ -36,7 +36,12 @@ export const PlaybackStateSchema = z.object({
   queueIndex: z.number().int().min(-1),
   shuffle: z.boolean(),
   repeat: z.enum(['off', 'all', 'one']),
-  /** Client clock, ms since epoch. Used to pick the freshest state to resume. */
+  /**
+   * The sending device's clock, ms since epoch, when it captured this state.
+   * Comparable only with other states from that same device (how a seek is
+   * told from ordinary progress); anything judged across devices uses the
+   * server's `lastSeenAt` instead.
+   */
   updatedAt: z.number().int().nonnegative(),
 })
 export type PlaybackState = z.infer<typeof PlaybackStateSchema>

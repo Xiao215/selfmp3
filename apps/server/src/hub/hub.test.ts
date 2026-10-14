@@ -50,10 +50,15 @@ const variables = [
   'SELFMP3_HOST',
 ] as const
 
+/** The hub's public address in these tests: what its grants and snapshots name. */
+const PUBLIC_URL = 'https://pi.example.ts.net'
+
 let root = ''
 let doorman: Harness
 let doormanServer: http.Server
 let doormanUrl = ''
+/** Every path the hub asked the doorman for, in order. */
+let doormanAsked: string[] = []
 const saved = new Map<string, string | undefined>()
 const open: { hub: Hub; server: http.Server }[] = []
 
@@ -61,6 +66,7 @@ beforeEach(async () => {
   for (const name of variables) saved.set(name, process.env[name])
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-hub-'))
   doorman = harness()
+  doormanAsked = []
   doormanServer = http.createServer((req, res) => void serveDoorman(req, res))
   await new Promise<void>(resolve => doormanServer.listen(0, '127.0.0.1', resolve))
   doormanUrl = `http://127.0.0.1:${(doormanServer.address() as AddressInfo).port}`
@@ -70,7 +76,7 @@ beforeEach(async () => {
   process.env['SELFMP3_LOG_LEVEL'] = 'silent'
   process.env['SELFMP3_DOORMAN_URL'] = doormanUrl
   process.env['SELFMP3_SOUND'] = 'false'
-  process.env['SELFMP3_PUBLIC_URL'] = 'https://pi.example.ts.net'
+  process.env['SELFMP3_PUBLIC_URL'] = PUBLIC_URL
   process.env['SELFMP3_HOST'] = '127.0.0.1'
   delete process.env['SELFMP3_AUTH_TOKEN']
   delete process.env['SELFMP3_CLOUD_DIR']
@@ -98,6 +104,7 @@ async function serveDoorman(req: http.IncomingMessage, res: http.ServerResponse)
     if (typeof value === 'string') headers.set(name, value)
   }
   const method = req.method ?? 'GET'
+  doormanAsked.push(new URL(req.url ?? '/', doormanUrl).pathname)
   const response = await doorman.doorman.fetch(
     new Request(`${doormanUrl}${req.url ?? '/'}`, {
       method,
@@ -316,6 +323,82 @@ describe('a server working for several accounts', () => {
     expect(now).toHaveLength(1)
   })
 
+  /**
+   * The doorman tells the server at the address the grant names (PUBLIC, the
+   * hub's public address), here passed on to the hub's real socket.
+   */
+  function reachedAt(url: string): void {
+    doorman.elsewhere.set(new URL(PUBLIC_URL).host, async request => {
+      const target = new URL(request.url)
+      const answer = await fetch(`${url}${target.pathname}`, {
+        method: request.method,
+        headers: request.headers,
+        body: await request.arrayBuffer(),
+      })
+      return new Response(await answer.arrayBuffer(), { status: answer.status })
+    })
+  }
+
+  async function grantOf(session: string) {
+    const listed = DoormanGrantsSchema.parse(
+      await (await doorman.call('/v1/grants', { token: session })).json(),
+    ).grants
+    expect(listed).toHaveLength(1)
+    return listed[0]!
+  }
+
+  it('lets a library go as soon as its grant is taken back, told by the doorman', async () => {
+    const { hub, url, config } = await startHub()
+    reachedAt(url)
+    const mine = await account('1', 'me@example.com', 'mine')
+    const me = CloudServerSchema.parse((await join(url, mine)).body)
+    await until(() => newestSnapshot('mine')?.includes(me.token!) ?? false, 'my snapshot')
+    const folder = path.join(config.dataDir, 'accounts', hub.workspaces()[0]!.entry!.id)
+    const grant = await grantOf(mine)
+
+    const removed = await doorman.call(`/v1/grants/${grant.id}`, { method: 'DELETE', token: mine })
+    expect(removed.status).toBe(204)
+    const started = Date.now()
+    // No look at the bucket is made to happen: the notice alone does it.
+    await until(() => hub.workspaces().length === 0, 'the library to be let go')
+    expect(Date.now() - started).toBeLessThan(2_000)
+    expect(fs.existsSync(folder)).toBe(false)
+    expect((await fetch(`${url}/api/library?token=${me.token}`)).status).toBe(401)
+    const told = doorman.outside.filter(request => request.url.host === new URL(PUBLIC_URL).host)
+    expect(told.map(request => request.url.pathname)).toEqual(['/api/hub/check'])
+  })
+
+  it('takes nothing on trust from a notice: a stranger can only make it look sooner', async () => {
+    const { hub, url } = await startHub()
+    const mine = await account('1', 'me@example.com', 'mine')
+    const me = CloudServerSchema.parse((await join(url, mine)).body)
+    await until(() => newestSnapshot('mine')?.includes(me.token!) ?? false, 'my snapshot')
+    const grant = await grantOf(mine)
+    const check = (body: unknown) =>
+      fetch(`${url}/api/hub/check`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    const asked = () => doormanAsked.filter(pathname => pathname === '/v1/me').length
+    const before = asked()
+
+    // A grant nobody here holds: answered the same, and nobody asked.
+    expect((await check({ grant: '0123456789abcdef' })).status).toBe(204)
+    expect((await check({ grant: 'not a grant' })).status).toBe(400)
+    expect(asked()).toBe(before)
+
+    // The grant this library holds, still good: looked at once however often
+    // it is named, and the library stays.
+    for (let n = 0; n < 5; n++) expect((await check({ grant: grant.id })).status).toBe(204)
+    await until(() => asked() === before + 1, 'the grant to be looked at')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    expect(asked()).toBe(before + 1)
+    expect(hub.workspaces()).toHaveLength(1)
+    expect((await health(url, me.token!)).songCount).toBe(0)
+    expect(await grantOf(mine)).toEqual(grant)
+  })
+
   it('says whom it works for to its own machine, which can name one with no token', async () => {
     const { url } = await startHub()
     const listed = async (headers: Record<string, string> = {}) => {
@@ -421,7 +504,7 @@ describe('a server working for several accounts', () => {
 })
 
 /** The shared server's public address, which a test reaches at the hub's real one. */
-const PUBLIC = 'https://pi.example.ts.net'
+const PUBLIC = PUBLIC_URL
 
 describe('which server a device takes', () => {
   /** An address asked as the app and the extension ask it. */

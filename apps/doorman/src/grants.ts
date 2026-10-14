@@ -3,6 +3,7 @@ import {
   DOORMAN_PATHS,
   DoormanError,
   DoormanGrantRequestSchema,
+  HUB_CHECK_PATH,
   type DoormanGrant,
   type DoormanGrantMade,
   type DoormanGrants,
@@ -31,6 +32,11 @@ import type { Session } from './sessions.js'
  *
  * Only a device's session can make a grant. A grant making grants would let a
  * server hand the account on to another without anyone being asked.
+ *
+ * Ending a grant tells its server, at the address it gave (`server`), so it
+ * lets the library go at once instead of at its next look at the bucket, up
+ * to ten minutes on (`tellServer`). Every grant has kept that address since
+ * grants began, so there is nothing to move.
  */
 
 /** More than anyone has servers. A new grant for a server already listed replaces it. */
@@ -120,17 +126,66 @@ async function end(ctx: Context, id: string): Promise<Response> {
     stored.filter(candidate => candidate.id !== id),
   )
   await ctx.sessions.endByHash(grant.hash)
+  // A server letting the account go itself needs no telling.
+  if (session.grant !== grant.id) tellServer(ctx, grant)
   return new Response(null, { status: 204 })
+}
+
+/** How long the doorman waits on a server it is telling. Nobody waits on it. */
+const TELL_TIMEOUT_MS = 5_000
+
+/**
+ * Tell a grant's server that the grant was taken back: `POST /api/hub/check`
+ * at the address it gave, naming the grant, after the answer has gone. The
+ * notice carries nothing secret, and the server does not take its word: it
+ * asks the doorman again with the grant's own token, and lets the library go
+ * only when that is refused. A server that is off, or that gave an address
+ * the doorman cannot reach (one on a home network), is not told, and finds
+ * out at its next look as it always did. Redirects are not followed: the
+ * address is the server's, not somewhere it sends the doorman on to.
+ */
+function tellServer(ctx: Context, grant: StoredGrant): void {
+  let url: URL
+  try {
+    url = new URL(`${grant.server.replace(/\/+$/, '')}${HUB_CHECK_PATH}`)
+  } catch {
+    return
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return
+  const told = ctx
+    .fetch(url.href, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ grant: grant.id }),
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TELL_TIMEOUT_MS),
+    })
+    .then(
+      async response => {
+        await response.body?.cancel()
+      },
+      (error: unknown) => {
+        ctx.log.warn('could not tell a server its grant was taken back', {
+          server: url.host,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      },
+    )
+  ctx.waitUntil(told)
 }
 
 /**
  * Forget every grant the account made, when it signs out everywhere: their
  * sessions are already refused by then (context.ts), and a list of servers
- * that can no longer get in would only mislead. A read, and a write only when
+ * that can no longer get in would only mislead. Each server is told, as it
+ * is when one grant is taken back. A read, and a write only when
  * there was a list: most accounts never let a server in.
  */
 export async function forgetGrants(ctx: Context, sub: Session['sub']): Promise<void> {
-  if ((await read(ctx, sub)).length > 0) await ctx.env.KV.delete(grantsKey(sub))
+  const stored = await read(ctx, sub)
+  if (stored.length === 0) return
+  await ctx.env.KV.delete(grantsKey(sub))
+  for (const grant of stored) tellServer(ctx, grant)
 }
 
 function read(ctx: Context, sub: Session['sub']): Promise<StoredGrant[]> {

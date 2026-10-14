@@ -57,6 +57,10 @@ export class Hub {
   readonly #byToken = new Map<string, Workspace>()
   /** Joins under way, by account, so two taps make one workspace. */
   readonly #joining = new Map<string, Promise<CloudServer>>()
+  /** Looks at a grant the doorman asked for, under way, by workspace (`check`). */
+  readonly #checking = new Set<string>()
+  /** When each workspace's grant was last looked at for one, by workspace. */
+  readonly #checkedAt = new Map<string, number>()
   #stopped = false
 
   constructor(config: Config, logger: Logger, doorman?: DoormanClient | null) {
@@ -162,6 +166,57 @@ export class Hub {
     )
     this.#joining.set(account, joining)
     return joining
+  }
+
+  /**
+   * The doorman saying a grant was taken back (`POST /api/hub/check`): the
+   * workspace holding it looks at it now, instead of at its next look at the
+   * bucket, up to ten minutes on, and lets the library go if the doorman
+   * refuses it.
+   *
+   * Nothing in the notice is taken on trust. It names a grant and nothing
+   * else, anyone can send one, and all it does is make the server ask the
+   * doorman with the grant's own token a little sooner. A grant no workspace
+   * holds is ignored without asking anyone. One that is held is looked at no
+   * more than once every `CHECK_GAP_MS`: notices that come sooner are folded
+   * into the look under way. If the grant still holds, it is looked at once
+   * more a minute on, since the doorman's copies of its sessions can take
+   * that long to agree that one ended (apps/doorman/src/kv.ts).
+   */
+  check(grant: string): void {
+    if (!this.#registry || !this.#doorman || this.#stopped) return
+    const entry = this.#holding(grant)
+    if (!entry || this.#checking.has(entry.id)) return
+    this.#checking.add(entry.id)
+    void this.#lookAgain(entry.id, grant)
+      .catch((error: unknown) => {
+        this.logger.warn('could not look at a grant again', { message: messageOf(error) })
+      })
+      .finally(() => this.#checking.delete(entry.id))
+  }
+
+  async #lookAgain(id: string, grant: string): Promise<void> {
+    const since = Date.now() - (this.#checkedAt.get(id) ?? -Infinity)
+    if (since < CHECK_GAP_MS) await pause(CHECK_GAP_MS - since)
+    for (const wait of [0, CHECK_AGAIN_MS]) {
+      if (wait > 0) await pause(wait)
+      // Let go, joined again behind a new grant, or the server stopping meanwhile.
+      const entry = this.#holding(grant)
+      if (!entry || this.#stopped) return
+      this.#checkedAt.set(id, Date.now())
+      if (!(await this.#grantHolds(entry))) {
+        if (this.#holding(grant) === entry) this.#leave(entry, 'its grant was taken back')
+        return
+      }
+    }
+  }
+
+  /** The open workspace's entry that holds this grant, if one does. */
+  #holding(grant: string): HubEntry | null {
+    for (const { entry } of this.#workspaces.values()) {
+      if (entry?.grant.id === grant) return entry
+    }
+    return null
   }
 
   /**
@@ -317,6 +372,17 @@ export class Hub {
     }
     return false
   }
+}
+
+/** The least time between two looks at one workspace's grant that a notice asks for (`Hub.check`). */
+const CHECK_GAP_MS = 5_000
+
+/** How long after a look that found the grant holding to look once more. */
+const CHECK_AGAIN_MS = 65_000
+
+/** A wait that does not keep the process alive by itself. */
+function pause(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms).unref())
 }
 
 /** A workspace's configuration: the server's, in folders of its own, with its own token. */

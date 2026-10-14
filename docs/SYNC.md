@@ -523,7 +523,8 @@ holds, and is joined again like any server that lost the library (next paragraph
 afresh, it was "some other server" to every device, and none joined it again (2026-10-14).
 
 **And it has to still work for this library.** A server whose grant was taken back (Settings
-› Account › Computers › Remove) lets the library go, but cannot write a snapshot saying so:
+› Account › Computers › Remove) lets the library go, as soon as the doorman tells it, but
+cannot write a snapshot saying so:
 the grant was its way into the bucket. The newest snapshot goes on naming it, and it goes on
 answering `/api/health` as itself. So once an address has answered as the right server, the
 device asks the library's version with the token. A 401 means the server no longer holds this

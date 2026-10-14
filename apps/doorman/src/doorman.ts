@@ -59,8 +59,13 @@ const consoleLog: Log = {
   error: (message, details) => console.error(message, details ?? {}),
 }
 
+/** As much of the runtime's `ExecutionContext` as the doorman uses. */
+interface Background {
+  waitUntil(work: Promise<unknown>): void
+}
+
 export interface Doorman {
-  fetch(request: Request, env: Env): Promise<Response>
+  fetch(request: Request, env: Env, background?: Background): Promise<Response>
 }
 
 type Route = (ctx: Context) => Promise<Response>
@@ -113,7 +118,7 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
   }
 
   return {
-    async fetch(request: Request, env: Env): Promise<Response> {
+    async fetch(request: Request, env: Env, background?: Background): Promise<Response> {
       const origins = allowedOrigins(env.APP_ORIGINS, log)
       const keys = (): Promise<DoormanKeys> => getKeys(env)
       const ctx: Context = {
@@ -129,6 +134,11 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
         accounts: new Accounts(env.KV, now, accountCache, keys, log),
         access: new Access(env.KV, env.OWNER_EMAILS, now, accessCache),
         bucketDeps: { fetch: fetcher, now, signingKeys },
+        // Without the runtime's (a test calling in), the work simply runs on.
+        waitUntil: work => {
+          const settled = work.catch(() => undefined)
+          background?.waitUntil(settled)
+        },
       }
 
       let response: Response

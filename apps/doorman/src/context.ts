@@ -85,6 +85,12 @@ export interface Context {
   /** Who may sign in: the owners, and the list they keep. */
   readonly access: Access
   readonly bucketDeps: BucketDeps
+  /**
+   * Work that goes on after the answer is sent, such as telling a server its
+   * grant was taken back (grants.ts). The runtime's `waitUntil`, so the
+   * Worker is not stopped before it is done; the answer never waits on it.
+   */
+  readonly waitUntil: (work: Promise<unknown>) => void
 }
 
 /**

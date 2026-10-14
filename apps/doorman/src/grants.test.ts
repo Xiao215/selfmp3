@@ -124,4 +124,104 @@ describe('grants', () => {
     expect(bad.status).toBe(400)
     expect((await h.call('/v1/grants/nope', { method: 'DELETE', token: phone })).status).toBe(404)
   })
+
+  describe('telling the server', () => {
+    /** What the server at PI's address was sent, with the doorman's background work done. */
+    function listening(h: Harness, answer?: () => Promise<Response>) {
+      const heard: Array<{ method: string; path: string; auth: string | null; body: unknown }> = []
+      h.elsewhere.set('pi.example.ts.net', async request => {
+        heard.push({
+          method: request.method,
+          path: new URL(request.url).pathname,
+          auth: request.headers.get('authorization'),
+          body: await request.json(),
+        })
+        return answer ? answer() : new Response(null, { status: 204 })
+      })
+      return heard
+    }
+
+    it('tells the server when its grant is taken back, with nothing secret', async () => {
+      const h = harness()
+      const heard = listening(h)
+      const phone = await h.signIn()
+      const made = await grant(h, phone)
+      await h.settle()
+      expect(heard).toEqual([])
+
+      const removed = await h.call(`/v1/grants/${made.grant.id}`, {
+        method: 'DELETE',
+        token: phone,
+      })
+      expect(removed.status).toBe(204)
+      await h.settle()
+      expect(heard).toEqual([
+        { method: 'POST', path: '/api/hub/check', auth: null, body: { grant: made.grant.id } },
+      ])
+      const sent = h.outside.find(request => request.url.host === 'pi.example.ts.net')
+      expect(sent?.init.redirect).toBe('manual')
+      expect(JSON.stringify(sent?.init.body)).not.toContain(made.token)
+    })
+
+    it('answers Remove without waiting on the server', async () => {
+      const h = harness()
+      // A server that never answers: Remove is answered all the same.
+      const heard = listening(h, () => new Promise(() => undefined))
+      const phone = await h.signIn()
+      const made = await grant(h, phone)
+      const removed = await h.call(`/v1/grants/${made.grant.id}`, {
+        method: 'DELETE',
+        token: phone,
+      })
+      expect(removed.status).toBe(204)
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(heard).toHaveLength(1)
+    })
+
+    it('minds nothing when the server is off: it finds out at its next look', async () => {
+      const h = harness()
+      const phone = await h.signIn()
+      const off = await grant(h, phone, { server: 'https://off.example.com', name: 'off' })
+      const gone = await h.call(`/v1/grants/${off.grant.id}`, { method: 'DELETE', token: phone })
+      expect(gone.status).toBe(204)
+      await h.settle()
+      expect(h.logs).toContainEqual(
+        expect.objectContaining({
+          level: 'warn',
+          details: expect.objectContaining({ server: 'off.example.com' }),
+        }),
+      )
+      expect((await h.call('/v1/me', { token: off.token })).status).toBe(401)
+    })
+
+    it('tells every server when the account signs out everywhere', async () => {
+      const h = harness()
+      const heard = listening(h)
+      const phone = await h.signIn()
+      const made = await grant(h, phone)
+      h.clock.now += 1000
+      expect(
+        (await h.call('/v1/auth/signout-everywhere', { method: 'POST', token: phone })).status,
+      ).toBe(204)
+      await h.settle()
+      expect(heard.map(seen => seen.body)).toEqual([{ grant: made.grant.id }])
+    })
+
+    it('does not tell a server that let the account go itself, or one at no web address', async () => {
+      const h = harness()
+      const heard = listening(h)
+      const phone = await h.signIn()
+      const made = await grant(h, phone)
+      const left = await h.call(`/v1/grants/${made.grant.id}`, {
+        method: 'DELETE',
+        token: made.token,
+      })
+      expect(left.status).toBe(204)
+
+      const odd = await grant(h, phone, { server: 'ftp://pi.example.ts.net', name: 'odd' })
+      await h.call(`/v1/grants/${odd.grant.id}`, { method: 'DELETE', token: phone })
+      await h.settle()
+      expect(heard).toEqual([])
+    })
+  })
 })

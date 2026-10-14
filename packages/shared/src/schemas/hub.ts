@@ -27,3 +27,21 @@ export type HubStatus = z.infer<typeof HubStatusSchema>
  * else it is ignored: a library is only ever named there by its token.
  */
 export const HUB_LIBRARY_HEADER = 'X-Selfmp3-Library'
+
+/**
+ * Where the doorman tells a server that one of its grants was taken back
+ * (Settings › Account › Computers › Remove, or signing out everywhere), so it
+ * lets the library go at once rather than at its next look at the bucket.
+ */
+export const HUB_CHECK_PATH = '/api/hub/check'
+
+/**
+ * `POST /api/hub/check`: which grant to look at again. It carries nothing
+ * secret and proves nothing. The server only asks the doorman, with the
+ * grant's own token, whether it still holds, so whoever sends it can at most
+ * make the server ask a little sooner than it would have.
+ */
+export const HubCheckSchema = z.object({
+  grant: z.string().regex(/^[0-9a-f]{16}$/, 'not a grant id'),
+})
+export type HubCheck = z.infer<typeof HubCheckSchema>

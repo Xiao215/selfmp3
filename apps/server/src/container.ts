@@ -80,6 +80,8 @@ export interface Container {
    * this rather than what was handed to `createContainer`.
    */
   readonly config: ServingConfig
+  /** Which server this library is on (shared.ts `serverIdIn`): its snapshot and health say it. */
+  readonly serverId: string
   readonly logger: Logger
   readonly db: Db
   readonly storage: StorageDriver
@@ -309,6 +311,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // key without anyone ever typing it — the server always has one now
     // (repositories/auth.ts), so this is never null.
     server: () => ({
+      id: shared.serverId,
       addresses: publishedAddresses(config.host, config.port, config.publicUrl).map(
         address => address.url,
       ),
@@ -509,6 +512,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
 
   const container: Container = {
     config,
+    serverId: shared.serverId,
     logger,
     db,
     storage,

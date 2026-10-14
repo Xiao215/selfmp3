@@ -7,6 +7,12 @@ import zlib from 'node:zlib'
 import { CloudServerSchema, DoormanGrantsSchema, HealthSchema } from '@selfmp3/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { harness, type Harness } from '../../../doorman/src/fakes.js'
+import {
+  answersAs,
+  candidates,
+  reachServer,
+  type Candidate,
+} from '../../../../packages/client/src/connection/reach.js'
 import { loadConfig, type Config } from '../config.js'
 import { createContainer } from '../container.js'
 import { createLogger } from '../logger.js'
@@ -207,6 +213,8 @@ describe('a server working for several accounts', () => {
     const second = await startHub()
     expect(second.hub.workspaces()).toHaveLength(1)
     expect((await health(second.url, me.token!)).songCount).toBe(0)
+    // Still the server the snapshots name, so a device finds it before the next one.
+    expect((await health(second.url, me.token!)).serverId).toBe(me.id)
   })
 
   it('lets a library go when its account takes the grant back', async () => {
@@ -283,5 +291,56 @@ describe('a server working for several accounts', () => {
       'the old session to be signed out',
     )
     expect((await health(url, token)).ok).toBe(true)
+  })
+})
+
+describe('which server a device takes', () => {
+  /** `/api/health` at a candidate, as the app and the extension ask it. */
+  const probe = async (candidate: Candidate): Promise<boolean> => {
+    const response = await fetch(`${candidate.baseUrl}/api/health`)
+    return response.ok && answersAs(await response.json(), candidate)
+  }
+
+  /*
+   * 2026-10-14: the Pi publishes `http://localhost:4600` among its addresses,
+   * and on the Mac a development server answers there. A device racing the
+   * snapshot's addresses took it, and every request after was refused: the
+   * Pi's token, at a server holding another library.
+   */
+  it('passes over a development server answering at one of the addresses', async () => {
+    const pi = await startHub()
+    const mine = await account('1', 'me@example.com', 'mine')
+    const me = CloudServerSchema.parse((await join(pi.url, mine)).body)
+    await until(() => newestSnapshot('mine')?.includes(me.token!) ?? false, 'my snapshot')
+    const published = CloudServerSchema.parse(
+      (JSON.parse(newestSnapshot('mine')!) as { server: unknown }).server,
+    )
+    expect(published.id).toBe(me.id)
+    // Said to anyone: the id is which server this is, not whose library.
+    expect(HealthSchema.parse(await (await fetch(`${pi.url}/api/health`)).json()).serverId).toBe(
+      me.id,
+    )
+
+    // `npm run dev`: its own folders, and a folder for a bucket.
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'dev-data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'dev-library')
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+    delete process.env['SELFMP3_PUBLIC_URL']
+    const dev = await startHub()
+    const devHealth = HealthSchema.parse(await (await fetch(`${dev.url}/api/health`)).json())
+    expect(devHealth.serverId).toBeDefined()
+    expect(devHealth.serverId).not.toBe(me.id)
+    // What a device that took it met from then on.
+    expect((await fetch(`${dev.url}/api/library?token=${me.token}`)).status).toBe(401)
+
+    // Where the development server is the only one answering, nothing is taken.
+    expect(await reachServer(candidates({ ...published, addresses: [dev.url] }), probe)).toBeNull()
+    // Beside the real one, the real one is.
+    const found = await reachServer(
+      candidates({ ...published, addresses: [dev.url, pi.url] }),
+      probe,
+    )
+    expect(found?.baseUrl).toBe(pi.url)
+    expect((await fetch(`${found!.baseUrl}/api/library?token=${found!.token}`)).status).toBe(200)
   })
 })

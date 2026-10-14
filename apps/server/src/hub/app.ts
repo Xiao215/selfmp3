@@ -31,6 +31,7 @@ export function createHubApp(hub: Hub): Express {
       const health: Health = {
         ok: true,
         version: APP_VERSION,
+        serverId: hub.shared.serverId,
         uptimeSeconds: Math.round(process.uptime()),
         appUrl: hub.config.appUrl,
       }
@@ -56,7 +57,7 @@ function hubRoutes(hub: Hub): Router {
       if (session === null) throw HttpError.unauthorized('send your doorman session')
       // A library's own token is not a session: this account is here already.
       const already = hub.resolve(req)
-      if (already?.entry) return { addresses: hub.addresses(), token: already.entry.token }
+      if (already?.entry) return hub.answer(already.entry)
       return hub.join(session)
     }),
   )

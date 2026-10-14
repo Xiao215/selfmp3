@@ -87,8 +87,8 @@ server's `POST /api/hub/join`, once:
 2. It asks the doorman for a grant for itself (`POST /v1/grants`). The grant is a session of
    its own for that account, named for this server.
 3. It makes the account's workspace, takes on the library already in the bucket, and
-   publishes a snapshot naming its addresses and the workspace's token.
-4. It answers the device with the same addresses and token. The device keeps them
+   publishes a snapshot naming itself (its `id`), its addresses and the workspace's token.
+4. It answers the device with the same id, addresses and token. The device keeps them
    (`packages/replica/src/sharedServer.ts`) until that snapshot reaches it.
 
 Joining again is harmless: an account that already has a workspace gets its token back. A

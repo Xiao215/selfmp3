@@ -1,5 +1,5 @@
 import type { ServerConnection } from '@selfmp3/client/core'
-import type { CloudServer } from '@selfmp3/shared'
+import type { CloudServer, Health } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { chooseRoute, createRouter, ROUTE_MEMO_MS, type RouteSources } from './connection.js'
 
@@ -16,16 +16,32 @@ const HOME = 'http://100.64.0.1:4600'
 const TAILNET = 'https://mac.tail1234.ts.net'
 const TYPED: ServerConnection = { baseUrl: 'http://localhost:4600', token: null }
 
-const cloudServer: CloudServer = { addresses: [HOME, TAILNET], token: 'from-the-snapshot' }
+const cloudServer: CloudServer = {
+  id: 'the-server',
+  addresses: [HOME, TAILNET],
+  token: 'from-the-snapshot',
+}
 
-/** A probe that answers for these addresses and nothing else, counting every ask. */
-function answersAt(...live: string[]) {
+/** What `/api/health` says on a server that calls itself `serverId`. */
+const healthOf = (serverId: string): Health => ({
+  ok: true,
+  version: 'test',
+  serverId,
+  uptimeSeconds: 1,
+})
+
+/**
+ * A probe that answers for these addresses and nothing else, counting every
+ * ask; `others` are addresses where a different server answers.
+ */
+function answersAt(live: string[], others: string[] = []) {
   const asked: string[] = []
   return {
     asked,
-    probe: (connection: ServerConnection): Promise<boolean> => {
+    probe: (connection: ServerConnection): Promise<Health | null> => {
       asked.push(connection.baseUrl)
-      return Promise.resolve(live.includes(connection.baseUrl))
+      if (others.includes(connection.baseUrl)) return Promise.resolve(healthOf('another-server'))
+      return Promise.resolve(live.includes(connection.baseUrl) ? healthOf('the-server') : null)
     },
   }
 }
@@ -35,31 +51,42 @@ function sources(patch: Partial<RouteSources> = {}): RouteSources {
     typedServer: () => Promise.resolve(null),
     signedIn: () => Promise.resolve(true),
     cloudServer: () => Promise.resolve(cloudServer),
-    probe: () => Promise.resolve(false),
+    probe: () => Promise.resolve(null),
     ...patch,
   }
 }
 
 describe('chooseRoute', () => {
   it('asks the server directly when one of its addresses answers', async () => {
-    const { probe, asked } = answersAt(TAILNET)
+    const { probe, asked } = answersAt([TAILNET])
     const route = await chooseRoute(sources({ probe }))
     expect(route).toEqual({
       mode: 'server',
-      connection: { baseUrl: TAILNET, token: 'from-the-snapshot' },
+      connection: { baseUrl: TAILNET, token: 'from-the-snapshot', serverId: 'the-server' },
       typed: false,
     })
     // Both at once: one address from another network hangs until its timeout.
     expect(asked).toEqual([HOME, TAILNET])
   })
 
+  it('passes over an address where a different server answers', async () => {
+    // HOME is answered by somebody else's server (a development server on
+    // the same computer, a stranger's on the same Wi-Fi): not this library's.
+    const { probe } = answersAt([TAILNET], [HOME])
+    const route = await chooseRoute(sources({ probe }))
+    expect(route.mode === 'server' && route.connection.baseUrl).toBe(TAILNET)
+    expect(await chooseRoute(sources({ probe: answersAt([], [HOME]).probe }))).toEqual({
+      mode: 'bucket',
+    })
+  })
+
   it('leaves the link in the bucket when no address answers in time', async () => {
-    const { probe } = answersAt()
+    const { probe } = answersAt([])
     expect(await chooseRoute(sources({ probe }))).toEqual({ mode: 'bucket' })
   })
 
   it('has nowhere to go without an account, and says so rather than guessing', async () => {
-    const { probe, asked } = answersAt(HOME)
+    const { probe, asked } = answersAt([HOME])
     expect(await chooseRoute(sources({ probe, signedIn: () => Promise.resolve(false) }))).toEqual({
       mode: 'none',
     })
@@ -68,21 +95,21 @@ describe('chooseRoute', () => {
   })
 
   it('prefers the address someone typed in, because they meant it', async () => {
-    const { probe, asked } = answersAt(TYPED.baseUrl, TAILNET)
+    const { probe, asked } = answersAt([TYPED.baseUrl, TAILNET])
     const route = await chooseRoute(sources({ probe, typedServer: () => Promise.resolve(TYPED) }))
     expect(route).toEqual({ mode: 'server', connection: TYPED, typed: true })
     expect(asked).toEqual([TYPED.baseUrl])
   })
 
   it('falls back from a typed-in server that is asleep to the bucket', async () => {
-    const { probe } = answersAt()
+    const { probe } = answersAt([])
     expect(
       await chooseRoute(sources({ probe, typedServer: () => Promise.resolve(TYPED) })),
     ).toEqual({ mode: 'bucket' })
   })
 
   it('is away, not signed out, when a typed-in server is all there is', async () => {
-    const { probe } = answersAt()
+    const { probe } = answersAt([])
     expect(
       await chooseRoute(
         sources({
@@ -95,7 +122,7 @@ describe('chooseRoute', () => {
   })
 
   it('takes a bucket that cannot be read as a server that has not said where it is', async () => {
-    const { probe } = answersAt(HOME)
+    const { probe } = answersAt([HOME])
     const route = await chooseRoute(
       sources({ probe, cloudServer: () => Promise.reject(new Error('offline')) }),
     )
@@ -105,7 +132,7 @@ describe('chooseRoute', () => {
 
 describe('createRouter', () => {
   it('keeps one answer for a minute, and lets go when something changes', async () => {
-    const { probe, asked } = answersAt(HOME)
+    const { probe, asked } = answersAt([HOME])
     let now = 1_000
     const router = createRouter(sources({ probe }), () => now)
 

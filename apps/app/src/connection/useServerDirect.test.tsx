@@ -13,18 +13,25 @@ import { useServerDirect } from './useServerDirect'
 
 jest.mock('../replica', () => ({ library: { markCloudLibraryStale: () => undefined } }))
 
-const server = { addresses: ['https://music.example.com'], token: 't' }
+const server = { id: 'the-pi', addresses: ['https://music.example.com'], token: 't' }
 configureClient({
   api: { cloudServer: () => Promise.resolve({ server }) } as unknown as Api,
 } as Parameters<typeof configureClient>[0])
 
-/** Whether `/api/health` answers, one entry per look; past the end it does. */
-let answers: boolean[] = []
+/**
+ * Whether `/api/health` answers, one entry per look; past the end it does.
+ * A string is a server answering under that id: a different one than the
+ * snapshot named.
+ */
+let answers: (boolean | string)[] = []
 const health = jest.fn(() => {
-  const ok = answers.shift() ?? true
-  return ok
-    ? Promise.resolve({ ok: true } as Response)
-    : Promise.reject(new TypeError('Network request failed'))
+  const answer = answers.shift() ?? true
+  if (answer === false) return Promise.reject(new TypeError('Network request failed'))
+  const serverId = answer === true ? server.id : answer
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ ok: true, version: '1', serverId, uptimeSeconds: 1 }),
+  } as Response)
 })
 
 beforeEach(() => {
@@ -86,4 +93,11 @@ it('says a server that never answered is away at the first miss', async () => {
   const { result } = await draw()
   expect(result.current).toMatchObject({ state: 'away', said: true })
   expect(health).toHaveBeenCalledTimes(1)
+})
+
+it('is away when the server answering at the address is a different one', async () => {
+  // `localhost` on a computer running a development server (2026-10-14).
+  answers = ['a-development-server']
+  const { result } = await draw()
+  expect(result.current).toMatchObject({ state: 'away', said: true })
 })

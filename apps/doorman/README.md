@@ -174,32 +174,20 @@ Wrangler may warn that `wrangler.toml` defines more than one environment. The
 other one, `dev`, is only for running the doorman on your own computer (see
 below); the plain command deploys the real doorman.
 
-### 5. A domain for share links (optional)
+### 5. Share links in chats
 
-A share link that points at the web app on GitHub Pages shows up in a chat as
-bare text: Pages has no file for a link's address, so a chat app gets a 404
-and draws nothing. The doorman can answer a link's address itself
-(`src/linkPage.ts`). A chat app gets a card with the song, who sent it and its
-cover, and a person is sent on to the same link in the app (`APP_URL` in
-`wrangler.toml`).
+A share link points at the doorman, not at the web app (`/l/<id>/<key>`,
+`src/linkPage.ts`). GitHub Pages has no file for a link's address, so it
+answers with a 404 and a chat app draws nothing. The doorman answers instead.
+A chat app gets a card with the song, who sent it and its cover, and a person
+is sent on to the same link in the app (`APP_URL` in `wrangler.toml`).
 
-That works on the `workers.dev` address already, but that address is long and
-mainland China blocks it. To give links a short address of their own:
-
-1. Buy a domain and add it to Cloudflare (**Add a domain**). Change the
-   domain's nameservers to the two Cloudflare names it gives you.
-2. In `wrangler.toml`, under `APP_URL`, add the address the links should use,
-   for example:
-
-   ```toml
-   routes = [{ pattern = "listen.example.com", custom_domain = true }]
-   ```
-
-3. Deploy (step 4). Cloudflare makes the DNS record and the certificate.
-   `https://listen.example.com/` should send you to the app.
-4. In `packages/shared/src/cloud.ts`, set `DEFAULT_LINK_URL` to
-   `https://listen.example.com`. Links made from then on use it, and links
-   already sent keep working where they were.
+The `workers.dev` address is long, and mainland China blocks it, as it does
+everything the doorman lends. A domain of your own on Cloudflare would fix
+both: add it to the Worker with
+`routes = [{ pattern = "listen.example.com", custom_domain = true }]` and make
+it the doorman's address everywhere (`DEFAULT_DOORMAN_URL`, and Google's
+redirect URI in step 2).
 
 ---
 

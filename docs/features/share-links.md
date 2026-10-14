@@ -101,7 +101,7 @@ page it fetches. It runs no JavaScript. Agreed with Xiao on 2026-10-14, picks A1
   beside the words and Messages shows it big. Discord's stripe is the cover's colour.
 - **Where it comes from (C1).** GitHub Pages cannot answer for a link: it has no file for
   `/l/<id>/<key>`, so it sends the app with a 404, which no chat app reads. So a link points
-  at the doorman's own domain (`DEFAULT_LINK_URL`; setup in apps/doorman/README.md). There
+  at the doorman (`ports/linkAddress.ts`; apps/doorman/README.md, step 5). There
   a chat app gets a page of tags (`apps/doorman/src/linkPage.ts`), and a person is sent on
   to the same link in the app. Which is which goes by the visitor's name: every chat app
   calls itself a bot or names itself, and no browser does. Reading a link for its card
@@ -109,8 +109,10 @@ page it fetches. It runs no JavaScript. Agreed with Xiao on 2026-10-14, picks A1
 - **The app's own address (G1)** has a fixed card in `apps/app/public/index.html`: the
   name, the line from the manifest and the icon.
 
-Until `DEFAULT_LINK_URL` names a domain, links point at the app and a chat shows them as
-bare text. Discord's play button on Apple Music and Spotify links is Discord's own player
+Xiao chose the doorman's `workers.dev` address over buying a domain (2026-10-14). The
+link is longer, and mainland China cannot open it, but there the song could not play from
+a github.io link either: its audio comes from the doorman too. Links sent before then point
+at the app and keep working. Discord's play button on Apple Music and Spotify links is Discord's own player
 for those services, which no other site can have.
 
 ## How long it lasts (B2)

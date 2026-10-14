@@ -352,14 +352,6 @@ export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
 export const DEFAULT_APP_URL = 'https://xiao215.github.io/selfmp3'
 
 /**
- * Where a share link points, when it is not the app itself: a domain the
- * doorman answers on (apps/doorman/README.md, "A domain for share links"). A
- * chat app reads the song's card there, and a person is sent on to the app.
- * Empty, a link points at the app, and a chat shows it as bare text.
- */
-export const DEFAULT_LINK_URL: string = ''
-
-/**
  * Tidy an endpoint as it is pasted from a bucket's page, and work out its
  * region where the address says it: `s3.us-west-004.backblazeb2.com` is in
  * `us-west-004`. Other providers need the region given.

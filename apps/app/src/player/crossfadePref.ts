@@ -1,3 +1,4 @@
+import type { DeviceStore } from '@selfmp3/replica'
 import { prefs } from '../ports/prefs'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
@@ -27,6 +28,27 @@ export function setCrossfadeSeconds(seconds: number): void {
   const next = Math.min(Math.max(Math.round(seconds), 0), CROSSFADE_MAX)
   prefs.set(KEY, String(next))
   store.set(next)
+}
+
+/** Where a cloud library used to keep every setting on the device, crossfade among them. */
+const OLD_DEVICE_SETTINGS = 'selfmp3.cloud.settings'
+
+/**
+ * Move a crossfade kept the old way into this preference, once, and drop the
+ * old record: the rest of it (the smart switches, the lyrics switch) belongs to
+ * the server now and was never read from it.
+ */
+export async function moveOldCrossfade(store: DeviceStore): Promise<void> {
+  try {
+    const old = await store.read(OLD_DEVICE_SETTINGS)
+    if (old === undefined || old === null) return
+    const seconds =
+      typeof old === 'object' ? (old as { crossfadeSeconds?: unknown }).crossfadeSeconds : undefined
+    if (typeof seconds === 'number' && prefs.get(KEY) === null) setCrossfadeSeconds(seconds)
+    await store.remove(OLD_DEVICE_SETTINGS)
+  } catch {
+    // A device with no storage has nothing to move.
+  }
 }
 
 /** Seconds of overlap between songs on this device; zero is none. */

@@ -100,6 +100,9 @@ const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'))
 writeFileSync(join(out, 'manifest.json'), `${JSON.stringify({ ...manifest, version }, null, 2)}\n`)
 
+// The header rule the manifest names (packages/shared's ytProxy.ts says why).
+mkdirSync(join(out, 'rules'), { recursive: true })
+copyFileSync(join(root, 'rules', 'youtube-origin.json'), join(out, 'rules', 'youtube-origin.json'))
 copyFileSync(join(root, 'src', 'popup', 'popup.html'), join(out, 'popup.html'))
 copyFileSync(join(root, 'src', 'options', 'options.html'), join(out, 'options.html'))
 // The manifest names the icon; this only puts the app's copy of that file

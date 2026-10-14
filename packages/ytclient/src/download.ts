@@ -1,0 +1,208 @@
+import { Innertube, Platform } from 'youtubei.js/web'
+import { createPoMinter, type PoMinter } from './poToken.js'
+import type { YtFetch } from './transport.js'
+
+/**
+ * A song's audio from YouTube, downloaded in the page.
+ *
+ * The same choice the server's yt-dlp makes (apps/server/src/services/ytdlp.ts):
+ * the best m4a, which is what YouTube Music serves and needs no re-encoding.
+ * Which InnerTube client is asked decides whether YouTube hands out a link
+ * that works at all, and that changes from month to month, so several are
+ * tried in turn and every attempt is reported.
+ */
+
+type InnerTubeClient = NonNullable<NonNullable<Parameters<Innertube['getBasicInfo']>[1]>['client']>
+
+/**
+ * The order clients are tried in, as of 2026-10-13.
+ *
+ * VISIONOS is the one that gave whole songs: it needs no player script to
+ * decipher its links, and its links took a video-bound PO token. MWEB and
+ * YTMUSIC gave links that were refused after the first megabyte with a PO
+ * token or without one; WEB answers only in SABR, which this does not speak.
+ * yt-dlp's own defaults lead with visionos for the same reasons. MWEB stays
+ * behind it as the one other client whose links are not SABR.
+ */
+export const DEFAULT_CLIENTS: readonly InnerTubeClient[] = ['VISIONOS', 'MWEB']
+
+/**
+ * Bytes asked for per request. With `range=`, YouTube serves at full speed.
+ * A megabyte, because a larger range was now and then refused outright where a
+ * megabyte at a time went through.
+ */
+export const DEFAULT_CHUNK_BYTES = 1024 * 1024
+
+/**
+ * How many times one client is asked again after its link was refused part
+ * way: a fresh link, picking up at the byte the last one stopped. About one
+ * download in eight met a 403 for no reason the next link shared.
+ */
+const TRIES_PER_CLIENT = 3
+
+export interface YtSession {
+  readonly innertube: Innertube
+  readonly fetch: YtFetch
+  readonly visitorData: string
+  /** Null for a session opened without one, to see what YouTube does then. */
+  readonly minter: PoMinter | null
+}
+
+/**
+ * Open a session: a visitor identity, BotGuard ready to mint PO tokens, and
+ * the player script that deciphers links.
+ *
+ * The player script is run with `new Function`, as the PO token's interpreter
+ * is (poToken.ts).
+ */
+export async function createSession(
+  fetch: YtFetch,
+  options: { poToken?: boolean } = {},
+): Promise<YtSession> {
+  Platform.shim.eval = data => {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- running YouTube's player is the point.
+    const script = new Function(data.output) as () => Record<string, unknown>
+    return script()
+  }
+
+  const innertube = await Innertube.create({ fetch })
+  const visitorData = innertube.session.context.client.visitorData
+  if (!visitorData) throw new Error('YouTube gave this session no visitor identity')
+
+  const minter = options.poToken === false ? null : await createPoMinter(fetch)
+  return { innertube, fetch, visitorData, minter }
+}
+
+/** One client asked, and what came of it. */
+export interface Attempt {
+  readonly client: InnerTubeClient
+  readonly ok: boolean
+  readonly detail: string
+}
+
+export interface DownloadedAudio {
+  readonly bytes: Uint8Array<ArrayBuffer>
+  readonly mimeType: string
+  readonly itag: number
+  readonly client: InnerTubeClient
+  readonly title: string
+  readonly author: string
+  readonly durationSeconds: number
+  readonly attempts: readonly Attempt[]
+}
+
+export async function downloadAudio(
+  session: YtSession,
+  videoId: string,
+  options: {
+    clients?: readonly InnerTubeClient[]
+    onProgress?: (received: number, total: number) => void
+    signal?: AbortSignal
+    chunkBytes?: number
+  } = {},
+): Promise<DownloadedAudio> {
+  const attempts: Attempt[] = []
+  for (const client of options.clients ?? DEFAULT_CLIENTS) {
+    // What earlier links of this client already brought in, kept across a refusal.
+    let file = null as { bytes: Uint8Array<ArrayBuffer>; received: number } | null
+    for (let tries = 0; tries < TRIES_PER_CLIENT; tries++) {
+      options.signal?.throwIfAborted()
+      try {
+        // Bound to this video, and handed to both places youtubei.js reads one
+        // from: the player request, and the `pot` the player puts on each link.
+        const poToken = session.minter ? await session.minter.mint(videoId) : undefined
+        const player = session.innertube.session.player
+        if (player) player.po_token = poToken
+        const info = await session.innertube.getBasicInfo(videoId, {
+          client,
+          ...(poToken ? { po_token: poToken } : {}),
+        })
+        const playability = info.playability_status
+        if (playability?.status !== 'OK') {
+          const reason = `${playability?.status ?? 'no status'}: ${playability?.reason ?? ''}`
+          attempts.push({ client, ok: false, detail: reason.trim() })
+          break
+        }
+        const format = info.chooseFormat({ type: 'audio', quality: 'best', format: 'mp4' })
+        const url = await format.decipher(player)
+        if (!url) throw new GiveUp('no link to decipher (the client may answer in SABR only)')
+        const total = Number(format.content_length ?? 0)
+        if (!total) throw new GiveUp('the format does not say how long it is')
+        if (file?.bytes.length !== total) file = { bytes: new Uint8Array(total), received: 0 }
+
+        await fetchRanges(session.fetch, url, file, options)
+        attempts.push({ client, ok: true, detail: `itag ${format.itag}, ${total} bytes` })
+        return {
+          bytes: file.bytes,
+          mimeType: format.mime_type,
+          itag: format.itag,
+          client,
+          title: info.basic_info.title ?? '',
+          author: info.basic_info.author ?? '',
+          durationSeconds: info.basic_info.duration ?? 0,
+          attempts,
+        }
+      } catch (error) {
+        if (options.signal?.aborted) throw error
+        attempts.push({
+          client,
+          ok: false,
+          detail: error instanceof Error ? error.message : String(error),
+        })
+        // Only a refused link is worth another; anything else would fail the same way.
+        if (!(error instanceof Refused)) break
+      }
+    }
+  }
+  throw Object.assign(
+    new Error(
+      `no client could download ${videoId}: ` +
+        attempts.map(a => `${a.client} — ${a.detail}`).join('; '),
+    ),
+    { attempts },
+  )
+}
+
+/** This client cannot give this song: the next client is asked. */
+class GiveUp extends Error {}
+
+/** YouTube refused a link part way: the same client, asked again, may give one that works. */
+class Refused extends Error {}
+
+/**
+ * The rest of the file, a range at a time, into `file` — so a refusal part way
+ * leaves what came before it for the next link to build on.
+ */
+async function fetchRanges(
+  fetch: YtFetch,
+  url: string,
+  file: { bytes: Uint8Array<ArrayBuffer>; received: number },
+  options: {
+    onProgress?: (received: number, total: number) => void
+    signal?: AbortSignal
+    chunkBytes?: number
+  },
+): Promise<void> {
+  const chunkBytes = options.chunkBytes ?? DEFAULT_CHUNK_BYTES
+  const total = file.bytes.length
+  // Whether the link carries a PO token says which of two failures a 403 is.
+  const pot = new URL(url).searchParams.has('pot') ? 'with pot' : 'without pot'
+  while (file.received < total) {
+    const start = file.received
+    const end = Math.min(start + chunkBytes, total) - 1
+    const response = await fetch(`${url}&range=${start}-${end}`, {
+      ...(options.signal ? { signal: options.signal } : {}),
+    })
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw new Refused(`YouTube answered ${response.status} at byte ${start} of ${total} (${pot})`)
+    }
+    const part = new Uint8Array(await response.arrayBuffer())
+    if (part.length !== end - start + 1) {
+      throw new Refused(`asked for ${end - start + 1} bytes at ${start}, got ${part.length}`)
+    }
+    file.bytes.set(part, start)
+    file.received += part.length
+    options.onProgress?.(file.received, total)
+  }
+}

@@ -23,6 +23,7 @@ import {
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
 import { useContentWidthValue } from '../../shell/contentWidth'
+import { tabbing } from '../../shell/tabbing'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { tip } from '../tip'
 import { rightClick, type PopoverAnchor } from '../rightClick'
@@ -92,6 +93,7 @@ export const SongRow = memo(function SongRow({
   menuOpen = false,
   unavailable = false,
   lifted = false,
+  listKey,
 }: {
   /** Named so a flow can tap a row by position: `song-row-0`. */
   testID?: string
@@ -175,6 +177,12 @@ export const SongRow = memo(function SongRow({
   unavailable?: boolean
   /** This row is the one being moved, so it rides above its neighbours. */
   lifted?: boolean
+  /**
+   * The list this row is in, for the list's keys (`useListKeys`): the arrows
+   * find the rows above and below by it, and Space the row's song. Left out —
+   * a phone, a list with no selection — the row answers no keys of its own.
+   */
+  listKey?: string
 }): ReactNode {
   const playback = useSongPlayback(song.id)
   const active = activeOverride ?? playback !== null
@@ -209,6 +217,16 @@ export const SongRow = memo(function SongRow({
     [allTags, hideTagIds],
   )
   const [hovered, setHovered] = useState(false)
+  // The keyboard is on this row — Tab or the list's arrows brought focus here —
+  // so it shows what the pointer would bring out. A click's focus does not.
+  const [keyed, setKeyed] = useState(false)
+  const keys = listKey
+    ? {
+        dataSet: { songRow: listKey, songId: String(song.id) },
+        onFocus: () => setKeyed(tabbing()),
+        onBlur: () => setKeyed(false),
+      }
+    : null
   const moreRef = useRef<View>(null)
   const tagAddRef = useRef<View>(null)
   // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
@@ -261,6 +279,7 @@ export const SongRow = memo(function SongRow({
       accessibilityRole="button"
       accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
       accessibilityState={{ selected: active }}
+      {...(listKey ? ROW_PRESS : null)}
       style={style}
     >
       {children}
@@ -316,7 +335,13 @@ export const SongRow = memo(function SongRow({
           real <button>, and a row that was one would nest the ⋯ inside it, so
           the row is a role="row" with its buttons as siblings.
         */}
-        <View testID={testID} role="row" style={[styles.row, ...states]} {...onRightClick}>
+        <View
+          testID={testID}
+          role="row"
+          style={[styles.row, ...states]}
+          {...keys}
+          {...onRightClick}
+        >
           {washLayer}
           {picking ? selectBox(true) : null}
 
@@ -368,7 +393,7 @@ export const SongRow = memo(function SongRow({
   // --- desktop width ---------------------------------------------------------
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
-  const revealed = !dense || hovered || menuOpen
+  const revealed = !dense || hovered || menuOpen || keyed
   const albumColumn = (room & ROOM_FOR_ALBUM) !== 0
   const tagChips = (room & ROOM_FOR_CHIPS) !== 0
   const controlSize = dense ? 34 : HIT_TARGET
@@ -379,9 +404,10 @@ export const SongRow = memo(function SongRow({
         ref={rowRef}
         testID={testID}
         role="row"
-        style={[styles.rowWide, dense && (hovered || menuOpen) && styles.rowHovered, ...states]}
+        style={[styles.rowWide, dense && revealed && styles.rowHovered, ...states]}
         onPointerEnter={dense ? () => setHovered(true) : undefined}
         onPointerLeave={dense ? () => setHovered(false) : undefined}
+        {...keys}
         {...onRightClick}
       >
         {washLayer}
@@ -518,6 +544,9 @@ const PHONE_SELECT = 34 - 6 + 10
 function phoneTextColumn(width: number, selecting: boolean, hasMore: boolean): number {
   return width - PHONE_ROW_CHROME - (hasMore ? PHONE_MORE : 0) - (selecting ? PHONE_SELECT : 0)
 }
+
+/** The row's press target, which the list's arrows move focus to (`useListKeys.web.ts`). */
+const ROW_PRESS = { dataSet: { rowPress: 'true' } } as const
 
 /** Drawn, but not read out: the press target under it carries the words as its label. */
 const UNREAD = {

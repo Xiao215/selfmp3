@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { useAccent } from '../ui/accent'
+import { SONG_ROW } from './keyOwner'
+import { setTabbing, TABBING_SELECTOR } from './tabbing'
 
 /**
  * Focus, drawn by the app rather than the browser.
@@ -23,31 +25,30 @@ import { useAccent } from '../ui/accent'
  * focus itself (the library's search turns its border to the accent while its
  * input has focus).
  *
+ * A song row's press target lies under its cover and title only, and a ring
+ * round that would stop partway along the row, so the row wears it instead,
+ * just inside its edge, where the rows above and below cannot cover it. The
+ * list's arrows move focus with the keyboard too, so they turn the ring on as
+ * Tab does (`useListKeys.web.ts`).
+ *
  * Sliders and checkboxes keep what they draw. The colour follows the accent
  * picker, so the rules are rewritten when it moves.
  */
 
 const ID = 'selfmp3-focus'
-/** On `<html>` while focus is being moved with Tab. */
-const TABBING = 'data-tabbing'
 const TEXT_FIELD = 'input:not([type="range"]):not([type="checkbox"]):not([type="radio"])'
+/** A song row's press target, which lies under its cover and title: the ring goes round the row. */
+const ROW_PRESS = '[data-row-press]'
 
 function css(accent: string): string {
   return `
 :focus { outline: none; }
-html[${TABBING}] :focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; }
-html[${TABBING}] ${TEXT_FIELD}:focus-visible, html[${TABBING}] textarea:focus-visible { outline: none; }
+${TABBING_SELECTOR} :focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; }
+${TABBING_SELECTOR} ${TEXT_FIELD}:focus-visible, ${TABBING_SELECTOR} textarea:focus-visible { outline: none; }
 ${TEXT_FIELD}:focus, textarea:focus { border-color: ${accent} !important; }
+${TABBING_SELECTOR} ${ROW_PRESS}:focus-visible { outline: none; }
+${TABBING_SELECTOR} [${SONG_ROW}]:has(${ROW_PRESS}:focus-visible) { outline: 2px solid ${accent}; outline-offset: -2px; }
 `
-}
-
-/**
- * Whether focus is being moved with Tab right now, for what shows itself on
- * keyboard focus but not on the focus a click leaves behind: a tag tile's
- * record comes out under Tab, and stays put after a right-click.
- */
-export function tabbing(): boolean {
-  return document.documentElement.hasAttribute(TABBING)
 }
 
 export function FocusStyle(): ReactNode {
@@ -64,11 +65,10 @@ export function FocusStyle(): ReactNode {
   }, [accent])
 
   useEffect(() => {
-    const root = document.documentElement
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Tab') root.setAttribute(TABBING, '')
+      if (event.key === 'Tab') setTabbing(true)
     }
-    const onPointerDown = (): void => root.removeAttribute(TABBING)
+    const onPointerDown = (): void => setTabbing(false)
     window.addEventListener('keydown', onKeyDown, true)
     window.addEventListener('pointerdown', onPointerDown, true)
     return () => {

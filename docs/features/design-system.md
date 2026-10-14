@@ -180,7 +180,8 @@ Notes for anyone extending it:
   in, so a dropdown opened from a sheet or a dialog sits above it.
 - A screen's keys (`useHotkeys`) and Escape stand aside for a focused `combobox`, `listbox`,
   `menu` or `dialog`, as they do for a text field (`shell/keyOwner.ts`). If you build a
-  control with its own keyboard language, give it one of those roles.
+  control with its own keyboard language, give it one of those roles. Open layers are listed
+  in `shell/layers.ts`, for keys that must also stand aside while one is open (a list's ⌘A).
 
 ## `data-tip` — hover captions
 
@@ -406,7 +407,12 @@ something is still happening.
   ours: one line in the accent, only while someone is moving focus with Tab. `:focus-visible`
   alone counts any key as keyboard use, so Tab turns the ring on and a pointer press turns it
   off: a Tab still shows where you are, and Space to pause after a click draws nothing. The
-  colour follows the accent picker.
+  colour follows the accent picker. Whether the keyboard is moving focus is one attribute on
+  `<html>` (`shell/tabbing.ts`), which a song list's arrows turn on as Tab does.
+- A song row wears the ring round its whole width, just inside its edge, rather than round its
+  press target, which lies under the cover and title only; with the ring on, it shows its
+  controls as the pointer would. Space on such a row is its tick, not play and pause
+  ([multi-select.md](multi-select.md)).
 - A text field with a border of its own takes the accent as its border colour instead; a
   field without one sits in a box that shows focus itself (`SearchField` turns its edge and
   magnifier to the accent).

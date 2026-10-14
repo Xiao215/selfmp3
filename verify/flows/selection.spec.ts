@@ -239,6 +239,85 @@ test.describe('selecting songs', () => {
   })
 
   /**
+   * A computer's keyboard selects too: the arrows move between rows with the
+   * ring on the one you are on, Space ticks it, Enter plays it, ⌘A (Ctrl+A off
+   * a Mac) selects every song, and Escape clears. It had gone in the UI
+   * migration (Xiao, 2026-10-14). Space after a click is still play and pause,
+   * and ⌘A in the search box selects its words.
+   */
+  test('the keyboard moves, ticks, selects all and plays', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone has no keyboard to select with')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 3)
+
+    const rows = songRows(page)
+    const pressOf = (index: number): Locator => rows.nth(index).locator('[data-row-press]')
+    const second = await titleOf(rows.nth(1))
+    const third = await titleOf(rows.nth(2))
+
+    // Focus on the first row, as a click leaves it, then the arrows.
+    await pressOf(0).focus()
+    await page.keyboard.press('ArrowDown')
+    await expect(pressOf(1)).toBeFocused()
+    // The ring is drawn, now that the keyboard is moving focus: round the
+    // whole row, not the part of it under the cover and title.
+    await expect
+      .poll(() => rows.nth(1).evaluate(el => getComputedStyle(el).outlineStyle))
+      .toBe('solid')
+    expect(await rows.nth(0).evaluate(el => getComputedStyle(el).outlineStyle)).toBe('none')
+
+    await page.keyboard.press('Space')
+    await expect(page.getByRole('checkbox', { name: `Deselect ${second}` })).toBeVisible()
+    await expect(selectionCount(page, 1)).toBeVisible()
+    await page.keyboard.press('ArrowDown')
+    await expect(pressOf(2)).toBeFocused()
+    await page.keyboard.press('Space')
+    await expect(selectionCount(page, 2)).toBeVisible()
+    await page.keyboard.press('Space')
+    await expect(page.getByRole('checkbox', { name: `Deselect ${third}` })).toHaveCount(0)
+    await expect(selectionCount(page, 1)).toBeVisible()
+
+    // Up and back: the arrows go both ways, and Escape clears.
+    await page.keyboard.press('ArrowUp')
+    await expect(pressOf(1)).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+
+    // ⌘A: every song in the list, which the bar states as all of them.
+    await page.keyboard.press('ControlOrMeta+a')
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      songs: { missing: boolean }[]
+    }
+    const total = library.songs.filter(song => !song.missing).length
+    await expect(selectionCount(page, total)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+
+    // Enter is a plain click: it plays the row.
+    await page.keyboard.press('Enter')
+    await expect(
+      page.getByRole('button', { name: new RegExp(`^Open now playing: ${escaped(second)}$`) }),
+    ).toBeVisible()
+
+    // After a click, with no ring, Space is play and pause, not a tick.
+    await pressOf(1).click()
+    await page.keyboard.press('Space')
+    await expect(page.getByRole('button', { name: 'Play', exact: true }).last()).toBeVisible()
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+
+    // In the search box ⌘A selects the words, not the songs under it.
+    await page.getByTestId('library-search').click()
+    const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
+    await box.fill('abc')
+    await page.keyboard.press('ControlOrMeta+a')
+    await expect.poll(() => box.evaluate(el => (el as HTMLInputElement).selectionEnd)).toBe(3)
+    await page.keyboard.press('Escape')
+    await expect(box).toBeHidden()
+    await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)
+  })
+
+  /**
    * With a mouse, a ticked row dragged onto a playlist in the sidebar carries
    * every ticked song; it used to carry only the one under the pointer. The
    * playlist is put back as it was afterwards.

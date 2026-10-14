@@ -1,5 +1,5 @@
-import { candidates, reachServer, type ServerConnection } from '@selfmp3/client/core'
-import type { CloudServer } from '@selfmp3/shared'
+import { answersAs, candidates, reachServer, type ServerConnection } from '@selfmp3/client/core'
+import type { CloudServer, Health } from '@selfmp3/shared'
 
 /**
  * Where an import goes: the server itself when it answers, the bucket when it
@@ -32,7 +32,8 @@ export interface RouteSources {
   readonly signedIn: () => Promise<boolean>
   /** The addresses the server last wrote into its snapshot, and its token. */
   readonly cloudServer: () => Promise<CloudServer | null>
-  readonly probe: (connection: ServerConnection) => Promise<boolean>
+  /** What `/api/health` at an address says, or null when nothing answers there. */
+  readonly probe: (connection: ServerConnection) => Promise<Health | null>
 }
 
 /**
@@ -44,7 +45,7 @@ export interface RouteSources {
  */
 export async function chooseRoute(sources: RouteSources): Promise<Route> {
   const typed = await sources.typedServer()
-  if (typed && (await sources.probe(typed).catch(() => false))) {
+  if (typed && (await sources.probe(typed).catch(() => null))) {
     return { mode: 'server', connection: typed, typed: true }
   }
 
@@ -53,10 +54,13 @@ export async function chooseRoute(sources: RouteSources): Promise<Route> {
   }
 
   // The snapshot's addresses are asked all at once: one from another network
-  // hangs until its timeout, and one after another would take a minute.
+  // hangs until its timeout, and one after another would take a minute. An
+  // address counts only when the server there is the one the snapshot named
+  // (`answersAs`): `localhost` on a computer running a development server is
+  // that server, and it would refuse this library's token.
   const found = await reachServer(
     candidates(await sources.cloudServer().catch(() => null)),
-    sources.probe,
+    async candidate => answersAs(await sources.probe(candidate), candidate),
   )
   return found ? { mode: 'server', connection: found, typed: false } : { mode: 'bucket' }
 }

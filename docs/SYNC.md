@@ -497,6 +497,16 @@ probes them all at once and talks to the first that answers, and looks again eve
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no
 "connect to a server" screen — that was removed on purpose.
 
+**An answer has to be from the right server.** An address is only where *a* server might
+be: `http://localhost:4600`, which every server publishes for a device on its own computer,
+is the development server on the Mac, and a Wi-Fi address at a friend's is whatever they
+run. So the snapshot names the server as well (`id`, made on its first boot and kept in
+`<data>/server-id`), `/api/health` answers with the same `serverId` without a token, and a
+device keeps only an address whose answer matches (`answersAs` in
+`packages/client/src/connection/reach.ts`). The token goes nowhere until one has. Before
+this (2026-10-14) the real app on the Mac took the development server on 4600, which
+answered first, and every request after was refused.
+
 **This is also how the server is locked.** It listens on every interface, because that is
 what makes those addresses real, and so anyone else on the Wi-Fi can reach the port. The
 token is what separates them from your phone, and the snapshot is what hands your phone the

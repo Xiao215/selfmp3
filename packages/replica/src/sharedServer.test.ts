@@ -14,7 +14,11 @@ const ME: CloudSession = {
   token: 'session-token',
   me: { email: 'me@example.com', name: null, picture: null, storage: null },
 }
-const ANSWER = { addresses: [SERVER], token: 'library-token'.padEnd(43, '0') }
+const ANSWER = {
+  id: 'the-shared-server',
+  addresses: [SERVER],
+  token: 'library-token'.padEnd(43, '0'),
+}
 /** The same account once its bucket is connected. */
 const WITH_BUCKET: CloudSession = {
   ...ME,
@@ -142,7 +146,7 @@ describe('the shared server, from a device', () => {
 
   it('leaves alone a library whose snapshot names a server, or that has no bucket yet', async () => {
     const { shared, sent } = setUp()
-    const own = { addresses: ['https://mine.example.com'], token: 'own' }
+    const own = { id: 'my-own-server', addresses: ['https://mine.example.com'], token: 'own' }
     expect(await shared.automatic(WITH_BUCKET, own)).toEqual(own)
     expect(await shared.automatic(ME, null)).toBeNull()
     expect(sent).toEqual([])

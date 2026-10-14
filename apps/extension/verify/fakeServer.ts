@@ -96,6 +96,7 @@ export async function startFakeServer(): Promise<FakeServer> {
       return send(res, 200, {
         ok: true,
         version: 'fake',
+        serverId: 'the-fake-server',
         uptimeSeconds: 1,
         ...(authorised ? { songCount: library.songs.length } : {}),
       })

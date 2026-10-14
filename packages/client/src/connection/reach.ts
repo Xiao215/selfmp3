@@ -1,4 +1,4 @@
-import type { CloudServer } from '@selfmp3/shared'
+import { HealthSchema, type CloudServer } from '@selfmp3/shared'
 import type { ServerConnection } from './connection.js'
 
 /**
@@ -64,28 +64,52 @@ export type Reach =
   /** `said`: whether the server's last snapshot named any address at all. */
   | { readonly state: 'away'; readonly said: boolean }
 
-/** The server's addresses as connections to try, its token riding along. */
-export function candidates(server: CloudServer | null): ServerConnection[] {
+/** One of the server's addresses to try: a connection, and who must answer there. */
+export interface Candidate extends ServerConnection {
+  /** The id the snapshot named (`CloudServerSchema.id`), which `/api/health` must answer with. */
+  readonly serverId: string
+}
+
+/** The server's addresses as connections to try, its token and its id riding along. */
+export function candidates(server: CloudServer | null): Candidate[] {
   if (!server) return []
-  return server.addresses.map(baseUrl => ({ baseUrl, token: server.token }))
+  return server.addresses.map(baseUrl => ({ baseUrl, token: server.token, serverId: server.id }))
 }
 
 /**
- * The first of the server's addresses to answer, or null when none does.
+ * Whether what an address's `/api/health` said is the server the snapshot
+ * meant.
+ *
+ * An answer is not enough. The addresses are the ones the server found on its
+ * own computer, and `http://localhost:4600` among them is whatever listens on
+ * 4600 on *this* one: on the Mac a development server is, and it answers first
+ * — after which every request carries this library's token to a server that
+ * refuses it. A Wi-Fi address at someone else's house is the same mistake. So
+ * an address counts only when the server there names itself as the snapshot
+ * did, and the token goes nowhere until one has.
+ */
+export function answersAs(health: unknown, candidate: Candidate): boolean {
+  const parsed = HealthSchema.safeParse(health)
+  return parsed.success && parsed.data.serverId === candidate.serverId
+}
+
+/**
+ * The first of the server's addresses to answer as that server, or null when
+ * none does (`probe` decides, with `answersAs`).
  *
  * All are asked at once: a Wi-Fi address asked from a phone on mobile data
  * hangs until its timeout, and one after another would take a minute. On the
  * server itself `localhost` is among them and answers first.
  */
 export function reachServer(
-  connections: readonly ServerConnection[],
-  probe: (connection: ServerConnection) => Promise<boolean>,
-): Promise<ServerConnection | null> {
+  connections: readonly Candidate[],
+  probe: (candidate: Candidate) => Promise<boolean>,
+): Promise<Candidate | null> {
   if (connections.length === 0) return Promise.resolve(null)
   return new Promise(resolve => {
     let left = connections.length
     let found = false
-    const answered = (connection: ServerConnection, ok: boolean): void => {
+    const answered = (connection: Candidate, ok: boolean): void => {
       if (found) return
       if (ok) {
         found = true
@@ -111,11 +135,11 @@ export function reachServer(
  * `wait` is the platform's timer, which this package does not assume.
  */
 export async function reachServerAgain(
-  connections: readonly ServerConnection[],
-  probe: (connection: ServerConnection) => Promise<boolean>,
+  connections: readonly Candidate[],
+  probe: (candidate: Candidate) => Promise<boolean>,
   before: ServerConnection | null | undefined,
   wait: (ms: number) => Promise<void>,
-): Promise<ServerConnection | null> {
+): Promise<Candidate | null> {
   const found = await reachServer(connections, probe)
   if (found || !before) return found
   await wait(CONFIRM_AWAY_MS)

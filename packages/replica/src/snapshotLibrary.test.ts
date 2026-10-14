@@ -185,7 +185,11 @@ describe('snapshotToLibrary', () => {
   })
 
   it('carries where the server listens, and null from a snapshot that never said', () => {
-    const server = { addresses: ['http://localhost:4600', 'http://192.168.1.20:4600'], token: null }
+    const server = {
+      id: 'the-server',
+      addresses: ['http://localhost:4600', 'http://192.168.1.20:4600'],
+      token: null,
+    }
     expect(snapshotToLibrary(snapshot({ server }), NO_IDS, 1).server).toEqual(server)
     expect(snapshotToLibrary(snapshot(), NO_IDS, 1).server).toBeNull()
   })

@@ -298,6 +298,15 @@ export type CloudUids = z.infer<typeof CloudUidsSchema>
  * token is the one every device of theirs already carries to that server.
  */
 export const CloudServerSchema = z.object({
+  /**
+   * The server's own name for itself, which its `/api/health` answers with
+   * (`HealthSchema.serverId`). An address is only where *a* server might be:
+   * `http://localhost:4600` on the computer you develop on is the development
+   * server, not this one, and a Wi-Fi address on someone else's Wi-Fi is
+   * someone else's. A device takes an address only when what answers there
+   * says this id (`packages/client/src/connection/reach.ts`).
+   */
+  id: z.string().min(1),
   addresses: z.array(z.string().url()).max(16),
   token: z.string().nullable(),
 })

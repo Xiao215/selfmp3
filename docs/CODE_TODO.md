@@ -81,7 +81,8 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 - **`verify/playwright.config.ts` has no `webServer` block**: an unreachable server is a
   failure, and the two addresses can point at another host (T-243, [verify/README.md](../verify/README.md)).
 - **4600 and 4601 are literal** only where nothing can import `DEFAULT_SERVER_PORT`: the
-  Dockerfile, the compose file, the shell scripts and `package.json`'s `dev:web` (T-410).
+  Dockerfile, the compose file, the shell scripts and `package.json`'s `dev:web` and `dev:api`
+  (T-410).
 - **The phone's and the browser's cover stores stay two adapters**: the phone reads its
   folder synchronously so the first draw already has kept covers; the policy is one
   (`coverStore.ts`) (T-414).

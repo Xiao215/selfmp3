@@ -1,18 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import type { ServerConnection } from './connection.js'
-import { awayCopy, CONFIRM_AWAY_MS, candidates, reachServer, reachServerAgain } from './reach.js'
+import {
+  answersAs,
+  awayCopy,
+  CONFIRM_AWAY_MS,
+  candidates,
+  reachServer,
+  reachServerAgain,
+  type Candidate,
+} from './reach.js'
 
 const server = {
+  id: 'the-pi',
   addresses: ['http://localhost:4600', 'http://192.168.1.20:4600', 'http://100.101.1.2:4600'],
   token: 'secret-token',
 }
 
 describe('candidates', () => {
-  it('turns each address into a connection carrying the token', () => {
+  it('turns each address into a connection carrying the token and the server it is for', () => {
     expect(candidates(server)).toEqual([
-      { baseUrl: 'http://localhost:4600', token: 'secret-token' },
-      { baseUrl: 'http://192.168.1.20:4600', token: 'secret-token' },
-      { baseUrl: 'http://100.101.1.2:4600', token: 'secret-token' },
+      { baseUrl: 'http://localhost:4600', token: 'secret-token', serverId: 'the-pi' },
+      { baseUrl: 'http://192.168.1.20:4600', token: 'secret-token', serverId: 'the-pi' },
+      { baseUrl: 'http://100.101.1.2:4600', token: 'secret-token', serverId: 'the-pi' },
     ])
     expect(candidates(null)).toEqual([])
   })
@@ -57,6 +66,43 @@ describe('reachServer', () => {
     })
     expect(found).toBeNull()
     expect(asked).toBe(0)
+  })
+})
+
+describe('answersAs', () => {
+  const [home] = candidates(server) as [Candidate]
+  const health = (serverId: string) => ({ ok: true, version: '1', serverId, uptimeSeconds: 3 })
+
+  it('takes the server the snapshot named, and no other', () => {
+    expect(answersAs(health('the-pi'), home)).toBe(true)
+    expect(answersAs(health('a-development-server'), home)).toBe(false)
+  })
+
+  it('takes nothing that is not a health answer at all', () => {
+    expect(answersAs(null, home)).toBe(false)
+    expect(answersAs({ ok: true }, home)).toBe(false)
+    expect(answersAs('<html>a router’s login page</html>', home)).toBe(false)
+  })
+
+  /*
+   * 2026-10-14: the real app on the Mac, signed in to a library served from
+   * the Pi, raced the Pi's addresses — `http://localhost:4600` among them,
+   * which the Pi published for itself. On the Mac that is the development
+   * server, which answered first, was taken, and refused every request after
+   * (the Pi's token, another library). It is passed over now.
+   */
+  it('passes over localhost when a development server answers there', async () => {
+    const said: Record<string, unknown> = {
+      'http://localhost:4600': health('a-development-server'),
+      'http://192.168.1.20:4600': health('the-pi'),
+    }
+    const probe = async (candidate: Candidate) => {
+      // The development server is on this computer, so it answers first.
+      if (candidate.baseUrl !== 'http://localhost:4600') await Promise.resolve()
+      return answersAs(said[candidate.baseUrl] ?? null, candidate)
+    }
+    const found = await reachServer(candidates(server), probe)
+    expect(found?.baseUrl).toBe('http://192.168.1.20:4600')
   })
 })
 

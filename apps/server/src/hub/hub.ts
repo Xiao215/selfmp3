@@ -147,7 +147,7 @@ export class Hub {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
     const known = this.#registry.byAccount(account)
-    if (known && this.#workspaces.has(known.id)) return this.#answer(known)
+    if (known && this.#workspaces.has(known.id)) return this.answer(known)
 
     const pending = this.#joining.get(account)
     if (pending) return pending
@@ -213,11 +213,12 @@ export class Hub {
       : registry.add({ account, email: me.email, grant })
     this.#open(entry, me)
     this.logger.info('a library joined', { workspace: entry.id, email: me.email })
-    return this.#answer(entry)
+    return this.answer(entry)
   }
 
-  #answer(entry: HubEntry): CloudServer {
-    return { addresses: this.addresses(), token: entry.token }
+  /** What a device talks to one library here with: which server, where, and the library's token. */
+  answer(entry: HubEntry): CloudServer {
+    return { id: this.shared.serverId, addresses: this.addresses(), token: entry.token }
   }
 
   /** One workspace's container made, its session in place, and set going. */

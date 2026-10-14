@@ -88,14 +88,10 @@ export function workerRouter({
     typedServer: () => storedServer(store),
     signedIn: async () => (cloud ? (await cloud.session()) !== null : false),
     cloudServer: async () => (cloud ? cloud.server() : null),
-    probe: async connection => {
-      try {
-        await serverApi(connection, fetch, PROBE_TIMEOUT_MS).health()
-        return true
-      } catch {
-        return false
-      }
-    },
+    probe: connection =>
+      serverApi(connection, fetch, PROBE_TIMEOUT_MS)
+        .health()
+        .catch(() => null),
   })
 }
 

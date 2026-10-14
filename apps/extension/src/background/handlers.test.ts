@@ -48,6 +48,7 @@ function fakeServer(token: string | null) {
         json(200, {
           ok: true,
           version: 'test',
+          serverId: 'the-server',
           uptimeSeconds: 1,
           songCount: 2,
         }),

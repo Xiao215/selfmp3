@@ -11,12 +11,22 @@ import {
   type ImportPreviewItem,
   type ImportSource,
 } from '@selfmp3/shared'
-import { HIT_TARGET, radius, type, withAlpha, type Review, coverSize, space } from '@selfmp3/client'
+import {
+  HIT_TARGET,
+  radius,
+  type,
+  withAlpha,
+  type Review,
+  coverSize,
+  space,
+  iconSize,
+} from '@selfmp3/client'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, rowTitle, textColumn } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
+import { Sparkle } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { OPACITY } from '../../ui/motion.model'
@@ -34,6 +44,7 @@ import {
   type Listening,
 } from './listen.model'
 import { chosenState, rowState, sourceWords, type Rename, type RowState } from './review.model'
+import { suggestionFor, suggestionWords, type NameSuggestion } from './importNames.model'
 import { TapAway } from '../../ui/components/TapAway'
 
 /**
@@ -65,6 +76,7 @@ export function useReviewRows({
   finePointer,
   showFrom,
   unticked = 'left-out',
+  suggestions,
 }: {
   /** Whose draft the rows are kept in, and which of its lists they are. */
   draft: DraftSource
@@ -81,6 +93,8 @@ export function useReviewRows({
    * ticked one, on a search's songs, where none does.
    */
   unticked?: 'left-out' | 'picking'
+  /** The model's names for rows that look wrong, by row (A9, `useImportNames`). */
+  suggestions?: ReadonlyMap<number, NameSuggestion>
 }): { rows: ReactNode[]; open: number | null; closeRow: () => void } {
   const [open, setOpen] = useState<number | null>(null)
   /** A phone row tapped and waiting for its song to play before it opens. */
@@ -190,6 +204,11 @@ export function useReviewRows({
     (index: number): void => lookAgainIn(draft, index, list),
     [draft, list],
   )
+  // Taking a suggestion is a rename like one typed: all three names at once.
+  const takeSuggestion = useCallback(
+    (index: number, names: Rename): void => renameIn(draft, index, names, list),
+    [draft, list],
+  )
 
   if (!review) return { rows: [], open, closeRow }
 
@@ -219,6 +238,8 @@ export function useReviewRows({
       onPlay: playRow,
       onSource: chooseSource,
       onLookAgain: lookAgain,
+      suggestion: suggestionFor(item, suggestions?.get(index)),
+      onUseSuggestion: takeSuggestion,
     }
     return wide ? (
       <GridRow key={index} {...shared} finePointer={finePointer} showFrom={showFrom} />
@@ -335,6 +356,52 @@ interface RowProps {
   readonly onPlay: (index: number) => void
   readonly onSource: (index: number, source: ImportSource) => void
   readonly onLookAgain: (index: number) => void
+  /** The model's names for this row, while its names are the ones it read. */
+  readonly suggestion: NameSuggestion | undefined
+  readonly onUseSuggestion: (index: number, names: Rename) => void
+}
+
+/**
+ * The model's names for a row (A9), under it: the sparkle, the names it would
+ * have, why, and Use, which renames the row as typing would. Only a row
+ * coming in has one; a song the library has is not offered it.
+ */
+function SuggestionLine({
+  suggestion,
+  index,
+  onUse,
+  wide,
+}: {
+  suggestion: NameSuggestion
+  index: number
+  onUse: (index: number, names: Rename) => void
+  /** Under a computer's names, or in a phone's open card: no room kept for the box. */
+  wide: boolean
+}): ReactNode {
+  const { title, artist, album } = suggestion
+  return (
+    <View
+      style={[styles.suggestion, wide && styles.suggestionWide]}
+      testID={`import-suggestion-${index}`}
+    >
+      <Sparkle size={iconSize.sub} />
+      <View style={styles.suggestionWords}>
+        <Text style={styles.suggestionNames} numberOfLines={1}>
+          {suggestionWords(suggestion)}
+        </Text>
+        <Text style={styles.suggestionWhy} numberOfLines={1}>
+          {suggestion.why}
+        </Text>
+      </View>
+      <Button
+        label="Use"
+        variant="text"
+        onPress={() => onUse(index, { title, artist, album })}
+        accessibilityLabel={`Use the suggested names: ${suggestionWords(suggestion)}`}
+        testID={`import-suggestion-use-${index}`}
+      />
+    </View>
+  )
 }
 
 /**
@@ -723,8 +790,14 @@ const PhoneRow = memo(function PhoneRow({
   onPlay,
   onSource,
   onLookAgain,
+  suggestion,
+  onUseSuggestion,
 }: RowProps): ReactNode {
   const colors = useToneColors(listening?.tone ?? null)
+  const suggested =
+    suggestion && state !== 'yours' ? (
+      <SuggestionLine suggestion={suggestion} index={index} onUse={onUseSuggestion} wide={false} />
+    ) : null
   if (open) {
     const bar = (at: number): ReactNode => {
       const times = barTimes(item, listening, at)
@@ -769,6 +842,9 @@ const PhoneRow = memo(function PhoneRow({
           />
           <NameFields item={item} index={index} onRename={onRename} wide={false} />
         </View>
+        {suggestion && state !== 'yours' ? (
+          <SuggestionLine suggestion={suggestion} index={index} onUse={onUseSuggestion} wide />
+        ) : null}
         <SourceChoice item={item} index={index} onSource={onSource} onLookAgain={onLookAgain} />
         {/* Ticking only while this row's song is the one playing; before, at the start. */}
         {!canHear(state, canPlay) ? null : listening ? (
@@ -780,6 +856,37 @@ const PhoneRow = memo(function PhoneRow({
     )
   }
 
+  return (
+    <View>
+      <PhoneRowLine
+        item={item}
+        index={index}
+        state={state}
+        opening={opening}
+        words={words}
+        wordsWarn={wordsWarn}
+        onToggleChosen={onToggleChosen}
+        onOpen={onOpen}
+      />
+      {suggested}
+    </View>
+  )
+})
+
+/** A phone row closed: the box, the cover and names that open it, and its end. */
+function PhoneRowLine({
+  item,
+  index,
+  state,
+  opening,
+  words,
+  wordsWarn,
+  onToggleChosen,
+  onOpen,
+}: Pick<
+  RowProps,
+  'item' | 'index' | 'state' | 'opening' | 'words' | 'wordsWarn' | 'onToggleChosen' | 'onOpen'
+>): ReactNode {
   return (
     <View style={styles.phoneRow} testID={`import-row-${index}`}>
       <RowBox
@@ -814,7 +921,7 @@ const PhoneRow = memo(function PhoneRow({
       </Press>
     </View>
   )
-})
+}
 
 /**
  * A row on a computer (`C14`), on the one grid every row shares so nothing
@@ -843,6 +950,8 @@ const GridRow = memo(function GridRow({
   onOpen,
   onSource,
   onLookAgain,
+  suggestion,
+  onUseSuggestion,
 }: RowProps & { finePointer: boolean; showFrom: boolean }): ReactNode {
   const [hovered, setHovered] = useState(false)
   const colors = useToneColors(listening?.tone ?? null)
@@ -941,6 +1050,19 @@ const GridRow = memo(function GridRow({
           }}
         </AtPosition>
       ) : null}
+      {suggestion && state !== 'yours' ? (
+        <View style={[styles.grid, styles.suggestionRow]}>
+          <View style={styles.selectWide} />
+          <View style={styles.cells}>
+            <View style={styles.colCover} />
+            <View style={styles.colSpan}>
+              <SuggestionLine suggestion={suggestion} index={index} onUse={onUseSuggestion} wide />
+            </View>
+            {showFrom ? <View style={styles.colFrom} /> : null}
+            <View style={styles.colEnd} />
+          </View>
+        </View>
+      ) : null}
       {open && (item.netease || item.youtube) ? (
         <View style={[styles.grid, styles.barRow]}>
           <View style={styles.selectWide} />
@@ -1023,6 +1145,19 @@ const styles = StyleSheet.create(theme => ({
   gridRow: { height: 52 },
   lit: { backgroundColor: theme.colors.surface1 },
   barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
+  suggestionRow: { paddingBottom: space.sm, marginTop: -space.xs },
+  // The model's names for a row: the sparkle, the names and why, and Use.
+  suggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingLeft: 34 + space.sm,
+    paddingBottom: space.sm,
+  },
+  suggestionWide: { paddingLeft: 0, paddingBottom: 0 },
+  suggestionWords: { flex: 1, minWidth: 0, gap: 1 },
+  suggestionNames: { color: theme.colors.textPrimary, fontSize: type.sub },
+  suggestionWhy: { color: theme.colors.textMuted, fontSize: type.tiny },
   dim: { opacity: OPACITY.disabled },
   // The boxes, sized as the library's rows size theirs (`SongRow`).
   select: {

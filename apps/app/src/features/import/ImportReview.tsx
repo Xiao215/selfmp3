@@ -15,6 +15,7 @@ import { ImportFoot, useImportPage } from './ImportPage'
 import { chooseAllIn } from './importDraft'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
 import { useFindSongs } from './useFindSongs'
+import { useImportNames } from './useImportNames'
 import { canListen } from './listen.model'
 import {
   comingIn,
@@ -70,6 +71,8 @@ export function ImportReview({
   useRefreshReview(source.api, key, reviewUrls(review))
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
   const finder = useFindSongs(source.api, key, review)
+  // A9: the model's names for the rows whose names look wrong, each offered under its row.
+  const suggestions = useImportNames(source.api, key, review)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
 
@@ -107,6 +110,7 @@ export function ImportReview({
     wide,
     finePointer,
     showFrom,
+    suggestions,
   })
   const chooseAll = (on: boolean): void => chooseAllIn(key, on)
   // What a row does on a phone, shown once on the first row rather than said

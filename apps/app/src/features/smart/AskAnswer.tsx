@@ -25,6 +25,7 @@ import { SongsAnswerCard } from './SongsAnswerCard'
 import { TogetherAnswer } from '../room/TogetherAnswer'
 import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
+import { CopiesReview } from './CopiesReview'
 import type { AnswerKeys } from './answerKeys'
 import { Working } from './Working'
 import { askKept } from './askKept'
@@ -295,7 +296,17 @@ function Drawn({
       )
     case 'tidy':
       return (
-        <TidyReview result={answer.tidy} height={listHeight} onClose={onDone} onKeys={onKeys} />
+        <TidyReview
+          result={answer.tidy}
+          height={listHeight}
+          onClose={onDone}
+          onKeys={onKeys}
+          onAsk={onAsk}
+        />
+      )
+    case 'copies':
+      return (
+        <CopiesReview result={answer.copies} height={listHeight} onClose={onDone} onKeys={onKeys} />
       )
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />

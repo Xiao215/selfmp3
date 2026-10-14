@@ -25,6 +25,7 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
+import { SongMerge } from './songMerge.js'
 
 /**
  * Other devices' changes, applied to this server's database (docs/SYNC.md).
@@ -61,6 +62,7 @@ export class CloudIngest {
   readonly #requests: ImportRequestRepository | null
   readonly #clock: SyncClock
   readonly #logger: Logger
+  readonly #merge: SongMerge
 
   constructor(deps: {
     db: Db
@@ -75,6 +77,8 @@ export class CloudIngest {
     requests?: ImportRequestRepository
     clock: SyncClock
     logger: Logger
+    /** Keeps a folded copy's cover file for the song kept (`CoverService.copy`). */
+    copyCover?: (fromId: number, intoId: number) => void
   }) {
     this.#db = deps.db
     this.#songs = deps.songs
@@ -86,6 +90,7 @@ export class CloudIngest {
     this.#requests = deps.requests ?? null
     this.#clock = deps.clock
     this.#logger = deps.logger.child('ingest')
+    this.#merge = new SongMerge({ db: deps.db, sync: deps.sync, copyCover: deps.copyCover })
   }
 
   /**
@@ -145,13 +150,13 @@ export class CloudIngest {
       }
 
       case 'songTagged': {
-        const songId = this.#sync.songId(change.uid)
+        const song = this.#played(change.uid)
         const tag = this.#sync.tag(change.tagUid)
-        if (songId === null || !tag) return false
-        if (!hlcWins(change.hlc, this.#sync.stamp('songTag', change.uid, tag.uid))) return false
-        if (change.on) this.#tags.addToSong(songId, tag.id)
-        else this.#tags.removeFromSong(songId, tag.id)
-        this.#sync.setStamp('songTag', change.uid, tag.uid, change.hlc)
+        if (!song || !tag) return false
+        if (!hlcWins(change.hlc, this.#sync.stamp('songTag', song.uid, tag.uid))) return false
+        if (change.on) this.#tags.addToSong(song.id, tag.id)
+        else this.#tags.removeFromSong(song.id, tag.id)
+        this.#sync.setStamp('songTag', song.uid, tag.uid, change.hlc)
         return true
       }
 
@@ -167,8 +172,22 @@ export class CloudIngest {
         return true
       }
 
-      case 'songPlayed': {
+      case 'songMerged': {
         const id = this.#sync.songId(change.uid)
+        const kept = this.#played(change.into)
+        const song = id === null ? null : this.#songs.byId(id)
+        if (id === null || !kept || !song || !this.#merge.merge(id, kept.id, change.hlc)) {
+          return false
+        }
+        // Gone as a removal goes, with whatever hung off it tidied by the caller.
+        this.#cloud.trashSong(id)
+        this.#songs.delete(id)
+        removed.push({ id, path: song.path })
+        return true
+      }
+
+      case 'songPlayed': {
+        const id = this.#played(change.uid)?.id ?? null
         if (id === null) return false
         const playedAt = sqliteTime(change.playedAt)
         const counted = this.#stats.record(
@@ -271,13 +290,13 @@ export class CloudIngest {
 
       case 'playlistSong': {
         const playlist = this.#sync.playlist(change.uid)
-        const songId = this.#sync.songId(change.songUid)
-        if (!playlist || playlist.kind !== 'manual' || songId === null) return false
-        const stamp = this.#sync.stamp('playlistSong', change.uid, change.songUid)
+        const song = this.#played(change.songUid)
+        if (!playlist || playlist.kind !== 'manual' || !song) return false
+        const stamp = this.#sync.stamp('playlistSong', change.uid, song.uid)
         if (!hlcWins(change.hlc, stamp)) return false
-        if (change.on) this.#playlists.add(playlist.id, [songId])
-        else this.#playlists.remove(playlist.id, songId)
-        this.#sync.setStamp('playlistSong', change.uid, change.songUid, change.hlc)
+        if (change.on) this.#playlists.add(playlist.id, [song.id])
+        else this.#playlists.remove(playlist.id, song.id)
+        this.#sync.setStamp('playlistSong', change.uid, song.uid, change.hlc)
         this.#dated(playlist, change.hlc)
         return true
       }
@@ -304,7 +323,7 @@ export class CloudIngest {
         if (!playlist) return false
         if (!hlcWins(change.hlc, this.#sync.stamp('playlist', change.uid, 'order'))) return false
         const songIds = change.songUids.flatMap(uid => {
-          const id = this.#sync.songId(uid)
+          const id = this.#played(uid)?.id ?? null
           return id === null ? [] : [id]
         })
         this.#playlists.reorder(playlist.id, songIds)
@@ -330,6 +349,19 @@ export class CloudIngest {
         return true
       }
     }
+  }
+
+  /**
+   * The song a play, a tag or a playlist place naming `uid` lands on, and the
+   * uid its stamps are kept under: the change's own uid for a song here (or
+   * one another server's uid names), the kept song's for a copy folded into it.
+   */
+  #played(uid: string): { id: number; uid: string } | null {
+    const own = this.#sync.songId(uid)
+    if (own !== null) return { id: own, uid }
+    const id = this.#sync.playedSongId(uid)
+    const kept = id === null ? undefined : this.#sync.uids('songs', [id]).get(id)
+    return id === null || !kept ? null : { id, uid: kept }
   }
 
   /** Rules with each tag named by this server's id for it. */

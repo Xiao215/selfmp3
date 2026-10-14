@@ -1,5 +1,5 @@
 import { ApiError } from '@selfmp3/client'
-import { plural, formatLongDuration, messageOf } from '@selfmp3/shared'
+import { plural, formatLongDuration, messageOf, tidyValue } from '@selfmp3/shared'
 import type {
   AiCheck,
   AskAnswer,
@@ -11,6 +11,7 @@ import type {
   Song,
   TagChange,
   TidyChange,
+  TidyCopy,
   AskStatsRange,
   DescribeResult,
   Tag,
@@ -340,7 +341,7 @@ export function tidyHere(
     const songIds = change.songIds.flatMap(serverId => {
       const id = onDevice(serverId)
       const song = id === undefined ? undefined : songsById.get(id)
-      return song && song[change.field] === change.from ? [song.id] : []
+      return song && tidyValue(song, change.field) === change.from ? [song.id] : []
     })
     return songIds.length > 0 ? [{ change, songIds }] : []
   })
@@ -386,21 +387,82 @@ export function keptSongs(here: Reviewed, leftOut: ReadonlySet<string>): number[
 
 /**
  * The approved changes as one edit per song, a title and an artist fixed
- * together. `undo` writes each field back to what it was, for the toast's Undo.
+ * together, a year as the number it is. `undo` writes each field back to what
+ * it was, for the toast's Undo. A cover is no edit of the song's own: the
+ * server takes it in (`tidyCovers`).
  */
 export function tidyEdits(
   changes: readonly TidyHere[],
   leftOut: ReadonlySet<string> = new Set(),
   undo = false,
 ): BulkEditSongs['edits'] {
-  const patches = new Map<number, Record<string, string>>()
+  const patches = new Map<number, Record<string, string | number | null>>()
   for (const here of changes) {
     const { field, from, to } = here.change
+    if (field === 'cover') continue
+    const value = undo ? from : to
     for (const id of keptSongs(here, leftOut)) {
-      patches.set(id, { ...patches.get(id), [field]: undo ? from : to })
+      patches.set(id, {
+        ...patches.get(id),
+        [field]: field === 'year' ? (value === '' ? null : Number(value)) : value,
+      })
     }
   }
   return [...patches].map(([songId, patch]) => ({ songId, patch }))
+}
+
+/**
+ * What a checkup found missing, in a sentence: "3 songs have no album, 10 no
+ * year and 2 no cover."
+ */
+export function gapWords(gaps: { album: number; year: number; cover: number }): string {
+  const parts = (['album', 'year', 'cover'] as const).filter(field => gaps[field] > 0)
+  const said = parts.map((field, index) =>
+    index === 0
+      ? `${plural(gaps[field], 'song has', 'songs have')} no ${field}`
+      : `${gaps[field].toLocaleString('en')} no ${field}`,
+  )
+  const last = said.pop()
+  return `${said.length > 0 ? `${said.join(', ')} and ${last}` : last}.`
+}
+
+/** The approved covers: each song (this device's id) and the picture it takes. */
+export function tidyCovers(
+  changes: readonly TidyHere[],
+  leftOut: ReadonlySet<string> = new Set(),
+): { songId: number; artworkUrl: string }[] {
+  return changes.flatMap(here =>
+    here.change.field === 'cover'
+      ? keptSongs(here, leftOut).map(songId => ({ songId, artworkUrl: here.change.to }))
+      : [],
+  )
+}
+
+/**
+ * A copy as this device has it: the extra copies still here, and the one kept.
+ * A copy already gone, or one whose kept song is gone, is left out — deleting
+ * the last of a song is never what was offered.
+ */
+export interface CopyHere extends Reviewed {
+  readonly change: TidyCopy
+  readonly keep: Song
+}
+
+export function copiesHere(
+  copies: readonly TidyCopy[],
+  onDevice: (serverId: number) => number | undefined,
+  songsById: ReadonlyMap<number, Song>,
+): CopyHere[] {
+  return copies.flatMap(change => {
+    const keepId = onDevice(change.keep)
+    const keep = keepId === undefined ? undefined : songsById.get(keepId)
+    if (!keep) return []
+    const songIds = change.songIds.flatMap(serverId => {
+      const id = onDevice(serverId)
+      return id !== undefined && songsById.has(id) ? [id] : []
+    })
+    return songIds.length > 0 ? [{ change, keep, songIds }] : []
+  })
 }
 
 /** A piece of a change drawn on one line: kept, taken out, or put in. */

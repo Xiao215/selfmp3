@@ -10,6 +10,8 @@ import {
   AskRequestSchema,
   AskTicketSchema,
   DescribeRequestSchema,
+  ImportNamesRequestSchema,
+  type ImportNames,
   RefineRequestSchema,
   type AskAnswer,
   type AskProgress,
@@ -26,7 +28,8 @@ import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { route } from '../http/route.js'
 
-type SmartSwitch = 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata'
+type SmartSwitch =
+  'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartImport'
 
 /**
  * The smart features (docs/features/ai.md). Each answer is a proposal: nothing
@@ -161,6 +164,15 @@ export function aiRoutes(container: Container): Router {
     route({}, ({ res }): Promise<TidyResult> => {
       allowed('smartTidy')
       return answering(container.smart.tidy(whileWaited(res)))
+    }),
+  )
+
+  /** A9 · an import review's names, read by the model: suggestions for the rows that look wrong. */
+  router.post(
+    '/ai/import/names',
+    route({ body: ImportNamesRequestSchema }, ({ body, res }): Promise<ImportNames> => {
+      allowed('smartImport')
+      return answering(container.smart.importNames(body, whileWaited(res)))
     }),
   )
 

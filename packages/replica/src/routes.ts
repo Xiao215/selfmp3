@@ -13,6 +13,7 @@ import {
   DoormanError,
   DoormanHealthSchema,
   GemsQuerySchema,
+  MergeSongsSchema,
   PlayEventSchema,
   RemoveFromPlaylistSchema,
   RenameTagSchema,
@@ -25,6 +26,7 @@ import {
   forgottenGems,
   similarSongs,
   type Affected,
+  type MergeSongsResult,
   type PlayRecorded,
   type RemovedFromPlaylist,
 } from '@selfmp3/shared'
@@ -136,6 +138,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'GET /api/ai/songs/:id/metadata',
   'GET /api/ai/written',
   'GET /api/ai/tidy',
+  'POST /api/ai/import/names',
   'GET /api/import/tools',
   'POST /api/import/preview',
   'POST /api/import/search',
@@ -381,6 +384,18 @@ export function createCloudRoutes(
             changes: edits.removeSongs(ctx, input.songIds),
             answer: () => ({ removed, failed }),
           }
+        })
+      },
+    ],
+
+    [
+      'POST',
+      '/api/songs/merge',
+      ({ session, body }) => {
+        const input = parseInput(MergeSongsSchema, body)
+        return recordChanges(session, ctx => {
+          const changes = edits.mergeSongs(ctx, input.keep, input.songIds)
+          return { changes, answer: (): MergeSongsResult => ({ merged: changes.length }) }
         })
       },
     ],

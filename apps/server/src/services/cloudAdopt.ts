@@ -154,6 +154,13 @@ export class CloudAdopt {
       // other server's uid for a song has to find the song.
       for (const { uid, songId } of same) this.#sync.addSongAlias(uid, songId)
       for (const item of prepared) this.#adoptSong(item)
+      // Copies folded into a song elsewhere: a late play naming one still lands.
+      for (const [uid, target] of Object.entries(snapshot.merged ?? {})) {
+        const songId = this.#sync.songId(target)
+        if (songId !== null && this.#sync.songId(uid) === null) {
+          this.#sync.addMerge(uid, songId, songId)
+        }
+      }
       const playlists = this.#adoptPlaylists(newPlaylists)
       return {
         songs: prepared.length,

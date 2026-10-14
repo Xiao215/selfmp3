@@ -45,6 +45,19 @@ export const SongRemovedSchema = z.object({
   ...at,
 })
 
+/**
+ * The song (`uid`) was the same recording as another (`into`), held twice,
+ * and is folded into it (docs/SYNC.md, "How changes combine"): its tags, its
+ * love, its places in playlists and its plays go to the song kept, and what
+ * the song kept lacks — an album, a year, a cover, the words — is filled in
+ * from it, never written over. Then it is out of the library, as a removal.
+ */
+export const SongMergedSchema = z.object({
+  type: z.literal('songMerged'),
+  ...at,
+  into: UidSchema,
+})
+
 export const SongPlayedSchema = z.object({
   type: z.literal('songPlayed'),
   ...at,
@@ -156,6 +169,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   SongEditedSchema,
   SongTaggedSchema,
   SongRemovedSchema,
+  SongMergedSchema,
   SongPlayedSchema,
   TagCreatedSchema,
   TagEditedSchema,

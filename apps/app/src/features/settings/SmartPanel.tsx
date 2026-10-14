@@ -24,7 +24,14 @@ import { hint, textColumn } from '../../ui/surfaces'
  * each one sees less than that.
  */
 const SWITCHES: readonly {
-  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartWeb'
+  key:
+    | 'smartAsk'
+    | 'smartTidy'
+    | 'smartTags'
+    | 'smartWritten'
+    | 'smartMetadata'
+    | 'smartImport'
+    | 'smartWeb'
   label: string
   sees: string
 }[] = [
@@ -36,7 +43,7 @@ const SWITCHES: readonly {
   {
     key: 'smartTidy',
     label: 'Tidy up',
-    sees: 'Sends artist and album names, never titles.',
+    sees: 'Sends the names of the songs in question.',
   },
   {
     key: 'smartTags',
@@ -52,6 +59,11 @@ const SWITCHES: readonly {
     key: 'smartMetadata',
     label: 'Fix song info',
     sees: 'Sends the song’s names and catalogue matches.',
+  },
+  {
+    key: 'smartImport',
+    label: 'Names at import',
+    sees: 'Sends the names of the songs you’re importing.',
   },
   {
     key: 'smartWeb',

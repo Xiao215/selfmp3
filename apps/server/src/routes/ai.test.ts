@@ -31,12 +31,23 @@ describe('smart features turned off in Settings', () => {
   let asked = 0
   /** How long the model takes to answer. */
   let thinkingMs = 0
+  /** What the model says about an import's names. */
+  let importReply: unknown[] = []
 
   beforeAll(async () => {
-    model = http.createServer(async (_request, response) => {
+    model = http.createServer(async (request, response) => {
       asked++
+      let body = ''
+      for await (const chunk of request) body += String(chunk)
+      const task = (JSON.parse(body) as { response_format: { json_schema: { name: string } } })
+        .response_format.json_schema.name
       await new Promise(resolve => setTimeout(resolve, thinkingMs))
       response.writeHead(200, { 'Content-Type': 'application/json' })
+      if (task === 'import-names') {
+        const content = JSON.stringify({ rows: importReply })
+        response.end(JSON.stringify({ choices: [{ message: { content } }] }))
+        return
+      }
       const content = JSON.stringify({
         action: 'tidy',
         filters: null,
@@ -47,7 +58,7 @@ describe('smart features turned off in Settings', () => {
         playlists: null,
         playlistSongs: null,
         library: null,
-        tidy: { checkup: true, lookUp: false },
+        tidy: { what: 'checkup', lookUp: false },
         remember: null,
         getMusic: null,
         open: null,
@@ -102,6 +113,7 @@ describe('smart features turned off in Settings', () => {
       smartTags: false,
       smartWritten: false,
       smartMetadata: false,
+      smartImport: false,
     })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
@@ -110,6 +122,7 @@ describe('smart features turned off in Settings', () => {
       ['GET', '/api/ai/tags/untagged'],
       ['GET', '/api/ai/written?range=month'],
       ['GET', '/api/ai/songs/1/metadata'],
+      ['POST', '/api/ai/import/names', { list: null, rows: [{ title: 'x' }] }],
     ] as const) {
       const response = await call(method, url, body)
       expect(response.status, url).toBe(403)
@@ -160,6 +173,35 @@ describe('smart features turned off in Settings', () => {
       done: true,
       failed: null,
       answer: { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' },
+    })
+  })
+
+  it('reads an import’s names, and keeps only the words the rows already had', async () => {
+    container.settings.update({ smartImport: true })
+    importReply = [
+      // The artist out of the title, the channel's name let go of.
+      { n: 1, title: 'アイドル', artist: 'YOASOBI', album: '', why: 'Artist was in the title' },
+      // A name the row never had: refused, so nothing is left to suggest.
+      { n: 2, title: 'Idol', artist: 'YOASOBI', album: '', why: 'English title' },
+    ]
+    const response = await call('POST', '/api/ai/import/names', {
+      list: 'YOASOBI hits',
+      rows: [
+        { title: 'YOASOBI「アイドル」', artist: 'Ayase Official', duration: 213 },
+        { title: 'アイドル', artist: 'YOASOBI', duration: 213 },
+      ],
+    })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      suggestions: [
+        {
+          row: 0,
+          title: 'アイドル',
+          artist: 'YOASOBI',
+          album: '',
+          why: 'Artist was in the title',
+        },
+      ],
     })
   })
 

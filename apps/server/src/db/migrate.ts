@@ -909,6 +909,21 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 43. A song held twice is folded into the copy kept (`songMerged`,
+    // docs/SYNC.md), and the extra copy's uid is kept here so a play, a tag or
+    // a playlist place that names it, arriving late, lands on the song kept.
+    // Apart from song_aliases, which is another server's uid for the same
+    // song: removing that one removes the song, removing a folded copy does not.
+    name: 'remember the copies folded into a song',
+    sql: `
+      CREATE TABLE IF NOT EXISTS song_merges (
+        uid     TEXT    PRIMARY KEY,
+        song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_song_merges_song ON song_merges(song_id);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -48,6 +48,8 @@ import {
   AskAnswerSchema,
   AskProgressSchema,
   TidyResultSchema,
+  ImportNamesSchema,
+  type ImportNamesRequest,
   WrittenReportSchema,
   DescribeResultSchema,
   TagReviewSchema,
@@ -74,6 +76,8 @@ import {
   ToolStatusSchema,
   type CreateTag,
   BulkDeleteResultSchema,
+  MergeSongsResultSchema,
+  type MergeSongs,
   CloudStatusSchema,
   type AddToPlaylist,
   type ApplyMetadata,
@@ -334,6 +338,10 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkDeleteSongs: (input: BulkDeleteSongs) =>
       request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
 
+    /** Copies of one song folded into the one kept, then out of the library (`MergeSongs`). */
+    mergeSongs: (input: MergeSongs) =>
+      request('POST', '/api/songs/merge', MergeSongsResultSchema, input),
+
     bulkEditSongs: (input: BulkEditSongs) =>
       request('POST', '/api/songs/bulk/edit', AffectedSchema, input),
 
@@ -414,6 +422,10 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** A4 · Tidy up: the song names that look wrong, as changes to approve. */
     tidy: () => request('GET', '/api/ai/tidy', TidyResultSchema),
+
+    /** A9 · an import review's names, read by the model: better names for the rows that look wrong. */
+    importNames: (input: ImportNamesRequest, signal?: ClientSignal) =>
+      request('POST', '/api/ai/import/names', ImportNamesSchema, input, signal),
 
     /** Where the server asks a model; Settings › Smart features. */
     aiSetup: () => request('GET', '/api/ai', AiSetupSchema),

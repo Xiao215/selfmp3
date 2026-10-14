@@ -30,3 +30,17 @@ export function chunks<T>(items: readonly T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
   return out
 }
+
+/** `run` over every item, `width` at a time, each taking the next as it finishes. */
+export async function pool<T>(
+  items: readonly T[],
+  width: number,
+  run: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0
+  await Promise.all(
+    Array.from({ length: Math.min(width, items.length) }, async () => {
+      while (next < items.length) await run(items[next++]!)
+    }),
+  )
+}

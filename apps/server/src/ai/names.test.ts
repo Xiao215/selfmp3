@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { song } from './fixtures/library.js'
-import { catalogueFinder, sameRecording, within } from './names.js'
+import { catalogueFinder, listingFinder, sameRecording, within } from './names.js'
 
 const cliffs = song(1, { title: 'Wordless Cliffs', artist: 'HOYO-MiX', duration: 112 })
 
@@ -99,5 +99,76 @@ describe('the catalogue finder', () => {
       'netease Liyue Yu-Peng Chen',
       'lookup Liyue',
     ])
+  })
+})
+
+describe('the listing finder', () => {
+  it('asks every catalogue at once, keeps the same recording, and carries years and covers', async () => {
+    let asked = 0
+    const find = listingFinder({
+      netease: async () => {
+        asked++
+        return [
+          {
+            title: '丹砂巍巍 Wordless Cliffs',
+            artist: 'HOYO-MiX',
+            album: '原神-千岩旷望',
+            duration: 112,
+            thumbnail: 'https://p1.music.126.net/a.jpg',
+          },
+          // A cover version: another length.
+          { title: 'Wordless Cliffs', artist: 'Fenvalur', album: 'Piano', duration: 120 },
+        ]
+      },
+      lookup: async () => [
+        {
+          source: 'itunes',
+          title: 'Wordless Cliffs',
+          artist: 'HOYO-MiX',
+          album: 'Genshin Impact - Millelith’s Watch',
+          year: 2023,
+          durationSec: 112,
+          artworkUrl: 'https://is1.mzstatic.com/a.jpg',
+          score: 0.9,
+        },
+      ],
+    })
+    expect(await find(cliffs)).toEqual([
+      {
+        source: '网易云',
+        title: '丹砂巍巍 Wordless Cliffs',
+        artist: 'HOYO-MiX',
+        album: '原神-千岩旷望',
+        year: null,
+        cover: 'https://p1.music.126.net/a.jpg',
+      },
+      {
+        source: 'iTunes',
+        title: 'Wordless Cliffs',
+        artist: 'HOYO-MiX',
+        album: 'Genshin Impact - Millelith’s Watch',
+        year: 2023,
+        cover: 'https://is1.mzstatic.com/a.jpg',
+      },
+    ])
+    await find(cliffs)
+    expect(asked).toBe(1)
+  })
+
+  it('still answers from one catalogue when the other fails', async () => {
+    const find = listingFinder({
+      netease: () => Promise.reject(new Error('down')),
+      lookup: async () => [
+        {
+          source: 'musicbrainz',
+          title: 'Wordless Cliffs',
+          artist: 'HOYO-MiX',
+          album: 'X',
+          durationSec: 112,
+          score: 1,
+        },
+      ],
+    })
+    expect((await find(cliffs)).map(each => each.source)).toEqual(['MusicBrainz'])
   })
 })

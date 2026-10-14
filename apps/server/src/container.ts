@@ -62,6 +62,7 @@ import { ImportRequestRepository } from './repositories/importRequests.js'
 import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
+import { SongMerge } from './services/songMerge.js'
 import { PlaysArchive } from './services/playsArchive.js'
 
 /**
@@ -124,6 +125,10 @@ export interface Container {
   readonly lyricsIndex: LyricsIndexService
   /** The one way a song leaves the library, whatever asked for it. */
   readonly songRemoval: SongRemovalService
+  /** A song held twice folded into the copy kept, before the copy is removed. */
+  readonly songMerge: SongMerge
+  /** What this server stamps its own edits with (docs/SYNC.md). */
+  readonly clock: SyncClock
   readonly analysis: AnalysisService
   /** How songs sound, as the listening model hears them (sound/sound.ts). */
   readonly sound: SoundService
@@ -245,6 +250,13 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     requests: importRequests,
     clock,
     logger,
+    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
+  })
+  // A song held twice, folded into the copy kept when this server is asked (`POST /api/songs/merge`).
+  const songMerge = new SongMerge({
+    db,
+    sync: syncRepo,
+    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
   })
 
   // Signing in to a bucket that already holds a library: take it on before
@@ -550,6 +562,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     romanization,
     lyricsIndex,
     songRemoval,
+    songMerge,
+    clock,
     analysis,
     sound,
     devices,

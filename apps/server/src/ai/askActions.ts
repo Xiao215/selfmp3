@@ -22,7 +22,9 @@ import {
 } from './describe.js'
 import { songTable } from './library.js'
 import { Remembered } from './llm.js'
-import type { CatalogueSearch, FindNames } from './names.js'
+import type { CatalogueSearch, FindListings, FindNames } from './names.js'
+import { findCopies } from './copies.js'
+import { fillGaps } from './fill.js'
 import type { Steps } from './progress.js'
 import { explore } from './explore.js'
 import { getMusic, type MusicCatalogue } from './getMusic.js'
@@ -49,6 +51,8 @@ export interface AskDeps extends DescribeDeps {
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** The music catalogues, for names from outside the library (`names.ts`). */
   readonly findNames?: FindNames
+  /** Every catalogue's listings for a song, for an album, a year or a cover it lacks. */
+  readonly findListings?: FindListings
   /** How they want things done, for every request (Settings › Smart features). */
   readonly notes?: () => readonly string[]
   /** 网易云's search, for looking things up (`explore.ts`). */
@@ -332,15 +336,28 @@ const library = action({
 
 const tidyUp = action({
   name: 'tidy',
-  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"). Fill "tidy": checkup is true when they only ask to check or clean up their names, false when they say what change they want; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script, make them consistent). When they say which songs, or how many to change ("up to 300", "先换50首" is size 50), also fill "filters" with the filters that choose them (null for the whole library). Which of those songs still need the change ("the ones in English now") is not a filter: the request itself says it.',
-  fields: z.object({ checkup: z.boolean(), lookUp: z.boolean() }),
+  when: 'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"); what their songs are missing (an album, a year, a cover) filled in; or songs they have more than once. Fill "tidy": what is checkup when they only ask to check or clean up their names, fill when they want what is missing filled in, copies when they ask about songs they have twice or more, and change when they say what change they want made to the names; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script, make them consistent), and false for anything but a change. When they say which songs, or how many to change ("up to 300", "先换50首" is size 50), also fill "filters" with the filters that choose them (null for the whole library). Which of those songs still need the change ("the ones in English now") is not a filter: the request itself says it.',
+  fields: z.object({
+    what: z.enum(['checkup', 'change', 'fill', 'copies']),
+    lookUp: z.boolean(),
+  }),
   filters: 'optional',
   switch: { key: 'tidy', label: 'Tidy up' },
-  run: async ({ deps, text, now, steps }, { checkup, lookUp }, filters) => {
-    if (checkup) return { kind: 'tidy', tidy: await tidy(deps, steps) }
+  run: async ({ deps, text, now, steps }, { what, lookUp }, filters) => {
+    if (what === 'checkup') return { kind: 'tidy', tidy: await tidy(deps, steps) }
     const songs = deps.songs()
     const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
     const chosen = songsFitting(songs, deps.tags(), understanding, now)
+    if (what === 'copies') {
+      return { kind: 'copies', copies: await findCopies(deps, chosen, steps) }
+    }
+    if (what === 'fill') {
+      const limit = filters?.size ?? null
+      return {
+        kind: 'tidy',
+        tidy: await fillGaps(deps, limit ? chosen.slice(0, limit) : chosen, text, steps),
+      }
+    }
     return {
       kind: 'tidy',
       tidy: await tidy(deps, steps, {

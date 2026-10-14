@@ -10,6 +10,8 @@ interface SmartSwitches {
   readonly tags: boolean
   readonly written: boolean
   readonly metadata: boolean
+  /** Import's review: the model reads the names of the songs coming in. */
+  readonly import: boolean
 }
 
 /**
@@ -31,5 +33,6 @@ export function useSmartSwitches(): SmartSwitches {
     tags: data?.smartTags ?? true,
     written: data?.smartWritten ?? true,
     metadata: data?.smartMetadata ?? true,
+    import: data?.smartImport ?? true,
   }
 }

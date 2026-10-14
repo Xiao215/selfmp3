@@ -26,6 +26,10 @@ export class SyncRepository {
   readonly #tagByName
   readonly #songAlias
   readonly #addSongAlias
+  readonly #mergedSong
+  readonly #addMerge
+  readonly #repointMerges
+  readonly #merges
   readonly #aliasTarget
   readonly #addAlias
   readonly #aliases
@@ -53,6 +57,17 @@ export class SyncRepository {
     this.#addSongAlias = db.prepare(
       'INSERT OR IGNORE INTO song_aliases (uid, song_id) VALUES (?, ?)',
     )
+    this.#mergedSong = db.prepare<[string], { id: number }>(
+      'SELECT song_id AS id FROM song_merges WHERE uid = ?',
+    )
+    this.#addMerge = db.prepare(`
+      INSERT INTO song_merges (uid, song_id) VALUES (?, ?)
+      ON CONFLICT (uid) DO UPDATE SET song_id = excluded.song_id
+    `)
+    this.#repointMerges = db.prepare('UPDATE song_merges SET song_id = ? WHERE song_id = ?')
+    this.#merges = db.prepare<[], { uid: string; target: string }>(`
+      SELECT m.uid, s.uid AS target FROM song_merges m JOIN songs s ON s.id = m.song_id
+    `)
     this.#tag = db.prepare<[string], { id: number; name: string }>(
       'SELECT id, name FROM tags WHERE uid = ?',
     )
@@ -134,6 +149,30 @@ export class SyncRepository {
    */
   addSongAlias(uid: string, songId: number): void {
     this.#addSongAlias.run(uid, songId)
+  }
+
+  /**
+   * The song a play, a tag or a playlist place naming `uid` lands on: the
+   * song itself, or the one a copy of that uid was folded into (`songMerged`).
+   * Never for an edit or a removal, which are about the copy that is gone.
+   */
+  playedSongId(uid: string): number | null {
+    return this.songId(uid) ?? this.#mergedSong.get(uid)?.id ?? null
+  }
+
+  /**
+   * Remember that the copy `uid` went into the song `songId`, and that every
+   * copy folded into the copy before went there too. Done before the copy's
+   * row goes, which would take those with it.
+   */
+  addMerge(uid: string, fromId: number, songId: number): void {
+    this.#repointMerges.run(songId, fromId)
+    this.#addMerge.run(uid, songId)
+  }
+
+  /** Every folded copy, as its uid and the uid of the song it went into. */
+  merges(): Map<string, string> {
+    return new Map(this.#merges.all().map(row => [row.uid, row.target]))
   }
 
   /** The tag a uid means here: its own, or the one it was folded into. */

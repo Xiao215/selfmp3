@@ -347,6 +347,12 @@ export const CloudSnapshotSchema = z.object({
    * that names the second uid still finds its tag.
    */
   aliases: z.record(UidSchema, UidSchema).optional(),
+  /**
+   * Songs folded into another copy of themselves (`songMerged`): the extra
+   * copy's uid, and the song it went into. A late play, tag or playlist place
+   * that names the extra copy lands on the song kept.
+   */
+  merged: z.record(UidSchema, UidSchema).optional(),
   /** Links asked for from any device in the last week, and how each went. */
   imports: z.array(CloudImportSchema).optional(),
   /** How to reach the server that wrote this, when a device is near enough to. */

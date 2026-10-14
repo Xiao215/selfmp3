@@ -109,7 +109,11 @@ describe('/api/cloud/uids', () => {
    * health is a captive portal by default: a 200 that is not the doorman's.
    * `snapshotBytes`, when given, is what the snapshot reads as instead.
    */
-  function device(health: unknown = '<html>Sign in to the Wi-Fi</html>', snapshotBytes?: string) {
+  function device(
+    health: unknown = '<html>Sign in to the Wi-Fi</html>',
+    snapshotBytes?: string,
+    snapshot: CloudSnapshot = SNAPSHOT,
+  ) {
     const data = new Map<string, unknown>()
     const clone = (value: unknown): unknown =>
       value === undefined ? null : JSON.parse(JSON.stringify(value))
@@ -131,7 +135,7 @@ describe('/api/cloud/uids', () => {
     }
 
     const files = new Map<string, unknown>([
-      ['snapshots/20260911T100000000Z-mac-3f9a1c2e.json', SNAPSHOT],
+      ['snapshots/20260911T100000000Z-mac-3f9a1c2e.json', snapshot],
     ])
     const reply = (status: number, body: unknown): Promise<CloudResponse> =>
       Promise.resolve({
@@ -193,6 +197,82 @@ describe('/api/cloud/uids', () => {
     const library = createCloudLibrary(platform, session)
     return { session, fetched, ...createCloudRoutes(platform, session, library) }
   }
+
+  /**
+   * A song held twice, folded into the copy kept on a signed-in device: the
+   * change goes in this device's log, and the library here is at once what
+   * every device and the server make of it (`songMerged`). The server takes
+   * the copy's play history across when it reads the log (cloudIngest.test.ts).
+   */
+  it('folds a copy into the song kept, its tags, love, places and plays with it', async () => {
+    const tag = { uid: uid('9'), name: 'rain', hue: 20 }
+    const made = device(undefined, undefined, {
+      ...SNAPSHOT,
+      songs: [
+        { ...song('a', 'アイドル'), playCount: 1, lastPlayedAt: '2026-09-02 10:00:00' },
+        {
+          ...song('b', 'アイドル'),
+          album: 'THE BOOK',
+          year: 2023,
+          loved: true,
+          playCount: 2,
+          lastPlayedAt: '2026-09-05 10:00:00',
+          tagUids: [tag.uid],
+          lyrics: {
+            key: `lyrics/${'b'.repeat(64)}.lrc`,
+            size: 10,
+            kind: 'synced',
+            romanized: null,
+          },
+        },
+      ],
+      tags: [tag],
+      playlists: [{ ...SNAPSHOT.playlists[0]!, songUids: [uid('b')] }],
+    })
+    await made.session.saveSession(SESSION)
+    const ids = (await made.cloudRequest('GET', '/api/cloud/uids', undefined)) as {
+      songs: { id: number; uid: string }[]
+    }
+    const idOf = (letter: string) => ids.songs.find(row => row.uid === uid(letter))!.id
+
+    expect(
+      await made.cloudRequest('POST', '/api/songs/merge', {
+        keep: idOf('a'),
+        songIds: [idOf('b')],
+      }),
+    ).toEqual({ merged: 1 })
+
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: {
+        id: number
+        album: string
+        year: number | null
+        loved: boolean
+        playCount: number
+        lastPlayedAt: string | null
+        lyricsKind: string
+        tagIds: number[]
+      }[]
+      tags: { id: number; name: string }[]
+      playlists: { id: number }[]
+    }
+    expect(library.songs).toHaveLength(1)
+    expect(library.songs[0]).toMatchObject({
+      id: idOf('a'),
+      album: 'THE BOOK',
+      year: 2023,
+      loved: true,
+      playCount: 3,
+      lastPlayedAt: '2026-09-05 10:00:00',
+      lyricsKind: 'synced',
+      tagIds: [library.tags.find(each => each.name === 'rain')!.id],
+    })
+    const mix = library.playlists[0]!.id
+    const inMix = (await made.cloudRequest('GET', `/api/playlists/${mix}/songs`, undefined)) as {
+      songIds: number[]
+    }
+    expect(inMix.songIds).toEqual([idOf('a')])
+  })
 
   it('names the uid behind each id this device handed out', async () => {
     const made = device()

@@ -105,20 +105,6 @@ to Google or reach a Tailscale address.
 | From the worker's DevTools, `GET /api/health` and a `POST` to the server's `100.x` and `ts.net` addresses: no prompt, no address-space error | Not recorded |
 | Google sign-in from the options page, with an allowed and a refused account | Not recorded |
 
-## Smart features
-
-What exists is in [features/ai.md](features/ai.md). The letters are the AI ideas canvas's
-(<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
-
-- **A4, the rest**: filling a missing album, year or cover from MusicBrainz/iTunes, and
-  near-duplicate songs. Put off on 2026-10-03 because the real library has nothing for them:
-  of 1,342 songs none lacks an album, a year or a cover, and the six title-and-artist pairs
-  that repeat are real versions (Bayan, Orchestral, "(II)", one theme on two soundtracks).
-  Worth building when an import source starts leaving gaps. The tool loop it would run in
-  exists now (`explore`, `llm.ts`).
-- **A9, the model's part**: a model reading each import row's names. The rules part is
-  built (repeats and translations at import), and nothing seen yet needs more.
-
 ## Tooling
 
 - **pnpm and Turborepo.** The 2026 default, deliberately not adopted: MOBILE.md records how

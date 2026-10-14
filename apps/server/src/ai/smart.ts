@@ -3,6 +3,8 @@ import type {
   AiCheck,
   AiSetup,
   AskAnswer,
+  ImportNames,
+  ImportNamesRequest,
   TidyResult,
   Wrapped,
   WrappedRange,
@@ -42,7 +44,14 @@ import {
   type GenerateRequest,
   type Llm,
 } from './llm.js'
-import { catalogueFinder, type FindNames, type MetadataLookup } from './names.js'
+import { importNames } from './importNames.js'
+import {
+  catalogueFinder,
+  listingFinder,
+  type FindListings,
+  type FindNames,
+  type MetadataLookup,
+} from './names.js'
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
@@ -75,6 +84,7 @@ export class SmartFeatures {
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
     findNames?: FindNames
+    findListings?: FindListings
     notes?: () => readonly string[]
     catalogue?: AskDeps['catalogue']
     web?: () => boolean
@@ -174,6 +184,11 @@ export class SmartFeatures {
     return tidy(this.#stoppedBy(signal))
   }
 
+  /** A9 · an import review's rows read for names that look wrong (`importNames.ts`). */
+  importNames(request: ImportNamesRequest, signal?: AbortSignal): Promise<ImportNames> {
+    return importNames(this.#stoppedBy(signal), request)
+  }
+
   /** Tags for the songs without one, as changes to approve (Tags' untagged card). */
   untaggedTags(): Promise<TagReview> {
     this.#untagged ??= tagReview(this.#deps, { text: null }).finally(() => {
@@ -248,6 +263,7 @@ export function smartFeaturesFor(sources: {
       songs: catalogue,
     },
     findNames: catalogueFinder({ netease: catalogue, lookup }),
+    findListings: listingFinder({ netease: catalogue, lookup }),
     lookup,
   })
 }

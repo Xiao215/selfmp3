@@ -39,7 +39,7 @@ import { shareObject } from './shareRoutes.js'
 const PREVIEWERS =
   /bot|crawler|spider|facebookexternalhit|slack|whatsapp|telegram|discord|embedly|iframely|skypeuripreview|linkedin|pinterest|vkshare|mastodon/i
 
-export function isPreviewer(userAgent: string | null): boolean {
+function isPreviewer(userAgent: string | null): boolean {
   return userAgent !== null && PREVIEWERS.test(userAgent)
 }
 
@@ -89,7 +89,7 @@ type Card = Omit<PreviewOptions, 'url' | 'open'>
  * Music's do; then what it is and who sent it. Once it has ended, the line
  * says so — a chat keeps a card long after the link is gone.
  */
-export function linkCard(link: ShareLink, at: { doorman: string; app: string }): Card {
+function linkCard(link: ShareLink, at: { doorman: string; app: string }): Card {
   const first = link.entries.find(entry => !entry.gone) ?? link.entries[0]
   const song = link.kind === 'song' ? (first?.song ?? null) : null
   const from = link.from.name

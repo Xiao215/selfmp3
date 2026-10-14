@@ -2,7 +2,7 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { View as RNView } from 'react-native'
-import { shortDeviceName, space, type, iconSize } from '@selfmp3/client'
+import { heardAt, shortDeviceName, space, type, iconSize } from '@selfmp3/client'
 import { formatRelative } from '@selfmp3/shared'
 
 import { ServerAway } from '../../connection/ServerAway'
@@ -76,6 +76,8 @@ export function DevicesSheet({
         </Text>
       ) : (
         devices.others.map(device => {
+          // The server's time, laid onto this device's clock before "ago" is worked out.
+          const seen = devices.heard ? heardAt(device.lastSeenAt, devices.heard) : device.lastSeenAt
           // Blank after translation: it is playing a song this library has no
           // number for, so there is nothing here that could be taken over.
           const named = device.state.songId !== null
@@ -88,10 +90,10 @@ export function DevicesSheet({
                   !named
                     ? device.state.playing
                       ? 'Playing something not in your storage'
-                      : `Nothing loaded · ${formatRelative(device.lastSeenAt)}`
+                      : `Nothing loaded · ${formatRelative(seen)}`
                     : device.state.playing
                       ? 'Playing now'
-                      : `Last seen ${formatRelative(device.lastSeenAt)}`
+                      : `Last seen ${formatRelative(seen)}`
                 }
                 disabled={!named}
                 onPress={() => {

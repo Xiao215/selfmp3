@@ -119,6 +119,21 @@ describe('DevicesSheet from a cloud library', () => {
     expect(screen.getByTestId('devices-server-looking')).toBeTruthy()
   })
 
+  it('says how long ago a device was seen on this device’s clock, not the server’s', async () => {
+    // The server's clock runs ten minutes ahead of this device's. The other
+    // device was heard from two minutes before the list was sent.
+    const now = Date.now()
+    const ahead = 10 * 60_000
+    mockContext = base({
+      reach: { state: 'reachable', connection: { baseUrl: 'http://x', token: null } },
+      heard: { serverNow: now + ahead, receivedAt: now },
+      others: [device({ state: state({ playing: false }), lastSeenAt: now + ahead - 2 * 60_000 })],
+    })
+    await draw()
+
+    expect(screen.getByText('Last seen 2m ago')).toBeTruthy()
+  })
+
   it('lists the other devices once the server is in reach', async () => {
     mockContext = base({
       reach: { state: 'reachable', connection: { baseUrl: 'http://x', token: null } },

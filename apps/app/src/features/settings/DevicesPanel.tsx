@@ -8,6 +8,7 @@ import {
   clientApi,
   deviceGroups,
   failureText,
+  heardAt,
   queryKeys,
   radius,
   STALE,
@@ -148,7 +149,7 @@ function DevicesList({
   devices: readonly Device[]
   onForget: (ids: readonly string[]) => void
 }): ReactNode {
-  const { deviceId, name, rename } = useDeviceContext()
+  const { deviceId, name, rename, heard } = useDeviceContext()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
   const [showOlder, setShowOlder] = useState(false)
   const shown = draft && draft.from === name ? draft.text : name
@@ -157,14 +158,24 @@ function DevicesList({
   // The last real answer, kept for the day there is none. Read once, as the
   // panel opens: the rows it draws do not change under the reader.
   const [known] = useState(() => parseKnownDevices(prefs.get(LAST_KNOWN_DEVICES_KEY)))
+  // Last seen as the server stamped it, laid onto this device's clock, so "ago"
+  // and the week below are right however far apart the two clocks are, and
+  // what is kept for a day with no server is in this device's time already.
+  const here = useMemo(
+    () =>
+      heard
+        ? devices.map(device => ({ ...device, lastSeenAt: heardAt(device.lastSeenAt, heard) }))
+        : devices,
+    [devices, heard],
+  )
   useEffect(() => {
-    if (live && devices.length > 0) {
-      prefs.set(LAST_KNOWN_DEVICES_KEY, serializeKnownDevices(devices, Date.now()))
+    if (live && here.length > 0) {
+      prefs.set(LAST_KNOWN_DEVICES_KEY, serializeKnownDevices(here, Date.now()))
     }
-  }, [live, devices])
+  }, [live, here])
   const listed = useMemo(
-    () => (live ? devices : knownAsDevices(known?.devices ?? [])),
-    [live, devices, known],
+    () => (live ? here : knownAsDevices(known?.devices ?? [])),
+    [live, here, known],
   )
 
   // Offline devices that share a name folded into one row; this device, what

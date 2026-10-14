@@ -36,33 +36,39 @@ function endingWords(endsAt: number, now: number): string {
   return sameLocalDay(endsAt, now) ? 'Ends tonight' : 'Ends tomorrow'
 }
 
-/** What its sender's songs are called: "this song", or "these songs". */
-function these(link: Pick<ShareLink, 'kind'>): string {
-  return link.kind === 'song' ? 'this song' : 'these songs'
-}
-
 /**
- * The line under a link's songs on its page: how long it has, or that it is
- * over. A play keeps a link longer only while the month has room.
+ * How long a link has, as the second half of its page's top line: "6 days
+ * left", "ends tonight", or that it is over.
  */
-export function shareTimeLine(
-  link: Pick<ShareLink, 'endsAt' | 'limitAt' | 'ended' | 'kind' | 'from'>,
-  now: number,
-): string {
+export function shareTimeLine(link: Pick<ShareLink, 'endsAt' | 'ended'>, now: number): string {
   const stage = shareStage(link, now)
   if (stage === 'ended') {
-    if (link.ended?.why === 'removed') return `${link.from.name} removed ${these(link)}`
-    return `Link ended ${shortDate(link.ended?.at ?? link.endsAt)}`
+    const at = shortDate(link.ended?.at ?? link.endsAt)
+    return link.ended?.why === 'removed' ? `removed ${at}` : `ended ${at}`
   }
-  if (stage === 'lastDay') return endingWords(link.endsAt, now)
-  const until = `Here until ${shortDate(link.endsAt)}`
-  return link.endsAt < link.limitAt ? `${until} · each play keeps it longer` : until
+  if (stage === 'lastDay') return endingWords(link.endsAt, now).toLowerCase()
+  return `${plural(daysLeft(link.endsAt, now), 'day', 'days')} left`
 }
 
 /** "Xiao sent you a song", or the list's own name. */
 export function shareFromLine(link: Pick<ShareLink, 'kind' | 'from' | 'entries'>): string {
   if (link.kind === 'song') return `${link.from.name} sent you a song`
   return `${link.from.name} sent you ${plural(link.entries.length, 'song', 'songs')}`
+}
+
+/**
+ * The top line of a link's page, beside its sender's face: who sent it, then
+ * how long it has, apart so the time can turn amber on its last day. Your own
+ * link says who opened it instead.
+ */
+export function shareHeadLine(link: ShareLink, now: number): { from: string; time: string } {
+  if (link.yours) {
+    return {
+      from: 'Your link',
+      time: sentLine({ ...link, songs: link.entries.length, cover: null }, now),
+    }
+  }
+  return { from: shareFromLine(link), time: shareTimeLine(link, now) }
 }
 
 /** A link in your Links you shared (F2): who opened it, and how long it has. */
@@ -133,4 +139,19 @@ export function sourceName(url: string): string {
   if (host.endsWith('spotify.com')) return 'Spotify'
   if (host.endsWith('bilibili.com') || host === 'b23.tv') return 'bilibili'
   return host || 'the web'
+}
+
+/**
+ * A lent song's romanized lines, from the JSON file the doorman lends beside
+ * its words; null when the file is not a list of lines, as a cloud library
+ * reads it.
+ */
+export function romanizedLines(json: string | null): string[] | null {
+  if (json === null) return null
+  try {
+    const value: unknown = JSON.parse(json)
+    return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
+  } catch {
+    return null
+  }
 }

@@ -53,6 +53,25 @@ the doorman lends exactly those to anyone with the link's key:
 Nobody can list the sender's library. If you already have the same song (same audio file, or
 same source link), your own copy plays.
 
+## The page
+
+`/l/<id>/<key>` (`features/share/ShareLinkScreen.tsx`), laid out like Apple Music's share
+page. Agreed with Xiao on 2026-10-14, picks F1 and F2.
+
+- **The ground** is washed in the first cover's colour, the way the phone's Now Playing is:
+  the colour, the cover blurred over it, a veil of the ground on top. Grey once it ends.
+- **The top line** is the sender's face and *Xiao sent you a song · 6 days left*
+  (`shareHeadLine`). On your own link it says who opened it.
+- **One song:** the big cover, the title and *artist · album* under it, then Play with the
+  seek bar beside it. The bar is there before Play, so nothing moves when it starts.
+- **Its words while it plays (F2).** A song with words shrinks its cover into a row, and the
+  words scroll in time below, Now Playing's own (`StageLyrics`). They are read from what the
+  link lends (`useLentWords`), only once the song is loaded. A tap on the row brings the
+  cover back.
+- **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then
+  the songs.
+- **Signed out**, a quiet line at the foot says what self.mp3 is and opens it.
+
 ## How long it lasts (B2)
 
 A link ends **a week after its last play**, and **a month after it was shared** at the
@@ -68,8 +87,8 @@ from later in the song still moves the end on, at most once every ten minutes.
 
 ## Before it ends (D1)
 
-From its last day, the page says **Ends tonight** or **Ends tomorrow**, in amber, and **Get
-it** becomes the main button. There is no notification.
+From its last day, the page's top line says **ends tonight** or **ends tomorrow**, in amber,
+and **Get it** becomes the main button. There is no notification.
 
 **Get it** is a room's Get it (`features/room/useGetSongs.ts`). Your own server imports the
 song from its source link into your bucket. It needs you signed in and your library's

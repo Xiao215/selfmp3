@@ -1,0 +1,78 @@
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  detectLyricsLanguage,
+  lyricTextLines,
+  parseLyrics,
+  type LyricsLanguage,
+  type ShareEntry,
+  type ShareLink,
+} from '@selfmp3/shared'
+import { resolveSongWords } from '../nowPlaying/nowPlaying.model'
+import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
+import type { SongLyrics } from '../nowPlaying/useSongWords'
+import { romanizedLines } from './share.model'
+import { shareApi } from './shareLinks'
+
+async function lentText(url: string): Promise<string> {
+  const answer = await fetch(url)
+  if (!answer.ok) throw new Error(`the doorman answered ${answer.status}`)
+  return answer.text()
+}
+
+/**
+ * A link's song's words, as Now Playing's words take them (`useSongWords`):
+ * read from what the link lends — the words, and their romanized lines beside
+ * them — rather than asked of a library, which a friend opening the link may
+ * not have. Asked for only once `asked` (the song is loaded), so a link that
+ * is only looked at costs its sender no reads. The files are named by their
+ * hash, so the answer never goes stale.
+ */
+export function useLentWords(
+  link: ShareLink,
+  entry: ShareEntry | undefined,
+  asked: boolean,
+): SongLyrics {
+  const lent = entry?.song.lyrics ?? null
+  const query = useQuery({
+    queryKey: ['share', 'words', link.id, entry?.id ?? ''],
+    enabled: asked && entry !== undefined && lent !== null,
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async () => {
+      const id = entry?.id ?? ''
+      const text = await lentText(shareApi.fileUrl(link, id, 'lyrics'))
+      // Words without their romanized lines are still the words.
+      const romanized = lent?.romanized
+        ? await lentText(shareApi.fileUrl(link, id, 'romanized')).catch(() => null)
+        : null
+      return { text, romanized: romanizedLines(romanized) }
+    },
+  })
+
+  const parsed = useMemo(() => (query.data ? parseLyrics(query.data.text) : null), [query.data])
+  const language: LyricsLanguage = useMemo(
+    () => (parsed ? detectLyricsLanguage(lyricTextLines(parsed)) : 'none'),
+    [parsed],
+  )
+  const romanizationOn = useRomanizationOn(language)
+  const words = resolveSongWords({
+    loading: query.isLoading,
+    parsed,
+    // A song lent without words, or whose words could not be read, has none here.
+    instrumental: lent === null || query.isError,
+    romanizationOn,
+    romanized: query.data?.romanized ?? null,
+    offline: false,
+  })
+  return {
+    words,
+    language,
+    romanizationOn,
+    setRomanization: (on: boolean) => {
+      if (language !== 'none') setRomanizationOn(language, on)
+    },
+    // There is nowhere else to look: the link lends what its sender has.
+    lookAgain: () => undefined,
+  }
+}

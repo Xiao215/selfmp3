@@ -4,8 +4,10 @@ import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
   gettable,
   receivedLine,
+  romanizedLines,
   sentLine,
   shareFromLine,
+  shareHeadLine,
   shareStage,
   shareTimeLine,
   shareTracks,
@@ -68,27 +70,25 @@ function summary(changes: Partial<ShareSummary> = {}): ShareSummary {
 }
 
 describe('a share link’s words', () => {
-  it('says how long it has, and that a play keeps it while the month has room', () => {
+  it('says how long it has', () => {
     expect(shareStage(link(), NOW)).toBe('live')
-    expect(shareTimeLine(link(), NOW)).toMatch(/^Here until .+ · each play keeps it longer$/)
-    expect(shareTimeLine(link({ endsAt: NOW + 2 * DAY, limitAt: NOW + 2 * DAY }), NOW)).toMatch(
-      /^Here until [^·]+$/,
-    )
+    expect(shareTimeLine(link(), NOW)).toBe('6 days left')
+    expect(shareTimeLine(link({ endsAt: NOW + DAY / 2 + DAY }), NOW)).toBe('2 days left')
   })
 
   it('says so on its last day', () => {
     const tonight = link({ endsAt: NOW + 6 * 60 * 60 * 1000 })
     expect(shareStage(tonight, NOW)).toBe('lastDay')
-    expect(shareTimeLine(tonight, NOW)).toBe('Ends tonight')
-    expect(shareTimeLine(link({ endsAt: NOW + 20 * 60 * 60 * 1000 }), NOW)).toBe('Ends tomorrow')
+    expect(shareTimeLine(tonight, NOW)).toBe('ends tonight')
+    expect(shareTimeLine(link({ endsAt: NOW + 20 * 60 * 60 * 1000 }), NOW)).toBe('ends tomorrow')
   })
 
   it('says it ended, or that its sender removed the song', () => {
     const ended = link({ endsAt: NOW - DAY, ended: { at: NOW - DAY, why: 'idle' } })
     expect(shareStage(ended, NOW)).toBe('ended')
-    expect(shareTimeLine(ended, NOW)).toMatch(/^Link ended /)
+    expect(shareTimeLine(ended, NOW)).toMatch(/^ended [^·]+$/)
     const removed = link({ ended: { at: NOW, why: 'removed' } })
-    expect(shareTimeLine(removed, NOW)).toBe('Xiao removed this song')
+    expect(shareTimeLine(removed, NOW)).toMatch(/^removed [^·]+$/)
     // Its time run out is ended, even before the doorman is asked again.
     expect(shareStage(link({ endsAt: NOW }), NOW)).toBe('ended')
   })
@@ -100,6 +100,17 @@ describe('a share link’s words', () => {
       entries: [link().entries[0]!, { id: 'bbbbbbbbbbbb', song: song(2), gone: false }],
     })
     expect(shareFromLine(list)).toBe('Xiao sent you 2 songs')
+  })
+
+  it('heads its page with who sent it and how long it has, or who opened yours', () => {
+    expect(shareHeadLine(link(), NOW)).toEqual({
+      from: 'Xiao sent you a song',
+      time: '6 days left',
+    })
+    expect(shareHeadLine(link({ yours: true, opened: ['Mia'] }), NOW)).toEqual({
+      from: 'Your link',
+      time: 'Opened by Mia · 6 days left',
+    })
   })
 
   it('tells its sender who opened it, and its friends whose it is', () => {
@@ -141,6 +152,16 @@ describe('a share link’s songs', () => {
     ]
     const library = libraryIndex([{ id: 9, path: song(3).audio?.key ?? '' } as Song])
     expect(gettable(link({ entries }), library).map(entry => entry.id)).toEqual(['aaaaaaaaaaaa'])
+  })
+})
+
+describe('a lent song’s romanized lines', () => {
+  it('are a list of lines, or nothing', () => {
+    expect(romanizedLines('["ni hao", ""]')).toEqual(['ni hao', ''])
+    expect(romanizedLines(null)).toBeNull()
+    expect(romanizedLines('{"a":1}')).toBeNull()
+    expect(romanizedLines('[1]')).toBeNull()
+    expect(romanizedLines('not json')).toBeNull()
   })
 })
 

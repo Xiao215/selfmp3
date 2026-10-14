@@ -166,6 +166,32 @@ it('copies the server’s token, showing only its address and the token’s end'
   client.clear()
 })
 
+/*
+ * The Shortcut needs the address as well, and a long ts.net address typed on
+ * a phone is where it goes wrong: the one the row shows can be copied too.
+ */
+it('copies the address it shows, beside the token', async () => {
+  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  await fireEvent.press(await screen.findByRole('button', { name: 'Copy address' }))
+  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(ADDRESS))
+  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Address copied']))
+  expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith(TOKEN)
+  await unmount()
+  client.clear()
+})
+
+it('offers no address to copy when it shows none', async () => {
+  // Only the server talking to itself: nothing a phone elsewhere could use.
+  named = { id: 'the-pi', addresses: ['http://localhost:4600'], token: TOKEN }
+  up = false
+  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  expect(await screen.findByRole('button', { name: 'Copy token' })).toBeTruthy()
+  expect(screen.getByText('token ending Ab3x')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Copy address' })).toBeNull()
+  await unmount()
+  client.clear()
+})
+
 it('offers the token while the server is away: copying it needs nothing from the server', async () => {
   up = false
   const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)

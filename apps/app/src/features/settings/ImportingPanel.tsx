@@ -17,7 +17,7 @@ import { Select } from '../../ui/components/Select'
 import { TagChooser } from '../../ui/components/TagChooser'
 import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row } from './SettingsParts'
-import { serverTokenHint } from './settings.model'
+import { addressForElsewhere, serverTokenHint } from './settings.model'
 import { useServerSettings } from './useServerSettings'
 
 /**
@@ -113,29 +113,44 @@ function useNamedServer(): { addresses: readonly string[]; token: string } | nul
  * (docs/features/share-to-import.md, browser-extension.md). The devices are
  * handed the token in the bucket; those are not, so it is copied from here.
  * It goes only to the clipboard: the row shows its last few characters.
- * Drawn whether or not the server answers just now, since copying it needs
- * nothing from the server.
+ * The address is shown whole and can be copied too, more quietly: typing a
+ * long ts.net address on a phone is where a Shortcut goes wrong. Offered only
+ * when there is one worth giving out (`addressForElsewhere`).
+ * Drawn whether or not the server answers just now, since copying either
+ * needs nothing from the server.
  */
 function TokenRow({
   server,
 }: {
   server: { addresses: readonly string[]; token: string }
 }): ReactNode {
+  const address = addressForElsewhere(server.addresses)
   return (
     <Row label="Shortcut and extension" hint={serverTokenHint(server.addresses, server.token)} last>
       <Button
         label="Copy token"
         icon={<Copy tone="textPrimary" />}
-        onPress={() =>
-          void copyText(server.token).then(done => {
-            if (done) showToast('Token copied', 'good')
-            else showToast('Couldn’t copy the token', 'error')
-          })
-        }
+        onPress={() => copy(server.token, 'token')}
         testID="importing-copy-token"
       />
+      {address ? (
+        <Button
+          label="Copy address"
+          variant="text"
+          onPress={() => copy(address, 'address')}
+          testID="importing-copy-address"
+        />
+      ) : null}
     </Row>
   )
+}
+
+/** To the clipboard, saying so either way. */
+function copy(text: string, what: 'token' | 'address'): void {
+  void copyText(text).then(done => {
+    if (done) showToast(what === 'token' ? 'Token copied' : 'Address copied', 'good')
+    else showToast(`Couldn’t copy the ${what}`, 'error')
+  })
 }
 
 /**

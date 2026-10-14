@@ -62,8 +62,9 @@ that token ([shared-server.md](shared-server.md)): each library on a server has 
 which reaches your devices in the bucket's snapshot so nobody types it. A Shortcut is not
 one of those devices, so it needs the token written into it. Any signed-in device has
 it: **Settings › Advanced › Importing** has a *Shortcut and extension* row that shows
-the server's public address and the token's last four characters, and **Copy token**
-puts the whole token on the clipboard. Without a device, it is your library's `token`
+the server's public address and the token's last four characters, **Copy token**
+puts the whole token on the clipboard, and **Copy address** (there whenever an address
+is shown) puts the address there too, so neither has to be typed on a phone. Without a device, it is your library's `token`
 in the server's `data/hub.json`, and the server prints it in its log when it starts
 holding a single library (`its token is …`). Send it as an
 `Authorization: Bearer <token>` header (or `?token=<token>` on the URL). A request
@@ -76,8 +77,9 @@ without one is refused with `401`.
    keep **URLs** and **Text** ticked. This makes the Shortcut receive whatever was shared.
 3. Add action **Get Contents of URL**:
    - URL: `https://<your server's public address>/api/import/share` — the `https://…ts.net`
-     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)), shown in
-     the app under Settings › Advanced › Importing.
+     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)). Tap
+     **Copy address** under Settings › Advanced › Importing, paste it, and add
+     `/api/import/share` after it.
    - Method: **POST**
    - Headers: `Authorization` → `Bearer <your token>` (from **Copy token** there)
    - Request Body: **JSON**, add a field `url` of type **Text** and set its value to the

@@ -13,13 +13,6 @@ export const HubWorkspaceSchema = z.object({
   songs: z.number().int().nonnegative(),
   /** Whether its bucket is reachable and connected. */
   connected: z.boolean(),
-  /**
-   * How it reaches its account's bucket: a grant the account gave this server;
-   * a device's sign-in from before workspaces, not yet swapped for one; or
-   * nothing — the folder bucket's library, or one from before that never
-   * signed in.
-   */
-  grant: z.enum(['granted', 'from-before', 'none']),
   joinedAt: z.string().nullable(),
 })
 export type HubWorkspace = z.infer<typeof HubWorkspaceSchema>

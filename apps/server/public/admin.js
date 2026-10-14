@@ -235,13 +235,6 @@ function button(action, label, { variant = '', disabled = false, library = null 
   }${disabled ? ' disabled' : ''}>${escape(label)}</button>`
 }
 
-/** How a library reaches its bucket, from `GET /api/hub`'s `grant`. */
-const ACCESS = {
-  granted: 'Through the grant its account gave this server',
-  'from-before': 'Through a sign-in from before grants, being swapped for one',
-  none: 'No way into its bucket until its account joins again',
-}
-
 /**
  * Whom the server works for: a row a library, each with how its publishing is
  * going and Publish now. Nothing here signs anyone in or out: a library is
@@ -288,11 +281,10 @@ function workspaceRow(workspace) {
     .join(' · ')
   return `<div class="row">
     <div>
-      <p class="row-label">${escape(workspace.email ?? 'Account not known yet')}
+      <p class="row-label">${escape(workspace.email ?? workspace.id)}
         <span class="tag">${escape(cloud ? stateLabel(cloud) : '')}</span></p>
       <p class="row-hint">${escape(facts)}</p>
-      <p class="row-hint">${escape(ACCESS[workspace.grant] ?? '')} ·
-        <span class="code">${escape(workspace.id)}</span></p>
+      <p class="row-hint"><span class="code">${escape(workspace.id)}</span></p>
       ${cloud ? uploading(cloud) : ''}
       ${cloud?.state === 'error' && cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}
     </div>

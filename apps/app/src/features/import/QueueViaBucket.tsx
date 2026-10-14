@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { failureText, useLibrary, useRequestCloudImport, space } from '@selfmp3/client'
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { failureText, sharedLinks, useLibrary, useRequestCloudImport, space } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
 import { NoticeCard, NoticeText } from '../../ui/components/NoticeCard'
@@ -28,13 +29,23 @@ import { TagChooser } from '../../ui/components/TagChooser'
  *
  * What is lost is the looking, not the importing: nothing here can say what a
  * link holds, or play it first, because only the server can read it at all.
+ *
+ * A link shared to Import (docs/features/share-to-import.md) lands in the box
+ * here too, as it lands in the import screen's when the server answers: the
+ * first link in what was shared, since that is the one the bucket is given.
+ * It waits for "Add for later" — nothing is imported without a press — and the
+ * share is cleared from the address once it is added, so a server that comes
+ * back in the meantime does not look it up again.
  */
 export function QueueViaBucket(): ReactNode {
   const accent = useAccent()
   const { data: library } = useLibrary()
   const queue = useRequestCloudImport()
+  const router = useRouter()
+  const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
+  const shared = sharedLinks(params)?.split('\n')[0] ?? null
 
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(shared ?? '')
   const [tagIds, setTagIds] = useState<ReadonlySet<number>>(new Set())
   const [added, setAdded] = useState(false)
 
@@ -54,6 +65,7 @@ export function QueueViaBucket(): ReactNode {
           setAdded(true)
           setUrl('')
           setTagIds(new Set())
+          if (shared) router.setParams({ url: undefined, text: undefined, title: undefined })
         },
       },
     )

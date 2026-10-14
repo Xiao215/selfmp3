@@ -141,10 +141,13 @@ stream through it without it holding them.
    range the player asks for — Safari's two-byte look first, a seek — is read from that
    download as it arrives; once it is all here the worker keeps it, the last ten songs played,
    under the file's key, so a replay, the next song preloaded and a reload cost nothing. A
-   range far past what has arrived is asked of the bucket by itself. A phone has
-   nowhere to put that header, so its twin of that port is null and a cloud song is
-   downloaded before it plays; the installed desktop app registers no worker and uses files
-   for the same reason.
+   range far past what has arrived is asked of the bucket by itself. An installed app streams
+   a song it has not downloaded too, without a worker: a phone's player sends the header with
+   each track (`apps/app/src/ports/bucketMedia.ts`), and the desktop app's `<audio>` element
+   asks the shell's own `app://selfmp3/_stream/<key>`, which the main process answers as
+   the worker does: one download of the whole song per play, every range read from it as it
+   arrives, and the last ten kept in a `played` folder (`apps/desktop/src/main/stream.ts`).
+   A phone's player asks the doorman for each range itself.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The server is special only because it can

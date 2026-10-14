@@ -30,7 +30,6 @@ import {
   useSameArray,
 } from '@selfmp3/client'
 import { installedApp } from '../ports/install'
-import { bucketMedia } from '../ports/bucketMedia'
 import {
   clearRecent,
   forgetRecent,
@@ -520,7 +519,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
         network: now.network,
         streamUndownloaded: now.prefs.streamUndownloaded,
         fromCloud: now.fromCloud,
-        bucketStreams: bucketMedia !== null,
         // Asked at the moment of playing, like the rest: a hold comes and goes
         // by the minute, and the player asks this for every song it lines up.
         bucketHeld: bucketHold('read') !== null,
@@ -560,7 +558,6 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
           asked.retry()
           return
         case 'streaming-off':
-        case 'cloud':
           downloadByHand([asked.songId])
           return
         case 'offline':

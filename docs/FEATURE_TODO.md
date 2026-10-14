@@ -55,14 +55,6 @@ iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678
 
 What exists is in [features/desktop-app.md](features/desktop-app.md).
 
-- **Streaming from the bucket.** A song the desktop has not downloaded does not play from
-  the bucket (`playBlock` answers `'cloud'`, `packages/client/src/downloads/syncPolicy.ts`),
-  because an `<audio>` element cannot send the doorman's header. The browser streams through
-  its service worker and the phone through its player, which takes headers with each track
-  (`apps/app/src/ports/bucketMedia.ts`); the desktop is the one platform left without. Its
-  equivalent is a range proxy in the main process at `app://selfmp3/_stream/<key>` that adds
-  the header: the service worker's `cloud` branch, in Node. Worth doing; not needed for
-  "download by default".
 - **Windows and Linux.** `electron-builder --win --linux` on their runners, deep-link
   registration through the NSIS installer, media keys through Chromium's controls, and a
   pass over the menu's accelerators. The targets are in `apps/desktop/electron-builder.yml`

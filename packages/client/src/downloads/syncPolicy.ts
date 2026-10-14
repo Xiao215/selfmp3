@@ -171,7 +171,7 @@ export function downloadAsk(
 }
 
 /** Why a song cannot start here, or null when it can. */
-export type PlayBlock = 'cloud' | 'offline' | 'held' | 'streaming-off' | 'data'
+export type PlayBlock = 'offline' | 'held' | 'streaming-off' | 'data'
 
 export function playBlock({
   downloaded,
@@ -179,7 +179,6 @@ export function playBlock({
   network,
   streamUndownloaded,
   fromCloud,
-  bucketStreams,
   bucketHeld,
   dataAllowed,
 }: {
@@ -189,18 +188,13 @@ export function playBlock({
   network: NetworkKind
   /** "Play songs that aren't downloaded". */
   streamUndownloaded: boolean
-  /** A library read from the cloud. */
-  fromCloud: boolean
   /**
-   * Whether this platform can play a bucket song without having it first.
-   *
-   * The doorman reads a bearer header and nothing else, so the question is
-   * only ever whether the thing that plays can be given one. A browser's
-   * service worker attaches it, and so does a phone's player, which takes
-   * headers with each track. The desktop shell's `<audio>` element has neither,
-   * so there a cloud song still has to arrive before it plays.
+   * A library read from the cloud. Every platform can play one of its songs
+   * without having it first, since what plays can be given the doorman's
+   * bearer header: a tab's service worker attaches it, a phone's player sends
+   * it with each track, and the desktop shell adds it in its main process.
    */
-  bucketStreams: boolean
+  fromCloud: boolean
   /**
    * The bucket refusing reads for the day (replica's `bucketHold`). A song not
    * on this device would be refused too: tried anyway, it fails, is retried
@@ -212,7 +206,6 @@ export function playBlock({
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
-  if (fromCloud && installed && !bucketStreams) return 'cloud'
   if (network === 'none') return 'offline'
   if (fromCloud && installed && bucketHeld) return 'held'
   if (!installed) return null

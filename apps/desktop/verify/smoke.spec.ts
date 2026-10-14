@@ -116,7 +116,7 @@ test.describe('the shell', () => {
     }
   })
 
-  test('is an installed app, so it downloads rather than streams', async () => {
+  test('is an installed app, so it downloads ahead', async () => {
     const app = await launchApp()
     try {
       const page = await app.firstWindow()
@@ -955,6 +955,222 @@ test.describe('an application, not a page', () => {
   })
 })
 
+/**
+ * A bucket song the computer has not downloaded, streamed through
+ * `app://selfmp3/_stream/<key>`: Electron's own scheme handler and network
+ * stack, and a real `<audio>` element, in front of a stand-in doorman that
+ * reads the bearer header and answers ranges as the real one does. The proxy
+ * against the real doorman is apps/desktop/src/main/stream.test.ts.
+ */
+test.describe('streams from the bucket', () => {
+  const SONG = `audio/${'5'.repeat(64)}.wav`
+  const CAPPED = `audio/${'6'.repeat(64)}.wav`
+  const song = wav(3)
+  const seen: { path: string; auth: string | undefined; range: string | undefined }[] = []
+  let server: Server
+  let doorman = ''
+
+  test.beforeAll(async () => {
+    server = createServer((request, response) => {
+      const path = decodeURIComponent(request.url ?? '')
+      seen.push({ path, auth: request.headers.authorization, range: request.headers.range })
+      if (request.headers.authorization !== 'Bearer t') {
+        response.writeHead(401, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ error: 'Sign in again', code: 'unauthorized' }))
+        return
+      }
+      if (path === `/v1/files/${CAPPED}`) {
+        response.writeHead(502, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify({ error: 'The allowance is used up', code: 'bucket_cap_exceeded' }),
+        )
+        return
+      }
+      if (path !== `/v1/files/${SONG}`) {
+        response.writeHead(404).end()
+        return
+      }
+      const match = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range ?? '')
+      const start = match ? Number(match[1]) : 0
+      const end =
+        match && match[2] !== '' ? Math.min(Number(match[2]), song.length - 1) : song.length - 1
+      response.setHeader('Accept-Ranges', 'bytes')
+      response.setHeader('Content-Type', 'audio/wav')
+      response.setHeader('Content-Length', String(end - start + 1))
+      if (match) response.setHeader('Content-Range', `bytes ${start}-${end}/${song.length}`)
+      response.writeHead(match ? 206 : 200)
+      response.end(song.subarray(start, end + 1))
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    doorman = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`
+  })
+
+  test.afterAll(() => {
+    server.close()
+  })
+
+  test('plays and seeks a song it does not have, asking the bucket for it once', async () => {
+    const app = await launchApp()
+    try {
+      const page = await settledPage(app)
+      seen.length = 0
+
+      const result = await page.evaluate(
+        async ({ doormanUrl, key }) => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.bucket.use({ doormanUrl, token: 't' })
+          const url = desktop.bucket.streamUrl(key)
+
+          const ranged = await fetch(url, { headers: { Range: 'bytes=100-199' } })
+          const rangedLength = (await ranged.arrayBuffer()).byteLength
+
+          // As the engine plays it: credentials, so the analyser may read it.
+          const audio = new Audio()
+          audio.crossOrigin = 'use-credentials'
+          audio.preload = 'auto'
+          const loaded = new Promise<string>(resolve => {
+            audio.addEventListener('loadedmetadata', () => resolve('loaded'), { once: true })
+            audio.addEventListener('error', () => resolve(`error ${audio.error?.code}`), {
+              once: true,
+            })
+          })
+          audio.src = url
+          const state = await loaded
+          const seeked = new Promise<void>(resolve =>
+            audio.addEventListener('seeked', () => resolve(), { once: true }),
+          )
+          audio.currentTime = 2
+          await seeked
+
+          // The page keeping a copy of the song it played: from the shell's
+          // disk, through the same address, not from the bucket again.
+          const copy = await desktop.files.download({
+            id: 'played-copy',
+            kind: 'recent',
+            name: 'copy.wav',
+            url,
+          })
+          return {
+            copy,
+            url,
+            rangedStatus: ranged.status,
+            contentRange: ranged.headers.get('Content-Range'),
+            rangedLength,
+            state,
+            duration: audio.duration,
+            at: audio.currentTime,
+          }
+        },
+        { doormanUrl: doorman, key: SONG },
+      )
+
+      expect(result.url).toBe(`app://selfmp3/_stream/${SONG}`)
+      expect(result.rangedStatus).toBe(206)
+      expect(result.contentRange).toBe(`bytes 100-199/${song.length}`)
+      expect(result.rangedLength).toBe(100)
+      expect(result.state).toBe('loaded')
+      expect(result.duration).toBeCloseTo(3, 1)
+      expect(result.at).toBeCloseTo(2, 1)
+      expect(result.copy).toEqual({ state: 'done', bytes: song.length })
+      // A range, the element's own ranges, a seek and a copy: one read of the
+      // bucket, for the whole song, with the session.
+      expect(seen).toEqual([{ path: `/v1/files/${SONG}`, auth: 'Bearer t', range: undefined }])
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('the bucket’s cap reaches the page and holds the next asks; a session over is said so', async () => {
+    const app = await launchApp()
+    try {
+      const page = await settledPage(app)
+      seen.length = 0
+
+      const result = await page.evaluate(
+        async ({ doormanUrl, capped, song: songKey }) => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          const heard: string[] = []
+          const stop = desktop.bucket.onCapped(message => heard.push(message))
+
+          await desktop.bucket.use({ doormanUrl, token: 'expired' })
+          const over = await fetch(desktop.bucket.streamUrl(songKey))
+          const overBody = (await over.json()) as { code: string }
+
+          await desktop.bucket.use({ doormanUrl, token: 't' })
+          const first = await fetch(desktop.bucket.streamUrl(capped))
+          const firstBody = (await first.json()) as { code: string }
+          for (let attempt = 0; attempt < 50 && heard.length === 0; attempt += 1) {
+            await new Promise(resolve => setTimeout(resolve, 20))
+          }
+          // Held: answered by the shell, with nothing asked of the bucket.
+          const held = await fetch(desktop.bucket.streamUrl(songKey))
+          stop()
+          return {
+            overStatus: over.status,
+            overCode: overBody.code,
+            firstStatus: first.status,
+            firstCode: firstBody.code,
+            heard,
+            heldStatus: held.status,
+          }
+        },
+        { doormanUrl: doorman, capped: CAPPED, song: SONG },
+      )
+
+      expect(result.overStatus).toBe(401)
+      expect(result.overCode).toBe('unauthorized')
+      expect(result.firstStatus).toBe(502)
+      expect(result.firstCode).toBe('bucket_cap_exceeded')
+      expect(result.heard).toEqual(['The allowance is used up'])
+      expect(result.heldStatus).toBe(502)
+      expect(seen.map(request => request.path)).toEqual([
+        `/v1/files/${SONG}`,
+        `/v1/files/${CAPPED}`,
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+/**
+ * The window once the app has drawn: it tells the shell it is signed out as
+ * it mounts (`bucket.use(null)`), and a session a test hands over before that
+ * would be taken back from under it.
+ */
+async function settledPage(app: Awaited<ReturnType<typeof launchApp>>) {
+  const page = await app.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await expect(page.locator('body')).toContainText(/self\.mp3/i, { timeout: 30_000 })
+  return page
+}
+
+/** `seconds` of a quiet tone as a WAV: something Chromium decodes, made here rather than kept. */
+function wav(seconds: number): Buffer {
+  const rate = 8000
+  const samples = rate * seconds
+  const data = Buffer.alloc(samples * 2)
+  for (let index = 0; index < samples; index += 1) {
+    data.writeInt16LE(Math.round(Math.sin((index / rate) * 2 * Math.PI * 440) * 1000), index * 2)
+  }
+  const header = Buffer.alloc(44)
+  header.write('RIFF', 0)
+  header.writeUInt32LE(36 + data.length, 4)
+  header.write('WAVE', 8)
+  header.write('fmt ', 12)
+  header.writeUInt32LE(16, 16)
+  header.writeUInt16LE(1, 20)
+  header.writeUInt16LE(1, 22)
+  header.writeUInt32LE(rate, 24)
+  header.writeUInt32LE(rate * 2, 28)
+  header.writeUInt16LE(2, 32)
+  header.writeUInt16LE(16, 34)
+  header.write('data', 36)
+  header.writeUInt32LE(data.length, 40)
+  return Buffer.concat([header, data])
+}
+
 test.describe('connects and plays', () => {
   test('a row plays from a server, and the bar shows it', async () => {
     test.skip(
@@ -1027,6 +1243,11 @@ test.describe('connects and plays', () => {
 interface DesktopForTest {
   info: Record<string, unknown>
   mediaUrl(kind: string, name: string): string
+  bucket: {
+    use(session: { doormanUrl: string; token: string } | null): Promise<void>
+    streamUrl(key: string): string
+    onCapped(listener: (message: string) => void): () => void
+  }
   onProgress(
     listener: (progress: { id: string; bytesWritten: number; totalBytes: number }) => void,
   ): () => void

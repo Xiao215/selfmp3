@@ -2,6 +2,7 @@ import type { MediaRoutes } from '../api/mediaAddress.model'
 import type { BucketMediaSetup } from './bucketMedia.types'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
+import { desktopBucketMedia } from './desktop/bucketMedia.desktop'
 
 /**
  * Addresses this platform can have answered from the bucket, for a library
@@ -19,14 +20,15 @@ import { desktop } from './desktop/bridge'
  * free to name the revision — which is how a replaced cover defeats the cache
  * it is otherwise stored in forever.
  *
+ * The installed desktop app registers no worker on purpose
+ * (src/ports/serviceWorker.web.ts); its shell attaches the header instead, at
+ * an address of its own (`desktop/bucketMedia.desktop.ts`).
+ *
  * Null wherever nothing would answer, because an address nobody answers is
  * worse than none: the page would be handed the app's own `index.html` as a
  * song, and "it plays silence" is a much harder bug than "it says it cannot
  * play this".
  *
- *  - **The installed desktop app.** It registers no worker on purpose
- *    (src/ports/serviceWorker.web.ts): `app://selfmp3` is registered without
- *    `allowServiceWorkers`, and the shell keeps songs and covers as files.
  *  - **Development.** No worker is registered there either — it would cache
  *    the dev server's modules and hide every change.
  *  - **A browser without service workers**, such as a tab on plain http.
@@ -38,17 +40,19 @@ function withRev(path: string, rev: string | undefined): string {
   return rev ? `${appPath(path)}?v=${encodeURIComponent(rev)}` : appPath(path)
 }
 
-export const bucketMedia: MediaRoutes | null = answered
-  ? {
-      stream: (songId, rev) => withRev(`api/stream/${songId}`, rev),
-      /*
-       * No `size`: a server resizes a cover and the bucket does not, so asking
-       * for one would only split the worker's cache across callers that ask
-       * for different sizes of the single picture there is.
-       */
-      art: (songId, rev) => withRev(`api/art/${songId}`, rev),
-    }
-  : null
+export const bucketMedia: MediaRoutes | null = desktopBucketMedia
+  ? desktopBucketMedia.routes
+  : answered
+    ? {
+        stream: (songId, rev) => withRev(`api/stream/${songId}`, rev),
+        /*
+         * No `size`: a server resizes a cover and the bucket does not, so asking
+         * for one would only split the worker's cache across callers that ask
+         * for different sizes of the single picture there is.
+         */
+        art: (songId, rev) => withRev(`api/art/${songId}`, rev),
+      }
+    : null
 
 /**
  * The address a bucket picture that no song id names — an artist's — is drawn
@@ -61,7 +65,10 @@ export function bucketPictureAddress(key: string): string | null {
 }
 
 /**
- * Nothing to be told: the service worker looks a song's key and the session up
- * for itself, out of IndexedDB. Here so both twins answer to the same name.
+ * Nothing to be told in a tab: the service worker looks a song's key and the
+ * session up for itself, out of IndexedDB. The desktop's shell cannot, and is
+ * told both.
  */
-export function configureBucketMedia(_setup: BucketMediaSetup | null): void {}
+export function configureBucketMedia(setup: BucketMediaSetup | null): void {
+  desktopBucketMedia?.configure(setup)
+}

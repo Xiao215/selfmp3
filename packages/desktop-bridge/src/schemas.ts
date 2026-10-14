@@ -155,9 +155,11 @@ export type UpdateStatus = z.infer<typeof updateStatusSchema>
  * name: each is a directory under `userData`, and a `kind` that could be
  * anything would be a path the renderer chose. `recent` holds cloud songs kept
  * because they were played — a cache, apart from the downloads in `songs`, so
- * it never counts as "on this computer".
+ * it never counts as "on this computer". `played` is the shell's own: the last
+ * few songs streamed from the bucket, each fetched whole once
+ * (`main/stream.ts`); the page only ever clears it.
  */
-export const fileKindSchema = z.enum(['songs', 'covers', 'recent'])
+export const fileKindSchema = z.enum(['songs', 'covers', 'recent', 'played'])
 export type FileKind = z.infer<typeof fileKindSchema>
 
 /**
@@ -240,3 +242,20 @@ export const usageSchema = z.object({
   free: z.number().int().nonnegative(),
 })
 export type Usage = z.infer<typeof usageSchema>
+
+/**
+ * The doorman session the shell streams bucket songs with, or null once signed
+ * out (`bucket.use`). The page holds it in IndexedDB beside the replica and
+ * hands it over; the shell keeps it in memory and nowhere else, and never
+ * sends it anywhere but the doorman it names.
+ */
+export const streamSessionSchema = z
+  .object({
+    doormanUrl: externalUrlSchema,
+    token: z.string().min(1).max(4096),
+  })
+  .nullable()
+export type StreamSession = z.infer<typeof streamSessionSchema>
+
+/** The doorman's words for a bucket refusing for the day, as the page shows them. */
+export const bucketCappedSchema = z.string().max(1000)

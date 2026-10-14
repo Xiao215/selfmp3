@@ -16,6 +16,7 @@ import {
   loginItemOpenSchema,
   secretKeySchema,
   secretValueSchema,
+  streamSessionSchema,
   transferIdSchema,
   type DesktopInfo,
 } from '@selfmp3/desktop-bridge'
@@ -25,6 +26,7 @@ import * as updates from './updates.js'
 
 import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
+import type { StreamProxy } from './stream.js'
 
 /**
  * One handler per channel, each parsing what it was given.
@@ -56,9 +58,11 @@ export function desktopInfo({ development }: { development: boolean }): DesktopI
 export function registerIpc({
   info,
   window: window_,
+  stream,
 }: {
   readonly info: DesktopInfo
   readonly window: () => BrowserWindow | null
+  readonly stream: StreamProxy
 }): void {
   // Answered synchronously: the preload reads it at load, before the page runs.
   ipcMain.on(CHANNELS.info, event => {
@@ -125,6 +129,10 @@ export function registerIpc({
   ipcMain.handle(CHANNELS.filesClear, (_event, kind: unknown) =>
     files.clear(fileKindSchema.parse(kind)),
   )
+
+  ipcMain.handle(CHANNELS.bucketUse, (_event, session: unknown) => {
+    stream.use(streamSessionSchema.parse(session))
+  })
 
   ipcMain.handle(CHANNELS.openExternal, async (_event, url: unknown) => {
     await shell.openExternal(externalUrlSchema.parse(url))

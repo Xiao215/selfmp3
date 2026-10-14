@@ -34,7 +34,9 @@ import {
   CLOUD_SESSION_KEY,
   DOORMAN_PATHS,
   HASH_FILE_NAME,
+  PLAYED_KEPT,
   REFRESH_HEADER,
+  WAIT_AHEAD_BYTES,
   parseDoormanRefusal,
   parseRange,
   relayedRange,
@@ -220,16 +222,6 @@ async function handleAudio(request: Request, url: URL, event: FetchEvent): Promi
     })
   }
 }
-
-/** How many songs the worker keeps whole for having played them. */
-const PLAYED_KEPT = 10
-
-/**
- * How far past what has arrived a range may start and still wait for the
- * download under way, rather than ask the bucket for itself: a second or two
- * of a song arriving, against a request of its own.
- */
-const WAIT_AHEAD_BYTES = 2 * 1024 * 1024
 
 /** Whole downloads under way, by bucket key. */
 const arriving = new Map<string, Arriving>()

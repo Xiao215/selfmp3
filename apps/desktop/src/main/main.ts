@@ -1,15 +1,17 @@
 import { join } from 'node:path'
 
-import { app } from 'electron'
+import { app, net } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { EVENTS } from '@selfmp3/desktop-bridge'
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
 import { DeepLinks, deepLinkFromArgv, followPage } from './deepLinks.js'
+import { directoryFor } from './files.js'
 import { desktopInfo, registerIpc } from './ipc.js'
 import { buildMenu } from './menu.js'
 import { startNowPlaying } from './nowPlaying.js'
 import { handleAppScheme, registerAppScheme } from './protocol.js'
+import { createStreamProxy } from './stream.js'
 import { createWindow, preloadPath } from './window.js'
 
 /**
@@ -104,15 +106,22 @@ if (!app.requestSingleInstanceLock()) {
         app.setAsDefaultProtocolClient(DEEP_LINK_SCHEME)
       }
 
+      // Chromium's network stack, as downloads use: the system's proxy and certificates.
+      const stream = createStreamProxy({
+        fetch: (url, init) => net.fetch(url, init),
+        onCapped: message => mainWindow?.webContents.send(EVENTS.bucketCapped, message),
+        dir: directoryFor('played'),
+      })
       handleAppScheme({
         web: WEB_ROOT,
         devOrigin: devUrl === null ? null : new URL(devUrl).origin,
+        stream,
       })
 
       const info = desktopInfo({ development: devUrl !== null })
       openWindow()
 
-      registerIpc({ info, window: currentWindow })
+      registerIpc({ info, window: currentWindow, stream })
       buildMenu(currentWindow)
       startNowPlaying(currentWindow)
 

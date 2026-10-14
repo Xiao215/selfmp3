@@ -13,7 +13,8 @@ import { desktop } from './bridge'
  * songs from the bucket every day.
  *
  * A folder of its own, apart from `songs`, so a copy never counts as "on this
- * computer" and Settings' usage leaves it out. Asking for the song by hand
+ * computer" and Settings' usage leaves it out. It is copied from the song the
+ * shell streamed, never fetched from the bucket a second time. Asking for the song by hand
  * moves its copy into `songs` (`adoptRecent`) instead of fetching it again.
  */
 
@@ -42,7 +43,18 @@ function copiesOver(bridge: DesktopBridge): RecentCopies<FileKind> {
     move: async (fileName, destination) =>
       (await bridge.files.move(KIND, destination, fileName))?.bytes ?? null,
     delete: fileName => void bridge.files.delete(KIND, fileName).catch(() => undefined),
-    clear: () => void bridge.files.clear(KIND).catch(() => undefined),
+    // The shell's own played songs go too: they are copies of the same songs,
+    // kept for the same reason, and this is signing out or "Remove all".
+    clear: () => {
+      void bridge.files.clear(KIND).catch(() => undefined)
+      void bridge.files.clear('played').catch(() => undefined)
+    },
+    /*
+     * The song that just played is on the shell's disk already, streamed
+     * whole once (apps/desktop/src/main/stream.ts): asked for at its stream
+     * address, the copy is read from there rather than from the bucket again.
+     */
+    source: song => ({ url: bridge.bucket.streamUrl(song.path) }),
     async free() {
       try {
         return (await bridge.files.usage()).free

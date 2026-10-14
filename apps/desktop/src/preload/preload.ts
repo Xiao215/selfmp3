@@ -5,6 +5,8 @@ import {
   CHANNELS,
   EVENTS,
   MEDIA_PREFIX,
+  STREAM_PREFIX,
+  bucketCappedSchema,
   commandSchema,
   deepLinkSchema,
   desktopInfoSchema,
@@ -121,6 +123,17 @@ const bridge: DesktopBridge = {
    */
   mediaUrl: (kind: FileKind, name: string) =>
     `${APP_ORIGIN}${MEDIA_PREFIX}${kind}/${encodeURIComponent(name)}`,
+
+  bucket: {
+    use: async session => {
+      await ipcRenderer.invoke(CHANNELS.bucketUse, session)
+    },
+    // A key's parts each encoded, so its slashes stay slashes, as the doorman's own path has them.
+    streamUrl: (key: string) =>
+      `${APP_ORIGIN}${STREAM_PREFIX}${key.split('/').map(encodeURIComponent).join('/')}`,
+    onCapped: listener =>
+      subscribe(EVENTS.bucketCapped, value => bucketCappedSchema.parse(value), listener),
+  },
 
   openExternal: async url => {
     await ipcRenderer.invoke(CHANNELS.openExternal, url)

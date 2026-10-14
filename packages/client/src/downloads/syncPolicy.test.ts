@@ -127,7 +127,6 @@ describe('playing a song that is not downloaded', () => {
     network: 'wifi' as const,
     streamUndownloaded: true,
     fromCloud: false,
-    bucketStreams: false,
     bucketHeld: false,
     dataAllowed: false,
   }
@@ -139,7 +138,6 @@ describe('playing a song that is not downloaded', () => {
         ...song,
         downloaded: true,
         fromCloud: true,
-        bucketStreams: true,
         bucketHeld: true,
       }),
     ).toBeNull()
@@ -150,7 +148,6 @@ describe('playing a song that is not downloaded', () => {
   })
 
   it('says why it cannot', () => {
-    expect(playBlock({ ...song, fromCloud: true })).toBe('cloud')
     expect(playBlock({ ...song, network: 'none' })).toBe('offline')
     expect(playBlock({ ...song, streamUndownloaded: false })).toBe('streaming-off')
     expect(playBlock({ ...song, network: 'cellular' })).toBe('data')
@@ -158,13 +155,14 @@ describe('playing a song that is not downloaded', () => {
   })
 
   /*
-   * A phone's player takes headers with each track, so it can be handed the
-   * doorman's bearer and stream a bucket song like any other. What is left in
-   * its way is only what stands in the way of any stream: no signal, the
-   * setting, and mobile data nobody agreed to.
+   * A phone's player takes headers with each track, and the desktop shell adds
+   * them in its main process, so either can be handed the doorman's bearer and
+   * stream a bucket song like any other. What is left in its way is only what
+   * stands in the way of any stream: no signal, the setting, and mobile data
+   * nobody agreed to.
    */
-  describe('an installed app that can stream from the bucket', () => {
-    const cloud = { ...song, fromCloud: true, bucketStreams: true }
+  describe('an installed app streaming from the bucket', () => {
+    const cloud = { ...song, fromCloud: true }
 
     it('plays a cloud song it has not downloaded, on Wi-Fi', () => {
       expect(playBlock(cloud)).toBeNull()
@@ -187,11 +185,6 @@ describe('playing a song that is not downloaded', () => {
       // browser's service worker may have the song kept.
       expect(playBlock({ ...song, bucketHeld: true })).toBeNull()
       expect(playBlock({ ...cloud, installed: false, bucketHeld: true })).toBeNull()
-    })
-
-    it('leaves one that cannot waiting for the file, as before', () => {
-      // The desktop shell: an `<audio>` element, and no worker to sign for it.
-      expect(playBlock({ ...cloud, bucketStreams: false })).toBe('cloud')
     })
   })
 

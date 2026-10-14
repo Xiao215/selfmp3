@@ -58,6 +58,12 @@ interface RecentFolder<Destination> {
   clear(): void
   /** Free space on the disk, or null when it will not say. */
   free(): Promise<number | null>
+  /**
+   * Where to fetch a song's copy from, when this platform has somewhere better
+   * than the bucket: the desktop shell has the song it just streamed on its
+   * disk already. Left out, the bucket through the doorman (`sourceFor`).
+   */
+  source?(song: SongFile): { url: string; headers?: Record<string, string> }
 }
 
 export interface RecentCopies<Destination> {
@@ -221,7 +227,7 @@ export function createRecentCopies<Destination>(
         // The bucket refusing for the day: the song plays from the stream, and is kept another time.
         if (bucketHold('read')) return
         // Signed in is the only case this is called in, so there is no server to name.
-        const from = await sourceFor(song, null)
+        const from = folder.source?.(song) ?? (await sourceFor(song, null))
         const bytes = await folder.fetch(fileName, from.url, from.headers)
         if (bytes === null) return
         kept.set(song.id, { playedAt: Date.now(), fileName, bytes })

@@ -5,10 +5,17 @@ import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
 import { fileEtag, answerRange } from '@selfmp3/shared'
-import { APP_ORIGIN, APP_SCHEME, MEDIA_PREFIX, fileKindSchema } from '@selfmp3/desktop-bridge'
+import {
+  APP_ORIGIN,
+  APP_SCHEME,
+  MEDIA_PREFIX,
+  STREAM_PREFIX,
+  fileKindSchema,
+} from '@selfmp3/desktop-bridge'
 
 import { directoryFor } from './files.js'
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
+import type { StreamProxy } from './stream.js'
 
 /**
  * `app://selfmp3/` — where the page lives.
@@ -48,6 +55,8 @@ interface ProtocolRoots {
    * the only thing that reads it.
    */
   readonly devOrigin: string | null
+  /** Bucket songs not on this computer, through the doorman (`stream.ts`). */
+  readonly stream: StreamProxy
 }
 
 export function handleAppScheme(roots: ProtocolRoots): void {
@@ -56,6 +65,11 @@ export function handleAppScheme(roots: ProtocolRoots): void {
 
     if (url.pathname.startsWith(MEDIA_PREFIX)) {
       return serveMedia(request, url.pathname, roots.devOrigin)
+    }
+    if (url.pathname.startsWith(STREAM_PREFIX)) {
+      const key = bucketKey(url.pathname.slice(STREAM_PREFIX.length))
+      if (key === null) return notFound()
+      return roots.stream.serve(request, key, allowedOrigin(request, roots.devOrigin))
     }
 
     const resolved = resolveWithinRoot(roots.web, url.pathname)
@@ -142,10 +156,8 @@ async function serveMedia(
     lastModified: stats.mtime,
   })
 
-  const origin = request.headers.get('Origin')
-  const ours = origin !== null && (origin === APP_ORIGIN || origin === devOrigin)
   const headers = new Headers(answer.headers)
-  headers.set('Access-Control-Allow-Origin', ours ? origin : APP_ORIGIN)
+  headers.set('Access-Control-Allow-Origin', allowedOrigin(request, devOrigin))
   headers.set('Access-Control-Allow-Credentials', 'true')
 
   if (answer.status === 416 || answer.length === 0) {
@@ -157,6 +169,25 @@ async function serveMedia(
     ) as ReadableStream,
     { status: answer.status, headers },
   )
+}
+
+/**
+ * The origin a media answer's CORS pair names: the asker's when it is one the
+ * page is served from, else the app's own — never whatever asked (see
+ * `serveMedia` for why).
+ */
+function allowedOrigin(request: Request, devOrigin: string | null): string {
+  const origin = request.headers.get('Origin')
+  return origin !== null && (origin === APP_ORIGIN || origin === devOrigin) ? origin : APP_ORIGIN
+}
+
+/** A bucket key out of the address, each part decoded; null for one that does not decode. */
+function bucketKey(encoded: string): string | null {
+  try {
+    return encoded.split('/').map(decodeURIComponent).join('/')
+  } catch {
+    return null
+  }
 }
 
 /** A file's stats, or null when there is no file there — nothing, or a directory. */

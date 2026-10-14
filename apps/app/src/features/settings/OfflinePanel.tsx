@@ -103,14 +103,13 @@ export function OfflinePanel({
         label={`Play songs that aren’t on this ${place}`}
         hint={
           fromCloud
-            ? `Your library is in your storage, so only songs on this ${place} play.`
+            ? 'Streams them from your storage.'
             : 'Streams them while your library is reachable.'
         }
         last
       >
         <Toggle
-          value={prefs.streamUndownloaded && !fromCloud}
-          disabled={fromCloud}
+          value={prefs.streamUndownloaded}
           onChange={streamUndownloaded => setPrefs({ streamUndownloaded })}
           label={`Play songs that aren’t on this ${place}`}
           testID="setting-stream"

@@ -43,14 +43,42 @@ names none, never by anything typed (`packages/client/src/connection/reach.ts`,
 Every connection on a computer counts as Wi-Fi, so the 500 MB ask and the two
 offline settings behave as they do on a phone at home.
 
-**A song must be on the computer before it plays.** A tab streams a bucket song
-through its service worker and a phone through its player, both of which can
-send the doorman's bearer header; the window's `<audio>` element cannot, and the
-shell registers no service worker. So a song that is not downloaded asks to be
-downloaded first (`playBlock('cloud')` in `packages/client/src/downloads/syncPolicy.ts`).
-Since the app downloads by default this is rarely met. A range proxy in the main
-process that adds the header is the fix, listed in
-[`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
+**A song not on the computer streams.** The doorman reads a bearer header and
+nothing else, and the window's `<audio>` element cannot send one. A tab's
+service worker attaches it and a phone's player sends it; here the shell does.
+The page points the element at `app://selfmp3/_stream/<key>`
+(`apps/app/src/ports/desktop/bucketMedia.desktop.ts`), and the main process
+answers it the way a tab's worker does (`apps/desktop/src/main/stream.ts`).
+
+**One read of the bucket per song.** Backblaze counts every request against a
+daily allowance, and an `<audio>` element asks in ranges: a first look, the rest,
+one per seek, the next song's preload. So the first request for a song starts
+one download of the whole file from the doorman, with the header, into the
+`played` folder under `userData`, and every range is answered from that file as
+its bytes arrive, so playback starts without waiting for the end and a seek
+backwards or to what has arrived costs nothing. Once whole it is kept: the last
+ten songs played (shared's `PLAYED_KEPT`, the worker's count too), the least
+recently played going first, so a replay, even after a relaunch, is from disk.
+The one exception is the worker's too: a range more than 2 MB past what has
+arrived (`WAIT_AHEAD_BYTES`, a song resumed half-way on a slow connection) is
+asked of the doorman by itself rather than waited for.
+
+The session is the page's: it is kept in IndexedDB beside the replica, where the
+main process cannot read it, so the page hands it over (`bucket.use`, only when
+it changes) and the shell holds it in memory only.
+
+The refusals are the service worker's too. A 401, a session that is over, goes
+back as the doorman said it, and the player shows its words. The bucket's cap
+is held for ten minutes, answered from the shell without asking, and told to the
+page, whose own reads then hold off and say why. With no connection the song is
+not tried at all: the player says the computer is offline. A song that stopped
+arriving half-way is not kept, and is fetched again next time.
+
+A downloaded song plays from disk as before. With "Download automatically" off,
+a song that counts as a play is also kept in the `recent` folder by the phone's
+rules (`ports/desktop/recentCopies.desktop.ts`); it is copied from the stream
+address, so from the `played` folder, never fetched from the bucket a second
+time. Signing out and "Remove all" empty both folders.
 
 ## What it is not
 
@@ -72,6 +100,7 @@ process that adds the header is the fix, listed in
 | The contract between them | `packages/desktop-bridge/src/` |
 | The desktop's ports in the renderer | `apps/app/src/ports/desktop/` |
 | The `Range` rule both the server and the shell answer with | `packages/shared/src/range.ts` |
+| Bucket songs not on the computer, through the doorman | `apps/desktop/src/main/stream.ts` |
 | The smoke flow, against the built app | `apps/desktop/verify/smoke.spec.ts` |
 | Packaging, the signing tiers, and the icon | `apps/desktop/electron-builder.yml`, `apps/desktop/scripts/dist.mjs` |
 | The release workflow | `.github/workflows/desktop.yml` |
@@ -126,8 +155,10 @@ What was checked before choosing it:
 - The shell has no native modules and no runtime dependencies: esbuild bundles
   main and preload, `electron` excepted. Keep it that way; a native module brings
   a rebuild step for Electron's Node ABI into every build.
-- Tokens go through `desktop.secrets` (`safeStorage`, encrypted at rest in
-  `userData/secrets.json`) and nowhere else.
+- Tokens the page stores itself go through `desktop.secrets` (`safeStorage`,
+  encrypted at rest in `userData/secrets.json`). The doorman session is the
+  exception: the replica keeps it in its platform store, which on a computer is
+  IndexedDB, as in a tab (`apps/app/src/ports/cloudPlatform.web.ts`).
 - An unsigned build is ad-hoc signed. Downloaded through a browser it carries
   the quarantine flag and macOS calls it damaged until you use Privacy &
   Security › Open Anyway, or `xattr -dr com.apple.quarantine`. A build made on

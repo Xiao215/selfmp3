@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -25,7 +25,8 @@ import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
 import { newPlaylist } from '../playlists/playlists.model'
-import { forgetPastRoom, lentCoverKey, usePastRooms, withYourPicture } from './pastRooms.store'
+import { forgetPastRoom, usePastRooms, withYourPicture } from './pastRooms.store'
+import { usePastRoomCovers } from './usePastRoomCovers'
 import { RoomFaces } from './RoomFace'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
@@ -33,9 +34,6 @@ import { sayRoomFailure } from './roomFailure'
 import { useGetSongs } from './useGetSongs'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
 import { ScrollView } from '../../ui/components/Scroll'
-import { ROW_COVER_SIZE } from '../../offline/coverStore'
-import { useArt } from '../../offline/useArt'
-import { keepLent, pictureFor, picturesVersion, subscribePictures } from '../../offline/covers'
 
 /** The name a guest last joined with, offered again. */
 const GUEST_NAME_KEY = 'room.name'
@@ -192,19 +190,8 @@ export function PastRoomScreen(): ReactNode {
   const past = usePastRooms().find(room => room.code === code)
   const { data: library } = useLibrary()
   const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
-  const byId = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library?.songs],
-  )
-  const artFor = useArt(ROW_COVER_SIZE)
+  const covers = usePastRoomCovers(past)
   const yourPicture = useCloudSession().data?.picture
-  // Read so that a friend's kept cover, found on the disk, draws again.
-  useSyncExternalStore(subscribePictures, picturesVersion)
-  useEffect(() => {
-    for (const key of past?.songs.flatMap(lentCoverKey) ?? []) {
-      if (!pictureFor(key)) void keepLent(key)
-    }
-  }, [past])
   const { getting, get } = useGetSongs()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const [saving, setSaving] = useState(false)
@@ -311,19 +298,13 @@ export function PastRoomScreen(): ReactNode {
           from, into your own library.
         </Text>
         {past.songs.map((entry, at) => {
-          const id = yours[at] ?? null
-          const mine = id !== null
+          const mine = yours[at] !== null
           const source = entry.song.sourceUrl
-          // The room lent its covers only while it was open: a song you have
-          // draws your own copy's, a friend's the copy kept as it played, and
-          // a link the picture its page showed.
-          const own = id !== null ? byId.get(id) : undefined
-          const lent = entry.song.cover ? pictureFor(entry.song.cover.key) : undefined
           return (
             <RoomEntryLine
               key={`${at}-${entry.song.title}`}
               song={entry.song}
-              uri={own ? artFor(own) : (lent ?? entry.song.artwork)}
+              uri={covers[at]}
               face={withYourPicture(
                 { name: entry.by, colour: entry.colour, picture: entry.picture },
                 yourPicture,

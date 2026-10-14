@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import { useRecentRooms, withYourPicture } from '../room/pastRooms.store'
 import { FacesCover } from '../room/RoomFace'
+import { usePastRoomCovers } from '../room/usePastRoomCovers'
 import { TogetherCard } from '../room/Together'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
@@ -661,8 +662,8 @@ function Recents({
 
 /**
  * A room listened in together, once it ended (docs/features/listen-together.md,
- * mock R11): who was there, as their faces. Opens the room's page, to save it
- * or get a friend's song.
+ * mock R11): who was there, as their faces, big in the middle of the covers of
+ * what played. Opens the room's page, to save it or get a friend's song.
  */
 function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
   const router = useRouter()
@@ -672,13 +673,19 @@ function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNo
   const faces = (others.length > 0 ? others : room.people).map(person =>
     withYourPicture(person, yours),
   )
+  // The songs that played behind them, as a playlist's cover is made.
+  const pictures = usePastRoomCovers(room)
+  const covers = room.songs.map((entry, at) => ({
+    uri: pictures[at],
+    title: entry.song.album || entry.song.title,
+  }))
   return (
     <ShelfCard
       width={size}
       testID={`home-recent-room-${room.code}`}
       onPress={() => router.push({ pathname: '/past-room/[code]', params: { code: room.code } })}
       label={`Open ${room.title}`}
-      cover={<FacesCover people={faces} size={size} />}
+      cover={<FacesCover people={faces} size={size} covers={covers} />}
       title={room.title}
       lines={[`Together · ${plural(room.songs.length, 'song', 'songs')}`]}
     />

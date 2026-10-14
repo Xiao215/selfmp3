@@ -66,8 +66,11 @@ export type Reach =
 
 /** One of the server's addresses to try: a connection, and who must answer there. */
 export interface Candidate extends ServerConnection {
-  /** The id the snapshot named (`CloudServerSchema.id`), which `/api/health` must answer with. */
-  readonly serverId: string
+  /**
+   * The id the snapshot named (`CloudServerSchema.id`), which `/api/health`
+   * must answer with; undefined when the snapshot named none.
+   */
+  readonly serverId: string | undefined
 }
 
 /** The server's addresses as connections to try, its token and its id riding along. */
@@ -90,7 +93,9 @@ export function candidates(server: CloudServer | null): Candidate[] {
  */
 export function answersAs(health: unknown, candidate: Candidate): boolean {
   const parsed = HealthSchema.safeParse(health)
-  return parsed.success && parsed.data.serverId === candidate.serverId
+  if (!parsed.success) return false
+  // A snapshot that named no server id can only be held to an answer.
+  return candidate.serverId === undefined || parsed.data.serverId === candidate.serverId
 }
 
 /**

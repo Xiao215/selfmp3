@@ -305,8 +305,13 @@ export const CloudServerSchema = z.object({
    * server, not this one, and a Wi-Fi address on someone else's Wi-Fi is
    * someone else's. A device takes an address only when what answers there
    * says this id (`packages/client/src/connection/reach.ts`).
+   *
+   * Optional because a bucket has to stay readable whatever wrote its newest
+   * snapshot: one from a server that did not name itself yet, or from a server
+   * that is gone, is still the library. Without an id a device takes any
+   * address that answers, as it always has.
    */
-  id: z.string().min(1),
+  id: z.string().min(1).optional(),
   addresses: z.array(z.string().url()).max(16),
   token: z.string().nullable(),
 })

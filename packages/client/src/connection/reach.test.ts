@@ -84,6 +84,12 @@ describe('answersAs', () => {
     expect(answersAs('<html>a router’s login page</html>', home)).toBe(false)
   })
 
+  it('holds a snapshot that named no server only to answering', () => {
+    const [unnamed] = candidates({ ...server, id: undefined }) as [Candidate]
+    expect(answersAs(health('any-server'), unnamed)).toBe(true)
+    expect(answersAs({ ok: true }, unnamed)).toBe(false)
+  })
+
   /*
    * 2026-10-14: the real app on the Mac, signed in to a library served from
    * the Pi, raced the Pi's addresses — `http://localhost:4600` among them,

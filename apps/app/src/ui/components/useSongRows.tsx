@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
-import type { ComponentProps, ReactElement, ReactNode } from 'react'
+import type { ComponentProps, ReactElement, ReactNode, RefObject } from 'react'
 import type { GestureResponderEvent } from 'react-native'
 import type { Song } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
@@ -10,6 +10,7 @@ import { useListKeys } from '../../selection/useListKeys'
 import { modifiersOf, type Selection } from '../../selection/useSelection'
 import { useSongTagLookup } from '../songTags'
 import { useRowAvailability } from '../useRowAvailability'
+import type { FlatList } from './Scroll'
 import { SongRow } from './SongRow'
 import { useRowTagPicker } from './useRowTagPicker'
 import { useSongMenu } from './useSongMenu'
@@ -30,6 +31,11 @@ interface SongRows {
   readonly press: (event: GestureResponderEvent, song: Song) => void
   /** The song menu, and the tag window where rows show tags: drawn once for the list. */
   readonly menu: ReactNode
+  /**
+   * The list these rows are drawn in: a `SongList`'s `listRef`. Tab coming
+   * back to a row scrolled far out of the drawn ones scrolls the list to it.
+   */
+  readonly listRef: RefObject<FlatList<Song> | null>
 }
 
 /**
@@ -102,6 +108,7 @@ export function useSongRows({
   const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
   // A drag from a ticked row carries every ticked song.
   const dragSongs = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
+  const listRef = useRef<FlatList<Song>>(null)
   // On a computer's keyboard: the arrows, Space for the tick, ⌘A for all.
   const listKey = useListKeys({
     toggle: songId => latest.current.selection.toggle(songId),
@@ -109,6 +116,15 @@ export function useSongRows({
       const now = latest.current
       if (now.ids.length === 0) return false
       now.selection.selectAll()
+      return true
+    },
+    // The list's own scroll to a row by its place, which draws the row there;
+    // the keys find it once it is drawn. In the middle, clear of any bar.
+    reveal: songId => {
+      const index = latest.current.ids.indexOf(songId)
+      const list = listRef.current
+      if (index < 0 || !list) return false
+      list.scrollToIndex({ index, viewPosition: 0.5, animated: false })
       return true
     },
   })
@@ -168,6 +184,7 @@ export function useSongRows({
     renderSong,
     rowProps,
     press,
+    listRef,
     menu: (
       <>
         {songMenu.menu}

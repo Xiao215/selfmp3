@@ -474,6 +474,77 @@ test.describe('selecting songs', () => {
   })
 
   /**
+   * Tab comes back to the row the keyboard was last on even once the list has
+   * scrolled so far away that it no longer draws that row: the list scrolls
+   * back to it, and it has the keyboard, in view. It used to come in on the
+   * first row in view instead. Either way in: Shift+Tab from after the list,
+   * Tab from before it.
+   */
+  test('Tab comes back to a row scrolled far out of the drawn ones', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone has no Tab key')
+    test.setTimeout(60_000)
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      songs: { missing: boolean }[]
+    }
+    test.skip(
+      library.songs.filter(song => !song.missing).length < 90,
+      'needs a library of 90 songs or more, longer than the rows a list draws at once',
+    )
+    await page.setViewportSize({ width: 1280, height: 420 })
+    await openLibrary(page)
+    await libraryReady(page)
+
+    const grid = page.getByRole('grid', { name: /songs$/ })
+    const pressAt = (position: number): Locator =>
+      grid.locator(`[aria-rowindex="${position}"] [data-row-press]`)
+    const inRows = (): Promise<boolean> =>
+      page.evaluate(() => document.activeElement?.closest('[role="row"]') != null)
+    /** Whether the row is wholly inside the list's box: in view, not just drawn. */
+    const shown = (position: number): Promise<boolean> =>
+      grid.evaluate((list, at) => {
+        const row = list.querySelector(`[aria-rowindex="${at}"]`)
+        if (!row) return false
+        const box = row.getBoundingClientRect()
+        const frame = list.getBoundingClientRect()
+        return box.height > 0 && box.top >= frame.top - 1 && box.bottom <= frame.bottom + 1
+      }, position)
+    const scrollAway = async (): Promise<void> => {
+      // A step at a time, as a wheel does, so the list follows each one.
+      for (let step = 0; step < 14; step += 1) {
+        await grid.evaluate(el => el.scrollBy({ top: 400 }))
+        await page.waitForTimeout(100)
+      }
+      await expect(pressAt(31)).toHaveCount(0)
+    }
+
+    await page.getByTestId('library-search').focus()
+    for (let press = 0; press < 40 && !(await inRows()); press += 1) {
+      await page.keyboard.press('Tab')
+    }
+    for (let press = 0; press < 30; press += 1) await page.keyboard.press('ArrowDown')
+    await expect(pressAt(31)).toBeFocused()
+
+    // Out past the list, which then scrolls far away; Shift+Tab comes back to the row.
+    await page.keyboard.press('Tab')
+    expect(await inRows()).toBe(false)
+    await scrollAway()
+    await page.keyboard.press('Shift+Tab')
+    await expect(pressAt(31)).toBeFocused()
+    await expect.poll(() => shown(31)).toBe(true)
+
+    // From before the list, Tab the same.
+    await page.getByTestId('library-search').focus()
+    await scrollAway()
+    for (let press = 0; press < 40 && !(await inRows()); press += 1) {
+      await page.keyboard.press('Tab')
+    }
+    await expect(pressAt(31)).toBeFocused()
+    await expect.poll(() => shown(31)).toBe(true)
+    // Still one stop: no other row's target is in Tab's way.
+    expect(await grid.locator('[role="row"] [data-row-press][tabindex="0"]').count()).toBe(1)
+  })
+
+  /**
    * With a mouse, a ticked row dragged onto a playlist in the sidebar carries
    * every ticked song; it used to carry only the one under the pointer. The
    * playlist is put back as it was afterwards.

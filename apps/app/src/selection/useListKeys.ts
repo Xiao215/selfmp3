@@ -10,6 +10,12 @@ interface ListKeyActions {
   readonly toggle: (songId: number) => void
   /** ⌘A or Ctrl+A: select every song in the list. False when there is none to select. */
   readonly selectAll: () => boolean
+  /**
+   * Tab coming back to a row the list no longer draws: scroll the list to that
+   * song, so that it draws the row. False when the song is not in the list
+   * any more (removed, filtered out), or the list cannot scroll to it.
+   */
+  readonly reveal: (songId: number) => boolean
 }
 
 /**

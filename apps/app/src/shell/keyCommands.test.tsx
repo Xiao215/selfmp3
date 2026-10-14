@@ -158,7 +158,9 @@ describe('key commands on an iPad', () => {
 
   it('selects every song with ⌘A, not under an open layer, and leaves ⌘A to a field', async () => {
     const selectAll = jest.fn(() => true)
-    const list = await renderHook(() => useListKeys({ toggle: jest.fn(), selectAll }))
+    const list = await renderHook(() =>
+      useListKeys({ toggle: jest.fn(), selectAll, reveal: jest.fn() }),
+    )
     await settle()
     expect(native.commands).toEqual([
       { input: 'a', modifiers: ['command'], title: 'Select all songs', whileTyping: false },

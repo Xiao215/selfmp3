@@ -264,6 +264,7 @@ export function OrderedSongList({
             songs={songs}
             label={label}
             renderSong={renderSong}
+            listRef={rows.listRef}
             header={header}
             pinned={pinned}
             empty={empty}

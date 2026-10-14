@@ -16,7 +16,7 @@ const SONG_ID = 'data-song-id'
 export const ROW_MORE = 'data-row-more'
 
 /** The rows of `listKey` that are drawn, in the list's order. */
-export function rowsOf(listKey: string): HTMLElement[] {
+function rowsOf(listKey: string): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>(`[${SONG_ROW}]`)).filter(
     row => row.getAttribute(SONG_ROW) === listKey,
   )
@@ -61,12 +61,18 @@ export function controlsOf(row: HTMLElement): HTMLElement[] {
   )
 }
 
+/** The drawn row of `listKey` that is `songId`, or null. */
+export function rowOfSong(listKey: string, songId: number): HTMLElement | null {
+  return rowsOf(listKey).find(row => songOf(row) === songId) ?? null
+}
+
 /**
  * Where Tab comes into a list: the row the keyboard or a click was last on,
  * while it is drawn. A list draws only rows within a few screens of where it
- * is scrolled, so a row that is not drawn has been scrolled well away from;
- * then the first row in view rather than a jump back to it, and with no row
- * in view, the first one drawn.
+ * is scrolled, so one that is not drawn has been scrolled well away from:
+ * then the first row in view, and with no row in view, the first one drawn —
+ * the stop Tab can land on at once, before the list is scrolled back to the
+ * row it was on (`useListKeys.web.ts`).
  */
 export function entryRow(listKey: string, activeId: number | null): HTMLElement | null {
   const rows = rowsOf(listKey)

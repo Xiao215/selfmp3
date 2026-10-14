@@ -1,7 +1,7 @@
 import { useLayoutEffect } from 'react'
 
 import type { useRowFocus as SameShape } from './useRowFocus'
-import { listRowOf, lostFocus, nothingFocused, pressOf, rowsOf, songOf } from './listRows'
+import { listRowOf, lostFocus, nothingFocused, pressOf, rowOfSong, songOf } from './listRows'
 
 /**
  * A song row keeping the keyboard's place in its list as it scrolls away and
@@ -22,7 +22,7 @@ export const useRowFocus: typeof SameShape = (listKey, songId) => {
     if (listKey === undefined) return
     if (lostFocus.get(listKey) === songId && nothingFocused()) {
       lostFocus.delete(listKey)
-      const row = rowsOf(listKey).find(each => songOf(each) === songId)
+      const row = rowOfSong(listKey, songId)
       const target = row ? pressOf(row) : null
       target?.focus({ preventScroll: true })
     }

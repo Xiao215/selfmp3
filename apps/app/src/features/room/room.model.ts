@@ -1,6 +1,8 @@
 import {
   canAct,
   playedEntries,
+  plural,
+  ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
   soundCentre,
@@ -13,6 +15,7 @@ import {
 } from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
+import type { RoomStart } from './roomSheets.store'
 
 /**
  * What a device makes of the room it is in (docs/features/listen-together.md):
@@ -44,6 +47,16 @@ export function youMay(state: RoomState, type: RoomAction['type']): boolean {
 /** The people still in the room, the host first. */
 export function peopleHere(state: RoomState): RoomMember[] {
   return state.members.filter(member => !member.left)
+}
+
+/**
+ * Who came into the room since `seen` (the ids here before), leaving you out:
+ * the friend whose face springs in, with a tap on the phone (M2). Nobody, the
+ * first time a room is seen, since everyone in it was already there.
+ */
+export function arrivals(seen: ReadonlySet<string> | null, state: RoomState): RoomMember[] {
+  if (seen === null) return []
+  return peopleHere(state).filter(member => member.id !== state.you && !seen.has(member.id))
 }
 
 /** A face's letter: the first of the name, as a person would write it. */
@@ -193,8 +206,9 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
 /**
  * What the host's player should do about the room as it now is.
  *
- * - `start`: nothing of the room is playing and the player is free, and the
- *   room has songs waiting: play them, from the first.
+ * - `start`: nothing of the room is playing and the player is free — or the
+ *   room was opened to take over from it — and the room has songs waiting:
+ *   play them, from the first.
  * - `follow`: the player is on the room's song: keep what comes after it the
  *   room's list.
  * - `advance`: the player ran out on the room's last song, and a song has
@@ -215,6 +229,8 @@ export function hostPlan(
     readonly playing: boolean
     /** The player stopped because its list ran out. */
     readonly ranOut: boolean
+    /** The room was opened to play over your own music (`RoomStartHint`). */
+    readonly takeOver?: boolean
   },
 ): HostPlan {
   const upcoming = state.order.map(roomTrackId)
@@ -226,7 +242,7 @@ export function hostPlan(
       ? { kind: 'advance', upcoming }
       : { kind: 'follow', upcoming }
   }
-  if (state.playing === null && !player.playing && upcoming.length > 0) {
+  if (state.playing === null && (!player.playing || player.takeOver) && upcoming.length > 0) {
     return { kind: 'start', ids: upcoming }
   }
   return { kind: 'none' }
@@ -419,4 +435,28 @@ export function soundTarget(
     return vector ? [vector] : []
   })
   return soundCentre(heard)
+}
+
+// --- what a room starts with ------------------------------------------------------
+
+/**
+ * The songs a room opened from here starts with, as the sheet names them
+ * (Xiao 2026-10-14): the song playing, from the player; a list's, from its ⋯
+ * or from Ask; nothing, from Home. Only songs of your own library — a room's
+ * songs are positive ids — and never more than a room keeps waiting.
+ */
+export function startingSongs(
+  start: RoomStart,
+  playing: { readonly id: number; readonly title: string } | null,
+): { readonly ids: readonly number[]; readonly title: string } {
+  if (start.kind === 'songs') {
+    const ids = start.songIds.filter(id => id > 0).slice(0, ROOM_MAX_WAITING)
+    return ids.length > 0
+      ? { ids, title: `${start.name} · ${plural(ids.length, 'song', 'songs')}` }
+      : { ids: [], title: 'Nothing yet' }
+  }
+  if (start.kind === 'playing' && playing && playing.id > 0) {
+    return { ids: [playing.id], title: playing.title }
+  }
+  return { ids: [], title: 'Nothing yet' }
 }

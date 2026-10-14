@@ -604,6 +604,25 @@ was. Going back is the song before in the queue, never this song from its start 
 an answer comes back the song is past the three seconds after which the Previous button
 restarts it — and going back, like a song in Up next, plays the song it lands on.
 
+## Listening together
+
+"Start a room", "open a jam with some upbeat songs" and "songs for the room: something chill"
+make the router choose `together` (docs/features/listen-together.md). When the words say what
+music, it fills the filters and the songs are picked as Describe picks them. When they only
+ask for the room, there are no filters and no songs. The answer is `{ kind: 'together',
+describe }`, the same whether or not the device is in a room, because only the device knows
+that.
+
+The device (`TogetherAnswer.tsx`) draws the songs as a card that opens the answer's page,
+beside one button:
+
+- out of a room, **Start a room**. It opens Together starting with those songs, or empty, so
+  nothing starts until Start is pressed;
+- in a room, **Add to Xiao's room**, or **Open the room** when no songs were asked for.
+
+An empty room's **Ask for songs** opens Search with *Songs for the room:* typed in, and the
+rest is yours to say.
+
 ## A5 · The Report in words
 
 The Report (`/stats/report`, opened from Stats or Profile), under the page: "✦ In words",
@@ -643,14 +662,16 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: a switch per feature
 
-Five switches, kept with the other settings (`smartAsk`, `smartTidy`, `smartTags`,
+Five switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags`,
 `smartWritten`, `smartMetadata`, all on by default): Ask in Search (which also covers New
 playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes),
 the Report in words and Fix song info's Suggested card. A sixth, Search the web
 (`smartWeb`), is off by default, and the remembered preferences are listed under them. Each
 says what of the library it shows the model, in a line, because "the model sees your
-library" is too vague to agree to and each sees less than that. Off, the way in is not
-drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any
+library" is too vague to agree to and each sees less than that. Settings reads and writes them
+on the server itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy
+of the library keeps no settings. Off, the way in is not drawn (`useSmartSwitches`, which asks
+the server presence has already found, so it costs no probe) and the server refuses the route with 403 `ai_disabled` before any
 model is asked; Ask routing to Tidy up or Tags while it is off answers that it is off.
 `routes/ai.test.ts` counts the calls a real endpoint on a free port receives: none.
 

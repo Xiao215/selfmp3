@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
+import Reanimated, {
+  Easing as ReanimatedEasing,
+  FadeIn,
+  withDelay,
+  withTiming,
+  type EntryAnimationsValues,
+} from 'react-native-reanimated'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -13,8 +20,8 @@ import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { PanelDenseContext, usePanelDense } from './panel'
 import { Press } from './Press'
 import { floating, rowTitle, menuItem, menuItemDense } from '../surfaces'
-import { ease, spring, timing } from '../motion'
-import { MOVE_MS, OPACITY, overshootRange, PULL } from '../motion.model'
+import { ease, nativeDriver, spring, timing, useMotionReduced } from '../motion'
+import { MOVE_MS, OPACITY, OVERSHOOT_S, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
 
 /**
@@ -22,6 +29,55 @@ import { useKeyboardLift } from '../../ports/keyboardLift'
  * and `ConfirmDialog`, which is the same fade-and-settle asking a question.
  */
 export const DIALOG_RISE = 10
+
+/**
+ * Whether a phone's sheet rises as Reanimated's entering animation, which
+ * starts on the UI thread the moment the panel is on screen. Everywhere but a
+ * browser, which runs the rise with `Animated` as before.
+ *
+ * Over the phone's Now Playing — a native modal, and a heavy page — the panel
+ * reached the screen long after a rise sent from JavaScript had begun, whether
+ * from an effect or from its first layout: the first sheet opened there (the
+ * room's Together, the song's ⋯) simply appeared, its rise spent off screen.
+ */
+const RISE_ON_MOUNT = nativeDriver
+
+/**
+ * How long a phone's sheet waits below the foot before it rises: the frames
+ * right after it mounts are spent laying it out and drawing it for the first
+ * time, and a rise begun at once lost its first third to them.
+ */
+const MOUNT_SETTLE_MS = 60
+
+/** A phone's sheet rising by its own height from below the foot, a little past its place and back. */
+function riseOnMount(values: EntryAnimationsValues) {
+  'worklet'
+  return {
+    initialValues: { transform: [{ translateY: values.targetHeight }] },
+    animations: {
+      transform: [
+        {
+          translateY: withDelay(
+            MOUNT_SETTLE_MS,
+            withTiming(0, {
+              duration: MOVE_MS.sheetUp,
+              easing: ReanimatedEasing.out(ReanimatedEasing.back(OVERSHOOT_S)),
+            }),
+          ),
+        },
+      ],
+    },
+  }
+}
+
+/** The dim behind a phone's sheet, coming in with it. */
+const DIM_IN = FadeIn.duration(MOVE_MS.sheetUp).delay(MOUNT_SETTLE_MS)
+
+/** How long a phone's sheet waits for its panel's first layout before it rises regardless. */
+const LAYOUT_WAIT_MS = 400
+
+/** A change of height smaller than this is simply taken, not eased. */
+const GROW_AT_LEAST = 8
 
 /**
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
@@ -104,16 +160,28 @@ export function Sheet({
   // Every sheet — menus, the tag picker, sleep — can be pulled away by its
   // head; `pull` is how far a finger has pulled it, added to its rise.
   const { pull, gesture: pullDown } = useSheetPull(onClose)
+  // How far the panel is still below its new top, after its content grew.
+  const [grow] = useState(() => new Animated.Value(0))
   // Whether this opening's rise has already been sent. A sheet's height changes
   // while it is up — the tag picker's list shortens as you type — and without
   // this the rise would play again every time it did.
   const risen = useRef(false)
+  // The panel's height as last laid out while up, for easing a change in it.
+  const lastHeight = useRef(0)
   // Whether it has been open since it last went down: a sheet that has never
   // been opened has no exit to play. Most are mounted closed — every list's
   // song menu, its tag picker — and each would otherwise send two moves on mount.
   const up = useRef(false)
   // Escape closes it on the web. Nothing on a phone.
   useEscape(open, onClose, { layer: true })
+  const reduced = useMotionReduced()
+  /** In a browser, a narrow window's sheet rising once each time it opens: up from below the foot, past its place, and back. */
+  const startRise = useCallback(() => {
+    if (risen.current || !up.current) return
+    risen.current = true
+    pull.setValue(0)
+    timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
+  }, [progress, pull])
 
   useEffect(() => {
     if (!open) {
@@ -123,6 +191,7 @@ export function Sheet({
       // pull runs out on the same curve and clock as the exit, so a panel let
       // go of part-way down carries on down rather than snapping up first.
       risen.current = false
+      lastHeight.current = 0
       timing(pull, 0, wide ? motion.base : MOVE_MS.sheetDown, undefined, { easing: ease.in })
       timing(progress, 0, wide ? motion.base : MOVE_MS.sheetDown, () => setMounted(false), {
         easing: ease.in,
@@ -130,15 +199,30 @@ export function Sheet({
       return
     }
     up.current = true
-    // A phone's sheet rises by its own height and cannot start until it has
-    // been measured; a computer's window only fades and settles, and can.
-    if (risen.current || (!wide && !measured)) return
-    risen.current = true
-    pull.setValue(0)
-    // A computer's window fades and settles; a phone's sheet overshoots.
-    if (wide) timing(progress, 1, motion.slow, undefined, { easing: ease.out })
-    else timing(progress, 1, MOVE_MS.sheetUp, undefined, { easing: ease.overshoot })
-  }, [open, progress, pull, wide, measured])
+    if (risen.current) return
+    // A computer's window fades and settles, and can start now.
+    if (wide) {
+      risen.current = true
+      pull.setValue(0)
+      timing(progress, 1, motion.slow, undefined, { easing: ease.out })
+      return
+    }
+    // On a phone the panel's own entering animation is the rise (`riseOnMount`):
+    // the sheet is simply up, and its exit runs from there.
+    if (RISE_ON_MOUNT) {
+      risen.current = true
+      pull.setValue(0)
+      progress.setValue(1)
+      return
+    }
+    // In a browser the sheet rises from its first layout (`onPanelLayout`):
+    // the overlay host draws the panel a commit after this, and over a heavy
+    // page — Now Playing — that commit came so late that a rise sent from here
+    // had all but finished before the panel was there to see. Should no layout
+    // come, it rises anyway.
+    const late = setTimeout(startRise, LAYOUT_WAIT_MS)
+    return () => clearTimeout(late)
+  }, [open, progress, pull, wide, startRise])
 
   // The curve runs past 1 on the way up; nothing that fades goes past opaque.
   const shown = useMemo(
@@ -153,11 +237,32 @@ export function Sheet({
   const rise = useMemo(
     () =>
       Animated.add(
-        Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
-        keyboard.lift,
+        Animated.add(
+          Animated.add(progress.interpolate(overshootRange(panelHeight, 4)), pull),
+          keyboard.lift,
+        ),
+        grow,
       ),
-    [progress, pull, panelHeight, keyboard.lift],
+    [progress, pull, panelHeight, keyboard.lift, grow],
   )
+  // A sheet whose content changes while it is up — Together growing into the
+  // room it opened (M1) — eases to its new height from where its top was,
+  // rather than jumping there. Not while the keyboard is up: the keyboard
+  // moves the panel itself, and the two would fight.
+  const onPanelLayout = (height: number): void => {
+    const before = lastHeight.current
+    lastHeight.current = height
+    setPanelHeight(height)
+    if (!risen.current) {
+      startRise()
+      return
+    }
+    if (before === 0 || keyboard.height > 0) return
+    const change = height - before
+    if (Math.abs(change) < GROW_AT_LEAST) return
+    grow.setValue(change)
+    timing(grow, 0, MOVE_MS.sheetUp, undefined, { easing: ease.out })
+  }
   const settle = useMemo(
     () => ({
       opacity: shown,
@@ -199,7 +304,17 @@ export function Sheet({
   // (src/shell/Overlay.tsx says why).
   useOverlay(
     <>
-      <SheetBackdrop opacity={shown} onClose={onClose} />
+      {RISE_ON_MOUNT && !wide ? (
+        <Reanimated.View
+          entering={reduced ? undefined : DIM_IN}
+          pointerEvents="box-none"
+          style={StyleSheet.absoluteFill}
+        >
+          <SheetBackdrop opacity={shown} onClose={onClose} />
+        </Reanimated.View>
+      ) : (
+        <SheetBackdrop opacity={shown} onClose={onClose} />
+      )}
       {wide ? (
         <View pointerEvents="box-none" style={styles.dialogFrame}>
           <Animated.View
@@ -211,40 +326,47 @@ export function Sheet({
           </Animated.View>
         </View>
       ) : (
-        <Animated.View
-          onLayout={event => setPanelHeight(event.nativeEvent.layout.height)}
-          style={[
-            styles.panel,
-            {
-              // The keyboard covers the home indicator's room; above it the
-              // panel needs none, and no taller than the window it leaves.
-              paddingBottom:
-                keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
-              maxHeight:
-                keyboard.height > 0
-                  ? windowHeight - keyboard.height - insets.top - space.sm
-                  : undefined,
-              // Invisible and still until it has been measured, then up from
-              // below the foot, four points past its place, and back.
-              opacity: measured ? 1 : 0,
-              transform: measured ? [{ translateY: rise }] : undefined,
-            },
-          ]}
+        <Reanimated.View
+          entering={RISE_ON_MOUNT && !reduced ? riseOnMount : undefined}
+          pointerEvents="box-none"
+          style={styles.panelFrame}
         >
-          {/* The grabber and the title are the handle the sheet is pulled by. */}
-          <GestureDetector gesture={pullDown}>
-            <View style={styles.handle}>
-              <SheetGrabber style={styles.grabberGap} />
-              {head}
-            </View>
-          </GestureDetector>
-          {content}
-          {/* The panel carries on below its foot, out of sight until something
+          <Animated.View
+            onLayout={event => onPanelLayout(event.nativeEvent.layout.height)}
+            style={[
+              styles.panel,
+              {
+                // The keyboard covers the home indicator's room; above it the
+                // panel needs none, and no taller than the window it leaves.
+                paddingBottom:
+                  keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
+                maxHeight:
+                  keyboard.height > 0
+                    ? windowHeight - keyboard.height - insets.top - space.sm
+                    : undefined,
+                // In a browser, invisible and still until it has been measured,
+                // then up from below the foot, four points past its place, and
+                // back. On a phone the frame around it does the rise.
+                opacity: measured || RISE_ON_MOUNT ? 1 : 0,
+                transform: measured || RISE_ON_MOUNT ? [{ translateY: rise }] : undefined,
+              },
+            ]}
+          >
+            {/* The grabber and the title are the handle the sheet is pulled by. */}
+            <GestureDetector gesture={pullDown}>
+              <View style={styles.handle}>
+                <SheetGrabber style={styles.grabberGap} />
+                {head}
+              </View>
+            </GestureDetector>
+            {content}
+            {/* The panel carries on below its foot, out of sight until something
               lifts it: the keyboard, whose rounded and see-through edge
               otherwise showed the dimmed page under a sheet that had been
               shifted up whole, and the four points the rise overshoots. */}
-          <View pointerEvents="none" style={[styles.skirt, { height: windowHeight }]} />
-        </Animated.View>
+            <View pointerEvents="none" style={[styles.skirt, { height: windowHeight }]} />
+          </Animated.View>
+        </Reanimated.View>
       )}
     </>,
     mounted,
@@ -390,11 +512,14 @@ const styles = StyleSheet.create(theme => ({
     bottom: 0,
     backgroundColor: theme.colors.backdrop,
   },
-  panel: {
+  // The foot of the window, which the panel stands in: what rises on a phone.
+  panelFrame: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  panel: {
     backgroundColor: theme.colors.surface1,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,

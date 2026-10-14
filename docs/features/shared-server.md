@@ -41,12 +41,19 @@ A request is routed to its workspace by the token it carries. The token is the w
 own, published in its snapshots to that account's bucket, exactly as the one server's token
 always was. So a device needs nothing new to talk to its library: what it read from its
 bucket is what it sends. A request from the server's own machine with no token goes to the
-only workspace, when there is only one. A request with no token, or a token nobody here was
-given, is a 401, except `GET /api/health`.
+workspace its `X-Selfmp3-Library` header names by id, or else to the only workspace, when
+there is only one. A request with no token, or a token nobody here was given, is a 401,
+except `GET /api/health`.
 
-The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below),
-`DELETE /api/hub/join` with a workspace's token, which lets that library go, and
-`GET /api/hub`, the list of workspaces, answered only to the server's own machine.
+The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below), and
+`GET /api/hub`, the list of workspaces (id, account, songs, whether it reaches its bucket and
+through what), answered only to the server's own machine. There is no route to leave by: an
+account takes its grant back (below), which works while the server is off.
+
+The server's own page on `:4600` (`apps/server/public/`), opened on the server itself, lists
+the workspaces from `GET /api/hub`, each with how its publishing is going and **Publish
+now**, asking each one's `/api/cloud` by naming it. The `selfmp3` command names one the same
+way, with `--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's
 library (`apps/server/src/shared.ts`):
@@ -87,8 +94,8 @@ server's `POST /api/hub/join`, once:
 2. It asks the doorman for a grant for itself (`POST /v1/grants`). The grant is a session of
    its own for that account, named for this server.
 3. It makes the account's workspace, takes on the library already in the bucket, and
-   publishes a snapshot naming its addresses and the workspace's token.
-4. It answers the device with the same addresses and token. The device keeps them
+   publishes a snapshot naming itself (its `id`), its addresses and the workspace's token.
+4. It answers the device with the same id, addresses and token. The device keeps them
    (`packages/replica/src/sharedServer.ts`) until that snapshot reaches it.
 
 Joining again is harmless: an account that already has a workspace gets its token back. A
@@ -110,8 +117,10 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 Three rules keep grants safe:
 
 - **A removed grant is noticed promptly.** The server's next request to the bucket is
-  refused. The server checks once with the doorman, then lets the workspace go and deletes
-  its folders. Nothing is lost by that, because the folders were a copy of the bucket.
+  refused; an idle workspace still looks at its bucket every ten minutes. The server checks
+  once with the doorman, then lets the workspace go and deletes its folders. Nothing is lost
+  by that, because the folders were a copy of the bucket. So **Remove** asks the doorman
+  alone, and works while the server is off.
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
@@ -142,8 +151,11 @@ The rest of a workspace's database is a cache or a queue:
 | Rebuilt by the server itself | The lyrics index, the caches on disk |
 | Forgotten, harmlessly | The import queue's history, the devices' last playback state, a playlist's last-played time |
 
-The server's settings table holds the server's own defaults. A device's settings already
-lived on the device.
+Each workspace's settings table holds that library's settings: what the server acts on for
+it, such as the smart features' switches, the tags every import gets and whether its folder
+is watched. A device reaches its server for them (Settings › Smart features, Settings ›
+Advanced › Library and Importing), the way Import does; the bucket holds none of them. What a
+device acts on, such as crossfade, stays on the device.
 
 ## A server from before
 

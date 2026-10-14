@@ -1,5 +1,11 @@
 import { Router, type Express, type NextFunction, type Request, type Response } from 'express'
-import type { CloudServer, Health, HubStatus } from '@selfmp3/shared'
+import {
+  HUB_LIBRARY_HEADER,
+  plural,
+  type CloudServer,
+  type Health,
+  type HubStatus,
+} from '@selfmp3/shared'
 import { finish, frame } from '../app.js'
 import { APP_VERSION } from '../config.js'
 import { HttpError } from '../http/errors.js'
@@ -31,15 +37,33 @@ export function createHubApp(hub: Hub): Express {
       const health: Health = {
         ok: true,
         version: APP_VERSION,
+        serverId: hub.shared.serverId,
         uptimeSeconds: Math.round(process.uptime()),
         appUrl: hub.config.appUrl,
       }
       res.json(health)
       return
     }
-    next(tokenOf(req) === null ? HttpError.unauthorized() : HttpError.unauthorized('invalid token'))
+    next(refusal(hub, req))
   })
   return finish(app, hub.logger)
+}
+
+/**
+ * Why no library took a request. From this machine it is said plainly: the
+ * server's page and the `selfmp3` command show it as it is.
+ */
+function refusal(hub: Hub, req: Request): HttpError {
+  if (tokenOf(req) !== null) return HttpError.unauthorized('invalid token')
+  if (!isLocalRequest(req)) return HttpError.unauthorized()
+  const named = req.get(HUB_LIBRARY_HEADER)
+  if (named) return HttpError.notFound(`no library here is ${named}`)
+  const count = hub.workspaces().length
+  return HttpError.unauthorized(
+    count === 0
+      ? 'this server works for no libraries yet'
+      : `this server works for ${plural(count, 'library', 'libraries')}; say which`,
+  )
 }
 
 function hubRoutes(hub: Hub): Router {
@@ -48,6 +72,11 @@ function hubRoutes(hub: Hub): Router {
   /**
    * Work for this account: the device's doorman session as the bearer, once.
    * The answer is what the device talks to its library here with.
+   *
+   * There is no route to leave by. An account takes its grant back at the
+   * doorman (Settings › Account › Computers › Remove), which works while this
+   * server is off, and the server lets the library go once its next look at
+   * the bucket is refused (`Hub`, `#sessionEnded`).
    */
   router.post(
     '/hub/join',
@@ -56,25 +85,15 @@ function hubRoutes(hub: Hub): Router {
       if (session === null) throw HttpError.unauthorized('send your doorman session')
       // A library's own token is not a session: this account is here already.
       const already = hub.resolve(req)
-      if (already?.entry) return { addresses: hub.addresses(), token: already.entry.token }
+      if (already?.entry) return hub.answer(already.entry)
       return hub.join(session)
     }),
   )
 
-  /** Stop working for this account: the library's own token as the bearer. */
-  router.delete(
-    '/hub/join',
-    route({}, async ({ req }): Promise<{ ok: true }> => {
-      const workspace = tokenOf(req) === null ? null : hub.resolve(req)
-      if (!workspace) throw HttpError.unauthorized()
-      await hub.leave(workspace, 'its account asked')
-      return { ok: true }
-    }),
-  )
-
   /**
-   * Whom this server works for, for its own page. Only from this machine:
-   * the list is everyone's addresses, and nobody else's business.
+   * Whom this server works for, for its own page and the `selfmp3` command.
+   * Only from this machine: the list is everyone's addresses, and nobody
+   * else's business.
    */
   router.get(
     '/hub',
@@ -86,6 +105,7 @@ function hubRoutes(hub: Hub): Router {
           email: entry?.email ?? null,
           songs: container.songs.count(),
           connected: container.cloudSync.connected,
+          grant: !entry?.grant ? 'none' : entry.grant.id === null ? 'from-before' : 'granted',
           joinedAt: entry?.joinedAt ?? null,
         })),
       }

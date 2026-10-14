@@ -11,16 +11,17 @@ import { signInFailure } from './signIn.js'
  *
  * Signing in is the way in that keeps working: the server is asked directly
  * whenever it answers, and when it does not the link waits in the bucket for it
- * (I3, docs/features/browser-extension.md). An address is still offered under it, for a library
- * with a server and no bucket at all, and for a server this computer can reach
- * that the bucket has never been told about.
+ * (I3, docs/features/browser-extension.md). An address is still offered under
+ * it, for a server this computer can reach that the bucket has never been told
+ * about — a development server on localhost, say. Every server needs a bucket,
+ * so the library behind a typed address lives in one all the same.
  *
- * Nearly nobody sets `SELFMP3_AUTH_TOKEN` — it is off by default and most
- * servers are reached over localhost or a tailnet — so asking everyone for one
- * up front is a field almost every person has to work out they can ignore. The
- * worker already tells "needs a token" apart from "wrong token" (`connect` in
- * background/handlers.ts), so the address alone is tried first and the token is
- * asked for only when the server has actually refused without one.
+ * Each library has its own token on its server (docs/features/shared-server.md),
+ * but a server holding one library does not ask its own machine for it, so on
+ * localhost the field is one a person would have to work out they can ignore.
+ * The worker already tells "needs a token" apart from "wrong token" (`connect`
+ * in background/handlers.ts), so the address alone is tried first and the token
+ * is asked for only when the server has actually refused without one.
  */
 export function Options(): ReactNode {
   const queryClient = useQueryClient()
@@ -163,7 +164,7 @@ export function Options(): ReactNode {
               </span>
             </div>
             <p className="hint">
-              Your server adds these; change them in the app, Settings → Importing.
+              Your server adds these; change them in the app, Settings → Advanced → Importing.
             </p>
           </section>
         )}
@@ -212,8 +213,8 @@ export function Options(): ReactNode {
             </button>
           </div>
           <p className="hint">
-            For a library with no bucket, or a server this computer can reach that your library has
-            not been told about; it is tried before the ones from your sync. On this computer,{' '}
+            For a server this computer can reach that your library has not been told about; it is
+            tried before the ones from your sync. On this computer,{' '}
             <code>{DEFAULT_LOCAL_SERVER_URL}</code>. Over Tailscale, your server’s{' '}
             <code>https://…ts.net</code> address.
           </p>
@@ -231,8 +232,9 @@ export function Options(): ReactNode {
                 />
               </label>
               <p className="hint">
-                This server was started with <code>SELFMP3_AUTH_TOKEN</code> set. It is the same
-                value; the extension keeps it in its own storage, which no web page can read.
+                Your library’s token on that server: its log prints it when it holds one library,
+                and otherwise it is in its <code>data/hub.json</code>. The extension keeps it in its
+                own storage, which no web page can read.
               </p>
             </>
           )}

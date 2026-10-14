@@ -14,15 +14,16 @@ describe('SettingsRepository', () => {
 
     const write = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
     write.run('ytCookieSource', JSON.stringify('netscape'))
-    write.run('gapless', '{not json')
-    write.run('aSettingSinceRemoved', JSON.stringify(1))
+    write.run('watchLibrary', '{not json')
+    // Crossfade was a setting here once; it is each device's own now.
+    write.run('crossfadeSeconds', JSON.stringify(4))
 
     const read = settings.get()
     expect(read.smartWeb).toBe(true)
     expect(read.importConcurrency).toBe(3)
     expect(read.ytCookieSource).toBe(DEFAULT_SETTINGS.ytCookieSource)
-    expect(read.gapless).toBe(DEFAULT_SETTINGS.gapless)
-    expect(read).not.toHaveProperty('aSettingSinceRemoved')
+    expect(read.watchLibrary).toBe(DEFAULT_SETTINGS.watchLibrary)
+    expect(read).not.toHaveProperty('crossfadeSeconds')
     db.close()
   })
 })

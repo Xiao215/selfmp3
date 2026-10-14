@@ -48,6 +48,6 @@ describe('Stats from a cloud library with no server in reach', () => {
     // Why the page is empty is one Why? away, under what still works.
     expect(screen.getByText('Your songs still play.')).toBeTruthy()
     await fireEvent.press(screen.getByTestId('stats-server-why'))
-    expect(screen.getByText(/Stats come from your library’s computer/)).toBeTruthy()
+    expect(screen.getByText(/Stats are worked out on your library’s computer/)).toBeTruthy()
   })
 })

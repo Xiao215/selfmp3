@@ -4,9 +4,23 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import zlib from 'node:zlib'
-import { CloudServerSchema, DoormanGrantsSchema, HealthSchema } from '@selfmp3/shared'
+import {
+  CloudServerSchema,
+  CloudStatusSchema,
+  DoormanGrantsSchema,
+  HealthSchema,
+  HUB_LIBRARY_HEADER,
+  HubStatusSchema,
+  LyricsSearchResponseSchema,
+} from '@selfmp3/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { harness, type Harness } from '../../../doorman/src/fakes.js'
+import {
+  answersAs,
+  candidates,
+  reachServer,
+  type Candidate,
+} from '../../../../packages/client/src/connection/reach.js'
 import { loadConfig, type Config } from '../config.js'
 import { createContainer } from '../container.js'
 import { createLogger } from '../logger.js'
@@ -186,6 +200,46 @@ describe('a server working for several accounts', () => {
     ])
   })
 
+  it('keeps each library’s lyrics to its own search', async () => {
+    const { hub, url } = await startHub()
+    const me = CloudServerSchema.parse(
+      (await join(url, await account('1', 'me@example.com', 'mine'))).body,
+    )
+    const friend = CloudServerSchema.parse(
+      (await join(url, await account('2', 'friend@example.com', 'theirs'))).body,
+    )
+    const mine = hub.workspaces().find(w => w.container.config.authToken === me.token)!.container
+    const songId = mine.songs.insert({
+      path: 'monster.m4a',
+      title: 'Monster',
+      artist: 'YOASOBI',
+      album: '',
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 1,
+      sizeBytes: 1,
+      mime: 'audio/mp4',
+      mtimeMs: 0,
+      hasArt: false,
+      artExt: null,
+      lyricsKind: 'plain',
+      sourceUrl: null,
+    })
+    mine.lyricsIndex.index(songId, 'running into the night')
+
+    const search = async (token: string) => {
+      const response = await fetch(`${url}/api/lyrics/search?q=night`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      return LyricsSearchResponseSchema.parse(await response.json()).hits
+    }
+    expect((await search(me.token!)).map(hit => [hit.songId, hit.title])).toEqual([
+      [songId, 'Monster'],
+    ])
+    expect(await search(friend.token!)).toEqual([])
+  })
+
   it('refuses a session the doorman does not know, and an account with no bucket', async () => {
     const { url } = await startHub()
     expect((await join(url, 'x'.repeat(43))).status).toBe(401)
@@ -207,6 +261,8 @@ describe('a server working for several accounts', () => {
     const second = await startHub()
     expect(second.hub.workspaces()).toHaveLength(1)
     expect((await health(second.url, me.token!)).songCount).toBe(0)
+    // Still the server the snapshots name, so a device finds it before the next one.
+    expect((await health(second.url, me.token!)).serverId).toBe(me.id)
   })
 
   it('lets a library go when its account takes the grant back', async () => {
@@ -234,20 +290,46 @@ describe('a server working for several accounts', () => {
     expect((await fetch(`${url}/api/library?token=${me.token}`)).status).toBe(401)
   })
 
-  it('leaves when the account asks, and gives the grant back', async () => {
-    const { hub, url } = await startHub()
-    const mine = await account('1', 'me@example.com', 'mine')
-    const me = CloudServerSchema.parse((await join(url, mine)).body)
-    const left = await fetch(`${url}/api/hub/join`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${me.token}` },
-    })
-    expect(left.status).toBe(200)
-    expect(hub.workspaces()).toHaveLength(0)
-    const grants = DoormanGrantsSchema.parse(
-      await (await doorman.call('/v1/grants', { token: mine })).json(),
-    ).grants
-    expect(grants).toEqual([])
+  it('says whom it works for to its own machine, which can name one with no token', async () => {
+    const { url } = await startHub()
+    const listed = async (headers: Record<string, string> = {}) => {
+      const response = await fetch(`${url}/api/hub`, { headers })
+      return { status: response.status, body: (await response.json()) as unknown }
+    }
+    const cloud = (headers: Record<string, string> = {}) => fetch(`${url}/api/cloud`, { headers })
+    const said = async (response: Response) => ((await response.json()) as { error: string }).error
+
+    expect(HubStatusSchema.parse((await listed()).body).workspaces).toEqual([])
+    const nobody = await cloud()
+    expect(nobody.status).toBe(401)
+    expect(await said(nobody)).toBe('this server works for no libraries yet')
+
+    await join(url, await account('1', 'me@example.com', 'mine'))
+    await join(url, await account('2', 'friend@example.com', 'theirs'))
+    const { workspaces } = HubStatusSchema.parse((await listed()).body)
+    expect(workspaces.map(({ email, grant, songs }) => ({ email, grant, songs }))).toEqual([
+      { email: 'me@example.com', grant: 'granted', songs: 0 },
+      { email: 'friend@example.com', grant: 'granted', songs: 0 },
+    ])
+    const friend = workspaces[1]!
+    expect(friend.id).toMatch(/^[0-9a-f]{16}$/)
+
+    // Two libraries and nothing to say which: no telling whose was meant.
+    const unnamed = await cloud()
+    expect(unnamed.status).toBe(401)
+    expect(await said(unnamed)).toBe('this server works for 2 libraries; say which')
+
+    // Named by id, each answers as its own.
+    const named = await cloud({ [HUB_LIBRARY_HEADER]: friend.id })
+    expect(named.status).toBe(200)
+    expect(CloudStatusSchema.parse(await named.json()).account?.email).toBe('friend@example.com')
+    const unknown = await cloud({ [HUB_LIBRARY_HEADER]: '0123456789abcdef' })
+    expect(unknown.status).toBe(404)
+
+    // From anywhere else neither the list nor the name counts for anything.
+    const elsewhere = { 'X-Forwarded-For': '203.0.113.9' }
+    expect((await listed(elsewhere)).status).toBe(403)
+    expect((await cloud({ ...elsewhere, [HUB_LIBRARY_HEADER]: friend.id })).status).toBe(401)
   })
 
   it('makes a library from before into a workspace, keeping its token, then settles its grant', async () => {
@@ -283,5 +365,56 @@ describe('a server working for several accounts', () => {
       'the old session to be signed out',
     )
     expect((await health(url, token)).ok).toBe(true)
+  })
+})
+
+describe('which server a device takes', () => {
+  /** `/api/health` at a candidate, as the app and the extension ask it. */
+  const probe = async (candidate: Candidate): Promise<boolean> => {
+    const response = await fetch(`${candidate.baseUrl}/api/health`)
+    return response.ok && answersAs(await response.json(), candidate)
+  }
+
+  /*
+   * 2026-10-14: the Pi publishes `http://localhost:4600` among its addresses,
+   * and on the Mac a development server answers there. A device racing the
+   * snapshot's addresses took it, and every request after was refused: the
+   * Pi's token, at a server holding another library.
+   */
+  it('passes over a development server answering at one of the addresses', async () => {
+    const pi = await startHub()
+    const mine = await account('1', 'me@example.com', 'mine')
+    const me = CloudServerSchema.parse((await join(pi.url, mine)).body)
+    await until(() => newestSnapshot('mine')?.includes(me.token!) ?? false, 'my snapshot')
+    const published = CloudServerSchema.parse(
+      (JSON.parse(newestSnapshot('mine')!) as { server: unknown }).server,
+    )
+    expect(published.id).toBe(me.id)
+    // Said to anyone: the id is which server this is, not whose library.
+    expect(HealthSchema.parse(await (await fetch(`${pi.url}/api/health`)).json()).serverId).toBe(
+      me.id,
+    )
+
+    // `npm run dev`: its own folders, and a folder for a bucket.
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'dev-data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'dev-library')
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+    delete process.env['SELFMP3_PUBLIC_URL']
+    const dev = await startHub()
+    const devHealth = HealthSchema.parse(await (await fetch(`${dev.url}/api/health`)).json())
+    expect(devHealth.serverId).toBeDefined()
+    expect(devHealth.serverId).not.toBe(me.id)
+    // What a device that took it met from then on.
+    expect((await fetch(`${dev.url}/api/library?token=${me.token}`)).status).toBe(401)
+
+    // Where the development server is the only one answering, nothing is taken.
+    expect(await reachServer(candidates({ ...published, addresses: [dev.url] }), probe)).toBeNull()
+    // Beside the real one, the real one is.
+    const found = await reachServer(
+      candidates({ ...published, addresses: [dev.url, pi.url] }),
+      probe,
+    )
+    expect(found?.baseUrl).toBe(pi.url)
+    expect((await fetch(`${found!.baseUrl}/api/library?token=${found!.token}`)).status).toBe(200)
   })
 })

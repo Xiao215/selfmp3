@@ -1,12 +1,14 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  answersAs,
   candidates,
   clientApi,
   LOOK_AGAIN_MS,
   PROBE_TIMEOUT_MS,
   queryKeys,
   reachServerAgain,
+  type Candidate,
   type Reach,
   type ServerConnection,
 } from '@selfmp3/client'
@@ -17,12 +19,15 @@ import { library as cloudLibrary } from '../replica'
 const probeFetch = fetchWithin(PROBE_TIMEOUT_MS)
 
 /**
- * `/api/health` at one address, within the deadline. It needs no token, and
- * an answer is all that is asked: what it says is the server's business.
+ * `/api/health` at one address, within the deadline. It needs no token, so
+ * none is sent until the server there has said it is the one the snapshot
+ * named (`answersAs`): on the computer you develop on, `localhost` is the
+ * development server.
  */
-async function probe(connection: ServerConnection): Promise<boolean> {
+async function probe(candidate: Candidate): Promise<boolean> {
   try {
-    return (await probeFetch(`${connection.baseUrl}/api/health`)).ok
+    const response = await probeFetch(`${candidate.baseUrl}/api/health`)
+    return response.ok && answersAs(await response.json(), candidate)
   } catch {
     return false
   }
@@ -75,7 +80,7 @@ export function useServerDirect(
   // A server that was answering keeps its answer through one missed look
   // (reach.ts, CONFIRM_AWAY_MS): the query holds its last data while it asks
   // again, so the screen does not flash away for a network blip.
-  const reachKey = [...queryKeys.cloudServer, 'reach', addresses]
+  const reachKey = [...queryKeys.cloudServer, 'reach', said?.id ?? null, addresses]
   const reach = useQuery({
     queryKey: reachKey,
     queryFn: () =>

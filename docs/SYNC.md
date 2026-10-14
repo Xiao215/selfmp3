@@ -268,9 +268,10 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. The *Cloud* card on the server's own page (port 4600, opened on the server itself)
-can also sign a server with one library in with Google, or connect a bucket directly with its
-key when there is no doorman.
+workspace. The server's own page (port 4600, opened on the server itself) lists the
+workspaces, each with how its publishing is going and **Publish now**. Opened from another
+computer with a library's token, its *Cloud* card can also sign that library in with Google,
+or connect a bucket directly with its key when there is no doorman.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
@@ -497,6 +498,18 @@ probes them all at once and talks to the first that answers, and looks again eve
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no
 "connect to a server" screen — that was removed on purpose.
 
+**An answer has to be from the right server.** An address is only where *a* server might
+be: `http://localhost:4600`, which every server publishes for a device on its own computer,
+is the development server on the Mac, and a Wi-Fi address at a friend's is whatever they
+run. So the snapshot names the server as well (`id`, made on its first boot and kept in
+`<data>/server-id`), `/api/health` answers with the same `serverId` without a token, and a
+device keeps only an address whose answer matches (`answersAs` in
+`packages/client/src/connection/reach.ts`). The token goes nowhere until one has. Before
+this (2026-10-14) the real app on the Mac took the development server on 4600, which
+answered first, and every request after was refused. The `id` is optional in the schema: a
+bucket has to stay readable whatever wrote its newest snapshot, and a snapshot that names no
+server is held only to an answer, as before.
+
 **This is also how the server is locked.** It listens on every interface, because that is
 what makes those addresses real, and so anyone else on the Wi-Fi can reach the port. The
 token is what separates them from your phone, and the snapshot is what hands your phone the
@@ -520,7 +533,9 @@ always drawn (`ServerAway`, with the words for each in `SERVER_NEEDS`,
 | Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
 | Ask and the other smart features | the model, and the whole library in one place | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
+| Settings › Smart features, Advanced › Library and Importing | the library's settings, which only the server keeps and acts on, and its passes over the songs | says so, keeps looking |
 | The Devices sheet (handoff) | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
+| Search and the command palette | lines of lyrics (the index) | no Lyrics section; everything else is found on the device as ever |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers
 them its database's way, and a device numbers them as uids arrive
@@ -599,7 +614,8 @@ libraries that deliberately number different songs the same.
   back to the foreground, or the next time the library is asked for.
 - **Some things still need the server**: looking metadata up, the stats, the smart features
   and searching inside lyrics. The screens that need it reach for it and say so when it is
-  away, rather than hiding — see "Reaching the server for what only it can do" above.
+  away, rather than hiding (Search simply finds no lines of lyrics: the rest of it is the
+  device's own) — see "Reaching the server for what only it can do" above.
 - **Importing does not**, though only the server can fetch a link. In reach of it, the whole
   import screen works: what a link holds, a song played before it is added, the download.
   Away from it, the link goes into the bucket with its tags and its playlist, and the server

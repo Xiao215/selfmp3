@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
 import { BridgeError } from '../bridge.js'
 import { createHandlers, explain, forPages } from './handlers.js'
+import type { Cloud } from './cloud.js'
 import { createWatcher } from './watcher.js'
 
 const library = fixtureLibrary()
@@ -48,6 +49,7 @@ function fakeServer(token: string | null) {
         json(200, {
           ok: true,
           version: 'test',
+          serverId: 'the-server',
           uptimeSeconds: 1,
           songCount: 2,
         }),
@@ -134,7 +136,7 @@ describe('connecting', () => {
     expect(await store.read('server')).toBeNull()
   })
 
-  it('says a stored server is away when it does not answer, and there is no bucket behind it', async () => {
+  it('says a stored server is away when it does not answer, and there is no account to fall back on', async () => {
     const store = memoryStore()
     await store.write('server', { baseUrl: 'https://asleep.example', token: null })
     const handlers = createHandlers({ store, fetch: fakeServer(null).fetch })
@@ -280,5 +282,31 @@ describe('explain', () => {
       status: 428,
     })
     expect(explain('odd')).toEqual({ message: 'Something went wrong.', status: 500 })
+  })
+})
+
+describe('from the bucket', () => {
+  it('offers the bucket’s tags, and asks nothing of settings only the server keeps', async () => {
+    const asked: string[] = []
+    // This device's copy of the library answers; settings are the server's,
+    // which the replica refuses (`needs_server`), so nothing here may ask for them.
+    const api = {
+      libraryVersion: () => Promise.resolve({ version: 1, songCount: library.songs.length }),
+      library: () => Promise.resolve(library),
+      settings: () => {
+        asked.push('settings')
+        return Promise.reject(new ApiError(501, 'This needs your server.', 'needs_server'))
+      },
+    } as unknown as Cloud['api']
+    const handlers = createHandlers({
+      store: memoryStore(),
+      fetch: fakeServer(null).fetch,
+      cloud: { api } as unknown as Cloud,
+      router: { route: () => Promise.resolve({ mode: 'bucket' }), forget: () => undefined },
+    })
+    const choices = await handlers.choices({ type: 'choices' })
+    expect(choices.tags.map(tag => tag.name)).toEqual(library.tags.map(tag => tag.name))
+    expect(choices.defaultTagIds).toEqual([])
+    expect(asked).toEqual([])
   })
 })

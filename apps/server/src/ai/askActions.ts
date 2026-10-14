@@ -185,6 +185,26 @@ const songs = action({
   },
 })
 
+/**
+ * Listening with friends (docs/features/listen-together.md): a room to open,
+ * or songs for the room they are in. The device knows which — only it knows
+ * whether it is in a room — so the answer is the same either way: the songs
+ * the words asked for, if any, and the device offers to start a room with
+ * them or add them to the room (AskAnswer's `together`).
+ */
+const together = action({
+  name: 'together',
+  when: 'they want to listen with friends: a room, a jam or a listening party opened for friends to add songs to, or songs put into the room they are already in. When they say what music it should have, fill "filters" with it; when they only want the room, "filters" is null.',
+  fields: null,
+  filters: 'optional',
+  run: async ({ deps, text, steps }, _fields, filters) => {
+    if (!filters) return { kind: 'together', describe: null }
+    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
+    const describe = await narrowAndPick(deps, text, understanding, unknown, [], steps, null)
+    return { kind: 'together', describe }
+  },
+})
+
 /** The furthest into Up next a place may count, either way: past any queue anyone keeps. */
 const MAX_PLACE = 1000
 
@@ -428,6 +448,7 @@ const open = action({
 /** Every action, in the order the router is told them. */
 export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   songs,
+  together,
   playback,
   find,
   tags,

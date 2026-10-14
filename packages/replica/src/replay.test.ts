@@ -12,7 +12,11 @@ const base: CloudSnapshot = {
   playlists: [],
   artists: [],
   sound: null,
-  server: { addresses: ['http://localhost:4600', 'http://192.0.0.2:4600'], token: null },
+  server: {
+    id: 'the-server',
+    addresses: ['http://localhost:4600', 'http://192.0.0.2:4600'],
+    token: null,
+  },
 }
 
 describe('replayedSnapshot', () => {

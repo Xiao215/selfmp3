@@ -369,13 +369,21 @@ docker compose exec selfmp3 node apps/server/dist/cli.js doctor   # in Docker
 | `scan` | sweep the inbox folder for files dropped there |
 | `import <url…>` | queue one or more links for download |
 | `backup <dest-dir>` | copy the data and library folders, only what changed |
-| `doctor` | Node, `yt-dlp`, `ffmpeg`, the server, the folders |
+| `doctor` | Node, `yt-dlp`, `ffmpeg`, the server and whom it works for, the folders |
 | `--version` | print the version |
 
-On the server's own computer, a command with no token goes to the only library, when there is
-only one. With several, or from another computer, give it the library's token with `--token`.
-The token is in `data/hub.json`, and the server's log prints it when it works for one library.
-`--url` points the command at a server elsewhere:
+The server keeps one library for each account that joined it. On the server's own computer, a
+command goes to the only library when there is only one. With several, name it with
+`--library` and its account's email or its id; without it the command stops and lists them.
+`doctor` lists them too.
+
+```bash
+npm run cli -- scan --library me@example.com
+```
+
+From another computer, give the library's token with `--token` instead, and point the command
+at the server with `--url`. The token is in `data/hub.json`, and the server's log prints it
+when it works for one library:
 
 ```bash
 npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan

@@ -11,11 +11,14 @@ import { People } from '../../ui/components/Icons'
 import { guideSeen, markGuideSeen, useGuideMemory } from '../guide/guideMemory'
 import { RoomFaces } from './RoomFace'
 import { peopleHere, roomTitle } from './room.model'
-import { openRoomSheet } from './roomSheets.store'
+import { openRoomSheet, type RoomStart } from './roomSheets.store'
 import { useRoom } from './room.store'
 
 /** The most faces drawn where the room shows itself; the room's sheet has everyone. */
 const FACES = 3
+
+const PLAYING: RoomStart = { kind: 'playing' }
+const EMPTY: RoomStart = { kind: 'empty' }
 
 /**
  * Listening together starts on the player (T1, Xiao 2026-10-13): the phone's
@@ -29,11 +32,17 @@ export function TogetherButton({
   filled = false,
   iconSize: size = iconSize.nav,
   color,
+  start = PLAYING,
 }: {
   /** On the control surface: Now Playing's head. Bare in the player bar. */
   filled?: boolean
   iconSize?: number
   color?: string
+  /**
+   * What a room opened from here starts with: the song playing, from the
+   * player; nothing, from Home's header (A1), where you add songs after.
+   */
+  start?: RoomStart
 }): ReactNode {
   const { theme } = useUnistyles()
   const { state } = useRoom()
@@ -42,7 +51,7 @@ export function TogetherButton({
       <IconButton
         label="Listen together"
         filled={filled}
-        onPress={() => openRoomSheet('together')}
+        onPress={() => openRoomSheet('together', start)}
         testID="together"
       >
         <People size={size} color={color ?? theme.colors.textPrimary} />
@@ -93,6 +102,15 @@ export function RoomPill(): ReactNode {
 }
 
 /**
+ * Home's header's way in (A1, Xiao 2026-10-14): always there, beside Import,
+ * so a room needs nothing playing first. It opens empty — songs are added, or
+ * asked for, once it is open. In a room it is the room's faces.
+ */
+export function HomeTogetherButton(): ReactNode {
+  return <TogetherButton filled start={EMPTY} />
+}
+
+/**
  * Home's way in (T3), until this device has been in a room or was told Not
  * now: the player's People button is easy to pass by the first time. Kept
  * with the guides, so Settings' Show tips again brings it back and automated
@@ -115,7 +133,7 @@ export function TogetherCard(): ReactNode {
           <Button
             label="Start a room"
             variant="primary"
-            onPress={() => openRoomSheet('together')}
+            onPress={() => openRoomSheet('together', EMPTY)}
             testID="home-together-start"
           />
           <Button

@@ -80,10 +80,13 @@ appear on a restart of a server that has been running all along: it means the bu
 library this server did not know, so something else has been writing to it. Stop and find
 out what before going further.
 
-**5. Nothing else on port 4600 on a computer you test from.** The server publishes
-`http://localhost:4600` among its addresses, and a device races all of them. A development
-server left running on 4600 on the same computer answers first, and the real app on that
-computer then talks to it. Run test servers on another port while you test the real thing.
+**5. A development server on 4600 is passed over, not taken.** The server publishes
+`http://localhost:4600` among its addresses, and a device races all of them; on the Mac a
+development server answers there first. A device keeps only an address whose `/api/health`
+names the server the snapshot named (docs/SYNC.md, "An answer has to be from the right
+server"), so the real app goes on to the Pi. If the real app on a computer says its
+library's computer is away while the Pi is up, check that: `curl -s localhost:4600/api/health`
+on that computer shows whose `serverId` answers there.
 
 **6. Leave nothing behind.** Every write you make in a test is a write to your library.
 Prefer the ones with an Undo (Up next's Save, a tag), undo them, and check the count went
@@ -111,7 +114,7 @@ workspace links make `typecheck` pass when it should not — compare
 | Command | What it proves | Needs |
 |---|---|---|
 | `npm run check` | types, lint, format, unused exports, the names comments point at, the unit tests, the app's component tests | nothing |
-| `npm run verify:flows` | the app's behaviour end to end, at computer and phone widths | `npm run dev` in another terminal, with `SELFMP3_CORS_ORIGINS=http://localhost:4601` ([verify/README.md](../verify/README.md)) |
+| `npm run verify:flows` | the app's behaviour end to end, at computer and phone widths | `npm run dev` in another terminal ([verify/README.md](../verify/README.md)) |
 | `npm run build:desktop && npm run verify:desktop` | the Electron shell: files, ranges, menus, single instance, the packaged binary | a Mac |
 | `npm run build:extension && npm run verify:extension` | the extension's pill, popup and bucket route | Chromium |
 

@@ -3,6 +3,7 @@ import {
   fuzzyRank,
   isCjkQuery,
   type Library,
+  type LyricsSearchHit,
   type Song,
   type Tag,
   libraryArtists,
@@ -171,4 +172,26 @@ export function beforeTyping(
 export function lyricsQueryFor(query: string): string {
   const trimmed = query.trim()
   return trimmed.length >= (isCjkQuery(trimmed) ? 2 : 3) ? trimmed : ''
+}
+
+/**
+ * Lines of lyrics a server reached directly found, renumbered the way this
+ * device numbers those songs (`onDevice`, useServerSongIds): its answer names
+ * them by its own ids, which here would play and draw whichever song happened
+ * to hold that number.
+ *
+ * A line in a song this device's copy of the library does not have yet — not
+ * uploaded, or not in the snapshot here — is left out: it could neither play
+ * nor show its cover.
+ */
+export function lyricHitsHere(
+  hits: readonly LyricsSearchHit[],
+  onDevice: (serverId: number) => number | undefined,
+): LyricsSearchHit[] {
+  const here: LyricsSearchHit[] = []
+  for (const hit of hits) {
+    const songId = onDevice(hit.songId)
+    if (songId !== undefined) here.push({ ...hit, songId })
+  }
+  return here
 }

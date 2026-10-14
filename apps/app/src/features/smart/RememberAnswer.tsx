@@ -6,6 +6,7 @@ import { space, useSettings, useUpdateSettings, textStyle } from '@selfmp3/clien
 import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
+import { useSmartServer } from './useSmartServer'
 
 /**
  * "From now on, Chinese names only" (docs/features/ai.md, "Remembered
@@ -14,8 +15,10 @@ import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
  * one away.
  */
 export function RememberAnswer({ note, onDone }: { note: string; onDone: () => void }): ReactNode {
-  const { data: settings } = useSettings()
-  const update = useUpdateSettings()
+  // The notes are the library's settings, kept by the server Ask asked.
+  const { api } = useSmartServer()
+  const { data: settings } = useSettings(api)
+  const update = useUpdateSettings(api)
   const notes = settings?.smartNotes ?? []
   const saved = notes.some(each => each.toLowerCase() === note.toLowerCase())
   const full = notes.length >= SMART_NOTES_MAX

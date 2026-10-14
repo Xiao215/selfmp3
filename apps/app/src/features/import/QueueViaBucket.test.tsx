@@ -4,10 +4,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { QueueViaBucket } from './QueueViaBucket'
 
 const mockRequest = jest.fn()
+const mockSetParams = jest.fn()
+/** The page's query: what a share sheet opened Import with (`/import?url=…&text=…`). */
+let mockParams: Record<string, string> = {}
 
 // The tag picker's "Create…" can offer an artist's page instead (`P11`), so it
 // holds a router; nothing here navigates, and the real one needs an app round it.
-jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: () => undefined }) }))
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ navigate: () => undefined, setParams: mockSetParams }),
+  useLocalSearchParams: () => mockParams,
+}))
 
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
@@ -67,6 +73,8 @@ describe('QueueViaBucket', () => {
   beforeEach(() => {
     mockRequest.mockClear()
     mockRequest.mockReset()
+    mockSetParams.mockReset()
+    mockParams = {}
   })
 
   it('will not send an empty link', async () => {
@@ -101,5 +109,41 @@ describe('QueueViaBucket', () => {
 
     await submit()
     expect(mockRequest).toHaveBeenCalledTimes(1)
+  })
+
+  /*
+   * A link shared from YouTube's app while the server is away. The YouTube app
+   * puts the link in `text`, after the title; it was lost here, and had to be
+   * pasted, because only the import screen read the share (found 2026-10-14).
+   */
+  it('starts with a shared link in the box, and adds it only when asked', async () => {
+    mockRequest.mockImplementation((_input, options) => options?.onSuccess?.())
+    mockParams = { title: '群青', text: '群青 https://youtu.be/Y4nEEZwckuU https://youtu.be/other' }
+    await draw()
+
+    expect(screen.getByTestId('queue-url').props['value']).toBe('https://youtu.be/Y4nEEZwckuU')
+    expect(mockRequest).not.toHaveBeenCalled()
+
+    await submit()
+    expect(mockRequest.mock.calls[0][0]).toEqual({
+      url: 'https://youtu.be/Y4nEEZwckuU',
+      tagIds: [],
+      playlistId: null,
+    })
+    // Added, the share is let go of, so the server coming back does not look it up again.
+    expect(mockSetParams).toHaveBeenCalledWith({
+      url: undefined,
+      text: undefined,
+      title: undefined,
+    })
+  })
+
+  it('leaves the address alone when nothing was shared', async () => {
+    mockRequest.mockImplementation((_input, options) => options?.onSuccess?.())
+    await draw()
+    expect(screen.getByTestId('queue-url').props['value']).toBe('')
+    await type('https://youtu.be/ZRtdQ81jPUQ')
+    await submit()
+    expect(mockSetParams).not.toHaveBeenCalled()
   })
 })

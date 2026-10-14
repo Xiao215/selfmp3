@@ -64,11 +64,6 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 - [ ] **`PROPER` L — The desktop window's link check is written twice.**
   `apps/desktop/src/main/window.ts` tests `https://`/`http://` in both the window-open
   handler and `will-navigate`; an `openOutside(url)` would hold it once. Left from T-206.
-- [ ] **`PROPER` L — The Stats away notice describes plays as the server's alone.**
-  `SERVER_NEEDS.stats` in `packages/client/src/connection/reach.ts` says the computer "keeps
-  every play any of your devices has ever recorded, and your storage holds only the songs".
-  Plays are in the bucket now (`lyrics/<sha256>.plays`, one file a month, named in the
-  snapshot); the server still works the numbers out, so the notice should say that instead.
 
 ## Looked at and kept on purpose
 
@@ -86,7 +81,8 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 - **`verify/playwright.config.ts` has no `webServer` block**: an unreachable server is a
   failure, and the two addresses can point at another host (T-243, [verify/README.md](../verify/README.md)).
 - **4600 and 4601 are literal** only where nothing can import `DEFAULT_SERVER_PORT`: the
-  Dockerfile, the compose file, the shell scripts and `package.json`'s `dev:web` (T-410).
+  Dockerfile, the compose file, the shell scripts and `package.json`'s `dev:web` and `dev:api`
+  (T-410).
 - **The phone's and the browser's cover stores stay two adapters**: the phone reads its
   folder synchronously so the first draw already has kept covers; the policy is one
   (`coverStore.ts`) (T-414).

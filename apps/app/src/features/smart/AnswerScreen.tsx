@@ -87,7 +87,11 @@ export function AnswerScreen(): ReactNode {
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   // Add to Up next adds, as everywhere: it had played the answer next (T-383).
-  const listActions = useListActions(ids, { heroRef, selection })
+  const listActions = useListActions(ids, {
+    heroRef,
+    selection,
+    togetherAs: result?.understanding.name ?? 'Ask',
+  })
   // Always mounted, told when to show (as on a tag's page).
   const bar = useListSelectionBar({ songs, selection, scope: 'in this answer', wide })
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])

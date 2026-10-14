@@ -14,7 +14,6 @@ import {
   coverSize,
   radius,
 } from '@selfmp3/client'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
@@ -73,7 +72,6 @@ export function SearchScreen(): ReactNode {
   const router = useRouter()
   const params = useLocalSearchParams<{ q?: string }>()
   const { wide } = useLayout()
-  const { fromCloud } = useConnection()
   const { data: library } = useLibrary()
   const player = usePlayer()
 
@@ -92,7 +90,7 @@ export function SearchScreen(): ReactNode {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
     matches: (them, lyricCount) => sectionCounts(them, lyricCount).all,
   })
-  const { shown, found, lyricHits } = search
+  const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
 
   const currentId = player.current?.id ?? null
@@ -250,14 +248,14 @@ export function SearchScreen(): ReactNode {
                 <Places places={placesOf(found)} onArtist={openArtist} />
               </View>
             ) : (
-              <LyricResults hits={lyricHits} cloud={fromCloud} />
+              <LyricResults hits={lyricHits} away={lyricsAway} />
             )}
             {!answering && offerAsk && counts.all > 0 ? (
               <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
             ) : null}
             {!answering &&
             counts[section ?? 'all'] === 0 &&
-            !(section === 'lyrics' && fromCloud) ? (
+            !(section === 'lyrics' && lyricsAway) ? (
               <NothingMatches words={shown.trim()} />
             ) : null}
             <ChromeSpacer />
@@ -401,7 +399,7 @@ function AllResults({
             }
             testID="search-see-all-lyrics"
           />
-          <LyricResults hits={lyricHits.slice(0, ALL_LIMITS.lyrics)} cloud={false} />
+          <LyricResults hits={lyricHits.slice(0, ALL_LIMITS.lyrics)} away={false} />
         </View>
       ) : null}
     </>
@@ -519,16 +517,17 @@ function useSearchRows(
 /** Lines of lyrics: the words around the match, and the song they are in. */
 function LyricResults({
   hits,
-  cloud,
+  away,
 }: {
   hits: readonly LyricsSearchHit[]
-  cloud: boolean
+  /** A cloud library whose server is out of reach, so there are no lines to show. */
+  away: boolean
 }): ReactNode {
   const player = usePlayerCommands()
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const byId = useSongsById()
-  if (cloud) {
+  if (away) {
     return (
       <EmptyState
         compact

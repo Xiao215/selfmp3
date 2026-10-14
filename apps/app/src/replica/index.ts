@@ -1,5 +1,6 @@
 import { DOORMAN_PATHS } from '@selfmp3/shared'
 import { createCloudLibrary, createCloudRoutes, createCloudSession } from '@selfmp3/replica'
+import { moveOldCrossfade } from '../player/crossfadePref'
 import { cloudPlatform } from '../ports/cloudPlatform'
 
 /**
@@ -13,6 +14,8 @@ import { cloudPlatform } from '../ports/cloudPlatform'
 export const session = createCloudSession(cloudPlatform)
 export const library = createCloudLibrary(cloudPlatform, session)
 export const { cloudRequest } = createCloudRoutes(cloudPlatform, session, library)
+
+void moveOldCrossfade(cloudPlatform.store)
 
 /** A file in the bucket, as the doorman serves it: `key` is where the bucket keeps it. */
 export function doormanFileUrl(key: string): string {

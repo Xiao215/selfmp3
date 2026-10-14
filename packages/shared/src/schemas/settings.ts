@@ -1,20 +1,19 @@
 import { z } from 'zod'
 
 /**
- * User settings, stored server-side so the desktop and the phone agree.
+ * A library's settings: what its server acts on — importing, its folder, the
+ * smart features — kept in the server's settings table, one per library (each
+ * workspace of a hub has its own). A cloud library reaches its server for them
+ * (`useServerApi` in the app); the bucket holds none of them.
  *
- * Anything device-specific (volume, which songs are cached offline on *this*
- * phone) deliberately lives in browser storage instead — syncing it would be
- * actively wrong.
+ * What a device acts on — crossfade, which songs are kept offline on *this*
+ * phone, pinyin under the words — is that device's own (`ports/prefs` in the
+ * app): sharing it would be actively wrong, and it has to work with no server.
  */
 
 /** How many things Ask remembers (`smartNotes`): the schema refuses more, and the app says so first. */
 export const SMART_NOTES_MAX = 30
 export const SettingsSchema = z.object({
-  /** Seconds of overlap between tracks. Zero disables crossfade entirely. */
-  crossfadeSeconds: z.number().min(0).max(12).default(0),
-  /** Skip leading/trailing silence so tracks run together cleanly. */
-  gapless: z.boolean().default(true),
   /** Automatically look up lyrics for songs that do not have any. */
   autoFetchLyrics: z.boolean().default(true),
   /** How many downloads run at once. More is not always faster. */

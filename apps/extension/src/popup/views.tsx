@@ -355,7 +355,7 @@ function TagPicker({
         </>
       )}
       {defaults.length > 0 && (
-        <p className="hint">Tags from Settings → Importing are always added.</p>
+        <p className="hint">Tags from Settings → Advanced → Importing are always added.</p>
       )}
       {tagging.error && (
         <p className="error" role="alert">

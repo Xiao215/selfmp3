@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
+  clientApi,
   radius,
   space,
   type,
@@ -61,6 +62,7 @@ import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Kbd } from '../../ui/components/Kbd'
 import { Press } from '../../ui/components/Press'
+import { takePaletteStart } from '../../shell/palette'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -96,15 +98,16 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const pathname = usePathname()
   const player = usePlayer()
   const library = useLibrary()
-  const scan = useScanLibrary()
-  const artFor = useArt(ROW_COVER_SIZE)
   const { fromCloud } = useConnection()
+  // Offered only to a device that talks to its server, which is then what answers it.
+  const scan = useScanLibrary(fromCloud ? null : clientApi())
+  const artFor = useArt(ROW_COVER_SIZE)
   // The app's own width for the box; the window's height, which no split lies about.
   const { finePointer, width } = useLayout()
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const switches = useSmartSwitches()
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(takePaletteStart)
   const [highlighted, setHighlighted] = useState(0)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)
@@ -569,8 +572,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           <EmptyState
             compact
             title={`Nothing matches “${trimmed}”`}
-            // A cloud library has no lyric index to search.
-            line={fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
+            // Lyrics are searched on your library's computer, out of reach now.
+            line={
+              search.lyricsAway ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'
+            }
           />
         ) : null}
       </ScrollView>

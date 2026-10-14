@@ -410,6 +410,25 @@ describe('snapshot schema', () => {
       expect(CloudSnapshotSchema.safeParse(without).success).toBe(false)
     }
   })
+
+  it('reads a snapshot whose server named no id, so the library still opens', () => {
+    const server = { addresses: ['https://pi.example.ts.net'], token: 'a-token' }
+    const snapshot = {
+      format: 1,
+      writtenAt: '2026-10-07T14:22:05.123Z',
+      writtenBy: 'mac-01d7e61b',
+      upTo: {},
+      songs: [song],
+      tags: [],
+      playlists: [],
+      artists: [],
+      sound: null,
+      server,
+    }
+    expect(CloudSnapshotSchema.safeParse(snapshot).success).toBe(true)
+    const named = { ...snapshot, server: { ...server, id: 'the-pi' } }
+    expect(CloudSnapshotSchema.parse(named).server?.id).toBe('the-pi')
+  })
 })
 
 describe('format.json', () => {

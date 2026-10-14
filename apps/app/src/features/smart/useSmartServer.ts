@@ -1,10 +1,8 @@
 import { useMemo } from 'react'
 import type { Api, Reach } from '@selfmp3/client'
-import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerDirect } from '../../connection/useServerDirect'
+import { useServerApi } from '../../connection/useServerApi'
 import { useServerSongIds } from '../../connection/useServerSongIds'
-import { reachedConnection } from '../../connection/via'
 
 /**
  * How long a smart feature's answer may take. A model behind the claude CLI
@@ -24,27 +22,24 @@ interface SmartServer {
 }
 
 const same = (id: number): number => id
-const nothing = (): void => undefined
 
 /**
  * The server, for the smart features (docs/features/ai.md): the one thing
  * that holds the whole library and the model's address. A cloud library
- * reaches it the way Stats does and lines its song ids up with this device's;
- * a device talking to a server already has both.
+ * reaches it the way Stats does (`useServerApi`) and lines its song ids up
+ * with this device's; a device talking to a server already has both.
  */
 export function useSmartServer(): SmartServer {
-  const { fromCloud, connection } = useConnection()
-  const reach = useServerDirect({ enabled: fromCloud })
-  const via = fromCloud ? reachedConnection(reach) : (connection ?? undefined)
-  const ids = useServerSongIds(fromCloud ? via : undefined)
-  const ready = via !== undefined && (!fromCloud || ids.ready)
-  const api = useMemo(() => (ready && via ? apiFor(via, THINKING_MS) : null), [ready, via])
+  const { fromCloud } = useConnection()
+  const server = useServerApi(THINKING_MS)
+  const ids = useServerSongIds(fromCloud ? server.via : undefined)
+  const api = fromCloud && !ids.ready ? null : server.api
 
-  return useMemo(() => {
-    if (fromCloud) return { reach, api, onDevice: ids.onDevice, onServer: ids.onServer }
-    const direct: SmartServer['reach'] = connection
-      ? { state: 'reachable', connection, lookAgain: nothing }
-      : { state: 'away', said: false, lookAgain: nothing }
-    return { reach: direct, api, onDevice: same, onServer: same }
-  }, [fromCloud, reach, api, ids.onDevice, ids.onServer, connection])
+  return useMemo(
+    () =>
+      fromCloud
+        ? { reach: server.reach, api, onDevice: ids.onDevice, onServer: ids.onServer }
+        : { reach: server.reach, api, onDevice: same, onServer: same },
+    [fromCloud, server.reach, api, ids.onDevice, ids.onServer],
+  )
 }

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { messageOf } from '@selfmp3/shared'
@@ -31,7 +32,9 @@ import { Gate } from './util/gate.js'
  *   follows is the machine's;
  * - staying awake, which is one assertion for the machine;
  * - analysis, one song at a time across every library, so a Pi with three
- *   backlogs does not run three ffmpegs and the model at once.
+ *   backlogs does not run three ffmpegs and the model at once;
+ * - the server's own name for itself (`serverId`), which every library's
+ *   snapshot carries and `/api/health` answers with.
  *
  * A container made without one makes its own, which is what a test or a
  * single library on a laptop wants.
@@ -44,6 +47,8 @@ export interface SharedServices {
   readonly throttle: YtThrottleService | null
   readonly keepAwake: KeepAwakeService
   readonly analysisGate: Gate
+  /** Which server this is: `CloudServerSchema.id`, and `/api/health`'s `serverId`. */
+  readonly serverId: string
   /** Let go of what is held for the machine: the model, the stay-awake. */
   close(): Promise<void>
 }
@@ -62,6 +67,7 @@ export function createShared(
     throttle,
     keepAwake,
     analysisGate: new Gate(1),
+    serverId: serverIdIn(config.dataDir),
     close: async () => {
       keepAwake.stop()
       await soundModel.close()
@@ -75,6 +81,44 @@ export function createShared(
  * writes it, and a file that is missing or not this shape starts afresh, as a
  * first boot does.
  */
+/**
+ * This server's name for itself, made on the first boot and kept in
+ * `<data>/server-id` from then on.
+ *
+ * A device finds the server by racing every address its snapshot names
+ * (`packages/client/src/connection/reach.ts`), and an address only says where
+ * *a* server might be. `http://localhost:4600` is this server on the Pi and the
+ * development server on the Mac beside it; a Wi-Fi address at a friend's is
+ * whatever they run. So a device keeps only the address whose `/api/health`
+ * answers with the id the snapshot named. It is kept rather than made at each
+ * boot so a restart does not leave every device holding a snapshot that names a
+ * server nobody is any more, until the next one is written.
+ *
+ * Not a secret: it is said to anyone who asks `/api/health`. It tells servers
+ * apart by accident, which is all it is for; the token is what keeps anyone out.
+ */
+function serverIdIn(dataDir: string): string {
+  const file = path.join(dataDir, 'server-id')
+  const read = (): string | null => {
+    try {
+      return fs.readFileSync(file, 'utf8').trim() || null
+    } catch {
+      return null
+    }
+  }
+  const existing = read()
+  if (existing) return existing
+  const made = crypto.randomBytes(16).toString('base64url')
+  try {
+    fs.mkdirSync(dataDir, { recursive: true })
+    // `wx`: two processes booting on one folder agree on the first one's.
+    fs.writeFileSync(file, made, { flag: 'wx' })
+    return made
+  } catch {
+    return read() ?? made
+  }
+}
+
 export class FileThrottleStore implements ThrottleStore {
   readonly #file: string
   readonly #logger: Logger

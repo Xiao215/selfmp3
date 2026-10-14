@@ -39,14 +39,19 @@ for GitHub Pages, the phone and the desktop shell.
 
 **The server has to accept the app's origin.** The app on 4601 is another
 origin, and the server answers a browser only from the origins it is told
-about, so without `SELFMP3_CORS_ORIGINS` every call is blocked: the page says
+about (`SELFMP3_CORS_ORIGINS`); without it every call is blocked, the page says
 it cannot reach the server and twenty-odd flows fail at once, looking like
-broken features. Put it in the checkout's `.env` (a worktree reads its own,
-then the main checkout's), or in front of the command:
+broken features. `dev:api` sets it to `http://localhost:4601`, the origin
+`dev:web` serves, so `npm run dev` needs nothing more. An origin of your own in
+front of the command is added to it (one in `.env` is not: the script's value
+comes first):
 
 ```
-SELFMP3_CORS_ORIGINS=http://localhost:4601 npm run dev
+SELFMP3_CORS_ORIGINS=http://localhost:8090 npm run dev   # 4601 and 8090
 ```
+
+A server started any other way — the lane below, `npm run dev --workspace
+@selfmp3/server` — sets nothing, and needs the app's origin named.
 
 **The app has to be told where its server is**, since the address is not its
 own origin. Only a development build reads a server address instead of signing

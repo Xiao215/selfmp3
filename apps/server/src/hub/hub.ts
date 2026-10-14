@@ -2,7 +2,13 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import type { Request, Router } from 'express'
-import { messageOf, plural, type CloudServer, type DoormanMe } from '@selfmp3/shared'
+import {
+  HUB_LIBRARY_HEADER,
+  messageOf,
+  plural,
+  type CloudServer,
+  type DoormanMe,
+} from '@selfmp3/shared'
 import { libraryApi } from '../app.js'
 import { CloudError } from '../bucket/store.js'
 import { DoormanClient } from '../bucket/doorman.js'
@@ -102,10 +108,13 @@ export class Hub {
 
   /**
    * The library a request is for: the one whose token it carries. A request
-   * from this machine with none goes to the only library, when there is only
-   * one — the server's page and an extension pointed at localhost, on a
-   * machine nobody else uses — and to none when there are several, since
-   * there is no telling whose it meant.
+   * from this machine with none goes to the library it names by id
+   * (`HUB_LIBRARY_HEADER`: the server's page and the `selfmp3` command, which
+   * read the ids from `GET /api/hub`), else to the only library, when there is
+   * only one — an extension pointed at localhost, on a machine nobody else
+   * uses — and to none when there are several, since there is no telling
+   * whose it meant. Naming one is no more than the token-less request to the
+   * only library already is: whoever is at this machine can read `hub.json`.
    *
    * A map lookup rather than a timing-safe comparison: the tokens are 256
    * random bits, and how long a hash table takes to miss says nothing useful
@@ -114,9 +123,10 @@ export class Hub {
   resolve(req: Request): Workspace | null {
     const token = tokenOf(req)
     if (token !== null) return this.#byToken.get(token) ?? null
-    if (isLocalRequest(req) && this.#workspaces.size === 1) {
-      return this.#workspaces.values().next().value ?? null
-    }
+    if (!isLocalRequest(req)) return null
+    const named = req.get(HUB_LIBRARY_HEADER)
+    if (named) return this.#workspaces.get(named) ?? null
+    if (this.#workspaces.size === 1) return this.#workspaces.values().next().value ?? null
     return null
   }
 
@@ -147,7 +157,7 @@ export class Hub {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
     const known = this.#registry.byAccount(account)
-    if (known && this.#workspaces.has(known.id)) return this.#answer(known)
+    if (known && this.#workspaces.has(known.id)) return this.answer(known)
 
     const pending = this.#joining.get(account)
     if (pending) return pending
@@ -159,19 +169,13 @@ export class Hub {
   }
 
   /**
-   * An account's library let go (`DELETE /api/hub/join`, or its grant taken
-   * back): the grant given back, the workspace closed and its folders deleted.
-   * Nothing is lost by it — the folders were a copy of the bucket.
+   * An account's library let go, once its grant was taken back (Settings ›
+   * Account › Computers › Remove, on any device, which ends the grant at the
+   * doorman): the workspace closed and its folders deleted. Nothing is lost
+   * by it — the folders were a copy of the bucket.
    */
-  async leave(workspace: Workspace, reason: string): Promise<void> {
-    const entry = workspace.entry
-    if (!entry || !this.#registry) throw HttpError.conflict('this library is the server’s own')
-    if (entry.grant?.id && this.#doorman) {
-      await this.#doorman.endGrant(entry.grant.token, entry.grant.id).catch((error: unknown) => {
-        // Already gone is what was wanted; anything else, the account can remove it itself.
-        this.logger.warn('could not give a grant back', { message: messageOf(error) })
-      })
-    }
+  #leave(entry: HubEntry, reason: string): void {
+    if (!this.#registry) return
     this.#close(entry.id)
     this.#registry.remove(entry.id)
     fs.rmSync(path.join(this.config.dataDir, 'accounts', entry.id), {
@@ -213,11 +217,12 @@ export class Hub {
       : registry.add({ account, email: me.email, grant })
     this.#open(entry, me)
     this.logger.info('a library joined', { workspace: entry.id, email: me.email })
-    return this.#answer(entry)
+    return this.answer(entry)
   }
 
-  #answer(entry: HubEntry): CloudServer {
-    return { addresses: this.addresses(), token: entry.token }
+  /** What a device talks to one library here with: which server, where, and the library's token. */
+  answer(entry: HubEntry): CloudServer {
+    return { id: this.shared.serverId, addresses: this.addresses(), token: entry.token }
   }
 
   /** One workspace's container made, its session in place, and set going. */
@@ -266,8 +271,9 @@ export class Hub {
    */
   #sessionEnded(id: string): void {
     const workspace = this.#workspaces.get(id)
-    const grant = workspace?.entry?.grant
-    if (!workspace || !grant || !this.#doorman || this.#stopped) return
+    const entry = workspace?.entry
+    const grant = entry?.grant
+    if (!entry || !grant || !this.#doorman || this.#stopped) return
     // A library from before whose old session ended was never given a grant
     // to take back: its plays may not all be in the bucket yet, so it waits
     // for someone to sign it in again rather than being let go.
@@ -281,9 +287,11 @@ export class Hub {
       () => undefined,
       (error: unknown) => {
         if (!(error instanceof CloudError && error.kind === 'auth')) return
-        void this.leave(workspace, 'its grant was taken back').catch((failure: unknown) => {
+        try {
+          this.#leave(entry, 'its grant was taken back')
+        } catch (failure) {
           this.logger.warn('could not let a library go', { message: messageOf(failure) })
-        })
+        }
       },
     )
   }

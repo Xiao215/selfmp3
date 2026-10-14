@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   allResults,
   beforeTyping,
+  lyricHitsHere,
   lyricsQueryFor,
   placesOf,
   recentItems,
@@ -125,5 +126,26 @@ describe('lyricsQueryFor', () => {
     expect(lyricsQueryFor(' abc ')).toBe('abc')
     expect(lyricsQueryFor('無敵')).toBe('無敵')
     expect(lyricsQueryFor('無')).toBe('')
+  })
+})
+
+describe('lyricHitsHere', () => {
+  const hit = (songId: number, line: string) => ({
+    songId,
+    title: 'Song',
+    artist: 'Artist',
+    hasArt: false,
+    line,
+    before: '',
+    match: line,
+    after: '',
+  })
+
+  it('renumbers each line as this device numbers its song, and leaves out songs it lacks', () => {
+    const onDevice = (serverId: number) => ({ 812: 47, 813: 48 })[serverId]
+    expect(lyricHitsHere([hit(813, 'b'), hit(900, 'not here'), hit(812, 'a')], onDevice)).toEqual([
+      hit(48, 'b'),
+      hit(47, 'a'),
+    ])
   })
 })

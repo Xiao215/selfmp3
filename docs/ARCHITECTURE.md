@@ -263,9 +263,11 @@ the phone and in the desktop app, and a device signs in with Google and reads
 the library wherever the page came from. An app served from the server would
 answer from the server's database rather than the bucket, a surface with no
 sign-in. The page on `:4600` is an admin page instead (`http/admin.ts`,
-`apps/server/public/`): hand-written HTML, CSS and JS, no build step, the
-library count, the cloud connection and **Publish now** for the library a
-request reaches. With no bucket connected, a library's API refuses everything
+`apps/server/public/`): hand-written HTML, CSS and JS, no build step. Opened on
+the server itself it lists the libraries the server works for (`GET /api/hub`),
+each with its publishing and **Publish now**; with a folder for a bucket, or
+opened elsewhere with a library's token, it shows that one library's count,
+cloud connection and **Publish now**. With no bucket connected, a library's API refuses everything
 but connecting one: there is no library to serve.
 
 What only the server can do, a device asks it for directly: Import (yt-dlp runs
@@ -274,7 +276,8 @@ there), Stats and the Report (worked out from `play_events`), metadata lookup
 presence for handoff. The device finds the server by the addresses in its
 bucket's snapshot — its LAN addresses and its public `https://` one
 (`SELFMP3_PUBLIC_URL`, a Tailscale Funnel on Xiao's Pi) are raced, and the first
-to answer wins (`connection/useServerDirect.ts`). When none answers, the screen
+to answer as the server the snapshot names wins (`connection/useServerDirect.ts`;
+docs/SYNC.md, "An answer has to be from the right server"). When none answers, the screen
 is still drawn and says why (`connection/ServerAway.tsx`); an import is left in
 the bucket for the server to take later. The bucket answers everything else, so
 playing, browsing and editing never wait for the server.

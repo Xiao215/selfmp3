@@ -98,6 +98,15 @@ export type SimilarQuery = z.infer<typeof SimilarQuerySchema>
 export const HealthSchema = z.object({
   ok: z.literal(true),
   version: z.string(),
+  /**
+   * Which server this is (`CloudServerSchema.id`). Not a secret — it says
+   * which server answered, not whose library is behind it — so it is told to
+   * anyone, and a device racing the addresses in a snapshot keeps only the one
+   * that answers with the id the snapshot named. Every server says it; a
+   * device's own copy of a cloud library, answering for the doorman, is no
+   * server and has none.
+   */
+  serverId: z.string().min(1).optional(),
   uptimeSeconds: z.number().nonnegative(),
   libraryPath: z.string().optional(),
   songCount: z.number().int().nonnegative().optional(),

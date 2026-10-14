@@ -27,6 +27,7 @@ export function systemRoutes(container: Container): Router {
       return {
         ok: true,
         version: APP_VERSION,
+        serverId: container.serverId,
         uptimeSeconds: Math.round(process.uptime()),
         appUrl: container.config.appUrl,
         ...(known

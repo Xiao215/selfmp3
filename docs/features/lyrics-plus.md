@@ -53,9 +53,20 @@ GET /api/lyrics/search?q=夜空&limit=20
 → { hits: [{ songId, title, artist, hasArt, line, before, match, after }] }
 ```
 
-The index is the server's, so only a device talking to a server directly asks it. A
-device answering from the bucket — every signed-in device — has no words to search, and
-the section stays empty there.
+The index is the server's: a device's copy of the library refuses the route
+(`SERVER_ONLY_ROUTES`). So a signed-in device — whose library is the bucket — asks the
+server behind it directly, the way Stats does (`useVia`, [SYNC.md](../SYNC.md) "Reaching the
+server for what only it can do"). Its answer names songs by the server's ids, so each hit is
+renumbered as this device numbers that song, by the uid both libraries share
+(`useServerSongIds`, `lyricHitsHere` in `search.model.ts`); a hit on a song this device's copy
+does not have yet is left out, since it could neither play nor show its cover. While the
+server is out of reach nothing is asked and nothing is said: Search has no Lyrics section and
+the palette's "nothing matches" stops suggesting part of a lyric, while songs, artists and tags
+are still found on the device.
+
+On the shared server each account's library is a workspace with its own database
+([shared-server.md](shared-server.md)), so the index is per workspace: a search answers from
+the library behind the token it carries, never another account's.
 
 Backed by an FTS5 table `lyrics_fts` (one row per line). Because SQLite's
 unicode61 tokenizer treats a run of CJK characters as one token, the indexed

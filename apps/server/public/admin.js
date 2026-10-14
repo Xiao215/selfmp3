@@ -41,6 +41,12 @@ const state = {
   cloud: null,
   /** The last `/api/health`. */
   health: null,
+  /**
+   * Whether this page is open on the server's own machine, the only place the
+   * server lets the cloud connection be changed from: it answered `/api/hub`,
+   * which it answers nowhere else. Null until it has said either way.
+   */
+  onServer: null,
   /** Showing the bucket form, even though a bucket is already connected. */
   editing: false,
   /** One line under the Cloud card: what just happened, or what went wrong. */
@@ -371,13 +377,15 @@ function renderCloud({ force = false } = {}) {
     ? tokenForm()
     : !cloud
       ? `<p class="muted">Could not ask this server about the cloud.</p>`
-      : cloud.signingIn
-        ? waitingForGoogle(cloud)
-        : cloud.connected && !state.editing
-          ? connected(cloud)
-          : cloud.doormanUrl && !cloud.account
-            ? signIn(cloud)
-            : bucketForm(cloud)
+      : state.onServer === false
+        ? fromElsewhere(cloud)
+        : cloud.signingIn
+          ? waitingForGoogle(cloud)
+          : cloud.connected && !state.editing
+            ? connected(cloud)
+            : cloud.doormanUrl && !cloud.account
+              ? signIn(cloud)
+              : bucketForm(cloud)
 
   // Most polls change nothing. Replacing the card anyway would throw away the
   // focus ring, close a native autofill menu and make every element new, twice
@@ -412,6 +420,47 @@ function tokenForm() {
       </div>
     </form>
     ${noticeMarkup()}`
+}
+
+/**
+ * The cloud card from another computer: what the library is doing, and where
+ * to go to change it. The server takes signing in, a bucket and Publish now
+ * only from its own machine (`routes/cloud.ts`), so offering them here would
+ * be offering a refusal.
+ */
+function fromElsewhere(cloud) {
+  const target = cloud.target
+  const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
+  return `
+    <p class="lead">${
+      target?.keyIdHint === 'folder'
+        ? `Publishing to the folder <span class="code">${escape(folder)}</span>, which stands in
+           for a bucket.`
+        : cloud.connected
+          ? `Publishing to <span class="code">${escape(folder)}</span> at
+           <span class="code">${escape(host)}</span>${
+             cloud.account ? `, signed in as ${escape(cloud.account.email)}` : ''
+           }.`
+          : 'Not publishing to a bucket.'
+    }</p>
+    <div class="row last">
+      <div>
+        <p class="row-label">In the cloud</p>
+        <p class="row-hint">${escape(
+          `${cloud.songs.inCloud} of ${plural(cloud.songs.total, 'song', 'songs')} · ${formatBytes(
+            cloud.bytesInCloud,
+          )} · last published ${formatRelative(cloud.lastSnapshotAt)}`,
+        )}</p>
+        ${uploading(cloud)}
+      </div>
+    </div>
+    <p class="row-hint">
+      Signing in, the bucket and Publish now are changed on the server itself: open this page
+      there. On a server with no screen, through SSH:
+      <span class="code">ssh -L 4600:localhost:4600 &lt;server&gt;</span>, then
+      <span class="code">http://localhost:4600</span>.
+    </p>
+    ${cloud.state === 'error' && cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}`
 }
 
 function signIn(cloud) {
@@ -748,6 +797,8 @@ async function poll() {
       request('/api/health').catch(() => null),
     ])
     if (hub) state.hub = isOwnFolder(hub) ? null : hub
+    // The server answered, but not about whom it works for: not its own machine.
+    if (hub || health) state.onServer = hub !== null
     let cloud = null
     if (state.hub) {
       const workspaces = state.hub.workspaces

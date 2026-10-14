@@ -269,9 +269,13 @@ first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
 workspace. The server's own page (port 4600, opened on the server itself) lists the
-workspaces, each with how its publishing is going and **Publish now**. Opened from another
-computer with a library's token, its *Cloud* card can also sign that library in with Google,
-or connect a bucket directly with its key when there is no doorman.
+workspaces, each with how its publishing is going and **Publish now**. Everything that
+changes a library's way into its bucket — signing in, connecting a bucket by its key when
+there is no doorman, disconnecting, publishing now — is taken from that machine alone. A
+library's token is on every one of its account's devices, and none of them should be able to
+point the library at another bucket; a device only reads `GET /api/cloud` and
+`GET /api/cloud/uids`. Opened from another computer with a token, the page shows and does
+nothing (an SSH tunnel to port 4600 is the way in on a server with no screen).
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and

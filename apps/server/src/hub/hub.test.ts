@@ -332,6 +332,52 @@ describe('a server working for several accounts', () => {
     expect((await cloud({ ...elsewhere, [HUB_LIBRARY_HEADER]: friend.id })).status).toBe(401)
   })
 
+  it('lets a device read its library’s cloud state but change it only from its own machine', async () => {
+    const { url } = await startHub()
+    const me = CloudServerSchema.parse(
+      (await join(url, await account('1', 'me@example.com', 'mine'))).body,
+    )
+    const { workspaces } = HubStatusSchema.parse(await (await fetch(`${url}/api/hub`)).json())
+    const id = workspaces[0]!.id
+
+    // A device: its library's token, from another computer.
+    const device = { Authorization: `Bearer ${me.token}`, 'X-Forwarded-For': '203.0.113.9' }
+    const bucket = {
+      endpoint: 'https://s3.example.com',
+      bucket: 'elsewhere',
+      keyId: 'k',
+      applicationKey: 'secret',
+    }
+    const send = (method: string, path: string, headers: Record<string, string>, body?: unknown) =>
+      fetch(`${url}/api/cloud${path}`, {
+        method,
+        headers: body === undefined ? headers : { ...headers, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+
+    expect((await send('GET', '', device)).status).toBe(200)
+    expect((await send('GET', '/uids', device)).status).toBe(200)
+    for (const [method, path, body] of [
+      ['PUT', '', bucket],
+      ['DELETE', '', undefined],
+      ['POST', '/signin', { attempt: '0'.repeat(32) }],
+      ['DELETE', '/signin', undefined],
+      ['POST', '/signin/code', { code: 'ABCD-1234' }],
+      ['PUT', '/storage', bucket],
+      ['POST', '/sync', undefined],
+    ] as const) {
+      const refused = await send(method, path, device, body)
+      expect(refused.status, `${method} /api/cloud${path}`).toBe(403)
+    }
+    // Still connected: nothing a device sent got through.
+    const after = CloudStatusSchema.parse(await (await send('GET', '', device)).json())
+    expect(after.connected).toBe(true)
+    expect(after.account?.email).toBe('me@example.com')
+
+    // The server's own page, on its own machine, may.
+    expect((await send('POST', '/sync', { [HUB_LIBRARY_HEADER]: id })).status).toBe(200)
+  })
+
   it('makes a library from before into a workspace, keeping its token, then settles its grant', async () => {
     // The one library a server had: signed in through the doorman, in the data folder itself.
     const before = loadConfig()

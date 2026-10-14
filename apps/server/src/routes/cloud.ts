@@ -9,6 +9,7 @@ import {
 import type { Container } from '../container.js'
 import { CloudError } from '../bucket/store.js'
 import { HttpError } from '../http/errors.js'
+import { isLocalRequest } from '../http/local.js'
 import { route } from '../http/route.js'
 
 /**
@@ -17,9 +18,26 @@ import { route } from '../http/route.js'
  * or, with no doorman, connect a bucket directly with its key. Then: see how
  * publishing is going, publish now, disconnect. A key is accepted here and
  * never sent back, and the doorman's session never leaves this server.
+ *
+ * Only reading is open to a device. Everything that changes the connection —
+ * signing in, connecting or dropping a bucket, publishing now — is the
+ * server's own page's, opened on the server itself (`isLocalRequest`): a
+ * library's token is in every one of its account's devices, and none of them
+ * should be able to point the library at another bucket or sign it out. A
+ * library on a server working for accounts reaches its bucket through a grant
+ * its devices give it anyway (`POST /api/hub/join`).
  */
 export function cloudRoutes(container: Container): Router {
   const router = Router()
+
+  router.use('/cloud', (req, _res, next) => {
+    const reading = req.method === 'GET' || req.method === 'HEAD'
+    next(
+      reading || isLocalRequest(req)
+        ? undefined
+        : HttpError.forbidden('only on the server itself: open its page there'),
+    )
+  })
 
   /** The bucket's own answer is the useful part — it goes back to the form as it is. */
   const explain = async <T>(work: () => Promise<T> | T): Promise<T> => {

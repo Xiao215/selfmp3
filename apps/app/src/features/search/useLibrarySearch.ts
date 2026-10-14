@@ -1,12 +1,15 @@
 import { useDeferredValue, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { LyricsSearchHit } from '@selfmp3/shared'
-import { clientApi, queryKeys, STALE } from '@selfmp3/client'
+import { clientApi, queryKeys, STALE, type ServerConnection } from '@selfmp3/client'
+import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useServerSongIds } from '../../connection/useServerSongIds'
+import { noServer, useVia, viaKey } from '../../connection/via'
 import { useDebounced } from '../../ui/useDebounced'
 import { asksOnEnter } from '../smart/smart.model'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
-import { lyricsQueryFor } from './search.model'
+import { lyricHitsHere, lyricsQueryFor } from './search.model'
 
 const NO_HITS: readonly LyricsSearchHit[] = []
 
@@ -22,8 +25,13 @@ interface LibrarySearch<Found> {
   readonly shown: string
   /** What those words found. */
   readonly found: Found
-  /** Lines of lyrics that match, from the server's index; none from the cloud. */
+  /**
+   * Lines of lyrics that match, from the server's index, named by this
+   * device's song ids. None while a cloud library's server is out of reach.
+   */
   readonly lyricHits: readonly LyricsSearchHit[]
+  /** Whether lyrics cannot be searched now: a cloud library whose server is out of reach. */
+  readonly lyricsAway: boolean
   /** What the words in the field now find, for a key that cannot wait for the results. */
   readonly foundNow: () => Found
   /**
@@ -62,7 +70,6 @@ export function useLibrarySearch<Found>(
     matches: (found: Found, lyricHits: number) => number
   },
 ): LibrarySearch<Found> {
-  const { fromCloud } = useConnection()
   const switches = useSmartSwitches()
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time, and are skipped for letters typed
@@ -71,16 +78,8 @@ export function useLibrarySearch<Found>(
   const found = useMemo(() => search(shown), [search, shown])
 
   const lyricsQuery = lyricsQueryFor(useDebounced(query, 180))
-  const lyrics = useQuery({
-    queryKey: queryKeys.lyricsSearch(lyricsQuery),
-    queryFn: () => clientApi().lyricsSearch(lyricsQuery, LYRICS_ASKED),
-    // The lyrics index is the server's; a library in the cloud has no words to search.
-    enabled: lyricsQuery !== '' && !fromCloud,
-    retry: false,
-    staleTime: STALE.minute,
-    placeholderData: previous => previous,
-  })
-  const lyricHits = shown.trim() !== '' && lyricsQuery ? (lyrics.data?.hits ?? NO_HITS) : NO_HITS
+  const lyrics = useLyricsSearch(lyricsQuery)
+  const lyricHits = shown.trim() !== '' && lyricsQuery ? lyrics.hits : NO_HITS
 
   const foundNow = (): Found => (shown === query ? found : search(query))
   const asks = (them: Found, text: string): boolean =>
@@ -89,8 +88,46 @@ export function useLibrarySearch<Found>(
     shown,
     found,
     lyricHits,
+    lyricsAway: lyrics.away,
     foundNow,
     asks,
     enterAsks: () => asks(foundNow(), query),
   }
+}
+
+/**
+ * Lines of lyrics that match: the lyric index is the server's (docs/features/lyrics-plus.md),
+ * so a cloud library asks the server directly when it can be reached, the way
+ * Stats does (statsSource.ts), and renumbers what it finds as this device
+ * numbers those songs. Out of reach, there are simply no lines, and nothing is
+ * said about it: the rest of the search is this device's and still works.
+ */
+function useLyricsSearch(lyricsQuery: string): {
+  readonly hits: readonly LyricsSearchHit[]
+  readonly away: boolean
+} {
+  const { fromCloud } = useConnection()
+  const via = useVia()
+  const ids = useServerSongIds(via)
+  const lyrics = useQuery({
+    queryKey: via
+      ? viaKey(via.baseUrl, ...queryKeys.lyricsSearch(lyricsQuery))
+      : queryKeys.lyricsSearch(lyricsQuery),
+    queryFn: () => askLyrics(fromCloud, via, lyricsQuery),
+    enabled: lyricsQuery !== '' && (!fromCloud || via !== undefined),
+    retry: false,
+    staleTime: STALE.minute,
+    placeholderData: previous => previous,
+  })
+  const answered = lyrics.data?.hits
+  const hits = useMemo(
+    () => (!answered ? NO_HITS : via ? lyricHitsHere(answered, ids.onDevice) : answered),
+    [answered, via, ids.onDevice],
+  )
+  return { hits: fromCloud && via === undefined ? NO_HITS : hits, away: fromCloud && !via }
+}
+
+function askLyrics(fromCloud: boolean, via: ServerConnection | undefined, lyricsQuery: string) {
+  if (via) return apiFor(via).lyricsSearch(lyricsQuery, LYRICS_ASKED)
+  return fromCloud ? noServer() : clientApi().lyricsSearch(lyricsQuery, LYRICS_ASKED)
 }

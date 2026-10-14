@@ -4,7 +4,12 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import zlib from 'node:zlib'
-import { CloudServerSchema, DoormanGrantsSchema, HealthSchema } from '@selfmp3/shared'
+import {
+  CloudServerSchema,
+  DoormanGrantsSchema,
+  HealthSchema,
+  LyricsSearchResponseSchema,
+} from '@selfmp3/shared'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { harness, type Harness } from '../../../doorman/src/fakes.js'
 import { loadConfig, type Config } from '../config.js'
@@ -184,6 +189,46 @@ describe('a server working for several accounts', () => {
     expect(DoormanGrantsSchema.parse(await listed.json()).grants.map(g => g.server)).toEqual([
       'https://pi.example.ts.net',
     ])
+  })
+
+  it('keeps each library’s lyrics to its own search', async () => {
+    const { hub, url } = await startHub()
+    const me = CloudServerSchema.parse(
+      (await join(url, await account('1', 'me@example.com', 'mine'))).body,
+    )
+    const friend = CloudServerSchema.parse(
+      (await join(url, await account('2', 'friend@example.com', 'theirs'))).body,
+    )
+    const mine = hub.workspaces().find(w => w.container.config.authToken === me.token)!.container
+    const songId = mine.songs.insert({
+      path: 'monster.m4a',
+      title: 'Monster',
+      artist: 'YOASOBI',
+      album: '',
+      albumArtist: '',
+      trackNo: null,
+      year: null,
+      duration: 1,
+      sizeBytes: 1,
+      mime: 'audio/mp4',
+      mtimeMs: 0,
+      hasArt: false,
+      artExt: null,
+      lyricsKind: 'plain',
+      sourceUrl: null,
+    })
+    mine.lyricsIndex.index(songId, 'running into the night')
+
+    const search = async (token: string) => {
+      const response = await fetch(`${url}/api/lyrics/search?q=night`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      return LyricsSearchResponseSchema.parse(await response.json()).hits
+    }
+    expect((await search(me.token!)).map(hit => [hit.songId, hit.title])).toEqual([
+      [songId, 'Monster'],
+    ])
+    expect(await search(friend.token!)).toEqual([])
   })
 
   it('refuses a session the doorman does not know, and an account with no bucket', async () => {

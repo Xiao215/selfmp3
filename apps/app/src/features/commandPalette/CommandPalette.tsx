@@ -569,8 +569,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           <EmptyState
             compact
             title={`Nothing matches “${trimmed}”`}
-            // A cloud library has no lyric index to search.
-            line={fromCloud ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'}
+            // Lyrics are searched on your library's computer, out of reach now.
+            line={
+              search.lyricsAway ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'
+            }
           />
         ) : null}
       </ScrollView>

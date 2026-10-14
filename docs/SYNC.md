@@ -521,6 +521,7 @@ always drawn (`ServerAway`, with the words for each in `SERVER_NEEDS`,
 | Ask and the other smart features | the model, and the whole library in one place | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
 | The Devices sheet (handoff) | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
+| Search and the command palette | lines of lyrics (the index) | no Lyrics section; everything else is found on the device as ever |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers
 them its database's way, and a device numbers them as uids arrive
@@ -599,7 +600,8 @@ libraries that deliberately number different songs the same.
   back to the foreground, or the next time the library is asked for.
 - **Some things still need the server**: looking metadata up, the stats, the smart features
   and searching inside lyrics. The screens that need it reach for it and say so when it is
-  away, rather than hiding — see "Reaching the server for what only it can do" above.
+  away, rather than hiding (Search simply finds no lines of lyrics: the rest of it is the
+  device's own) — see "Reaching the server for what only it can do" above.
 - **Importing does not**, though only the server can fetch a link. In reach of it, the whole
   import screen works: what a link holds, a song played before it is added, the download.
   Away from it, the link goes into the bucket with its tags and its playlist, and the server

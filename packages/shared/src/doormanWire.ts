@@ -104,6 +104,20 @@ export const BUCKET_CAP_CODE = DOORMAN_ERROR.bucketCapExceeded
  */
 export const BUCKET_HOLD_MS = 10 * 60_000
 
+/**
+ * How many songs a device that streams from the bucket keeps whole for having
+ * played them, so a replay or a seek is not another read: a tab's service
+ * worker (apps/app/sw/sw.ts) and the desktop shell (apps/desktop/src/main/stream.ts).
+ */
+export const PLAYED_KEPT = 10
+
+/**
+ * How far past what has arrived a range may start and still wait for the
+ * download of the whole song under way, rather than ask the bucket for itself:
+ * a second or two of a song arriving, against a request of its own.
+ */
+export const WAIT_AHEAD_BYTES = 2 * 1024 * 1024
+
 /** How long a sign-in may take, from opening the start page to claiming the session. */
 export const SIGN_IN_TTL_MS = 10 * 60_000
 

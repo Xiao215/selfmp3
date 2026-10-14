@@ -74,6 +74,16 @@ describe('bucket songs on the desktop', () => {
     })
   })
 
+  it('tells the shell only of a change', async () => {
+    const media = await fresh()
+    // Mounting signed out: the shell has nothing to take back.
+    media.configure(null)
+    expect(bridge.bucket.use).not.toHaveBeenCalled()
+    media.configure({ pathOf: () => SONG, bearer: 't' })
+    media.configure({ pathOf: () => null, bearer: 't' })
+    expect(bridge.bucket.use).toHaveBeenCalledTimes(1)
+  })
+
   it('takes the session back on signing out', async () => {
     const media = await fresh()
     media.configure({ pathOf: () => SONG, bearer: 't' })

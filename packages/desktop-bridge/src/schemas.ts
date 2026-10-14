@@ -155,9 +155,11 @@ export type UpdateStatus = z.infer<typeof updateStatusSchema>
  * name: each is a directory under `userData`, and a `kind` that could be
  * anything would be a path the renderer chose. `recent` holds cloud songs kept
  * because they were played — a cache, apart from the downloads in `songs`, so
- * it never counts as "on this computer".
+ * it never counts as "on this computer". `played` is the shell's own: the last
+ * few songs streamed from the bucket, each fetched whole once
+ * (`main/stream.ts`); the page only ever clears it.
  */
-export const fileKindSchema = z.enum(['songs', 'covers', 'recent'])
+export const fileKindSchema = z.enum(['songs', 'covers', 'recent', 'played'])
 export type FileKind = z.infer<typeof fileKindSchema>
 
 /**

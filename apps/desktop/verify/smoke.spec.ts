@@ -1010,11 +1010,10 @@ test.describe('streams from the bucket', () => {
     server.close()
   })
 
-  test('plays and seeks a song it does not have, with the bearer it was handed', async () => {
+  test('plays and seeks a song it does not have, asking the bucket for it once', async () => {
     const app = await launchApp()
     try {
-      const page = await app.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
+      const page = await settledPage(app)
       seen.length = 0
 
       const result = await page.evaluate(
@@ -1043,7 +1042,17 @@ test.describe('streams from the bucket', () => {
           )
           audio.currentTime = 2
           await seeked
+
+          // The page keeping a copy of the song it played: from the shell's
+          // disk, through the same address, not from the bucket again.
+          const copy = await desktop.files.download({
+            id: 'played-copy',
+            kind: 'recent',
+            name: 'copy.wav',
+            url,
+          })
           return {
+            copy,
             url,
             rangedStatus: ranged.status,
             contentRange: ranged.headers.get('Content-Range'),
@@ -1063,14 +1072,10 @@ test.describe('streams from the bucket', () => {
       expect(result.state).toBe('loaded')
       expect(result.duration).toBeCloseTo(3, 1)
       expect(result.at).toBeCloseTo(2, 1)
-      // Every request carried the session, and the element asked by range.
-      expect(seen.length).toBeGreaterThan(1)
-      expect(seen.every(request => request.auth === 'Bearer t')).toBe(true)
-      expect(
-        seen.some(
-          request => request.range?.startsWith('bytes=') && request.range !== 'bytes=100-199',
-        ),
-      ).toBe(true)
+      expect(result.copy).toEqual({ state: 'done', bytes: song.length })
+      // A range, the element's own ranges, a seek and a copy: one read of the
+      // bucket, for the whole song, with the session.
+      expect(seen).toEqual([{ path: `/v1/files/${SONG}`, auth: 'Bearer t', range: undefined }])
     } finally {
       await app.close()
     }
@@ -1079,8 +1084,7 @@ test.describe('streams from the bucket', () => {
   test('the bucket’s cap reaches the page and holds the next asks; a session over is said so', async () => {
     const app = await launchApp()
     try {
-      const page = await app.firstWindow()
-      await page.waitForLoadState('domcontentloaded')
+      const page = await settledPage(app)
       seen.length = 0
 
       const result = await page.evaluate(
@@ -1129,6 +1133,18 @@ test.describe('streams from the bucket', () => {
     }
   })
 })
+
+/**
+ * The window once the app has drawn: it tells the shell it is signed out as
+ * it mounts (`bucket.use(null)`), and a session a test hands over before that
+ * would be taken back from under it.
+ */
+async function settledPage(app: Awaited<ReturnType<typeof launchApp>>) {
+  const page = await app.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await expect(page.locator('body')).toContainText(/self\.mp3/i, { timeout: 30_000 })
+  return page
+}
 
 /** `seconds` of a quiet tone as a WAV: something Chromium decodes, made here rather than kept. */
 function wav(seconds: number): Buffer {

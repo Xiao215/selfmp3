@@ -6,6 +6,7 @@ import { EVENTS } from '@selfmp3/desktop-bridge'
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 
 import { DeepLinks, deepLinkFromArgv, followPage } from './deepLinks.js'
+import { directoryFor } from './files.js'
 import { desktopInfo, registerIpc } from './ipc.js'
 import { buildMenu } from './menu.js'
 import { startNowPlaying } from './nowPlaying.js'
@@ -109,6 +110,7 @@ if (!app.requestSingleInstanceLock()) {
       const stream = createStreamProxy({
         fetch: (url, init) => net.fetch(url, init),
         onCapped: message => mainWindow?.webContents.send(EVENTS.bucketCapped, message),
+        dir: directoryFor('played'),
       })
       handleAppScheme({
         web: WEB_ROOT,

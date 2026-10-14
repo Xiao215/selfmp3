@@ -34,6 +34,12 @@ interface DesktopBucketMedia {
 function over(bridge: DesktopBridge): DesktopBucketMedia {
   let setup = SIGNED_OUT
   let hearing = false
+  /**
+   * The token the shell was last told, which starts as none. Only a change is
+   * sent: a page mounting signed out has nothing to take back, and a page
+   * reloaded while signed in hands over the same session it already had.
+   */
+  let told: string | null = null
 
   return {
     routes: {
@@ -51,6 +57,8 @@ function over(bridge: DesktopBridge): DesktopBucketMedia {
         bridge.bucket.onCapped(message => holdBucket(message, 'read'))
       }
       const token = setup.bearer
+      if (token === told) return
+      told = token
       void bridge.bucket.use(token === null ? null : { doormanUrl, token }).catch(() => {
         // The shell refused the session's shape: songs not here say they cannot be had.
       })

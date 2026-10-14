@@ -43,6 +43,7 @@ const bridge = {
     usage: vi.fn(async () => ({ songs: 0, covers: 0, free: 100 * 1024 * 1024 * 1024 })),
   },
   mediaUrl: (kind: string, name: string) => `app://selfmp3/_media/${kind}/${name}`,
+  bucket: { streamUrl: (key: string) => `app://selfmp3/_stream/${key}` },
 }
 
 vi.mock('./bridge', () => ({
@@ -92,9 +93,15 @@ describe('songs kept because they were played, on the desktop', () => {
 
     await recent.keepRecentlyPlayed(song)
 
+    // From the song the shell just streamed, not from the bucket again.
     expect(bridge.files.download).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'recent', name: NAME }),
+      expect.objectContaining({
+        kind: 'recent',
+        name: NAME,
+        url: `app://selfmp3/_stream/${song.path}`,
+      }),
     )
+    expect(bridge.files.download.mock.calls[0]?.[0]).not.toHaveProperty('headers')
     expect(recent.recentIds()).toEqual(new Set([7]))
     expect(recent.recentUri(song)).toBe(`app://selfmp3/_media/recent/${NAME}`)
   })
@@ -163,5 +170,15 @@ describe('songs kept because they were played, on the desktop', () => {
     expect(kept.size).toBeLessThan(6)
     expect(kept.has(6)).toBe(true)
     expect(kept.has(1)).toBe(false)
+  })
+
+  it('lets the shell’s played songs go with its own copies', async () => {
+    const recent = await fresh()
+    await recent.keepRecentlyPlayed(song)
+    disk.set(`played/audio-${SHA}.m4a`, 4_000_000)
+
+    recent.clearRecent()
+    await vi.waitFor(() => expect([...disk.keys()]).toEqual([]))
+    expect(bridge.files.clear).toHaveBeenCalledWith('played')
   })
 })

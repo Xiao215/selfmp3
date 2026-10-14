@@ -47,22 +47,38 @@ offline settings behave as they do on a phone at home.
 nothing else, and the window's `<audio>` element cannot send one. A tab's
 service worker attaches it and a phone's player sends it; here the shell does.
 The page points the element at `app://selfmp3/_stream/<key>`
-(`apps/app/src/ports/desktop/bucketMedia.desktop.ts`), and the main process asks
-the doorman for `/v1/files/<key>` with the header and the element's own
-`Range:`, and hands back the doorman's 200 or 206 as it came, so a song plays
-and seeks while it arrives (`apps/desktop/src/main/stream.ts`). The session is
-the page's: it is kept in IndexedDB beside the replica, where the main process
-cannot read it, so the page hands it over (`bucket.use`) and the shell holds it
-in memory only.
+(`apps/app/src/ports/desktop/bucketMedia.desktop.ts`), and the main process
+answers it the way a tab's worker does (`apps/desktop/src/main/stream.ts`).
+
+**One read of the bucket per song.** Backblaze counts every request against a
+daily allowance, and an `<audio>` element asks in ranges: a first look, the rest,
+one per seek, the next song's preload. So the first request for a song starts
+one download of the whole file from the doorman, with the header, into the
+`played` folder under `userData`, and every range is answered from that file as
+its bytes arrive, so playback starts without waiting for the end and a seek
+backwards or to what has arrived costs nothing. Once whole it is kept: the last
+ten songs played (shared's `PLAYED_KEPT`, the worker's count too), the least
+recently played going first, so a replay, even after a relaunch, is from disk.
+The one exception is the worker's too: a range more than 2 MB past what has
+arrived (`WAIT_AHEAD_BYTES`, a song resumed half-way on a slow connection) is
+asked of the doorman by itself rather than waited for.
+
+The session is the page's: it is kept in IndexedDB beside the replica, where the
+main process cannot read it, so the page hands it over (`bucket.use`, only when
+it changes) and the shell holds it in memory only.
 
 The refusals are the service worker's too. A 401, a session that is over, goes
 back as the doorman said it, and the player shows its words. The bucket's cap
 is held for ten minutes, answered from the shell without asking, and told to the
 page, whose own reads then hold off and say why. With no connection the song is
-not tried at all: the player says the computer is offline. A downloaded song
-plays from disk as before, and with "Download automatically" off a song that
-counts as a play is kept in the `recent` folder, as on a phone
-(`ports/desktop/recentCopies.desktop.ts`), so the next play is from disk.
+not tried at all: the player says the computer is offline. A song that stopped
+arriving half-way is not kept, and is fetched again next time.
+
+A downloaded song plays from disk as before. With "Download automatically" off,
+a song that counts as a play is also kept in the `recent` folder by the phone's
+rules (`ports/desktop/recentCopies.desktop.ts`); it is copied from the stream
+address, so from the `played` folder, never fetched from the bucket a second
+time. Signing out and "Remove all" empty both folders.
 
 ## What it is not
 

@@ -87,13 +87,6 @@ function wordsFor(
         confirm: 'Download',
         cancel: 'Not now',
       }
-    case 'cloud':
-      return {
-        title: quoted,
-        body: `Songs from your storage play once they’re on this ${place}, so it needs downloading first.`,
-        confirm: 'Download',
-        cancel: 'Not now',
-      }
     case 'offline':
       return {
         title: quoted,

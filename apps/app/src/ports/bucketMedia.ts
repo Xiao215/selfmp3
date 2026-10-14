@@ -27,8 +27,8 @@ import { doormanAuth, doormanFileUrl } from '../replica'
  * with no way to send a header, so a phone keeps a bucket's covers as files,
  * fetched with the header on their own path (src/offline/covers.ts).
  *
- * A browser has somewhere else to put the header: its own service worker. That
- * is the web twin.
+ * A browser has somewhere else to put the header: its own service worker. The
+ * desktop app has its shell. Both are the web twin.
  */
 
 const SIGNED_OUT: BucketMediaSetup = { pathOf: () => null, bearer: null }

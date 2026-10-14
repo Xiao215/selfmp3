@@ -240,3 +240,20 @@ export const usageSchema = z.object({
   free: z.number().int().nonnegative(),
 })
 export type Usage = z.infer<typeof usageSchema>
+
+/**
+ * The doorman session the shell streams bucket songs with, or null once signed
+ * out (`bucket.use`). The page holds it in IndexedDB beside the replica and
+ * hands it over; the shell keeps it in memory and nowhere else, and never
+ * sends it anywhere but the doorman it names.
+ */
+export const streamSessionSchema = z
+  .object({
+    doormanUrl: externalUrlSchema,
+    token: z.string().min(1).max(4096),
+  })
+  .nullable()
+export type StreamSession = z.infer<typeof streamSessionSchema>
+
+/** The doorman's words for a bucket refusing for the day, as the page shows them. */
+export const bucketCappedSchema = z.string().max(1000)

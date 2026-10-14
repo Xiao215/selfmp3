@@ -6,6 +6,7 @@ import type {
   DownloadResult,
   FileKind,
   FileStat,
+  StreamSession,
   TransferProgress,
   UpdateStatus,
   Usage,
@@ -126,6 +127,23 @@ export interface DesktopBridge {
    * 206 so seeking works.
    */
   mediaUrl(kind: FileKind, name: string): string
+
+  /**
+   * Songs in the bucket that are not on this computer, streamed.
+   *
+   * An `<audio>` element cannot send the doorman's bearer header, so the shell
+   * sends it: `streamUrl` is `app://selfmp3/_stream/<key>`, which the main
+   * process answers by asking the doorman for the file with the session it
+   * was handed here, ranges and all. A browser's service worker does the same
+   * for a tab, and a phone's player sends the header itself.
+   */
+  readonly bucket: {
+    /** The session to stream with, or null on signing out. Kept in the shell's memory only. */
+    use(session: StreamSession): Promise<void>
+    streamUrl(key: string): string
+    /** The bucket refused for the day: the doorman's words, so the page can hold off and say why. */
+    onCapped(listener: (message: string) => void): () => void
+  }
 
   /**
    * Open a URL in the person's own browser.

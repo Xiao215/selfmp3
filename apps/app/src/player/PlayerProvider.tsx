@@ -401,9 +401,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   }, [autoMix])
 
   /*
-   * What a phone needs to stream a bucket song: each song's key there, and the
-   * doorman session to ask with (ports/bucketMedia.ts; nothing, in a browser,
-   * whose service worker looks both up for itself). The library is read through
+   * What a phone or the desktop app needs to stream a bucket song: each song's
+   * key there, and the doorman session to ask with (ports/bucketMedia.ts;
+   * nothing, in a tab, whose service worker looks both up for itself). The library is read through
    * the ref, so a song imported a moment ago has an address without this
    * running again; the session is read when the library becomes the bucket's,
    * which is the moment sign-in finishes.

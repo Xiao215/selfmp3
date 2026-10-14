@@ -242,7 +242,8 @@ app's sign-in and downloads, which makes this the upgrade test as well.
 | **Upgrade** | Launch the new build over an older install's data | Still signed in, downloads still marked, the song you were on is restored, paused | Welcome; every song needing download again |
 | **First launch of a fresh build** | — | Can take 15–60 s once while macOS scans it | Do not mistake this for a hang |
 | **Plays from disk** | Double-click a downloaded song | Time advances; works with Wi-Fi off | |
-| **The not-downloaded case** | A song with no downloaded mark | Refuses, offering to download. **The desktop cannot stream from the bucket**; the web and the phone can | Silence, or a toast blaming "offline" |
+| **The not-downloaded case** | A song with no downloaded mark, Wi-Fi on | Streams from the bucket, and seeking to the middle plays from there | Silence, or a toast blaming "offline" |
+| **Not downloaded, offline** | The same song with Wi-Fi off | Says the computer is offline, without trying | A track that fails half a second later |
 | **Counts agree** | The sidebar's count vs Settings → On this computer | The same two numbers in both places | "82 of 61 songs downloaded": the index counting songs the library no longer has |
 | **Settings header** | Top of Settings | Says what this is and how many songs | "self.mp3 web · 0 songs" in the desktop app |
 | **Auto-download** | Import a song from another device | It arrives *and downloads* here unasked, on Wi-Fi | |

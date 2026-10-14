@@ -30,6 +30,8 @@ export const CHANNELS = {
   filesReveal: 'selfmp3:files.reveal',
   filesClear: 'selfmp3:files.clear',
 
+  bucketUse: 'selfmp3:bucket.use',
+
   openExternal: 'selfmp3:openExternal',
   setPlaybackState: 'selfmp3:setPlaybackState',
 
@@ -46,6 +48,7 @@ export const EVENTS = {
   command: 'selfmp3:event.command',
   progress: 'selfmp3:event.progress',
   update: 'selfmp3:event.update',
+  bucketCapped: 'selfmp3:event.bucketCapped',
 } as const
 
 /** The name the preload puts on the window, and nothing else goes on it. */
@@ -72,3 +75,10 @@ export const APP_ORIGIN = `${APP_SCHEME}://selfmp3`
 
 /** Under `APP_ORIGIN`: songs and covers on disk, served with a real 206. */
 export const MEDIA_PREFIX = '/_media/'
+
+/**
+ * Under `APP_ORIGIN`: a song in the bucket, by its key, fetched through the
+ * doorman with the session's bearer and served with the doorman's own 206 —
+ * what a browser's service worker does for a tab (`main/stream.ts`).
+ */
+export const STREAM_PREFIX = '/_stream/'

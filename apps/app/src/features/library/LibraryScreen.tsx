@@ -546,6 +546,7 @@ export function LibraryScreen(): ReactNode {
             songs={visible}
             label={`${model.heading} songs`}
             renderSong={renderSong}
+            listRef={rows.listRef}
             rowHeight={rowHeight}
             scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}

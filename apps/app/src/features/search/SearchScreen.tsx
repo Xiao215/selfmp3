@@ -554,6 +554,7 @@ function SongResults({
         songs={songs}
         label="Search songs"
         renderSong={adds ? renderPick : rows.renderSong}
+        listRef={rows.listRef}
         contentContainerStyle={[styles.songList, listPadding]}
         empty={<NothingMatches words={query.trim()} />}
       />

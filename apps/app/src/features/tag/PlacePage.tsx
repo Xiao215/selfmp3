@@ -470,6 +470,7 @@ function PlaceSongs({
         songs={songs}
         label={label}
         renderSong={renderSong}
+        listRef={rows.listRef}
         header={head}
         pinned={bar.pinned}
         scrollLabel={scrollLabel}

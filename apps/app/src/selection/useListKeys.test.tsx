@@ -81,20 +81,44 @@ describe('a song list’s keys', () => {
     setTabbing(false)
   })
 
+  /**
+   * A list of `songIds`, all drawn. Its `reveal` is what the list's own scroll
+   * to a song does, as far as the keys can tell: the song's row is drawn, a
+   * frame later, where a scroll would have put it — or nothing happens, for a
+   * song the list no longer has. A row is taken out of the drawn ones with
+   * `undraw`.
+   */
   async function list(songIds: readonly number[] = [11, 12, 13]): Promise<{
     toggle: jest.Mock
     selectAll: jest.Mock
+    reveal: jest.Mock
     rows: HTMLElement[]
+    undraw: (songId: number) => void
     unmount: () => Promise<void>
   }> {
     const toggle = jest.fn()
     const selectAll = jest.fn(() => songIds.length > 0)
+    const inList = new Set(songIds)
+    const undrawn = new Map<number, { row: Element; parent: Element }>()
+    const reveal = jest.fn((songId: number) => {
+      if (!inList.has(songId)) return false
+      const away = undrawn.get(songId)
+      if (away) requestAnimationFrame(() => away.parent.append(away.row))
+      return true
+    })
     let listKey = ''
     const { unmount } = await renderHook(() => {
-      listKey = useListKeys({ toggle, selectAll })
+      listKey = useListKeys({ toggle, selectAll, reveal })
     })
     const rows = drawRows(listKey, songIds)
-    return { toggle, selectAll, rows, unmount }
+    const undraw = (songId: number): void => {
+      const row = rows[songIds.indexOf(songId)]!.closest('[role="row"]')!
+      undrawn.set(songId, { row, parent: row.parentElement! })
+      row.remove()
+      // Drawn again, a row is a new one, out of Tab's way as `SongRow` renders it.
+      rows[songIds.indexOf(songId)]!.tabIndex = -1
+    }
+    return { toggle, selectAll, reveal, rows, undraw, unmount }
   }
 
   it('moves between rows with the arrows, and shows the ring as it does', async () => {
@@ -268,12 +292,77 @@ describe('a song list’s keys', () => {
     await unmount()
   })
 
-  it('comes in on the first row when the one it was on is no longer drawn', async () => {
-    const { rows, unmount } = await list()
+  /** A few frames: the list drawing the row it was scrolled to, and the keys finding it. */
+  const frames = async (count = 3): Promise<void> => {
+    for (let frame = 0; frame < count; frame += 1) {
+      await new Promise(resolve => requestAnimationFrame(resolve))
+    }
+  }
+
+  it('comes back to the row it was on when the list no longer draws it, either way', async () => {
+    const { rows, reveal, undraw, unmount } = await list([11, 12, 13, 14])
+    const before = document.createElement('button')
+    document.body.prepend(before)
+    setTabbing(true)
     rows[2]!.focus()
-    rows[2]!.closest('[role="row"]')!.remove()
+    // Scrolled so far away that the list no longer draws it.
+    undraw(13)
+    before.focus()
+
+    // Tab lands where it can at once — a row that is drawn…
+    press(before, 'Tab')
+    expect(stops(rows)).toEqual([rows[0]])
+    rows[0]!.focus()
+    await afterTab()
+    // …and the list is scrolled back to the row it was on, which has the keyboard.
+    expect(reveal).toHaveBeenCalledWith(13)
+    expect(document.activeElement).toBe(rows[0])
+    await frames()
+    expect(document.activeElement).toBe(rows[2])
+    expect(stops(rows)).toEqual([rows[2]])
+
+    // Shift+Tab back in, from after the list, the same.
+    const after = document.createElement('button')
+    document.body.append(after)
+    after.focus()
+    undraw(13)
+    press(after, 'Tab', { shiftKey: true })
+    expect(stops(rows)).toEqual([rows[0]])
+    rows[0]!.focus()
+    await afterTab()
+    await frames()
+    expect(document.activeElement).toBe(rows[2])
+    await unmount()
+  })
+
+  it('stays on the first row in view when the song it was on has left the list', async () => {
+    const { rows, reveal, undraw, unmount } = await list()
+    rows[2]!.focus()
+    undraw(13)
+    // Removed, or filtered out: the list has no row to scroll to.
+    reveal.mockReturnValue(false)
     press(document.body, 'Tab')
     expect(stops(rows)).toEqual([rows[0]])
+    rows[0]!.focus()
+    await afterTab()
+    await frames()
+    expect(reveal).toHaveBeenCalledWith(13)
+    expect(document.activeElement).toBe(rows[0])
+    await unmount()
+  })
+
+  it('leaves focus where it was taken while the list scrolls back', async () => {
+    const { rows, undraw, unmount } = await list()
+    rows[2]!.focus()
+    undraw(13)
+    press(document.body, 'Tab')
+    rows[0]!.focus()
+    await afterTab()
+    // An arrow, before the row is drawn again.
+    press(rows[0]!, 'ArrowDown')
+    expect(document.activeElement).toBe(rows[1])
+    await frames()
+    expect(document.activeElement).toBe(rows[1])
     await unmount()
   })
 

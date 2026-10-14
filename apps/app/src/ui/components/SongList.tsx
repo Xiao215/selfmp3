@@ -1,6 +1,6 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useMemo, useRef, useState } from 'react'
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactElement, ReactNode, RefObject } from 'react'
 import {
   Animated,
   View,
@@ -72,6 +72,7 @@ export function SongList({
   onRefresh,
   refreshing = false,
   arrivalKey,
+  listRef: givenRef,
 }: {
   songs: readonly Song[]
   renderSong: (info: { item: Song; index: number }) => ReactElement | null
@@ -119,6 +120,11 @@ export function SongList({
    * reads as answering rather than flickering. Left out, nothing arrives ever.
    */
   arrivalKey?: string
+  /**
+   * The list, for its rows' keys (`useSongRows`' `listRef`): Tab coming back
+   * to a row scrolled far away scrolls the list to it by its place.
+   */
+  listRef?: RefObject<FlatList<Song> | null>
 }): ReactNode {
   /*
    * The rows arrive again whenever the key changes, and only then: each row's
@@ -142,7 +148,8 @@ export function SongList({
 
   // A computer's scrollbar over the list's right edge; a phone keeps its own.
   const wide = useLayoutValue(layout => layout.wide)
-  const listRef = useRef<FlatList<Song>>(null)
+  const ownRef = useRef<FlatList<Song>>(null)
+  const listRef = givenRef ?? ownRef
   const scrollbar = useListScrollbar({
     list: listRef,
     songs,
@@ -164,6 +171,17 @@ export function SongList({
     [rowHeight],
   )
 
+  /*
+   * Scrolled to a row it has not drawn yet and cannot place by arithmetic
+   * (no `rowHeight`), the list says so rather than scrolling: it is sent to
+   * about where the row is, by the rows it has measured, which draws the row;
+   * whoever asked finds it there and brings it into view.
+   */
+  const onScrollToIndexFailed: FlatListProps<Song>['onScrollToIndexFailed'] = ({
+    index,
+    averageItemLength,
+  }) => listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: false })
+
   return (
     <>
       <PinnedHeaderScope stayAfter={stayAfter}>
@@ -177,6 +195,7 @@ export function SongList({
           keyExtractor={keyOf}
           renderItem={renderItem}
           getItemLayout={getItemLayout}
+          onScrollToIndexFailed={onScrollToIndexFailed}
           initialNumToRender={16}
           windowSize={11}
           removeClippedSubviews

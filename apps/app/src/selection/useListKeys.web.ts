@@ -17,6 +17,7 @@ import {
   placeStop,
   pressOf,
   ROW_MORE,
+  rowOfSong,
   songOf,
 } from './listRows'
 
@@ -27,10 +28,10 @@ type ListKeyActions = Parameters<typeof SameShape>[0]
 export const LIST_ROWS_TAKE_KEYS = true
 
 /**
- * How long an arrow waits for the list to draw the row it moves to, in
- * frames: half a second, longer than a list takes to draw the next batch
- * of rows, and short enough that a press at the end of the list is forgotten
- * before the next one.
+ * How long an arrow waits for the list to draw the row it moves to, and Tab
+ * for the row it comes back to, in frames: half a second, longer than a list
+ * takes to draw the next batch of rows, and short enough that a press at the
+ * end of the list is forgotten before the next one.
  */
 const RETRY_FRAMES = 30
 
@@ -42,8 +43,9 @@ const RETRY_FRAMES = 30
  * `tabIndex` -1), and one row's press target is put back in it.
  *
  * - **Tab** comes into the list on the row the keyboard or a click was last
- *   on, or the first row in view (`entryRow`), and from anywhere in a row
- *   goes on past the list; Shift+Tab the same, backwards.
+ *   on (`entryRow`) — scrolled back to it if the list has scrolled so far away
+ *   that it no longer draws it — and from anywhere in a row goes on past the
+ *   list; Shift+Tab the same, backwards.
  * - **↑ ↓** on a row (any focus on it, a click's included) move to the row
  *   above or below and show the ring, since the keyboard is now moving focus.
  * - **← →** move between a row's own controls: its circle, ▶, the row
@@ -200,18 +202,60 @@ export function useListKeys(actions: ListKeyActions): string {
        * goes on past the list rather than to the row's own target; the row it
        * left is the stop again once it has gone. From outside, the row it
        * should come in on, and once there, out from under a pinned bar.
+       *
+       * The row the keyboard was last on may be one the list no longer draws,
+       * scrolled far away from. Then Tab lands on a row that is drawn — the
+       * first in view — since only the browser knows whether this Tab reaches
+       * the list at all; once it has, the list goes back to that row.
        */
       const onTab = (event: KeyboardEvent): void => {
         const inside = listRowOf(event.target, listKey) !== null
-        placeStop(listKey, inside ? null : entryRow(listKey, active.current))
+        // Read now: landing on another row makes that one the active row.
+        const wanted = active.current
+        placeStop(listKey, inside ? null : entryRow(listKey, wanted))
         setTimeout(() => {
           if (inside) {
             placeStop(listKey, entryRow(listKey, active.current))
             return
           }
           const arrived = listRowOf(document.activeElement, listKey)
-          if (arrived) bringIntoView(arrived)
+          if (!arrived) return
+          if (wanted !== null && songOf(arrived) !== wanted) comeBack(wanted, arrived)
+          else bringIntoView(arrived)
         })
+      }
+
+      /**
+       * Scroll the list back to the song Tab should have come in on, wait for
+       * the list to draw its row, and move there, out from under a pinned bar
+       * as an arrow's move is. A song no longer in the list leaves Tab where
+       * it came in. Focus taken elsewhere meanwhile — a click, an arrow — stays
+       * where it was taken.
+       */
+      const comeBack = (songId: number, from: HTMLElement): void => {
+        cancelAnimationFrame(pending)
+        if (!latest.current.reveal(songId)) {
+          bringIntoView(from)
+          return
+        }
+        const landed = pressOf(from)
+        let frames = 0
+        const look = (): void => {
+          pending = 0
+          // The row Tab came in on may itself have scrolled out of the drawn
+          // rows by now, taking focus with it: nothing focused is still ours.
+          if (document.activeElement !== landed && !nothingFocused()) return
+          const row = rowOfSong(listKey, songId)
+          const target = row ? pressOf(row) : null
+          if (row && target) {
+            target.focus({ preventScroll: true })
+            bringIntoView(row)
+            placeStop(listKey, row)
+            return
+          }
+          if ((frames += 1) < RETRY_FRAMES) pending = requestAnimationFrame(look)
+        }
+        pending = requestAnimationFrame(look)
       }
 
       const onFocusIn = (event: FocusEvent): void => {

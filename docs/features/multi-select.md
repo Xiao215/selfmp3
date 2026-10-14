@@ -69,9 +69,14 @@ A list is **one Tab stop**, as WAI-ARIA's grid is (a roving tabindex): Tab gets 
 of 1,400 songs in one press. Every control in every row renders at `tabIndex` -1, and just
 before Tab moves focus the list puts one row's press target back in the way (`placeStop` in
 `selection/listRows.ts`) — set on the element rather than rendered, so an arrow does not redraw
-the list. Tab comes in on the row the keyboard or a click was last on; once that row has
-scrolled so far away that the list no longer draws it, on the first row in view instead of a
-jump back (`entryRow`); with neither, the first row. From anywhere in a row — its circle, its
+the list. Tab comes in on the row the keyboard or a click was last on (`entryRow`); with none,
+the first row. Once that row has scrolled so far away that the list no longer draws it, Tab
+comes back to it all the same: it lands on the first row in view — only the browser knows
+whether a Tab reaches the list at all — and the list then scrolls to that song by its place
+(the FlatList's own `scrollToIndex`, through `useSongRows`' `listRef`), waits for the row to
+be drawn and moves there, out from under a pinned bar as an arrow does. A song no longer in the
+list (removed, filtered out) leaves Tab on the first row in view, and focus taken elsewhere
+while the list scrolls back stays where it was taken. From anywhere in a row — its circle, its
 ⋯ — Tab and Shift+Tab go on past the list, since for that one press no row is a stop. The
 list's own box is never a stop either (`selection/listSemantics.web.ts`): Chrome stops on a
 scrolling box with nothing in it that takes Tab.

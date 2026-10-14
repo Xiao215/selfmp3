@@ -52,6 +52,12 @@ describe('parseCli', () => {
     expect(parseCli(['scan']).url).toBeNull()
   })
 
+  it('reads --library, and refuses it beside --token', () => {
+    expect(parseCli(['scan', '--library', ' me@example.com ']).library).toBe('me@example.com')
+    expect(parseCli(['scan']).library).toBeNull()
+    expect(() => parseCli(['scan', '--library', 'a', '--token', 'secret'])).toThrow(/not both/)
+  })
+
   it('rejects unknown commands and unknown flags', () => {
     expect(() => parseCli(['dance'])).toThrow(/unknown command/)
     expect(() => parseCli(['scan', '--loud'])).toThrow()

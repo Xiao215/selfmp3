@@ -1,4 +1,10 @@
-import { DEFAULT_LOCAL_SERVER_URL, type Health } from '@selfmp3/shared'
+import {
+  DEFAULT_LOCAL_SERVER_URL,
+  HUB_LIBRARY_HEADER,
+  HubStatusSchema,
+  type Health,
+  type HubStatus,
+} from '@selfmp3/shared'
 
 /**
  * The thinnest possible client for the running server. The CLI never touches
@@ -9,7 +15,15 @@ import { DEFAULT_LOCAL_SERVER_URL, type Health } from '@selfmp3/shared'
 export interface ServerClient {
   readonly baseUrl: string
   health(): Promise<Health | null>
+  /** Whom the server works for; null when it will not say (asked from another computer). */
+  hub(): Promise<HubStatus | null>
   post<T>(route: string, body?: unknown): Promise<T>
+}
+
+/** Which library requests go to: by its token, or, from this computer, by its id. */
+export interface LibraryChoice {
+  readonly token: string | null
+  readonly library: string | null
 }
 
 export class ApiError extends Error {
@@ -21,9 +35,13 @@ export class ApiError extends Error {
   }
 }
 
-export function createClient(baseUrl: string, token: string | null): ServerClient {
+export function createClient(
+  baseUrl: string,
+  { token, library }: LibraryChoice = { token: null, library: null },
+): ServerClient {
   const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (token) headers['authorization'] = `Bearer ${token}`
+  else if (library) headers[HUB_LIBRARY_HEADER] = library
 
   const request = async <T>(method: string, route: string, body?: unknown): Promise<T> => {
     const response = await fetch(`${baseUrl}/api${route}`, {
@@ -49,6 +67,14 @@ export function createClient(baseUrl: string, token: string | null): ServerClien
         return await request<Health>('GET', '/health')
       } catch {
         return null
+      }
+    },
+    async hub() {
+      try {
+        return HubStatusSchema.parse(await request('GET', '/hub'))
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403) return null
+        throw error
       }
     },
     post: (route, body) => request('POST', route, body),

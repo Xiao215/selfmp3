@@ -20,8 +20,13 @@ interface ParsedCli {
   readonly command: Command
   /** Base URL of a running server, e.g. `http://localhost:4600`. */
   readonly url: string | null
-  /** The server's token, for a server on another computer; this one's needs none. */
+  /** A library's token, for a server on another computer; this one's needs none. */
   readonly token: string | null
+  /**
+   * Which library, by its id or its account's email, on a server on this
+   * computer that works for several (`cli/library.ts`).
+   */
+  readonly library: string | null
 }
 
 export class CliUsageError extends Error {}
@@ -40,7 +45,8 @@ Commands
 
 Options
   --url <base>          server address (default: http://localhost:$SELFMP3_PORT or ${DEFAULT_SERVER_PORT})
-  --token <token>       the server's token, when --url is another computer (printed in its log)
+  --library <id|email>  which library, when the server works for several (this computer only)
+  --token <token>       the library's token, when --url is another computer (in its hub.json)
   --version, -v         print the version
   --help, -h            show this message
 `
@@ -53,6 +59,7 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     options: {
       url: { type: 'string' },
       token: { type: 'string' },
+      library: { type: 'string' },
       version: { type: 'boolean', short: 'v' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -60,11 +67,16 @@ export function parseCli(argv: readonly string[]): ParsedCli {
 
   const url = values.url?.replace(/\/+$/, '') ?? null
   const token = values.token ?? null
+  const library = values.library?.trim() || null
+  if (token !== null && library !== null) {
+    throw new CliUsageError('give --library or --token, not both: a token names its library')
+  }
+  const options = { url, token, library }
   const [name, ...rest] = positionals
 
-  if (values.version) return { command: { name: 'version' }, url, token }
+  if (values.version) return { command: { name: 'version' }, ...options }
   if (values.help || name === undefined || name === 'help') {
-    return { command: { name: 'help' }, url, token }
+    return { command: { name: 'help' }, ...options }
   }
 
   switch (name) {
@@ -72,14 +84,14 @@ export function parseCli(argv: readonly string[]): ParsedCli {
     case 'scan':
     case 'doctor':
       if (rest.length > 0) throw new CliUsageError(`${name} takes no arguments`)
-      return { command: { name }, url, token }
+      return { command: { name }, ...options }
     case 'import':
       if (rest.length === 0) throw new CliUsageError('import needs at least one url')
-      return { command: { name, urls: rest }, url, token }
+      return { command: { name, urls: rest }, ...options }
     case 'backup': {
       const [dest] = rest
       if (!dest || rest.length > 1) throw new CliUsageError('backup needs exactly one <dest-dir>')
-      return { command: { name, dest }, url, token }
+      return { command: { name, dest }, ...options }
     }
     default:
       throw new CliUsageError(`unknown command "${name}"`)

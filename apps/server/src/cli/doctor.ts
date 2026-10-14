@@ -2,15 +2,16 @@ import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { formatBytes } from '@selfmp3/shared'
+import { formatBytes, plural } from '@selfmp3/shared'
 import type { ServerClient } from './api.js'
 import { YTDLP_STALE_DAYS, ytdlpAgeDays } from '../services/ytdlp.js'
 
 /**
- * `selfmp3 doctor`: the six things that are usually wrong when something does
+ * `selfmp3 doctor`: the things that are usually wrong when something does
  * not work — node, yt-dlp, ffmpeg, the server, and its two folders — each on
- * one line with a tick or a cross. Mirrors scripts/doctor.sh but runs anywhere
- * node does, including inside the Docker image.
+ * one line with a tick or a cross, and, asked on the server's own computer,
+ * whom the server works for. Mirrors scripts/doctor.sh but runs anywhere node
+ * does, including inside the Docker image.
  */
 
 const exec = promisify(execFile)
@@ -104,6 +105,27 @@ export async function runDoctor(
         `${client.baseUrl} — v${health.version}${health.songCount === undefined ? '' : `, ${health.songCount} songs`}, up ${Math.round(health.uptimeSeconds / 60)} min`
       : `${client.baseUrl} — not running (selfmp3 start)`,
   })
+
+  // Whom it works for, when it will say: only to this computer.
+  const hub = health ? await client.hub().catch(() => null) : null
+  if (hub) {
+    const [only] = hub.workspaces
+    lines.push({
+      ok: true,
+      label: 'works for',
+      detail:
+        only?.id === 'local'
+          ? `its own library, with a folder for a bucket — ${plural(only.songs, 'song', 'songs')}`
+          : hub.workspaces.length === 0
+            ? 'nobody yet — an account joins it from the app'
+            : hub.workspaces
+                .map(
+                  workspace =>
+                    `${workspace.email ?? workspace.id} (${plural(workspace.songs, 'song', 'songs')})`,
+                )
+                .join(', '),
+    })
+  }
 
   for (const [label, dir] of [
     ['library', dirs.libraryDir],

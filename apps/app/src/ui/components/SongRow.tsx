@@ -570,7 +570,7 @@ function phoneTextColumn(width: number, selecting: boolean, hasMore: boolean): n
 /** The row's press target, which the list's arrows move focus to (`useListKeys.web.ts`). */
 const ROW_PRESS = { dataSet: { rowPress: 'true' } } as const
 /** The row's ⋯, which ⇧F10 presses (`useListKeys.web.ts`). */
-const ROW_MORE = { dataSet: { rowMore: 'true' } } as const
+const ROW_MORE = { rowMore: 'true' } as const
 /**
  * Out of Tab's way, in a list that is one Tab stop: the list's keys put its
  * entry row's target back (`placeStop` in `selection/listRows.ts`).
@@ -651,8 +651,10 @@ function MoreButton({
         onPress={() => onMore(moreRef.current, song)}
         accessibilityRole="button"
         accessibilityLabel={`More actions for ${song.title}`}
-        {...tip('More')}
-        {...(untabbed ? { ...UNTABBED, ...ROW_MORE } : null)}
+        // One `dataSet`, the caption's and the mark ⇧F10 finds it by: two
+        // spread apart, the second would drop the caption.
+        {...{ dataSet: { ...tip('More').dataSet, ...(untabbed ? ROW_MORE : null) } }}
+        {...(untabbed ? UNTABBED : null)}
         style={({ pressed }) => [style, pressed && styles.controlPressed]}
       >
         <More size={iconSize.item} tone="textMuted" />

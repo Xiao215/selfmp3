@@ -155,7 +155,9 @@ The doorman signs people in with an OAuth client that you own, in the
    (`http://localhost` or `http://127.0.0.1`, for the server's own page, where
    it signs itself in and names its bucket). The desktop app's and the browser
    extension's own origins are always allowed and are not listed: the doorman
-   takes them from `packages/shared/src/origins.ts`.
+   takes them from `packages/shared/src/origins.ts`. `APP_URL` beside it is the web app's
+   full address, path and all (`https://xiao215.github.io/selfmp3`): where a share link's
+   page on the doorman sends a person on to.
 
    `APP_SCHEMES` is the same idea for the native app: the URL schemes the
    doorman may send a signed-in phone back to, comma separated, defaulting to

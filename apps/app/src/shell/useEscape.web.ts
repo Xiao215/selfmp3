@@ -3,11 +3,9 @@ import { useEffect, useId, useRef } from 'react'
 import type { EscapeOptions } from './useEscape'
 import { isComposing } from './composing'
 import { focusOwnsKey } from './keyOwner'
+import { closeLayer, onTop, openLayer } from './layers'
 
 export type { EscapeOptions }
-
-/** Open layers, oldest first. The last one is on top. */
-const layers: string[] = []
 
 /**
  * Call `onEscape` when Escape is pressed anywhere on the page, while `active`.
@@ -46,10 +44,10 @@ export function useEscape(
     if (!active) return undefined
 
     if (layer) {
-      layers.push(id)
+      openLayer(id)
       const onKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Escape' || isComposing(event)) return
-        if (layers[layers.length - 1] !== id) return
+        if (!onTop(id)) return
         event.preventDefault()
         event.stopPropagation()
         latest.current()
@@ -57,8 +55,7 @@ export function useEscape(
       window.addEventListener('keydown', onKeyDown, true)
       return () => {
         window.removeEventListener('keydown', onKeyDown, true)
-        const index = layers.lastIndexOf(id)
-        if (index !== -1) layers.splice(index, 1)
+        closeLayer(id)
       }
     }
 

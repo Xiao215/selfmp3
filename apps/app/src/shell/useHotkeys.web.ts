@@ -3,7 +3,7 @@ import { menuOwnedCombinations } from '@selfmp3/desktop-bridge'
 
 import type { HotkeyOptions, Hotkeys } from './useHotkeys'
 import { isComposing } from './composing'
-import { focusOwnsKey } from './keyOwner'
+import { focusOwnsKey, rowOwnsKey } from './keyOwner'
 import { desktop } from '../ports/desktop/bridge'
 
 export type { HotkeyOptions, Hotkeys }
@@ -28,8 +28,9 @@ const menuOwned: ReadonlySet<string> = desktop ? menuOwnedCombinations() : new S
  * `useCommands`, which is the one caller that binds keys beyond a screen.
  *
  * Never while someone is typing, or while a dropdown, menu or dialog has the
- * keyboard: those run their own keys. Escape is left to `useEscape`, which
- * knows which layer is on top.
+ * keyboard: those run their own keys. Nor Space on a song row the keyboard is
+ * on, which is that row's tick (`rowOwnsKey`, `useListKeys`). Escape is left
+ * to `useEscape`, which knows which layer is on top.
  */
 export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOptions = {}): void {
   const latest = useRef(hotkeys)
@@ -47,7 +48,7 @@ export function useHotkeys(hotkeys: Hotkeys, { beforeFocused = false }: HotkeyOp
       if (event.shiftKey && event.key.length > 1) parts.push('shift')
       parts.push(event.key.length === 1 ? event.key.toLowerCase() : event.key)
       const combination = parts.join('+')
-      if (menuOwned.has(combination)) return
+      if (menuOwned.has(combination) || rowOwnsKey(event.target, combination)) return
       const handler = latest.current[combination]
       if (handler) {
         event.preventDefault()

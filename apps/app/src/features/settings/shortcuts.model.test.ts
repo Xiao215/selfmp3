@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ALL_MENU_COMMANDS } from '@selfmp3/desktop-bridge'
 
-import { acceleratorKeys, shortcutRows } from './shortcuts.model'
+import { acceleratorKeys, listShortcutRows, shortcutRows } from './shortcuts.model'
 
 describe('keyboard shortcuts', () => {
   it('draws a key the way a Mac does', () => {
@@ -34,5 +34,14 @@ describe('keyboard shortcuts', () => {
         { command: 'next', accelerator: 'Alt+Right' },
       ]),
     ).toEqual([{ keys: ['⌘', '←', '⌥', '→'], label: 'Previous / next' }])
+  })
+
+  it('lists a song list’s keys, drawn as the menu’s are', () => {
+    expect(listShortcutRows().map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([
+      '↑ ↓ Move between songs',
+      'space ↵ Tick / play the song you moved to',
+      '⌘ A Select all songs',
+      'esc Clear the selection',
+    ])
   })
 })

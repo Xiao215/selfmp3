@@ -29,7 +29,8 @@ describe('routing', () => {
 
   it('answers what it does not know with a JSON 404', async () => {
     const h = harness()
-    for (const path of ['/', '/v2/health', '/v1', '/v1/nothing', '/favicon.ico']) {
+    // `/` is the app's front door (linkPage.test.ts).
+    for (const path of ['/v2/health', '/v1', '/v1/nothing', '/favicon.ico', '/l/nothing']) {
       const response = await h.call(path)
       expect(response.status, path).toBe(404)
       expect(ErrorBodySchema.parse(await response.json()).code).toBe('not_found')

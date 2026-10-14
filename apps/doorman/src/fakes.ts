@@ -916,6 +916,7 @@ export function harness(): Harness {
     SEAL_KEY,
     OWNER_EMAILS: 'Me@Example.com',
     APP_ORIGINS: `${APP_ORIGIN},http://localhost:4600`,
+    APP_URL: `${APP_ORIGIN}/selfmp3/`,
   }
   const logs: Harness['logs'] = []
   const doorman = createDoorman({

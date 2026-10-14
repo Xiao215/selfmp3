@@ -71,7 +71,7 @@ async function forget(ctx: Context, side: Side, sub: string, id: string): Promis
   await ctx.env.KV.put(indexKey(side, sub), JSON.stringify(ids.filter(other => other !== id)))
 }
 
-function shareObject(ctx: Context, id: string): DurableObjectStub {
+export function shareObject(ctx: Context, id: string): DurableObjectStub {
   const namespace = ctx.env.SHARES
   if (!namespace) throw notFound('this doorman keeps no share links')
   return namespace.get(namespace.idFromName(id))

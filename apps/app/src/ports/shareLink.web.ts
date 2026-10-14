@@ -19,11 +19,24 @@ export async function shareLink(
       if (error instanceof Error && error.name === 'AbortError') return 'failed'
     }
   }
+  return (await copyLink(url)) ? 'copied' : 'failed'
+}
+
+/**
+ * Whether there is a share sheet to hand a link to. A browser without one
+ * (Firefox on a computer) would only copy, which Copy already does.
+ */
+export function canShareLink(): boolean {
+  return typeof navigator.share === 'function'
+}
+
+/** The link on the clipboard, for pasting. */
+export async function copyLink(url: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(url)
-    return 'copied'
+    return true
   } catch {
-    return 'failed'
+    return false
   }
 }
 

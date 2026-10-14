@@ -7,7 +7,7 @@ import type { Stats } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayout } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { Download, Settings, Sparkles } from '../../ui/components/Icons'
+import { Download, Settings, ShareOut, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
@@ -29,6 +29,10 @@ import {
   type ProfileRowId,
 } from './profile.model'
 import { useVia } from '../../connection/via'
+import { useConnection } from '../../connection/ConnectionProvider'
+import { sentLinksHint } from '../share/share.model'
+import { useSentLinks } from '../share/shareLinks'
+import { useMinute } from '../share/useMinute'
 import { SongLine } from '../../ui/components/SongLine'
 import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -38,12 +42,14 @@ import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
   report: Sparkles,
+  links: ShareOut,
   settings: Settings,
 }
 
 /**
  * Profile (`P31`): the person and how big the library is, this month as one
- * card that opens Stats, then Import, Report and Settings (profile.model.ts).
+ * card that opens Stats, then Import, Report, Links you shared and Settings
+ * (profile.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
  * at the foot of its sidebar, and draws the same page at its own width.
@@ -70,7 +76,13 @@ function ProfilePage({
   via: ServerConnection | undefined
 }): ReactNode {
   const { wide } = useLayout()
-  const rows = profileRows({ place: devicePlace(deviceKind()) })
+  const { fromCloud } = useConnection()
+  const { data: links } = useSentLinks()
+  const now = useMinute()
+  const rows = profileRows({
+    place: devicePlace(deviceKind()),
+    linksHint: fromCloud ? sentLinksHint(links, now) : null,
+  })
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>

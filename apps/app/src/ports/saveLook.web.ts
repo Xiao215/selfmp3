@@ -1,16 +1,50 @@
 import type { View } from 'react-native'
-import { downloadPicture, drawPicture } from './sharePicture.web'
+import html2canvas from 'html2canvas'
 
 /**
  * The month as a page, saved as the picture on screen, in a browser and the
  * desktop app (docs/ui-mock `C16`).
  *
  * The look is drawn into a canvas from the page's own markup at `width`
- * pixels across, whatever size it is shown at (ports/sharePicture), and
- * downloaded as a PNG named after the period.
+ * pixels across, whatever size it is shown at, and downloaded as a PNG named
+ * after the period.
  */
 export const canSaveLook = true
 
 export async function saveLook(view: View | null, fileName: string, width = 1080): Promise<void> {
   downloadPicture(await drawPicture(view, width), fileName)
+}
+
+/**
+ * The view as a PNG, `width` pixels across whatever size it is shown at.
+ * Covers come from this device's server or bucket, which answer with CORS
+ * headers, or from the service worker on the app's own address, so the
+ * canvas can be read back.
+ */
+async function drawPicture(view: View | null, width: number): Promise<Blob> {
+  const element = view as unknown as HTMLElement | null
+  if (!element) throw new Error('The page is not drawn yet.')
+  const shown = element.getBoundingClientRect().width || width
+  const canvas = await html2canvas(element, {
+    useCORS: true,
+    backgroundColor: null,
+    scale: Math.max(2, width / shown),
+    logging: false,
+  })
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+  if (!blob) throw new Error('Could not make the image.')
+  return blob
+}
+
+/** A picture saved to Downloads, by the name given. */
+function downloadPicture(picture: Blob, fileName: string): void {
+  const url = URL.createObjectURL(picture)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // Revoking at once can cancel the download in Safari; a moment is enough.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }

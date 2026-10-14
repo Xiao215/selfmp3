@@ -904,7 +904,9 @@ const styles = StyleSheet.create(theme => ({
     color: theme.colors.textMuted,
     fontSize: type.small,
   },
-  tabs: { marginLeft: 'auto' },
+  // Centred on the row like the ⋯ beside it: the control holds itself to the
+  // top of a row (`alignSelf: 'flex-start'`), which put it above the ⋯ here.
+  tabs: { marginLeft: 'auto', alignSelf: 'center' },
   // Stacked, the tabs have gone down under the cover and nothing pushes it right.
   moreAlone: { marginLeft: 'auto' },
   // The box the cover is laid out in: where the stage puts it, and where its

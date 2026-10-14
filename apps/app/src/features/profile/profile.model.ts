@@ -12,14 +12,14 @@ import {
 
 /**
  * The Profile page, without the screen (`P31`): who you are and how big your
- * library is, this month as one card that opens Stats, then three rows.
+ * library is, this month as one card that opens Stats, then the rows under it.
  *
  * On a phone Profile is behind the avatar on Home, and Stats lives under it (Open
  * question 7). A computer reaches it from the name row at the foot of its
  * sidebar, and keeps Stats as a sidebar row as well.
  */
 
-export type ProfileRowId = 'import' | 'report' | 'settings'
+export type ProfileRowId = 'import' | 'report' | 'links' | 'settings'
 
 export interface ProfileRow {
   readonly id: ProfileRowId
@@ -30,10 +30,19 @@ export interface ProfileRow {
 }
 
 /**
- * Import, Report and Settings. Tags are reached from Home's tiles and "All N
- * tags", and Stats from the card above.
+ * Import, Report, Links you shared and Settings. Tags are reached from Home's
+ * tiles and "All N tags", and Stats from the card above. Links you shared is
+ * there for a signed-in account, the only kind that can send one; `linksHint`
+ * says how many play.
  */
-export function profileRows({ place }: { place: DevicePlace }): readonly ProfileRow[] {
+export function profileRows({
+  place,
+  linksHint,
+}: {
+  place: DevicePlace
+  /** The line under Links you shared, or null where no link can be sent. */
+  linksHint: string | null
+}): readonly ProfileRow[] {
   return [
     {
       id: 'import',
@@ -47,6 +56,9 @@ export function profileRows({ place }: { place: DevicePlace }): readonly Profile
       href: '/stats/report',
       hint: REPORT_HINT,
     },
+    ...(linksHint === null
+      ? []
+      : [{ id: 'links' as const, label: 'Links you shared', href: '/links', hint: linksHint }]),
     {
       id: 'settings',
       label: 'Settings',

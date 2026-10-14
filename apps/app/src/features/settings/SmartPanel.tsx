@@ -3,12 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Settings } from '@selfmp3/shared'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
 import { Check, Sparkle, X } from '../../ui/components/Icons'
 import { modelHop, serverHop, type Hop } from '../smart/smart.model'
 import { useSmartServer } from '../smart/useSmartServer'
+import { useServerApi } from '../../connection/useServerApi'
+import { useServerSettings } from './useServerSettings'
 import { ServerAway } from '../../connection/ServerAway'
 import { Panel, Row } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
@@ -63,18 +64,15 @@ const SWITCHES: readonly {
  * Smart features' switches, and what Ask remembers: using the features. Where
  * the server asks a model, and the Test, are running it, and sit under
  * Advanced (`SmartModelPanel`, O1).
+ *
+ * The switches are the library's settings, which the server acts on — it
+ * refuses a feature that is off, and searches the web or reads the notes per
+ * request — so they are read from and written to the server itself. The
+ * switches wait for its answer.
  */
-export function SmartPanel({
-  anchor,
-  settings,
-  set,
-}: {
-  anchor: (node: View | null) => void
-  /** The shared settings, once they have arrived; the switches wait for them. */
-  settings?: Settings
-  set: <K extends keyof Settings>(key: K, value: Settings[K]) => void
-}): ReactNode {
-  const server = useSmartServer()
+export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
+  const server = useServerApi()
+  const { settings, set } = useServerSettings(server.api)
   return (
     <Panel
       title="Smart features"

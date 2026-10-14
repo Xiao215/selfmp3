@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { plural, type Song } from '@selfmp3/shared'
 import {
+  STALE,
   queryKeys,
   useAnalysisStatus,
   useScanLibrary,
@@ -11,7 +12,11 @@ import {
   useFixCovers,
   useFixCoversStatus,
   useLibrary,
+  type Api,
 } from '@selfmp3/client'
+import { ServerAway } from '../../connection/ServerAway'
+import { useServerApi } from '../../connection/useServerApi'
+import { viaKey } from '../../connection/via'
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkles, X } from '../../ui/components/Icons'
 import { Panel, partStyles, Row } from './SettingsParts'
@@ -24,25 +29,67 @@ import {
   missingArtCount,
 } from '../metadata/metadata.model'
 
+/**
+ * Settings › Advanced › Library: the library's folder on its server — the
+ * inbox an import lands in, and where a file dropped by hand is picked up —
+ * and the passes the server runs over the songs. All of it is the server's, so
+ * a cloud library reaches the server for it, as Import does, and says so when
+ * it cannot.
+ */
 export function LibraryPanel({
-  libraryPath,
   anchor,
   onConfirm,
 }: {
-  libraryPath: string | undefined
   anchor: (node: View | null) => void
   onConfirm: (what: Confirming) => void
 }): ReactNode {
+  const server = useServerApi()
   const library = useLibrary()
-  const scan = useScanLibrary()
-  const analysis = useAnalysisStatus(true)
-  const startAnalysis = useStartAnalysis()
   const songs = library.data?.songs ?? []
+  return (
+    <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
+      {server.reach.state !== 'reachable' || !server.api ? (
+        <ServerAway reach={server.reach} need="settings" row testID="library-server" />
+      ) : (
+        <LibraryRows
+          api={server.api}
+          baseUrl={server.via?.baseUrl}
+          songs={songs}
+          onConfirm={onConfirm}
+        />
+      )}
+    </Panel>
+  )
+}
+
+function LibraryRows({
+  api,
+  baseUrl,
+  songs,
+  onConfirm,
+}: {
+  api: Api
+  baseUrl: string | undefined
+  songs: readonly Song[]
+  onConfirm: (what: Confirming) => void
+}): ReactNode {
+  // The server's own health, for where its folder is: this device's says
+  // nothing of it from a cloud library.
+  const health = useQuery({
+    queryKey: viaKey(baseUrl, 'health'),
+    queryFn: () => api.health(),
+    staleTime: STALE.minute,
+    retry: false,
+  })
+  const libraryPath = health.data?.libraryPath
+  const scan = useScanLibrary(api)
+  const analysis = useAnalysisStatus(api)
+  const startAnalysis = useStartAnalysis(api)
   const analysed = songs.filter(song => song.audioFeatures !== null).length
   const running = analysis.data?.running === true
 
   return (
-    <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
+    <>
       {libraryPath !== undefined ? <Row label="Folder" hint={libraryPath} /> : null}
       <Row label="Rescan the folder" hint={scanHint(scan.data)}>
         <Button
@@ -78,8 +125,8 @@ export function LibraryPanel({
           <Text style={partStyles.progressText}>{analysisProgress(analysis.data)}</Text>
         </View>
       ) : null}
-      <CoverArtRow songs={songs} last />
-    </Panel>
+      <CoverArtRow api={api} songs={songs} last />
+    </>
   )
 }
 
@@ -88,10 +135,18 @@ export function LibraryPanel({
  * and watches it, so leaving Settings interrupts nothing. Covers land one at a
  * time, so the library is refetched as they do.
  */
-function CoverArtRow({ songs, last }: { songs: readonly Song[]; last: boolean }): ReactNode {
+function CoverArtRow({
+  api,
+  songs,
+  last,
+}: {
+  api: Api
+  songs: readonly Song[]
+  last: boolean
+}): ReactNode {
   const client = useQueryClient()
-  const { data: status } = useFixCoversStatus()
-  const fixCovers = useFixCovers()
+  const { data: status } = useFixCoversStatus(api)
+  const fixCovers = useFixCovers(api)
   const missingArt = missingArtCount(songs)
   const running = status?.status === 'running'
   const result = status ? coverResult(status) : null

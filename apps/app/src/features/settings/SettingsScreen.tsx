@@ -6,8 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import type { Settings } from '@selfmp3/shared'
-import { radius, space, type, useHealth, useSettings, useUpdateSettings } from '@selfmp3/client'
+import { radius, space, type, useHealth } from '@selfmp3/client'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
@@ -21,9 +20,10 @@ import { useContentWidthValue } from '../../shell/contentWidth'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
+import { engineCapabilities } from '../../ports/engine'
+import { CROSSFADE_MAX, setCrossfadeSeconds, useCrossfadeSeconds } from '../../player/crossfadePref'
 import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
-import { usePlayer } from '../../player/PlayerProvider'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { menuCommands } from '../../ports/menuKeys'
@@ -34,7 +34,6 @@ import { forgetGuides } from '../guide/guideMemory'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
 import { AccessPanel } from './AccessPanel'
 import { AppearancePanel } from './AppearancePanel'
-import { CloudPanel } from './CloudPanel'
 import { Confirmations } from './Confirmations'
 import { ConnectionPanel } from './ConnectionPanel'
 import { DesktopPanel } from './DesktopPanel'
@@ -87,8 +86,9 @@ const LINKED_HOLD_MS = 2500
  * Grouped as the boards group it: the account and the look first, then what
  * this device keeps — "On this phone", "On this computer" — and its devices,
  * then playback, smart features and lyrics. What is about running the server
- * or the Mac app — the library folder, importing, the cloud, the model — is
- * under one Advanced at the end (O1). Each group is a label over a card, its
+ * or the Mac app — the library folder, importing, the model — is under one
+ * Advanced at the end (O1). What the server acts on is asked of the server,
+ * reached directly from a cloud library (`useServerApi`). Each group is a label over a card, its
  * rows told apart by space, and each row says at most one short line. The
  * page carries its own index — a column beside the panels on a wide screen, a
  * sticky row of chips above them on a narrow one. A link from elsewhere names
@@ -99,8 +99,6 @@ export function SettingsScreen(): ReactNode {
   const pinyinOn = useRomanizationOn('zh')
   const romajiOn = useRomanizationOn('ja')
   const { wide } = useLayout()
-  const settings = useSettings()
-  const updateSettings = useUpdateSettings()
   const health = useHealth()
   // The bucket refusing for the day, which the health cannot see: in the cloud
   // it is the doorman's, and the doorman answers while the bucket will not.
@@ -111,7 +109,7 @@ export function SettingsScreen(): ReactNode {
   // the one place the desktop app is offered from.
   const place = devicePlace(deviceKind())
   const sections = sectionsFor({
-    fromCloud,
+    crossfade: engineCapabilities.crossfade,
     installed: installedApp,
     keyboard: finePointer,
     shell: loginItem.available,
@@ -150,9 +148,6 @@ export function SettingsScreen(): ReactNode {
   const chipsWidth = useRef(0)
   const [confirming, setConfirming] = useState<Confirming>(null)
 
-  const set = <K extends keyof Settings>(key: K, value: Settings[K]): void => {
-    updateSettings.mutate({ [key]: value } as Partial<Settings>)
-  }
   // One callback per section for the page's life, so a redraw does not detach
   // and reattach every panel's view.
   const [anchorAt] = useState(() => {
@@ -362,31 +357,13 @@ export function SettingsScreen(): ReactNode {
 
             <DevicesPanel anchor={anchorAt('devices')} />
 
-            {settings.data ? (
-              <Panel
-                title="Playback"
-                hint="shared across your devices"
-                anchor={anchorAt('playback')}
-              >
-                <CrossfadeRow
-                  seconds={settings.data.crossfadeSeconds}
-                  onCommit={value => set('crossfadeSeconds', value)}
-                />
-                <Row
-                  label="Look up lyrics automatically"
-                  hint="Fetches timed lyrics when a song is imported."
-                  last
-                >
-                  <Toggle
-                    value={settings.data.autoFetchLyrics}
-                    onChange={value => set('autoFetchLyrics', value)}
-                    label="Look up lyrics automatically"
-                  />
-                </Row>
+            {shown('playback') ? (
+              <Panel title="Playback" hint="on this device" anchor={anchorAt('playback')}>
+                <CrossfadeRow />
               </Panel>
             ) : null}
 
-            <SmartPanel anchor={anchorAt('smart')} settings={settings.data} set={set} />
+            <SmartPanel anchor={anchorAt('smart')} />
 
             <Panel title="Lyrics" hint="on this device" anchor={anchorAt('lyrics')}>
               <Row label="Show pinyin" hint="A romanized line under Chinese lyrics.">
@@ -429,21 +406,8 @@ export function SettingsScreen(): ReactNode {
             {indexed.some(section => section.id === 'advanced') ? (
               <View ref={anchorAt('advanced')} style={styles.advanced}>
                 <SectionHead title="Advanced" />
-                {shown('library') ? (
-                  <LibraryPanel
-                    libraryPath={health.data?.libraryPath}
-                    anchor={anchorAt('library')}
-                    onConfirm={setConfirming}
-                  />
-                ) : null}
-                {settings.data && shown('importing') ? (
-                  <ImportingPanel
-                    settings={settings.data}
-                    set={set}
-                    anchor={anchorAt('importing')}
-                  />
-                ) : null}
-                {shown('cloud') ? <CloudPanel anchor={anchorAt('cloud')} /> : null}
+                <LibraryPanel anchor={anchorAt('library')} onConfirm={setConfirming} />
+                <ImportingPanel anchor={anchorAt('importing')} />
                 <SmartModelPanel anchor={anchorAt('model')} />
                 {shown('desktop') ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
                 {shown('getApp') ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}
@@ -534,32 +498,24 @@ function SectionIndex({
 }
 
 /**
- * Crossfade, where this device's engine can fade one song into the next — a
- * browser and the installed app can. A phone's engine plays gapless and cannot
- * fade, and a slider that does nothing there is worse than none: the row stays
- * away until it can.
+ * Crossfade, this device's own (`crossfadePref.ts`). Drawn only where this
+ * device's engine can fade one song into the next — a browser and the
+ * installed app can. A phone's engine plays gapless and cannot fade, and a
+ * slider that does nothing there is worse than none: Playback, which holds
+ * nothing else, is not drawn there (`sectionsFor`).
  */
-function CrossfadeRow({
-  seconds,
-  onCommit,
-}: {
-  seconds: number
-  onCommit: (value: number) => void
-}): ReactNode {
-  // Its own component: the player changes on every play and pause, and the
-  // whole of Settings has no reason to redraw for that.
-  const { canCrossfade } = usePlayer()
-  if (!canCrossfade) return null
+function CrossfadeRow(): ReactNode {
+  const seconds = useCrossfadeSeconds()
   return (
-    <Row label="Crossfade" hint="Overlaps songs. Zero turns it off.">
+    <Row label="Crossfade" hint="Overlaps songs. Zero turns it off." last>
       <SliderSetting
         value={seconds}
         min={0}
-        max={12}
+        max={CROSSFADE_MAX}
         step={1}
         label="Crossfade"
         format={crossfadeLabel}
-        onCommit={onCommit}
+        onCommit={setCrossfadeSeconds}
       />
     </Row>
   )

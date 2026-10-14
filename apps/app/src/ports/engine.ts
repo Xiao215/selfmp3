@@ -55,8 +55,9 @@ import { devicePlace } from '../features/settings/settings.model'
  * ends. (`LoadOptions` makes that every engine's rule.)
  */
 
-const capabilities: EngineCapabilities = {
-  // Two files cannot overlap in one native player. The settings screen says so.
+/** What this engine can do, before one is made: Settings has no Playback here. */
+export const engineCapabilities: EngineCapabilities = {
+  // Two files cannot overlap in one native player.
   crossfade: false,
   // No Web Audio graph to tap; the visualiser stays a browser thing.
   analyser: false,
@@ -85,7 +86,7 @@ function cardKey(meta: TrackMetadata): string {
 }
 
 class NativeEngine implements PlaybackEngine {
-  readonly capabilities = capabilities
+  readonly capabilities = engineCapabilities
 
   /** State, listeners and wiring, as the browser's engine keeps them (`@selfmp3/client`). */
   readonly #hub = new EngineHub()

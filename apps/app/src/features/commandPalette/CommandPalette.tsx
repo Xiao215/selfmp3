@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
 import {
+  clientApi,
   radius,
   space,
   type,
@@ -96,9 +97,10 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const pathname = usePathname()
   const player = usePlayer()
   const library = useLibrary()
-  const scan = useScanLibrary()
-  const artFor = useArt(ROW_COVER_SIZE)
   const { fromCloud } = useConnection()
+  // Offered only to a device that talks to its server, which is then what answers it.
+  const scan = useScanLibrary(fromCloud ? null : clientApi())
+  const artFor = useArt(ROW_COVER_SIZE)
   // The app's own width for the box; the window's height, which no split lies about.
   const { finePointer, width } = useLayout()
   const window = useWindowDimensions()

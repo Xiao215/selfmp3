@@ -4,19 +4,20 @@ import { DEEP_LINK_SCHEME, signInCodeFromUrl } from '@selfmp3/shared'
  * Sign-in links coming back to the app, and the inbox they wait in.
  *
  * Google's sign-in ends with the doorman sending the browser back to where the
- * sign-in started — `selfmp3://welcome` or `selfmp3://settings` in an installed
- * app, this site's own `/welcome` or `/settings` in a browser — with the code
- * that claims the session in the fragment. Nobody reads or types that code: it
- * comes back inside the link, and this is where the link lands.
+ * sign-in started — `selfmp3://welcome` in an installed app, this site's own
+ * `/welcome` in a browser — with the code that claims the session in the
+ * fragment. Nobody reads or types that code: it comes back inside the link,
+ * and this is where the link lands.
  *
- * Two targets rather than one, so a code meant for Settings (the server
- * signing in) is never spent by Welcome, or the other way round.
  * The inbox keeps a link that arrives before its screen is listening, which a
  * cold launch from a sign-in always is, and hands each code over once.
  */
 
-/** Where a sign-in can come back to: Welcome, or Settings → Cloud. */
-export type SignInTarget = 'welcome' | 'settings'
+/**
+ * Where a sign-in can come back to: Welcome. A server signs in on its own page
+ * (`apps/server/public/admin.js`), not through the app.
+ */
+export type SignInTarget = 'welcome'
 
 interface SignInLink {
   readonly target: SignInTarget
@@ -26,8 +27,8 @@ interface SignInLink {
 /**
  * The target and code in a returning link, or null for any other link.
  *
- * The target is the address's last path segment, so `selfmp3://settings#…`
- * and `https://example.github.io/selfmp3/settings#…` are the same return.
+ * The target is the address's last path segment, so `selfmp3://welcome#…`
+ * and `https://example.github.io/selfmp3/welcome#…` are the same return.
  */
 export function signInLink(url: string): SignInLink | null {
   const code = signInCodeFromUrl(url)
@@ -37,7 +38,7 @@ export function signInLink(url: string): SignInLink | null {
     .replace(new RegExp(`^${DEEP_LINK_SCHEME}://`), '/')
     .replace(/\/+$/, '')
   const last = path.slice(path.lastIndexOf('/') + 1)
-  return last === 'welcome' || last === 'settings' ? { target: last, code } : null
+  return last === 'welcome' ? { target: last, code } : null
 }
 
 interface SignInInbox {
@@ -51,7 +52,6 @@ export function createSignInInbox(): SignInInbox {
   const waiting: SignInLink[] = []
   const listeners: Record<SignInTarget, Set<(code: string) => void>> = {
     welcome: new Set(),
-    settings: new Set(),
   }
   /*
    * A code is handed over once. The same link can arrive twice — a phone

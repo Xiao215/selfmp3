@@ -16,7 +16,6 @@ import type {
   FixCoversStatus,
   Health,
   AnalysisStatus,
-  CloudConnect,
   CloudServer,
   CloudStatus,
   DeviceList,
@@ -331,13 +330,27 @@ export function useHealth(): UseQueryResult<Health, Error> {
   })
 }
 
-/** The server's settings: the ones every device of this library shares. */
-export function useSettings(): UseQueryResult<Settings, Error> {
-  const { ready } = useClientState()
+/**
+ * What a hook handed the server to ask is given while the server is away: such
+ * a hook is not enabled then, so this answers only a stray refetch or a press
+ * that raced the server leaving.
+ */
+function serverOf(api: Api | null): Api {
+  if (!api) throw new ApiError(0, 'Your library’s computer isn’t answering.', API_ERROR.offline)
+  return api
+}
+
+/**
+ * The library's settings, which only its server keeps and acts on
+ * (`SettingsSchema`). `api` is that server — reached directly from a cloud
+ * library (`useServerApi` in the app) — or null while it is away. One key for
+ * them: a device has one server, and the cache is cleared when it changes.
+ */
+export function useSettings(api: Api | null): UseQueryResult<Settings, Error> {
   return useQuery({
     queryKey: queryKeys.settings,
-    enabled: ready,
-    queryFn: () => clientApi().settings(),
+    enabled: api !== null,
+    queryFn: () => serverOf(api).settings(),
     staleTime: STALE.fiveMinutes,
   })
 }
@@ -709,8 +722,8 @@ export const useBulkLoved = () =>
     { failure: 'Couldn’t change the likes' },
   )
 
-export const useScanLibrary = () =>
-  useLibraryMutation<void, ScanResult>(() => clientApi().scan(), {
+export const useScanLibrary = (api: Api | null) =>
+  useLibraryMutation<void, ScanResult>(() => serverOf(api).scan(), {
     failure: 'Couldn’t scan the library',
   })
 
@@ -838,10 +851,11 @@ export function useToggleLoved() {
   })
 }
 
-export function useUpdateSettings() {
+export function useUpdateSettings(api: Api | null) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (patch: Parameters<Api['updateSettings']>[0]) => clientApi().updateSettings(patch),
+    mutationFn: (patch: Parameters<Api['updateSettings']>[0]) =>
+      serverOf(api).updateSettings(patch),
     meta: { failure: 'Couldn’t save the setting' },
     onSuccess: settings => {
       client.setQueryData(queryKeys.settings, settings)
@@ -990,21 +1004,20 @@ export const useApplyMetadata = () =>
   )
 
 /** The cover-art pass, polled only while it runs (same idea as the import queue). */
-export function useFixCoversStatus(): UseQueryResult<FixCoversStatus, Error> {
-  const { ready } = useClientState()
+export function useFixCoversStatus(api: Api | null): UseQueryResult<FixCoversStatus, Error> {
   return useQuery({
     queryKey: queryKeys.fixCovers,
-    enabled: ready,
-    queryFn: () => clientApi().fixCoversStatus(),
+    enabled: api !== null,
+    queryFn: () => serverOf(api).fixCoversStatus(),
     refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
   })
 }
 
-export function useFixCovers() {
+export function useFixCovers(api: Api | null) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (action: 'start' | 'cancel') =>
-      action === 'start' ? clientApi().fixCoversStart() : clientApi().fixCoversCancel(),
+      action === 'start' ? serverOf(api).fixCoversStart() : serverOf(api).fixCoversCancel(),
     meta: { failure: 'Couldn’t reach the cover fixing' },
     onSuccess: status => {
       client.setQueryData(queryKeys.fixCovers, status)
@@ -1044,13 +1057,12 @@ export function useSimilar(
  * library is refetched once it stops, so the new BPM and key badges appear,
  * with the members of any live playlist whose rules follow those.
  */
-export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStatus, Error> {
-  const { ready } = useClientState()
+export function useAnalysisStatus(api: Api | null): UseQueryResult<AnalysisStatus, Error> {
   const client = useQueryClient()
   return useQuery({
     queryKey: queryKeys.analysis,
     queryFn: async () => {
-      const status = await clientApi().analysisStatus()
+      const status = await serverOf(api).analysisStatus()
       const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis)
       if (previous?.running && !status.running) {
         void client.invalidateQueries({ queryKey: queryKeys.library })
@@ -1058,15 +1070,15 @@ export function useAnalysisStatus(enabled: boolean): UseQueryResult<AnalysisStat
       }
       return status
     },
-    enabled: ready && enabled,
+    enabled: api !== null,
     refetchInterval: query => (query.state.data?.running ? 1_500 : false),
   })
 }
 
-export function useStartAnalysis() {
+export function useStartAnalysis(api: Api | null) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (force: boolean) => clientApi().analyze(force),
+    mutationFn: (force: boolean) => serverOf(api).analyze(force),
     onSuccess: status => {
       client.setQueryData(queryKeys.analysis, status)
     },
@@ -1111,36 +1123,6 @@ export function useCloudStatus(enabled = true): UseQueryResult<CloudStatus, Erro
     refetchIntervalInBackground: false,
   })
 }
-
-/**
- * One thing done to the cloud — connect, sign in, publish now, disconnect.
- * Each answers with the new status, so the panel moves on without waiting
- * for the next poll.
- *
- * One hook per action rather than one hook making all seven: a component that
- * only signs out made seven mutations on every render to use one.
- */
-function useCloudMutation<TInput = void>(run: (input: TInput) => Promise<CloudStatus>) {
-  const client = useQueryClient()
-  return useMutation<CloudStatus, Error, TInput>({
-    mutationFn: run,
-    onSuccess: status => {
-      client.setQueryData(queryKeys.cloud, status)
-    },
-  })
-}
-
-export const useCloudConnect = () =>
-  useCloudMutation((input: CloudConnect) => clientApi().cloudConnect(input))
-export const useCloudConnectStorage = () =>
-  useCloudMutation((input: CloudConnect) => clientApi().cloudConnectStorage(input))
-export const useCloudSync = () => useCloudMutation(() => clientApi().cloudSync())
-export const useCloudDisconnect = () => useCloudMutation(() => clientApi().cloudDisconnect())
-export const useCloudSignIn = () =>
-  useCloudMutation((attempt: string) => clientApi().cloudSignIn(attempt))
-export const useCloudCancelSignIn = () => useCloudMutation(() => clientApi().cloudCancelSignIn())
-export const useCloudEnterCode = () =>
-  useCloudMutation((code: string) => clientApi().cloudSignInCode(code))
 
 /**
  * A cloud library's imports: links asked of the server through the bucket. Looked at

@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, type, space, iconSize } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif, lineSub, hint } from '../../ui/surfaces'
+import { card, label as labelText, serif, hint } from '../../ui/surfaces'
 import { Press } from '../../ui/components/Press'
 
 /**
@@ -53,10 +53,6 @@ export function Panel({
       <View style={styles.panel}>{children}</View>
     </View>
   )
-}
-
-export function Lead({ children }: { children: ReactNode }): ReactNode {
-  return <Text style={styles.lead}>{children}</Text>
 }
 
 export function Row({
@@ -215,11 +211,6 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.lg,
   },
   hint: { color: theme.colors.textMuted, fontSize: type.small },
-  lead: {
-    ...lineSub(theme.colors),
-    marginBottom: space.md,
-    maxWidth: 520,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

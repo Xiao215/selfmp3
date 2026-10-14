@@ -4,6 +4,7 @@ import { failureText, useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useServerApi } from '../../connection/useServerApi'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { showToast } from '../../ui/toast'
@@ -21,7 +22,8 @@ export function Confirmations({
   const router = useRouter()
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
-  const startAnalysis = useStartAnalysis()
+  // Redo all is the server's pass, asked of it as Settings › Advanced › Library asks.
+  const startAnalysis = useStartAnalysis(useServerApi().api)
   const place = devicePlace(deviceKind())
 
   const dialogs: Record<

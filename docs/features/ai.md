@@ -643,14 +643,16 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: a switch per feature
 
-Five switches, kept with the other settings (`smartAsk`, `smartTidy`, `smartTags`,
+Five switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags`,
 `smartWritten`, `smartMetadata`, all on by default): Ask in Search (which also covers New
 playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes),
 the Report in words and Fix song info's Suggested card. A sixth, Search the web
 (`smartWeb`), is off by default, and the remembered preferences are listed under them. Each
 says what of the library it shows the model, in a line, because "the model sees your
-library" is too vague to agree to and each sees less than that. Off, the way in is not
-drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any
+library" is too vague to agree to and each sees less than that. Settings reads and writes them
+on the server itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy
+of the library keeps no settings. Off, the way in is not drawn (`useSmartSwitches`, which asks
+the server presence has already found, so it costs no probe) and the server refuses the route with 403 `ai_disabled` before any
 model is asked; Ask routing to Tidy up or Tags while it is off answers that it is off.
 `routes/ai.test.ts` counts the calls a real endpoint on a free port receives: none.
 

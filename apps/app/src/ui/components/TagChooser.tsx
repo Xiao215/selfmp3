@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -84,11 +84,14 @@ export function TagChooser({
   selected,
   onChange,
   title = 'Tag these songs',
+  from,
 }: {
   tags: readonly Tag[]
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
   title?: string
+  /** Another library's tags, when the ids chosen are not this device's (`TagSearchList`). */
+  from?: ComponentProps<typeof TagSearchList>['from']
 }): ReactNode {
   const [open, setOpen] = useState(false)
   const chosen = tags.filter(tag => selected.has(tag.id))
@@ -107,7 +110,9 @@ export function TagChooser({
         add={{ onPress: () => setOpen(true), accessibilityLabel: title }}
       />
       <Sheet open={open} onClose={() => setOpen(false)} title={title} titleTone="label">
-        {open ? <TagSearchList selected={selected} onChange={onChange} autoFocus /> : null}
+        {open ? (
+          <TagSearchList selected={selected} onChange={onChange} from={from} autoFocus />
+        ) : null}
       </Sheet>
     </>
   )

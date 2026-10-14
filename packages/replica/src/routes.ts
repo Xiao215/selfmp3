@@ -7,7 +7,6 @@ import {
   BulkTagSchema,
   CreatePlaylistSchema,
   CreateTagSchema,
-  DEFAULT_SETTINGS,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
   DoormanAccessUpdateSchema,
@@ -19,7 +18,6 @@ import {
   RenameTagSchema,
   ReorderPlaylistSchema,
   SetSongTagsSchema,
-  SettingsSchema,
   SimilarQuerySchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
@@ -29,7 +27,6 @@ import {
   type Affected,
   type PlayRecorded,
   type RemovedFromPlaylist,
-  type Settings,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import * as edits from './edits.js'
@@ -87,13 +84,12 @@ function decode(part: string): string {
  * every call here instead. Reading the library, a playlist, lyrics, what to
  * download: answered from this device's copy of the library. Editing it —
  * songs, tags, playlists, plays — is a change recorded here and uploaded to
- * this device's log, for every other device to replay. Settings live on this
- * device. The rest still needs the server, and says so. Bodies go through the
+ * this device's log, for every other device to replay. The rest — the
+ * library's settings among it, which only its server acts on — still needs
+ * the server, and says so. Bodies go through the
  * same schemas the server's routes use, and answers are the JSON the server would
  * send.
  */
-
-const SETTINGS_KEY = 'selfmp3.cloud.settings'
 
 /**
  * What the app sent, parsed as the server's routes parse it: a shape it does
@@ -112,7 +108,8 @@ function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output
 /**
  * What only a server can answer, as `METHOD /path` (`:id` a number, `:any`
  * any one segment): importing, the smart features, Stats, the devices list,
- * the server's own cloud settings, and searching the words of every song,
+ * the library's settings and the server's own cloud settings, and searching
+ * the words of every song,
  * whose index only a server builds. A cloud library answers these with a 501
  * coded `needs_server`, said in so many words; a path in neither this list nor
  * the routes below is a 404, as the server's own unknown paths are. A test
@@ -161,17 +158,12 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'POST /api/devices/:any/command',
   'DELETE /api/devices/:any',
   'GET /api/cloud',
-  'PUT /api/cloud',
-  'DELETE /api/cloud',
-  'POST /api/cloud/sync',
-  'POST /api/cloud/signin',
-  'DELETE /api/cloud/signin',
-  'POST /api/cloud/signin/code',
-  'PUT /api/cloud/storage',
   'GET /api/stats',
   'GET /api/stats/wrapped',
   'GET /api/stats/history',
   'GET /api/artists/backdrop',
+  'GET /api/settings',
+  'PATCH /api/settings',
 ]
 
 /** What each kind of path segment a route names may be. */
@@ -632,8 +624,6 @@ export function createCloudRoutes(
     const url = new URL(path, 'https://app.invalid')
 
     try {
-      if (method === 'GET' && url.pathname === '/api/settings') return await loadSettings()
-      if (method === 'PATCH' && url.pathname === '/api/settings') return await saveSettings(body)
       if (method === 'GET' && url.pathname === '/api/health') return await health()
 
       for (const [routeMethod, pattern, handler] of ROUTES) {
@@ -737,30 +727,6 @@ export function createCloudRoutes(
     // No song count: the library's is on screen beside it, and a made-up 0 read
     // "self.mp3 web · 0 songs" over a library of thirty.
     return { ok: true, version: 'web', uptimeSeconds: 0, libraryPath: 'the cloud' }
-  }
-
-  async function loadSettings(): Promise<Settings> {
-    try {
-      const stored = await platform.store.read(SETTINGS_KEY)
-      const parsed = SettingsSchema.safeParse({
-        ...DEFAULT_SETTINGS,
-        ...(typeof stored === 'object' && stored !== null ? stored : {}),
-      })
-      return parsed.success ? parsed.data : DEFAULT_SETTINGS
-    } catch {
-      return DEFAULT_SETTINGS
-    }
-  }
-
-  /** Kept on this device: with no server to share them through, they are its own. */
-  async function saveSettings(patch: unknown): Promise<Settings> {
-    const next = parseInput(SettingsSchema, { ...(await loadSettings()), ...(patch as object) })
-    try {
-      await platform.store.write(SETTINGS_KEY, next)
-    } catch {
-      // No storage: the change holds until the app is closed.
-    }
-    return next
   }
 
   return { cloudRequest }

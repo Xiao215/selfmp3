@@ -117,11 +117,6 @@ export class DoormanClient {
     return DoormanGrantMadeSchema.parse(await response.json())
   }
 
-  /** Give a grant back: the server letting an account go. */
-  async endGrant(token: string, id: string): Promise<void> {
-    await this.request('DELETE', DOORMAN_PATHS.grant(id), { token, allowStatus: [404] })
-  }
-
   /** The signed-in account's bucket, as the sync sees any bucket. */
   store(token: string, description: string): CloudStore {
     return new DoormanCloudStore(this, token, description)

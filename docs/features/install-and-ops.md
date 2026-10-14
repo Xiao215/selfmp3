@@ -120,7 +120,10 @@ start                 run the server in the foreground
 scan                  import what was dropped into the inbox folder
 import <url...>       queue links for download
 backup <dest-dir>     copy the data and library folders into <dest-dir>, only what changed
-doctor                node, yt-dlp, ffmpeg, server, folders
+doctor                node, yt-dlp, ffmpeg, server, whom it works for, folders
+--url <base>          a server elsewhere
+--library <id|email>  which library, on the server's own computer
+--token <token>       which library, from elsewhere
 --version
 ```
 
@@ -134,9 +137,14 @@ Two rules shape it:
   it, instead of failing with a connection error.
 
 It talks to `http://localhost:$SELFMP3_PORT` unless `--url` says otherwise. The server routes
-a request by its token (`hub/hub.ts`, `resolve`). From the server's own computer, a request
-with no token goes to the only library when there is exactly one. With several, or from
-elsewhere, `--token` names the library.
+a request by its token (`hub/hub.ts`, `resolve`). From the server's own computer a request
+with no token may name its library by id instead, in the `X-Selfmp3-Library` header, and
+otherwise goes to the only library when there is exactly one. So `scan` and `import` first
+ask `GET /api/hub` whom the server works for (`cli/library.ts`): `--library <id or email>`
+picks one, the only one needs no name, and with several and no `--library` the command stops
+and lists them, as it does for a name that matches none. From elsewhere `/api/hub` is
+refused, and `--token` names the library. `doctor` lists the libraries when it is asked on the
+server's own computer.
 
 `backup` (`cli/backup.ts`) is the one command that touches files directly. A file is copied
 when the destination is missing, a different size, or meaningfully older: size plus mtime, no

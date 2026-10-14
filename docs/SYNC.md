@@ -268,9 +268,10 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. The *Cloud* card on the server's own page (port 4600, opened on the server itself)
-can also sign a server with one library in with Google, or connect a bucket directly with its
-key when there is no doorman.
+workspace. The server's own page (port 4600, opened on the server itself) lists the
+workspaces, each with how its publishing is going and **Publish now**. Opened from another
+computer with a library's token, its *Cloud* card can also sign that library in with Google,
+or connect a bucket directly with its key when there is no doorman.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and

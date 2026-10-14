@@ -2868,6 +2868,31 @@ describe('CloudSyncService', () => {
       })
     })
 
+    it('stops publishing when an idle look for other devices’ changes is refused', async () => {
+      // How a server working for several accounts hears, with nothing to
+      // publish, that an account took its grant back.
+      addSong('A - One', 'one')
+      const doorman = new FakeDoorman()
+      doorman.finish(ATTEMPT, 'session-1', STORAGE)
+      // With the sync's own bookkeeping, which the log poll needs, and a quick poll.
+      sync = makeSync({
+        doormanUrl: doorman.url,
+        openDoorman: () => doorman,
+        signInPollMs: 1,
+        logPollMs: 15,
+      })
+      const service = sync
+      await signIn(service)
+      await service.whenIdle()
+
+      bucket.failure = new CloudError('auth', 'Your Google sign-in has expired.')
+      await vi.waitFor(() => expect(service.status().connected).toBe(false), { timeout: 2_000 })
+      expect(service.status()).toMatchObject({
+        state: 'error',
+        lastError: 'Your Google sign-in has expired.',
+      })
+    })
+
     it('gives up waiting after ten minutes', async () => {
       let time = Date.parse('2026-09-11T10:00:00Z')
       const service = withDoorman(new FakeDoorman(), () => new Date(time))

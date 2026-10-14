@@ -1310,6 +1310,13 @@ export class CloudSyncService {
         void this.#publish(store)
       }
     } catch (error) {
+      // A session refused is not something to wait out: on a server working
+      // for several accounts this look is how an idle library hears that its
+      // account took the grant back, and lets the library go.
+      if (error instanceof CloudError && error.kind === 'auth' && this.#session) {
+        this.#sessionEnded(error)
+        return
+      }
       // The next look, or the next pass, will say what is wrong.
       this.#logger.debug('could not look for changes from other devices', {
         message: messageOf(error),

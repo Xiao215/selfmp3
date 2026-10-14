@@ -3,10 +3,17 @@ import path from 'node:path'
 import type { ImportShareResult, ScanResult } from '@selfmp3/shared'
 import { messageOf, formatBytes } from '@selfmp3/shared'
 import { APP_NAME, APP_VERSION, resolveDirs } from './config.js'
-import { ApiError, createClient, defaultBaseUrl } from './cli/api.js'
+import {
+  ApiError,
+  createClient,
+  defaultBaseUrl,
+  type LibraryChoice,
+  type ServerClient,
+} from './cli/api.js'
 import { CliUsageError, USAGE, parseCli, type Command } from './cli/args.js'
 import { backupTree } from './cli/backup.js'
 import { runDoctor } from './cli/doctor.js'
+import { pickLibrary } from './cli/library.js'
 import { loadDotEnv } from './dotenv.js'
 
 /**
@@ -28,16 +35,31 @@ Start it in another terminal with one of:
     npm start
 or pass --url if it lives somewhere else.`
 
-async function run(command: Command, baseUrl: string, token: string | null): Promise<number> {
-  const client = createClient(baseUrl, token)
+async function run(command: Command, baseUrl: string, choice: LibraryChoice): Promise<number> {
+  const client = createClient(baseUrl, { token: choice.token, library: null })
 
-  const requireServer = async () => {
-    const health = await client.health()
-    if (!health) {
+  /**
+   * The running server, talking to the library meant: the token's, or from
+   * this computer the one `--library` names, or the only one there is
+   * (`cli/library.ts`). Null, having said so, when nothing is running.
+   */
+  const requireLibrary = async (): Promise<ServerClient | null> => {
+    if (!(await client.health())) {
       console.error(NOT_RUNNING.replace('%s', baseUrl))
       return null
     }
-    return health
+    if (choice.token !== null) return client
+    const hub = await client.hub()
+    if (hub === null) {
+      if (choice.library === null) return client
+      throw new CliUsageError(
+        "--library works on the server's own computer only; from elsewhere give the library's --token",
+      )
+    }
+    return createClient(baseUrl, {
+      token: null,
+      library: pickLibrary(hub.workspaces, choice.library),
+    })
   }
 
   switch (command.name) {
@@ -55,9 +77,10 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
       return 0
 
     case 'scan': {
-      if (!(await requireServer())) return 1
+      const library = await requireLibrary()
+      if (!library) return 1
       out('scanning…')
-      const result = await client.post<ScanResult>('/library/scan')
+      const result = await library.post<ScanResult>('/library/scan')
       out(
         `done in ${Math.round(result.durationMs)} ms: ${result.added} added, ${result.updated} updated, ` +
           `${result.total} songs total`,
@@ -66,11 +89,12 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
     }
 
     case 'import': {
-      if (!(await requireServer())) return 1
+      const library = await requireLibrary()
+      if (!library) return 1
       let failures = 0
       for (const url of command.urls) {
         try {
-          const result = await client.post<ImportShareResult>('/import/share', { url })
+          const result = await library.post<ImportShareResult>('/import/share', { url })
           const what =
             result.kind === 'playlist' ? `playlist "${result.playlistTitle ?? ''}"` : 'track'
           const skipped = result.skipped
@@ -122,7 +146,7 @@ async function run(command: Command, baseUrl: string, token: string | null): Pro
       out()
       const lines = await runDoctor(client, resolveDirs())
       for (const line of lines) {
-        out(`  ${line.ok ? '✓' : '✗'} ${line.label.padEnd(8)} ${line.detail}`)
+        out(`  ${line.ok ? '✓' : '✗'} ${line.label.padEnd(9)} ${line.detail}`)
       }
       out()
       const broken = lines.filter(line => !line.ok).length
@@ -152,7 +176,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    process.exitCode = await run(parsed.command, parsed.url ?? defaultBaseUrl(), parsed.token)
+    process.exitCode = await run(parsed.command, parsed.url ?? defaultBaseUrl(), parsed)
   } catch (error) {
     if (error instanceof ApiError) console.error(`server said ${error.status}: ${error.message}`)
     else if (error instanceof CliUsageError) console.error(error.message)

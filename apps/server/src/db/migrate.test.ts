@@ -145,4 +145,19 @@ describe('migrate', () => {
       db.prepare("INSERT INTO import_jobs (id, url, status) VALUES ('d', 'u', 'paused')").run(),
     ).toThrow(/CHECK/)
   })
+
+  it('drops the rows of settings no longer kept, and keeps the rest', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.exec(`
+      INSERT INTO settings (key, value) VALUES
+        ('autoScanMinutes', '5'), ('crossfadeSeconds', '6'), ('gapless', 'true'),
+        ('theme', '"dark"'), ('watchLibrary', 'false'), ('smartWeb', 'true');
+    `)
+    db.pragma('user_version = 41')
+    migrate(db, createLogger('silent'))
+
+    const keys = db.prepare('SELECT key FROM settings ORDER BY key').pluck().all()
+    expect(keys).toEqual(['smartWeb', 'watchLibrary'])
+  })
 })

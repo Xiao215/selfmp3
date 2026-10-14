@@ -52,7 +52,10 @@ account takes its grant back (below), which works while the server is off.
 
 The server's own page on `:4600` (`apps/server/public/`), opened on the server itself, lists
 the workspaces from `GET /api/hub`, each with how its publishing is going and **Publish
-now**, asking each one's `/api/cloud` by naming it. The `selfmp3` command names one the same
+now**, asking each one's `/api/cloud` by naming it. Changing a library's cloud connection
+(sign-in, bucket, disconnect, publish now) is refused from anywhere but that machine, token or
+not: a workspace reaches its bucket through the grant its devices gave it, and nothing a
+device holds may repoint it. The `selfmp3` command names one the same
 way, with `--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's

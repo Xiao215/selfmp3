@@ -331,9 +331,9 @@ at all is kept by the doorman's owner in Settings › Who can sign in.
 Day-to-day behaviour — crossfade, the watched folder, romanization, the smart features —
 lives in the app's Settings rather than in the environment.
 
-A few of the server's settings have no screen yet, so they sit at their defaults unless the
-database is edited by hand: where yt-dlp gets YouTube cookies from (a browser or a cookies
-file), the tags added to every import, and the automatic rescan interval.
+Where yt-dlp gets YouTube cookies from (a browser or a cookies file) has no screen, so it
+stays off unless it is set with `PATCH /api/settings`
+([youtube-music-library.md](docs/features/youtube-music-library.md)).
 
 **About the token.** Each library on the server has a token of its own, kept in
 `<data>/hub.json`. You never type it: it goes into that account's bucket with the server's

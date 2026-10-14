@@ -18,15 +18,15 @@ and the verify lanes) there is one library and it uses the library folder itself
 ## Setting
 
 `watchLibrary` (boolean, default **true**), a setting of the library on its server.
-Changing it starts or stops the watcher immediately; no restart. `autoScanMinutes`
-(default 0, off) adds a sweep on a timer, for a folder where watching misses changes,
-such as a network share.
+Changing it starts or stops the watcher immediately; no restart. There is no sweep on a
+timer: the inbox is on the server's own disk, where the watcher sees every file, and the
+server sweeps it once at each start (`SELFMP3_SCAN_ON_BOOT`) for whatever arrived while it
+was off.
 
 **Watch the library folder** is under Settings → Advanced → Importing, and **Rescan** under
 Settings → Advanced → Library, on every device: a signed-in device reaches its server for
 them as Import does (`useServerApi`), and says so when the server is away. The Library panel
-names the folder, as the server sees it. `autoScanMinutes` has no control; set it with
-`PATCH /api/settings`.
+names the folder, as the server sees it.
 
 ## How it works
 

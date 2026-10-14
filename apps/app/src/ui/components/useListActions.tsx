@@ -4,6 +4,10 @@ import { formatBytes } from '@selfmp3/shared'
 import { bytesToDownload, isDownloaded, useManifest } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { openShareSheet } from '../../features/share/shareSheet.store'
+import { openRoomSheet } from '../../features/room/roomSheets.store'
+import { useRoom } from '../../features/room/room.store'
+import { addSongsToRoom } from '../../features/room/addSongsToRoom'
+import { roomTitle, youMay } from '../../features/room/room.model'
 import { devicePlace } from '../../features/settings/settings.model'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
 import { useDownloads } from '../../offline/DownloadsProvider'
@@ -12,16 +16,17 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { deviceKind } from '../../ports/device'
 import type { Selection } from '../../selection/useSelection'
 import { SONG_ACTION_LABELS } from '../songActions.model'
-import { CheckSquare, CloudDownload, CloudRemove, Next, QueueAdd, ShareOut } from './Icons'
+import { CheckSquare, CloudDownload, CloudRemove, Next, People, QueueAdd, ShareOut } from './Icons'
 import type { MenuItem } from './MoreMenu'
 
 /**
  * What a list page's ⋯ offers for all its songs — a tag's, an artist's, a
  * playlist's, an answer's: Select songs, Play next, Add to Up next with its
  * covers flying from the head, keeping them on this device or letting them
- * go, and sending them as a share link (docs/features/share-links.md) when
- * the page names them. The page adds what is its own after these
- * (`MoreMenu`).
+ * go, sending them as a share link (docs/features/share-links.md) when
+ * the page names them, and Listen together — a room that starts with all of
+ * them (A2, Xiao 2026-10-14), or, in a room, adding them to it. The page adds
+ * what is its own after these (`MoreMenu`).
  *
  * The answer page's Add to Up next had played the songs next instead
  * (T-383), and only a playlist could be downloaded from its page.
@@ -32,6 +37,7 @@ export function useListActions(
     heroRef,
     selection,
     shareAs,
+    togetherAs,
   }: {
     /** The head's picture, which the covers fly from. */
     heroRef?: RefObject<View | null>
@@ -39,6 +45,8 @@ export function useListActions(
     selection?: Selection
     /** The tag's or playlist's name, for Share link; left out, the page offers none. */
     shareAs?: string
+    /** The list's name, for a room started from it; left out, the page offers none. */
+    togetherAs?: string
   } = {},
 ): readonly MenuItem[] {
   const player = usePlayerCommands()
@@ -48,6 +56,7 @@ export function useListActions(
   // Taking them off this device can be undone, as one song's can.
   const removeDownloads = useDownloadRemoval()
   const { fromCloud, needsStorage } = useConnection()
+  const { state: room } = useRoom()
 
   const nothing = songIds.length === 0
   const allHere = !nothing && songIds.every(id => isDownloaded(downloads.index, id))
@@ -120,6 +129,32 @@ export function useListActions(
             onPress: () => openShareSheet({ songIds, name: shareAs, kind: 'list' }),
           },
         ]
+      : []),
+    // A room lends from your bucket too. In one, the songs go into it instead.
+    ...(togetherAs !== undefined && fromCloud && !needsStorage
+      ? room
+        ? youMay(room, 'add')
+          ? [
+              {
+                key: 'together',
+                label: `Add to ${roomTitle(room)}`,
+                icon: <People tone="textSecondary" />,
+                disabled: nothing,
+                onPress: () => void addSongsToRoom(songIds, roomTitle(room)),
+              },
+            ]
+          : []
+        : [
+            {
+              key: 'together',
+              label: 'Listen together',
+              icon: <People tone="textSecondary" />,
+              disabled: nothing,
+              testID: 'list-together',
+              onPress: () =>
+                openRoomSheet('together', { kind: 'songs', name: togetherAs, songIds }),
+            },
+          ]
       : []),
   ]
 }

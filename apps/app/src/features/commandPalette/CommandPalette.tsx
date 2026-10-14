@@ -62,6 +62,7 @@ import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Kbd } from '../../ui/components/Kbd'
 import { Press } from '../../ui/components/Press'
+import { takePaletteStart } from '../../shell/palette'
 
 /** One selectable row: what it is drawn as, what it is read out as, and what Enter does. */
 interface Row {
@@ -106,7 +107,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
   const switches = useSmartSwitches()
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(takePaletteStart)
   const [highlighted, setHighlighted] = useState(0)
   /** What was asked (S1), answered in place of the results until the words change. */
   const [asking, setAsking] = useState<string | null>(null)

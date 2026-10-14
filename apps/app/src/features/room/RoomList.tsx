@@ -2,18 +2,12 @@ import { memo, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import {
-  artistOr,
-  formatDuration,
-  formatRoomCode,
-  plural,
-  type RoomAction,
-  type RoomState,
-} from '@selfmp3/shared'
+import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
 import {
   HIT_TARGET,
   fonts,
   radius,
+  roomTrackId,
   roomTrackSong,
   space,
   type,
@@ -28,7 +22,9 @@ import { label, rowTitle, lineSub } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { More, Next, Plus, ToTop } from '../../ui/components/Icons'
+import { More, Next, Play, Plus, Sparkle, ToTop } from '../../ui/components/Icons'
+import { useOpenAsk } from '../../shell/palette'
+import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { PlayingCard } from '../../ui/components/PlayingCard'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { ToggleRow } from '../../ui/components/Toggle'
@@ -126,16 +122,7 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
   const localPlaying = usePlayerPlaying()
   const row = playingRow(state)
   const song = row ? (roomTrack(row.trackId)?.song ?? roomTrackSong(row.entry)) : null
-  if (!row || !song) {
-    return (
-      <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>Nothing playing yet</Text>
-        <Text style={styles.emptyText}>
-          Add a song, or share the code {formatRoomCode(state.code)}. The first one starts the room.
-        </Text>
-      </View>
-    )
-  }
+  if (!row || !song) return <RoomEmpty state={state} />
   const host = isHost(state)
   const paused = state.playing?.pausedAt !== null
   const playing = host ? localPlaying : !paused
@@ -191,6 +178,71 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
     </PlayingCard>
   )
 }
+
+/**
+ * A room with nothing in it yet — opened from Home, which starts empty (Xiao
+ * 2026-10-14): add songs, or ask for some, and the first one starts it.
+ */
+function RoomEmpty({ state }: { state: RoomState }): ReactNode {
+  const { theme } = useUnistyles()
+  const switches = useSmartSwitches()
+  const commands = usePlayerCommands()
+  const ask = useOpenAsk()
+  const waiting = state.order.length
+  const mayAdd = youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
+  // Songs waiting and nothing playing: the host's player has not started on
+  // them (it was busy, or a song would not play). The host starts it here.
+  if (waiting > 0) {
+    return (
+      <View style={styles.empty} testID="room-empty">
+        <Text style={styles.emptyTitle}>Nothing playing yet</Text>
+        <Text style={styles.emptyText}>{plural(waiting, 'song', 'songs')} waiting</Text>
+        {isHost(state) ? (
+          <View style={styles.actions}>
+            <Button
+              label="Play"
+              variant="primary"
+              icon={<Play color={theme.colors.onPrimary} />}
+              onPress={() => commands.playFrom(state.order.map(roomTrackId), 0)}
+              grow
+              testID="room-empty-play"
+            />
+          </View>
+        ) : null}
+      </View>
+    )
+  }
+  return (
+    <View style={styles.empty} testID="room-empty">
+      <Text style={styles.emptyTitle}>Nothing playing yet</Text>
+      <Text style={styles.emptyText}>The first song added starts the room.</Text>
+      {mayAdd ? (
+        <View style={styles.actions}>
+          <Button
+            label="Add songs"
+            variant="primary"
+            icon={<Plus color={theme.colors.onPrimary} />}
+            onPress={() => openRoomSheet('add')}
+            grow
+            testID="room-empty-add"
+          />
+          {switches.ask && youMay(state, 'add') ? (
+            <Button
+              label="Ask for songs"
+              icon={<Sparkle size={iconSize.small} />}
+              onPress={() => ask(ROOM_ASK)}
+              grow
+              testID="room-empty-ask"
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  )
+}
+
+/** Ask's question begun for you, the rest of it yours to say: "something chill". */
+const ROOM_ASK = 'Songs for the room: '
 
 /** "ヨルシカ · 1:52 of 4:23", on the room's clock, ticking on its own. */
 function RoomClock({
@@ -253,7 +305,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
       ) : null}
 
       <View style={styles.actions}>
-        {mayAdd ? (
+        {mayAdd && (state.playing !== null || next.length > 0) ? (
           <Button
             label="Add songs"
             icon={<Plus color={theme.colors.textPrimary} />}
@@ -264,7 +316,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
         ) : null}
         <Button
           label="Invite"
-          variant={next.length === 0 ? 'primary' : 'secondary'}
+          variant={next.length === 0 && state.playing !== null ? 'primary' : 'secondary'}
           onPress={() => openRoomSheet('together')}
           grow
           testID="room-invite"

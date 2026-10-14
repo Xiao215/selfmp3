@@ -16,6 +16,7 @@ import {
 } from '@selfmp3/shared'
 import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
+  arrivals,
   namesOf,
   entryOfTrack,
   freshWant,
@@ -26,6 +27,7 @@ import {
   pastRoomOf,
   pastTitle,
   soundTarget,
+  startingSongs,
   roomLine,
   roomTracks,
   upcomingRows,
@@ -88,6 +90,34 @@ const act = (doc: RoomDoc, who: string, action: RoomAction, now = 2000): RoomDoc
 
 const as = (doc: RoomDoc, who: string): RoomState => roomStateFor(doc, who, 5000)
 
+describe('what a room starts with', () => {
+  const playing = { id: 7, title: '夜に駆ける' }
+  it('is the song playing from the player, a whole list from its ⋯, and nothing from Home', () => {
+    expect(startingSongs({ kind: 'playing' }, playing)).toEqual({ ids: [7], title: '夜に駆ける' })
+    expect(
+      startingSongs({ kind: 'songs', name: 'Night drive', songIds: [3, 4, 5] }, playing),
+    ).toEqual({ ids: [3, 4, 5], title: 'Night drive · 3 songs' })
+    expect(startingSongs({ kind: 'empty' }, playing)).toEqual({ ids: [], title: 'Nothing yet' })
+  })
+
+  it('never carries a friend’s song, nothing when nothing plays, and no more than a room keeps', () => {
+    expect(startingSongs({ kind: 'playing' }, { id: -4, title: 'Mia’s' }).ids).toEqual([])
+    expect(startingSongs({ kind: 'playing' }, null).ids).toEqual([])
+    const many = Array.from({ length: 400 }, (_, n) => n + 1)
+    expect(startingSongs({ kind: 'songs', name: 'All', songIds: many }, null).ids).toHaveLength(300)
+  })
+})
+
+describe('who came in', () => {
+  it('names a friend who joined since, never you, and nobody the first time', () => {
+    const doc = room()
+    const seen = new Set(doc.members.filter(member => member.id !== M).map(member => member.id))
+    expect(arrivals(null, as(doc, X))).toEqual([])
+    expect(arrivals(seen, as(doc, X)).map(member => member.id)).toEqual([M])
+    expect(arrivals(new Set(), as(doc, X)).some(member => member.id === X)).toBe(false)
+  })
+})
+
 describe('the host’s player', () => {
   it('starts the room when the first song comes in and nothing of its own plays', () => {
     const doc = act(room(), M, { type: 'add', song: song(1) })
@@ -100,6 +130,17 @@ describe('the host’s player', () => {
     expect(hostPlan(as(doc, X), { currentId: 42, playing: true, ranOut: false })).toEqual({
       kind: 'none',
     })
+  })
+
+  it('takes over from the host’s own music when the room was opened from a list or Home', () => {
+    const doc = act(room(), M, { type: 'add', song: song(1) })
+    const plan = hostPlan(as(doc, X), {
+      currentId: 42,
+      playing: true,
+      ranOut: false,
+      takeOver: true,
+    })
+    expect(plan).toEqual({ kind: 'start', ids: [roomTrackId(doc.entries[0]?.id ?? '')] })
   })
 
   it('keeps what comes after the room’s song the room’s list, and goes on when it ran out', () => {

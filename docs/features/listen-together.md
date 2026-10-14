@@ -11,34 +11,68 @@ server.
 
 ## The idea
 
-A **room** is a shared Up next. You press **Listen together** beside the song playing, and
-your Up next becomes *Xiao's room*. Friends join with a link, a QR code or a six-letter code
+A **room** is a shared Up next. You press **Listen together**, and your Up next becomes
+*Xiao's room*. Friends join with a link, a QR code or a six-letter code
 (`KQ7 482`). Every row shows who added it. Nothing about it is a new kind of list:
 
 - while it lasts, it is Up next;
 - when it ends, it is a Recently played tile;
 - Save turns it into a playlist.
 
-**Where it starts (T1 + T3, Xiao 2026-10-13).** On the player, where you are when a friend asks
-what is playing, rather than inside the queue:
+**Where it starts (T1 + T3, Xiao 2026-10-13; A1 + A2, 2026-10-14).**
 
-- a People button in the phone's Now Playing head and in a computer's player bar, beside
-  Devices. It opens Together: where it plays, or a code to join;
-- in a room, that button is the room's faces. On the phone's Now Playing the room takes the
-  head's middle as *Xiao's room* (unless the sleep timer or play-and-tag has it). Either opens
-  the room's sheet;
-- on Home, a **Listen together** card until this device has been in a room or was told
-  *Not now*. It is kept with the guides (`together-card`), so Show tips again brings it back.
+- **On the player.** A People button sits in the phone's Now Playing head and in a computer's
+  player bar, beside Devices. It is there when a friend asks what is playing.
+- **On Home.** A People button sits in the phone's header, beside Import, so a room needs
+  nothing playing first. There is also a **Listen together** card until this device has been in
+  a room or was told *Not now*. The card is kept with the guides (`together-card`), so Show tips
+  again brings it back.
+- **On a list.** A tag's, an artist's, a playlist's or an Ask answer's ⋯ has **Listen
+  together**. In a room, that item reads **Add to Xiao's room** instead.
+- **From Ask.** "Start a room with something chill" picks the songs and offers **Start a
+  room** with them. In a room, the offer is to add them (docs/features/ai.md, "Listening
+  together").
 
-Up next lists the room while you are in one; it is no longer the way in.
+In a room, the player's People button is the room's faces. On the phone's Now Playing the room
+takes the middle of the head as *Xiao's room*, unless the sleep timer or play-and-tag has it.
+Either one opens the room's sheet. Up next lists the room while you are in one, but it is not a
+way in.
 
-**The room's sheet, and ending it (E1 + C1 + C3, Xiao 2026-10-13).** In a room, the pill, the
-player bar's faces and the ⋯ on Up next's room head all open one sheet: the invite (QR, code,
-Share invite), who is here, **Friends can** (folded to one line until opened), Keep as a shared
-playlist, and **End the room** at the foot (**Leave the room** for a friend). Ending asks first
-only when it reaches someone else, naming them (*End the room for Mia and Kai?*); leaving, or
-ending a room you are alone in, just goes. Either way a toast says so, with **See what played**
-once a song has played, which opens the room in Recently played.
+**What a room starts with (Xiao 2026-10-14).** Where you pressed decides it, and the start
+sheet's **Starts with** line shows it before you press Start:
+
+- from the player, the song playing, carrying on from where it was;
+- from a list or from Ask, every song in it, in order (up to the 300 a room keeps waiting);
+- from Home, nothing. You add songs, or ask for some, once it is open.
+
+Before 2026-10-14 a room also copied the next 20 songs of Up next, unannounced, which is why
+songs nobody chose turned up in it. A room started from a list or from Home plays its first
+song over whatever of yours was playing, because that is what it was opened for
+(`RoomStartHint.takeOver`). One started from the player keeps the song that is playing. While a
+host's room has songs waiting and nothing playing, the room's card in Up next offers **Play**.
+An empty room offers **Add songs** and **Ask for songs**, which opens Search with *Songs for the
+room:* typed for you.
+
+**The start sheet (C1, 2026-10-14).** Your face and three empty seats, **Starts with**,
+**Plays on** (*This phone* or *Everyone's*), and **Start**. Under them is *Have a code? Join*,
+which turns into the code field in place. Pressing Start keeps the sheet up, and it grows into
+the room's sheet (M1): your face springs into its seat, the code rolls in a letter at a time,
+and the rest rises in after it. A friend who joins later springs into the row with a ring of
+their colour, the phone taps lightly, and a toast says *Mia joined* (M2).
+
+**The room's sheet, and ending it (E1 + C1 + C3, 2026-10-13; D1, 2026-10-14).** In a room,
+the pill, the player bar's faces and the ⋯ on Up next's room head all open one sheet:
+
+- the code with its QR and **Share**;
+- who is here, as faces with names, ending in an **Invite** seat. Someone away is faded, and
+  the host taps a friend's face to remove them;
+- **Friends can**, as chips for the host: Add, Skip, Pause, Links;
+- **Keep as a playlist** and **End the room** at the foot (**Leave the room** for a friend).
+
+The sheet has no explaining lines. Ending asks first only when it reaches someone else, naming
+them (*End the room for Mia and Kai?*). Leaving, or ending a room you are alone in, just goes.
+Either way a toast says so, with **See what played** once a song has played, which opens the
+room in Recently played.
 
 | Who | How they join | What they can add |
 |---|---|---|
@@ -232,7 +266,11 @@ share sheet; where there is none (the desktop app), it copies the link.
 | The host's player playing the room; everyone's phones following it | `apps/app/src/features/room/RoomProvider.tsx` |
 | The room in Up next (phone sheet, computer rail, the room's page) | `apps/app/src/features/room/RoomList.tsx` |
 | Together and the room's sheet (invite, people, ending it), Add songs (Mine, In the room, A link) | `apps/app/src/features/room/RoomSheets.tsx` |
-| The way in: the player's button, the room's pill, Home's card | `apps/app/src/features/room/Together.tsx` |
+| The way in: the player's button, Home's button, the room's pill, Home's card | `apps/app/src/features/room/Together.tsx` |
+| What a room opened from here starts with | `apps/app/src/features/room/roomSheets.store.ts` (`RoomStart`) |
+| A room arriving, and a friend's face coming in | `apps/app/src/features/room/roomMotion.tsx` |
+| A list's ⋯ Listen together | `apps/app/src/ui/components/useListActions.tsx` |
+| Ask's answer for a room | `apps/app/src/features/room/TogetherAnswer.tsx` |
 | `/join/<code>`, `/room`, `/past-room/<code>` | `apps/app/src/features/room/RoomScreens.tsx` |
 | The invite's QR code | `apps/app/src/features/room/qr.model.ts`, `RoomQr.tsx` |
 | Sound vectors: reading a pack, packing, closeness | `packages/shared/src/soundVectors.ts` |
@@ -249,11 +287,12 @@ copy if you have one. The player reads that beside the library. A track plays yo
 when it can, and otherwise the lent file; a play counts only for your own copy.
 
 **The host's player plays the room** (`hostPlan`). It starts when the first song comes in
-and nothing of your own is playing. It keeps everything after the playing song the room's
+and nothing of your own is playing, or at once when the room was opened from a list or Home
+(`takeOver`). It keeps everything after the playing song the room's
 list (`withUpcoming` in `packages/shared/src/queue.ts`). When it ran out and a song arrives,
 it goes on. It reports what it is on whenever that differs from what the room says. It
-acts once on each skip or pause a friend asks for (`want`). Together keeps what was
-playing: the song and what follows it go in as the host's, and the room starts at the
+acts once on each skip or pause a friend asks for (`want`). Opened from the player,
+the room keeps the song that was playing: it goes in as the host's, and the room starts at the
 place the song was.
 
 **Testing it without Google or Backblaze.** The doorman's test harness

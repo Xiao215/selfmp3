@@ -128,6 +128,7 @@ export function PlaylistDetailScreen(): ReactNode {
     heroRef,
     selection,
     shareAs: playlist?.name ?? 'Playlist',
+    togetherAs: playlist?.name ?? 'Playlist',
   })
   /*
    * The selection bar takes a lane above the songs, so it covers none of them.

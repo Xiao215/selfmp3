@@ -452,7 +452,7 @@ describe('the router, built from the actions', () => {
   it('tells the model every action in its own words, and the filters only where they are read', () => {
     const system = routeSystem(ASK_ACTIONS)
     for (const each of ASK_ACTIONS) expect(system).toContain(`- ${each.name}: ${each.when}`)
-    expect(system).toContain('"filters", for songs, library, tidy, playlistSongs:')
+    expect(system).toContain('"filters", for songs, together, library, tidy, playlistSongs:')
   })
 
   it('gives each action with fields its own part of the form, and the rest none', () => {
@@ -567,6 +567,24 @@ describe('ask about a playlist’s songs', () => {
       kind: 'none',
       say: 'Say which songs to add to running: an artist, a tag, or a kind of song.',
     })
+  })
+})
+
+describe('ask, to listen with friends', () => {
+  it('opens a room with nothing chosen when they only want the room', async () => {
+    const d = deps({ 'ask-route': [route({ action: 'together' })] })
+    expect(await ask(d, 'start a room')).toEqual({ kind: 'together', describe: null })
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
+  })
+
+  it('picks the songs the words asked for, for the device to start the room with or add', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'together', filters: { ...noFilters, artists: ['YOASOBI'] } })],
+    })
+    const answer = await ask(d, 'start a room with some YOASOBI')
+    expect(answer.kind === 'together' && answer.describe?.picks.map(pick => pick.songId)).toEqual([
+      7, 8,
+    ])
   })
 })
 

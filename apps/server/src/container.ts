@@ -80,7 +80,7 @@ export interface Container {
    * this rather than what was handed to `createContainer`.
    */
   readonly config: ServingConfig
-  /** Which server this library is on (shared.ts `serverIdIn`): its snapshot and health say it. */
+  /** Which server this library is on (shared.ts `serverIdOf`): its snapshot and health say it. */
   readonly serverId: string
   readonly logger: Logger
   readonly db: Db

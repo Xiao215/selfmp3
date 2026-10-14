@@ -110,12 +110,13 @@ async function serveDoorman(req: http.IncomingMessage, res: http.ServerResponse)
   res.end(Buffer.from(await response.arrayBuffer()))
 }
 
-async function startHub(): Promise<{ hub: Hub; url: string; config: Config }> {
+/** A hub over HTTP, on `port` when it is to come back where it was. */
+async function startHub(port = 0): Promise<{ hub: Hub; url: string; config: Config }> {
   const config = loadConfig()
   const hub = new Hub(config, createLogger('silent'))
   hub.start()
   const server = http.createServer(createHubApp(hub))
-  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  await new Promise<void>(resolve => server.listen(port, '127.0.0.1', resolve))
   open.push({ hub, server })
   return { hub, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, config }
 }
@@ -589,5 +590,64 @@ describe('which server a device takes', () => {
     expect(second.hub.workspaces()).toHaveLength(1)
     // Until the next snapshot names it, the one joined is the one used.
     expect(await laptop.automatic(cloud, named)).toEqual(again)
+  })
+
+  /*
+   * 2026-10-14: a server named itself at random on its first boot. One that
+   * lost its whole data folder (a Pi rebuilt on a new SD card) came back at
+   * the same addresses under a new name, every device took it for some other
+   * server, and none joined it again.
+   */
+  it('joins again a server rebuilt with an empty data folder, at the same address', async () => {
+    const first = await startHub()
+    const port = Number(new URL(first.url).port)
+    const cloud = await sessionOf(await account('1', 'me@example.com', 'mine'))
+    const phone = device(first.url)
+    const joined = await phone.automatic(cloud, null)
+    await until(() => newestSnapshot('mine')?.includes(joined!.token!) ?? false, 'my snapshot')
+    const named = namedIn('mine')
+
+    // Everything the server kept is gone: hub.json, the workspaces, its name.
+    const { hub, server } = open.pop()!
+    hub.close()
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    fs.rmSync(first.config.dataDir, { recursive: true, force: true })
+    fs.rmSync(first.config.libraryDir, { recursive: true, force: true })
+    const second = await startHub(port)
+    expect(second.url).toBe(first.url)
+    const said = HealthSchema.parse(await (await fetch(`${second.url}/api/health`)).json())
+    expect(said.serverId).toBe(named.id)
+
+    // A development server on the same machine, with the public address in
+    // its settings too: on a folder bucket, it is still its own server.
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'dev-data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'dev-library')
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+    const dev = await startHub()
+    const devSaid = HealthSchema.parse(await (await fetch(`${dev.url}/api/health`)).json())
+    expect(devSaid.serverId).not.toBe(named.id)
+
+    // A device's look, with the development server where `localhost` is: the
+    // server the snapshot names answers as itself and refuses the old token.
+    const asked = askAddress.bind(null, askingAt(second.url))
+    const addresses = [dev.url, second.url, PUBLIC]
+    expect(await reachServer(candidates({ ...named, addresses }), asked)).toBe('refused')
+
+    // A device that never removed it joins it again by itself, and takes it.
+    const laptop = device(second.url)
+    const again = await laptop.refused(cloud, named.token!, named)
+    expect(again?.id).toBe(named.id)
+    expect(again?.token).not.toBe(named.token)
+    const found = await reachServer(candidates({ ...again!, addresses }), asked)
+    if (!found || found === 'refused') throw new Error(`found ${found}`)
+    expect(found.baseUrl).toBe(second.url)
+    expect((await fetch(`${found.baseUrl}/api/library?token=${found.token}`)).status).toBe(200)
+    // The phone that joined it first comes to the same library, under one grant.
+    expect((await phone.refused(cloud, named.token!, named))?.token).toBe(again!.token)
+    expect((await phone.grants(cloud)).grants.map(grant => grant.server)).toEqual([PUBLIC])
+
+    // The library comes back from the bucket, and the bucket names it again.
+    await until(() => newestSnapshot('mine')?.includes(again!.token!) ?? false, 'a new snapshot')
+    expect(namedIn('mine').id).toBe(named.id)
   })
 })

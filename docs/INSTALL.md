@@ -437,7 +437,9 @@ its bucket, Stats included, the next time the server starts.
 
 What the server alone has is `data/hub.json`: which accounts it works for, each library's
 token and each grant. Lose it and every account joins again from its next device, with a new
-token. Each library's few server settings, such as how it signs in to YouTube, are in its
+token. The same goes for the whole data folder, a Pi rebuilt on a new SD card say, as long as
+`SELFMP3_PUBLIC_URL` stays the same: the server is named by that address, so devices know it
+again. Each library's few server settings, such as how it signs in to YouTube, are in its
 database and would need setting again. Copy `hub.json` off the computer now and then, and keep
 the copy as private as the original, which holds every library's key:
 

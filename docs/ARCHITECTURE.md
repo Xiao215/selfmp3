@@ -299,7 +299,9 @@ What the workspaces share is what is heavy or belongs to the machine
 MusicBrainz's pace. Every workspace's folders are a cache of its bucket, plays
 included, so the only state the server keeps of its own is `<data>/hub.json`:
 who joined, their tokens and their grants. Delete a workspace's folder and it is
-rebuilt from the bucket; delete `hub.json` and each account joins again.
+rebuilt from the bucket; delete `hub.json`, or the whole data folder, and each
+account joins again (the server is named by its public address, so it is still the
+one the snapshots name).
 
 Joining needs no button. A signed-in device whose bucket names no server joins
 the shared one, whose address the app knows as it knows the doorman's

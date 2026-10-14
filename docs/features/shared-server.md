@@ -123,9 +123,12 @@ the snapshot named none:
   (below), so the screens say **No computer works for your library yet** and offer the
   button. The device that pressed **Remove** passes it over at once, without waiting for the
   server to notice.
-- **Lost some other way, so it is joined again.** For example, its `hub.json` was deleted.
-  The grant is still there, nobody asked it to stop, and the device joins again by itself.
-  It uses the new token straight away, before the snapshot that names it arrives.
+- **Lost some other way, so it is joined again.** For example, its `hub.json` was deleted,
+  or its whole data folder (a Pi rebuilt on a new SD card). The grant is still there, nobody
+  asked it to stop, and the device joins again by itself. It uses the new token straight
+  away, before the snapshot that names it arrives. A rebuilt server is still the one the
+  snapshot names because it is named by its public address, not by anything in its data
+  folder (docs/SYNC.md, "The name has to outlive the data folder").
 
 Before this (2026-10-14), every device kept choosing a removed server, and every import and
 lookup was a 401 instead of the bucket's way round.
@@ -243,7 +246,7 @@ A change that touches the doorman, the server and the app goes out in that order
 |---|---|
 | The hub: workspaces, routing, joining, letting go | `apps/server/src/hub/hub.ts`, `hub/app.ts` |
 | Who joined | `apps/server/src/hub/registry.ts` (`<data>/hub.json`) |
-| What the workspaces share | `apps/server/src/shared.ts`, `sound/sound.ts` (`SoundModelHost`), `util/gate.ts` |
+| What the workspaces share, and the server's name for itself (`serverIdOf`) | `apps/server/src/shared.ts`, `sound/sound.ts` (`SoundModelHost`), `util/gate.ts` |
 | One library's background work | `apps/server/src/start.ts` |
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |
 | Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudSync.ts` (`#uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |

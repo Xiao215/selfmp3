@@ -54,7 +54,7 @@ export interface SharedServices {
 }
 
 export function createShared(
-  config: Pick<Config, 'dataDir' | 'sound'>,
+  config: Pick<Config, 'dataDir' | 'sound' | 'publicUrl' | 'cloudDir'>,
   logger: Logger,
   throttle: YtThrottleService | null = null,
 ): SharedServices {
@@ -67,7 +67,7 @@ export function createShared(
     throttle,
     keepAwake,
     analysisGate: new Gate(1),
-    serverId: serverIdIn(config.dataDir),
+    serverId: serverIdOf(config),
     close: async () => {
       keepAwake.stop()
       await soundModel.close()
@@ -76,27 +76,56 @@ export function createShared(
 }
 
 /**
- * YouTube's pace kept in a file of its own, for a server with several
- * databases and one address. Read once and written through: nothing else
- * writes it, and a file that is missing or not this shape starts afresh, as a
- * first boot does.
- */
-/**
- * This server's name for itself, made on the first boot and kept in
- * `<data>/server-id` from then on.
+ * This server's name for itself: `CloudServerSchema.id`, which `/api/health`
+ * answers with.
  *
  * A device finds the server by racing every address its snapshot names
  * (`packages/client/src/connection/reach.ts`), and an address only says where
  * *a* server might be. `http://localhost:4600` is this server on the Pi and the
  * development server on the Mac beside it; a Wi-Fi address at a friend's is
  * whatever they run. So a device keeps only the address whose `/api/health`
- * answers with the id the snapshot named. It is kept rather than made at each
- * boot so a restart does not leave every device holding a snapshot that names a
- * server nobody is any more, until the next one is written.
+ * answers with the id the snapshot named.
+ *
+ * A server with a public address (`SELFMP3_PUBLIC_URL`) is named by that
+ * address, so the name outlives its data folder. A Pi rebuilt on a new SD card
+ * comes back at the same addresses, and has to come back as the same server:
+ * a new name there would have every device see "some other server" where the
+ * snapshot's server was, and wait for it forever (2026-10-14). Named as
+ * before, it answers as itself and refuses the token it no longer holds, and a
+ * device joins it again as it would any server that lost the library
+ * (docs/features/shared-server.md, "A server that no longer works for a
+ * library"). Two servers given the same public address answer as one, and the
+ * token still tells them apart: an address is taken only when it takes the
+ * library's token.
+ *
+ * Any other server makes a name at random on its first boot and keeps it in
+ * `<data>/server-id`, so a restart does not leave every device holding a
+ * snapshot that names a server nobody is any more. That is the development
+ * server, a test's, the verify lanes': each is its own server, and none of
+ * them answers as the real one. A server on a folder bucket
+ * (`SELFMP3_CLOUD_DIR`: the dev profile, the verify lanes) is one of those
+ * even with a public address, so a development server that picks one up from
+ * `.env` is still not the server that address belongs to.
  *
  * Not a secret: it is said to anyone who asks `/api/health`. It tells servers
  * apart by accident, which is all it is for; the token is what keeps anyone out.
  */
+function serverIdOf(config: Pick<Config, 'dataDir' | 'publicUrl' | 'cloudDir'>): string {
+  if (config.publicUrl && config.cloudDir === null) return idOfAddress(config.publicUrl)
+  return serverIdIn(config.dataDir)
+}
+
+/** A name for the server at a public address: the same address, the same name, every time. */
+function idOfAddress(url: string): string {
+  const address = new URL(url).href.replace(/\/+$/, '')
+  return crypto
+    .createHash('sha256')
+    .update(`selfmp3 server at ${address}`)
+    .digest('base64url')
+    .slice(0, 22)
+}
+
+/** A name made once for this data folder, and kept in it. */
 function serverIdIn(dataDir: string): string {
   const file = path.join(dataDir, 'server-id')
   const read = (): string | null => {
@@ -119,6 +148,12 @@ function serverIdIn(dataDir: string): string {
   }
 }
 
+/**
+ * YouTube's pace kept in a file of its own, for a server with several
+ * databases and one address. Read once and written through: nothing else
+ * writes it, and a file that is missing or not this shape starts afresh, as a
+ * first boot does.
+ */
 export class FileThrottleStore implements ThrottleStore {
   readonly #file: string
   readonly #logger: Logger

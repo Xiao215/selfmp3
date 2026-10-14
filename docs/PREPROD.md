@@ -86,7 +86,9 @@ development server answers there first. A device keeps only an address whose `/a
 names the server the snapshot named (docs/SYNC.md, "An answer has to be from the right
 server"), so the real app goes on to the Pi. If the real app on a computer says its
 library's computer is away while the Pi is up, check that: `curl -s localhost:4600/api/health`
-on that computer shows whose `serverId` answers there.
+on that computer shows whose `serverId` answers there. The Pi's comes from its public address,
+so it is the same after a rebuild; a development server's is its own, in its data folder's
+`server-id`.
 
 **6. Leave nothing behind.** Every write you make in a test is a write to your library.
 Prefer the ones with an Undo (Up next's Save, a tag), undo them, and check the count went

@@ -17,8 +17,7 @@ export function startContainer(container: Container): void {
   void container.covers.sweepThumbnails().catch((error: unknown) => {
     logger.warn('could not sweep cover thumbnails', { message: messageOf(error) })
   })
-  // Rescan on folder changes (drag-and-drop into Finder) when the setting is
-  // on, and every `autoScanMinutes` when that is set.
+  // Rescan on folder changes (a file dropped into the inbox) when the setting is on.
   container.libraryWatcher.apply()
   // Publishing, and any links other devices asked for while this server was off.
   const startCloud = (): void => {

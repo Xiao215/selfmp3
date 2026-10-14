@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@selfmp3/shared'
 import type { Config } from '../config.js'
@@ -25,42 +28,49 @@ describe('isRelevantChange', () => {
   })
 })
 
-describe('the automatic rescan', () => {
-  it('follows autoScanMinutes each time the settings are applied', async () => {
-    vi.useFakeTimers()
+describe('watching the inbox', () => {
+  it('sweeps when audio lands in the folder, and stops when the setting goes off', async () => {
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-watch-')))
+    let watchLibrary = true
+    const scan = vi.fn(() => Promise.resolve({ added: 1, updated: 0, total: 1, durationMs: 0 }))
+    const onChanged = vi.fn()
+    const watcher = new LibraryWatcherService({
+      config: { libraryDir: dir } as Config,
+      settings: { get: () => ({ watchLibrary }) as Settings } as SettingsRepository,
+      scanner: { isRunning: false, scan } as unknown as ScannerService,
+      onChanged,
+      logger: createLogger('silent'),
+    })
     try {
-      let minutes = 0
-      const scan = vi.fn(() => Promise.resolve({ added: 1, updated: 0, total: 1, durationMs: 0 }))
-      const onChanged = vi.fn()
-      const watcher = new LibraryWatcherService({
-        // The folder is not watched, so only the timer is in play.
-        config: {} as Config,
-        settings: {
-          get: () => ({ watchLibrary: false, autoScanMinutes: minutes }) as Settings,
-        } as SettingsRepository,
-        scanner: { isRunning: false, scan } as unknown as ScannerService,
-        onChanged,
-        logger: createLogger('silent'),
-      })
-
       watcher.apply()
-      await vi.advanceTimersByTimeAsync(60 * 60_000)
-      expect(scan).not.toHaveBeenCalled()
+      expect(watcher.isWatching).toBe(true)
 
-      // Turned on from Settings: no restart needed.
-      minutes = 5
-      watcher.apply()
-      await vi.advanceTimersByTimeAsync(5 * 60_000)
-      expect(scan).toHaveBeenCalledTimes(1)
-      expect(onChanged).toHaveBeenCalledTimes(1)
+      fs.writeFileSync(path.join(dir, '.DS_Store'), '')
+      // Written again on each look, spaced past the quiet period so a rewrite
+      // never holds the sweep back: a watcher only just started (FSEvents on a
+      // Mac) can miss the very first write, and a busy machine makes that likely.
+      await vi.waitFor(
+        () => {
+          if (scan.mock.calls.length === 0) {
+            fs.writeFileSync(path.join(dir, 'Artist - Song.m4a'), 'audio')
+          }
+          expect(scan).toHaveBeenCalled()
+        },
+        { timeout: 20_000, interval: 4_000 },
+      )
+      await vi.waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
 
-      minutes = 0
+      // Turned off from Settings: no restart needed, and nothing more is swept.
+      watchLibrary = false
       watcher.apply()
-      await vi.advanceTimersByTimeAsync(60 * 60_000)
-      expect(scan).toHaveBeenCalledTimes(1)
-      watcher.stop()
+      expect(watcher.isWatching).toBe(false)
+      fs.writeFileSync(path.join(dir, 'Another.m4a'), 'audio')
+      const swept = scan.mock.calls.length
+      await new Promise(resolve => setTimeout(resolve, 2_000))
+      expect(scan).toHaveBeenCalledTimes(swept)
     } finally {
-      vi.useRealTimers()
+      watcher.stop()
+      fs.rmSync(dir, { recursive: true, force: true })
     }
-  })
+  }, 30_000)
 })

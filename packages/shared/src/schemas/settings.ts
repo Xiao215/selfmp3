@@ -20,8 +20,6 @@ export const SettingsSchema = z.object({
   importConcurrency: z.number().int().min(1).max(4).default(2),
   /** Tags applied to every imported song, on top of per-import tags. */
   defaultImportTagIds: z.array(z.number().int().positive()).max(20).default([]),
-  /** Rescan the library folder on a timer, in minutes. Zero disables it. */
-  autoScanMinutes: z.number().int().min(0).max(1440).default(0),
   /** Watch the library folder and rescan when files change, no timer needed. */
   watchLibrary: z.boolean().default(true),
   /**

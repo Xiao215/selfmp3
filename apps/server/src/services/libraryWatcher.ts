@@ -20,10 +20,10 @@ import { debounce, type Debounced } from './debounce.js'
  * idempotent, so a file still being copied is simply picked up again by the
  * next debounced scan once it stops changing.
  *
- * Besides watching, a sweep every `autoScanMinutes`, for wherever watching
- * misses a change (a network share). Both follow the settings
- * as they are each time `apply` is called, so changing either takes effect
- * without a restart.
+ * It follows `watchLibrary` as it is each time `apply` is called, so turning it
+ * on or off takes effect without a restart. There is no sweep on a timer: the
+ * folder is an inbox on the server's own disk, which the watcher sees, and the
+ * server sweeps it once at every start for what arrived while it was off.
  */
 
 /** Quiet period after the last event before scanning. Finder copies in bursts. */
@@ -54,8 +54,6 @@ export class LibraryWatcherService {
   readonly #rescan: Debounced
 
   #watcher: fs.FSWatcher | null = null
-  #autoScan: NodeJS.Timeout | null = null
-  #autoScanMinutes = 0
   #stopped = false
 
   constructor(deps: {
@@ -78,32 +76,17 @@ export class LibraryWatcherService {
     return this.#watcher !== null
   }
 
-  /** Start or stop according to the current `watchLibrary` and `autoScanMinutes` settings. */
+  /** Start or stop according to the current `watchLibrary` setting. */
   apply(): void {
     if (this.#stopped) return
-    const settings = this.#settings.get()
-    if (settings.watchLibrary && !this.#watcher) this.#start()
-    else if (!settings.watchLibrary && this.#watcher) this.#close()
-    this.#applyAutoScan(settings.autoScanMinutes)
+    const { watchLibrary } = this.#settings.get()
+    if (watchLibrary && !this.#watcher) this.#start()
+    else if (!watchLibrary && this.#watcher) this.#close()
   }
 
   stop(): void {
     this.#stopped = true
     this.#close()
-    this.#applyAutoScan(0)
-  }
-
-  /** A sweep every `minutes`, or none for 0; restarted only when the number changes. */
-  #applyAutoScan(minutes: number): void {
-    if (minutes === this.#autoScanMinutes) return
-    if (this.#autoScan) clearInterval(this.#autoScan)
-    this.#autoScan = null
-    this.#autoScanMinutes = minutes
-    if (minutes <= 0) return
-    this.#autoScan = setInterval(() => this.#scan(), minutes * 60_000)
-    // Do not hold the process open just for the timer.
-    this.#autoScan.unref()
-    this.#logger.info('automatic rescan enabled', { everyMinutes: minutes })
   }
 
   #start(): void {

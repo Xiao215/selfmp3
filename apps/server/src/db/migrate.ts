@@ -895,6 +895,20 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 42. Settings no longer kept: the look moved to each device, crossfade
+    // became a preference of the device that fades, the play threshold and the
+    // separate tag suggester went, and the timed rescan of an inbox the
+    // watcher already sees (2026-10-14). Their rows were only ever skipped on
+    // read; now they are gone.
+    name: 'settings no longer kept',
+    sql: `
+      DELETE FROM settings WHERE key IN (
+        'theme', 'accentHue', 'crossfadeSeconds', 'gapless', 'lyricsRomanization',
+        'playThreshold', 'smartSuggestTags', 'autoScanMinutes'
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -1,3 +1,5 @@
+import type { ViewProps } from 'react-native'
+
 /** A browser scrolls the page itself; there is nothing to avoid. */
 export const keyboardAvoidBehavior: 'padding' | 'height' | 'position' | undefined = undefined
 
@@ -12,3 +14,9 @@ export const dragKeyboard: 'on-drag' | 'none' =
   typeof window !== 'undefined' && (window.matchMedia?.('(pointer: coarse)').matches ?? false)
     ? 'on-drag'
     : 'none'
+
+/** A press elsewhere already blurs a field in a browser. */
+export const pressPutsKeyboardAway: Pick<
+  ViewProps,
+  'onStartShouldSetResponder' | 'onResponderRelease'
+> = {}

@@ -4,10 +4,13 @@ import { Animated, type StyleProp, type ViewStyle } from 'react-native'
 import { Easing, FadeInDown, ZoomIn } from 'react-native-reanimated'
 import { motion } from '@selfmp3/client'
 import { EASE_OUT_POINTS, MOVE_MS, STAGGER_MS } from '../../ui/motion.model'
-import { ease, timing, useMotionReduced } from '../../ui/motion'
+import { ease, nativeDriver, timing, useMotionReduced } from '../../ui/motion'
 
 /** How long a face's ring takes to spread and fade as they arrive. */
 const RING_MS = 900
+
+/** How long the live ring takes to spread and fade, before the next one starts. */
+const LIVE_MS = 2000
 
 /**
  * How a room arrives (M1 + M2, Xiao 2026-10-14), as Reanimated's entering
@@ -74,6 +77,43 @@ export function ArrivalRing({ style }: { style: StyleProp<ViewStyle> }): ReactNo
         {
           opacity: spread.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
           transform: [{ scale: spread.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] }) }],
+        },
+      ]}
+    />
+  )
+}
+
+/**
+ * The arrival ring again and again (L1, Xiao 2026-10-14): the room button
+ * while you are in a room, a ring spreading out from it every two seconds,
+ * so a room reads as live wherever it shows. Under Reduce Motion there is
+ * no ring, and the button's accent edge says it alone.
+ */
+export function LiveRing({ style }: { style: StyleProp<ViewStyle> }): ReactNode {
+  const reduced = useMotionReduced()
+  const [spread] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (reduced) return undefined
+    const loop = Animated.loop(
+      Animated.timing(spread, {
+        toValue: 1,
+        duration: LIVE_MS,
+        easing: ease.out,
+        useNativeDriver: nativeDriver,
+      }),
+    )
+    loop.start()
+    return () => loop.stop()
+  }, [reduced, spread])
+  if (reduced) return null
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        style,
+        {
+          opacity: spread.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0] }),
+          transform: [{ scale: spread.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }],
         },
       ]}
     />

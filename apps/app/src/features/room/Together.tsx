@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { HIT_TARGET, iconSize, leading, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, hitSlopFor, iconSize, leading, radius, space, type } from '@selfmp3/client'
+import { useLayoutValue } from '../../shell/useLayout'
 import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
@@ -10,12 +11,16 @@ import { Press } from '../../ui/components/Press'
 import { People } from '../../ui/components/Icons'
 import { guideSeen, markGuideSeen, useGuideMemory } from '../guide/guideMemory'
 import { RoomFaces } from './RoomFace'
+import { LiveRing } from './roomMotion'
 import { peopleHere, roomTitle } from './room.model'
 import { openRoomSheet, type RoomStart } from './roomSheets.store'
 import { useRoom } from './room.store'
 
 /** The most faces drawn where the room shows itself; the room's sheet has everyone. */
 const FACES = 3
+
+/** The most faces inside the room button. */
+const INSIDE = 2
 
 const PLAYING: RoomStart = { kind: 'playing' }
 const EMPTY: RoomStart = { kind: 'empty' }
@@ -25,8 +30,10 @@ const EMPTY: RoomStart = { kind: 'empty' }
  * Now Playing head and a computer's player bar, beside Devices — where you
  * are when a friend asks what is playing, rather than inside the queue.
  *
- * Out of a room it is People, opening Together (where it plays, or a code to
- * join). In one it is the room's faces, opening the room's sheet.
+ * Out of a room it is People, opening Together. In one (L1, Xiao 2026-10-14)
+ * it is the same round with the accent's edge and a ring pulsing out from
+ * it: the faces of whoever else is here inside, or People while you are
+ * alone, opening the room's sheet.
  */
 export function TogetherButton({
   filled = false,
@@ -46,6 +53,7 @@ export function TogetherButton({
 }): ReactNode {
   const { theme } = useUnistyles()
   const { state } = useRoom()
+  const dense = useLayoutValue(layout => layout.dense)
   if (!state) {
     return (
       <IconButton
@@ -59,18 +67,29 @@ export function TogetherButton({
     )
   }
   const people = peopleHere(state)
+  // Everyone but you: your own face is beside it already, as your profile's.
+  const others = people.filter(person => person.id !== state.you).slice(0, INSIDE)
+  const round = dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET
   return (
     <Press
-      feedback="dim"
+      depth="control"
+      wrap={{ width: round, height: round }}
       onPress={() => openRoomSheet('together')}
       accessibilityRole="button"
       accessibilityLabel={`${roomTitle(state)}, ${people.length} here. Invite, people, end it`}
       {...tip('The room')}
-      hitSlop={6}
+      hitSlop={hitSlopFor(round)}
       testID="together"
-      style={styles.faces}
+      style={[styles.live, { width: round, height: round }]}
     >
-      <RoomFaces people={people.slice(0, FACES)} size={22} />
+      <LiveRing style={styles.liveRing} />
+      {others.length === 0 ? (
+        <People size={size} color={theme.colors.accent} />
+      ) : others.length === 1 ? (
+        <RoomFaces people={others} size={round - 8} ring={false} />
+      ) : (
+        <RoomFaces people={others} size={Math.round(round * 0.58)} ring />
+      )}
     </Press>
   )
 }
@@ -168,7 +187,24 @@ const styles = StyleSheet.create(theme => ({
   cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '700' },
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
-  faces: { minHeight: HIT_TARGET, justifyContent: 'center', paddingHorizontal: 4 },
+  live: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.surface2,
+  },
+  liveRing: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+  },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

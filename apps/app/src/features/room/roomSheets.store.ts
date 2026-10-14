@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * Which of a room's sheets is open (`RoomSheets`): Together — opening a room,
- * or the room once you are in one — and adding songs. Opened from Up next, the
- * room's page and the player; drawn once, by the shell.
+ * Whether a room's sheet is open (`RoomSheets`): Together — opening a room,
+ * or the room once you are in one. Opened from Up next, the room's page and
+ * the player; drawn once, by the shell. Adding songs is Search's (A2).
  */
-type RoomSheet = 'together' | 'add'
+type RoomSheet = 'together'
 
 /**
  * What a room opened from here starts with (Xiao 2026-10-14): where you

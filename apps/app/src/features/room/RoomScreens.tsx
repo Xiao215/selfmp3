@@ -25,7 +25,7 @@ import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
 import { newPlaylist } from '../playlists/playlists.model'
-import { forgetPastRoom, usePastRooms } from './pastRooms.store'
+import { forgetPastRoom, usePastRooms, withYourPicture } from './pastRooms.store'
 import { RoomFaces } from './RoomFace'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
@@ -33,6 +33,8 @@ import { sayRoomFailure } from './roomFailure'
 import { useGetSongs } from './useGetSongs'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
 import { ScrollView } from '../../ui/components/Scroll'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { useArt } from '../../offline/useArt'
 
 /** The name a guest last joined with, offered again. */
 const GUEST_NAME_KEY = 'room.name'
@@ -189,6 +191,12 @@ export function PastRoomScreen(): ReactNode {
   const past = usePastRooms().find(room => room.code === code)
   const { data: library } = useLibrary()
   const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const byId = useMemo(
+    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
+    [library?.songs],
+  )
+  const artFor = useArt(ROW_COVER_SIZE)
+  const yourPicture = useCloudSession().data?.picture
   const { getting, get } = useGetSongs()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const [saving, setSaving] = useState(false)
@@ -241,7 +249,10 @@ export function PastRoomScreen(): ReactNode {
             {past.title}
           </Text>
           <View style={styles.people}>
-            <RoomFaces people={past.people} size={22} />
+            <RoomFaces
+              people={past.people.map(person => withYourPicture(person, yourPicture))}
+              size={22}
+            />
             <Text style={styles.text}>
               {new Date(past.endedAt).toLocaleDateString(undefined, {
                 weekday: 'long',
@@ -292,14 +303,21 @@ export function PastRoomScreen(): ReactNode {
           from, into your own library.
         </Text>
         {past.songs.map((entry, at) => {
-          const mine = yours[at] !== null
+          const id = yours[at] ?? null
+          const mine = id !== null
           const source = entry.song.sourceUrl
+          // The room lent its covers only while it was open: a song you have
+          // draws your own copy's, a link the picture its page showed.
+          const own = id !== null ? byId.get(id) : undefined
           return (
             <RoomEntryLine
               key={`${at}-${entry.song.title}`}
               song={entry.song}
-              uri={entry.song.artwork}
-              face={{ name: entry.by, colour: entry.colour, picture: entry.picture }}
+              uri={own ? artFor(own) : entry.song.artwork}
+              face={withYourPicture(
+                { name: entry.by, colour: entry.colour, picture: entry.picture },
+                yourPicture,
+              )}
               who={entry.by}
               note={mine ? 'yours' : undefined}
               trailing={

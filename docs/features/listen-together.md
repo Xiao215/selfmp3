@@ -128,7 +128,9 @@ room.
 ## After (A3, G1)
 
 When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**. Its page lists
-every song that played, with who brought it:
+every song that played, with who brought it. The room lent its covers only while it was open,
+so a song you have draws your own copy's cover and a link the picture its page showed; a friend's
+song you do not have keeps its letter. A room you were in alone shows your own face on its tile.
 
 - **Open the shared playlist**, when the host kept the room as one (below).
 - **Save as playlist** keeps the songs that are yours as a playlist of your own.

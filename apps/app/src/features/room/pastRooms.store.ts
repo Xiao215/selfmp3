@@ -73,6 +73,17 @@ export function usePastRooms(): readonly PastRoom[] {
   return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
+/**
+ * You, in a room kept without your picture (one from before faces had them,
+ * or a doorman that had not sent it): your own, from your session. Anyone
+ * else keeps what the room said.
+ */
+export function withYourPicture<
+  Face extends { readonly name: string; readonly picture: string | null },
+>(face: Face, yours: string | null | undefined): Face {
+  return face.name === 'You' && face.picture === null && yours ? { ...face, picture: yours } : face
+}
+
 /** How long a room stays at the front of Home's Recently played after it ends. */
 const RECENT_MS = 3 * 24 * 60 * 60 * 1000
 

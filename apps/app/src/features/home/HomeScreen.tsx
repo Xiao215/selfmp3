@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
-import { useRecentRooms } from '../room/pastRooms.store'
+import { useRecentRooms, withYourPicture } from '../room/pastRooms.store'
 import { FacesCover } from '../room/RoomFace'
 import { TogetherCard } from '../room/Together'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
@@ -26,6 +26,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
+import { useCloudSession } from '../profile/useCloudSession'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
@@ -665,14 +666,19 @@ function Recents({
  */
 function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
   const router = useRouter()
+  const yours = useCloudSession().data?.picture
+  // The others who were there; you, when nobody else came.
   const others = room.people.filter(person => person.name !== 'You')
+  const faces = (others.length > 0 ? others : room.people).map(person =>
+    withYourPicture(person, yours),
+  )
   return (
     <ShelfCard
       width={size}
       testID={`home-recent-room-${room.code}`}
       onPress={() => router.push({ pathname: '/past-room/[code]', params: { code: room.code } })}
       label={`Open ${room.title}`}
-      cover={<FacesCover people={others} size={size} />}
+      cover={<FacesCover people={faces} size={size} />}
       title={room.title}
       lines={[`Together · ${plural(room.songs.length, 'song', 'songs')}`]}
     />

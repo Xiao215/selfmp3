@@ -380,9 +380,11 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
     })),
     songs: rows.map(row => ({
       song: row.entry.song,
-      by: nameOf(state, row.by),
-      colour: row.by?.colour ?? 0,
-      picture: row.by?.picture ?? null,
+      // Whose it is as the room showed it: a shared playlist's owner who was
+      // not there keeps their own name and face.
+      by: row.who,
+      colour: row.face?.colour ?? 0,
+      picture: row.face?.picture ?? null,
       mine: row.entry.owner === state.you,
     })),
   }

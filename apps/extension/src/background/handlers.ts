@@ -179,17 +179,23 @@ export function createHandlers({
       const server = { baseUrl: route.connection.baseUrl, typed: route.typed }
       try {
         const health = await serverApi(route.connection, fetch, PROBE_TIMEOUT_MS).health()
-        return { mode: 'server', server, account, songCount: health.songCount ?? null }
+        return {
+          mode: 'server',
+          server,
+          account,
+          songCount: health.songCount ?? null,
+          noServer: false,
+        }
       } catch {
-        return { mode: 'server', server, account, songCount: null }
+        return { mode: 'server', server, account, songCount: null, noServer: false }
       }
     }
     if (route.mode === 'bucket' && cloud) {
       try {
         const { songCount } = await cloud.api.libraryVersion()
-        return { mode: 'bucket', server: null, account, songCount }
+        return { mode: 'bucket', server: null, account, songCount, noServer: route.noServer }
       } catch {
-        return { mode: 'bucket', server: null, account, songCount: null }
+        return { mode: 'bucket', server: null, account, songCount: null, noServer: route.noServer }
       }
     }
     if (route.mode === 'away') {
@@ -198,9 +204,10 @@ export function createHandlers({
         server: { baseUrl: route.connection.baseUrl, typed: true },
         account,
         songCount: null,
+        noServer: false,
       }
     }
-    return { mode: 'none', server: null, account, songCount: null }
+    return { mode: 'none', server: null, account, songCount: null, noServer: false }
   }
 
   return {

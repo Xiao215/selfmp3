@@ -80,6 +80,7 @@ export function Options(): ReactNode {
   const account = status.data?.account ?? null
   const songCount = status.data?.songCount ?? null
   const mode = status.data?.mode ?? 'none'
+  const noServer = status.data?.noServer ?? false
 
   // The tags every import gets, to show under "When you import". They are the
   // server's setting, so they are shown here and changed in the app.
@@ -114,7 +115,7 @@ export function Options(): ReactNode {
               <span className="account-text">
                 <span className="account-name">Connected as {account}</span>
                 <span className="account-sub">
-                  {accountLine(mode, server?.baseUrl ?? null, songCount)}
+                  {accountLine(mode, server?.baseUrl ?? null, songCount, noServer)}
                 </span>
               </span>
               <button
@@ -254,9 +255,14 @@ function accountLine(
   mode: Status['mode'],
   baseUrl: string | null,
   songCount: number | null,
+  noServer: boolean,
 ): string {
   const songs = songCount !== null ? ` · ${plural(songCount, 'song', 'songs')}` : ''
   if (mode === 'server') return `Your server answers at ${baseUrl ?? 'its own address'}${songs}`
+  // Joining is the app's to do (connection.ts), so this says where to do it.
+  if (mode === 'bucket' && noServer) {
+    return `No computer works for your library yet. Open self.mp3 to connect one; links wait in your bucket until then${songs}`
+  }
   if (mode === 'bucket') return `Your server isn’t answering, so links wait in your bucket${songs}`
   return 'Looking for your server.'
 }

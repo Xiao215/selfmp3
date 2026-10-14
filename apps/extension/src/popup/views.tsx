@@ -784,11 +784,19 @@ export function RequestForm({
   tagging,
   pending,
   error,
+  noServer,
+  onOpenApp,
   onRequest,
 }: {
   link: string
   /** A playlist, an album or an artist rather than one song. */
   list: boolean
+  /**
+   * The bucket names no server at all, so none will wake to take this until
+   * self.mp3 is opened and connects one (connection.ts).
+   */
+  noServer: boolean
+  onOpenApp: () => void
   /** The tab's own title, which is all anyone here knows about the link. */
   title: string | null
   tagging: Tagging
@@ -800,16 +808,33 @@ export function RequestForm({
 
   return (
     <>
-      <State
-        line={<SongLine cover={null} title={title ?? hostOf(link)} artist="" />}
-        title="Your server is asleep"
-      >
-        <p>
-          {list
-            ? 'The link is kept in your storage, and your server takes the whole list when it wakes — skipping what you already have.'
-            : 'The link is kept in your storage and imports itself the next time the server wakes. Your server will read the details when it fetches this.'}
-        </p>
-      </State>
+      {noServer ? (
+        <State
+          line={<SongLine cover={null} title={title ?? hostOf(link)} artist="" />}
+          title="No computer works for your library yet"
+          actions={
+            <button type="button" className="tonal" onClick={onOpenApp}>
+              Open self.mp3
+            </button>
+          }
+        >
+          <p>
+            Open self.mp3 once to connect one. The link is kept in your storage until then, and
+            imports itself once one is connected.
+          </p>
+        </State>
+      ) : (
+        <State
+          line={<SongLine cover={null} title={title ?? hostOf(link)} artist="" />}
+          title="Your server is asleep"
+        >
+          <p>
+            {list
+              ? 'The link is kept in your storage, and your server takes the whole list when it wakes — skipping what you already have.'
+              : 'The link is kept in your storage and imports itself the next time the server wakes. Your server will read the details when it fetches this.'}
+          </p>
+        </State>
+      )}
       <TagPicker
         heading="Tag it"
         tagging={tagging}

@@ -110,6 +110,10 @@ it) and in Settings › Account › Computers when the list is empty. In practic
 this device removed the shared computer: removing it there is remembered on that device, so
 it does not join again by itself, and pressing the button joins by hand and forgets that.
 
+The browser extension never joins. It cannot read what a device remembered about removing
+the shared computer, so it leaves the link in the bucket and says to open self.mp3 until a
+snapshot names a server ([browser-extension.md](browser-extension.md), "Connecting it").
+
 ## Grants
 
 A grant is a doorman session with a server's name on it and no 180-day end (`grants:<sub>`

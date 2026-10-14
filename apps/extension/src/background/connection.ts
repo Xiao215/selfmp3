@@ -19,8 +19,12 @@ import type { CloudServer, Health } from '@selfmp3/shared'
 export type Route =
   /** The server answers, directly: a typed-in address, or one from the bucket's snapshot. */
   | { readonly mode: 'server'; readonly connection: ServerConnection; readonly typed: boolean }
-  /** Signed in, but nothing answered in time: leave the link in the bucket. */
-  | { readonly mode: 'bucket' }
+  /**
+   * Signed in, but nothing answered in time: leave the link in the bucket.
+   * `noServer` when the bucket names no server at all — nothing has joined one
+   * for this account yet, and the extension leaves joining to the app (below).
+   */
+  | { readonly mode: 'bucket'; readonly noServer: boolean }
   /** A typed-in server that is asleep, and no account to leave the link in the bucket with. */
   | { readonly mode: 'away'; readonly connection: ServerConnection }
   /** Neither a server nor an account: the options page is the only way forward. */
@@ -30,7 +34,7 @@ export interface RouteSources {
   /** The address someone typed into the options page, for a server the bucket does not name. */
   readonly typedServer: () => Promise<ServerConnection | null>
   readonly signedIn: () => Promise<boolean>
-  /** The addresses the server last wrote into its snapshot, and its token. */
+  /** The addresses the server last wrote into its snapshot, and its token; null when it names none. */
   readonly cloudServer: () => Promise<CloudServer | null>
   /** What `/api/health` at an address says, or null when nothing answers there. */
   readonly probe: (connection: ServerConnection) => Promise<Health | null>
@@ -53,16 +57,33 @@ export async function chooseRoute(sources: RouteSources): Promise<Route> {
     return typed ? { mode: 'away', connection: typed } : { mode: 'none' }
   }
 
+  // A bucket that could not be read says nothing about whether it names a
+  // server, so only a snapshot read and found naming none counts as none.
+  const named = await sources.cloudServer().then(
+    server => ({ server, read: true }),
+    () => ({ server: null, read: false }),
+  )
+
   // The snapshot's addresses are asked all at once: one from another network
   // hangs until its timeout, and one after another would take a minute. An
   // address counts only when the server there is the one the snapshot named
   // (`answersAs`): `localhost` on a computer running a development server is
   // that server, and it would refuse this library's token.
-  const found = await reachServer(
-    candidates(await sources.cloudServer().catch(() => null)),
-    async candidate => answersAs(await sources.probe(candidate), candidate),
+  const found = await reachServer(candidates(named.server), async candidate =>
+    answersAs(await sources.probe(candidate), candidate),
   )
-  return found ? { mode: 'server', connection: found, typed: false } : { mode: 'bucket' }
+  if (found) return { mode: 'server', connection: found, typed: false }
+
+  // No server named: the app would join the shared one here (`automatic` in
+  // packages/replica/src/sharedServer.ts), and the extension does not. A
+  // device that removed the shared server remembers that in its own storage,
+  // which the extension cannot read, so a join from here could undo that
+  // Remove behind the person's back — and the extension has no Computers list
+  // to show or take it back from. The app joins the first time it is opened;
+  // its server publishes a snapshot naming itself, and the next look finds it
+  // here. Until then the link waits in the bucket, and the popup says to open
+  // self.mp3 (docs/features/browser-extension.md, "Connecting it").
+  return { mode: 'bucket', noServer: named.read && named.server === null }
 }
 
 /** How long an answer stands before the addresses are tried again. */

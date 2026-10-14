@@ -1,5 +1,5 @@
 import { ApiError } from '@selfmp3/client/core'
-import { IDLE_PACING, type ImportJob } from '@selfmp3/shared'
+import { IDLE_PACING, type CloudServer, type ImportJob } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { fixtureLibrary, HELLO_URL, IDOL_URL, memoryStore } from '../../verify/fixtures.js'
 import { BridgeError } from '../bridge.js'
@@ -110,6 +110,7 @@ describe('connecting', () => {
       server: { baseUrl: 'http://localhost:4600', typed: true },
       account: null,
       songCount: 2,
+      noServer: false,
     })
     expect(await store.read('server')).toEqual({
       baseUrl: 'http://localhost:4600',
@@ -145,6 +146,7 @@ describe('connecting', () => {
       server: { baseUrl: 'https://asleep.example', typed: true },
       account: null,
       songCount: null,
+      noServer: false,
     })
   })
 
@@ -155,6 +157,7 @@ describe('connecting', () => {
       server: null,
       account: null,
       songCount: null,
+      noServer: false,
     })
     await expect(handlers.signIn({ type: 'signIn' })).rejects.toBeInstanceOf(BridgeError)
   })
@@ -302,11 +305,59 @@ describe('from the bucket', () => {
       store: memoryStore(),
       fetch: fakeServer(null).fetch,
       cloud: { api } as unknown as Cloud,
-      router: { route: () => Promise.resolve({ mode: 'bucket' }), forget: () => undefined },
+      router: {
+        route: () => Promise.resolve({ mode: 'bucket', noServer: false }),
+        forget: () => undefined,
+      },
     })
     const choices = await handlers.choices({ type: 'choices' })
     expect(choices.tags.map(tag => tag.name)).toEqual(library.tags.map(tag => tag.name))
     expect(choices.defaultTagIds).toEqual([])
     expect(asked).toEqual([])
+  })
+})
+
+describe('a bucket that names no server', () => {
+  /** Signed in, with a copy of the library whose snapshot names `server`. */
+  function signedIn(server: CloudServer | null): Cloud {
+    const api = {
+      libraryVersion: () => Promise.resolve({ version: 1, songCount: library.songs.length }),
+    } as unknown as Cloud['api']
+    return {
+      api,
+      session: () => Promise.resolve({ me: { email: 'friend@example.com' } }),
+      server: () => Promise.resolve(server),
+    } as unknown as Cloud
+  }
+
+  it('leaves the link in the bucket and joins nothing: the app joins the shared server', async () => {
+    const { fetch, calls } = fakeServer(null)
+    const handlers = createHandlers({ store: memoryStore(), fetch, cloud: signedIn(null) })
+    expect(await handlers.status({ type: 'status' })).toEqual({
+      mode: 'bucket',
+      server: null,
+      account: 'friend@example.com',
+      songCount: library.songs.length,
+      noServer: true,
+    })
+    // Not the shared server's join, nor anything else: no address was named.
+    expect(calls).toEqual([])
+  })
+
+  it('is only waiting for the server when the bucket names one that is asleep', async () => {
+    const asleep: CloudServer = {
+      id: 'the-server',
+      addresses: ['https://asleep.example'],
+      token: 'from-the-snapshot',
+    }
+    const handlers = createHandlers({
+      store: memoryStore(),
+      fetch: fakeServer(null).fetch,
+      cloud: signedIn(asleep),
+    })
+    expect(await handlers.status({ type: 'status' })).toMatchObject({
+      mode: 'bucket',
+      noServer: false,
+    })
   })
 })

@@ -11,7 +11,7 @@ import { BridgeError, type Handlers, type Status } from '../bridge.js'
 import type { Cloud } from './cloud.js'
 import { createRouter, type Route, type Router } from './connection.js'
 import { LibraryCache } from './library.js'
-import { serverApi } from './server.js'
+import { serverApi, timedFetch } from './server.js'
 import type { KeyValueStore } from './store.js'
 
 /**
@@ -88,10 +88,7 @@ export function workerRouter({
     typedServer: () => storedServer(store),
     signedIn: async () => (cloud ? (await cloud.session()) !== null : false),
     cloudServer: async () => (cloud ? cloud.server() : null),
-    probe: connection =>
-      serverApi(connection, fetch, PROBE_TIMEOUT_MS)
-        .health()
-        .catch(() => null),
+    fetch: timedFetch(fetch, PROBE_TIMEOUT_MS),
   })
 }
 

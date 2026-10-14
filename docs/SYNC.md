@@ -514,6 +514,17 @@ answered first, and every request after was refused. The `id` is optional in the
 bucket has to stay readable whatever wrote its newest snapshot, and a snapshot that names no
 server is held only to an answer, as before.
 
+**And it has to still work for this library.** A server whose grant was taken back (Settings
+› Account › Computers › Remove) lets the library go, but cannot write a snapshot saying so:
+the grant was its way into the bucket. The newest snapshot goes on naming it, and it goes on
+answering `/api/health` as itself. So once an address has answered as the right server, the
+device asks the library's version with the token. A 401 means the server no longer holds this
+library (`askAddress`, the same in the app and the extension). The screen treats that as no
+server, so Import leaves links in the bucket. The app's copy of the library passes that
+server over from then on (`POST /api/cloud/server/refused`). If that was the shared server,
+the app joins it again by itself only while the account still has a grant for it, that is,
+when nobody removed it ([features/shared-server.md](features/shared-server.md), "Joining").
+
 **This is also how the server is locked.** It listens on every interface, because that is
 what makes those addresses real, and so anyone else on the Wi-Fi can reach the port. The
 token is what separates them from your phone, and the snapshot is what hands your phone the

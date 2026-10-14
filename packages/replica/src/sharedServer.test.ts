@@ -65,7 +65,17 @@ function json(body: unknown, status = 200): CloudResponse {
   }
 }
 
-function setUp(answer: (url: string, method: string) => CloudResponse = () => json(ANSWER)) {
+const GRANT = {
+  id: '0123456789abcdef',
+  server: SERVER,
+  name: 'pi',
+  createdAt: '2026-10-12T00:00:00.000Z',
+}
+
+function setUp(
+  answer: (url: string, method: string) => CloudResponse = () => json(ANSWER),
+  given: (typeof GRANT)[] = [GRANT],
+) {
   const sent: { url: string; method: string; auth: string | undefined }[] = []
   const platform = {
     doormanUrl: ME.doormanUrl,
@@ -81,18 +91,7 @@ function setUp(answer: (url: string, method: string) => CloudResponse = () => js
   const sessionApi = {
     doormanFetch: (_session: CloudSession | null, path: string, options?: { method?: string }) => {
       doorman.push(`${options?.method ?? 'GET'} ${path}`)
-      return Promise.resolve(
-        json({
-          grants: [
-            {
-              id: '0123456789abcdef',
-              server: SERVER,
-              name: 'pi',
-              createdAt: '2026-10-12T00:00:00.000Z',
-            },
-          ],
-        }),
-      )
+      return Promise.resolve(json({ grants: given }))
     },
   } as unknown as CloudSessionApi
   return { shared: createSharedServer(platform, sessionApi), sent, doorman }
@@ -124,7 +123,7 @@ describe('the shared server, from a device', () => {
   it('lists and removes grants through the doorman', async () => {
     const { shared, doorman } = setUp()
     expect((await shared.grants(ME)).grants.map(grant => grant.server)).toEqual([SERVER])
-    await shared.removeGrant(ME, '0123456789abcdef')
+    await shared.removeGrant(ME, '0123456789abcdef', null)
     expect(doorman).toEqual([
       'GET /v1/grants',
       'GET /v1/grants',
@@ -162,11 +161,69 @@ describe('the shared server, from a device', () => {
   it('does not join again by itself once the shared server was removed here, until joined by hand', async () => {
     const { shared, sent } = setUp()
     await shared.automatic(WITH_BUCKET, null)
-    await shared.removeGrant(WITH_BUCKET, '0123456789abcdef')
+    await shared.removeGrant(WITH_BUCKET, '0123456789abcdef', null)
     expect(await shared.automatic(WITH_BUCKET, null)).toBeNull()
     expect(sent).toHaveLength(1)
 
     await shared.join(WITH_BUCKET)
     expect(await shared.automatic(WITH_BUCKET, null)).toEqual(ANSWER)
+  })
+
+  /*
+   * 2026-10-14: Settings › Account › Computers › Remove took the shared
+   * server's grant back, the server let the library go — and the bucket's
+   * newest snapshot went on naming it, since it could no longer write one that
+   * did not. Every device kept choosing it, and every import was refused.
+   */
+  describe('a server the snapshot names that no longer works for the library', () => {
+    /** What the snapshot still names: the shared server, with the token it let go of. */
+    const STALE = { ...ANSWER, token: 'let-go'.padEnd(43, '0') }
+
+    it('is passed over at once on the device that removed it, and not joined again', async () => {
+      const { shared, sent } = setUp()
+      expect(await shared.automatic(WITH_BUCKET, STALE)).toEqual(STALE)
+      await shared.removeGrant(WITH_BUCKET, GRANT.id, STALE)
+      expect(await shared.automatic(WITH_BUCKET, STALE)).toBeNull()
+      expect(sent).toEqual([])
+    })
+
+    it('counts as left when the account took it back on another device', async () => {
+      // No grant for it any more: Remove was pressed somewhere else.
+      const { shared, sent, doorman } = setUp(() => json(ANSWER), [])
+      expect(await shared.refused(WITH_BUCKET, STALE.token, STALE)).toBeNull()
+      expect(doorman).toEqual(['GET /v1/grants'])
+      expect(await shared.automatic(WITH_BUCKET, STALE)).toBeNull()
+      expect(sent).toEqual([])
+
+      // Joining by hand is still there: the new library, until the snapshot names it.
+      expect(await shared.join(WITH_BUCKET)).toEqual(ANSWER)
+      expect(await shared.automatic(WITH_BUCKET, STALE)).toEqual(ANSWER)
+    })
+
+    it('is joined again when its grant is still there: nobody asked it to stop', async () => {
+      // Its hub.json lost, say: a new workspace, behind a new token.
+      const { shared, sent } = setUp()
+      expect(await shared.refused(WITH_BUCKET, STALE.token, STALE)).toEqual(ANSWER)
+      expect(sent).toHaveLength(1)
+      // The snapshot still names the old token until the server's next one lands.
+      expect(await shared.automatic(WITH_BUCKET, STALE)).toEqual(ANSWER)
+      expect(await shared.automatic(WITH_BUCKET, ANSWER)).toEqual(ANSWER)
+      expect(sent).toHaveLength(1)
+    })
+
+    it('gives way to the shared server when it is another one', async () => {
+      const own = { id: 'my-own-server', addresses: ['https://mine.example.com'], token: 'own' }
+      const { shared, doorman } = setUp()
+      expect(await shared.refused(WITH_BUCKET, 'own', own)).toEqual(ANSWER)
+      // Not the shared one: whose grants it had is not this device's to ask.
+      expect(doorman).toEqual([])
+    })
+
+    it('is said again for another account on the same device', async () => {
+      const { shared } = setUp(() => json(ANSWER), [])
+      await shared.refused(WITH_BUCKET, STALE.token, STALE)
+      const friend = { ...WITH_BUCKET, me: { ...WITH_BUCKET.me, email: 'friend@example.com' } }
+      expect(await shared.automatic(friend, STALE)).toEqual(STALE)
+    })
   })
 })

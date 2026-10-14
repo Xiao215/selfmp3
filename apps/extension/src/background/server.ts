@@ -15,7 +15,7 @@ import {
  * A signal the caller brought still aborts it too: it is the browser's own
  * `AbortSignal`, of which `ClientSignal` names only the part the package reads.
  */
-function timedFetch(fetchImpl: typeof fetch, ms: number): ClientFetch {
+export function timedFetch(fetchImpl: typeof fetch, ms: number): ClientFetch {
   return (url, init) => {
     const timeout = AbortSignal.timeout(ms)
     const signal = init?.signal ? AbortSignal.any([init.signal as AbortSignal, timeout]) : timeout

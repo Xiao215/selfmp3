@@ -8,6 +8,7 @@ import {
   CloudServerSchema,
   CloudStatusSchema,
   DoormanGrantsSchema,
+  DoormanMeSchema,
   HealthSchema,
   HUB_LIBRARY_HEADER,
   HubStatusSchema,
@@ -16,11 +17,13 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { harness, type Harness } from '../../../doorman/src/fakes.js'
 import {
-  answersAs,
+  askAddress,
   candidates,
   reachServer,
-  type Candidate,
 } from '../../../../packages/client/src/connection/reach.js'
+import type { CloudPlatform, DeviceStore } from '../../../../packages/replica/src/platform.js'
+import { createCloudSession, type CloudSession } from '../../../../packages/replica/src/session.js'
+import { createSharedServer } from '../../../../packages/replica/src/sharedServer.js'
 import { loadConfig, type Config } from '../config.js'
 import { createContainer } from '../container.js'
 import { createLogger } from '../logger.js'
@@ -290,6 +293,28 @@ describe('a server working for several accounts', () => {
     expect((await fetch(`${url}/api/library?token=${me.token}`)).status).toBe(401)
   })
 
+  it('joins afresh an account whose grant was taken back a moment ago', async () => {
+    const { hub, url } = await startHub()
+    const mine = await account('1', 'me@example.com', 'mine')
+    const before = CloudServerSchema.parse((await join(url, mine)).body)
+    const grants = DoormanGrantsSchema.parse(
+      await (await doorman.call('/v1/grants', { token: mine })).json(),
+    ).grants
+    await doorman.call(`/v1/grants/${grants[0]!.id}`, { method: 'DELETE', token: mine })
+
+    // Joined again by hand before the workspace looked at its bucket: not the
+    // library about to be let go, but a new one behind a new grant.
+    const after = CloudServerSchema.parse((await join(url, mine)).body)
+    expect(after.token).not.toBe(before.token)
+    expect(hub.workspaces()).toHaveLength(1)
+    expect((await fetch(`${url}/api/library?token=${before.token}`)).status).toBe(401)
+    expect((await fetch(`${url}/api/library?token=${after.token}`)).status).toBe(200)
+    const now = DoormanGrantsSchema.parse(
+      await (await doorman.call('/v1/grants', { token: mine })).json(),
+    ).grants
+    expect(now).toHaveLength(1)
+  })
+
   it('says whom it works for to its own machine, which can name one with no token', async () => {
     const { url } = await startHub()
     const listed = async (headers: Record<string, string> = {}) => {
@@ -394,12 +419,12 @@ describe('a server working for several accounts', () => {
   })
 })
 
+/** The shared server's public address, which a test reaches at the hub's real one. */
+const PUBLIC = 'https://pi.example.ts.net'
+
 describe('which server a device takes', () => {
-  /** `/api/health` at a candidate, as the app and the extension ask it. */
-  const probe = async (candidate: Candidate): Promise<boolean> => {
-    const response = await fetch(`${candidate.baseUrl}/api/health`)
-    return response.ok && answersAs(await response.json(), candidate)
-  }
+  /** An address asked as the app and the extension ask it. */
+  const probe = askAddress.bind(null, fetch)
 
   /*
    * 2026-10-14: the Pi publishes `http://localhost:4600` among its addresses,
@@ -440,7 +465,129 @@ describe('which server a device takes', () => {
       candidates({ ...published, addresses: [dev.url, pi.url] }),
       probe,
     )
-    expect(found?.baseUrl).toBe(pi.url)
-    expect((await fetch(`${found!.baseUrl}/api/library?token=${found!.token}`)).status).toBe(200)
+    if (!found || found === 'refused') throw new Error(`found ${found}`)
+    expect(found.baseUrl).toBe(pi.url)
+    expect((await fetch(`${found.baseUrl}/api/library?token=${found.token}`)).status).toBe(200)
+  })
+
+  /** A device: its own storage, and the shared server at `PUBLIC`, which is `url` here. */
+  function device(url: string) {
+    const values = new Map<string, unknown>()
+    const store: DeviceStore = {
+      read: key => Promise.resolve(values.get(key) ?? null),
+      write: (key, value) => {
+        values.set(key, value)
+        return Promise.resolve()
+      },
+      remove: key => {
+        values.delete(key)
+        return Promise.resolve()
+      },
+      update: (key, change) => {
+        const next = change(values.get(key) ?? null)
+        values.set(key, next)
+        return Promise.resolve(next)
+      },
+    }
+    const platform = {
+      doormanUrl,
+      sharedServerUrl: PUBLIC,
+      store,
+      fetch: (to: string, init?: RequestInit) => fetch(to.replace(PUBLIC, url), init),
+    } as unknown as CloudPlatform
+    return createSharedServer(platform, createCloudSession(platform))
+  }
+
+  /** What the device asks an address with: the public one reaches the hub. */
+  const askingAt = (url: string) => (to: string, init?: RequestInit) =>
+    fetch(to.replace(PUBLIC, url), init)
+
+  async function sessionOf(token: string): Promise<CloudSession> {
+    const me = DoormanMeSchema.parse(await (await doorman.call('/v1/me', { token })).json())
+    return { doormanUrl, token, me }
+  }
+
+  /** The server the newest snapshot names, reachable at its public address alone. */
+  function namedIn(prefix: string) {
+    const snapshot = JSON.parse(newestSnapshot(prefix)!) as { server: unknown }
+    return CloudServerSchema.parse(snapshot.server)
+  }
+
+  /*
+   * 2026-10-14: Settings › Account › Computers › Remove took the shared
+   * server's grant back. The server let the library go — and the bucket's
+   * newest snapshot went on naming it, with a token it no longer took, since
+   * the grant it would have written a new one with was the thing removed.
+   * Every device kept choosing it, and every import was a 401.
+   */
+  it('passes over a server that let the library go, though the bucket still names it', async () => {
+    const pi = await startHub()
+    const cloud = await sessionOf(await account('1', 'me@example.com', 'mine'))
+    const phone = device(pi.url)
+    const laptop = device(pi.url)
+
+    // The phone joins by itself; the snapshot names the server.
+    const joined = await phone.automatic(cloud, null)
+    expect(joined?.addresses).toContain(PUBLIC)
+    await until(() => newestSnapshot('mine')?.includes(joined!.token!) ?? false, 'my snapshot')
+    const named = { ...namedIn('mine'), addresses: [PUBLIC] }
+    expect(await reachServer(candidates(named), askAddress.bind(null, askingAt(pi.url)))).toEqual(
+      candidates(named)[0],
+    )
+    expect(await laptop.automatic(cloud, named)).toEqual(named)
+
+    // Remove, on the phone: passed over there at once, and not joined again.
+    const [grant] = (await phone.grants(cloud)).grants
+    await phone.removeGrant(cloud, grant!.id, named)
+    expect(await phone.automatic(cloud, named)).toBeNull()
+
+    // The server notices at its next look, and lets the library go.
+    void pi.hub.workspaces()[0]!.container.cloudSync.syncNow({ verify: true })
+    await until(() => pi.hub.workspaces().length === 0, 'the library to be let go')
+
+    // The bug: the bucket still names it, it still answers as itself, and it
+    // refuses the token.
+    expect(namedIn('mine').token).toBe(named.token)
+    expect((await fetch(`${pi.url}/api/library?token=${named.token}`)).status).toBe(401)
+
+    // What a device's look finds now.
+    const found = await reachServer(candidates(named), askAddress.bind(null, askingAt(pi.url)))
+    expect(found).toBe('refused')
+
+    // The laptop, told so: no grant is left for it, so it was taken back on
+    // another device, and the laptop leaves it too rather than undo the Remove.
+    expect(await laptop.refused(cloud, named.token!, named)).toBeNull()
+    expect(await laptop.automatic(cloud, named)).toBeNull()
+    expect(pi.hub.workspaces()).toHaveLength(0)
+    expect((await phone.grants(cloud)).grants).toEqual([])
+  })
+
+  it('joins again a server that lost the library some other way', async () => {
+    const first = await startHub()
+    const cloud = await sessionOf(await account('1', 'me@example.com', 'mine'))
+    const phone = device(first.url)
+    const joined = await phone.automatic(cloud, null)
+    await until(() => newestSnapshot('mine')?.includes(joined!.token!) ?? false, 'my snapshot')
+    const named = { ...namedIn('mine'), addresses: [PUBLIC] }
+
+    // hub.json deleted, and the workspaces with it (shared-server.md says
+    // every account joins again from its next device); the grant is still the
+    // account's, and the server is still the one the snapshot names.
+    const { hub, server } = open.pop()!
+    hub.close()
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    fs.rmSync(path.join(first.config.dataDir, 'hub.json'))
+    fs.rmSync(path.join(first.config.dataDir, 'accounts'), { recursive: true, force: true })
+    const second = await startHub()
+    const laptop = device(second.url)
+
+    const found = await reachServer(candidates(named), askAddress.bind(null, askingAt(second.url)))
+    expect(found).toBe('refused')
+    const again = await laptop.refused(cloud, named.token!, named)
+    expect(again?.token).toBeDefined()
+    expect(again?.token).not.toBe(named.token)
+    expect(second.hub.workspaces()).toHaveLength(1)
+    // Until the next snapshot names it, the one joined is the one used.
+    expect(await laptop.automatic(cloud, named)).toEqual(again)
   })
 })

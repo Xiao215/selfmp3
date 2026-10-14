@@ -1,4 +1,4 @@
-import type { ServerConnection } from '@selfmp3/client/core'
+import type { ClientFetch, ClientResponse } from '@selfmp3/client/core'
 import type { CloudServer, Health } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { chooseRoute, createRouter, ROUTE_MEMO_MS, type RouteSources } from './connection.js'
@@ -6,15 +6,15 @@ import { chooseRoute, createRouter, ROUTE_MEMO_MS, type RouteSources } from './c
 /**
  * Which way in wins (docs/features/browser-extension.md, "Connecting (I3)").
  *
- * The three answers the phase is about, each with a probe that is a function:
- * a server that answers is asked directly, one that does not sends the link to
- * the bucket, and with no account behind it there is nothing to do but open
- * the options page.
+ * The three answers the phase is about, each with a fake fetch: a server that
+ * answers is asked directly, one that does not sends the link to the bucket,
+ * and with no account behind it there is nothing to do but open the options
+ * page.
  */
 
 const HOME = 'http://100.64.0.1:4600'
 const TAILNET = 'https://mac.tail1234.ts.net'
-const TYPED: ServerConnection = { baseUrl: 'http://localhost:4600', token: null }
+const TYPED = { baseUrl: 'http://localhost:4600', token: null }
 
 const cloudServer: CloudServer = {
   id: 'the-server',
@@ -30,20 +30,34 @@ const healthOf = (serverId: string): Health => ({
   uptimeSeconds: 1,
 })
 
+const answer = (status: number, body: unknown): Promise<ClientResponse> =>
+  Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+  })
+
 /**
- * A probe that answers for these addresses and nothing else, counting every
- * ask; `others` are addresses where a different server answers.
+ * A fetch under which `the-server` answers at `live` and nothing else does,
+ * counting every address asked. `others` are addresses where a different
+ * server answers; `refusing` are ones where `the-server` answers, but no
+ * longer takes the library's token.
  */
-function answersAt(live: string[], others: string[] = []) {
+function answersAt(live: string[], others: string[] = [], refusing: string[] = []) {
   const asked: string[] = []
-  return {
-    asked,
-    probe: (connection: ServerConnection): Promise<Health | null> => {
-      asked.push(connection.baseUrl)
-      if (others.includes(connection.baseUrl)) return Promise.resolve(healthOf('another-server'))
-      return Promise.resolve(live.includes(connection.baseUrl) ? healthOf('the-server') : null)
-    },
+  const fetch: ClientFetch = url => {
+    const { origin, pathname } = new URL(url)
+    const at = [...live, ...others, ...refusing].find(address => new URL(address).origin === origin)
+    if (pathname === '/api/health') asked.push(at ?? origin)
+    if (!at) return Promise.reject(new TypeError('Failed to fetch'))
+    if (pathname === '/api/health') {
+      return answer(200, healthOf(others.includes(at) ? 'another-server' : 'the-server'))
+    }
+    return refusing.includes(at)
+      ? answer(401, { error: 'invalid token' })
+      : answer(200, { version: 1, songCount: 0 })
   }
+  return { asked, fetch }
 }
 
 function sources(patch: Partial<RouteSources> = {}): RouteSources {
@@ -51,15 +65,15 @@ function sources(patch: Partial<RouteSources> = {}): RouteSources {
     typedServer: () => Promise.resolve(null),
     signedIn: () => Promise.resolve(true),
     cloudServer: () => Promise.resolve(cloudServer),
-    probe: () => Promise.resolve(null),
+    fetch: () => Promise.reject(new TypeError('Failed to fetch')),
     ...patch,
   }
 }
 
 describe('chooseRoute', () => {
   it('asks the server directly when one of its addresses answers', async () => {
-    const { probe, asked } = answersAt([TAILNET])
-    const route = await chooseRoute(sources({ probe }))
+    const { fetch, asked } = answersAt([TAILNET])
+    const route = await chooseRoute(sources({ fetch }))
     expect(route).toEqual({
       mode: 'server',
       connection: { baseUrl: TAILNET, token: 'from-the-snapshot', serverId: 'the-server' },
@@ -72,30 +86,26 @@ describe('chooseRoute', () => {
   it('passes over an address where a different server answers', async () => {
     // HOME is answered by somebody else's server (a development server on
     // the same computer, a stranger's on the same Wi-Fi): not this library's.
-    const { probe } = answersAt([TAILNET], [HOME])
-    const route = await chooseRoute(sources({ probe }))
+    const { fetch } = answersAt([TAILNET], [HOME])
+    const route = await chooseRoute(sources({ fetch }))
     expect(route.mode === 'server' && route.connection.baseUrl).toBe(TAILNET)
-    expect(await chooseRoute(sources({ probe: answersAt([], [HOME]).probe }))).toEqual({
+    expect(await chooseRoute(sources({ fetch: answersAt([], [HOME]).fetch }))).toEqual({
       mode: 'bucket',
       noServer: false,
     })
   })
 
   it('leaves the link in the bucket when no address answers in time', async () => {
-    const { probe } = answersAt([])
-    expect(await chooseRoute(sources({ probe }))).toEqual({ mode: 'bucket', noServer: false })
+    const { fetch } = answersAt([])
+    expect(await chooseRoute(sources({ fetch }))).toEqual({ mode: 'bucket', noServer: false })
   })
 
   it('leaves joining to the app when the bucket names no server, and says none is named', async () => {
     // The app would join the shared server here (sharedServer.ts `automatic`);
     // the extension cannot see whether this device removed it, so it does not.
-    // The probe answers everywhere: nothing is asked, because nothing is named.
-    const asked: string[] = []
-    const probe = (connection: ServerConnection): Promise<Health | null> => {
-      asked.push(connection.baseUrl)
-      return Promise.resolve(healthOf('the-server'))
-    }
-    const route = await chooseRoute(sources({ probe, cloudServer: () => Promise.resolve(null) }))
+    // Every address would answer: none is asked, because none is named.
+    const { fetch, asked } = answersAt([HOME, TAILNET])
+    const route = await chooseRoute(sources({ fetch, cloudServer: () => Promise.resolve(null) }))
     expect(route).toEqual({ mode: 'bucket', noServer: true })
     expect(asked).toEqual([])
   })
@@ -107,11 +117,15 @@ describe('chooseRoute', () => {
       token: 'this-account-there',
     }
     let named: CloudServer | null = null
-    const probe = (connection: ServerConnection): Promise<Health | null> =>
-      Promise.resolve(
-        connection.baseUrl === 'https://pi.example.ts.net' ? healthOf('the-shared-server') : null,
-      )
-    const router = createRouter(sources({ probe, cloudServer: () => Promise.resolve(named) }))
+    const fetch: ClientFetch = url => {
+      if (!url.startsWith('https://pi.example.ts.net/')) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return url.endsWith('/api/health')
+        ? answer(200, healthOf('the-shared-server'))
+        : answer(200, { version: 1, songCount: 0 })
+    }
+    const router = createRouter(sources({ fetch, cloudServer: () => Promise.resolve(named) }))
     expect(await router.route()).toEqual({ mode: 'bucket', noServer: true })
 
     // The app opened, joined, and the shared server's snapshot named it.
@@ -129,8 +143,8 @@ describe('chooseRoute', () => {
   })
 
   it('has nowhere to go without an account, and says so rather than guessing', async () => {
-    const { probe, asked } = answersAt([HOME])
-    expect(await chooseRoute(sources({ probe, signedIn: () => Promise.resolve(false) }))).toEqual({
+    const { fetch, asked } = answersAt([HOME])
+    expect(await chooseRoute(sources({ fetch, signedIn: () => Promise.resolve(false) }))).toEqual({
       mode: 'none',
     })
     // Not signed in means the snapshot's addresses are not even known.
@@ -138,25 +152,25 @@ describe('chooseRoute', () => {
   })
 
   it('prefers the address someone typed in, because they meant it', async () => {
-    const { probe, asked } = answersAt([TYPED.baseUrl, TAILNET])
-    const route = await chooseRoute(sources({ probe, typedServer: () => Promise.resolve(TYPED) }))
+    const { fetch, asked } = answersAt([TYPED.baseUrl, TAILNET])
+    const route = await chooseRoute(sources({ fetch, typedServer: () => Promise.resolve(TYPED) }))
     expect(route).toEqual({ mode: 'server', connection: TYPED, typed: true })
     expect(asked).toEqual([TYPED.baseUrl])
   })
 
   it('falls back from a typed-in server that is asleep to the bucket', async () => {
-    const { probe } = answersAt([])
+    const { fetch } = answersAt([])
     expect(
-      await chooseRoute(sources({ probe, typedServer: () => Promise.resolve(TYPED) })),
+      await chooseRoute(sources({ fetch, typedServer: () => Promise.resolve(TYPED) })),
     ).toEqual({ mode: 'bucket', noServer: false })
   })
 
   it('is away, not signed out, when a typed-in server is all there is', async () => {
-    const { probe } = answersAt([])
+    const { fetch } = answersAt([])
     expect(
       await chooseRoute(
         sources({
-          probe,
+          fetch,
           typedServer: () => Promise.resolve(TYPED),
           signedIn: () => Promise.resolve(false),
         }),
@@ -164,10 +178,24 @@ describe('chooseRoute', () => {
     ).toEqual({ mode: 'away', connection: TYPED })
   })
 
+  it('leaves the link in the bucket when the server named no longer works for this library', async () => {
+    // Its account took the grant back: it answers as itself, refuses the
+    // token, and the bucket's newest snapshot still names it (2026-10-14).
+    const { fetch } = answersAt([], [], [HOME, TAILNET])
+    expect(await chooseRoute(sources({ fetch }))).toEqual({ mode: 'bucket', noServer: true })
+  })
+
+  it('passes over a typed-in server that refuses its token', async () => {
+    const typed = { baseUrl: HOME, token: 'an-old-token' }
+    const { fetch } = answersAt([TAILNET], [], [HOME])
+    const route = await chooseRoute(sources({ fetch, typedServer: () => Promise.resolve(typed) }))
+    expect(route.mode === 'server' && route.connection.baseUrl).toBe(TAILNET)
+  })
+
   it('takes a bucket that cannot be read as a server that has not said where it is', async () => {
-    const { probe } = answersAt([HOME])
+    const { fetch } = answersAt([HOME])
     const route = await chooseRoute(
-      sources({ probe, cloudServer: () => Promise.reject(new Error('offline')) }),
+      sources({ fetch, cloudServer: () => Promise.reject(new Error('offline')) }),
     )
     // Not read is not "names none": nothing tells the person to open the app.
     expect(route).toEqual({ mode: 'bucket', noServer: false })
@@ -176,9 +204,9 @@ describe('chooseRoute', () => {
 
 describe('createRouter', () => {
   it('keeps one answer for a minute, and lets go when something changes', async () => {
-    const { probe, asked } = answersAt([HOME])
+    const { fetch, asked } = answersAt([HOME])
     let now = 1_000
-    const router = createRouter(sources({ probe }), () => now)
+    const router = createRouter(sources({ fetch }), () => now)
 
     expect((await router.route()).mode).toBe('server')
     await router.route()

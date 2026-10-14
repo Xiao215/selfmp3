@@ -1,5 +1,11 @@
-import { answersAs, candidates, reachServer, type ServerConnection } from '@selfmp3/client/core'
-import type { CloudServer, Health } from '@selfmp3/shared'
+import {
+  askAddress,
+  candidates,
+  reachServer,
+  type ClientFetch,
+  type ServerConnection,
+} from '@selfmp3/client/core'
+import type { CloudServer } from '@selfmp3/shared'
 
 /**
  * Where an import goes: the server itself when it answers, the bucket when it
@@ -12,8 +18,8 @@ import type { CloudServer, Health } from '@selfmp3/shared'
  * the next time it wakes (SYNC.md, rule 6). What is lost while away is the
  * looking, not the importing, and the popup says exactly that.
  *
- * This file only decides. It takes a probe rather than making requests itself,
- * so the three answers below are a unit test with three fake probes.
+ * This file only decides. It is handed the fetch it asks with, so the answers
+ * below are a unit test with a fake one.
  */
 
 export type Route =
@@ -21,8 +27,9 @@ export type Route =
   | { readonly mode: 'server'; readonly connection: ServerConnection; readonly typed: boolean }
   /**
    * Signed in, but nothing answered in time: leave the link in the bucket.
-   * `noServer` when the bucket names no server at all — nothing has joined one
-   * for this account yet, and the extension leaves joining to the app (below).
+   * `noServer` when no server works for this library — the bucket names none,
+   * or the one it names refused the library's token — and the extension
+   * leaves joining to the app (below).
    */
   | { readonly mode: 'bucket'; readonly noServer: boolean }
   /** A typed-in server that is asleep, and no account to leave the link in the bucket with. */
@@ -36,8 +43,8 @@ export interface RouteSources {
   readonly signedIn: () => Promise<boolean>
   /** The addresses the server last wrote into its snapshot, and its token; null when it names none. */
   readonly cloudServer: () => Promise<CloudServer | null>
-  /** What `/api/health` at an address says, or null when nothing answers there. */
-  readonly probe: (connection: ServerConnection) => Promise<Health | null>
+  /** The fetch an address is asked with (`askAddress`), with a deadline of the probe's. */
+  readonly fetch: ClientFetch
 }
 
 /**
@@ -49,7 +56,7 @@ export interface RouteSources {
  */
 export async function chooseRoute(sources: RouteSources): Promise<Route> {
   const typed = await sources.typedServer()
-  if (typed && (await sources.probe(typed).catch(() => null))) {
+  if (typed && (await askAddress(sources.fetch, { ...typed, serverId: undefined })) === 'works') {
     return { mode: 'server', connection: typed, typed: true }
   }
 
@@ -67,12 +74,14 @@ export async function chooseRoute(sources: RouteSources): Promise<Route> {
   // The snapshot's addresses are asked all at once: one from another network
   // hangs until its timeout, and one after another would take a minute. An
   // address counts only when the server there is the one the snapshot named
-  // (`answersAs`): `localhost` on a computer running a development server is
-  // that server, and it would refuse this library's token.
-  const found = await reachServer(candidates(named.server), async candidate =>
-    answersAs(await sources.probe(candidate), candidate),
+  // and takes the library's token (`askAddress`): `localhost` on a computer
+  // running a development server is not that server, and one whose grant was
+  // taken back answers as itself but refuses the token, while the bucket's
+  // newest snapshot still names it: it can no longer write one that does not.
+  const found = await reachServer(candidates(named.server), candidate =>
+    askAddress(sources.fetch, candidate),
   )
-  if (found) return { mode: 'server', connection: found, typed: false }
+  if (found && found !== 'refused') return { mode: 'server', connection: found, typed: false }
 
   // No server named: the app would join the shared one here (`automatic` in
   // packages/replica/src/sharedServer.ts), and the extension does not. A
@@ -82,8 +91,13 @@ export async function chooseRoute(sources: RouteSources): Promise<Route> {
   // to show or take it back from. The app joins the first time it is opened;
   // its server publishes a snapshot naming itself, and the next look finds it
   // here. Until then the link waits in the bucket, and the popup says to open
-  // self.mp3 (docs/features/browser-extension.md, "Connecting it").
-  return { mode: 'bucket', noServer: named.read && named.server === null }
+  // self.mp3 (docs/features/browser-extension.md, "Connecting it"). A server
+  // that refused is the same: the app passes it over, and joins again or
+  // says no computer works for the library.
+  return {
+    mode: 'bucket',
+    noServer: (named.read && named.server === null) || found === 'refused',
+  }
 }
 
 /** How long an answer stands before the addresses are tried again. */

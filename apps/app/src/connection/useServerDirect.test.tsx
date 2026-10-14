@@ -14,8 +14,14 @@ import { useServerDirect } from './useServerDirect'
 jest.mock('../replica', () => ({ library: { markCloudLibraryStale: () => undefined } }))
 
 const server = { id: 'the-pi', addresses: ['https://music.example.com'], token: 't' }
+/** Where this device's copy says the server is: the one above, until told it refused. */
+let where: { server: typeof server | null } = { server }
+const cloudServerRefused = jest.fn((token: string) => {
+  if (token === server.token) where = { server: null }
+  return Promise.resolve(where)
+})
 configureClient({
-  api: { cloudServer: () => Promise.resolve({ server }) } as unknown as Api,
+  api: { cloudServer: () => Promise.resolve(where), cloudServerRefused } as unknown as Api,
 } as Parameters<typeof configureClient>[0])
 
 /**
@@ -24,21 +30,36 @@ configureClient({
  * snapshot named.
  */
 let answers: (boolean | string)[] = []
+/** Whether the server takes the library's token. */
+let takesToken = true
 const health = jest.fn(() => {
   const answer = answers.shift() ?? true
   if (answer === false) return Promise.reject(new TypeError('Network request failed'))
   const serverId = answer === true ? server.id : answer
   return Promise.resolve({
     ok: true,
+    status: 200,
     json: () => Promise.resolve({ ok: true, version: '1', serverId, uptimeSeconds: 1 }),
   } as Response)
 })
+const version = jest.fn(() =>
+  Promise.resolve({
+    ok: takesToken,
+    status: takesToken ? 200 : 401,
+    json: () => Promise.resolve(takesToken ? { version: 1, songCount: 0 } : { error: 'nope' }),
+  } as Response),
+)
 
 beforeEach(() => {
   jest.useFakeTimers()
   answers = []
+  takesToken = true
+  where = { server }
   health.mockClear()
-  global.fetch = health as unknown as typeof fetch
+  version.mockClear()
+  cloudServerRefused.mockClear()
+  global.fetch = ((url: string) =>
+    url.endsWith('/api/health') ? health() : version()) as unknown as typeof fetch
 })
 
 afterEach(() => jest.useRealTimers())
@@ -100,4 +121,18 @@ it('is away when the server answering at the address is a different one', async 
   answers = ['a-development-server']
   const { result } = await draw()
   expect(result.current).toMatchObject({ state: 'away', said: true })
+})
+
+/*
+ * 2026-10-14: the shared server's grant was removed and it let the library go,
+ * but the bucket's newest snapshot still named it. It answered as itself and
+ * refused the token, and every screen kept asking it.
+ */
+it('passes over a server that refuses the token, and tells this device’s copy', async () => {
+  takesToken = false
+  const { result } = await draw()
+  expect(cloudServerRefused).toHaveBeenCalledWith('t')
+  await settle()
+  // Nothing works for the library now: the notice that offers the shared one.
+  expect(result.current).toMatchObject({ state: 'away', said: false })
 })

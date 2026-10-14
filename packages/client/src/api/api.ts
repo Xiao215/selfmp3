@@ -564,6 +564,13 @@ export function createApi({ context, fetch }: ApiOptions) {
     cloudServer: () => request('GET', '/api/cloud/server', CloudServerViewSchema),
 
     /**
+     * That server answered as itself and refused `token`: it no longer works
+     * for this library (`askAddress`). Answers where the server is now.
+     */
+    cloudServerRefused: (token: string) =>
+      request('POST', '/api/cloud/server/refused', CloudServerViewSchema, { token }),
+
+    /**
      * Have the shared server work for this account (docs/features/shared-server.md),
      * for a cloud library whose bucket names no server of its own.
      */

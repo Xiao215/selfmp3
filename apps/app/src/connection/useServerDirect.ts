@@ -1,17 +1,17 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  answersAs,
+  askAddress,
   candidates,
   clientApi,
   LOOK_AGAIN_MS,
   PROBE_TIMEOUT_MS,
   queryKeys,
   reachServerAgain,
-  type Candidate,
   type Reach,
   type ServerConnection,
 } from '@selfmp3/client'
+import type { CloudServer } from '@selfmp3/shared'
 import { fetchWithin } from '../api/client'
 import { library as cloudLibrary } from '../replica'
 
@@ -19,19 +19,12 @@ import { library as cloudLibrary } from '../replica'
 const probeFetch = fetchWithin(PROBE_TIMEOUT_MS)
 
 /**
- * `/api/health` at one address, within the deadline. It needs no token, so
- * none is sent until the server there has said it is the one the snapshot
- * named (`answersAs`): on the computer you develop on, `localhost` is the
- * development server.
+ * One address, within the deadline (`askAddress`): no token is sent until the
+ * server there has said it is the one the snapshot named — on the computer you
+ * develop on, `localhost` is the development server — and then the token is
+ * asked about too, since that server may no longer work for this library.
  */
-async function probe(candidate: Candidate): Promise<boolean> {
-  try {
-    const response = await probeFetch(`${candidate.baseUrl}/api/health`)
-    return response.ok && answersAs(await response.json(), candidate)
-  } catch {
-    return false
-  }
-}
+const probe = askAddress.bind(null, probeFetch)
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -77,19 +70,47 @@ export function useServerDirect(
   const said = server.data?.server ?? null
   const addresses = said?.addresses ?? []
 
+  /*
+   * The server the snapshot names answered as itself and refused this
+   * library's token: it no longer works for the library, and cannot write a
+   * snapshot that says so. This device's copy passes it over from now, and
+   * says where the server is instead — none, or the shared one joined again
+   * (sharedServer.ts in @selfmp3/replica).
+   */
+  const refused = useCallback(
+    async (token: string): Promise<void> => {
+      const now = await clientApi().cloudServerRefused(token)
+      queryClient.setQueryData<{ server: CloudServer | null }>(queryKeys.cloudServer, now)
+    },
+    [queryClient],
+  )
+
   // A server that was answering keeps its answer through one missed look
   // (reach.ts, CONFIRM_AWAY_MS): the query holds its last data while it asks
-  // again, so the screen does not flash away for a network blip.
-  const reachKey = [...queryKeys.cloudServer, 'reach', said?.id ?? null, addresses]
+  // again, so the screen does not flash away for a network blip. The token is
+  // in the key too: the shared server joined again is the same server at the
+  // same addresses, with a new one, and is looked for at once.
+  const reachKey = [
+    ...queryKeys.cloudServer,
+    'reach',
+    said?.id ?? null,
+    said?.token ?? null,
+    addresses,
+  ]
   const reach = useQuery({
     queryKey: reachKey,
-    queryFn: () =>
-      reachServerAgain(
+    queryFn: async (): Promise<ServerConnection | null> => {
+      const found = await reachServerAgain(
         candidates(said),
         probe,
         queryClient.getQueryData<ServerConnection | null>(reachKey),
         sleep,
-      ),
+      )
+      if (found !== 'refused') return found
+      // Not passed over, if this device's copy could not be told: the next look asks again.
+      if (said?.token) await refused(said.token).catch(() => undefined)
+      return null
+    },
     enabled: enabled && server.isSuccess,
     refetchInterval: lookAgainMs,
     retry: false,

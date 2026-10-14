@@ -103,18 +103,45 @@ server's `POST /api/hub/join`, once:
 4. It answers the device with the same id, addresses and token. The device keeps them
    (`packages/replica/src/sharedServer.ts`) until that snapshot reaches it.
 
-Joining again is harmless: an account that already has a workspace gets its token back. A
-join that fails is tried again by itself ten minutes later.
+Joining again is harmless: an account that already has a workspace gets its token back, once
+the server has checked with the doorman that the workspace's grant still holds. One taken back
+a moment ago, before the workspace noticed, is let go there and then, and the account joins
+afresh. A join that fails is tried again by itself ten minutes later.
+
+**A server that no longer works for a library.** A server that let a library go cannot say so
+in the bucket: the grant it would write with is what was taken back. So the newest snapshot
+goes on naming it, with a token it no longer takes. A device finds that out by asking. Its
+look at an address asks `/api/health` with no token, and only once the server there has
+answered as the one the snapshot names, the library's version with the token
+(`askAddress` in `packages/client/src/connection/reach.ts`). A 401 then means that server no
+longer holds this library. The app tells its copy of the library
+(`POST /api/cloud/server/refused`), which passes that server over from then on as though
+the snapshot named none:
+
+- **Taken back, so it stays gone.** Removed on this device, or on another one: either way the
+  account has no grant for it any more. That counts as having left it, as **Remove** does
+  (below), so the screens say **No computer works for your library yet** and offer the
+  button. The device that pressed **Remove** passes it over at once, without waiting for the
+  server to notice.
+- **Lost some other way, so it is joined again.** For example, its `hub.json` was deleted.
+  The grant is still there, nobody asked it to stop, and the device joins again by itself.
+  It uses the new token straight away, before the snapshot that names it arrives.
+
+Before this (2026-10-14), every device kept choosing a removed server, and every import and
+lookup was a 401 instead of the bucket's way round.
 
 The button is for when that did not happen. **Use the shared computer** appears under **No
 computer works for your library yet** (the notice a screen shows when no server answers for
 it) and in Settings › Account › Computers when the list is empty. In practice that is after
-this device removed the shared computer: removing it there is remembered on that device, so
-it does not join again by itself, and pressing the button joins by hand and forgets that.
+the shared computer was removed. On the device where it was removed, that is remembered, so
+the device does not join again by itself. Another device works it out when the server refuses
+its token and the account has no grant for it (above). Pressing the button joins by hand and
+forgets that.
 
 The browser extension never joins. It cannot read what a device remembered about removing
 the shared computer, so it leaves the link in the bucket and says to open self.mp3 until a
-snapshot names a server ([browser-extension.md](browser-extension.md), "Connecting it").
+snapshot names a server that takes the library's token
+([browser-extension.md](browser-extension.md), "Connecting it").
 
 ## Grants
 
@@ -129,7 +156,9 @@ Three rules keep grants safe:
   refused; an idle workspace still looks at its bucket every ten minutes. The server checks
   once with the doorman, then lets the workspace go and deletes its folders. Nothing is lost
   by that, because the folders were a copy of the bucket. So **Remove** asks the doorman
-  alone, and works while the server is off.
+  alone, and works while the server is off. The bucket's snapshot still names the server
+  afterwards. Devices pass it over because it refuses their token ("A server that no longer
+  works for a library", above).
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
@@ -219,4 +248,4 @@ A change that touches the doorman, the server and the app goes out in that order
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |
 | Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudSync.ts` (`#uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
 | Joining, from a device | `packages/replica/src/sharedServer.ts`; `apps/app/src/connection/ServerAway.tsx`; `apps/app/src/features/settings/ConnectionPanel.tsx` (`Computers`) |
-| Tests | `apps/server/src/hub/hub.test.ts` (the real doorman over HTTP), `apps/doorman/src/grants.test.ts`, the `plays` block in `apps/server/src/services/cloudSync.test.ts`, `packages/replica/src/sharedServer.test.ts` |
+| Tests | `apps/server/src/hub/hub.test.ts` (the real doorman over HTTP, and the device's side against it), `apps/doorman/src/grants.test.ts`, the `plays` block in `apps/server/src/services/cloudSync.test.ts`, `packages/replica/src/sharedServer.test.ts`, `packages/client/src/connection/reach.test.ts` |

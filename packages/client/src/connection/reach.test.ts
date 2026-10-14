@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import type { ClientFetch, ClientRequestInit } from '../platform.js'
 import type { ServerConnection } from './connection.js'
 import {
   answersAs,
+  askAddress,
   awayCopy,
   CONFIRM_AWAY_MS,
   candidates,
   reachServer,
   reachServerAgain,
+  type Answer,
   type Candidate,
 } from './reach.js'
 
@@ -28,41 +31,63 @@ describe('candidates', () => {
 })
 
 describe('reachServer', () => {
-  const answers = (by: Record<string, Promise<boolean>>) => (connection: ServerConnection) =>
-    by[connection.baseUrl] ?? Promise.resolve(false)
+  const answers = (by: Record<string, Promise<Answer>>) => (connection: ServerConnection) =>
+    by[connection.baseUrl] ?? Promise.resolve(null)
 
   it('takes the first address that answers, without waiting on the ones that hang', async () => {
-    let hangUp: (ok: boolean) => void = () => undefined
-    const hanging = new Promise<boolean>(resolve => {
+    let hangUp: (answer: Answer) => void = () => undefined
+    const hanging = new Promise<Answer>(resolve => {
       hangUp = resolve
     })
     const found = await reachServer(
       candidates(server),
       answers({
         'http://localhost:4600': hanging,
-        'http://192.168.1.20:4600': Promise.resolve(true),
+        'http://192.168.1.20:4600': Promise.resolve('works'),
       }),
     )
-    expect(found?.baseUrl).toBe('http://192.168.1.20:4600')
-    hangUp(false)
+    expect(found !== 'refused' && found?.baseUrl).toBe('http://192.168.1.20:4600')
+    hangUp(null)
   })
 
-  it('is null when no address answers, a refusal and a failure alike', async () => {
+  it('is null when no address answers, a refused connection and a failure alike', async () => {
     const found = await reachServer(
       candidates(server),
       answers({
         'http://localhost:4600': Promise.reject(new Error('connection refused')),
-        'http://192.168.1.20:4600': Promise.resolve(false),
+        'http://192.168.1.20:4600': Promise.resolve(null),
       }),
     )
     expect(found).toBeNull()
+  })
+
+  it('says refused when the server answered and refused the token, and nowhere worked', async () => {
+    const found = await reachServer(
+      candidates(server),
+      answers({
+        'http://localhost:4600': Promise.reject(new Error('connection refused')),
+        'http://100.101.1.2:4600': Promise.resolve('refuses'),
+      }),
+    )
+    expect(found).toBe('refused')
+  })
+
+  it('takes an address that works over one that refuses', async () => {
+    const found = await reachServer(
+      candidates(server),
+      answers({
+        'http://192.168.1.20:4600': Promise.resolve('refuses'),
+        'http://100.101.1.2:4600': Promise.resolve('works'),
+      }),
+    )
+    expect(found !== 'refused' && found?.baseUrl).toBe('http://100.101.1.2:4600')
   })
 
   it('is null at once with no addresses to try', async () => {
     let asked = 0
     const found = await reachServer([], () => {
       asked++
-      return Promise.resolve(true)
+      return Promise.resolve('works' as const)
     })
     expect(found).toBeNull()
     expect(asked).toBe(0)
@@ -105,20 +130,20 @@ describe('answersAs', () => {
     const probe = async (candidate: Candidate) => {
       // The development server is on this computer, so it answers first.
       if (candidate.baseUrl !== 'http://localhost:4600') await Promise.resolve()
-      return answersAs(said[candidate.baseUrl] ?? null, candidate)
+      return answersAs(said[candidate.baseUrl] ?? null, candidate) ? ('works' as const) : null
     }
     const found = await reachServer(candidates(server), probe)
-    expect(found?.baseUrl).toBe('http://192.168.1.20:4600')
+    expect(found !== 'refused' && found?.baseUrl).toBe('http://192.168.1.20:4600')
   })
 })
 
 describe('reachServerAgain', () => {
   const [home] = candidates(server)
   /** Answers from a script, one look's worth of answers per entry. */
-  const looks = (...answers: boolean[]) => {
+  const looks = (...answers: Answer[]) => {
     let look = 0
     return {
-      probe: () => Promise.resolve(answers[Math.floor(look++ / server.addresses.length)] ?? false),
+      probe: () => Promise.resolve(answers[Math.floor(look++ / server.addresses.length)] ?? null),
       looked: () => look / server.addresses.length,
     }
   }
@@ -130,7 +155,7 @@ describe('reachServerAgain', () => {
 
   it('keeps a server that was answering through one missed look', async () => {
     waited.length = 0
-    const { probe, looked } = looks(false, true)
+    const { probe, looked } = looks(null, 'works')
     const found = await reachServerAgain(candidates(server), probe, home, wait)
     expect(found).not.toBeNull()
     expect(looked()).toBe(2)
@@ -138,7 +163,7 @@ describe('reachServerAgain', () => {
   })
 
   it('gives it up after a second miss', async () => {
-    const { probe, looked } = looks(false, false)
+    const { probe, looked } = looks(null, null)
     expect(await reachServerAgain(candidates(server), probe, home, wait)).toBeNull()
     expect(looked()).toBe(2)
   })
@@ -146,17 +171,76 @@ describe('reachServerAgain', () => {
   it('says a server never found is away at the first miss, without waiting', async () => {
     waited.length = 0
     for (const before of [null, undefined]) {
-      const { probe, looked } = looks(false, true)
+      const { probe, looked } = looks(null, 'works')
       expect(await reachServerAgain(candidates(server), probe, before, wait)).toBeNull()
       expect(looked()).toBe(1)
     }
     expect(waited).toEqual([])
   })
 
+  it('says a refusal at once: it is the server’s own answer, not a blip', async () => {
+    waited.length = 0
+    const { probe, looked } = looks('refuses', 'works')
+    expect(await reachServerAgain(candidates(server), probe, home, wait)).toBe('refused')
+    expect(looked()).toBe(1)
+    expect(waited).toEqual([])
+  })
+
   it('looks once when the server answers', async () => {
-    const { probe, looked } = looks(true)
+    const { probe, looked } = looks('works')
     expect(await reachServerAgain(candidates(server), probe, home, wait)).not.toBeNull()
     expect(looked()).toBe(1)
+  })
+})
+
+describe('askAddress', () => {
+  const [home] = candidates(server) as [Candidate]
+  const health = (serverId: string) => ({ ok: true, version: '1', serverId, uptimeSeconds: 3 })
+
+  /** A fetch answering `/api/health` as `serverId` and the library's version with `status`. */
+  function serving(serverId: string, status: number) {
+    const sent: { path: string; auth: string | undefined }[] = []
+    const fetch: ClientFetch = (url: string, init?: ClientRequestInit) => {
+      const path = new URL(url).pathname
+      sent.push({ path, auth: init?.headers?.['Authorization'] })
+      const body = path === '/api/health' ? health(serverId) : { version: 1, songCount: 0 }
+      const code = path === '/api/health' ? 200 : status
+      return Promise.resolve({
+        ok: code < 300,
+        status: code,
+        json: () => Promise.resolve(body),
+      })
+    }
+    return { fetch, sent }
+  }
+
+  it('asks the token only of the server the snapshot named', async () => {
+    const { fetch, sent } = serving('a-development-server', 200)
+    expect(await askAddress(fetch, home)).toBeNull()
+    expect(sent).toEqual([{ path: '/api/health', auth: undefined }])
+  })
+
+  it('works when that server takes the token', async () => {
+    const { fetch, sent } = serving('the-pi', 200)
+    expect(await askAddress(fetch, home)).toBe('works')
+    expect(sent).toEqual([
+      { path: '/api/health', auth: undefined },
+      { path: '/api/library/version', auth: 'Bearer secret-token' },
+    ])
+  })
+
+  /*
+   * 2026-10-14: the shared server's grant was removed, it let the library go,
+   * and the bucket's newest snapshot still named it — its id answering, its
+   * token refused. Every device kept choosing it.
+   */
+  it('refuses when that server no longer takes the token', async () => {
+    const { fetch } = serving('the-pi', 401)
+    expect(await askAddress(fetch, home)).toBe('refuses')
+  })
+
+  it('is null when nothing answers', async () => {
+    expect(await askAddress(() => Promise.reject(new TypeError('offline')), home)).toBeNull()
   })
 })
 

@@ -58,6 +58,7 @@ than storing anything: [ai.md](ai.md), "Filling in what's missing".
 |---|---|---|
 | `GET` | `/api/songs/:id/lookup` | `{ candidates: MetadataCandidate[] }`, best first |
 | `POST` | `/api/songs/:id/apply-metadata` | Partial `{ title, artist, album, albumArtist, year, trackNo, artworkUrl }`; returns `{ ok, artworkSaved }` |
+| `DELETE` | `/api/songs/:id/cover` | Take the song's cover off, leaving none: the Undo of a filled-in cover ([ai.md](ai.md)) |
 | `POST` | `/api/library/fix-covers` | Start the cover-art pass (idempotent while running) |
 | `GET` | `/api/library/fix-covers` | `FixCoversStatus` — `idle | running | done | cancelled`, counts, current title |
 | `POST` | `/api/library/fix-covers/cancel` | Stop after the current song |

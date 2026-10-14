@@ -37,8 +37,9 @@ const FILL_WORDS = 'Fill in what’s missing'
  *
  * What is missing filled in — an album, a year, a cover from a catalogue — is
  * a change like the others, drawn as what it adds. A cover is the one thing
- * the server takes in rather than an edit of the song (`useTakeCovers`), and
- * Undo leaves it. A checkup says how many songs lack something, with a press
+ * the server takes in rather than an edit of the song (`useTakeCovers`); Undo
+ * has the server take it off again, since a fill only fills a cover that was
+ * missing. A checkup says how many songs lack something, with a press
  * that asks for them to be filled in.
  */
 export function TidyReview({
@@ -116,15 +117,29 @@ export function TidyReview({
       // The mutation says what failed itself.
       return false
     }
-    const missed = covers.length > 0 ? await takeCovers(covers) : 0
+    const { taken, missed } =
+      covers.length > 0 ? await takeCovers.take(covers) : { taken: [], missed: 0 }
     const fixed = new Set([...edits.map(each => each.songId), ...covers.map(each => each.songId)])
     const said = `Fixed ${plural(fixed.size, 'song', 'songs')}${missed > 0 ? `; ${plural(missed, 'cover', 'covers')} couldn’t be fetched` : ''}`
-    if (edits.length === 0) showToast(said, missed > 0 ? 'warn' : 'good')
+    if (edits.length === 0 && taken.length === 0) showToast(said, 'warn')
     else {
-      showUndoToast(said, () => save.mutateAsync({ edits: undo }), {
-        tone: missed > 0 ? 'warn' : 'good',
-        after: `Put back ${plural(undo.length, 'song', 'songs')}`,
-      })
+      // Undo puts back exactly what was there: the old names, and no cover
+      // where a cover was filled in.
+      const back = new Set([...undo.map(each => each.songId), ...taken]).size
+      showUndoToast(
+        said,
+        async () => {
+          // Covers first: taking one off never throws, and the names' edit
+          // says itself when it fails.
+          const left = taken.length > 0 ? await takeCovers.takeBack(taken) : 0
+          if (undo.length > 0) await save.mutateAsync({ edits: undo })
+          showToast(
+            `Put back ${plural(back, 'song', 'songs')}${left > 0 ? `; ${plural(left, 'cover', 'covers')} couldn’t be taken off` : ''}`,
+            left > 0 ? 'warn' : 'info',
+          )
+        },
+        { tone: missed > 0 ? 'warn' : 'good' },
+      )
     }
     return true
   }

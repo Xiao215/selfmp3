@@ -1,102 +1,137 @@
-# Downloading in the page (spike)
+# Downloading songs in the browser
 
-**Status:** a spike, on `claude/client-yt-download-spike`. Nothing in the app
-uses it yet. It answers one question: can the page download a song from
-YouTube itself, with the extension doing nothing but carrying its requests?
-**Yes, as of 2026-10-13** — whole songs, checked byte for byte and by length.
+When you import from the web app in Chrome with the self.mp3 extension
+installed, the YouTube songs are downloaded by your browser instead of by the
+server. The server still does everything after the download — tags, lyrics,
+cover, library, bucket — exactly as for a song it downloaded itself. Nothing
+changes anywhere else: on a phone, in the Mac app, in a browser without the
+extension, or when no server answers, the server downloads as before.
 
-**Where:** `packages/ytclient` (the page's side), `apps/extension/src/background/ytProxy.ts`
-and `apps/extension/rules/youtube-origin.json` (the extension's side),
-`packages/shared/src/ytProxy.ts` (the protocol between them).
+**Where:** the page's download code is `packages/ytclient`; the app runs it from
+`apps/app/src/features/import/deviceImports*.ts` and `src/ports/deviceDownloads*.ts`;
+the extension forwards its requests in `apps/extension/src/background/ytProxy.ts`;
+the server's side is `apps/server/src/routes/importDevice.ts` and
+`receiveDeviceFile` in `services/importQueue.ts`.
 
 ## Why
 
-Every download today is the server's: yt-dlp, from the server's address, paced
-by one budget for every account on it (`services/ytThrottle.ts`). A download in
-the page asks YouTube from the listener's own address instead. The split is the
-point of the design:
+YouTube limits how often one address may ask it for videos. Every download used
+to come from the server's address, and on a server shared by several people
+(`docs/features/shared-server.md`) they all shared one limit. A download in the
+browser comes from the listener's own connection instead.
 
-- **The page holds everything that follows YouTube** — youtubei.js, BotGuard,
-  which client to ask. The page updates on every deploy.
-- **The extension holds nothing that does.** It is a carrier: a port, an
-  allowlist of hosts, and one header rule. Manifest V3 forbids it remote code,
-  and it has no reason to want any, so it should rarely need a new version.
+The work is split so that the part YouTube keeps breaking lives in the web page,
+which is redeployed whenever we like:
 
-## How it works
+- **The page** runs youtubei.js and BotGuard (YouTube's bot check), and decides
+  which YouTube client to pretend to be.
+- **The extension** only forwards requests, because a web page is not allowed
+  to talk to YouTube directly (CORS). It knows nothing about YouTube's formats,
+  so it should rarely need an update — and Chrome extensions may not download
+  new code anyway.
 
-1. The page opens a port to the extension (`chrome.runtime.connect`, allowed by
-   `externally_connectable` for the app's pages — `YT_PROXY_ORIGINS`).
-2. youtubei.js is given a `fetch` that sends each request down the port
-   (`portFetch`). The extension fetches it, **without cookies**, and only on
-   YouTube's hosts (`isYtProxyUrl`), and sends back a head, the body in base64
-   chunks of a megabyte, and an end. Chrome serializes extension messages as
-   JSON, so bytes cannot cross any other way.
-3. BotGuard runs in the page (bgutils-js), and mints a PO token **per video**.
-4. The `VISIONOS` client's player response gives an m4a link (itag 140), which
-   is fetched a megabyte at a time with `range=`. A link refused part way is
-   replaced by a fresh one, picking up at the byte where it stopped.
+## What happens when you press Import
 
-## What the spike found
+1. The app checks that the extension answers (one request to YouTube's empty
+   `generate_204` page). If it does not, the import goes to the server as before.
+2. The app sends the import with `fetchOnDevice: true`. The server queues the
+   songs as usual, but **holds the YouTube ones for this device** under a lease
+   that lasts five minutes unless the device renews it. 网易云 songs are still
+   the server's.
+3. One song at a time, the app tells the server it is starting, downloads the
+   m4a through the extension, and uploads it (`PUT /api/import/device/jobs/:id/file`),
+   with its SHA-256 and the video's description in two headers.
+4. The server checks the file: the right hash, no bigger than any song, and
+   ffprobe finds audio as long as the song. Only then does the job leave the
+   device. A file that fails a check is refused and never reaches the library.
+5. From there the server finishes the job as it finishes its own downloads,
+   with one extra step: it writes the tags yt-dlp would have written —
+   title, artist and album as you confirmed them in the review, the release
+   date from the video's description (`releaseOf` in `packages/shared`), and
+   the cover inside the file (`services/tagWriter.ts`).
 
-Measured from a home connection in the US. YouTube changes these from month to
-month, so date them before believing them.
+The import screen shows these jobs like any other: waiting, downloading, adding,
+done.
+
+## When something goes wrong, the server takes over
+
+The device never fails a song. Whatever it cannot do, it hands back, and the
+server downloads that song itself with yt-dlp:
+
+| What happened | What the app does |
+|---|---|
+| The download failed | Hands that song back (`/import/device/release`) and goes on to the next |
+| The server refused the file | The same |
+| YouTube refused this browser for rate ("not a bot", 429) | Hands back **every** song still waiting, and stays away from YouTube for 15 minutes |
+| You closed the tab, or the computer slept | Nothing: the lease runs out and the server takes the songs |
+| You cancelled or removed the song | The next renewal says the server no longer holds it, and the app stops |
+| The server restarted | A download in progress stays the device's; nothing is lost |
+
+The app renews its lease every minute. A lease is five minutes because a
+background tab's timers can be slowed to once a minute.
+
+## Pacing
+
+The browser keeps its own budget at YouTube, by the same rules as the server's
+(`packages/shared/src/ytBudget.ts`), stored in the tab's `localStorage`. The
+first few songs go at once; after that, about one every 24 seconds, as on a
+server with no YouTube cookies.
+
+## What the extension is allowed to do
+
+It forwards requests for self.mp3's own pages only, to YouTube's addresses only,
+and **never with your YouTube cookies** — so nothing that got into the page can
+act as you on YouTube through it. One rule rewrites the `Origin` header on the
+extension's requests to YouTube's API and video servers, because YouTube refuses
+any other origin. See *What it asks Chrome for* in
+[browser-extension.md](browser-extension.md).
+
+## What we found while building it (2026-10-13)
+
+YouTube changes these from month to month; check the date before relying on them.
 
 | Finding | Detail |
 |---|---|
-| YouTube refuses a foreign `Origin` | InnerTube answered 403 with Google's *Sorry* page to `Origin: chrome-extension://…` and to `http://localhost:4602`, and 200 to none or to `https://www.youtube.com`. Hence the extension's static rule, which sets it on InnerTube and media requests the extension itself makes. |
-| …but BotGuard wants its own | With the same rewrite on `/api/jnn/v1/GenerateIT`, YouTube issued no integrity token (`[null, 43200, null, "<fallback>"]`). The rule leaves those requests alone. |
-| `regexFilter` breaks loading | A static rule with a `regexFilter` kept the unpacked extension from loading at all in Playwright's Chromium 153. Three `urlFilter` rules do the same job. |
-| GVS PO tokens are bound to the video | A token minted for the session's visitor data was refused exactly like none at all, at the first megabyte. yt-dlp's PO Token Guide says the same. |
-| Which client | `VISIONOS` gave whole songs: 10 of 10 downloads once retries were in. `MWEB` and `YTMUSIC` gave links refused after a megabyte, with a token or without one; `WEB` answers only in SABR; `TV` said "The page needs to be reloaded"; `WEB_EMBEDDED` said the video was unavailable. yt-dlp's own defaults are `tv_samsung, visionos, web`. |
-| Is the token needed for VISIONOS? | Not clearly. Before retries existed, 13 of 15 downloads went through with one and 9 of 11 without. It is cheap (one BotGuard run per session, a mint per song), so it stays. |
-| Occasional 403 | Those failures were a 403 the next link did not share, so a refused link is replaced and the download resumes (`TRIES_PER_CLIENT`). Three of the four came on 4 MB ranges, one on 1 MB — thin evidence, but the default range is a megabyte. |
-| Speed | 0.4–0.9 s for a 3–6 MB song through the extension, after a session of about 1–2 s. |
-| Automation | Results under Playwright, headless or headed, matched a Chromium started with no automation at all (`verify/plainBrowser.mjs`). The PO token failures were not BotGuard spotting DevTools. |
-
-Songs tried: `dQw4w9WgXcQ`, `kJQP7kiw5Fk`, `9bZkp7q19f0`, `fJ9rUzIMcZQ`, and
-`SJKoWAd5ySo` (晴天, a YouTube Music "Topic" track).
+| YouTube refuses requests that do not come from youtube.com | Its API answered 403 to `Origin: chrome-extension://…` and to `localhost`, hence the header rule |
+| …except BotGuard, which wants the page's own | With the rewrite, YouTube issued no integrity token. The rule leaves BotGuard's requests alone |
+| The anti-bot token is per video | A token made for the session was refused like none at all. yt-dlp's PO Token Guide says the same |
+| Only one YouTube client gives whole files | `VISIONOS` (Apple Vision Pro). `MWEB` and `YTMUSIC` stopped after 1 MB; `WEB` only offers SABR, a streaming format this does not speak |
+| An occasional 403 | 4 of the first 26 downloads. Asking for a fresh link and resuming at the same byte fixes it |
+| Speed | Under a second for a 3–6 MB song, after 1–2 seconds to start a session |
+| Metro and youtubei.js | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. Metro puts it in a separate 1 MB file loaded only when needed |
+| A static `regexFilter` rule stops the extension loading | Three `urlFilter` rules do the same job |
 
 ## Trying it
 
+In the app: load `apps/extension/dist` in Chrome (*Load unpacked*), open the web
+app on `localhost:4601` (`npm run dev:web`) or the GitHub Pages address, and
+import a YouTube link. The browser's console says `[device import] …` for what
+it downloaded, or why the server is downloading instead.
+
+Just the download, without a server:
+
 ```bash
 npm run build:extension
-npm run verify:ytclient                     # downloads fJ9rUzIMcZQ, checks it with ffprobe
+npm run verify:ytclient                     # downloads a song, checks it with ffprobe
 YT_VIDEOS=SJKoWAd5ySo,dQw4w9WgXcQ npm run verify:ytclient
 ```
 
-`YT_CLIENTS=VISIONOS,MWEB` picks clients, `YT_PO=0` turns the PO token off,
-`YT_CHUNK=4194304` sets the range size, `HEADED=1` shows the browser. These ask
-the real YouTube, so they are not part of `npm run check`.
-
-By hand: `npm run harness --workspace @selfmp3/ytclient`, load
-`apps/extension/dist` unpacked in Chrome, and open `http://localhost:4602`.
-
-## Safety
-
-The carrier hands the app's pages a cross-origin `fetch`, so it is held small:
-
-- **No cookies, ever** (`credentials: 'omit'`). A script that got into the page
-  can do nothing through it that a public proxy could not, and cannot act as
-  the person on YouTube. Signed-in downloads (private playlists, Premium) would
-  need this reopened, with a path allowlist to go with it.
-- **YouTube's hosts only**, checked again after redirects.
-- **Only the pages listed** may connect: the manifest says so, and the
-  extension checks the sender's origin again.
+`YT_CLIENTS=VISIONOS,MWEB` picks clients, `YT_PO=0` turns the anti-bot token
+off, `HEADED=1` shows the browser. These ask the real YouTube, so they are not
+part of `npm run check`. By hand: `npm run harness --workspace @selfmp3/ytclient`
+and open `http://localhost:4602`.
 
 ## Not done
 
-- **Getting the file into the library.** A device may write `audio/<sha256>.<ext>`
-  to the bucket today, but only a server creates songs. The smallest next step
-  is an import request that carries the file's hash instead of a link, which the
-  server ingests without running yt-dlp.
-- **The app.** Nothing in `apps/app` calls this. It would want a `YtTransport`
-  port: the extension in a browser tab, the desktop bridge in the Mac app, and
-  the server's import as the fallback everywhere else.
-- **Pacing.** The server's budget does not see these requests. `ytThrottle.ts`'s
-  bucket is pure functions and could run per device.
-- **Firefox and Safari.** Neither lets a web page connect to an extension; a
-  content script on the app's page would relay instead.
-- **SABR.** `WEB` and `MWEB` are headed there. When `VISIONOS` stops giving
-  plain links, the `googlevideo` package (by youtubei.js's author) is the way on.
-- **Chrome Web Store.** The extension is installed unpacked. A carrier for
-  downloading from YouTube would likely not pass the store's review.
+- **Without a server.** When no server answers, the import goes into the bucket
+  as a link, as before, and the server downloads it later. A device could upload
+  its file into the bucket instead, but that needs a new kind of change in the
+  sync log and a place in the bucket for files waiting to be added.
+- **The Mac app.** It runs the same page, but from `app://selfmp3`, which the
+  extension does not talk to. Its own shell could forward the requests instead.
+- **Firefox and Safari.** Neither lets a web page talk to an extension directly.
+- **Looking links up.** The review's lookup still asks YouTube from the server.
+- **SABR.** If `VISIONOS` stops giving plain links, the `googlevideo` package
+  (by youtubei.js's author) is the way on.
+- **Chrome Web Store.** The extension is installed unpacked. An extension that
+  helps download from YouTube would likely not pass the store's review.

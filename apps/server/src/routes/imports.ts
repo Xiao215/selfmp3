@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { Router } from 'express'
@@ -48,6 +49,7 @@ import { alreadyHave, libraryIndex } from '../services/alreadyHave.js'
 import { importRun } from '../services/importRun.js'
 import { searchSongs } from '../services/importSearch.js'
 import { isCoverUrl } from '../services/previewCoverTone.js'
+import { DEVICE_LEASE_SECONDS } from '../services/importQueue.js'
 
 const ParamsWithJobId = z.object({ id: z.string().uuid() })
 const ListenQuery = z.object({ url: z.string().url().max(2_000) })
@@ -119,14 +121,40 @@ export function importRoutes(container: Container): Router {
     items: readonly ImportEnqueueItem[],
     fresh: readonly ImportEnqueueItem[],
     tagIds: readonly number[],
-    target: { playlistId: number | null; createPlaylistName: string | null },
+    target: {
+      playlistId: number | null
+      createPlaylistName: string | null
+      fetchOnDevice?: boolean
+    },
   ): ImportEnqueueResult => {
     const playlist = resolveImportPlaylist(container.playlists, target)
     if (playlist && target.playlistId === null) container.bumpLibraryVersion()
     const playlistId = playlist?.id ?? null
-    const jobs = container.imports.enqueue(fresh, tagIds, playlistId)
+    /*
+     * A device that asked downloads the YouTube songs itself
+     * (docs/features/client-download.md); a 网易云 one is still the server's,
+     * since the device only knows how to ask YouTube.
+     */
+    const fetcherFor = (item: ImportEnqueueItem) =>
+      isYouTubeUrl(item.url) ? ('device' as const) : ('server' as const)
+    const lease = target.fetchOnDevice ? randomUUID() : null
+    const jobs = container.imports.enqueue(
+      fresh,
+      tagIds,
+      playlistId,
+      lease ? { lease, seconds: DEVICE_LEASE_SECONDS, fetcherFor } : undefined,
+    )
     container.importQueue.kick()
-    return { jobs, skipped: items.length - fresh.length, playlistId }
+    const held = lease ? jobs.filter(job => fetcherFor(job) === 'device') : []
+    return {
+      jobs,
+      skipped: items.length - fresh.length,
+      playlistId,
+      device:
+        lease && held.length > 0
+          ? { lease, jobIds: held.map(job => job.id), seconds: DEVICE_LEASE_SECONDS }
+          : null,
+    }
   }
 
   router.post(

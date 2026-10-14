@@ -159,7 +159,7 @@ the badge is only ever about what you did here.
 | `contextMenus` | the two right-click items |
 | `notifications` | one notice when a batch of imports finishes |
 | `alarms` | keeping the badge right when Chrome has stopped the worker |
-| youtubei.googleapis.com, *.googlevideo.com, www.google.com/js/th/ | carrying the app's requests to YouTube for a download in the page — a spike, see [client-download.md](client-download.md) |
+| youtubei.googleapis.com, *.googlevideo.com, www.google.com/js/th/ | carrying the web app's requests to YouTube, so a song can be downloaded in the browser ([client-download.md](client-download.md)) |
 | `declarativeNetRequestWithHostAccess` | saying `Origin: https://www.youtube.com` on those requests, which YouTube refuses from any other origin; one static rule, for the extension's own requests only |
 | `externally_connectable` (the app's pages) | the port those requests arrive on |
 | `storage` is **not** asked for | what it keeps lives in the extension's IndexedDB, which content scripts cannot read |

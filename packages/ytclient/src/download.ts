@@ -1,4 +1,10 @@
-import { Innertube, Platform } from 'youtubei.js/web'
+/*
+ * The prebuilt browser bundle, not `youtubei.js/web`: the library's modules
+ * import one another in a circle, which esbuild orders and Metro does not —
+ * the app's web build failed with "Cannot access 'Platform' before
+ * initialization". Bundled into one file, there is no circle left to order.
+ */
+import { Innertube, Platform } from 'youtubei.js/web.bundle'
 import { createPoMinter, type PoMinter } from './poToken.js'
 import type { YtFetch } from './transport.js'
 
@@ -35,8 +41,8 @@ export const DEFAULT_CHUNK_BYTES = 1024 * 1024
 
 /**
  * How many times one client is asked again after its link was refused part
- * way: a fresh link, picking up at the byte the last one stopped. About one
- * download in eight met a 403 for no reason the next link shared.
+ * way: a fresh link, picking up at the byte the last one stopped. Four of the
+ * first 26 downloads met a 403 for no reason the next link shared.
  */
 const TRIES_PER_CLIENT = 3
 
@@ -88,6 +94,8 @@ export interface DownloadedAudio {
   readonly title: string
   readonly author: string
   readonly durationSeconds: number
+  /** The video's description: a YouTube Music track's says when it came out (`releaseOf`). */
+  readonly description: string
   readonly attempts: readonly Attempt[]
 }
 
@@ -140,6 +148,7 @@ export async function downloadAudio(
           title: info.basic_info.title ?? '',
           author: info.basic_info.author ?? '',
           durationSeconds: info.basic_info.duration ?? 0,
+          description: info.basic_info.short_description ?? '',
           attempts,
         }
       } catch (error) {
@@ -195,7 +204,11 @@ async function fetchRanges(
     })
     if (!response.ok) {
       await response.body?.cancel()
-      throw new Refused(`YouTube answered ${response.status} at byte ${start} of ${total} (${pot})`)
+      // Said in the words a rate limit is known by (`isRateLimited`), so it is taken for one.
+      const said = response.status === 429 ? ' Too Many Requests' : ''
+      throw new Refused(
+        `YouTube answered ${response.status}${said} at byte ${start} of ${total} (${pot})`,
+      )
     }
     const part = new Uint8Array(await response.arrayBuffer())
     if (part.length !== end - start + 1) {

@@ -245,8 +245,26 @@ export const ImportEnqueueSchema = z.object({
    * playlist. Ignored when playlistId is set.
    */
   createPlaylistName: z.string().trim().min(1).max(200).nullable().default(null),
+  /**
+   * The asking device downloads the YouTube songs itself and hands the server
+   * the files (docs/features/client-download.md). The server holds those jobs
+   * for it, and takes back any the device lets go or stops answering for.
+   */
+  fetchOnDevice: z.boolean().optional(),
 })
 export type ImportEnqueue = z.infer<typeof ImportEnqueueSchema>
+
+/**
+ * The jobs a device said it would download, and the lease it holds them by:
+ * what it sends back with every renewal, start, release and file.
+ */
+export const ImportDeviceLeaseSchema = z.object({
+  lease: z.string().min(1).max(100),
+  jobIds: z.array(z.string()),
+  /** How long the lease lasts unrenewed, in seconds. */
+  seconds: z.number().int().positive(),
+})
+export type ImportDeviceLease = z.infer<typeof ImportDeviceLeaseSchema>
 
 export const ImportEnqueueResultSchema = z.object({
   jobs: z.array(ImportJobSchema),
@@ -254,8 +272,59 @@ export const ImportEnqueueResultSchema = z.object({
   skipped: z.number().int().nonnegative(),
   /** The playlist the tracks will land in, when there is one. */
   playlistId: IdSchema.nullable(),
+  /**
+   * The jobs held for the device that asked (`fetchOnDevice`), or null when
+   * it did not ask, or none of the songs were YouTube's — or the server
+   * predates holding jobs for devices.
+   */
+  device: ImportDeviceLeaseSchema.nullable().default(null),
 })
 export type ImportEnqueueResult = z.infer<typeof ImportEnqueueResultSchema>
+
+/** Keep the lease, and say how far each download that has started has got. */
+export const ImportDeviceRenewSchema = z.object({
+  lease: z.string().min(1).max(100),
+  progress: z
+    .array(z.object({ id: z.string(), percent: z.number().min(0).max(100) }))
+    .max(500)
+    .default([]),
+})
+export type ImportDeviceRenew = z.infer<typeof ImportDeviceRenewSchema>
+
+/**
+ * The jobs the lease still holds. One missing was cancelled, removed, or
+ * taken back by the server: the device stops working on it.
+ */
+export const ImportDeviceRenewResultSchema = z.object({ held: z.array(z.string()) })
+export type ImportDeviceRenewResult = z.infer<typeof ImportDeviceRenewResultSchema>
+
+/** One held job: started downloading now (`start`), or let go to the server (`release`). */
+export const ImportDeviceJobSchema = z.object({
+  lease: z.string().min(1).max(100),
+  id: z.string().uuid(),
+})
+export type ImportDeviceJob = z.infer<typeof ImportDeviceJobSchema>
+
+export const ImportDeviceReleaseSchema = ImportDeviceJobSchema.extend({
+  /** Why the device could not download it, for the server's log. */
+  reason: z.string().max(500).default(''),
+})
+export type ImportDeviceRelease = z.infer<typeof ImportDeviceReleaseSchema>
+
+/**
+ * What a device knows of a song beside its bytes, sent with the file (in
+ * `IMPORT_META_HEADER`, as base64url JSON). The title, artist and album are
+ * the job's — what the person confirmed in the review; these are what the
+ * player answered, for what the job does not say.
+ */
+export const ImportDeviceFileMetaSchema = z.object({
+  /** The video's description, which says when a song came out (`releaseOf`). */
+  description: z.string().max(5000).default(''),
+  title: z.string().max(300).default(''),
+  author: z.string().max(300).default(''),
+  durationSeconds: z.number().nonnegative().default(0),
+})
+export type ImportDeviceFileMeta = z.infer<typeof ImportDeviceFileMetaSchema>
 
 /**
  * One-shot import for share sheets: probe and enqueue in a single request,

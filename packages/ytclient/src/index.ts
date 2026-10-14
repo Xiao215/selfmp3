@@ -5,3 +5,4 @@
 export * from './transport.js'
 export * from './poToken.js'
 export * from './download.js'
+export * from './downloader.js'

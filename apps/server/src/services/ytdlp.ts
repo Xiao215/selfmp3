@@ -14,12 +14,8 @@ import {
 } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
-import {
-  isRateLimited,
-  RateLimitedError,
-  type YtThrottleService,
-  PERSON_MAY_BORROW,
-} from './ytThrottle.js'
+import { isRateLimited, PERSON_MAY_BORROW } from '@selfmp3/shared'
+import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 
 /**
  * A typed wrapper around the `yt-dlp` command line.

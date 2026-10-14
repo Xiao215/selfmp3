@@ -175,3 +175,22 @@ export function extensionFetch(extensionId: string = EXTENSION_ID): YtFetch | nu
   if (typeof connect !== 'function') return null
   return portFetch(() => connect.call(runtime, extensionId, { name: YT_PROXY_PORT }))
 }
+
+/**
+ * Whether the carrier answers at all. Chrome gives a page `chrome.runtime`
+ * when any extension says it will talk to the page, and a port to one that is
+ * not installed is closed only once it is opened — so this asks for YouTube's
+ * empty page (`generate_204`), which is no video and costs YouTube nothing,
+ * and gives up after `timeoutMs`.
+ */
+export async function carrierAnswers(fetch: YtFetch, timeoutMs = 3000): Promise<boolean> {
+  try {
+    const response = await fetch('https://www.youtube.com/generate_204', {
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    await response.body?.cancel()
+    return response.status === 204 || response.ok
+  } catch {
+    return false
+  }
+}

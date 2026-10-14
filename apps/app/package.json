@@ -45,6 +45,7 @@
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",
+    "@selfmp3/ytclient": "*",
     "@tanstack/react-query": "^5.62.11",
     "expo": "~57.0.21",
     "expo-audio": "~57.0.5",

@@ -924,6 +924,20 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_song_merges_song ON song_merges(song_id);
     `,
   },
+  {
+    // 44. A job a device downloads itself (docs/features/client-download.md).
+    // `fetcher` is who fetches the song — the server, or the device that
+    // asked — and a device holds its jobs by a lease (`lease_id`) that it
+    // renews while it works on them. One left unrenewed past `lease_until`
+    // goes to the server, as if the device had never asked.
+    name: 'jobs a device downloads',
+    sql: `
+      ALTER TABLE import_jobs ADD COLUMN fetcher TEXT NOT NULL DEFAULT 'server';
+      ALTER TABLE import_jobs ADD COLUMN lease_id TEXT;
+      ALTER TABLE import_jobs ADD COLUMN lease_until TEXT;
+      CREATE INDEX idx_import_jobs_lease ON import_jobs(lease_id) WHERE lease_id IS NOT NULL;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -7,16 +7,36 @@
  * anywhere. Giving it a framework and a build step would make the thing you
  * reach for when nothing works the thing most likely to be broken.
  *
- * Everything it does is `/api/cloud`, which is the same API Settings → Cloud
- * used to call from inside the app.
+ * It draws one of two things (docs/features/shared-server.md):
+ *
+ * - **Whom the server works for**, opened on the server's own machine: every
+ *   library from `GET /api/hub`, each one's `/api/cloud` asked for by naming
+ *   it (`LIBRARY_HEADER`), and Publish now for each. Its way into its bucket
+ *   is the grant its account gave, which the account manages from the app.
+ * - **One library**, from `/api/cloud`: the one library of a server whose
+ *   bucket is a folder on its own disk (`SELFMP3_CLOUD_DIR`), or, opened from
+ *   another computer, the library whose token was given.
  */
 
 const TOKEN_KEY = 'selfmp3.admin.token'
+
+/** `@selfmp3/shared`'s `HUB_LIBRARY_HEADER`: which library a request from this machine means. */
+const LIBRARY_HEADER = 'X-Selfmp3-Library'
 
 /** Long enough that a sign-in which came back is not called lost (the app's LINK_GRACE_MS). */
 const LINK_GRACE_MS = 8_000
 
 const state = {
+  /**
+   * The last `GET /api/hub`, while this page draws whom the server works for:
+   * null on a folder-bucket server, and from another computer, which is not
+   * told. Kept through a poll that fails, so a hiccup does not flip the page.
+   */
+  hub: null,
+  /** Each library's last `/api/cloud`, by its id in `hub`. */
+  clouds: {},
+  /** The libraries' markup as last drawn. */
+  hubDrawn: null,
   /** The last `/api/cloud` we were given, or null before the first answer. */
   cloud: null,
   /** The last `/api/health`. */
@@ -37,12 +57,15 @@ const state = {
 // ---------------------------------------------------------------- talking to the server
 
 /**
- * One request to this server.
+ * One request to this server, for the library `options.library` names, when
+ * it names one.
  *
  * A token is never in play when this page is opened on the server's own
  * machine: the server does not ask a request from there for one, which is the
- * ordinary case and the reason the form below is rarely seen. Opened from
- * another computer it is asked for, and then this page has to say it.
+ * ordinary case and the reason the form below is rarely seen. A library is
+ * named by its id there instead, when the server works for several. Opened
+ * from another computer the token is asked for, and then this page has to say
+ * it.
  *
  * A refusal is only read as "the token is wrong" on a read: the cloud routes
  * answer a bucket that refused its key with 401 as well, and prompting for this
@@ -58,7 +81,8 @@ async function request(path, options = {}) {
   const token = sessionStorage.getItem(TOKEN_KEY)
   const headers = {}
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (options.library) headers[LIBRARY_HEADER] = options.library
+  else if (token) headers['Authorization'] = `Bearer ${token}`
 
   const response = await fetch(path, {
     method,
@@ -66,7 +90,7 @@ async function request(path, options = {}) {
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
   })
 
-  if (response.status === 401 && method === 'GET') {
+  if (response.status === 401 && method === 'GET' && !options.library) {
     state.needsToken = true
     throw new Error('This server is refusing us; it wants its token.')
   }
@@ -199,10 +223,93 @@ function row(label, hint, value, code = false) {
  * A button. It is never drawn mid-action — `run` disables the ones already on
  * screen rather than redrawing them — so there is no "working" state here.
  */
-function button(action, label, { variant = '', disabled = false } = {}) {
+function button(action, label, { variant = '', disabled = false, library = null } = {}) {
   return `<button class="button ${variant}" data-action="${action}"${
-    disabled ? ' disabled' : ''
-  }>${escape(label)}</button>`
+    library ? ` data-library="${escape(library)}"` : ''
+  }${disabled ? ' disabled' : ''}>${escape(label)}</button>`
+}
+
+/** How a library reaches its bucket, from `GET /api/hub`'s `grant`. */
+const ACCESS = {
+  granted: 'Through the grant its account gave this server',
+  'from-before': 'Through a sign-in from before grants, being swapped for one',
+  none: 'No way into its bucket until its account joins again',
+}
+
+/**
+ * Whom the server works for: a row a library, each with how its publishing is
+ * going and Publish now. Nothing here signs anyone in or out: a library is
+ * here because its account joined from the app, and it leaves when the
+ * account takes its grant back there.
+ */
+function renderHub() {
+  const body = document.getElementById('hub-body')
+  const workspaces = state.hub.workspaces
+  document.getElementById('hub-count').textContent =
+    workspaces.length === 0 ? '' : plural(workspaces.length, 'library', 'libraries')
+
+  const markup =
+    workspaces.length === 0
+      ? `<p class="lead">
+           Nobody yet. A Google account joins from the app, by itself, the first time it is
+           signed in and no computer works for its library.
+         </p>`
+      : `<p class="lead">
+           Every Google account that joined this server from the app, one library each. The
+           library is in the account’s own bucket; this server keeps a working copy, imports
+           into it and publishes it.
+         </p>
+         ${workspaces.map(workspaceRow).join('')}
+         ${noticeMarkup()}`
+
+  if (markup === state.hubDrawn) return
+  state.hubDrawn = markup
+  body.innerHTML = markup
+  wire(body)
+}
+
+function workspaceRow(workspace) {
+  const cloud = state.clouds[workspace.id] ?? null
+  const syncing = cloud?.state === 'syncing'
+  const facts = [
+    cloud
+      ? `${cloud.songs.inCloud} of ${plural(cloud.songs.total, 'song', 'songs')} in its bucket`
+      : plural(workspace.songs, 'song', 'songs'),
+    cloud ? `last published ${formatRelative(cloud.lastSnapshotAt)}` : null,
+    workspace.joinedAt ? `joined ${formatRelative(workspace.joinedAt)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return `<div class="row">
+    <div>
+      <p class="row-label">${escape(workspace.email ?? 'Account not known yet')}
+        <span class="tag">${escape(cloud ? stateLabel(cloud) : '')}</span></p>
+      <p class="row-hint">${escape(facts)}</p>
+      <p class="row-hint">${escape(ACCESS[workspace.grant] ?? '')} ·
+        <span class="code">${escape(workspace.id)}</span></p>
+      ${cloud ? uploading(cloud) : ''}
+      ${cloud?.state === 'error' && cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}
+    </div>
+    <div class="actions">
+      ${button('sync', syncing ? 'Uploading…' : 'Publish now', {
+        disabled: syncing || !workspace.connected,
+        library: workspace.id,
+      })}
+    </div>
+  </div>`
+}
+
+/** The meter and line under a library that is uploading; nothing otherwise. */
+function uploading(cloud) {
+  const progress = cloud.progress
+  if (cloud.state !== 'syncing') return ''
+  if (!progress || progress.total === 0) return `<p class="row-hint">Checking what changed…</p>`
+  return `<div class="meter"><i style="width:${Math.round(
+    (progress.done / progress.total) * 100,
+  )}%"></i></div>
+    <p class="row-hint">Uploading ${Math.min(progress.done + 1, progress.total)} of ${
+      progress.total
+    }${progress.current ? ` — ${escape(progress.current)}` : ''}</p>`
 }
 
 function noticeMarkup() {
@@ -289,9 +396,10 @@ function renderCloud({ force = false } = {}) {
 function tokenForm() {
   return `
     <p class="lead">
-      This page is open from another computer, so the server will not say anything about itself
-      until it hears its token. It is in the server's own log at startup, or in
-      <span class="code">SELFMP3_AUTH_TOKEN</span> if you set one. Kept for this tab only.
+      This page is open from another computer, so the server says nothing until it hears a
+      library’s token, and then only about that library. Each library’s token is in
+      <span class="code">hub.json</span> in the server’s data folder, and its log prints the token
+      at startup when it works for just one. Kept for this tab only.
     </p>
     <form data-form="token">
       <label class="field">
@@ -372,25 +480,19 @@ function connected(cloud) {
   const target = cloud.target
   const { host, folder } = target ? bucketPlace(target) : { host: '', folder: '' }
   const syncing = cloud.state === 'syncing'
-  const progress = cloud.progress
-
-  const uploading =
-    syncing && progress && progress.total > 0
-      ? `<div class="meter"><i style="width:${Math.round(
-          (progress.done / progress.total) * 100,
-        )}%"></i></div>
-         <p class="row-hint">Uploading ${Math.min(progress.done + 1, progress.total)} of ${
-           progress.total
-         }${progress.current ? ` — ${escape(progress.current)}` : ''}</p>`
-      : syncing
-        ? `<p class="row-hint">Checking what changed…</p>`
-        : ''
+  // A folder on this server's own disk standing in for a bucket
+  // (SELFMP3_CLOUD_DIR): nothing to sign in to, and no other bucket to change to.
+  const ownFolder = target?.keyIdHint === 'folder'
 
   return `
-    <p class="lead">
-      Publishing to <span class="code">${escape(folder)}</span> at
-      <span class="code">${escape(host)}</span>. Every song goes up once with its cover and
-      lyrics, and a snapshot of the library follows each change.
+    <p class="lead">${
+      ownFolder
+        ? `Publishing to the folder <span class="code">${escape(folder)}</span>, which stands in
+           for a bucket (<span class="code">SELFMP3_CLOUD_DIR</span>).`
+        : `Publishing to <span class="code">${escape(folder)}</span> at
+           <span class="code">${escape(host)}</span>.`
+    } Every song goes up once with its cover and lyrics, and a snapshot of the library follows
+      each change.
     </p>
     <div class="row">
       <div>
@@ -400,13 +502,16 @@ function connected(cloud) {
             cloud.bytesInCloud,
           )} · last published ${formatRelative(cloud.lastSnapshotAt)}`,
         )}</p>
-        ${uploading}
+        ${uploading(cloud)}
       </div>
       <div class="actions">
         ${button('sync', syncing ? 'Uploading…' : 'Publish now', { disabled: syncing })}
       </div>
     </div>
-    <div class="row last">
+    ${
+      ownFolder
+        ? ''
+        : `<div class="row last">
       <div>
         <p class="row-label">${cloud.account ? 'Google account' : 'Connection'}</p>
         <p class="row-hint">${escape(
@@ -419,7 +524,8 @@ function connected(cloud) {
         ${button('edit', 'Change bucket…')}
         ${button('disconnect', cloud.account ? 'Sign out' : 'Disconnect', { variant: 'danger' })}
       </div>
-    </div>
+    </div>`
+    }
     ${cloud.state === 'error' && cloud.lastError ? `<p class="notice error">${escape(cloud.lastError)}</p>` : ''}
     ${noticeMarkup()}`
 }
@@ -466,7 +572,7 @@ function wire(body) {
   for (const element of body.querySelectorAll('[data-action]')) {
     element.addEventListener('click', event => {
       event.preventDefault()
-      void act(element.dataset.action, element.closest('form'))
+      void act(element.dataset.action, element.closest('form'), element.dataset.library ?? null)
     })
   }
   const bucket = body.querySelector('form[data-form="bucket"]')
@@ -510,8 +616,10 @@ function signInStartUrl(doormanUrl, attempt, returnUrl) {
 }
 /** End of signInStartUrl. */
 
-async function act(action, form) {
+async function act(action, form, library = null) {
   state.notice = null
+  // The card the press was in: a library's row, or the one library's Cloud card.
+  const body = document.getElementById(state.hub ? 'hub-body' : 'cloud-body')
   try {
     switch (action) {
       case 'signin': {
@@ -521,18 +629,18 @@ async function act(action, form) {
         const attempt = attemptId()
         const start = signInStartUrl(state.cloud.doormanUrl, attempt, `${location.origin}/`)
         window.open(start, '_blank', 'noopener')
-        await run(() => request('/api/cloud/signin', { method: 'POST', body: { attempt } }))
+        await run(body, () => request('/api/cloud/signin', { method: 'POST', body: { attempt } }))
         state.waitingSince = Date.now()
         break
       }
       case 'cancel-signin':
-        await run(() => request('/api/cloud/signin', { method: 'DELETE' }))
+        await run(body, () => request('/api/cloud/signin', { method: 'DELETE' }))
         state.waitingSince = null
         break
       case 'enter-code': {
         const code = form?.elements.code.value.trim()
         if (!code) throw new Error('Type the code Google showed.')
-        await run(() => request('/api/cloud/signin/code', { method: 'POST', body: { code } }))
+        await run(body, () => request('/api/cloud/signin/code', { method: 'POST', body: { code } }))
         state.waitingSince = null
         state.notice = { tone: 'good', text: 'Signed in.' }
         break
@@ -545,13 +653,23 @@ async function act(action, form) {
         // Signed in: the doorman keeps the key for the account. Otherwise the
         // bucket is this server's own, and the key stays on it.
         const path = state.cloud?.account ? '/api/cloud/storage' : '/api/cloud'
-        await run(() => request(path, { method: 'PUT', body: values }))
+        await run(body, () => request(path, { method: 'PUT', body: values }))
         state.editing = false
         state.notice = { tone: 'good', text: 'Connected. Publishing starts now.' }
         break
       }
       case 'sync':
-        await run(() => request('/api/cloud/sync', { method: 'POST' }))
+        if (library) {
+          state.clouds[library] = await run(body, () =>
+            request('/api/cloud/sync', { method: 'POST', library }),
+          )
+          // Drawn again even if nothing it says has changed: its button was disabled in place.
+          state.hubDrawn = null
+          renderHub()
+          schedule()
+          return
+        }
+        await run(body, () => request('/api/cloud/sync', { method: 'POST' }))
         break
       case 'disconnect': {
         const account = state.cloud?.account
@@ -561,7 +679,7 @@ async function act(action, form) {
             : 'Stop publishing? Everything already in the bucket stays there.',
         )
         if (!asked) return
-        await run(() => request('/api/cloud', { method: 'DELETE' }))
+        await run(body, () => request('/api/cloud', { method: 'DELETE' }))
         state.editing = false
         break
       }
@@ -588,8 +706,8 @@ async function act(action, form) {
   } catch (error) {
     state.notice = { tone: 'error', text: error instanceof Error ? error.message : String(error) }
     // In place: whatever was typed is what has to be corrected.
-    paintNotice(document.getElementById('cloud-body'))
-    enable(document.getElementById('cloud-body'))
+    paintNotice(body)
+    enable(body)
   }
   schedule()
 }
@@ -601,11 +719,11 @@ async function act(action, form) {
  * with them disabled, for the same reason as the notice: a redraw mid-action
  * would empty the form that is being submitted.
  */
-async function run(call) {
-  const body = document.getElementById('cloud-body')
+async function run(body, call) {
   for (const button of body.querySelectorAll('button')) button.disabled = true
   const answer = await call()
-  if (answer && typeof answer === 'object') state.cloud = answer
+  if (answer && typeof answer === 'object' && !state.hub) state.cloud = answer
+  return answer
 }
 
 function enable(body) {
@@ -614,36 +732,69 @@ function enable(body) {
 
 // ---------------------------------------------------------------- keeping up to date
 
+/**
+ * Whether the server holds one library of its own, with a folder for a
+ * bucket: `GET /api/hub` lists it as `local`.
+ */
+function isOwnFolder(hub) {
+  return hub.workspaces.length === 1 && hub.workspaces[0].id === 'local'
+}
+
 async function poll() {
   try {
-    const [cloud, health] = await Promise.all([
-      request('/api/cloud').catch(() => null),
+    // Answered only on the server's own machine; refused from anywhere else.
+    const [hub, health] = await Promise.all([
+      request('/api/hub').catch(() => null),
       request('/api/health').catch(() => null),
     ])
-    // `/api/cloud` is the authority on whether we are let in: `/api/health` is
-    // answered without a token on purpose, so its success says nothing.
-    if (cloud) {
-      state.cloud = cloud
-      state.needsToken = false
+    if (hub) state.hub = isOwnFolder(hub) ? null : hub
+    let cloud = null
+    if (state.hub) {
+      const workspaces = state.hub.workspaces
+      const answers = await Promise.all(
+        workspaces.map(({ id }) => request('/api/cloud', { library: id }).catch(() => null)),
+      )
+      state.clouds = Object.fromEntries(workspaces.map(({ id }, index) => [id, answers[index]]))
+    } else {
+      cloud = await request('/api/cloud').catch(() => null)
+      // `/api/cloud` is the authority on whether we are let in: `/api/health` is
+      // answered without a token on purpose, so its success says nothing.
+      if (cloud) {
+        state.cloud = cloud
+        state.needsToken = false
+      }
     }
     if (health) state.health = health
     const foot = document.getElementById('reachable')
-    foot.textContent = cloud || health ? '' : 'Not answering.'
+    foot.textContent = hub || cloud || health ? '' : 'Not answering.'
     document.getElementById('version').textContent = health ? `self.mp3 ${health.version}` : ''
     if (health?.appUrl) document.getElementById('pages-link').href = `${health.appUrl}/`
   } catch {
     /* Drawn from whatever was last known; the footer says when nothing is. */
   }
+  render()
+  schedule()
+}
+
+/** Whom the server works for, or its one library: the cards for the one, hidden for the other. */
+function render() {
+  const many = state.hub !== null
+  document.getElementById('hub-card').hidden = !many
+  document.getElementById('library-card').hidden = many
+  document.getElementById('cloud-card').hidden = many
+  if (many) {
+    renderHub()
+    return
+  }
   renderLibrary()
   renderCloud()
-  schedule()
 }
 
 /** Often while something is happening, rarely while nothing is. */
 function schedule() {
   clearTimeout(state.timer)
-  const cloud = state.cloud
-  const quick = cloud && (cloud.signingIn || cloud.state === 'syncing')
+  const clouds = state.hub ? Object.values(state.clouds) : [state.cloud]
+  const quick = clouds.some(cloud => cloud && (cloud.signingIn || cloud.state === 'syncing'))
   state.timer = setTimeout(() => void poll(), quick ? 2_000 : 10_000)
 }
 

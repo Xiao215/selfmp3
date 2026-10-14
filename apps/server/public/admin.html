@@ -12,12 +12,22 @@
       <header class="masthead">
         <h1>self.mp3 <span class="muted">server</span></h1>
         <p class="lede">
-          This page sets the server up and says how it is doing. It is not where you listen — the
-          music is in your bucket, and every app reads it from there.
+          This page says how the server is doing. It is not where you listen — the music is in your
+          bucket, and every app reads it from there.
         </p>
       </header>
 
       <!-- Filled in by admin.js; the markup below is only what it cannot be given. -->
+      <!-- Whom the server works for, shown instead of the two cards below when opened on the
+           server's own machine and it works for accounts rather than a folder bucket. -->
+      <section class="card" id="hub-card" aria-labelledby="hub-title" hidden>
+        <div class="card-head">
+          <h2 id="hub-title">Libraries</h2>
+          <span class="tag" id="hub-count"></span>
+        </div>
+        <div id="hub-body" class="rows"></div>
+      </section>
+
       <section class="card" id="library-card" aria-labelledby="library-title">
         <h2 id="library-title">Library</h2>
         <div id="library-body" class="rows">

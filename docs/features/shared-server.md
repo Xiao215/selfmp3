@@ -41,12 +41,19 @@ A request is routed to its workspace by the token it carries. The token is the w
 own, published in its snapshots to that account's bucket, exactly as the one server's token
 always was. So a device needs nothing new to talk to its library: what it read from its
 bucket is what it sends. A request from the server's own machine with no token goes to the
-only workspace, when there is only one. A request with no token, or a token nobody here was
-given, is a 401, except `GET /api/health`.
+workspace its `X-Selfmp3-Library` header names by id, or else to the only workspace, when
+there is only one. A request with no token, or a token nobody here was given, is a 401,
+except `GET /api/health`.
 
-The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below),
-`DELETE /api/hub/join` with a workspace's token, which lets that library go, and
-`GET /api/hub`, the list of workspaces, answered only to the server's own machine.
+The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below), and
+`GET /api/hub`, the list of workspaces (id, account, songs, whether it reaches its bucket and
+through what), answered only to the server's own machine. There is no route to leave by: an
+account takes its grant back (below), which works while the server is off.
+
+The server's own page on `:4600` (`apps/server/public/`), opened on the server itself, lists
+the workspaces from `GET /api/hub`, each with how its publishing is going and **Publish
+now**, asking each one's `/api/cloud` by naming it. The `selfmp3` command names one the same
+way, with `--library <id or email>` ([install-and-ops.md](install-and-ops.md)).
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's
 library (`apps/server/src/shared.ts`):
@@ -110,8 +117,10 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 Three rules keep grants safe:
 
 - **A removed grant is noticed promptly.** The server's next request to the bucket is
-  refused. The server checks once with the doorman, then lets the workspace go and deletes
-  its folders. Nothing is lost by that, because the folders were a copy of the bucket.
+  refused; an idle workspace still looks at its bucket every ten minutes. The server checks
+  once with the doorman, then lets the workspace go and deletes its folders. Nothing is lost
+  by that, because the folders were a copy of the bucket. So **Remove** asks the doorman
+  alone, and works while the server is off.
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.

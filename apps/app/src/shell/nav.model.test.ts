@@ -21,9 +21,17 @@ describe('the tab bar', () => {
       '/import/review',
       '/tag/night%20drive',
       '/artist/Yorushika',
+      '/combined',
+      '/past-room/KQ7482',
     ]) {
       expect(activeTab(page)).toBe('/')
     }
+  })
+
+  it('lights Playlists on a shared playlist, which sits among them', () => {
+    expect(activeTab('/shared/0123456789abcdef')).toBe('/playlists')
+    expect(activeTab('/shared/0123456789abcdef/join/fedcba9876543210')).toBe('/playlists')
+    expect(activeTab('/sharedthing')).toBeNull()
   })
 
   it('lights nothing for a page no tab leads to', () => {
@@ -32,6 +40,8 @@ describe('the tab bar', () => {
     expect(activeTab('/libraryish')).toBeNull()
     // Search is no tab's page; the bar keeps the one it was opened from lit.
     expect(activeTab('/search')).toBeNull()
+    // An Ask answer is reached from Search, which is no tab's either.
+    expect(activeTab('/answer')).toBeNull()
   })
 })
 describe('the rail’s own destinations', () => {

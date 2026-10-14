@@ -5,8 +5,10 @@
  *
  * A phone has three tabs — Home, Library, Playlists. Everything that is not a
  * tab of its own is reached from Home: the tags from its tiles (and a tag's
- * or an artist's own page), Profile from its avatar and, through it, Stats
- * and Settings; Import from its +. So those pages light Home: the bar says
+ * or an artist's own page, and tags combined from one), a room that ended
+ * from Recently played, Profile from its avatar and, through it, Stats and
+ * Settings; Import from its +. A shared playlist sits among your playlists.
+ * So those pages light Home, and a shared one Playlists: the bar says
  * where you are in the app, not only which page answered the address.
  *
  * A computer's rail carries Import and Stats as rows of their own, where a
@@ -43,11 +45,13 @@ export type TabHref = '/' | '/library' | '/playlists'
 /** The phone's tabs, left to right. */
 export const TABS = NAV.filter((place): place is NavPlace & { href: TabHref } => place.tab)
 
-/** The pages reached from Home. */
+/** The pages reached from Home: a tag's tiles, Recently played, the avatar, the +. */
 const HOME_PAGES = [
   '/tags',
   '/tag',
+  '/combined',
   '/artist',
+  '/past-room',
   '/profile',
   '/stats',
   '/settings',
@@ -76,7 +80,8 @@ export function activeDestination(pathname: string): NavPlace['href'] | null {
 export function activeTab(pathname: string): TabHref | null {
   if (pathname === '/') return '/'
   if (under(pathname, '/library')) return '/library'
-  if (under(pathname, '/playlists')) return '/playlists'
+  // A shared playlist is one of your playlists, in their grid.
+  if (under(pathname, '/playlists') || under(pathname, '/shared')) return '/playlists'
   if (HOME_PAGES.some(page => under(pathname, page))) return '/'
   return null
 }

@@ -22,7 +22,7 @@ jest.mock('../../connection/ConnectionProvider', () => ({
 
 const uid = (n: number): string => n.toString(16).padStart(32, '0')
 
-const server = { addresses: ['https://music.example.com'], token: 'workspace-token' }
+const server = { id: 'the-pi', addresses: ['https://music.example.com'], token: 'workspace-token' }
 configureClient({
   api: {
     cloudServer: () => Promise.resolve({ server }),
@@ -57,7 +57,9 @@ const network = jest.fn((url: string, init?: { headers?: Record<string, string> 
   const { pathname } = new URL(url)
   const answer = (body: unknown) =>
     Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) } as Response)
-  if (pathname === '/api/health') return answer({ ok: true })
+  if (pathname === '/api/health') {
+    return answer({ ok: true, version: '1', serverId: server.id, uptimeSeconds: 1 })
+  }
   expect(init?.headers?.['Authorization']).toBe('Bearer workspace-token')
   // The server's own numbers: 812 is this device's 2, and 900 is a song it has not got yet.
   if (pathname === '/api/cloud/uids') {

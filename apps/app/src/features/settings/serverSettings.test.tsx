@@ -26,7 +26,8 @@ jest.mock('../../replica', () => ({ library: { markCloudLibraryStale: () => unde
 const ADDRESS = 'https://music.example.com'
 configureClient({
   api: {
-    cloudServer: () => Promise.resolve({ server: { addresses: [ADDRESS], token: 't' } }),
+    cloudServer: () =>
+      Promise.resolve({ server: { id: 'the-pi', addresses: [ADDRESS], token: 't' } }),
     onCloudLibraryChanged: () => () => undefined,
   } as unknown as Api,
 } as Parameters<typeof configureClient>[0])
@@ -63,7 +64,9 @@ beforeEach(() => {
     const body: unknown = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
     sent.push({ method, path: url.pathname, body, auth: headers.get('authorization') })
     if (url.origin !== ADDRESS) return Promise.reject(new TypeError('no such host'))
-    if (url.pathname === '/api/health') return Promise.resolve(json({ ok: true }))
+    if (url.pathname === '/api/health') {
+      return Promise.resolve(json({ ok: true, version: '1', serverId: 'the-pi', uptimeSeconds: 1 }))
+    }
     if (url.pathname === '/api/library') return Promise.resolve(json(serverLibrary))
     if (url.pathname === '/api/settings' && method === 'GET') return Promise.resolve(json(stored))
     if (url.pathname === '/api/settings' && method === 'PATCH') {

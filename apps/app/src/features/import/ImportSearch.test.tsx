@@ -154,6 +154,35 @@ describe('Import, a search typed into the box', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
+  it('searches on Enter, and leaves Shift+Enter and a composing Enter alone', async () => {
+    await draw('import')
+    await type('孤勇者')
+    const box = screen.getByLabelText('Links to import')
+    const enter = async (keys: { shiftKey: boolean; isComposing?: boolean }) => {
+      const preventDefault = jest.fn()
+      await fireEvent(box, 'keyPress', { nativeEvent: { key: 'Enter', ...keys }, preventDefault })
+      return preventDefault
+    }
+    expect(await enter({ shiftKey: true })).not.toHaveBeenCalled()
+    expect(await enter({ shiftKey: false, isComposing: true })).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+    expect(await enter({ shiftKey: false })).toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/import/search', params: { q: '孤勇者' } })
+  })
+
+  it('leaves a phone keyboard’s Return as a new line', async () => {
+    await draw('import')
+    await type('孤勇者')
+    const preventDefault = jest.fn()
+    // A phone's keyboard sends no shiftKey.
+    await fireEvent(screen.getByLabelText('Links to import'), 'keyPress', {
+      nativeEvent: { key: 'Enter' },
+      preventDefault,
+    })
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(mockPush).not.toHaveBeenCalled()
+  })
+
   it('looks up two lines as a list of names, and a link as a link', async () => {
     await draw('import')
     await type('Daft Punk - Get Lucky\nRadiohead - Creep')

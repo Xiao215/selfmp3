@@ -520,6 +520,7 @@ always drawn (`ServerAway`, with the words for each in `SERVER_NEEDS`,
 | Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
 | Ask and the other smart features | the model, and the whole library in one place | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
+| Settings › Smart features, Advanced › Library and Importing | the library's settings, which only the server keeps and acts on, and its passes over the songs | says so, keeps looking |
 | The Devices sheet (handoff) | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers

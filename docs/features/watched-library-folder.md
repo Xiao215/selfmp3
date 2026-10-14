@@ -22,10 +22,11 @@ Changing it starts or stops the watcher immediately; no restart. `autoScanMinute
 (default 0, off) adds a sweep on a timer, for a folder where watching misses changes,
 such as a network share.
 
-Neither has a control on a signed-in device: Settings → Advanced → Library and
-Importing (**Watch the library folder**, **Rescan**) are drawn only for a device talking
-to a server by its address, which only development builds offer. Elsewhere set them
-with `PATCH /api/settings`, and sweep by hand with `POST /api/library/scan`.
+**Watch the library folder** is under Settings → Advanced → Importing, and **Rescan** under
+Settings → Advanced → Library, on every device: a signed-in device reaches its server for
+them as Import does (`useServerApi`), and says so when the server is away. The Library panel
+names the folder, as the server sees it. `autoScanMinutes` has no control; set it with
+`PATCH /api/settings`.
 
 ## How it works
 

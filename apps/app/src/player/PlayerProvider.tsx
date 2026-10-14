@@ -38,7 +38,6 @@ import {
   peekPlayable,
   recoverPlayback,
   useSameArray,
-  useSettings,
 } from '@selfmp3/client'
 import type { ListSource } from '../features/lists/lists.model'
 import { withOnlyPlaying, withRestRestored } from '../features/queue/queue.model'
@@ -56,6 +55,7 @@ import { session as cloudSession } from '../replica'
 import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
 import { createEngine } from '../ports/engine'
+import { useCrossfadeSeconds } from './crossfadePref'
 import { useVolumeControls } from './useVolumeControls'
 import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
@@ -336,7 +336,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     },
     [keepLibraryPlayed],
   )
-  const { data: serverSettings } = useSettings()
+  const crossfadeSeconds = useCrossfadeSeconds()
 
   // Built once and kept: an engine outlives every render, and rebuilding it
   // would mean dropping the audio that is playing. Its wiring is handed over
@@ -1106,14 +1106,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const resolved = useMemo(() => ({ queueSongs, currentSong }), [queueSongs, currentSong])
 
   /*
-   * The fade into the next song, and gapless, told to the engine. Both come
-   * from the server's settings, and a browser plays whatever is passed on
-   * here. Auto-mix picks each fade from the two songs, bounded by the setting.
-   * A phone's engine ignores both: it is gapless within its own queue and
+   * The fade into the next song, told to the engine: this device's own
+   * setting (`crossfadePref.ts`). Auto-mix picks each fade from the two
+   * songs, bounded by the setting.
+   * A phone's engine ignores it: it is gapless within its own queue and
    * cannot fade.
    */
-  const crossfadeSeconds = serverSettings?.crossfadeSeconds ?? 0
-  const gapless = serverSettings?.gapless ?? true
   const nextSong = useMemo(() => {
     const id = peekNext(queue)
     return id === null ? null : (songsById.get(id) ?? null)
@@ -1125,8 +1123,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   useEffect(() => {
     // No fade into a song that is about to be stopped: with one, the next song
     // would already be playing when this one "ends".
-    engine.configure({ crossfadeSeconds: sleep.atSongEnd ? 0 : nextCrossfadeSeconds, gapless })
-  }, [engine, nextCrossfadeSeconds, gapless, sleep.atSongEnd])
+    engine.configure({ crossfadeSeconds: sleep.atSongEnd ? 0 : nextCrossfadeSeconds })
+  }, [engine, nextCrossfadeSeconds, sleep.atSongEnd])
 
   const getPlayhead = useCallback(() => engine.playhead, [engine])
   const analyser = useCallback(

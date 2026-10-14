@@ -15,7 +15,6 @@ export type SectionId =
   | 'offline'
   | 'importing'
   | 'library'
-  | 'cloud'
   | 'account'
   | 'lyrics'
   | 'smart'
@@ -30,18 +29,17 @@ export type SectionId =
 
 /**
  * The groups, in page order (`P38`, `C17`): who you are and the look first,
- * then what this device keeps, then the rest. `server`: the section acts on
- * the server, so a cloud library has none. `advanced`: it is about running
+ * then what this device keeps, then the rest. `advanced`: it is about running
  * the server or the Mac app rather than using self.mp3, so it sits under
  * Advanced at the end, behind one chip (O1).
  *
- * Devices is not `server`: a cloud library finds its server the way Import
- * does, and with no server in reach it still shows the last list it had.
+ * A section that acts on the server — Devices, Smart features, Library,
+ * Importing, Model — is shown on every device: a cloud library reaches its
+ * server for it, the way Import does, and says so when it cannot.
  */
 export const ALL_SECTIONS: readonly {
   id: SectionId
   label: string
-  server?: boolean
   advanced?: boolean
 }[] = [
   // Which library this is, and signing out of it.
@@ -51,15 +49,13 @@ export const ALL_SECTIONS: readonly {
   { id: 'offline', label: 'On this phone' },
   { id: 'devices', label: 'Devices' },
   { id: 'playback', label: 'Playback' },
-  // Not `server`: a cloud library reaches the server for it, the way Ask does.
   { id: 'smart', label: 'Smart features' },
   // Not the server's: romaji is kept with the words in the cloud too, and the switches are this device's.
   { id: 'lyrics', label: 'Lyrics' },
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
   { id: 'about', label: 'About' },
-  { id: 'library', label: 'Library', server: true, advanced: true },
-  { id: 'importing', label: 'Importing', server: true, advanced: true },
-  { id: 'cloud', label: 'Cloud', server: true, advanced: true },
+  { id: 'library', label: 'Library', advanced: true },
+  { id: 'importing', label: 'Importing', advanced: true },
   // Where the server asks a model, and the Test: Smart features' switches stay above.
   { id: 'model', label: 'Model', advanced: true },
   { id: 'desktop', label: 'Desktop app', advanced: true },
@@ -110,6 +106,7 @@ export function onThisDevice(place: DevicePlace): string {
 }
 
 /**
+ * `crossfade`: Playback holds only crossfade, which a phone's engine cannot do.
  * `installed`: a browser streams and keeps no songs, so it has nothing on it.
  * `keyboard`: a finger has no keys to press, so a phone has no Keyboard shortcuts.
  * `shell`: only the installed desktop app can open at login, and a section with
@@ -121,23 +118,23 @@ export function onThisDevice(place: DevicePlace): string {
  * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
  */
 export function sectionsFor({
-  fromCloud,
+  crossfade = true,
   installed = true,
   keyboard = true,
   shell = false,
   place = 'phone',
   offered = false,
 }: {
-  readonly fromCloud: boolean
+  readonly crossfade?: boolean
   readonly installed?: boolean
   readonly keyboard?: boolean
   readonly shell?: boolean
   readonly place?: DevicePlace
   readonly offered?: boolean
-}): readonly Section[] {
+} = {}): readonly Section[] {
   return ALL_SECTIONS.filter(
     section =>
-      (!fromCloud || !section.server) &&
+      (crossfade || section.id !== 'playback') &&
       (installed || section.id !== 'offline') &&
       ((keyboard && shell) || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop') &&

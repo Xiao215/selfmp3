@@ -27,6 +27,12 @@ import { clamp } from '@selfmp3/shared'
  * settings need not guess.
  */
 
+/** What a browser can do, which is all of it — known before an engine is made. */
+export const engineCapabilities: EngineCapabilities = {
+  crossfade: true,
+  analyser: true,
+}
+
 /** How early to start preloading the next track, in seconds. */
 const PRELOAD_LEAD = 20
 /** How often the crossfade ramp updates. 50 ms is smooth and cheap. */
@@ -44,11 +50,7 @@ const FADE_TICK_MS = 50
  * subscribes to changes instead.
  */
 class AudioEngine implements PlaybackEngine {
-  /** What a browser can do, which is all of it. */
-  readonly capabilities: EngineCapabilities = {
-    crossfade: true,
-    analyser: true,
-  }
+  readonly capabilities = engineCapabilities
 
   /** Where to fetch a song, or null when this device has nowhere to play it from. */
   #urlFor(songId: number): string | null {
@@ -72,7 +74,6 @@ class AudioEngine implements PlaybackEngine {
   readonly #hub = new EngineHub()
 
   #crossfadeSeconds = 0
-  #gapless = true
 
   /**
    * Song id currently loaded into the primary element — after a handover, the
@@ -131,11 +132,8 @@ class AudioEngine implements PlaybackEngine {
 
   // --- configuration -------------------------------------------------------
 
-  configure(options: { crossfadeSeconds?: number; gapless?: boolean }): void {
-    if (options.crossfadeSeconds !== undefined) {
-      this.#crossfadeSeconds = clamp(options.crossfadeSeconds, 0, 12)
-    }
-    if (options.gapless !== undefined) this.#gapless = options.gapless
+  configure(options: { crossfadeSeconds: number }): void {
+    this.#crossfadeSeconds = clamp(options.crossfadeSeconds, 0, 12)
   }
 
   // --- playback ------------------------------------------------------------
@@ -451,12 +449,9 @@ class AudioEngine implements PlaybackEngine {
      * This is what gapless actually *is* here: with the next track already
      * buffered in the second element, `load()` swaps elements instead of
      * starting a fresh network request, and there is no silence between
-     * tracks. Turning gapless off skips the preload, so each track loads on
-     * demand — which costs a beat of silence but no bandwidth on songs you
-     * skip past. Crossfade needs the preload regardless.
+     * tracks. Crossfade needs the same preload.
      */
-    const wantsPreload = this.#gapless || this.#crossfadeSeconds > 0
-    if (wantsPreload && remaining <= PRELOAD_LEAD && this.#preloadedId === null) this.#preload()
+    if (remaining <= PRELOAD_LEAD && this.#preloadedId === null) this.#preload()
 
     // Begin the crossfade, or hand over cleanly for gapless. Armed only if one
     // actually began: there is nothing to fade into with repeat-one or at the

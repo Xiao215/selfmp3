@@ -76,7 +76,6 @@ import {
   BulkDeleteResultSchema,
   CloudStatusSchema,
   type AddToPlaylist,
-  type CloudConnect,
   type ApplyMetadata,
   type BulkDeleteSongs,
   type BulkEditSongs,
@@ -555,17 +554,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     cloudStatus: () => request('GET', '/api/cloud', CloudStatusSchema),
 
-    cloudConnect: (input: CloudConnect) => request('PUT', '/api/cloud', CloudStatusSchema, input),
-
-    cloudDisconnect: () => request('DELETE', '/api/cloud', CloudStatusSchema),
-
-    cloudSync: () => request('POST', '/api/cloud/sync', CloudStatusSchema),
-
-    cloudSignIn: (attempt: string) =>
-      request('POST', '/api/cloud/signin', CloudStatusSchema, { attempt }),
-
-    cloudCancelSignIn: () => request('DELETE', '/api/cloud/signin', CloudStatusSchema),
-
     /** Links asked of the server, through the bucket: a cloud library's own imports (@selfmp3/replica). */
     cloudImports: () => request('GET', '/api/cloud/imports', ImportRequestListSchema),
 
@@ -601,13 +589,6 @@ export function createApi({ context, fetch }: ApiOptions) {
      * libraries' numbers up (connection/serverIds.ts).
      */
     cloudUids: () => request('GET', '/api/cloud/uids', CloudUidsSchema),
-
-    /** The code Google's sign-in ended with, which claims the session. */
-    cloudSignInCode: (code: string) =>
-      request('POST', '/api/cloud/signin/code', CloudStatusSchema, { code }),
-
-    cloudConnectStorage: (input: CloudConnect) =>
-      request('PUT', '/api/cloud/storage', CloudStatusSchema, input),
 
     // --- system -------------------------------------------------------------
 

@@ -142,8 +142,11 @@ The rest of a workspace's database is a cache or a queue:
 | Rebuilt by the server itself | The lyrics index, the caches on disk |
 | Forgotten, harmlessly | The import queue's history, the devices' last playback state, a playlist's last-played time |
 
-The server's settings table holds the server's own defaults. A device's settings already
-lived on the device.
+Each workspace's settings table holds that library's settings: what the server acts on for
+it, such as the smart features' switches, the tags every import gets and whether its folder
+is watched. A device reaches its server for them (Settings › Smart features, Settings ›
+Advanced › Library and Importing), the way Import does; the bucket holds none of them. What a
+device acts on, such as crossfade, stays on the device.
 
 ## A server from before
 

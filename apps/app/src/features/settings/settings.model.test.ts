@@ -31,39 +31,32 @@ const TOPS = [
 ]
 
 describe('settings', () => {
-  it('leaves out the server sections for a library in the cloud, but not Devices', () => {
-    const ids = sectionsFor({ fromCloud: true }).map(section => section.id)
-    expect(ids).toContain('playback')
-    expect(ids).not.toContain('importing')
+  it('shows what the server acts on to every device, which reaches the server for it', () => {
+    const ids = sectionsFor().map(section => section.id)
+    expect(ids).toEqual(expect.arrayContaining(['devices', 'smart', 'library', 'importing']))
+    // The server's own page connects its bucket; a device's is under Account.
     expect(ids).not.toContain('cloud')
-    // Found through the server the way Import finds it, or the last list kept here.
-    expect(ids).toContain('devices')
-    // Smart features too: Ask reaches the server from a cloud library, and so does its Test.
-    expect(ids).toContain('smart')
-    expect(sectionsFor({ fromCloud: false })).toHaveLength(12)
-    expect(
-      sectionsFor({ fromCloud: false, installed: false }).map(section => section.id),
-    ).not.toContain('offline')
+    expect(sectionsFor()).toHaveLength(11)
+    expect(sectionsFor({ installed: false }).map(section => section.id)).not.toContain('offline')
+  })
+
+  it('leaves Playback out where the engine cannot crossfade, which is all it holds', () => {
+    expect(sectionsFor({ crossfade: true }).map(section => section.id)).toContain('playback')
+    expect(sectionsFor({ crossfade: false }).map(section => section.id)).not.toContain('playback')
   })
 
   it('lists keyboard shortcuts only in the installed app, which has a menu of them', () => {
     const ids = (device: Parameters<typeof sectionsFor>[0]) =>
       sectionsFor(device).map(section => section.id)
     // A browser tab has a keyboard and no shortcuts of its own.
-    expect(ids({ fromCloud: false, installed: false, keyboard: true, shell: false })).not.toContain(
-      'shortcuts',
-    )
-    expect(ids({ fromCloud: false, installed: true, keyboard: false, shell: true })).not.toContain(
-      'shortcuts',
-    )
-    expect(ids({ fromCloud: false, installed: true, keyboard: true, shell: true })).toContain(
-      'shortcuts',
-    )
+    expect(ids({ installed: false, keyboard: true, shell: false })).not.toContain('shortcuts')
+    expect(ids({ installed: true, keyboard: false, shell: true })).not.toContain('shortcuts')
+    expect(ids({ installed: true, keyboard: true, shell: true })).toContain('shortcuts')
     expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
   })
 
   it('leads with the account and the look, then what this device keeps (P38, C17)', () => {
-    expect(sectionsFor({ fromCloud: false }).map(section => section.label)).toEqual([
+    expect(sectionsFor().map(section => section.label)).toEqual([
       'Account',
       'Appearance',
       'On this phone',
@@ -74,11 +67,9 @@ describe('settings', () => {
       'About',
       'Library',
       'Importing',
-      'Cloud',
       'Model',
     ])
     const computer = sectionsFor({
-      fromCloud: false,
       shell: true,
       place: devicePlace('desktop'),
     })
@@ -88,7 +79,7 @@ describe('settings', () => {
   })
 
   it('puts what runs the server under one Advanced chip at the end (O1)', () => {
-    const sections = sectionsFor({ fromCloud: false, shell: true })
+    const sections = sectionsFor({ shell: true })
     expect(settingsIndex(sections).map(section => section.label)).toEqual([
       'Account',
       'Appearance',
@@ -101,24 +92,21 @@ describe('settings', () => {
       'About',
       'Advanced',
     ])
-    expect(indexIdFor('cloud', sections)).toBe('advanced')
+    expect(indexIdFor('importing', sections)).toBe('advanced')
     expect(indexIdFor('desktop', sections)).toBe('advanced')
     expect(indexIdFor('lyrics', sections)).toBe('lyrics')
-    // A cloud library still has the model under it, so Advanced is never empty.
-    expect(settingsIndex(sectionsFor({ fromCloud: true })).at(-1)?.id).toBe('advanced')
+    // Library, Importing and the model are on every device, so Advanced is never empty.
+    expect(settingsIndex(sectionsFor()).at(-1)?.id).toBe('advanced')
   })
 
   it('shows the desktop section only where there is a shell to ask', () => {
-    expect(sectionsFor({ fromCloud: false }).map(section => section.id)).not.toContain('desktop')
-    expect(sectionsFor({ fromCloud: false, shell: true }).map(section => section.id)).toContain(
-      'desktop',
-    )
+    expect(sectionsFor().map(section => section.id)).not.toContain('desktop')
+    expect(sectionsFor({ shell: true }).map(section => section.id)).toContain('desktop')
   })
 
   it('offers the Mac app only to a browser tab on a Mac, in the desktop section\u2019s place', () => {
-    expect(sectionsFor({ fromCloud: false }).map(section => section.id)).not.toContain('getApp')
+    expect(sectionsFor().map(section => section.id)).not.toContain('getApp')
     const tab = sectionsFor({
-      fromCloud: false,
       installed: false,
       place: 'computer',
       offered: true,

@@ -163,7 +163,7 @@ export function Options(): ReactNode {
               </span>
             </div>
             <p className="hint">
-              Your server adds these; change them in the app, Settings → Importing.
+              Your server adds these; change them in the app, Settings → Advanced → Importing.
             </p>
           </section>
         )}

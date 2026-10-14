@@ -69,7 +69,9 @@ explains what was found and what a fix would take.
 
 - The queue rules are `packages/shared/src/queue.ts`, shared with the web build.
 - Gapless is the native player's job. Crossfade cannot be done with one native
-  player, so the crossfade setting applies in a browser and not on a phone.
+  player, so the crossfade setting, which each device keeps for itself
+  (`player/crossfadePref.ts`), applies in a browser and not on a phone: a phone's
+  Settings has no Playback.
 - The app is outside the root TypeScript project graph and the root ESLint config
   (React Native's globals versus the DOM's). `npm run check:app` checks it,
   and `npm run check` runs that too. Its pure tests run in the root vitest suite.

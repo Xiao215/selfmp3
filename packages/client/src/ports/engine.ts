@@ -152,7 +152,7 @@ export interface PlaybackEngine {
 
   subscribe(listener: (state: EngineState) => void): () => void
 
-  configure(options: { crossfadeSeconds?: number; gapless?: boolean }): void
+  configure(options: { crossfadeSeconds: number }): void
 
   load(songId: number, options?: LoadOptions): Promise<void>
   play(): Promise<void>

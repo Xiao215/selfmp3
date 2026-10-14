@@ -4,11 +4,10 @@ import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import { createSignInInbox, type SignInTarget } from './signInCodes'
 
 /**
- * Coming back from Google, on a phone: to Welcome, or to
- * Settings → Cloud.
+ * Coming back from Google, on a phone: to Welcome.
  *
- * The doorman sends Safari back to `selfmp3://welcome` or `selfmp3://settings`
- * with the code in the fragment. Expo Router opens that screen; the link itself
+ * The doorman sends Safari back to `selfmp3://welcome` with the code in the
+ * fragment. Expo Router opens that screen; the link itself
  * is read here — the one that launched the app, and any that arrive while it is
  * open — into an inbox that keeps it until the screen is listening. Nobody types
  * the code: the doorman never shows it when it has somewhere to send it.

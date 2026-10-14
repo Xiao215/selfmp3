@@ -35,6 +35,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
 import { usePresenceServer } from './usePresenceServer'
+import { PresenceConnection } from './presenceConnection'
 
 /**
  * Presence, handoff and remote control.
@@ -518,7 +519,11 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     ],
   )
 
-  return <DevicesContext.Provider value={value}>{children}</DevicesContext.Provider>
+  return (
+    <DevicesContext.Provider value={value}>
+      <PresenceConnection.Provider value={server}>{children}</PresenceConnection.Provider>
+    </DevicesContext.Provider>
+  )
 }
 
 /** The local playback state, as the wire format describes it. */

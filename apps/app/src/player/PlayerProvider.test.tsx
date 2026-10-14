@@ -71,7 +71,6 @@ jest.mock('../connection/ConnectionProvider', () => ({
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
   useLibrary: () => ({ data: mockLibrary }),
-  useSettings: () => ({ data: undefined }),
 }))
 // Every song may play, at once: the checks under test are the queue's, not the disk's.
 jest.mock('../offline/DownloadsProvider', () => ({

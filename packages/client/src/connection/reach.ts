@@ -165,6 +165,12 @@ export const SERVER_NEEDS = {
     meanwhile: null,
     still: SONGS_STILL_PLAY,
   },
+  settings: {
+    needs:
+      'These settings are kept on your library’s computer: it is the one that imports, watches its folder and analyses your songs.',
+    meanwhile: null,
+    still: SONGS_STILL_PLAY,
+  },
   devices: {
     needs:
       'Your devices find each other through your library’s computer: it carries a handoff from one to the other, which your storage can’t do.',

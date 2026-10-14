@@ -85,7 +85,7 @@ export type Status = z.infer<typeof StatusSchema>
  */
 export const ChoicesSchema = z.object({
   tags: z.array(TagSchema),
-  /** Tags the server adds to every import (Settings → Importing). */
+  /** Tags the server adds to every import (Settings → Advanced → Importing); none known from the bucket. */
   defaultTagIds: z.array(z.number().int()),
   /**
    * The tags the last import from this extension went in with, on this

@@ -87,6 +87,14 @@ async function keptAs(name: string): Promise<void> {
   expect(existsSync(join(dir, name))).toBe(true)
 }
 
+/** Until the folder no longer holds `name`: a song is let go just after the newest is kept. */
+async function goneAs(name: string): Promise<void> {
+  for (let attempt = 0; attempt < 200 && existsSync(join(dir, name)); attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+  expect(existsSync(join(dir, name))).toBe(false)
+}
+
 beforeEach(async () => {
   h = harness()
   token = await h.signIn()
@@ -176,6 +184,7 @@ describe('streaming a bucket song on the desktop', () => {
         await bytesOf(await play(keys[0]!))
       }
     }
+    await goneAs(keys[1]!.split('/').join('-'))
     const names = (await readdir(dir)).sort()
     expect(names).toHaveLength(PLAYED_KEPT)
     expect(names).not.toContain(keys[1]!.split('/').join('-'))

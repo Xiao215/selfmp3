@@ -18,7 +18,9 @@ vi.mock('../ports/prefs', () => ({
 
 const { moveOldCrossfade } = await import('./crossfadePref')
 
-function memoryStore(entries: Record<string, unknown>): DeviceStore & { kept: Map<string, unknown> } {
+function memoryStore(
+  entries: Record<string, unknown>,
+): DeviceStore & { kept: Map<string, unknown> } {
   const kept = new Map(Object.entries(entries))
   return {
     kept,

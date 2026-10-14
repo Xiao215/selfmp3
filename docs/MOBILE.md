@@ -85,6 +85,40 @@ it by overlapping two audio elements, and react-native-track-player exposes one
 player with one volume. Gapless is the native player's job; it loads the next
 item before the current one ends.
 
+### A hardware keyboard
+
+An iPad with a Magic Keyboard, or an iPhone with a Bluetooth one, answers the desktop app's
+menu keys: Space for play and pause, ⌘← ⌘→ for previous and next, ⌥⌘← ⌥⌘→ to seek, ⌘↑ ⌘↓
+and ⌥⌘↓ for the volume, ⌘K for Search, ⌘1–3 for Library, Playlists and Now Playing, and ⌘,
+for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape key — closes the sheet,
+menu or dialog on top, or with none open clears the
+selection and, at a computer's width, closes Now Playing's stage. ⌘A in a song list selects every song. Holding ⌘ shows
+them all in iPadOS's own list, named as the menu names them, and while a keyboard is attached
+Settings › Keyboard shortcuts lists them and the sidebar shows ⌘K beside Search.
+
+React Native delivers no key presses on iOS, so these are the app's own Expo module,
+`apps/app/modules/key-commands`: Swift that puts a `UIKeyCommand` for each key on the root
+view controller and sends each press to JavaScript, where `ports/keyCommands.ts` and
+`shell/keyRegistry.ts` hand it to whichever hook registered it — `useCommands` (the menu's
+keys, read from `packages/desktop-bridge/src/menu.ts`), `useHotkeys`, `useEscape` and a
+list's `useListKeys`. A key command beats a text field, so the module takes Space, the
+⌘-arrows and ⌘A away while one is being typed in, which is what the desktop's `pageKeeps`
+marks; ⌘K, ⌘1–3 and the rest answer there too, as the desktop's menu does. Escape answers in
+a field as well, unless an input method is composing. Whether a keyboard is attached is
+GameController's `GCKeyboard`. A song list's arrows, Space and Enter are the web's alone: a
+native row is nowhere the keyboard can be ([FEATURE_TODO.md](FEATURE_TODO.md)).
+
+The module is native code, so it needs a dev client built after it was added; an older dev
+client simply has no keys. Android does not build it and has none. On the simulator, I/O ›
+Keyboard › Connect Hardware Keyboard passes the Mac's keyboard through; a debug build logs
+`[KeyCommands]` lines (what is registered, each press) to the device log. An XCUITest's
+`typeKey` presses them too, which is how they were checked on the iPad Pro 11-inch on
+2026-10-14: ⌘2, ⌘,, ⌘K, the ⌘-arrows, Space, and ⌘. closing the top layer, with Space
+typing a space into the palette's box. Two things that run did not show: the Escape key
+itself (the test's Escape never arrived as a key command, though ⌘. did) and the list
+iPadOS draws while ⌘ is held. The first press after a cold launch was also lost there, which
+may be the test harness's.
+
 ---
 
 ## Prerequisites
@@ -435,6 +469,7 @@ apps/app
   src/shell/              tabs, sidebar, layout by width
   src/ui/                 components, icons, the Unistyles theme
   plugins/                config plugins run at prebuild time
+  modules/key-commands/   the app's own Expo module: a hardware keyboard's keys (iOS)
   targets/widget/         the iOS widget's SwiftUI target
 ```
 

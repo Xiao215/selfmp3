@@ -109,11 +109,12 @@ export function onThisDevice(place: DevicePlace): string {
 /**
  * `crossfade`: Playback holds only crossfade, which a phone's engine cannot do.
  * `installed`: a browser streams and keeps no songs, so it has nothing on it.
- * `keyboard`: a finger has no keys to press, so a phone has no Keyboard shortcuts.
+ * `keyboard`: there are keys to list and a keyboard to press them on — the
+ * installed desktop app's menu, or an iPad's or an iPhone's while a hardware
+ * keyboard is attached. A browser tab has only Space, for play and pause, and
+ * a finger has no keys to press.
  * `shell`: only the installed desktop app can open at login, and a section with
  * nothing in it is worse than one that is not there — so it defaults to absent.
- * It is also the only place with keyboard shortcuts to list: its menu has them,
- * and a browser tab has only Space, for play and pause.
  * `place`: names the group of what this device keeps.
  * `offered`: a browser tab on a Mac is offered the desktop app to install
  * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
@@ -121,7 +122,7 @@ export function onThisDevice(place: DevicePlace): string {
 export function sectionsFor({
   crossfade = true,
   installed = true,
-  keyboard = true,
+  keyboard = false,
   shell = false,
   place = 'phone',
   offered = false,
@@ -137,7 +138,7 @@ export function sectionsFor({
     section =>
       (crossfade || section.id !== 'playback') &&
       (installed || section.id !== 'offline') &&
-      ((keyboard && shell) || section.id !== 'shortcuts') &&
+      (keyboard || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop') &&
       (offered || section.id !== 'getApp'),
   ).map(section => ({

@@ -184,6 +184,10 @@ Notes for anyone extending it:
   the exception: Space after clicking a song is still play and pause, so the page stands aside
   only for a row the keyboard is on (`rowOwnsKey`). Open layers are listed
   in `shell/layers.ts`, for keys that must also stand aside while one is open (a list's ⌘A).
+- On an iPad or an iPhone with a hardware keyboard the same hooks register key commands
+  (`shell/keyRegistry.ts`, [MOBILE.md](../MOBILE.md), "A hardware keyboard"), and the same
+  layer stack decides which open layer Escape closes. A text field there is the only thing
+  that keeps keys: the module withdraws the ones it must have while it is being typed in.
 
 ## `data-tip` — hover captions
 

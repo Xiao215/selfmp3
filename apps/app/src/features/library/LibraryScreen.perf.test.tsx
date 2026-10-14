@@ -15,6 +15,8 @@ jest.mock('expo-router', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
   useLocalSearchParams: () => ({}),
+  // A list's ⌘A, registered while its page is in front: nothing to press here.
+  useFocusEffect: () => undefined,
   Link: ({ children }: { children: unknown }) => children,
 }))
 

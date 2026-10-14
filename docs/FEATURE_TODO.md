@@ -36,20 +36,12 @@ iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678
   rotate the file to read it.
 - **Trackpad hover.** `Pressable` on iPadOS reports `onHoverIn`. `finePointer` stays false
   for now, so controls stay finger-sized and always visible, the right default for a tablet.
-- **Hardware keyboard shortcuts.** Deferred by Xiao on 2026-09-14. React Native core
-  delivers no key events on iOS and Expo has no module for it, so the way in is a local Expo
-  module (`apps/app/modules/key-commands`, about 60 lines of Swift over `expo-modules-core`)
-  that adds `UIKeyCommand`s with a `discoverabilityTitle` to the root view controller and
-  emits `{ input, modifiers }` to JS. Then `useHotkeys.ts` and `useEscape.ts` on native
-  register the keys the desktop app's menu has, and Settings shows Keyboard shortcuts when a
-  keyboard is attached (`sectionsFor` already takes the flag). Two UIKit rules: an
-  unmodified command (Space, digits, arrows) beats a focused text field, so those are
-  withdrawn while a `TextInput` has focus; arrows need `wantsPriorityOverSystemBehavior`. Packages checked in September
-  2026 and passed over: `react-native-key-command` (Expensify, 1.0.16) works but needs an
-  `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`;
-  `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft
-  keyboard only; `react-native-external-keyboard` is focus-scoped. It needs a dev client
-  rebuild and a Stack line in [ARCHITECTURE.md](ARCHITECTURE.md).
+- **A song list's arrows, Space and Enter with a hardware keyboard.** The menu's keys, Escape
+  and a list's ⌘A are key commands on an iPad ([MOBILE.md](MOBILE.md), "A hardware
+  keyboard"); moving between rows is not. On the web a row is a focusable button and the
+  arrows move focus (`useListKeys.web.ts`); a native row is nowhere the keyboard can be, so
+  it would need a row cursor of the list's own — which row, its ring, scrolling it into
+  view under a pinned bar — kept in JavaScript and drawn by `SongRow`.
 
 ## The desktop app
 

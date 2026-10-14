@@ -23,6 +23,9 @@ import {
 /** What the list's keys do, as the hook's other half declares it. */
 type ListKeyActions = Parameters<typeof SameShape>[0]
 
+/** See `useListKeys.ts`: here a row is a button the keyboard moves between. */
+export const LIST_ROWS_TAKE_KEYS = true
+
 /**
  * How long an arrow waits for the list to draw the row it moves to, in
  * frames: half a second, longer than a list takes to draw the next batch

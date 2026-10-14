@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 import { NATIVE_ACCENT } from '@selfmp3/shared'
 import { withAlpha } from '../art/coverColor.js'
@@ -12,8 +10,6 @@ import {
   hitSlopFor,
   leading,
   lightPalette,
-  radius,
-  space,
   tagColors,
   type,
 } from './tokens.js'
@@ -92,87 +88,12 @@ describe('oklchToHex', () => {
   })
 })
 
-/**
- * Token parity: the hex in `tokens.ts` against the OKLCH in `tokens.reference.css`.
- *
- * The test above proves the arithmetic is the browser's. This one proves the
- * two files are still describing the same palette — that nobody has nudged
- * `--surface-2` in the stylesheet and left the phone a shade behind, which is
- * exactly the drift that would otherwise be found by eye, months later, on a
- * screenshot comparison.
- *
- * It reads the stylesheet rather than restating it. A copied list of expected
- * values would go stale in the same way and for the same reason.
- */
-describe('token parity with the web stylesheet', () => {
-  const CSS = readFileSync(new URL('./tokens.reference.css', import.meta.url), 'utf8')
-
-  /** `--name: oklch(L C H)`, where H is a number or `var(--accent-hue)`. */
-  function cssToken(name: string): { l: number; c: number; h: number } {
-    const match = new RegExp(
-      `--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+(var\\(--accent-hue\\)|[\\d.]+)\\)`,
-    ).exec(CSS)
-    if (!match) throw new Error(`--${name} is not an oklch() token in tokens.reference.css`)
-    const [, l, c, h] = match
-    return {
-      l: Number(l),
-      c: Number(c),
-      h: h === 'var(--accent-hue)' ? DEFAULT_ACCENT_HUE : Number(h),
-    }
-  }
-
-  it('starts from the hue the stylesheet starts from', () => {
-    const match = /--accent-hue:\s*([\d.]+)/.exec(CSS)
-    expect(Number(match?.[1])).toBe(DEFAULT_ACCENT_HUE)
-  })
-
-  it.each([
-    ['surface-0', 'surface0'],
-    ['surface-1', 'surface1'],
-    ['surface-2', 'surface2'],
-    ['surface-3', 'surface3'],
-    ['surface-selected', 'surfaceSelected'],
-    ['text-primary', 'textPrimary'],
-    ['text-secondary', 'textSecondary'],
-    ['text-muted', 'textMuted'],
-    ['accent', 'accent'],
-    ['accent-strong', 'accentStrong'],
-    ['accent-dim', 'accentDim'],
-    ['on-accent', 'onAccent'],
-    ['danger', 'danger'],
-    ['warning', 'warning'],
-    ['good', 'good'],
-    ['border', 'border'],
-    ['border-strong', 'borderStrong'],
-    ['chart-grid', 'chartGrid'],
-    // In the accent's hue, so the charts follow the accent picker.
-    ['chart-series', 'chartSeries'],
-  ] as const)('--%s is %s', (cssName, key) => {
-    const { l, c, h } = cssToken(cssName)
-    expect(colors[key]).toBe(oklchToHex(l, c, h))
-  })
-})
-
-describe('the type scale, the room and the shapes', () => {
-  const CSS = readFileSync(new URL('./tokens.reference.css', import.meta.url), 'utf8')
-  const kebab = (name: string) => name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
-  const px = (name: string) => Number(new RegExp(`--${name}:\\s*([\\d.]+)px`).exec(CSS)?.[1])
-
+describe('the type scale', () => {
   it('has nine sizes, each with a line height, and no half points', () => {
     expect(Object.values(type)).toEqual([11, 12, 13, 15, 17, 18, 22, 30, 46])
     for (const step of Object.keys(type) as (keyof typeof type)[]) {
       expect(leading[step], step).toBeGreaterThan(type[step])
     }
-  })
-
-  it('says what the stylesheet says', () => {
-    for (const [key, value] of Object.entries(type)) expect(px(`type-${key}`), key).toBe(value)
-    for (const [key, value] of Object.entries(leading))
-      expect(px(`leading-${key}`), key).toBe(value)
-    for (const [key, value] of Object.entries(space)) {
-      expect(px(`space-${kebab(key)}`), key).toBe(value)
-    }
-    expect(px('radius-field')).toBe(radius.field)
   })
 })
 

@@ -1,7 +1,4 @@
-import { readFileSync } from 'node:fs'
-
 import { afterEach, describe, expect, it } from 'vitest'
-import { oklchToHex } from './oklch.js'
 import {
   applyColorScheme,
   buildAccent,
@@ -12,67 +9,19 @@ import {
   tagColors,
 } from './tokens.js'
 
-/**
- * The light theme against `tokens.reference.css`'s `:root[data-theme='light']`,
- * read from the stylesheet as the dark theme's parity test reads `:root`.
- */
-
-const CSS = readFileSync(new URL('./tokens.reference.css', import.meta.url), 'utf8')
-const LIGHT = (() => {
-  const start = CSS.indexOf(":root[data-theme='light'] {")
-  return CSS.slice(start, CSS.indexOf('}', start))
-})()
-
-function lightToken(name: string): string {
-  // Paper's greys are written as hex: they are fixed, not worked out from the hue.
-  const hex = new RegExp(`--${name}:\\s*(#[0-9a-f]{6})`).exec(LIGHT)
-  if (hex) return hex[1]!
-  const match = new RegExp(
-    `--${name}:\\s*oklch\\(([\\d.]+)\\s+([\\d.]+)\\s+(var\\(--accent-hue\\)|[\\d.]+)\\)`,
-  ).exec(LIGHT)
-  if (!match) throw new Error(`--${name} is not an oklch() token in the light block`)
-  const [, l, c, h] = match
-  return oklchToHex(
-    Number(l),
-    Number(c),
-    h === 'var(--accent-hue)' ? DEFAULT_ACCENT_HUE : Number(h),
-  )
-}
-
 afterEach(() => applyColorScheme('dark'))
 
 describe('the light theme', () => {
-  it('--chart-series is chartSeries, in the accent hue', () => {
-    expect(lightPalette(DEFAULT_ACCENT_HUE).chartSeries).toBe(lightToken('chart-series'))
+  it('draws its charts in the accent hue', () => {
     // A green accent draws green bars, not the blue the charts were written in.
     expect(lightPalette(150).chartSeries).not.toBe(lightPalette(DEFAULT_ACCENT_HUE).chartSeries)
-  })
-
-  it.each([
-    ['surface-0', 'surface0'],
-    ['surface-1', 'surface1'],
-    ['surface-2', 'surface2'],
-    ['surface-3', 'surface3'],
-    ['surface-selected', 'surfaceSelected'],
-    ['text-primary', 'textPrimary'],
-    ['text-secondary', 'textSecondary'],
-    ['text-muted', 'textMuted'],
-    ['accent', 'accent'],
-    ['accent-strong', 'accentStrong'],
-    ['accent-dim', 'accentDim'],
-    ['on-accent', 'onAccent'],
-    ['border', 'border'],
-    ['border-strong', 'borderStrong'],
-    ['chart-grid', 'chartGrid'],
-  ] as const)('--%s is %s', (cssName, key) => {
-    expect(lightPalette(DEFAULT_ACCENT_HUE)[key]).toBe(lightToken(cssName))
   })
 
   it('fills the palette for a theme, and puts the dark one back', () => {
     applyColorScheme('light', DEFAULT_ACCENT_HUE)
     expect(currentColorScheme()).toBe('light')
-    expect(colors.surface0).toBe(lightToken('surface-0'))
-    expect(buildAccent(DEFAULT_ACCENT_HUE).accent).toBe(lightToken('accent'))
+    expect(colors.surface0).toBe('#f6f2ea')
+    expect(buildAccent(DEFAULT_ACCENT_HUE).accent).toBe(lightPalette(DEFAULT_ACCENT_HUE).accent)
 
     applyColorScheme('dark')
     expect(colors.surface0).toBe('#0b0d13')

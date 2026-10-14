@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -33,7 +33,6 @@ export function Cover({
   title,
   size = 44,
   radius: cornerRadius,
-  onDrawn,
 }: {
   /** The picture; null for none to show, undefined for one on its way (`offline/useArt.ts`). */
   uri: string | null | undefined
@@ -41,12 +40,6 @@ export function Cover({
   size?: number
   /** The corners, when the size's own choice is wrong: 0 inside a mosaic. */
   radius?: number
-  /**
-   * Told once the tile shows what it will: the picture, faded all the way in,
-   * or the letter. For a picture made of covers (`SharePoster`), which waits
-   * for them.
-   */
-  onDrawn?: () => void
 }): ReactNode {
   // The address that failed, so a new one gets its own chance: the server may be back.
   const [failedUri, setFailedUri] = useState<string | null>(null)
@@ -72,10 +65,8 @@ export function Cover({
   const onLoad = (): void => {
     if (!uri) return
     // At once when it was already to hand, or when the last picture is under it.
-    if (under || Date.now() - askedAt.current < MOVE_MS.coverQuick) {
-      shown.setValue(1)
-      onDrawn?.()
-    } else timing(shown, 1, motion.base, onDrawn, { easing: ease.out })
+    if (under || Date.now() - askedAt.current < MOVE_MS.coverQuick) shown.setValue(1)
+    else timing(shown, 1, motion.base, undefined, { easing: ease.out })
     setLoadedUri(uri)
   }
 
@@ -93,9 +84,6 @@ export function Cover({
   )
 
   const lettered = uri === null || failed
-  useEffect(() => {
-    if (lettered) onDrawn?.()
-  }, [lettered, onDrawn])
   // The letter tile is a tag's tile in the title's hue — deep with light ink
   // in the dark, a pale tint with dark ink on Paper — so a song with no
   // picture sits among the tag tiles as one of them, and its row's tint

@@ -6,6 +6,7 @@ import {
   receivedLine,
   romanizedLines,
   sentLine,
+  sentLinksHint,
   shareFromLine,
   shareHeadLine,
   shareStage,
@@ -125,6 +126,17 @@ describe('a share link’s words', () => {
     )
     expect(receivedLine(summary(), NOW)).toBe('Xiao · 6 days')
     expect(receivedLine(summary({ ended: { at: NOW, why: 'stopped' } }), NOW)).toBe('Xiao · Ended')
+  })
+
+  it('sums up the links you sent for Profile', () => {
+    expect(sentLinksHint(undefined, NOW)).toBe('Songs you sent as links')
+    expect(sentLinksHint([], NOW)).toBe('None yet. Share link is in a song’s ⋯ menu')
+    const asked = summary({ asks: [{ id: 'aaaaaaaaaaaa', name: 'Mia', at: NOW }] })
+    const ended = summary({ ended: { at: NOW, why: 'idle' } })
+    expect(sentLinksHint([summary(), asked, ended], NOW)).toBe(
+      '2 links playing · 1 friend asks again',
+    )
+    expect(sentLinksHint([ended], NOW)).toBe('None playing')
   })
 })
 

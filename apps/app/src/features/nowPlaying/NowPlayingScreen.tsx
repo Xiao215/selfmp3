@@ -112,7 +112,7 @@ function OverTheModal(): ReactNode {
     <>
       <QueueSheet go={go} />
       <RoomSheets go={go} />
-      <ShareSheet go={go} />
+      <ShareSheet />
       <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
         <ToastHost />
       </View>

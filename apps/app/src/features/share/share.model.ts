@@ -94,6 +94,23 @@ export function shareWords({
   return by ? `${name} · ${by}` : name
 }
 
+/**
+ * Profile's line under Links you shared (F2): how many still play, and how many
+ * friends asked for more, or what the row is while the list is on its way.
+ */
+export function sentLinksHint(links: readonly ShareSummary[] | undefined, now: number): string {
+  if (links === undefined) return 'Songs you sent as links'
+  if (links.length === 0) return 'None yet. Share link is in a song’s ⋯ menu'
+  const live = links.filter(link => shareStage(link, now) !== 'ended').length
+  const asks = links.reduce((sum, link) => sum + link.asks.length, 0)
+  return [
+    live > 0 ? `${plural(live, 'link', 'links')} playing` : 'None playing',
+    asks > 0 ? `${plural(asks, 'friend asks', 'friends ask')} again` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 /** A link in your Links you shared (F2): who opened it, and how long it has. */
 export function sentLine(link: ShareSummary, now: number): string {
   const stage = shareStage(link, now)

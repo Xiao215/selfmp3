@@ -28,25 +28,21 @@ made in one tap, holds what you picked, and ends by itself.
 - **Songs picked**, from the selection bar's More.
 
 A link holds at most 100 songs (`SHARE_MAX_SONGS`). **Share link** opens the share sheet
-(`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it with
-its QR code, and two buttons:
-
-- **Share link**, for the system's share sheet (a copy where there is none);
-- **Share as picture**, a 1080 × 1920 poster for WeChat (`SharePoster.tsx`).
+(`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it as one
+row: the cover and the name of what it sends, a QR button, and **Copy**. Under it is
+**Share…**, for the system's share sheet, left out where the browser has none (Copy already
+does what it would). The QR button opens the code large, for a friend standing beside you.
 
 **The words with the link** are `干杯 · 五月天` for a song and `五月天 精选 · 12 songs` for a
 list (`shareWords`). The link goes beside them, never inside them, so it is sent once: on
 iOS as the share's `url`, on Android after the words, which is the only place it has.
 
-**Why a picture.** WeChat draws a card for a pasted link only from a verified 公众号 on an
-ICP-registered domain, or a business-verified Open Platform app. So a song goes to WeChat
-the way 网易云 and QQ音乐 users send one: a picture whose QR code the friend presses and
-holds (识别图中二维码). The poster is the cover big (a 2×2 mosaic of the first four for a
-list) on a wash of its colour, the title and artist (or the song count), and at the foot
-the self.mp3 mark, *Xiao shared this · scan to listen* and the link's QR code. It is drawn
-off-screen at its own size and saved as the month's page is (`ports/sharePicture`): a phone
-hands it to its share sheet; a browser shares the file where it can and downloads it
-otherwise. Picked with Xiao on 2026-10-14 (link-preview proposal, E1 and D2).
+**One thing to send, the link.** There is no choice between a link and a picture: the
+doorman draws the link's card (B below) wherever a chat draws cards. WeChat draws none for
+a link from this address and shows it as plain text. A poster with a QR code for WeChat
+existed briefly and was removed on 2026-10-14 (share sheet rework, B1): its QR led to the
+same workers.dev address, which China blocks, and choosing between the two was a question
+the app should not ask.
 
 Only an account with a bucket can share, since the doorman lends from it. A song not in
 storage yet cannot be shared.
@@ -178,7 +174,7 @@ or shared again.
 - who opened it, by name if signed in and counted otherwise;
 - how long it has left, or when it ended and how often it played.
 
-You reach it from Settings › Account, and from the share sheet. Each link's ⋯ holds:
+You reach it from Profile, under Report. Each link's ⋯ holds:
 
 - **Share link**;
 - **Keep it longer**, or **Share it again** once it has ended;

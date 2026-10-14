@@ -11,9 +11,6 @@ import { useLayout } from '../../shell/useLayout'
 import { BACKBLAZE_CAPS_URL, untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useCloudSession } from '../profile/useCloudSession'
-import { shareStage } from '../share/share.model'
-import { useSentLinks } from '../share/shareLinks'
-import { useMinute } from '../share/useMinute'
 import { STORAGE_ROUTE, whereItIs } from '../welcome/storage.model'
 import { JoinSharedButton } from '../../connection/ServerAway'
 import { ButtonRow, Details, Panel, partStyles, Row } from './SettingsParts'
@@ -119,7 +116,6 @@ export function ConnectionPanel({
             </View>
           </Row>
           <Computers />
-          <SharedLinks />
         </>
       ) : (
         <Row label="Address">
@@ -165,31 +161,6 @@ export function ConnectionPanel({
 }
 
 /** The servers this account has let in, each with Remove; the shared one offered when there are none. */
-/** Links you shared (docs/features/share-links.md, F2): how many play, and who asked again. */
-function SharedLinks(): ReactNode {
-  const router = useRouter()
-  const { data: links } = useSentLinks()
-  const now = useMinute()
-  const live = (links ?? []).filter(link => shareStage(link, now) !== 'ended').length
-  const asks = (links ?? []).reduce((sum, link) => sum + link.asks.length, 0)
-  const hint =
-    links === undefined
-      ? 'Songs you sent as links.'
-      : links.length === 0
-        ? 'None yet. Share link is in a song’s ⋯ menu.'
-        : [
-            live > 0 ? `${plural(live, 'link', 'links')} playing` : 'None playing',
-            asks > 0 ? `${plural(asks, 'friend asks', 'friends ask')} again` : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')
-  return (
-    <Row label="Links you shared" hint={hint}>
-      <Button label="Open" onPress={() => router.push('/links')} testID="settings-links" />
-    </Row>
-  )
-}
-
 function Computers(): ReactNode {
   const grants = useServerGrants()
   const remove = useRemoveServerGrant()

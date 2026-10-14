@@ -398,6 +398,16 @@ export const ShareOut = icon(() => (
   </>
 ))
 
+/** Three corner squares and a scatter: a QR code to scan. */
+export const QrCode = icon(() => (
+  <>
+    <Rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <Rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+    <Rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <Path d="M14 14h2.5M19.5 14h1M14 17.5h1M17.5 17.5v3M14 20.5h1M20.5 17.5v3" />
+  </>
+))
+
 /** Two sheets: a copy. */
 export const Copy = icon(() => (
   <>

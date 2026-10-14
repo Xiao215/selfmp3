@@ -30,16 +30,27 @@ const stats: Stats = {
 
 describe('the Profile page', () => {
   it('lists Import, Report and Settings, and nothing else', () => {
-    const rows = profileRows({ place: 'phone' })
+    const rows = profileRows({ place: 'phone', linksHint: null })
     expect(rows.map(row => [row.id, row.label, row.href])).toEqual([
       ['import', 'Import', '/import'],
       ['report', 'Report', '/stats/report'],
       ['settings', 'Settings', '/settings'],
     ])
     expect(rows[2]?.hint).toBe('Account, look, on this phone, devices')
-    expect(profileRows({ place: 'computer' })[2]?.hint).toBe(
+    expect(profileRows({ place: 'computer', linksHint: null })[2]?.hint).toBe(
       'Account, look, on this computer, devices',
     )
+  })
+
+  it('puts Links you shared before Settings for an account that can send one', () => {
+    const rows = profileRows({ place: 'phone', linksHint: '2 links playing' })
+    expect(rows.map(row => row.id)).toEqual(['import', 'report', 'links', 'settings'])
+    expect(rows[2]).toEqual({
+      id: 'links',
+      label: 'Links you shared',
+      href: '/links',
+      hint: '2 links playing',
+    })
   })
 
   it('uses the account’s first name when there is one, and the page’s when not', () => {

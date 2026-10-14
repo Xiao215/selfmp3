@@ -96,6 +96,7 @@ export function Review<T extends Reviewed>({
   onKeys,
   testID,
   openAtFirst = [],
+  foot,
 }: {
   changes: readonly T[]
   /** The heading a change is listed under in its band. */
@@ -127,6 +128,8 @@ export function Review<T extends Reviewed>({
   testID: string
   /** Changes drawn open to their songs from the start, by key. */
   openAtFirst?: readonly string[]
+  /** Drawn under the list, above the buttons. */
+  foot?: ReactNode
 }): ReactNode {
   const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
@@ -507,6 +510,7 @@ export function Review<T extends Reviewed>({
           )
         })}
       </ScrollView>
+      {foot}
       <AnswerActions>
         {onClose ? <Button label="Close" onPress={onClose} /> : null}
         <Button

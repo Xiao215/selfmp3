@@ -23,6 +23,9 @@ import {
   serverHop,
   tickedAtFirst,
   tidyEdits,
+  tidyCovers,
+  copiesHere,
+  gapWords,
   tidyHere,
   reviewBands,
   tidyParts,
@@ -275,6 +278,53 @@ describe('Tidy up', () => {
       ['rule', ['Twice', 'w']],
       ['model', ['w']],
     ])
+  })
+
+  it('fills in a year as a number and a cover through the server, only where still missing', () => {
+    const bare = (id: number, over: Partial<Song>) =>
+      ({ ...song(id, 't', 'a'), year: null, hasArt: false, ...over }) as Song
+    const here = new Map([
+      [21, bare(21, {})],
+      // Given a year and a cover since the server looked: nothing to fill.
+      [22, bare(22, { year: 2001, hasArt: true })],
+    ])
+    const fills = [
+      change({ key: 'y', field: 'year', from: '', to: '2019', songIds: [11, 12] }),
+      change({ key: 'c', field: 'cover', from: '', to: 'https://x/a.jpg', songIds: [11, 12] }),
+      change({ key: 'l', field: 'album', from: '', to: 'THE BOOK', songIds: [11] }),
+    ]
+    const ours = tidyHere(fills, onDevice, here)
+    expect(ours.map(h => [h.change.key, h.songIds])).toEqual([
+      ['y', [21]],
+      ['c', [21]],
+      ['l', [21]],
+    ])
+    expect(tidyEdits(ours)).toEqual([{ songId: 21, patch: { year: 2019, album: 'THE BOOK' } }])
+    expect(tidyEdits(ours, new Set(), true)).toEqual([
+      { songId: 21, patch: { year: null, album: '' } },
+    ])
+    expect(tidyCovers(ours)).toEqual([{ songId: 21, artworkUrl: 'https://x/a.jpg' }])
+    expect(tidyCovers(ours, new Set([leftOutKey('c', 21)]))).toEqual([])
+  })
+
+  it('says what a checkup found missing', () => {
+    expect(gapWords({ album: 3, year: 10, cover: 2 })).toBe(
+      '3 songs have no album, 10 no year and 2 no cover.',
+    )
+    expect(gapWords({ album: 0, year: 1, cover: 0 })).toBe('1 song has no year.')
+  })
+
+  it('offers a copy only while the kept song and an extra one are both here', () => {
+    const here = new Map([
+      [11, song(11, 'アイドル', 'YOASOBI')],
+      [12, song(12, 'アイドル', 'YOASOBI')],
+    ])
+    const copy = { key: 'c', keep: 1, songIds: [2, 5], why: 'w', by: 'rule' as const }
+    expect(copiesHere([copy], onDevice, here).map(h => [h.keep.id, h.songIds])).toEqual([
+      [11, [12]],
+    ])
+    // The kept one is gone: deleting the rest would delete the song.
+    expect(copiesHere([{ ...copy, keep: 9 }], onDevice, here)).toEqual([])
   })
 
   it('leaves a song out of a change, and undoes back to what each field was', () => {

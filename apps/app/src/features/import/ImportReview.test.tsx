@@ -46,6 +46,10 @@ jest.mock('./ImportListen', () => ({
 }))
 
 const mockEnqueue = jest.fn()
+/** The model's names for the rows that look wrong (A9): none, unless a test says. */
+const mockImportNames = jest.fn((_request: unknown): Promise<{ suggestions: unknown[] }> =>
+  Promise.resolve({ suggestions: [] }),
+)
 /** What the server says the library has now; an answer that does not fit changes nothing. */
 const mockAlreadyHave = jest.fn((): Promise<{ have: boolean[] }> => Promise.resolve({ have: [] }))
 const JPOP = { id: 7, name: 'jpop', hue: 2, songCount: 0 }
@@ -71,6 +75,7 @@ jest.mock('./importSource', () => {
         api: {
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importAlreadyHave: () => mockAlreadyHave(),
+          importNames: (request: unknown) => mockImportNames(request),
         },
         library: { songs: [], tags: mockTags, playlists: [] },
         createTag: (name: string) => mockCreateTag(name),
@@ -168,6 +173,33 @@ describe('Import review, on a phone', () => {
   })
   // The page is still drawn when the draft empties; that is an update like any other.
   afterEach(() => act(() => resetImportDraft()))
+
+  it('offers the model’s names under a row whose names look wrong, and takes them on Use', async () => {
+    mockImportNames.mockResolvedValueOnce({
+      suggestions: [
+        { row: 0, title: '群青', artist: 'YOASOBI', album: 'THE BOOK', why: 'Album from the list' },
+      ],
+    })
+    await draw()
+    // Only the songs coming in are asked about, with the list's name.
+    expect(mockImportNames).toHaveBeenCalledWith({
+      list: 'THE BOOK',
+      rows: [
+        { title: '群青', artist: 'YOASOBI', album: '', duration: 240 },
+        { title: '怪物', artist: 'YOASOBI', album: '', duration: 240 },
+      ],
+    })
+    // The row that said so: the second in the list, the first asked about.
+    expect(await screen.findByTestId('import-suggestion-1')).toBeTruthy()
+    expect(screen.getByText('Album from the list')).toBeTruthy()
+    expect(screen.getByText('群青 · YOASOBI · THE BOOK')).toBeTruthy()
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('import-suggestion-use-1'))
+    })
+    expect(draftFor('own').review?.items[1]).toMatchObject({ title: '群青', album: 'THE BOOK' })
+    // Taken: the row's names are no longer the ones the model read.
+    expect(screen.queryByTestId('import-suggestion-1')).toBeNull()
+  })
 
   it('counts every song but the one that is yours already', async () => {
     await draw()

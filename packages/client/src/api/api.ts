@@ -537,12 +537,10 @@ export function createApi({ context, fetch }: ApiOptions) {
     heartbeat: (input: DeviceHeartbeat) =>
       request('POST', '/api/devices/heartbeat', DeviceListSchema, input),
 
-    deviceCommand: (deviceId: string, command: DeviceCommand, fromDeviceId?: string) =>
+    deviceCommand: (deviceId: string, command: DeviceCommand) =>
       request(
         'POST',
-        `/api/devices/${encodeURIComponent(deviceId)}/command${
-          fromDeviceId ? `?from=${encodeURIComponent(fromDeviceId)}` : ''
-        }`,
+        `/api/devices/${encodeURIComponent(deviceId)}/command`,
         DeviceCommandResultSchema,
         command,
       ),

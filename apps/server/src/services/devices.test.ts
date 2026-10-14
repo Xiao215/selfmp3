@@ -105,16 +105,15 @@ describe('DeviceService', () => {
     service.connect(server, 'mac-00000001')
     service.connect(phone, 'phone-000001')
 
-    expect(service.command('mac-00000001', { type: 'pause' }, 'phone-000001')).toBe(1)
+    expect(service.command('mac-00000001', { type: 'pause' })).toBe(1)
     expect(server.text).toContain('"command":{"type":"pause"}')
-    expect(server.text).toContain('"fromDeviceId":"phone-000001"')
     expect(phone.text).not.toContain('"pause"')
 
     // Known device, but nobody listening on it.
     service.heartbeat(heartbeat('tablet-00001'))
-    expect(service.command('tablet-00001', { type: 'play' })).toBe(0)
+    expect(service.command('tablet-00001', { type: 'pause' })).toBe(0)
     // Unknown device.
-    expect(service.command('ghost-000001', { type: 'play' })).toBeNull()
+    expect(service.command('ghost-000001', { type: 'pause' })).toBeNull()
   })
 
   it('forgets a device', () => {

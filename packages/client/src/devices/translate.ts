@@ -74,8 +74,7 @@ export function translateState(state: PlaybackState, into: SongIdLookup): Playba
  * A command in the other library's numbering, or `null` when it cannot be
  * expressed there and must not be sent or obeyed.
  *
- * Only `playSong` carries a song. `transfer` carries a device id, and the
- * state it goes on to read has already been translated by the time it is read.
+ * Only `playSong` carries a song; `pause` crosses unchanged.
  */
 export function translateCommand(command: DeviceCommand, into: SongIdLookup): DeviceCommand | null {
   if (into === null) return command

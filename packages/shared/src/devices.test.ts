@@ -98,9 +98,8 @@ describe('pickResumeState', () => {
 })
 
 describe('extrapolatePosition', () => {
-  it('advances a playing state by the elapsed time and clamps to duration', () => {
+  it('advances a playing state by the elapsed time', () => {
     expect(extrapolatePosition(state({ playing: true }), NOW + 4_000)).toBeCloseTo(34)
-    expect(extrapolatePosition(state({ playing: true }), NOW + 400_000, 200)).toBe(200)
   })
 
   it('leaves a paused state alone', () => {
@@ -110,7 +109,7 @@ describe('extrapolatePosition', () => {
   /*
    * `updatedAt` is the sending device's clock and a reader's `now` is its own.
    * The two being a few seconds apart is ordinary, and subtracting one from
-   * the other put the scrubber wherever that difference happened to be — stuck
+   * the other put the position wherever that difference happened to be — stuck
    * at the last heartbeat when the sender ran fast, jumped forward when slow.
    */
   it('measures from when the reader heard it, when the reader says so', () => {
@@ -118,11 +117,11 @@ describe('extrapolatePosition', () => {
 
     // A reader whose clock is two minutes ahead of the sender's.
     const heard = NOW + 120_000
-    expect(extrapolatePosition(playing, heard + 4_000, undefined, heard)).toBeCloseTo(34)
+    expect(extrapolatePosition(playing, heard + 4_000, heard)).toBeCloseTo(34)
 
-    // And one whose clock is behind it, which must not freeze the scrubber.
+    // And one whose clock is behind it, which must not freeze the position.
     const behind = NOW - 120_000
-    expect(extrapolatePosition(playing, behind + 4_000, undefined, behind)).toBeCloseTo(34)
+    expect(extrapolatePosition(playing, behind + 4_000, behind)).toBeCloseTo(34)
   })
 })
 
@@ -170,11 +169,8 @@ describe('schemas', () => {
     expect(bad.success).toBe(false)
   })
 
-  it('validates commands as a discriminated union', () => {
+  it('takes only the two commands a handoff sends', () => {
     expect(DeviceCommandSchema.safeParse({ type: 'pause' }).success).toBe(true)
-    expect(DeviceCommandSchema.safeParse({ type: 'seek', position: 12.5 }).success).toBe(true)
-    expect(DeviceCommandSchema.safeParse({ type: 'seek' }).success).toBe(false)
-    expect(DeviceCommandSchema.safeParse({ type: 'setVolume', volume: 2 }).success).toBe(false)
     expect(
       DeviceCommandSchema.safeParse({
         type: 'playSong',
@@ -183,9 +179,18 @@ describe('schemas', () => {
         queueIndex: 0,
       }).success,
     ).toBe(true)
-    expect(
-      DeviceCommandSchema.safeParse({ type: 'transfer', fromDeviceId: 'abcdefghij' }).success,
-    ).toBe(true)
-    expect(DeviceCommandSchema.safeParse({ type: 'dance' }).success).toBe(false)
+    expect(DeviceCommandSchema.safeParse({ type: 'playSong' }).success).toBe(false)
+    // Remote control: nothing in the app sends these, so the wire refuses them.
+    for (const command of [
+      { type: 'play' },
+      { type: 'toggle' },
+      { type: 'next' },
+      { type: 'prev' },
+      { type: 'seek', position: 12.5 },
+      { type: 'setVolume', volume: 0.5 },
+      { type: 'transfer', fromDeviceId: 'abcdefghij' },
+    ]) {
+      expect(DeviceCommandSchema.safeParse(command).success).toBe(false)
+    }
   })
 })

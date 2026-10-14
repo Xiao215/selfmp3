@@ -4,7 +4,7 @@ import type { Logger } from '../logger.js'
 import type { EventHub, EventSink } from './events.js'
 
 /**
- * Presence and remote control.
+ * Presence and handoff.
  *
  * Heartbeats go straight to the table and out to every stream. Beyond that
  * the service runs two small timers: a presence sweep, so a device that
@@ -101,14 +101,9 @@ export class DeviceService {
    * Forward a command. Returns how many live connections received it, or
    * null when no such device exists.
    */
-  command(deviceId: string, command: DeviceCommand, fromDeviceId?: string): number | null {
+  command(deviceId: string, command: DeviceCommand): number | null {
     if (!this.#devices.byId(deviceId, this.#now())) return null
-    const delivered = this.#hub.sendTo(deviceId, {
-      type: 'command',
-      deviceId,
-      command,
-      ...(fromDeviceId === undefined ? {} : { fromDeviceId }),
-    })
+    const delivered = this.#hub.sendTo(deviceId, { type: 'command', deviceId, command })
     this.#logger.debug('command forwarded', { deviceId, type: command.type, delivered })
     return delivered
   }

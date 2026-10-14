@@ -2,13 +2,14 @@ import { z } from 'zod'
 import { IdSchema } from './common.js'
 
 /**
- * Devices, presence and remote control.
+ * Devices, presence and handoff.
  *
  * Every open client is a "device": it announces itself with a heartbeat that
- * carries its playback state, and it can be sent a command by any other
- * device. The server is only the switchboard — it stores the last heartbeat
- * per device (so the state survives a restart and can be resumed tomorrow)
- * and forwards commands over the event stream. Nothing plays on the server.
+ * carries its playback state, and another device handing playback over can
+ * send it a command. The server is only the switchboard — it stores the last
+ * heartbeat per device (so the state survives a restart and can be resumed
+ * tomorrow) and forwards commands over the event stream. Nothing plays on the
+ * server.
  */
 
 /** A stable id the client generates once and keeps in localStorage. */
@@ -35,7 +36,6 @@ export const PlaybackStateSchema = z.object({
   queueIndex: z.number().int().min(-1),
   shuffle: z.boolean(),
   repeat: z.enum(['off', 'all', 'one']),
-  volume: z.number().min(0).max(1).optional(),
   /** Client clock, ms since epoch. Used to pick the freshest state to resume. */
   updatedAt: z.number().int().nonnegative(),
 })
@@ -69,15 +69,16 @@ export const DeviceListSchema = z.object({
 export type DeviceList = z.infer<typeof DeviceListSchema>
 
 /**
- * A command for one device, sent by another.
+ * A command for one device, sent by another during a handoff: `playSong` is
+ * "Play there instead" pushing this device's queue over, and `pause` is "Play
+ * here" stopping the device it took over from.
  *
  * A discriminated union rather than a bag of optionals, so the executor on the
  * receiving end is an exhaustive switch that stops compiling when a variant is
  * added without a handler.
  */
 export const DeviceCommandSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.enum(['play', 'pause', 'toggle', 'next', 'prev']) }),
-  z.object({ type: z.literal('seek'), position: z.number().min(0) }),
+  z.object({ type: z.literal('pause') }),
   z.object({
     type: z.literal('playSong'),
     songId: IdSchema,
@@ -85,12 +86,7 @@ export const DeviceCommandSchema = z.discriminatedUnion('type', [
     queueIndex: z.number().int().min(0).optional(),
     /** Start here rather than at 0 — what makes a handoff seamless. */
     position: z.number().min(0).optional(),
-    /** Load paused when false. Defaults to playing. */
-    play: z.boolean().optional(),
   }),
-  z.object({ type: z.literal('setVolume'), volume: z.number().min(0).max(1) }),
-  /** "Take over from that device": pull its state, start here, pause it there. */
-  z.object({ type: z.literal('transfer'), fromDeviceId: DeviceIdSchema }),
 ])
 export type DeviceCommand = z.infer<typeof DeviceCommandSchema>
 
@@ -114,8 +110,6 @@ export const ServerEventSchema = z.discriminatedUnion('type', [
     /** The device that should act on it. */
     deviceId: DeviceIdSchema,
     command: DeviceCommandSchema,
-    /** Who sent it, when the sender is a device. */
-    fromDeviceId: DeviceIdSchema.optional(),
   }),
   z.object({ type: z.literal('library'), version: z.number().int().nonnegative() }),
 ])

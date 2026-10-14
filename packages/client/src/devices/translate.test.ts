@@ -106,18 +106,12 @@ describe('translateCommand', () => {
     songId: 2,
     queueIds: [1, 2, 3],
     queueIndex: 1,
-    play: true,
     ...patch,
   })
 
-  it('leaves commands that carry no song alone', () => {
-    for (const command of [
-      { type: 'pause' },
-      { type: 'seek', position: 12 },
-      { type: 'transfer', fromDeviceId: 'device-one' },
-    ] satisfies DeviceCommand[]) {
-      expect(translateCommand(command, phoneOut)).toEqual(command)
-    }
+  it('leaves a pause alone', () => {
+    const pause: DeviceCommand = { type: 'pause' }
+    expect(translateCommand(pause, phoneOut)).toEqual(pause)
   })
 
   it('renumbers a playSong and its queue', () => {
@@ -126,7 +120,6 @@ describe('translateCommand', () => {
       songId: 3,
       queueIds: [7, 3, 8],
       queueIndex: 1,
-      play: true,
     })
   })
 
@@ -142,7 +135,7 @@ describe('translateCommand', () => {
   it('leaves the index out rather than pointing it at another song', () => {
     // Position 0 is dropped, so the old index 0 has no counterpart.
     const out = translateCommand(playSong({ songId: 1, queueIds: [9, 1], queueIndex: 0 }), phoneOut)
-    expect(out).toEqual({ type: 'playSong', songId: 7, queueIds: [7], play: true })
+    expect(out).toEqual({ type: 'playSong', songId: 7, queueIds: [7] })
   })
 })
 

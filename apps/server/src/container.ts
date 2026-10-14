@@ -499,7 +499,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     await songRemoval.tidyAfter(removed)
   }
 
-  // Presence and remote control. The version watch reads `version` through the
+  // Presence and handoff. The version watch reads `version` through the
   // closure, so every bump above reaches the event stream without each caller
   // having to know it exists.
   const events = new EventHub(logger.child('events'))

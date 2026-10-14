@@ -304,10 +304,6 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             </View>
           ) : null}
 
-          {link.yours ? (
-            <Button label="Links you shared" variant="text" onPress={() => router.push('/links')} />
-          ) : null}
-
           {/* For whoever has never seen self.mp3: what it is, and the way in. */}
           {signedIn ? null : (
             <Press

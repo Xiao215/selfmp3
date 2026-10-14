@@ -394,8 +394,9 @@ npm run cli -- scan --library me@example.com
 ```
 
 From another computer, give the library's token with `--token` instead, and point the command
-at the server with `--url`. The token is in `data/hub.json`, and the server's log prints it
-when it works for one library:
+at the server with `--url`. Any signed-in device copies it from **Settings › Advanced ›
+Importing › Copy token**, which shows the server's address beside it. On the server it is in
+`data/hub.json`, and the server's log prints it when it works for one library:
 
 ```bash
 npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan

@@ -4,6 +4,8 @@ import type { ReactNode } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { DEFAULT_SETTINGS, type Library, type Settings } from '@selfmp3/shared'
 import { configureClient, type Api } from '@selfmp3/client'
+import * as Clipboard from 'expo-clipboard'
+import { currentToasts, dismissToast } from '../../ui/toast'
 import { ImportingPanel } from './ImportingPanel'
 import { SmartPanel } from './SmartPanel'
 
@@ -22,12 +24,17 @@ jest.mock('../../connection/ConnectionProvider', () => ({
   useConnection: () => ({ fromCloud: true, connection: null }),
 }))
 jest.mock('../../replica', () => ({ library: { markCloudLibraryStale: () => undefined } }))
+// The clipboard itself, under the app's port (ports/clipboard).
+jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn(() => Promise.resolve(true)) }))
 
 const ADDRESS = 'https://music.example.com'
+/** The library's token, as the snapshot carries it to every device of theirs. */
+const TOKEN = 'kq3x0Vb7wJr2-library-token-of-the-pi-Ab3x'
+/** What this device's copy of the library says of its server: none, when null. */
+let named: { id: string; addresses: string[]; token: string } | null
 configureClient({
   api: {
-    cloudServer: () =>
-      Promise.resolve({ server: { id: 'the-pi', addresses: [ADDRESS], token: 't' } }),
+    cloudServer: () => Promise.resolve({ server: named }),
     onCloudLibraryChanged: () => () => undefined,
   } as unknown as Api,
 } as Parameters<typeof configureClient>[0])
@@ -54,7 +61,10 @@ const json = (body: unknown): Response =>
 
 beforeEach(() => {
   stored = { ...DEFAULT_SETTINGS, defaultImportTagIds: [7] }
+  named = { id: 'the-pi', addresses: ['http://localhost:4600', ADDRESS], token: TOKEN }
   up = true
+  jest.mocked(Clipboard.setStringAsync).mockClear()
+  for (const toast of currentToasts()) dismissToast(toast.id)
   sent = []
   global.fetch = jest.fn((input: string, init: RequestInit = {}) => {
     if (!up) return Promise.reject(new TypeError('Network request failed'))
@@ -107,8 +117,8 @@ it('turns a smart feature off, and the web search on, on the server itself', asy
   expect(stored.smartWeb).toBe(true)
   const patches = sent.filter(each => each.method === 'PATCH')
   expect(patches).toEqual([
-    { method: 'PATCH', path: '/api/settings', body: { smartWeb: true }, auth: 'Bearer t' },
-    { method: 'PATCH', path: '/api/settings', body: { smartAsk: false }, auth: 'Bearer t' },
+    { method: 'PATCH', path: '/api/settings', body: { smartWeb: true }, auth: `Bearer ${TOKEN}` },
+    { method: 'PATCH', path: '/api/settings', body: { smartAsk: false }, auth: `Bearer ${TOKEN}` },
   ])
   await unmount()
   client.clear()
@@ -132,6 +142,46 @@ it('changes how the server imports, and shows the tags it adds by its own names'
   await fireEvent.press(lyrics)
   await waitFor(() => expect(stored.autoFetchLyrics).toBe(false))
   expect(sent.find(each => each.method === 'PATCH')?.body).toEqual({ autoFetchLyrics: false })
+  await unmount()
+  client.clear()
+})
+
+/*
+ * The token for an iOS Shortcut or the extension given an address by hand
+ * (docs/features/share-to-import.md). Those are not devices of the library, so
+ * the bucket never hands it to them; on a server holding several libraries it
+ * lived only in the server's data/hub.json. Every signed-in device has it.
+ */
+it('copies the server’s token, showing only its address and the token’s end', async () => {
+  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  const copy = await screen.findByRole('button', { name: 'Copy token' })
+  // The address the internet reaches, not localhost; the token never whole.
+  expect(screen.getByText(`${ADDRESS} · token ending Ab3x`)).toBeTruthy()
+  expect(screen.queryByText(new RegExp(TOKEN))).toBeNull()
+
+  await fireEvent.press(copy)
+  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TOKEN))
+  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Token copied']))
+  await unmount()
+  client.clear()
+})
+
+it('offers the token while the server is away: copying it needs nothing from the server', async () => {
+  up = false
+  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  expect(await screen.findByText('Your library’s computer')).toBeTruthy()
+  await fireEvent.press(await screen.findByRole('button', { name: 'Copy token' }))
+  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TOKEN))
+  await unmount()
+  client.clear()
+})
+
+it('has no token row when the library names no server', async () => {
+  named = null
+  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  // Away, which it is only once the device's copy has answered that it names none.
+  expect(await screen.findByRole('button', { name: 'Look again' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Copy token' })).toBeNull()
   await unmount()
   client.clear()
 })

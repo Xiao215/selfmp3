@@ -60,9 +60,12 @@ returns `422` with the reason (private, not signed in, wrong link…).
 Every request to the server carries a token, and the server routes it to your library by
 that token ([shared-server.md](shared-server.md)): each library on a server has its own,
 which reaches your devices in the bucket's snapshot so nobody types it. A Shortcut is not
-one of those devices, so it needs the token written into it. The server prints it in its
-log when it starts holding a single library (`its token is …`); on a server holding
-several, it is your library's `token` in the server's `data/hub.json`. Send it as an
+one of those devices, so it needs the token written into it. Any signed-in device has
+it: **Settings › Advanced › Importing** has a *Shortcut and extension* row that shows
+the server's public address and the token's last four characters, and **Copy token**
+puts the whole token on the clipboard. Without a device, it is your library's `token`
+in the server's `data/hub.json`, and the server prints it in its log when it starts
+holding a single library (`its token is …`). Send it as an
 `Authorization: Bearer <token>` header (or `?token=<token>` on the URL). A request
 without one is refused with `401`.
 
@@ -73,9 +76,10 @@ without one is refused with `401`.
    keep **URLs** and **Text** ticked. This makes the Shortcut receive whatever was shared.
 3. Add action **Get Contents of URL**:
    - URL: `https://<your server's public address>/api/import/share` — the `https://…ts.net`
-     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)).
+     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)), shown in
+     the app under Settings › Advanced › Importing.
    - Method: **POST**
-   - Headers: `Authorization` → `Bearer <your token>`
+   - Headers: `Authorization` → `Bearer <your token>` (from **Copy token** there)
    - Request Body: **JSON**, add a field `url` of type **Text** and set its value to the
      **Shortcut Input** variable.
      Optional: `createPlaylist` (Boolean) → true if you want shared playlists mirrored.

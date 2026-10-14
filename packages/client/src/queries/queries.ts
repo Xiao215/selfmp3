@@ -1199,6 +1199,8 @@ export function useRemoveServerGrant(): UseMutationResult<unknown, Error, string
     mutationFn: (id: string) => clientApi().removeServerGrant(id),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.serverGrants })
+      // The server removed is passed over from now, though the snapshot still names it.
+      void client.invalidateQueries({ queryKey: queryKeys.cloudServer })
     },
   })
 }

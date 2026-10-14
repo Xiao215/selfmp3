@@ -58,6 +58,9 @@ export function startContainer(container: Container): void {
     // The lyrics index and publishing read what the scan found, so they wait
     // for it — however it went.
     .finally(() => {
+      // Let go while it scanned (a grant taken back a moment after joining):
+      // its database is closed, and nothing is left to start.
+      if (container.stopped()) return
       warmLyrics()
       startCloud()
     })

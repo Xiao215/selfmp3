@@ -1,4 +1,5 @@
 import { HealthSchema, type CloudServer } from '@selfmp3/shared'
+import type { ClientFetch } from '../platform.js'
 import type { ServerConnection } from './connection.js'
 
 /**
@@ -99,8 +100,52 @@ export function answersAs(health: unknown, candidate: Candidate): boolean {
 }
 
 /**
- * The first of the server's addresses to answer as that server, or null when
- * none does (`probe` decides, with `answersAs`).
+ * What one address said when asked (`askAddress`):
+ *
+ * - `works`: the server the snapshot named, and it takes this library's token;
+ * - `refuses`: that server, but it refuses the token — it no longer works for
+ *   this library. Its account took the grant back (Settings › Account ›
+ *   Computers › Remove), or it lost the library some other way, and it can no
+ *   longer write the snapshot that still names it, so nothing else will say so;
+ * - null: nothing answered, or something other than that server did.
+ */
+export type Answer = 'works' | 'refuses' | null
+
+/**
+ * Ask one address, as the app and the extension both do.
+ *
+ * First `/api/health` with no token: the token goes nowhere until the server
+ * there has said it is the one the snapshot named (`answersAs`). Then, with
+ * the token, the library's version — the cheapest question only the library
+ * answers — which is how a server that answers as itself but no longer holds
+ * this library shows: a 401 (2026-10-14: a removed shared server, still named
+ * by the bucket, refused every import while every device kept choosing it).
+ */
+export async function askAddress(fetch: ClientFetch, candidate: Candidate): Promise<Answer> {
+  try {
+    const health = await fetch(`${candidate.baseUrl}/api/health`)
+    if (!health.ok || !answersAs(await health.json(), candidate)) return null
+    if (!candidate.token) return 'works'
+    const library = await fetch(`${candidate.baseUrl}/api/library/version`, {
+      headers: { Authorization: `Bearer ${candidate.token}` },
+    })
+    // Anything else is the library answering, if not well: its own screens say how.
+    return library.status === 401 ? 'refuses' : 'works'
+  } catch {
+    return null
+  }
+}
+
+/**
+ * What a look at the server's addresses found: the first to answer as that
+ * server and take the token; `refused` when the server answered as itself and
+ * refused the token at every address that answered; null when none answered.
+ */
+export type Found = Candidate | 'refused' | null
+
+/**
+ * The first of the server's addresses whose answer `works` (`probe` decides,
+ * usually `askAddress`).
  *
  * All are asked at once: a Wi-Fi address asked from a phone on mobile data
  * hangs until its timeout, and one after another would take a minute. On the
@@ -108,26 +153,28 @@ export function answersAs(health: unknown, candidate: Candidate): boolean {
  */
 export function reachServer(
   connections: readonly Candidate[],
-  probe: (candidate: Candidate) => Promise<boolean>,
-): Promise<Candidate | null> {
+  probe: (candidate: Candidate) => Promise<Answer>,
+): Promise<Found> {
   if (connections.length === 0) return Promise.resolve(null)
   return new Promise(resolve => {
     let left = connections.length
     let found = false
-    const answered = (connection: Candidate, ok: boolean): void => {
+    let refused = false
+    const answered = (connection: Candidate, answer: Answer): void => {
       if (found) return
-      if (ok) {
+      if (answer === 'works') {
         found = true
         resolve(connection)
         return
       }
+      if (answer === 'refuses') refused = true
       left--
-      if (left === 0) resolve(null)
+      if (left === 0) resolve(refused ? 'refused' : null)
     }
     for (const connection of connections) {
       probe(connection).then(
-        ok => answered(connection, ok),
-        () => answered(connection, false),
+        answer => answered(connection, answer),
+        () => answered(connection, null),
       )
     }
   })
@@ -137,16 +184,17 @@ export function reachServer(
  * `reachServer`, asked twice before a server that was answering is given up on
  * (`CONFIRM_AWAY_MS`). `before` is what the last look found; with nothing found
  * before, one miss is the answer, so a server that is off is said to be at once.
+ * A refusal is said at once too: it is the server's own answer, not a blip.
  * `wait` is the platform's timer, which this package does not assume.
  */
 export async function reachServerAgain(
   connections: readonly Candidate[],
-  probe: (candidate: Candidate) => Promise<boolean>,
+  probe: (candidate: Candidate) => Promise<Answer>,
   before: ServerConnection | null | undefined,
   wait: (ms: number) => Promise<void>,
-): Promise<Candidate | null> {
+): Promise<Found> {
   const found = await reachServer(connections, probe)
-  if (found || !before) return found
+  if (found !== null || !before) return found
   await wait(CONFIRM_AWAY_MS)
   return reachServer(connections, probe)
 }

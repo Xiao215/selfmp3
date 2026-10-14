@@ -61,6 +61,8 @@ const network = jest.fn((url: string, init?: { headers?: Record<string, string> 
     return answer({ ok: true, version: '1', serverId: server.id, uptimeSeconds: 1 })
   }
   expect(init?.headers?.['Authorization']).toBe('Bearer workspace-token')
+  // The look's second question: whether the server still takes the token.
+  if (pathname === '/api/library/version') return answer({ version: 1, songCount: 3 })
   // The server's own numbers: 812 is this device's 2, and 900 is a song it has not got yet.
   if (pathname === '/api/cloud/uids') {
     return answer({

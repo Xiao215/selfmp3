@@ -147,7 +147,13 @@ export class Hub {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }
     const known = this.#registry.byAccount(account)
-    if (known && this.#workspaces.has(known.id)) return this.answer(known)
+    if (known && this.#workspaces.has(known.id)) {
+      if (await this.#grantHolds(known)) return this.answer(known)
+      // Taken back a moment ago, and not noticed yet (an idle workspace looks
+      // every ten minutes): answering its token would hand the device a
+      // library about to be let go. Let it go now, and join afresh.
+      this.#leave(known, 'its grant was taken back')
+    }
 
     const pending = this.#joining.get(account)
     if (pending) return pending
@@ -270,6 +276,16 @@ export class Hub {
         }
       },
     )
+  }
+
+  /** Whether the doorman still takes a workspace's grant; a hiccup is not taken for no. */
+  async #grantHolds(entry: HubEntry): Promise<boolean> {
+    try {
+      await this.#doorman!.me(entry.grant.token)
+      return true
+    } catch (error) {
+      return !(error instanceof CloudError && error.kind === 'auth')
+    }
   }
 
   /** What a grant names this server: its public address, else the first it listens on. */

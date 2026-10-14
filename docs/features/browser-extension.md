@@ -42,8 +42,10 @@ by itself the first time it is opened, when your bucket names no server yet
 **Remove** in Settings › Account › Computers is remembered in that device's own
 storage, which the extension cannot read: joining from here could put back a
 computer you had just removed, with nothing on the extension's side to show it
-or take it back. So while your bucket names no server, the link waits in your
-bucket as it does while the server is asleep, and the popup and the options page
+or take it back. So while your bucket names no server, or names one that no
+longer takes your library's token (one you removed, which cannot write the
+snapshot that would stop naming it), the link waits in your bucket as it does
+while the server is asleep, and the popup and the options page
 say *No computer works for your library yet* and offer **Open self.mp3**. Once
 the app has joined, the shared server writes a snapshot naming itself, and the
 extension finds it there at its next look, as it finds any server.
@@ -275,8 +277,10 @@ The options page offers two ways in:
 
    The server's addresses and token come from the snapshot in this copy of
    the library (`Cloud.server`, which is `peekCloudLibrary(...).server`), as
-   they do for the app. Unlike the app's `GET /api/cloud/server`, a snapshot
-   naming none is not followed by a join (`automatic` in
+   they do for the app, and each address is asked as the app asks it
+   (`askAddress`: the server's id first, then the token). Unlike the app's
+   `GET /api/cloud/server`, a snapshot naming none, or naming a server that
+   refuses the token, is not followed by a join (`automatic` in
    `packages/replica/src/sharedServer.ts`): the route is the bucket with
    `noServer` set, and the status carries it to the pages (*Connecting it*,
    above).
@@ -337,7 +341,7 @@ sends — tags, and never a playlist.
 | Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
 | Added | Job done | The tags it got, and that the phone has it after its next sync |
 | Your server is asleep | Bucket mode, a link not left yet | The link, tags, Keep it for later |
-| No computer works for your library yet | The same, with a bucket that names no server | The link, tags, Keep it for later, and Open self.mp3 to connect one |
+| No computer works for your library yet | The same, with a bucket that names no server, or one that refuses the library's token | The link, tags, Keep it for later, and Open self.mp3 to connect one |
 | Waiting for your server | Bucket request `waiting` | The sentence from the mock |
 | Can't import | Job `error`, or the preview refused | The server's own message, which already names the fix |
 

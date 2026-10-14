@@ -99,6 +99,7 @@ const CALLS: Calls = {
   requestCloudImport: api => api.requestCloudImport({} as never),
   cancelCloudImport: api => api.cancelCloudImport(UID),
   cloudServer: api => api.cloudServer(),
+  cloudServerRefused: api => api.cloudServerRefused('t'),
   joinSharedServer: api => api.joinSharedServer(),
   serverGrants: api => api.serverGrants(),
   access: api => api.access(),

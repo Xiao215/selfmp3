@@ -41,3 +41,10 @@ export type ImportRequestList = z.infer<typeof ImportRequestListSchema>
  * a server that never said.
  */
 export const CloudServerViewSchema = z.object({ server: CloudServerSchema.nullable() })
+
+/**
+ * `POST /api/cloud/server/refused`: the server the snapshot names answered as
+ * itself and refused this token (`askAddress` in @selfmp3/client), so it no
+ * longer works for this library. The answer is where the server is now.
+ */
+export const CloudServerRefusedSchema = z.object({ token: z.string().min(1).max(200) })

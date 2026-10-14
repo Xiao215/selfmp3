@@ -35,10 +35,22 @@ import type { CloudSession, CloudSessionApi } from './session.js'
  * bucket, and it lets the library go. That is how a device leaves one — and
  * this device then remembers it left, so it does not join again by itself.
  * Joining by hand forgets that.
+ *
+ * A server that let a library go cannot say so in the bucket: the grant it
+ * would write with is the thing taken back. So the newest snapshot goes on
+ * naming it, with a token it no longer takes, and only asking it shows that
+ * (`askAddress` in @selfmp3/client, which the app reports here: `refused`).
+ * A server that refused this library's token is passed over as if the
+ * snapshot named none. Whether the shared one is then joined again depends on
+ * why it refused. Taken back — on this device, or on another, which shows as
+ * the account having no grant for it any more — counts as leaving it. Lost
+ * some other way (its `hub.json` deleted, say), it is joined again, since
+ * nobody asked it to stop.
  */
 
 const JOINED_KEY = 'selfmp3.cloud.joined-server'
 const LEFT_KEY = 'selfmp3.cloud.left-shared-server'
+const REFUSED_KEY = 'selfmp3.cloud.refused-server'
 
 /** How long a join that failed waits before the next is tried by itself. */
 const RETRY_MS = 10 * 60_000
@@ -49,18 +61,32 @@ const JoinedSchema = z.object({ email: z.string(), server: CloudServerSchema })
 /** Which account removed the shared server from this device. */
 const LeftSchema = z.object({ email: z.string() })
 
+/** The token a server refused, and whose: that server no longer works for this library. */
+const RefusedSchema = z.object({ email: z.string(), token: z.string() })
+
 interface SharedServerApi {
   /** The server this account joined from this device, until a snapshot names one. */
   joined: (session: CloudSession) => Promise<CloudServer | null>
   /**
    * The server to use: the one the snapshot names, else the one joined from
    * here, else the shared one, joined now — unless this account left it here,
-   * has no bucket yet, or the last try failed a moment ago. Null for none.
+   * has no bucket yet, or the last try failed a moment ago. Null for none. A
+   * server that refused this library's token counts as none.
    */
   automatic: (session: CloudSession, named: CloudServer | null) => Promise<CloudServer | null>
+  /**
+   * The server this library's `token` is for refused it: it no longer works
+   * for the library. Answers what `automatic` says now.
+   */
+  refused: (
+    session: CloudSession,
+    token: string,
+    named: CloudServer | null,
+  ) => Promise<CloudServer | null>
   join: (session: CloudSession) => Promise<CloudServer>
   grants: (session: CloudSession) => Promise<DoormanGrants>
-  removeGrant: (session: CloudSession, id: string) => Promise<void>
+  /** `named` is the server the snapshot names: passed over from now if it is the one removed. */
+  removeGrant: (session: CloudSession, id: string, named: CloudServer | null) => Promise<void>
   /** Who may sign in, for the doorman's owner; a 403 for anyone else. */
   access: (session: CloudSession) => Promise<DoormanAccess>
   updateAccess: (session: CloudSession, update: DoormanAccessUpdate) => Promise<DoormanAccess>
@@ -94,15 +120,26 @@ export function createSharedServer(
     }
   }
 
+  /** The token this account's library was last refused with, if any. */
+  async function refusedToken(session: CloudSession): Promise<string | null> {
+    try {
+      const parsed = RefusedSchema.safeParse(await platform.store.read(REFUSED_KEY))
+      return parsed.success && parsed.data.email === session.me.email ? parsed.data.token : null
+    } catch {
+      return null
+    }
+  }
+
   async function automatic(
     session: CloudSession,
     named: CloudServer | null,
   ): Promise<CloudServer | null> {
-    if (named) return named
+    const gone = await refusedToken(session)
+    if (named && (gone === null || named.token !== gone)) return named
     const kept = await joined(session)
-    if (kept) return kept
+    if (kept && (gone === null || kept.token !== gone)) return kept
     if (!base || !session.me.storage || Date.now() < nextTry || (await left(session))) return null
-    joining ??= join(session)
+    joining ??= takeOver(session, named !== null && isShared(named))
       .catch(() => {
         nextTry = Date.now() + RETRY_MS
         return null
@@ -113,6 +150,46 @@ export function createSharedServer(
     return joining
   }
 
+  /**
+   * Join the shared server by itself — unless the snapshot names it and it
+   * refused this library (`refusedShared`), and the account has no grant for
+   * it any more: it was taken back on another device, and that counts as this
+   * one having left it too. A grant still there means it lost the library
+   * some other way, and nobody asked it to stop.
+   */
+  async function takeOver(
+    session: CloudSession,
+    refusedShared: boolean,
+  ): Promise<CloudServer | null> {
+    if (refusedShared) {
+      const { grants: given } = await grants(session)
+      if (!given.some(grant => sameAddress(grant.server, base))) {
+        await platform.store.write(LEFT_KEY, { email: session.me.email })
+        await platform.store.remove(JOINED_KEY)
+        return null
+      }
+    }
+    return join(session)
+  }
+
+  async function refused(
+    session: CloudSession,
+    token: string,
+    named: CloudServer | null,
+  ): Promise<CloudServer | null> {
+    try {
+      await platform.store.write(REFUSED_KEY, { email: session.me.email, token })
+    } catch {
+      // No storage: the next look is refused again, and says so again.
+    }
+    return automatic(session, named)
+  }
+
+  /** Whether a server is the shared one: one of its addresses is. */
+  function isShared(server: CloudServer): boolean {
+    return base !== '' && server.addresses.some(address => sameAddress(address, base))
+  }
+
   async function join(session: CloudSession): Promise<CloudServer> {
     if (!base) throw new CloudRouteError(409, 'This app offers no shared computer.', 'no-server')
     const answer = await call(`${base}/api/hub/join`, 'POST', session.token)
@@ -120,6 +197,8 @@ export function createSharedServer(
     try {
       await platform.store.write(JOINED_KEY, { email: session.me.email, server })
       await platform.store.remove(LEFT_KEY)
+      // The token refused, answered again: it works for this library after all.
+      if ((await refusedToken(session)) === server.token) await platform.store.remove(REFUSED_KEY)
     } catch {
       // No storage: the snapshot naming the server brings it back soon anyway.
     }
@@ -132,12 +211,22 @@ export function createSharedServer(
     return DoormanGrantsSchema.parse(await response.json())
   }
 
-  async function removeGrant(session: CloudSession, id: string): Promise<void> {
+  async function removeGrant(
+    session: CloudSession,
+    id: string,
+    named: CloudServer | null,
+  ): Promise<void> {
     const removed = (await grants(session)).grants.find(grant => grant.id === id)
     // A grant already gone is gone: `doormanFetch` answers its 404 rather than throwing.
     await sessionApi.doormanFetch(session, DOORMAN_PATHS.grant(id), { method: 'DELETE' })
+    if (!removed) return
+    // The server the snapshot names, taken back: passed over from now, not
+    // from whenever it notices and starts refusing the token.
+    if (named?.token && named.addresses.some(address => sameAddress(address, removed.server))) {
+      await platform.store.write(REFUSED_KEY, { email: session.me.email, token: named.token })
+    }
     // The shared one, taken back: not joined again by itself from here.
-    if (removed && base && removed.server.replace(/\/+$/, '') === base) {
+    if (base && sameAddress(removed.server, base)) {
       await platform.store.write(LEFT_KEY, { email: session.me.email })
       await platform.store.remove(JOINED_KEY)
     }
@@ -178,7 +267,12 @@ export function createSharedServer(
     return response.json()
   }
 
-  return { joined, automatic, join, grants, removeGrant, access, updateAccess }
+  return { joined, automatic, refused, join, grants, removeGrant, access, updateAccess }
+}
+
+/** Two ways of writing one address, whatever trailing slashes each has. */
+function sameAddress(a: string, b: string): boolean {
+  return a.replace(/\/+$/, '') === b.replace(/\/+$/, '')
 }
 
 /** The answer's own message, when it has one. */

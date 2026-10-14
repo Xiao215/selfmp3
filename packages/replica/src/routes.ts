@@ -33,7 +33,7 @@ import * as edits from './edits.js'
 import { CloudRouteError, notFound } from './errors.js'
 import type { CloudLibraryApi } from './library.js'
 import type { CloudPlatform } from './platform.js'
-import { CloudImportRequestSchema } from './schemas.js'
+import { CloudImportRequestSchema, CloudServerRefusedSchema } from './schemas.js'
 import type { CloudSession, CloudSessionApi } from './session.js'
 import { createSharedServer } from './sharedServer.js'
 import type { CloudLibrary } from './snapshotLibrary.js'
@@ -582,6 +582,18 @@ export function createCloudRoutes(
         server: await shared.automatic(session, (await peekCloudLibrary(session)).server),
       }),
     ],
+    // The server answered as itself and refused this library's token: it no
+    // longer works for it, though the snapshot still names it. Answers where
+    // the server is now — none, or the shared one joined again.
+    [
+      'POST',
+      '/api/cloud/server/refused',
+      async ({ session, body }) => {
+        const { token } = parseInput(CloudServerRefusedSchema, body)
+        const named = (await peekCloudLibrary(session)).server
+        return { server: await shared.refused(session, token, named) }
+      },
+    ],
     [
       'POST',
       '/api/cloud/server/join',
@@ -601,7 +613,8 @@ export function createCloudRoutes(
       'DELETE',
       '/api/cloud/grants/:grant',
       async ({ session, params }) => {
-        await shared.removeGrant(session, params[0] ?? '')
+        const named = (await peekCloudLibrary(session)).server
+        await shared.removeGrant(session, params[0] ?? '', named)
         return { ok: true }
       },
     ],

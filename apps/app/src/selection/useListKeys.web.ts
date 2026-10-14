@@ -143,6 +143,19 @@ export function useListKeys(actions: ListKeyActions): string {
           return
         }
 
+        if (key === 'Enter') {
+          // The control is the browser's to press. One that goes as it is
+          // pressed (a row's ▶, gone once its song plays) would take focus
+          // with it, to nothing: the row has it back instead.
+          const control = event.target instanceof HTMLElement ? event.target : null
+          if (!control || control === pressOf(row)) return
+          setTimeout(() => {
+            if (control.isConnected || !nothingFocused() || !row.isConnected) return
+            pressOf(row)?.focus({ preventScroll: true })
+          })
+          return
+        }
+
         if (key === 'ArrowLeft' || key === 'ArrowRight') {
           event.preventDefault()
           event.stopPropagation()

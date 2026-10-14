@@ -301,6 +301,28 @@ describe('a song list’s keys', () => {
     await unmount()
   })
 
+  it('gives the row its focus back when the control Enter pressed goes', async () => {
+    const { rows, unmount } = await list()
+    // A row's ▶: pressed, its song plays and it is drawn no more.
+    const play = control('Play 11')
+    rows[0]!.before(play)
+    play.addEventListener('keydown', event => {
+      if ((event as KeyboardEvent).key === 'Enter') play.remove()
+    })
+    play.focus()
+    press(play, 'Enter')
+    await new Promise(resolve => setTimeout(resolve))
+    expect(document.activeElement).toBe(rows[0])
+
+    // A control that stays keeps its focus.
+    const more = moreOf(rows[1]!)
+    more.focus()
+    press(more, 'Enter')
+    await new Promise(resolve => setTimeout(resolve))
+    expect(document.activeElement).toBe(more)
+    await unmount()
+  })
+
   it('opens the row’s menu from its ⋯ with Shift+F10', async () => {
     const { rows, unmount } = await list()
     const more = moreOf(rows[0]!)

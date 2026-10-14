@@ -34,6 +34,13 @@ its QR code, with **Share link** for the system's share sheet (a copy where ther
 Only an account with a bucket can share, since the doorman lends from it. A song not in
 storage yet cannot be shared.
 
+**The same songs, the same link.** Sharing the same songs again under the same name, in any
+order, gives back the link you already made, not a second one:
+
+- while it plays, as it is;
+- once it ran out, shared again (as **Share it again**), so the tab your friend has works again;
+- once you ended it, or its songs left your bucket, a new link.
+
 ## Songs never move
 
 As in a room, each song stays in its sender's bucket. The link records its files' keys, and
@@ -146,7 +153,10 @@ Each link is a Durable Object named by its id (`apps/doorman/src/share.ts`, boun
 
 Only the link itself is ever sent to anyone. An alarm forgets the link when its card's days
 are up. Two KV lists per account, written only when a link is made, first opened or taken
-off, say which links the account sent (`share-out:<sub>`) and opened (`share-in:<sub>`).
+off, say which links the account sent (`share-out:<sub>`) and opened (`share-in:<sub>`). A
+third, `share-same:<sub>:<sha256>`, written when a link is made or shared again, says which
+link a name and set of songs went out as. It lasts as long as that link can (a month and
+ninety days).
 
 ```
 POST /v1/share                       ShareCreate → ShareLink       signed in, with a bucket

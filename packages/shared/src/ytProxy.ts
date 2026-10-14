@@ -37,7 +37,10 @@ export const YT_PROXY_CHUNK_BYTES = 1024 * 1024
  * (packages/ytclient).
  */
 export const YT_PROXY_ORIGINS: readonly string[] = [
-  new URL(DEFAULT_APP_URL).origin,
+  // Cut from the address rather than read with `URL`: this runs as the module
+  // loads, and in the app's jest `URL` is a lazy global whose first use needs
+  // a `TextEncoder` some test environments do not have.
+  DEFAULT_APP_URL.replace(/^(https?:\/\/[^/]+).*$/, '$1'),
   'http://localhost:4601',
   'http://localhost:4602',
 ]

@@ -3,7 +3,7 @@ import {
   CJK,
   editDistance,
   SongFieldsSchema,
-  TidyFieldSchema,
+  TidyNameSchema,
   splitArtists,
   plural,
   withoutRepeats,
@@ -12,12 +12,13 @@ import {
   type Song,
   type TidyChange,
   type TidyField,
+  type TidyName,
   type TidyResult,
 } from '@selfmp3/shared'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { nameField, within, type FindNames, type FoundName } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { chunks, foldedBare as bare } from './text.js'
+import { chunks, foldedBare as bare, pool } from './text.js'
 
 /**
  * A4 · Tidy up (docs/features/ai.md): the song names in the library that look
@@ -247,7 +248,27 @@ export async function tidy(
   steps.begin('Checking every name by the rules')
   const changes = changesFor(songs, names)
   steps.done(`${changes.length} ${changes.length === 1 ? 'thing' : 'things'} to fix`)
-  return { changes, looked: songs.length, note, asked: null, reply: null }
+  return { changes, looked: songs.length, note, asked: null, reply: null, gaps: gapsIn(songs) }
+}
+
+/** How many songs miss an album, a year or a cover, each and in all: what a checkup lists. */
+export function gapsIn(songs: readonly Song[]): NonNullable<TidyResult['gaps']> {
+  const gaps = { songs: 0, album: 0, year: 0, cover: 0 }
+  for (const song of songs) {
+    const missing = missingFrom(song)
+    if (missing.length > 0) gaps.songs++
+    for (const field of missing) gaps[field]++
+  }
+  return gaps
+}
+
+/** What a song lacks of what a catalogue can fill in. */
+export function missingFrom(song: Song): ('album' | 'year' | 'cover')[] {
+  return [
+    ...(song.album.trim() === '' ? (['album'] as const) : []),
+    ...(song.year === null ? (['year'] as const) : []),
+    ...(song.hasArt ? [] : (['cover'] as const)),
+  ]
 }
 
 /** Rules and the model's names, applied to every song, grouped into changes. */
@@ -346,7 +367,7 @@ function changesFor(songs: readonly Song[], names: Names): TidyChange[] {
 }
 
 /** Edits song by song, gathered into one change per (field, from, to, why). */
-function grouped() {
+export function grouped() {
   const groups = new Map<string, TidyChange & { songIds: number[] }>()
   const propose = (
     song: Song,
@@ -365,7 +386,14 @@ function grouped() {
       groups.set(key, { key: id, field, from, to: edit.value, why, by, songIds: [song.id] })
     }
   }
-  const order: Record<TidyField, number> = { artist: 0, albumArtist: 1, album: 2, title: 3 }
+  const order: Record<TidyField, number> = {
+    artist: 0,
+    albumArtist: 1,
+    album: 2,
+    title: 3,
+    year: 4,
+    cover: 5,
+  }
   const changes = (): TidyChange[] =>
     [...groups.values()].sort(
       (a, b) =>
@@ -388,7 +416,7 @@ const EditsOut = z.object({
     .array(
       z.object({
         n: z.number().int(),
-        field: z.enum(TidyFieldSchema.options),
+        field: z.enum(TidyNameSchema.options),
         to: z.string().max(400),
         why: z.string().max(120),
       }),
@@ -440,16 +468,6 @@ const SORT_SYSTEM = `You sort someone's songs before a change they asked for is 
 /** Lookups at once: 网易云 answers quickly, and MusicBrainz waits its turn on its own. */
 const LOOKUPS_AT_ONCE = 3
 
-/** `run` over every item, `width` at a time, each taking the next as it finishes. */
-async function pool<T>(items: readonly T[], width: number, run: (item: T) => Promise<void>) {
-  let next = 0
-  await Promise.all(
-    Array.from({ length: Math.min(width, items.length) }, async () => {
-      while (next < items.length) await run(items[next++]!)
-    }),
-  )
-}
-
 /** A found name as the model is shown it. */
 const foundLine = (found: readonly FoundName[]): string =>
   found
@@ -475,7 +493,7 @@ function nameTable(batch: readonly Song[], extra?: (song: Song) => string): stri
 function eachChecked(
   answer: z.infer<typeof EditsOut>,
   batch: readonly Song[],
-  accept: (song: Song, edit: { field: TidyField; to: string; why: string }) => boolean,
+  accept: (song: Song, edit: { field: TidyName; to: string; why: string }) => boolean,
 ): void {
   const seen = new Set<string>()
   for (const edit of answer.edits) {
@@ -576,6 +594,7 @@ async function askedTidy(
       note: notes.join(' ') || null,
       asked: asked.text,
       reply: null,
+      gaps: null,
     }
   }
 
@@ -733,5 +752,6 @@ async function askedTidy(
     note: notes.length > 0 ? notes.join(' ') : null,
     asked: asked.text,
     reply: [...new Set(said)].slice(0, MAX_SAID).join(' ') || null,
+    gaps: null,
   }
 }

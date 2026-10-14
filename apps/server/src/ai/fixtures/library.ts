@@ -1,5 +1,6 @@
 import type { Song, Tag } from '@selfmp3/shared'
-import type { GenerateRequest, Llm } from '../llm.js'
+import { createLogger } from '../../logger.js'
+import { openAiCompatible, type GenerateRequest, type Llm } from '../llm.js'
 
 /**
  * A small library shaped like a real one, and a model that answers from a
@@ -206,4 +207,40 @@ export function scriptedLlm(
       return { value: request.schema.parse(next), ms: 1 }
     },
   }
+}
+
+/**
+ * A model behind a real OpenAI-style endpoint, faked only at its HTTP door:
+ * each request is answered with the next reply scripted for its task (the
+ * schema's name), as chat-completion JSON, so `llm.ts` parses and checks it
+ * exactly as it would a real one's. A number answers with that HTTP status.
+ * `prompts` keeps what each task was asked, in order.
+ */
+export function endpointLlm(
+  replies: Record<string, unknown[]>,
+): Llm & { prompts: Record<string, string[]> } {
+  const prompts: Record<string, string[]> = {}
+  const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
+    const body = JSON.parse(String(init?.body)) as {
+      messages: { role: string; content: string }[]
+      response_format: { json_schema: { name: string } }
+    }
+    const task = body.response_format.json_schema.name
+    ;(prompts[task] ??= []).push(body.messages.find(each => each.role === 'user')?.content ?? '')
+    const next = replies[task]?.shift()
+    if (next === undefined) return new Response(`nothing scripted for ${task}`, { status: 500 })
+    if (typeof next === 'number') return new Response('scripted failure', { status: next })
+    const content = JSON.stringify(next)
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 })
+  }
+  const llm = openAiCompatible(
+    {
+      baseUrl: 'http://127.0.0.1:9/v1',
+      apiKey: null,
+      models: { fast: 'fast', smart: 'smart' },
+      timeoutMs: 5000,
+    },
+    { fetch, logger: createLogger('silent') },
+  )
+  return { ...llm, prompts }
 }

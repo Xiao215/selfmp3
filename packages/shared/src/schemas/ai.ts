@@ -215,8 +215,15 @@ export type AskOrder = z.infer<typeof AskOrderSchema>
 export const AskStatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
 export type AskStatsRange = z.infer<typeof AskStatsRangeSchema>
 
-/** A song field Tidy up may change. */
-export const TidyFieldSchema = z.enum(['title', 'artist', 'album', 'albumArtist'])
+/** A song's names: what Tidy up renames, and what a change asked for may touch. */
+export const TidyNameSchema = z.enum(['title', 'artist', 'album', 'albumArtist'])
+export type TidyName = z.infer<typeof TidyNameSchema>
+
+/**
+ * A song field Tidy up may change: its names, and the year and cover a
+ * catalogue fills in where they are missing.
+ */
+export const TidyFieldSchema = z.enum([...TidyNameSchema.options, 'year', 'cover'])
 export type TidyField = z.infer<typeof TidyFieldSchema>
 
 /**
@@ -224,6 +231,10 @@ export type TidyField = z.infer<typeof TidyFieldSchema>
  * be, and every song (server ids) where it is exactly that. `by` says whether
  * it was found without a guess — a plain rule, or a music catalogue's own name
  * for the recording — or is the model's guess.
+ *
+ * Every value is text, as `tidyValue` reads it off a song: a year is its
+ * digits, and a cover is the address of the picture to take. A field filled
+ * in where it was missing goes from ''.
  */
 export const TidyChangeSchema = z.object({
   key: z.string(),
@@ -250,8 +261,84 @@ export const TidyResultSchema = z.object({
    * nothing. Null for a checkup, or when it had nothing to add.
    */
   reply: z.string().nullable(),
+  /**
+   * A checkup's count of the songs missing an album, a year or a cover, each
+   * and in all, which "Fill in what's missing" looks up. Null for anything but
+   * a checkup.
+   */
+  gaps: z
+    .object({
+      songs: z.number().int().nonnegative(),
+      album: z.number().int().nonnegative(),
+      year: z.number().int().nonnegative(),
+      cover: z.number().int().nonnegative(),
+    })
+    .nullable(),
 })
 export type TidyResult = z.infer<typeof TidyResultSchema>
+
+/**
+ * A song in the library more than once (A4, "Copies"): the copy kept, the
+ * extra copies to delete (server ids), and why they are one recording. `by`
+ * is `rule` only when nothing tells them apart — the same names, album and
+ * length — and `model` when the model judged it.
+ */
+export const TidyCopySchema = z.object({
+  key: z.string(),
+  keep: IdSchema,
+  songIds: z.array(IdSchema).min(1),
+  why: z.string(),
+  by: z.enum(['rule', 'model']),
+})
+export type TidyCopy = z.infer<typeof TidyCopySchema>
+
+export const CopiesResultSchema = z.object({
+  copies: z.array(TidyCopySchema),
+  /** How many songs were looked at. */
+  looked: z.number().int().nonnegative(),
+  /** What could not be done, in words. */
+  note: z.string().nullable(),
+})
+export type CopiesResult = z.infer<typeof CopiesResultSchema>
+
+/**
+ * A9 · the rows of an import's review, for the model to read their names
+ * (`POST /api/ai/import/names`): what each row is called now and how long it
+ * is, and the name of the list they came in, which often says what they are.
+ */
+export const ImportNamesRequestSchema = z.object({
+  list: z.string().trim().max(300).nullable().default(null),
+  rows: z
+    .array(
+      z.object({
+        title: z.string().max(300),
+        artist: z.string().max(300).default(''),
+        album: z.string().max(300).default(''),
+        duration: z.number().nonnegative().default(0),
+      }),
+    )
+    .min(1)
+    .max(300),
+})
+export type ImportNamesRequest = z.input<typeof ImportNamesRequestSchema>
+
+/**
+ * The names the model would give the rows that look wrong, each by its place
+ * in the request, with why. Every word in them is one of the row's own or the
+ * list's, so a suggestion reorders and trims but never makes a name up.
+ */
+export const ImportNamesSchema = z.object({
+  suggestions: z.array(
+    z.object({
+      row: z.number().int().nonnegative(),
+      title: z.string(),
+      artist: z.string(),
+      album: z.string(),
+      why: z.string(),
+    }),
+  ),
+})
+export type ImportNames = z.infer<typeof ImportNamesSchema>
 
 /**
  * What can be done to the music playing on the asking device: the next song
@@ -305,8 +392,10 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
       }),
     ),
   }),
-  /** Song names worth fixing, as changes to approve. */
+  /** Song names worth fixing, or what is missing filled in, as changes to approve. */
   z.object({ kind: z.literal('tidy'), tidy: TidyResultSchema }),
+  /** Songs in the library more than once, each extra copy to delete. */
+  z.object({ kind: z.literal('copies'), copies: CopiesResultSchema }),
   /** A way they want things done from now on, to save for every Ask after. */
   z.object({ kind: z.literal('remember'), note: z.string() }),
   /**

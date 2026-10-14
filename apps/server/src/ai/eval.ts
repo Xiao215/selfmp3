@@ -1,5 +1,11 @@
+import fs from 'node:fs'
 import Database from 'better-sqlite3'
-import { WrappedRangeSchema, type TagReview } from '@selfmp3/shared'
+import {
+  WrappedRangeSchema,
+  type CopiesResult,
+  type TagReview,
+  type TidyResult,
+} from '@selfmp3/shared'
 import { loadConfig } from '../config.js'
 import { createLogger } from '../logger.js'
 import { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
@@ -22,6 +28,9 @@ import { smartFeaturesFor } from './smart.js'
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tags
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "tag the songs that should be 中文流行"
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> tidy
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "fill in what's missing"
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "which songs do I have twice"
+ *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> import <rows.txt> ["list name"]
  *   npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> written month
  *   PLAYING=<song id> npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> ask "something calmer like this next"
  *
@@ -29,14 +38,17 @@ import { smartFeaturesFor } from './smart.js'
  * catalogues are reached: no server starts and no bucket is touched. Point it at a copy all the same
  * (`sqlite3 selfmp3.db ".backup /tmp/copy.db"`). The model comes from the same
  * SELFMP3_AI_* settings the server reads.
+ *
+ * `import` reads an import review's rows from a file, one a line, as
+ * `title | artist | album`, and prints the names the model would suggest.
  */
 
 /* eslint-disable no-console -- a script's output is its console. */
 
 const [file, what, ...words] = process.argv.slice(2)
-if (!file || !['describe', 'tags', 'ask', 'tidy', 'written'].includes(what ?? '')) {
+if (!file || !['describe', 'tags', 'ask', 'tidy', 'written', 'import'].includes(what ?? '')) {
   console.error(
-    'usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags | tidy | written [week|month|…]',
+    'usage: eval.ts <db file> describe "<words>" | ask "<words>" | tags | tidy | written [week|month|…] | import <rows file> ["list name"]',
   )
   process.exit(2)
 }
@@ -69,6 +81,14 @@ if (what === 'ask') {
     printTagReview(answer.review)
     process.exit(0)
   }
+  if (answer.kind === 'tidy') {
+    printTidy(answer.tidy)
+    process.exit(0)
+  }
+  if (answer.kind === 'copies') {
+    printCopies(answer.copies)
+    process.exit(0)
+  }
   const shown =
     'describe' in answer
       ? { ...answer, describe: { ...answer.describe, picks: undefined } }
@@ -95,17 +115,51 @@ if (what === 'ask') {
   for (const sentence of result.sentences) console.log(sentence)
   console.log(`(${result.dropped} dropped)`)
 } else if (what === 'tidy') {
-  const result = await smart.tidy()
-  console.log(`${result.looked} songs looked at · ${result.changes.length} changes`)
-  if (result.note) console.log(result.note)
-  for (const each of result.changes) {
+  printTidy(await smart.tidy())
+} else if (what === 'import') {
+  const [rowsFile, list] = words
+  const rows = fs
+    .readFileSync(rowsFile ?? '', 'utf8')
+    .split('\n')
+    .filter(line => line.trim())
+    .map(line => {
+      const [title = '', artist = '', album = ''] = line.split('|').map(part => part.trim())
+      return { title, artist, album }
+    })
+  const { suggestions } = await smart.importNames({ list: list ?? null, rows })
+  console.log(`${rows.length} rows · ${suggestions.length} suggestions`)
+  for (const each of suggestions) {
+    const row = rows[each.row]!
     console.log(
-      `${each.field} · ${each.from} → ${each.to} · ${each.songIds.length} · ${each.why} [${each.by}]`,
+      `${each.row + 1}. ${row.title} · ${row.artist} · ${row.album}\n   → ${each.title} · ${each.artist} · ${each.album}  (${each.why})`,
     )
   }
 } else {
   const result = await smart.untaggedTags()
   printTagReview(result)
+}
+
+function printTidy(result: TidyResult): void {
+  console.log(`${result.looked} songs looked at · ${result.changes.length} changes`)
+  if (result.gaps) {
+    const { songs, album, year, cover } = result.gaps
+    console.log(`missing: ${songs} songs (album ${album}, year ${year}, cover ${cover})`)
+  }
+  if (result.note) console.log(result.note)
+  for (const each of result.changes) {
+    console.log(
+      `${each.field} · ${each.from || '(none)'} → ${each.to} · ${each.songIds.length} · ${each.why} [${each.by}]`,
+    )
+  }
+}
+
+function printCopies(result: CopiesResult): void {
+  console.log(`${result.looked} songs looked at · ${result.copies.length} held twice`)
+  if (result.note) console.log(result.note)
+  for (const each of result.copies) {
+    const extra = each.songIds.map(id => titleOf.get(id)).join('; ')
+    console.log(`keep ${titleOf.get(each.keep)} · delete ${extra} · ${each.why} [${each.by}]`)
+  }
 }
 
 function printTagReview(result: TagReview): void {

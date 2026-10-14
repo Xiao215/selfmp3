@@ -272,7 +272,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'tidy',
-          tidy: { checkup: false, lookUp: false },
+          tidy: { what: 'change', lookUp: false },
           filters: { ...noFilters, anyTags: ['原神纯音乐', 'genshin'] },
         }),
       ],
@@ -314,7 +314,7 @@ describe('ask', () => {
     const tidyRoute = (size: number) =>
       route({
         action: 'tidy',
-        tidy: { checkup: false, lookUp: false },
+        tidy: { what: 'change', lookUp: false },
         filters: { ...noFilters, anyTags: ['原神纯音乐'], size },
       })
     const d = deps({
@@ -339,7 +339,7 @@ describe('ask', () => {
 
   it('reads a follow-up together with what was said before it', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tidy', tidy: { checkup: false, lookUp: false } })],
+      'ask-route': [route({ action: 'tidy', tidy: { what: 'change', lookUp: false } })],
       'tidy-asked': [{ edits: [], say: '' }],
     })
     const first = 'give the 原神纯音乐 songs their official Chinese names'
@@ -358,7 +358,7 @@ describe('ask', () => {
     const d = deps({
       'ask-route': [
         route({ action: 'remember', remember: { note: '  Chinese names only,  no English ' } }),
-        route({ action: 'tidy', tidy: { checkup: false, lookUp: false } }),
+        route({ action: 'tidy', tidy: { what: 'change', lookUp: false } }),
       ],
       'tidy-asked': [{ edits: [], say: '' }],
     })
@@ -377,12 +377,65 @@ describe('ask', () => {
 
   it('still runs the checkup when only asked to clean up', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tidy', tidy: { checkup: true, lookUp: false } })],
+      'ask-route': [route({ action: 'tidy', tidy: { what: 'checkup', lookUp: false } })],
       'tidy-names': [{ spellings: [], credits: [], albums: [] }],
     })
     const answer = await ask(d, 'clean up my song names')
-    expect(answer).toMatchObject({ kind: 'tidy', tidy: { asked: null } })
+    // The checkup lists what is missing, for "Fill in what's missing" to look up.
+    expect(answer).toMatchObject({
+      kind: 'tidy',
+      tidy: { asked: null, gaps: { songs: 17, album: 0, year: 11, cover: 17 } },
+    })
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'tidy-names'])
+  })
+
+  it('fills in what the songs it chose are missing, from the catalogues', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'tidy',
+          tidy: { what: 'fill', lookUp: false },
+          filters: { ...noFilters, artists: ['YOASOBI'] },
+        }),
+      ],
+    })
+    const looked: string[] = []
+    const answer = await ask(
+      {
+        ...d,
+        findListings: async song => {
+          looked.push(song.title)
+          return [
+            {
+              source: 'iTunes',
+              title: song.title,
+              artist: song.artist,
+              album: song.album,
+              year: null,
+              cover: `https://is1.mzstatic.com/${song.id}.jpg`,
+            },
+          ]
+        },
+      },
+      'fill in the missing covers of my YOASOBI songs',
+    )
+    expect(looked.sort()).toEqual(['アイドル', '夜に駆ける'])
+    if (answer.kind !== 'tidy') throw new Error(`not tidy: ${answer.kind}`)
+    expect(
+      answer.tidy.changes.map(each => `${each.field}|${each.to}|${each.songIds}`).sort(),
+    ).toEqual(['cover|https://is1.mzstatic.com/7.jpg|7', 'cover|https://is1.mzstatic.com/8.jpg|8'])
+  })
+
+  it('looks for songs held twice among the songs it chose', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'tidy', tidy: { what: 'copies', lookUp: false } })],
+    })
+    const twice = [...SONGS, { ...SONGS[6]!, id: 99 }]
+    const answer = await ask({ ...d, songs: () => twice }, 'do I have any song twice?')
+    expect(answer).toMatchObject({
+      kind: 'copies',
+      copies: { copies: [{ keep: 7, songIds: [99], by: 'rule' }], looked: 18 },
+    })
   })
 
   it('says so when Tags is turned off', async () => {

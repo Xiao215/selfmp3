@@ -48,6 +48,8 @@ import {
   AskAnswerSchema,
   AskProgressSchema,
   TidyResultSchema,
+  ImportNamesSchema,
+  type ImportNamesRequest,
   WrittenReportSchema,
   DescribeResultSchema,
   TagReviewSchema,
@@ -414,6 +416,10 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** A4 · Tidy up: the song names that look wrong, as changes to approve. */
     tidy: () => request('GET', '/api/ai/tidy', TidyResultSchema),
+
+    /** A9 · an import review's names, read by the model: better names for the rows that look wrong. */
+    importNames: (input: ImportNamesRequest, signal?: ClientSignal) =>
+      request('POST', '/api/ai/import/names', ImportNamesSchema, input, signal),
 
     /** Where the server asks a model; Settings › Smart features. */
     aiSetup: () => request('GET', '/api/ai', AiSetupSchema),

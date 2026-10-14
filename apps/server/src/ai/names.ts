@@ -4,7 +4,7 @@ import {
   splitArtists,
   type MetadataCandidate,
   type Song,
-  type TidyField,
+  type TidyName,
 } from '@selfmp3/shared'
 import { foldedBare as bare } from './text.js'
 
@@ -72,14 +72,21 @@ export function sameRecording(song: Song, listed: Listed): boolean {
 }
 
 /** The words of a found name a field's new value must come from. */
-export function nameField(field: TidyField, found: FoundName): string {
+export function nameField(field: TidyName, found: FoundName): string {
   return field === 'title' ? found.title : field === 'album' ? found.album : found.artist
 }
 
 /** 网易云's search, as `NeteaseMusic.search` gives it. */
-export type CatalogueSearch = (
-  words: string,
-) => Promise<readonly { title: string; artist: string; album: string; duration: number }[]>
+export type CatalogueSearch = (words: string) => Promise<
+  readonly {
+    title: string
+    artist: string
+    album: string
+    duration: number
+    /** The album's picture. */
+    thumbnail?: string | null
+  }[]
+>
 
 /** MusicBrainz's and iTunes' listings for a song, as `MetadataLookupService.lookup` gives them. */
 export type MetadataLookup = (query: {
@@ -94,6 +101,15 @@ interface Catalogues {
   readonly lookup: MetadataLookup
 }
 
+/** The entries that are this song's recording: those with its title first, then of those, its artist. */
+function sameRecordings<T extends Listed>(song: Song, listed: readonly T[]): T[] {
+  const same = listed.filter(each => sameRecording(song, each))
+  const titled = same.filter(each => sameTitle(song, each))
+  const pool = titled.length > 0 ? titled : same
+  const byArtist = pool.filter(each => sameArtist(song, each))
+  return byArtist.length > 0 ? byArtist : pool
+}
+
 /** A finder over the catalogues, remembering each song's answer for a day. */
 export function catalogueFinder(catalogues: Catalogues, now = () => Date.now()): FindNames {
   const cache = new Map<string, { at: number; found: FoundName[] }>()
@@ -102,19 +118,13 @@ export function catalogueFinder(catalogues: Catalogues, now = () => Date.now()):
     const hit = cache.get(key)
     if (hit && now() - hit.at < CACHE_MS) return hit.found
 
-    // The same recording: those with the song's title first, then of those, the song's artist.
-    const ours = (listed: readonly Listed[]): FoundName[] => {
-      const same = listed.filter(each => sameRecording(song, each))
-      const titled = same.filter(each => sameTitle(song, each))
-      const pool = titled.length > 0 ? titled : same
-      const byArtist = pool.filter(each => sameArtist(song, each))
-      return (byArtist.length > 0 ? byArtist : pool).map(({ source, title, artist, album }) => ({
+    const ours = (listed: readonly Listed[]): FoundName[] =>
+      sameRecordings(song, listed).map(({ source, title, artist, album }) => ({
         source,
         title,
         artist,
         album,
       }))
-    }
     const artist = mainArtist(song.artist)
     let found = ours(
       (await catalogues.netease(`${song.title} ${song.artist ? artist : ''}`.trim())).map(
@@ -144,6 +154,77 @@ export function catalogueFinder(catalogues: Catalogues, now = () => Date.now()):
     found = found.filter(each => {
       const id = `${each.title}\u0000${each.artist}\u0000${each.album}`
       return !seen.has(id) && Boolean(seen.add(id))
+    })
+
+    cache.set(key, { at: now(), found })
+    if (cache.size > CACHE_MAX) {
+      const oldest = cache.keys().next().value
+      if (oldest !== undefined) cache.delete(oldest)
+    }
+    return found
+  }
+}
+
+/**
+ * A catalogue's listing for a song's recording, with what filling in a gap
+ * needs (A4, "Filling in what's missing"): the album it is on, the year that
+ * came out and its cover, each null where the catalogue does not say.
+ */
+export interface Listing extends FoundName {
+  readonly year: number | null
+  readonly cover: string | null
+}
+
+/** Every catalogue's listings for the song's recording; empty when none has it. */
+export type FindListings = (song: Song) => Promise<Listing[]>
+
+/**
+ * A finder over every catalogue at once, remembering each song's answer for a
+ * day. Unlike the names' finder it asks all of them, 网易云 and MusicBrainz
+ * and iTunes alike: 网易云 has the album and its cover, and only the other two
+ * say a year. A catalogue that fails answers nothing, and the rest still do.
+ */
+export function listingFinder(catalogues: Catalogues, now = () => Date.now()): FindListings {
+  const cache = new Map<string, { at: number; found: Listing[] }>()
+  return async song => {
+    const key = [song.title, song.artist, song.album, Math.round(song.duration)].join('\u0000')
+    const hit = cache.get(key)
+    if (hit && now() - hit.at < CACHE_MS) return hit.found
+
+    const artist = song.artist ? mainArtist(song.artist) : ''
+    const [netease, candidates] = await Promise.all([
+      catalogues.netease(`${song.title} ${artist}`.trim()).catch(() => []),
+      catalogues
+        .lookup({ title: song.title, artist, album: song.album, duration: song.duration })
+        .catch(() => []),
+    ])
+    const listed: (Listing & { seconds: number | null })[] = [
+      ...netease.map(track => ({
+        source: '网易云' as const,
+        title: track.title,
+        artist: track.artist,
+        album: track.album,
+        year: null,
+        cover: track.thumbnail ?? null,
+        seconds: track.duration || null,
+      })),
+      ...candidates.map(candidate => ({
+        source: candidate.source === 'musicbrainz' ? ('MusicBrainz' as const) : ('iTunes' as const),
+        title: candidate.title,
+        artist: candidate.artist,
+        album: candidate.album,
+        year: candidate.year ?? null,
+        cover: candidate.artworkUrl ?? null,
+        seconds: candidate.durationSec ?? null,
+      })),
+    ]
+    // The same listing from one catalogue twice is said once.
+    const seen = new Set<string>()
+    const found = sameRecordings(song, listed).flatMap(({ seconds: _seconds, ...each }) => {
+      const id = [each.source, each.title, each.artist, each.album, each.year].join('\u0000')
+      if (seen.has(id)) return []
+      seen.add(id)
+      return [each]
     })
 
     cache.set(key, { at: now(), found })

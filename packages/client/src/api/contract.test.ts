@@ -55,6 +55,7 @@ const CALLS: Calls = {
   suggestMetadata: api => api.suggestMetadata(1),
   written: api => api.written('month' as never),
   tidy: api => api.tidy(),
+  importNames: api => api.importNames({ list: null, rows: [{ title: 'x' }] }),
   aiSetup: api => api.aiSetup(),
   checkAi: api => api.checkAi(),
   fixCoversStatus: api => api.fixCoversStatus(),

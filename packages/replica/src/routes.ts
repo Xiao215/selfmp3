@@ -136,6 +136,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'GET /api/ai/songs/:id/metadata',
   'GET /api/ai/written',
   'GET /api/ai/tidy',
+  'POST /api/ai/import/names',
   'GET /api/import/tools',
   'POST /api/import/preview',
   'POST /api/import/search',

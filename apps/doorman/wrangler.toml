@@ -102,6 +102,7 @@ new_sqlite_classes = ["ShareLink"]
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
 APP_ORIGINS = "http://localhost:4600,http://localhost:4601"
+APP_URL = "http://localhost:4601"
 DEV = "true"
 
 [[env.dev.kv_namespaces]]

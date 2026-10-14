@@ -422,6 +422,11 @@ The listening model is in `models/`, and `yt-throttle.json` keeps YouTube's pace
 whole computer. The inbox empties itself. Once a song is wholly in the bucket, the server
 deletes its copy ([SYNC.md](SYNC.md)).
 
+A `selfmp3.db` in the data folder itself, with no `hub.json`, is the one library of a server
+whose bucket is a folder (`SELFMP3_CLOUD_DIR`). Without that setting the server refuses to
+start on it, since no account here owns it: move it aside, or point `SELFMP3_DATA_DIR`
+elsewhere.
+
 ---
 
 ## Backing up

@@ -22,7 +22,6 @@ import { publishedAddresses } from '../services/addresses.js'
 import { YtThrottleService } from '../services/ytThrottle.js'
 import { createShared, FileThrottleStore, type SharedServices } from '../shared.js'
 import { startContainer } from '../start.js'
-import { hasLibraryFromBefore, migrateLibraryFromBefore } from './migrate.js'
 import { HubRegistry, type HubEntry } from './registry.js'
 
 /**
@@ -48,9 +47,6 @@ interface Workspace {
   readonly api: Router
 }
 
-/** How long a workspace whose grant could not be settled waits to try again. */
-const SETTLE_AGAIN_MS = 60 * 60_000
-
 export class Hub {
   readonly config: Config
   readonly logger: Logger
@@ -61,33 +57,28 @@ export class Hub {
   readonly #byToken = new Map<string, Workspace>()
   /** Joins under way, by account, so two taps make one workspace. */
   readonly #joining = new Map<string, Promise<CloudServer>>()
-  #settleTimer: NodeJS.Timeout | null = null
   #stopped = false
 
   constructor(config: Config, logger: Logger, doorman?: DoormanClient | null) {
     this.config = config
     this.logger = logger
+    // First: a data folder this server cannot work in stops it before anything opens.
+    this.#registry = config.cloudDir === null ? new HubRegistry(config.dataDir) : null
     this.#doorman =
       doorman !== undefined
         ? doorman
         : config.doormanUrl
           ? new DoormanClient(config.doormanUrl)
           : null
-    const throttleStore = new FileThrottleStore(config.dataDir, logger)
     this.shared = createShared(
       config,
       logger,
       config.cloudDir === null
-        ? new YtThrottleService(throttleStore, () => this.#anySignedInToYouTube())
+        ? new YtThrottleService(new FileThrottleStore(config.dataDir, logger), () =>
+            this.#anySignedInToYouTube(),
+          )
         : null,
     )
-    if (config.cloudDir !== null) {
-      this.#registry = null
-      return
-    }
-    const fromBefore = hasLibraryFromBefore(config)
-    this.#registry = new HubRegistry(config.dataDir)
-    if (fromBefore) migrateLibraryFromBefore(config, this.#registry, throttleStore, logger)
   }
 
   /** Open every library this server works for and set it going. */
@@ -98,7 +89,6 @@ export class Hub {
     }
     for (const entry of this.#registry.all()) this.#open(entry)
     this.logger.info(`working for ${plural(this.#workspaces.size, 'library', 'libraries')}`)
-    void this.#settleAll()
   }
 
   /** The libraries open, for the server's page and the log. */
@@ -189,8 +179,6 @@ export class Hub {
   /** Every library's background work stopped; databases still open. */
   stop(): void {
     this.#stopped = true
-    if (this.#settleTimer) clearTimeout(this.#settleTimer)
-    this.#settleTimer = null
     for (const workspace of this.#workspaces.values()) workspace.container.stop()
     void this.shared.close()
   }
@@ -205,9 +193,7 @@ export class Hub {
   async #makeWorkspace(session: string, account: string, me: DoormanMe): Promise<CloudServer> {
     const registry = this.#registry!
     const doorman = this.#doorman!
-    const made = await this.#askDoorman(() =>
-      doorman.grant(session, { server: this.#name().server, name: this.#name().name }),
-    )
+    const made = await this.#askDoorman(() => doorman.grant(session, this.#name()))
     const grant = { token: made.token, id: made.grant.id }
     // A library that was here before and was let go, joining again: the same
     // workspace, with the new grant.
@@ -235,11 +221,11 @@ export class Hub {
     })
     const grant = entry.grant
     const saved = container.cloudRepo.doormanSession()
-    if (grant && this.config.doormanUrl && saved?.token !== grant.token) {
+    if (this.config.doormanUrl && saved?.token !== grant.token) {
       container.cloudRepo.saveDoormanSession({
         url: this.config.doormanUrl,
         token: grant.token,
-        email: me?.email ?? entry.email ?? '',
+        email: me?.email ?? entry.email,
         name: me?.name ?? null,
         picture: me?.picture ?? null,
         storage: me?.storage ?? null,
@@ -272,18 +258,8 @@ export class Hub {
   #sessionEnded(id: string): void {
     const workspace = this.#workspaces.get(id)
     const entry = workspace?.entry
-    const grant = entry?.grant
-    if (!entry || !grant || !this.#doorman || this.#stopped) return
-    // A library from before whose old session ended was never given a grant
-    // to take back: its plays may not all be in the bucket yet, so it waits
-    // for someone to sign it in again rather than being let go.
-    if (grant.id === null) {
-      this.logger.warn('a library from before lost its session; it waits to be joined again', {
-        workspace: id,
-      })
-      return
-    }
-    void this.#doorman.me(grant.token).then(
+    if (!entry || !this.#doorman || this.#stopped) return
+    void this.#doorman.me(entry.grant.token).then(
       () => undefined,
       (error: unknown) => {
         if (!(error instanceof CloudError && error.kind === 'auth')) return
@@ -294,65 +270,6 @@ export class Hub {
         }
       },
     )
-  }
-
-  /**
-   * Libraries from before workspaces know their session but not their account,
-   * and hold a device's session that will end in 180 days. Each is asked which
-   * account it is and swaps its session for a grant, then is opened again on
-   * it. A doorman that cannot yet say is asked again in an hour.
-   */
-  async #settleAll(): Promise<void> {
-    const registry = this.#registry
-    if (!registry || !this.#doorman) return
-    let unsettled = false
-    for (const entry of registry.all()) {
-      if (!entry.grant || (entry.account !== null && entry.grant.id !== null)) continue
-      try {
-        await this.#settle(entry)
-      } catch (error) {
-        unsettled = true
-        this.logger.warn('could not settle a library’s grant yet', {
-          workspace: entry.id,
-          message: messageOf(error),
-        })
-      }
-    }
-    if (unsettled && !this.#stopped) {
-      this.#settleTimer = setTimeout(() => {
-        this.#settleTimer = null
-        void this.#settleAll()
-      }, SETTLE_AGAIN_MS)
-      this.#settleTimer.unref()
-    }
-  }
-
-  async #settle(entry: HubEntry): Promise<void> {
-    const registry = this.#registry!
-    const doorman = this.#doorman!
-    const old = entry.grant!
-    const me = await doorman.me(old.token)
-    if (!me.account) throw new Error('the doorman is too old to say which account this is')
-    const account = me.account
-    const other = registry.byAccount(account)
-    if (other && other.id !== entry.id) {
-      this.logger.warn('two libraries here are for one account; keeping both until one leaves', {
-        email: me.email,
-      })
-    }
-    let grant = old
-    if (old.id === null) {
-      const made = await doorman.grant(old.token, this.#name())
-      grant = { token: made.token, id: made.grant.id }
-    }
-    const settled = registry.update(entry.id, { account, email: me.email, grant })
-    if (grant.token !== old.token) {
-      this.#close(entry.id)
-      this.#open(settled, me)
-      // The device session the library signed in with is not needed any more.
-      await doorman.signOut(old.token).catch(() => undefined)
-    }
-    this.logger.info('a library from before now works on a grant', { email: me.email })
   }
 
   /** What a grant names this server: its public address, else the first it listens on. */

@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -11,7 +11,7 @@ import {
   type Playlist,
   type SharedSummary,
 } from '@selfmp3/shared'
-import { radius, space, type, useGems, iconSize } from '@selfmp3/client'
+import { radius, space, type, useGems, usePlaylistSongs, iconSize } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -21,9 +21,12 @@ import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Live, Play, Plus } from '../../ui/components/Icons'
+import { Menu } from '../../ui/components/MoreMenu'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
 import { floating, pageFrame } from '../../ui/surfaces'
+import type { PopoverAnchor } from '../../ui/rightClick'
+import { useSongsById } from '../../ui/songsById'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
@@ -31,6 +34,7 @@ import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
 import { GEMS_SOURCE } from '../lists/lists.model'
 import { NewPlaylist } from './NewPlaylist'
+import { DeletePlaylistDialog, usePlaylistMenu } from './playlistMenu'
 import { PlaylistCover } from './PlaylistCover'
 import {
   isLive,
@@ -69,7 +73,7 @@ const SORT_PREF = 'playlists.sort'
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide, finePointer } = useLayout()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
@@ -98,6 +102,14 @@ export function PlaylistsScreen(): ReactNode {
       router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } }),
     [router],
   )
+  // A tile's menu, at the tile or where it was right-clicked; and a delete it asked for.
+  const menuAnchor = useRef<PopoverAnchor | null>(null)
+  const [menuFor, setMenuFor] = useState<Playlist | null>(null)
+  const [deleting, setDeleting] = useState<Playlist | null>(null)
+  const openMenu = useCallback((playlist: Playlist, at: PopoverAnchor) => {
+    menuAnchor.current = at
+    setMenuFor(playlist)
+  }, [])
 
   const { data: shared } = useSharedList()
   const gems = useGems(30)
@@ -188,8 +200,10 @@ export function PlaylistsScreen(): ReactNode {
                   line={playlistTileLine(tile.playlist, now)}
                   index={playlists.indexOf(tile.playlist)}
                   width={tileWidth}
+                  finePointer={finePointer}
                   onOpen={openPlaylist}
                   onPlay={playback.playById}
+                  onMenu={openMenu}
                 />
               )
             }
@@ -199,6 +213,13 @@ export function PlaylistsScreen(): ReactNode {
       </ScrollView>
 
       <NewPlaylist open={newOpen} onClose={() => setNewOpen(false)} />
+      <PlaylistTileMenu
+        playlist={menuFor}
+        anchorRef={menuAnchor}
+        onClose={() => setMenuFor(null)}
+        onDelete={setDeleting}
+      />
+      <DeletePlaylistDialog playlist={deleting} onClose={() => setDeleting(null)} />
     </SafeAreaView>
   )
 }
@@ -283,8 +304,10 @@ const PlaylistTile = memo(function PlaylistTile({
   line,
   index,
   width,
+  finePointer,
   onOpen,
   onPlay,
+  onMenu,
 }: {
   playlist: Playlist
   /** "5 songs · yesterday". */
@@ -292,8 +315,11 @@ const PlaylistTile = memo(function PlaylistTile({
   index: number
   /** The tile's width, where Play sits on its cover; 0 until the page's width is known. */
   width: number
+  finePointer: boolean
   onOpen: (playlist: Playlist) => void
   onPlay: (playlistId: number) => void
+  /** Its menu, the playlist page's ⋯: on a right-click, or a hold. */
+  onMenu: (playlist: Playlist, at: PopoverAnchor) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const live = isLive(playlist)
@@ -313,7 +339,9 @@ const PlaylistTile = memo(function PlaylistTile({
       title={playlist.name}
       sub={line}
       onPress={() => onOpen(playlist)}
+      onMenu={at => onMenu(playlist, at)}
       label={playlist.name}
+      hint={finePointer ? 'Right-click for more actions' : 'Hold for more actions'}
       testID={`playlist-row-${index}`}
       overlay={
         width > 0
@@ -335,6 +363,57 @@ const PlaylistTile = memo(function PlaylistTile({
     />
   )
 })
+
+/**
+ * A playlist tile's menu: what the playlist's page offers from its ⋯, but
+ * Select songs, which needs the page's list. Rename and a description go to
+ * the page, where the name and the description are edited in place. Kept
+ * mounted, with the last playlist it was for, so it closes as it opened.
+ */
+function PlaylistTileMenu({
+  playlist,
+  anchorRef,
+  onClose,
+  onDelete,
+}: {
+  playlist: Playlist | null
+  anchorRef: RefObject<PopoverAnchor | null>
+  onClose: () => void
+  onDelete: (playlist: Playlist) => void
+}): ReactNode {
+  const router = useRouter()
+  const [shown, setShown] = useState(playlist)
+  if (playlist !== null && playlist !== shown) setShown(playlist)
+  // As the page lists them: the songs this device's library knows.
+  const contents = usePlaylistSongs(shown?.id ?? null)
+  const byId = useSongsById()
+  const songIds = useMemo(
+    () => contents.data?.songIds.filter(id => byId.has(id)),
+    [contents.data, byId],
+  )
+  const toPage = (params: { rename?: string; describe?: string }): void => {
+    if (!shown) return
+    router.push({ pathname: '/playlists/[id]', params: { id: String(shown.id), ...params } })
+  }
+  const items = usePlaylistMenu(shown, songIds, {
+    onRename: () => toPage({ rename: '1' }),
+    onDescribe: () => toPage({ describe: '1' }),
+    onDelete: () => {
+      if (shown) onDelete(shown)
+    },
+  })
+  return (
+    <Menu
+      open={playlist !== null}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      items={items}
+      title={shown?.name}
+      align="start"
+      testID="playlist-tile-menu"
+    />
+  )
+}
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },

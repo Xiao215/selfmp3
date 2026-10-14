@@ -105,7 +105,6 @@ function hubRoutes(hub: Hub): Router {
           email: entry?.email ?? null,
           songs: container.songs.count(),
           connected: container.cloudSync.connected,
-          grant: !entry?.grant ? 'none' : entry.grant.id === null ? 'from-before' : 'granted',
           joinedAt: entry?.joinedAt ?? null,
         })),
       }

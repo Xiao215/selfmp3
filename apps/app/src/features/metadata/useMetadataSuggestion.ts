@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useMutation, type UseMutationResult } from '@tanstack/react-query'
 import type { MetadataSuggestion } from '@selfmp3/shared'
-import { ApiError } from '@selfmp3/client'
+import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from '../smart/useSmartServer'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 
@@ -35,7 +35,7 @@ export function useMetadataSuggestion(askFor: number): Suggesting {
     mutationFn: async (again: boolean): Promise<MetadataSuggestion> => {
       // Suggesting is asked of the server, which holds the model: without it
       // the library is, as far as this card goes, unreachable.
-      if (!server.api) throw new ApiError(0, 'no server to suggest with', 'offline')
+      if (!server.api) throw noServerToAsk()
       waiting.current?.abort()
       const stop = new AbortController()
       waiting.current = stop

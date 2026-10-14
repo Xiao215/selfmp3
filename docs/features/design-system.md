@@ -91,8 +91,8 @@ next, and the phone's adds a "This player" group with the sleep timer and Device
 song in a room gets none of the library's actions. Play next and Fix song info… live on the
 song's page, not in the menu; selecting starts from a held row or the checkbox.
 
-In a browser and the desktop app a right-click on a song row, a Home tile, a shelf's card or
-a sidebar tag opens that thing's menu at the pointer (`ui/rightClick.ts`: a point stands in
+In a browser and the desktop app a right-click on a song row, a Home tile, a shelf's card, a
+tile on Tags or Playlists or a sidebar tag opens that thing's menu at the pointer (`ui/rightClick.ts`: a point stands in
 for the ⋯ as the popover's anchor), and the browser's own menu stays away.
 
 Up next has three icons for its three actions: `UpNext`, a list with a play
@@ -254,9 +254,7 @@ The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `
 worked out from a hue). Unistyles holds the dark and light themes built from them at this
 device's accent hue, and restyles every `StyleSheet.create(theme => …)` when the theme or the
 accent changes, without a reload. The extension's stylesheet is written from the same tokens
-on every build (`apps/extension/scripts/theme.mjs`). `tokens.reference.css` is the stylesheet
-the palette was first written in; the app does not load it, and the tests check the light
-palette against it.
+on every build (`apps/extension/scripts/theme.mjs`).
 
 **Nine type sizes and no others**, each with the line height to use when its words wrap
 (`textStyle(step)` gives both). A line that never wraps leaves `lineHeight` off.

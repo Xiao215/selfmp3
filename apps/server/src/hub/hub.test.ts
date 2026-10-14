@@ -307,9 +307,9 @@ describe('a server working for several accounts', () => {
     await join(url, await account('1', 'me@example.com', 'mine'))
     await join(url, await account('2', 'friend@example.com', 'theirs'))
     const { workspaces } = HubStatusSchema.parse((await listed()).body)
-    expect(workspaces.map(({ email, grant, songs }) => ({ email, grant, songs }))).toEqual([
-      { email: 'me@example.com', grant: 'granted', songs: 0 },
-      { email: 'friend@example.com', grant: 'granted', songs: 0 },
+    expect(workspaces.map(({ email, songs }) => ({ email, songs }))).toEqual([
+      { email: 'me@example.com', songs: 0 },
+      { email: 'friend@example.com', songs: 0 },
     ])
     const friend = workspaces[1]!
     expect(friend.id).toMatch(/^[0-9a-f]{16}$/)
@@ -378,39 +378,19 @@ describe('a server working for several accounts', () => {
     expect((await send('POST', '/sync', { [HUB_LIBRARY_HEADER]: id })).status).toBe(200)
   })
 
-  it('makes a library from before into a workspace, keeping its token, then settles its grant', async () => {
-    // The one library a server had: signed in through the doorman, in the data folder itself.
+  it('refuses a data folder holding a library and nothing to say whose', () => {
+    // The one library of a server from before it worked for accounts: its
+    // database in the data folder itself, and no hub.json.
     const before = loadConfig()
-    const serverSession = await account('1', 'me@example.com', 'mine')
-    const container = createContainer(before, { logger: createLogger('silent') })
-    const token = container.config.authToken
-    container.cloudRepo.saveDoormanSession({
-      url: doormanUrl,
-      token: serverSession,
-      email: 'me@example.com',
-      name: null,
-      picture: null,
-      storage: null,
-    })
-    container.close()
-    fs.writeFileSync(path.join(before.libraryDir, 'waiting.m4a'), 'not really audio')
+    createContainer(before, { logger: createLogger('silent') }).close()
+    expect(fs.existsSync(path.join(before.dataDir, 'selfmp3.db'))).toBe(true)
 
-    const { hub, url, config } = await startHub()
-    const [workspace] = hub.workspaces()
-    const id = workspace!.entry!.id
-    expect(fs.existsSync(path.join(config.dataDir, 'selfmp3.db'))).toBe(false)
-    expect(fs.existsSync(path.join(config.dataDir, 'accounts', id, 'selfmp3.db'))).toBe(true)
-    expect(fs.existsSync(path.join(config.libraryDir, id, 'waiting.m4a'))).toBe(true)
-    expect((await health(url, token)).ok).toBe(true)
-
-    // Settled: the account known, a grant of its own, the old session ended.
-    await until(() => hub.workspaces()[0]?.entry?.grant?.id != null, 'the grant to settle')
-    expect(hub.workspaces()[0]?.entry?.account).toMatch(/^[0-9a-f]{32}$/)
-    await until(
-      async () => (await doorman.call('/v1/me', { token: serverSession })).status === 401,
-      'the old session to be signed out',
+    expect(() => new Hub(loadConfig(), createLogger('silent'))).toThrow(
+      /holds a library \(selfmp3\.db\) and no hub\.json/,
     )
-    expect((await health(url, token)).ok).toBe(true)
+    // Left exactly where it was.
+    expect(fs.existsSync(path.join(before.dataDir, 'selfmp3.db'))).toBe(true)
+    expect(fs.existsSync(path.join(before.dataDir, 'hub.json'))).toBe(false)
   })
 })
 

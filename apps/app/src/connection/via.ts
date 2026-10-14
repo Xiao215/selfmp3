@@ -1,4 +1,5 @@
-import type { Reach, ServerConnection } from '@selfmp3/client'
+import { ApiError, type Reach, type ServerConnection } from '@selfmp3/client'
+import { API_ERROR } from '@selfmp3/shared'
 import { useConnection } from './ConnectionProvider'
 import { useServerDirect } from './useServerDirect'
 
@@ -40,9 +41,18 @@ export function viaKey(
 }
 
 /**
+ * What a question fails with when there is no server to put it to: an
+ * offline failure, so every screen words it as its library's computer being
+ * away (`failureText`), the same as a server that did not answer.
+ */
+export function noServerToAsk(): ApiError {
+  return new ApiError(0, 'no server to ask', API_ERROR.offline)
+}
+
+/**
  * The query function a via-server query has while there is no server: such
  * a query is not `enabled` then, so this only answers a stray refetch.
  */
 export function noServer(): Promise<never> {
-  return Promise.reject(new Error('no server to ask'))
+  return Promise.reject(noServerToAsk())
 }

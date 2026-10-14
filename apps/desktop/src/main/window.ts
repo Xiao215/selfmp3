@@ -77,7 +77,7 @@ export function createWindow({
    * app away from itself with no way back.
    */
   window_.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
+    openOutside(url)
     return { action: 'deny' }
   })
   // Whole origins, so `app://selfmp3.example` or another port does not pass for the app.
@@ -87,12 +87,21 @@ export function createWindow({
   window_.webContents.on('will-navigate', (event, url) => {
     if (!isOwnPage(url)) {
       event.preventDefault()
-      if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
+      openOutside(url)
     }
   })
 
   void window_.loadURL(devUrl ?? `${APP_ORIGIN}/`)
   return window_
+}
+
+/**
+ * A link to somewhere on the web, opened in the person's own browser. Only a
+ * web address: anything else (`file:`, `javascript:`, another app's scheme)
+ * would be the page asking the system to open a file or another app.
+ */
+export function openOutside(url: string): void {
+  if (url.startsWith('https://') || url.startsWith('http://')) void shell.openExternal(url)
 }
 
 /** Where the preload ends up next to the built main process. */

@@ -47,7 +47,8 @@ workspace its `X-Selfmp3-Library` header names by id, or else to the only worksp
 there is only one. A request with no token, or a token nobody here was given, is a 401,
 except `GET /api/health`.
 
-The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below), and
+The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below),
+`POST /api/hub/check`, the doorman's notice that a grant was taken back (below), and
 `GET /api/hub`, the list of workspaces (id, account, songs, whether it reaches its bucket),
 answered only to the server's own machine. There is no route to leave by: an
 account takes its grant back (below), which works while the server is off.
@@ -152,16 +153,48 @@ in KV). The doorman lists an account's grants (`GET /v1/grants`) and ends one
 
 Three rules keep grants safe:
 
-- **A removed grant is noticed promptly.** The server's next request to the bucket is
-  refused; an idle workspace still looks at its bucket every ten minutes. The server checks
-  once with the doorman, then lets the workspace go and deletes its folders. Nothing is lost
-  by that, because the folders were a copy of the bucket. So **Remove** asks the doorman
-  alone, and works while the server is off. The bucket's snapshot still names the server
-  afterwards. Devices pass it over because it refuses their token ("A server that no longer
-  works for a library", above).
+- **A removed grant is noticed at once.** **Remove** asks the doorman alone, so it works
+  while the server is off. Once the grant is ended, the doorman tells the server, after it
+  has answered **Remove** and without waiting on it ("Telling the server", below). The
+  server asks the doorman whether the grant still holds and, refused, lets the workspace go
+  and deletes its folders. Nothing is lost by that, because the folders were a copy of the
+  bucket. A server that was off, or that the doorman could not reach, finds out as it always
+  did: its next request to the bucket is refused (an idle workspace looks every ten minutes,
+  and every workspace looks as the server starts), and it checks once with the doorman
+  before letting go. The bucket's snapshot still names the server afterwards. Devices pass
+  it over because it refuses their token ("A server that no longer works for a library",
+  above), so once the server has been told, that is a second or two after **Remove**.
 - **Signing out everywhere ends grants too.**
 - **A grant cannot make grants.** Otherwise a server could hand the account on to another
   without anyone being asked.
+
+### Telling the server
+
+A grant has always kept the address the server gave when it asked for it (`server`: its
+public address, `SELFMP3_PUBLIC_URL`, else the first it listens on). When a grant is ended
+from a device, or when the account signs out everywhere, the doorman sends
+`POST <server>/api/hub/check` with `{ "grant": "<id>" }` (`tellServer` in
+`apps/doorman/src/grants.ts`). It does so in the Worker's `waitUntil`, after the answer, with
+a five-second limit and no redirects followed. A failure is a line in the doorman's log and
+nothing more. A server letting the account go with its own grant is not told.
+
+The notice proves nothing and the server does not take its word (`Hub.check` in
+`apps/server/src/hub/hub.ts`). It carries no token, and the route needs none. All it does is
+make the workspace holding that grant ask the doorman `GET /v1/me` with the grant's own
+token, now rather than at its next look; only the doorman's refusal lets the library go. So
+anyone who sends one can at most make the server ask a little sooner:
+
+- **A grant no workspace holds** is ignored without asking anyone. The answer is 204
+  whatever the grant, so it says nothing about which grants are held here.
+- **One that is held** is looked at no more than once every five seconds. Notices that come
+  while a look is under way are folded into it.
+- **One that still holds** is looked at once more 65 seconds on, and then left to the usual
+  ten-minute look. The doorman's copies of its sessions can take up to a minute to agree that
+  one ended (`apps/doorman/src/kv.ts`, `boundedCache.ts`).
+
+Only grants whose address the doorman can reach are told. A server whose grant names an
+address on a home network, as one with no public address does, is never reached, and is left
+to its next look.
 
 ## What moved into the bucket
 
@@ -227,7 +260,9 @@ A change that touches the doorman, the server and the app goes out in that order
 - **The doorman first, by hand.** No workflow deploys it: `cd apps/doorman && npx wrangler
   deploy` ([apps/doorman/README.md](../../apps/doorman/README.md)). The server and the app
   ask it for grants (`/v1/grants`), `account` in `/v1/me` and the allow list (`/v1/access`),
-  so it has to answer before they do.
+  so it has to answer before they do. Telling the server works in either order: a doorman
+  ahead of the server sends its notice to a route the server does not have yet, which
+  answers 401, and the server finds out at its next look as before.
 - **Then the server, by pushing to `main`.** `.github/workflows/docker.yml` builds
   `ghcr.io/xiao215/selfmp3:latest` (arm64 and amd64) when a push touches the server or
   `packages/shared`, and again every Monday for a fresh yt-dlp. The server picks it up with
@@ -246,6 +281,7 @@ A change that touches the doorman, the server and the app goes out in that order
 | What the workspaces share | `apps/server/src/shared.ts`, `sound/sound.ts` (`SoundModelHost`), `util/gate.ts` |
 | One library's background work | `apps/server/src/start.ts` |
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |
+| Telling the server | `tellServer` in `apps/doorman/src/grants.ts`; `Hub.check` and `POST /api/hub/check` in `apps/server/src/hub/`; `HubCheckSchema` in `packages/shared/src/schemas/hub.ts` |
 | Plays in the bucket | `apps/server/src/services/playsArchive.ts`, `cloudSync.ts` (`#uploadPlays`, `#readBucketPlays`); `CloudPlays*` in `packages/shared/src/schemas/cloud.ts` |
 | Joining, from a device | `packages/replica/src/sharedServer.ts`; `apps/app/src/connection/ServerAway.tsx`; `apps/app/src/features/settings/ConnectionPanel.tsx` (`Computers`) |
 | Tests | `apps/server/src/hub/hub.test.ts` (the real doorman over HTTP, and the device's side against it), `apps/doorman/src/grants.test.ts`, the `plays` block in `apps/server/src/services/cloudSync.test.ts`, `packages/replica/src/sharedServer.test.ts`, `packages/client/src/connection/reach.test.ts` |

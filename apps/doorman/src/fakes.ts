@@ -798,6 +798,8 @@ export interface Harness {
   readonly logs: Array<{ level: 'warn' | 'error'; message: string; details?: unknown }>
   /** Call the doorman as a device would. */
   call(path: string, init?: CallInit): Promise<Response>
+  /** The work the doorman's answers left going on after them (`waitUntil`), finished. */
+  settle(): Promise<void>
   /** Go through the whole of signing in, and return the session's token. */
   signIn(profile?: Partial<Profile>): Promise<string>
   /** Connect the test bucket, as the signed-in device. */
@@ -928,6 +930,9 @@ export function harness(): Harness {
     },
   })
 
+  const background: Array<Promise<unknown>> = []
+  const runtime = { waitUntil: (work: Promise<unknown>) => void background.push(work) }
+
   const call = (path: string, init: CallInit = {}): Promise<Response> => {
     const headers = new Headers(init.headers)
     if (init.token) headers.set('authorization', `Bearer ${init.token}`)
@@ -944,7 +949,11 @@ export function harness(): Harness {
     }
     // Node wants to be told a streamed body is sent before the answer comes.
     if (body instanceof ReadableStream) requestInit.duplex = 'half'
-    return doorman.fetch(new Request(`${DOORMAN_ORIGIN}${path}`, requestInit), env)
+    return doorman.fetch(new Request(`${DOORMAN_ORIGIN}${path}`, requestInit), env, runtime)
+  }
+
+  const settle = async (): Promise<void> => {
+    while (background.length > 0) await Promise.all(background.splice(0))
   }
 
   const signIn = async (changes: Partial<Profile> = {}): Promise<string> => {
@@ -1006,6 +1015,7 @@ export function harness(): Harness {
     outside,
     logs,
     call,
+    settle,
     signIn,
     connect,
     connectBackblaze,

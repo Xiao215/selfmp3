@@ -232,6 +232,15 @@ redirect URI in step 2).
   180-day end. Each account sees and removes its own in self.mp3's Settings ›
   Account › Computers. Signing out everywhere ends them too, and a grant can
   never make another. Making one costs two KV writes, and so does ending one.
+  Ending one also tells its server, at the address it gave when it asked for
+  the grant: `POST <address>/api/hub/check`, naming the grant and nothing
+  else, after the doorman has answered and with a five-second limit. The
+  server then asks the doorman whether the grant still holds, and lets the
+  library go when it does not. A server that is off, or not reachable from
+  Cloudflare, finds out at its next look at the bucket instead
+  ([docs/features/shared-server.md](../../docs/features/shared-server.md),
+  "Telling the server"). Nothing new is kept for it: every grant has always
+  stored that address.
 - **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep in
   self.mp3's Settings › Who can sign in, which only an owner sees
   (`/v1/access`, kept in KV as `access`). Letter case does not matter. With no

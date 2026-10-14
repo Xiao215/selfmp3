@@ -1,6 +1,8 @@
 import { Router, type Express, type NextFunction, type Request, type Response } from 'express'
 import {
+  HUB_CHECK_PATH,
   HUB_LIBRARY_HEADER,
+  HubCheckSchema,
   plural,
   type CloudServer,
   type Health,
@@ -75,7 +77,8 @@ function hubRoutes(hub: Hub): Router {
    *
    * There is no route to leave by. An account takes its grant back at the
    * doorman (Settings › Account › Computers › Remove), which works while this
-   * server is off, and the server lets the library go once its next look at
+   * server is off. The doorman then tells this server (`/hub/check`, below);
+   * one that was off, or missed it, lets the library go once its next look at
    * the bucket is refused (`Hub`, `#sessionEnded`).
    */
   router.post(
@@ -87,6 +90,20 @@ function hubRoutes(hub: Hub): Router {
       const already = hub.resolve(req)
       if (already?.entry) return hub.answer(already.entry)
       return hub.join(session)
+    }),
+  )
+
+  /**
+   * The doorman saying a grant was taken back. No token: the notice proves
+   * nothing and asks for nothing but a look, which the server makes with the
+   * grant's own token (`Hub.check`). The answer is the same whatever the grant,
+   * so it tells a stranger nothing about which grants are held here.
+   */
+  router.post(
+    HUB_CHECK_PATH.slice('/api'.length),
+    route({ body: HubCheckSchema }, ({ body }): undefined => {
+      hub.check(body.grant)
+      return undefined
     }),
   )
 

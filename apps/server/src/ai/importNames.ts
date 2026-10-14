@@ -27,7 +27,7 @@ import { chunks, pool } from './text.js'
  * was. So a suggestion moves and trims words, and never makes a name up.
  */
 
-const VERSION = 1
+const VERSION = 2
 
 const ROWS_PER_CALL = 60
 const CALLS_AT_ONCE = 3
@@ -54,6 +54,7 @@ const RowsOut = z.object({
 
 const SYSTEM = `You read the names of songs someone is about to import into their own music library. You are given the name of the list they come from, if it has one, and a numbered table of its songs (n | title | artist | album | length), named the way the place they come from wrote them. Reply with JSON only: rows, one for each song whose names look wrong for a song in a music library, with its number (n), the title, artist and album it should have, and why in at most six plain words. Leave out every song whose names look right.
 
+- Judge each row with what you know of these artists and their songs, not only by how the words are laid out.
 - Use only words already in that song's row or in the list's name: put each in the field it belongs to, and leave out whatever is not part of the song's name. Never translate, respell or add a name yourself.
 - Keep a field as it is when it is right; an album may stay empty.
 - Never use a number that is not in the table.`
@@ -155,5 +156,6 @@ export function grounded(
   if (names.title === row.title && names.artist === row.artist && names.album === row.album) {
     return null
   }
-  return { ...names, why: said.why.trim() || 'The names look mixed up' }
+  const why = said.why.trim() || 'The names look mixed up'
+  return { ...names, why: why.charAt(0).toUpperCase() + why.slice(1) }
 }

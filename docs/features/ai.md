@@ -654,7 +654,10 @@ so one fixed by hand, or taken, has none. The rows asked about are the review as
 showed, never each letter typed; off in Settings, no model, or a failure all mean no lines,
 and the review is the review it always was. Tried 2026-10-14 through a local model on six
 rows: "【中日字幕】打上花火 - DAOKO × 米津玄師" by "Music Channel" → 打上花火 by DAOKO × 米津玄師;
-"Yorushika" by "ただ君に晴れ" swapped round; 夜に駆ける, Lemon and "Track 3" left; 9 s.
+"Yorushika" by "ただ君に晴れ" swapped round; 夜に駆ける, Lemon and "Track 3" left; 9 s. A
+title that was the artist's name ("米津玄師" by "Lemon") was left as it was until the prompt
+said to judge each row with what it knows of the artists, not only how the words are laid
+out; then it was turned round too.
 
 ## A8 · Steer Up next
 

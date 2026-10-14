@@ -52,6 +52,7 @@ it('counts every feature on, and asks nothing, while no server is found', async 
     tags: true,
     written: true,
     metadata: true,
+    import: true,
   })
   expect(global.fetch).not.toHaveBeenCalled()
 })

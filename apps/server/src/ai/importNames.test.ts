@@ -35,14 +35,19 @@ describe('an import’s names, read by the model', () => {
         why: 'Album from the list',
       }),
     ).toMatchObject({ album: 'The Wind and the Star Traveler' })
-    // An artist is never emptied; an album may be.
+    // An artist is never emptied; an album may be. Why reads as a sentence.
     expect(
-      grounded(row('A', 'B', 'C'), null, { title: 'A', artist: '', album: '', why: 'x' }),
+      grounded(row('A', 'B', 'C'), null, {
+        title: 'A',
+        artist: '',
+        album: '',
+        why: 'album was the channel',
+      }),
     ).toEqual({
       title: 'A',
       artist: 'B',
       album: '',
-      why: 'x',
+      why: 'Album was the channel',
     })
   })
 

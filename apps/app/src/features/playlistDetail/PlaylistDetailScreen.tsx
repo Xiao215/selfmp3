@@ -6,10 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { plural, type Song, NameSchema } from '@selfmp3/shared'
 import {
-  failureText,
   space,
-  useCreatePlaylist,
-  useDeletePlaylist,
   useLibrary,
   usePlaylistSongs,
   useReorderPlaylist,
@@ -21,32 +18,24 @@ import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
-import { showToast } from '../../ui/toast'
 import { tip } from '../../ui/tip'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
-import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { Copy, ListMusic, Live, Pencil, Plus, Trash } from '../../ui/components/Icons'
+import { ListMusic, Live, Plus } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
-import { useListActions } from '../../ui/components/useListActions'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import {
-  copyName,
-  FOLLOWS_LABEL,
-  isLive,
-  newPlaylist,
-  playlistHeadLine,
-} from '../playlists/playlists.model'
+import { FOLLOWS_LABEL, isLive, playlistHeadLine } from '../playlists/playlists.model'
+import { DeletePlaylistDialog, usePlaylistMenu } from '../playlists/playlistMenu'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
@@ -75,31 +64,31 @@ import { lineSub } from '../../ui/surfaces'
  * it is picking stays what the page shows, and it takes a hand order too.
  *
  * Arriving with `?rename=1` puts the cursor in the name — where a playlist
- * just made from a selection sends you, with a name ready to type over.
+ * just made from a selection sends you, with a name ready to type over — and
+ * `?describe=1` in the description: Rename and a description from a tile's
+ * menu on Playlists come here for them.
  */
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
   const { wide, finePointer } = useLayout()
-  const params = useLocalSearchParams<{ id: string; rename?: string }>()
+  const params = useLocalSearchParams<{ id: string; rename?: string; describe?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
   // Back to wherever it was opened from; Playlists only after a link (J1).
   const pageBackShown = usePageBack('/playlists').shown
-  const { mutateAsync: createPlaylist } = useCreatePlaylist()
 
   const library = useLibrary()
   const contents = usePlaylistSongs(Number.isInteger(playlistId) ? playlistId : null)
   const pull = usePullToRefresh(contents.refetch)
   const playback = usePlaylistPlayback()
   const updatePlaylist = useUpdatePlaylist()
-  const deletePlaylist = useDeletePlaylist()
   const reorderPlaylist = useReorderPlaylist()
 
   const heroRef = useRef<View>(null)
   const [renaming, setRenaming] = useState(params.rename === '1')
   const [draftName, setDraftName] = useState<string | null>(null)
-  const [describing, setDescribing] = useState(false)
+  const [describing, setDescribing] = useState(params.describe === '1')
   const [draftDescription, setDraftDescription] = useState<string | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -124,11 +113,12 @@ export function PlaylistDetailScreen(): ReactNode {
   const light = useSongColor(lead, leadArt)
 
   const selection = useSelection(songIds)
-  const listActions = useListActions(songIds, {
+  const menuItems = usePlaylistMenu(playlist, contents.data ? songIds : undefined, {
     heroRef,
     selection,
-    shareAs: playlist?.name ?? 'Playlist',
-    togetherAs: playlist?.name ?? 'Playlist',
+    onRename: () => setRenaming(true),
+    onDescribe: () => setDescribing(true),
+    onDelete: () => setConfirmingDelete(true),
   })
   /*
    * The selection bar takes a lane above the songs, so it covers none of them.
@@ -166,27 +156,6 @@ export function PlaylistDetailScreen(): ReactNode {
     }
     setDescribing(false)
     setDraftDescription(null)
-  }
-
-  /** A copy: a live playlist's rules, or a playlist's songs as they are now. */
-  const makeCopy = async (kind: 'manual' | 'live'): Promise<void> => {
-    if (!playlist) return
-    const input = newPlaylist(
-      kind,
-      copyName(
-        playlist.name,
-        (library.data?.playlists ?? []).map(entry => entry.name),
-      ),
-      { description: playlist.description, rules: playlist.rules ?? undefined },
-    )
-    if (!input) return
-    try {
-      const created = await createPlaylist({ input, songIds: kind === 'manual' ? songIds : [] })
-      showToast(`Made “${created.name}”`, 'good')
-      router.push({ pathname: '/playlists/[id]', params: { id: String(created.id) } })
-    } catch (caught) {
-      showToast(failureText(`Couldn’t copy “${playlist.name}”`, caught), 'error')
-    }
   }
 
   if (!library.isPending && !playlist) {
@@ -278,48 +247,7 @@ export function PlaylistDetailScreen(): ReactNode {
       align="start"
       testID="playlist-more"
       menuTestID="playlist-menu"
-      items={[
-        ...listActions,
-        ...(live
-          ? [
-              {
-                key: 'save-copy',
-                label: 'Save a copy as playlist',
-                icon: <Copy tone="textSecondary" />,
-                disabled: songs.length === 0,
-                apart: true,
-                onPress: () => void makeCopy('manual'),
-              },
-            ]
-          : []),
-        {
-          key: 'rename',
-          label: 'Rename',
-          icon: <Pencil tone="textSecondary" />,
-          apart: !live,
-          onPress: () => setRenaming(true),
-        },
-        {
-          key: 'describe',
-          label: playlist?.description ? 'Edit description' : 'Add a description',
-          icon: <Pencil tone="textSecondary" />,
-          onPress: () => setDescribing(true),
-        },
-        {
-          key: 'duplicate',
-          label: 'Duplicate',
-          icon: <Copy tone="textSecondary" />,
-          onPress: () => void makeCopy(live ? 'live' : 'manual'),
-        },
-        {
-          key: 'delete',
-          label: 'Delete playlist…',
-          icon: <Trash tone="danger" />,
-          danger: true,
-          apart: true,
-          onPress: () => setConfirmingDelete(true),
-        },
-      ]}
+      items={menuItems}
     />
   )
 
@@ -470,19 +398,10 @@ export function PlaylistDetailScreen(): ReactNode {
         />
       ) : null}
 
-      <ConfirmDialog
-        open={confirmingDelete}
-        title={`Delete the playlist “${name}”?`}
-        body="Your songs are kept."
-        confirmLabel="Delete playlist"
-        danger
-        onCancel={() => setConfirmingDelete(false)}
-        onConfirm={() => {
-          setConfirmingDelete(false)
-          if (!playlist) return
-          deletePlaylist.mutate(playlist.id)
-          router.replace('/playlists')
-        }}
+      <DeletePlaylistDialog
+        playlist={confirmingDelete ? playlist : null}
+        onClose={() => setConfirmingDelete(false)}
+        onDeleted={() => router.replace('/playlists')}
       />
     </View>
   )

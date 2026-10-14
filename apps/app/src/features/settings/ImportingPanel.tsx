@@ -4,29 +4,42 @@ import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Tag } from '@selfmp3/shared'
-import { STALE, space, useLibrary } from '@selfmp3/client'
+import { clientApi, queryKeys, STALE, space, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerApi, type ServerApi } from '../../connection/useServerApi'
 import { noServer, viaKey } from '../../connection/via'
+import { copyText } from '../../ports/clipboard'
+import { showToast } from '../../ui/toast'
+import { Button } from '../../ui/components/Button'
+import { Copy } from '../../ui/components/Icons'
 import { Select } from '../../ui/components/Select'
 import { TagChooser } from '../../ui/components/TagChooser'
 import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row } from './SettingsParts'
+import { serverTokenHint } from './settings.model'
 import { useServerSettings } from './useServerSettings'
 
 /**
  * Settings › Advanced › Importing: how the library's server imports, so read
  * from and written to that server — reached directly from a cloud library, the
- * way Import is, and said to be away when it is.
+ * way Import is, and said to be away when it is. Under them, the server's
+ * address and token for an import sent from outside the app.
  */
 export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
   const { settings, set } = useServerSettings(server.api)
+  const named = useNamedServer()
   return (
     <Panel title="Importing" hint="on your library’s computer" anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
-        <ServerAway reach={server.reach} need="settings" row testID="importing-server" />
+        <ServerAway
+          reach={server.reach}
+          need="settings"
+          row
+          last={named === null}
+          testID="importing-server"
+        />
       ) : settings ? (
         <>
           <Row label="Downloads at once" hint="Two is a good default.">
@@ -55,7 +68,11 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
               onChange={ids => set('defaultImportTagIds', ids)}
             />
           </View>
-          <Row label="Watch the library folder" hint="Picks up files the moment they change." last>
+          <Row
+            label="Watch the library folder"
+            hint="Picks up files the moment they change."
+            last={named === null}
+          >
             <Toggle
               value={settings.watchLibrary}
               onChange={value => set('watchLibrary', value)}
@@ -64,7 +81,60 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
           </Row>
         </>
       ) : null}
+      {named ? <TokenRow server={named} /> : null}
     </Panel>
+  )
+}
+
+/**
+ * The server this cloud library's snapshot names, with its token: null on a
+ * device that talks to a server itself, or before a snapshot names one. The
+ * same question `useServerDirect` asks, under the same key, so it is one read
+ * of this device's copy.
+ */
+function useNamedServer(): { addresses: readonly string[]; token: string } | null {
+  const { fromCloud } = useConnection()
+  const said = useQuery({
+    queryKey: queryKeys.cloudServer,
+    queryFn: () => clientApi().cloudServer(),
+    enabled: fromCloud,
+  }).data?.server
+  const token = said?.token ?? null
+  const addresses = said?.addresses
+  return useMemo(
+    () => (token !== null && addresses ? { addresses, token } : null),
+    [token, addresses],
+  )
+}
+
+/**
+ * What something that is not one of this library's devices needs to reach
+ * its server: the iOS Shortcut, and the extension given an address by hand
+ * (docs/features/share-to-import.md, browser-extension.md). The devices are
+ * handed the token in the bucket; those are not, so it is copied from here.
+ * It goes only to the clipboard: the row shows its last few characters.
+ * Drawn whether or not the server answers just now, since copying it needs
+ * nothing from the server.
+ */
+function TokenRow({
+  server,
+}: {
+  server: { addresses: readonly string[]; token: string }
+}): ReactNode {
+  return (
+    <Row label="Shortcut and extension" hint={serverTokenHint(server.addresses, server.token)} last>
+      <Button
+        label="Copy token"
+        icon={<Copy tone="textPrimary" />}
+        onPress={() =>
+          void copyText(server.token).then(done => {
+            if (done) showToast('Token copied', 'good')
+            else showToast('Couldn’t copy the token', 'error')
+          })
+        }
+        testID="importing-copy-token"
+      />
+    </Row>
   )
 }
 

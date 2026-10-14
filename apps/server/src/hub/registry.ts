@@ -23,19 +23,19 @@ const WorkspaceIdSchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a workspace id
 const GrantSchema = z.object({
   /** The doorman session the account gave this server. */
   token: z.string().min(1),
-  /** Its id in the account's list of grants; null for a device's session, before it was swapped. */
-  id: z.string().nullable(),
+  /** Its id in the account's list of grants. */
+  id: z.string(),
 })
 
 const EntrySchema = z.object({
   id: WorkspaceIdSchema,
-  /** The doorman's id for the account; null until it has said (a library from before). */
-  account: DoormanAccountSchema.nullable(),
+  /** The doorman's id for the account. */
+  account: DoormanAccountSchema,
   /** For the log and the server's page; the account's own word for itself. */
-  email: z.string().nullable(),
+  email: z.string(),
   /** What every device of the account sends: published in its snapshots. */
   token: z.string().min(16),
-  grant: GrantSchema.nullable(),
+  grant: GrantSchema,
   joinedAt: z.string().datetime(),
 })
 export type HubEntry = z.infer<typeof EntrySchema>
@@ -54,11 +54,6 @@ export class HubRegistry {
   constructor(dataDir: string) {
     this.#file = path.join(dataDir, FILE)
     this.#entries = read(this.#file)
-  }
-
-  /** Whether the file exists at all: a server from before has none yet. */
-  static exists(dataDir: string): boolean {
-    return fs.existsSync(path.join(dataDir, FILE))
   }
 
   all(): readonly HubEntry[] {
@@ -112,15 +107,26 @@ export class HubRegistry {
 /**
  * The file as it is. One that is there and cannot be read stops the server:
  * starting over with nobody would leave every account's devices holding a
- * token nothing answers to, and the grants with it.
+ * token nothing answers to, and the grants with it. So does a library's
+ * database lying in the data folder itself with no file to say whose — the
+ * one library of a server from before it worked for accounts, which it does
+ * not take in: started over with nobody, it would sit there unseen.
  */
 function read(file: string): HubEntry[] {
   let text: string
   try {
     text = fs.readFileSync(file, 'utf8')
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw error
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    const dataDir = path.dirname(file)
+    if (fs.existsSync(path.join(dataDir, 'selfmp3.db'))) {
+      throw new Error(
+        `${dataDir} holds a library (selfmp3.db) and no ${FILE} to say whose; a server working ` +
+          'for accounts keeps each library under accounts/. Move it aside, or set ' +
+          'SELFMP3_CLOUD_DIR to run it as the one library of a folder bucket',
+      )
+    }
+    return []
   }
   const parsed = FileSchema.safeParse(JSON.parse(text))
   if (!parsed.success) {

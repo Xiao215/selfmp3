@@ -6,8 +6,9 @@ gates cannot see. Feature work that has not been built is in [FEATURE_TODO.md](F
 Four passes produced the numbered items so far: whole-repo audits on 2026-09-22 (T-001 to
 T-245), 2026-09-23 (T-300 to T-375) and 2026-10-07, and the "one copy of each thing" pass of
 2026-10-13 (T-376 to T-431, on `main` as 70d5be61). Every numbered item is done, and the
-commit messages say what each fix was. What is left here is what those passes left open, and the choices that look like leftovers but were
-made on purpose, so that the next pass does not report them again.
+commit messages say what each fix was, and what they left open has been done since. What is
+left here is the choices that look like leftovers but were made on purpose, so that the next
+pass does not report them again.
 
 ## Rules the passes worked to
 
@@ -49,21 +50,7 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 
 ## Still open
 
-- [ ] **`PROPER` L — Playlist tiles have no right-click menu.** `GridTile` takes `onMenu`
-  (`apps/app/src/ui/components/TileGrid.tsx`), and the Tags page and From friends pass one;
-  the Playlists grid does not. The list menus (`MoreMenu`, `useListActions`) could hand it
-  one. Left from T-426.
-- [ ] **`PROPER` L — The metadata dialog's groups draw their own heads.** "IN YOUR LIBRARY",
-  "SUGGESTIONS" and "CHANGES TO APPLY" in `features/metadata/MetadataDialog.tsx` are
-  `groupTitle` texts, where every other section head is `SectionHead` (`look="label"` is the
-  same quiet uppercase name). Left from T-429.
-- [ ] **`PROPER` L — "No server to ask" is built by hand five times.** `new ApiError(0, 'no
-  server to ask', 'offline')` in `playlists/NewPlaylist.tsx`, `smart/ChangeIt.tsx`,
-  `smart/AnswerScreen.tsx`, `smart/SongsAnswer.tsx` and `metadata/useMetadataSuggestion.ts`.
-  One helper beside `useVia` would keep the code and wording in step. Left from T-402.
-- [ ] **`PROPER` L — The desktop window's link check is written twice.**
-  `apps/desktop/src/main/window.ts` tests `https://`/`http://` in both the window-open
-  handler and `will-navigate`; an `openOutside(url)` would hold it once. Left from T-206.
+Nothing.
 
 ## Looked at and kept on purpose
 

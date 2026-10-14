@@ -34,8 +34,19 @@ popup after that. **Sign in with Google** — the same account as your phone and
 the app — and there is nothing to type: your server's addresses and token come
 with every sync, in the snapshot the server writes to your bucket, and the
 extension tries them all each time it needs one. That is the shared server
-([shared-server.md](shared-server.md)) once any of your devices has joined it;
-the extension does not join it by itself.
+([shared-server.md](shared-server.md)) once any of your devices has joined it.
+
+**The extension never joins a server itself.** The app joins the shared server
+by itself the first time it is opened, when your bucket names no server yet
+("Joining" in shared-server.md). The extension does not, because the app's
+**Remove** in Settings › Account › Computers is remembered in that device's own
+storage, which the extension cannot read: joining from here could put back a
+computer you had just removed, with nothing on the extension's side to show it
+or take it back. So while your bucket names no server, the link waits in your
+bucket as it does while the server is asleep, and the popup and the options page
+say *No computer works for your library yet* and offer **Open self.mp3**. Once
+the app has joined, the shared server writes a snapshot naming itself, and the
+extension finds it there at its next look, as it finds any server.
 
 Importing still goes through the server, because the server is what runs yt-dlp.
 What signing in changes is what happens when the server does not answer: the
@@ -51,8 +62,10 @@ A token is asked for only if that server turns out to want one, so the page trie
 the address on its own first and the token field appears if the server refuses
 without it. Pointed at `localhost` on a server holding one library it will not:
 a server does not ask its own machine for a token. Anywhere else it will, and the
-token is your library's on that server — printed in the server's log when it
-starts holding a single library, and otherwise in its `data/hub.json`.
+token is your library's on that server. Copy it in the app from **Settings › Advanced
+› Importing › Copy token** on any signed-in device; the row shows the server's
+address beside it. Without a device, it is in the server's `data/hub.json`, and the
+server's log prints it when it starts holding a single library.
 
 The address is checked before it is kept: it has to answer, and the token, where
 there is one, has to be right. Every server needs a bucket, so a typed address
@@ -260,8 +273,13 @@ The options page offers two ways in:
    | `deviceKind` | `'extension'` |
    | `onWake` | the worker's `online` event |
 
-   The server's addresses and token come from `cloudServer()`, as they do for
-   the app.
+   The server's addresses and token come from the snapshot in this copy of
+   the library (`Cloud.server`, which is `peekCloudLibrary(...).server`), as
+   they do for the app. Unlike the app's `GET /api/cloud/server`, a snapshot
+   naming none is not followed by a join (`automatic` in
+   `packages/replica/src/sharedServer.ts`): the route is the bucket with
+   `noServer` set, and the status carries it to the pages (*Connecting it*,
+   above).
 
    Sign-in starts from the **options page**, not the worker: `beginSignIn`
    saves the attempt before opening the window, but the code comes back only in
@@ -319,6 +337,7 @@ sends — tags, and never a playlist.
 | Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
 | Added | Job done | The tags it got, and that the phone has it after its next sync |
 | Your server is asleep | Bucket mode, a link not left yet | The link, tags, Keep it for later |
+| No computer works for your library yet | The same, with a bucket that names no server | The link, tags, Keep it for later, and Open self.mp3 to connect one |
 | Waiting for your server | Bucket request `waiting` | The sentence from the mock |
 | Can't import | Job `error`, or the preview refused | The server's own message, which already names the fix |
 

@@ -15,7 +15,7 @@ import { HttpError } from '../http/errors.js'
 const ParamsWithDevice = z.object({ id: DeviceIdSchema })
 
 /**
- * Devices, presence, remote commands and the event stream.
+ * Devices, presence, handoff commands and the event stream.
  *
  * `/events` is the one route in the server that never finishes: it sets the
  * SSE headers, hands the response to the hub and returns nothing, so the
@@ -39,16 +39,9 @@ export function deviceRoutes(container: Container): Router {
   router.post(
     '/devices/:id/command',
     route(
-      {
-        params: ParamsWithDevice,
-        query: z.object({ from: DeviceIdSchema.optional() }),
-        body: DeviceCommandSchema,
-      },
-      ({ params, query, body }): DeviceCommandResult => {
-        if (body.type === 'transfer' && body.fromDeviceId === params.id) {
-          throw HttpError.badRequest('a device cannot transfer from itself')
-        }
-        const delivered = container.devices.command(params.id, body, query.from)
+      { params: ParamsWithDevice, body: DeviceCommandSchema },
+      ({ params, body }): DeviceCommandResult => {
+        const delivered = container.devices.command(params.id, body)
         if (delivered === null) throw HttpError.notFound(`no device with id ${params.id}`)
         if (delivered === 0) {
           throw new HttpError(409, 'that device is not connected right now', 'device_offline')

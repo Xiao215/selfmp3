@@ -101,7 +101,7 @@ const view = (patch: Partial<PopupInputs>) => popupView({ ...base, ...patch })
 describe('connectionOf', () => {
   it('reads each way in: none, the server itself, the bucket, or a server that is asleep', () => {
     const server = { baseUrl: 'http://localhost:4600', typed: true }
-    const status = { server: null, account: null, songCount: null }
+    const status = { server: null, account: null, songCount: null, noServer: false }
     expect(connectionOf({ ...status, mode: 'none' })).toBe('none')
     expect(connectionOf({ ...status, mode: 'away', server })).toBe('away')
     expect(connectionOf({ ...status, mode: 'server', server, songCount: 36 })).toBe('ready')

@@ -6,6 +6,7 @@ import { useLibrary } from '@selfmp3/client'
 import { useOpenTag } from '../../features/tag/useOpenTag'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
+import { useListKeys } from '../../selection/useListKeys'
 import { modifiersOf, type Selection } from '../../selection/useSelection'
 import { useSongTagLookup } from '../songTags'
 import { useRowAvailability } from '../useRowAvailability'
@@ -36,7 +37,9 @@ interface SongRows {
  * Library, Search, a tag's and an artist's page, a playlist's and an answer's.
  *
  * A tap plays — what playing means is the list's (`onPlay`) — and Shift, Cmd
- * or a tap while selecting selects; holding a row starts selecting; a drag
+ * or a tap while selecting selects; holding a row starts selecting; on a
+ * computer's keyboard the arrows move between rows, Space ticks one and ⌘A
+ * selects them all (`useListKeys`), and Enter is a tap; a drag
  * from a ticked row carries every ticked song; the ⋯ and a right-click open
  * the song's menu; a song that cannot play here is faded
  * (`rowAvailability`). Where the list shows tags (`S3`: Library, Search) a
@@ -99,6 +102,16 @@ export function useSongRows({
   const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
   // A drag from a ticked row carries every ticked song.
   const dragSongs = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
+  // On a computer's keyboard: the arrows, Space for the tick, ⌘A for all.
+  const listKey = useListKeys({
+    toggle: songId => latest.current.selection.toggle(songId),
+    selectAll: () => {
+      const now = latest.current
+      if (now.ids.length === 0) return false
+      now.selection.selectAll()
+      return true
+    },
+  })
   const onOpenTag = useCallback((tagId: number) => {
     const now = latest.current
     const tag = now.tags?.find(each => each.id === tagId)
@@ -122,6 +135,7 @@ export function useSongRows({
       selected: selection.has(song.id),
       onToggleSelect,
       dragSongs,
+      listKey,
       ...(withTags ? { tags: tagsOf(song), hideTagIds, onOpenTag, onEditTags } : null),
     }),
     [
@@ -135,6 +149,7 @@ export function useSongRows({
       selection,
       onToggleSelect,
       dragSongs,
+      listKey,
       withTags,
       tagsOf,
       hideTagIds,

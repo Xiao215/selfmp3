@@ -1,7 +1,13 @@
-import { expect, test, type Page, type Worker } from '@playwright/test'
-import { DEFAULT_DOORMAN_URL } from '@selfmp3/shared'
+import { expect, test, type Page } from '@playwright/test'
+import { DEFAULT_DOORMAN_URL, type CloudServer } from '@selfmp3/shared'
 import { IDOL_URL, IDOL_TAB_TITLE } from './fixtures.js'
-import { extensionPage, launchExtension, type LaunchedExtension } from './launch.js'
+import {
+  extensionPage,
+  launchExtension,
+  signInFromCopy,
+  SIGNED_IN_AS,
+  type LaunchedExtension,
+} from './launch.js'
 
 /**
  * Importing with the server asleep (Phase 5, I3).
@@ -12,26 +18,23 @@ import { extensionPage, launchExtension, type LaunchedExtension } from './launch
  * preview, no title to correct, no track list — and the popup says so rather
  * than pretending otherwise.
  *
- * The doorman is not called: every request to it is refused at the network, so
- * this device answers from the copy of the library it already has, which is
- * the state any device is in on a plane. Signing in for real needs Google and
- * is on the by-hand list.
+ * The doorman is not called (`signInFromCopy`): this device answers from the
+ * copy of the library it already has, whose snapshot names a server that does
+ * not answer. A bucket that names no server at all is noServer.spec.ts.
  */
 
 test.describe.configure({ mode: 'serial' })
 
 let extension: LaunchedExtension
 
-const SESSION = {
-  doormanUrl: DEFAULT_DOORMAN_URL,
-  token: 'not-a-real-session',
-  me: { email: 'you@example.com', name: 'You', picture: null, storage: null },
-}
-
-async function serviceWorker(): Promise<Worker> {
-  return (
-    extension.context.serviceWorkers()[0] ?? (await extension.context.waitForEvent('serviceworker'))
-  )
+/**
+ * The library's server, as the last snapshot names it: an address where
+ * nothing listens, so it is asleep.
+ */
+const ASLEEP: CloudServer = {
+  id: 'the-server',
+  addresses: ['http://127.0.0.1:4699'],
+  token: 'from-the-snapshot',
 }
 
 async function popup(url: string, title?: string): Promise<Page> {
@@ -43,37 +46,7 @@ async function popup(url: string, title?: string): Promise<Page> {
 
 test.beforeAll(async () => {
   extension = await launchExtension()
-  // Nothing leaves for the real doorman. A device whose bucket cannot be read
-  // answers from its own copy, which is exactly the case under test.
-  await extension.context.route(`${DEFAULT_DOORMAN_URL}/**`, route => route.abort())
-
-  const worker = await serviceWorker()
-  await worker.evaluate(async (session: unknown) => {
-    // The state a device is in after signing in and syncing once: a session,
-    // and a copy of the library — empty here — so nothing has to be fetched.
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open('selfmp3-extension', 1)
-      request.onupgradeneeded = () => {
-        if (!request.result.objectStoreNames.contains('kv')) request.result.createObjectStore('kv')
-      }
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'))
-    })
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction('kv', 'readwrite')
-      tx.objectStore('kv').put(session, 'cloud-session')
-      tx.objectStore('kv').put({ key: null, snapshot: null }, 'cloud-base')
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'))
-    })
-  }, SESSION)
-
-  // The worker keeps its answer about which way in wins for a minute; this is
-  // the message that lets go of it, and it also proves no address is typed in.
-  const page = await extension.context.newPage()
-  await page.goto(extensionPage('options.html'))
-  await page.evaluate(() => chrome.runtime.sendMessage({ type: 'disconnect' }))
-  await page.close()
+  await signInFromCopy(extension, ASLEEP)
 })
 
 test.afterAll(async () => {
@@ -83,8 +56,10 @@ test.afterAll(async () => {
 test('the options page says which account it is signed in to, and that the server is away', async () => {
   const page = await extension.context.newPage()
   await page.goto(extensionPage('options.html'))
-  await expect(page.getByText('you@example.com')).toBeVisible()
-  await expect(page.getByText(/links wait in your bucket/)).toBeVisible()
+  await expect(page.getByText(SIGNED_IN_AS)).toBeVisible()
+  await expect(
+    page.getByText(/Your server isn’t answering, so links wait in your bucket/),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeHidden()
   await page.close()
 })

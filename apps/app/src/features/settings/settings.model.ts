@@ -1,5 +1,6 @@
 import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
 import { clamp01, plural } from '@selfmp3/shared'
+import { publicServerBase } from '@selfmp3/client'
 import { bucketCapped, unreachableLabel, untilCapResets } from '../library/library.model'
 
 /**
@@ -325,4 +326,29 @@ export function analysisProgress(status: AnalysisStatus | undefined): string {
     status?.current ? ` — ${status.current.title}` : '…',
     toGo > 0 ? ` · ${toGo} to go` : '',
   ].join('')
+}
+
+/**
+ * The address an iOS Shortcut or the extension's typed address should use
+ * (docs/features/share-to-import.md): the one the internet can reach when the
+ * server has one, else the first that is more than this computer talking to
+ * itself. Null when the snapshot named only `localhost`, or nothing.
+ */
+export function addressForElsewhere(addresses: readonly string[]): string | null {
+  return (
+    publicServerBase(addresses) ??
+    addresses.find(address => !/^https?:\/\/(localhost|127\.|\[::1\])/i.test(address)) ??
+    null
+  )
+}
+
+/**
+ * The line under Copy token: where the server answers, and only the end of the
+ * token, so the screen can be seen over a shoulder. The token itself goes
+ * only to the clipboard.
+ */
+export function serverTokenHint(addresses: readonly string[], token: string): string {
+  const address = addressForElsewhere(addresses)
+  const ending = `token ending ${token.slice(-4)}`
+  return address ? `${address} · ${ending}` : ending
 }

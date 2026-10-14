@@ -91,8 +91,8 @@ next, and the phone's adds a "This player" group with the sleep timer and Device
 song in a room gets none of the library's actions. Play next and Fix song info… live on the
 song's page, not in the menu; selecting starts from a held row or the checkbox.
 
-In a browser and the desktop app a right-click on a song row, a Home tile, a shelf's card or
-a sidebar tag opens that thing's menu at the pointer (`ui/rightClick.ts`: a point stands in
+In a browser and the desktop app a right-click on a song row, a Home tile, a shelf's card, a
+tile on Tags or Playlists or a sidebar tag opens that thing's menu at the pointer (`ui/rightClick.ts`: a point stands in
 for the ⋯ as the popover's anchor), and the browser's own menu stays away.
 
 Up next has three icons for its three actions: `UpNext`, a list with a play
@@ -180,7 +180,8 @@ Notes for anyone extending it:
   in, so a dropdown opened from a sheet or a dialog sits above it.
 - A screen's keys (`useHotkeys`) and Escape stand aside for a focused `combobox`, `listbox`,
   `menu` or `dialog`, as they do for a text field (`shell/keyOwner.ts`). If you build a
-  control with its own keyboard language, give it one of those roles.
+  control with its own keyboard language, give it one of those roles. Open layers are listed
+  in `shell/layers.ts`, for keys that must also stand aside while one is open (a list's ⌘A).
 
 ## `data-tip` — hover captions
 
@@ -253,9 +254,7 @@ The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `
 worked out from a hue). Unistyles holds the dark and light themes built from them at this
 device's accent hue, and restyles every `StyleSheet.create(theme => …)` when the theme or the
 accent changes, without a reload. The extension's stylesheet is written from the same tokens
-on every build (`apps/extension/scripts/theme.mjs`). `tokens.reference.css` is the stylesheet
-the palette was first written in; the app does not load it, and the tests check the light
-palette against it.
+on every build (`apps/extension/scripts/theme.mjs`).
 
 **Nine type sizes and no others**, each with the line height to use when its words wrap
 (`textStyle(step)` gives both). A line that never wraps leaves `lineHeight` off.
@@ -406,7 +405,12 @@ something is still happening.
   ours: one line in the accent, only while someone is moving focus with Tab. `:focus-visible`
   alone counts any key as keyboard use, so Tab turns the ring on and a pointer press turns it
   off: a Tab still shows where you are, and Space to pause after a click draws nothing. The
-  colour follows the accent picker.
+  colour follows the accent picker. Whether the keyboard is moving focus is one attribute on
+  `<html>` (`shell/tabbing.ts`), which a song list's arrows turn on as Tab does.
+- A song row wears the ring round its whole width, just inside its edge, rather than round its
+  press target, which lies under the cover and title only; with the ring on, it shows its
+  controls as the pointer would. Space on such a row is its tick, not play and pause
+  ([multi-select.md](multi-select.md)).
 - A text field with a border of its own takes the accent as its border colour instead; a
   field without one sits in a box that shows focus itself (`SearchField` turns its edge and
   magnifier to the accent).

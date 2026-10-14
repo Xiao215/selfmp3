@@ -12,7 +12,8 @@ import {
 } from '@selfmp3/shared'
 import { failureText, radius, shareLinkUrl, space } from '@selfmp3/client'
 import { linkAddress } from '../../ports/linkAddress'
-import { canShareLink, copyLink, shareLink } from '../../ports/shareLink'
+import { copyText } from '../../ports/clipboard'
+import { canShareLink, shareLink } from '../../ports/shareLink'
 import { useArt } from '../../offline/useArt'
 import { library as cloudLibrary } from '../../replica'
 import { hint, lineSub, smallTitle, textColumn } from '../../ui/surfaces'
@@ -231,7 +232,7 @@ function MadeLink({
           size="small"
           accessibilityLabel={copied ? 'Link copied' : 'Copy link'}
           onPress={() =>
-            void copyLink(url).then(done => {
+            void copyText(url).then(done => {
               if (done) setCopied(true)
               else showToast('Couldn’t copy the link', 'error')
             })

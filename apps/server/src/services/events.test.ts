@@ -22,7 +22,7 @@ describe('encodeSseEvent', () => {
     const frame = encodeSseEvent({
       type: 'command',
       deviceId: 'abcdefghij',
-      command: { type: 'seek', position: 12 },
+      command: { type: 'playSong', songId: 3, queueIds: [1, 3], position: 12 },
     })
     expect(frame.startsWith('data: ')).toBe(true)
     expect(frame.endsWith('\n\n')).toBe(true)

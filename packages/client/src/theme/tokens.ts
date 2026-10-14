@@ -11,24 +11,24 @@ import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 export { oklchToHex }
 
 /**
- * `tokens.reference.css`'s palette, resolved to hex.
+ * The app's palette, and the rest of its tokens: the one place either is
+ * written: the app's themes and the extension's stylesheet
+ * (`apps/extension/scripts/theme.mjs`) are both made from it.
  *
- * The stylesheet builds every colour from `oklch(L C var(--accent-hue))`; it
- * is kept beside the tests as `tokens.reference.css`. React Native has neither
- * OKLCH nor custom properties, so the same lightness/chroma pairs are
- * converted here instead, and the browser and the phone draw the same colours.
- *
- * The accent is worked out rather than written down, because on the phone it
- * is a setting: `buildAccent` below is given whatever hue this device has been
- * set to. Everything else is fixed — the surfaces are tinted by the hue on the
- * web too, but at a chroma of around 0.014 that is a tint nobody has ever
- * noticed, and it is not worth making every surface in the app reactive for.
+ * What follows a hue is worked out from OKLCH lightness/chroma pairs
+ * (`oklch.ts`, the browser's own arithmetic), since React Native has no
+ * OKLCH: the accent, because on the phone it is a setting (`buildAccent` is
+ * given whatever hue this device has been set to), a tag's colours and the
+ * charts. Everything else is a fixed hex value that the hue never moves. The
+ * dark greys were worked out at the default hue, so they carry its faint
+ * blue; at a chroma of around 0.014 a tint that followed the picker would be
+ * one nobody noticed, and not worth making every surface reactive for.
  */
 
 /** The hue everything here was written at, and what a device starts on. */
 export const DEFAULT_ACCENT_HUE = 268
 
-/** Dark, as the app was drawn; or `tokens.reference.css`'s `:root[data-theme='light']`. */
+/** Dark, as the app was drawn; or Paper (`lightPalette`). */
 export type ColorScheme = 'dark' | 'light'
 
 /*
@@ -276,9 +276,10 @@ export type ThemePalette = ReturnType<typeof darkPalette>
 
 /**
  * The light theme, "Paper" in `S2`: a warm ground, white cards with a soft
- * shadow (white on cream has no tone to separate it), and warm ink. Unlike the
- * dark theme's accent-tinted greys it is not moved by the hue; only the accent
- * is. Danger is the same in both; warning and good get darker inks.
+ * shadow (white on cream has no tone to separate it), and warm ink. As in the
+ * dark theme, only the accent (and the charts) follow the hue; the greys are
+ * fixed. The dark ones carry the default hue's faint blue, these are warm.
+ * Danger is the same in both; warning and good get darker inks.
  */
 export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
   return withTints({
@@ -506,7 +507,7 @@ export const fonts = {
   display: 'BricolageGrotesque_600SemiBold',
 } as const
 
-/** `tokens.reference.css`'s `--hit-target`: the smallest comfortable touch target. */
+/** The smallest comfortable touch target. */
 export const HIT_TARGET = 44
 
 /**
@@ -524,10 +525,7 @@ export const NAV_HEIGHT = 60
 /** The floating mini player above the bar: 8 + a 44 cover + 8. */
 export const MINI_PLAYER_HEIGHT = 60
 
-/**
- * `tokens.reference.css`'s motion tokens: quick and subtle. `--dur-fast`,
- * `--dur`, `--dur-slow`, and the `--ease-out` curve.
- */
+/** How long things take to move: quick and subtle. The extension's `--motion-*` are these. */
 export const motion = {
   fast: 100,
   base: 140,

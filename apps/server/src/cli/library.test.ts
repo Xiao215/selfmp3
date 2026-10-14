@@ -8,7 +8,6 @@ const workspace = (id: string, email: string | null, songs = 0): HubWorkspace =>
   email,
   songs,
   connected: true,
-  grant: 'granted',
   joinedAt: '2026-10-12T00:00:00.000Z',
 })
 

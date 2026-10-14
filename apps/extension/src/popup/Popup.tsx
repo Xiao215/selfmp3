@@ -338,6 +338,8 @@ export function Popup(): ReactNode {
             tagging={tagging}
             pending={leave.isPending}
             error={leave.error?.message ?? null}
+            noServer={status.data?.noServer ?? false}
+            onOpenApp={() => openApp('/')}
             onRequest={input => leave.mutate(input)}
           />
         )

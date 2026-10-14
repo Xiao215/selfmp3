@@ -1,11 +1,11 @@
 /**
  * OKLCH to a hex colour, because React Native cannot do it itself.
  *
- * `tokens.reference.css` builds every colour from `oklch(L C var(--accent-hue))`
- * and lets the browser resolve it, which is what keeps the palette evenly weighted as
- * the hue moves — the same lightness really does look the same lightness, in a
- * way HSL never manages. React Native has no OKLCH and no custom properties,
- * so the same arithmetic happens here and the result is handed over as hex.
+ * The colours that follow a hue — the accent, a tag's, the charts' — are
+ * OKLCH lightness/chroma pairs, which is what keeps them evenly weighted as
+ * the hue moves: the same lightness really does look the same lightness, in a
+ * way HSL never manages. React Native has no OKLCH, so the browser's
+ * arithmetic happens here and the result is handed over as hex.
  *
  * The conversion is the standard one: OKLCH → OKLab → LMS → linear sRGB →
  * sRGB, with the matrices from Björn Ottosson's original description.

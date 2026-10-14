@@ -76,6 +76,12 @@ export const StatusSchema = z.object({
   account: z.string().nullable(),
   /** How many songs the library holds, from whichever side answered. */
   songCount: z.number().int().nonnegative().nullable(),
+  /**
+   * Bucket mode, and the bucket names no server at all: no computer works for
+   * this library yet. Opening self.mp3 connects one (the shared one, joined by
+   * the app); the extension does not join it itself (connection.ts).
+   */
+  noServer: z.boolean(),
 })
 export type Status = z.infer<typeof StatusSchema>
 

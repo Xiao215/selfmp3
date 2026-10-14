@@ -96,3 +96,27 @@ export function shortcutRows(items: readonly MenuKey[]): readonly ShortcutRow[] 
   }
   return rows
 }
+
+/**
+ * A song list's own keys (`selection/useListKeys.web.ts`), which no menu item
+ * carries: they mean something only with a list in front of you, and Space
+ * and Enter there are the row's rather than the menu's. Written here, in
+ * Electron's spelling, so they are drawn as the menu's are.
+ */
+const LIST_KEYS: readonly { accelerators: readonly string[]; label: string }[] = [
+  { accelerators: ['Up', 'Down'], label: 'Move between songs' },
+  { accelerators: ['Space', 'Return'], label: 'Tick / play the song you moved to' },
+  { accelerators: ['CmdOrCtrl+A'], label: 'Select all songs' },
+  { accelerators: ['Esc'], label: 'Clear the selection' },
+]
+
+/** The rows for a song list's keys, drawn after the menu's. */
+export function listShortcutRows(): readonly ShortcutRow[] {
+  return LIST_KEYS.map(row => ({
+    keys: row.accelerators.flatMap(accelerator => {
+      const { modifiers, key } = acceleratorKeys(accelerator)
+      return [...modifiers, key]
+    }),
+    label: row.label,
+  }))
+}

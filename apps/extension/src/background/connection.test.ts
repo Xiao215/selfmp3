@@ -77,12 +77,55 @@ describe('chooseRoute', () => {
     expect(route.mode === 'server' && route.connection.baseUrl).toBe(TAILNET)
     expect(await chooseRoute(sources({ probe: answersAt([], [HOME]).probe }))).toEqual({
       mode: 'bucket',
+      noServer: false,
     })
   })
 
   it('leaves the link in the bucket when no address answers in time', async () => {
     const { probe } = answersAt([])
-    expect(await chooseRoute(sources({ probe }))).toEqual({ mode: 'bucket' })
+    expect(await chooseRoute(sources({ probe }))).toEqual({ mode: 'bucket', noServer: false })
+  })
+
+  it('leaves joining to the app when the bucket names no server, and says none is named', async () => {
+    // The app would join the shared server here (sharedServer.ts `automatic`);
+    // the extension cannot see whether this device removed it, so it does not.
+    // The probe answers everywhere: nothing is asked, because nothing is named.
+    const asked: string[] = []
+    const probe = (connection: ServerConnection): Promise<Health | null> => {
+      asked.push(connection.baseUrl)
+      return Promise.resolve(healthOf('the-server'))
+    }
+    const route = await chooseRoute(sources({ probe, cloudServer: () => Promise.resolve(null) }))
+    expect(route).toEqual({ mode: 'bucket', noServer: true })
+    expect(asked).toEqual([])
+  })
+
+  it('finds the shared server through the next snapshot, once the app has joined it', async () => {
+    const shared: CloudServer = {
+      id: 'the-shared-server',
+      addresses: ['https://pi.example.ts.net'],
+      token: 'this-account-there',
+    }
+    let named: CloudServer | null = null
+    const probe = (connection: ServerConnection): Promise<Health | null> =>
+      Promise.resolve(
+        connection.baseUrl === 'https://pi.example.ts.net' ? healthOf('the-shared-server') : null,
+      )
+    const router = createRouter(sources({ probe, cloudServer: () => Promise.resolve(named) }))
+    expect(await router.route()).toEqual({ mode: 'bucket', noServer: true })
+
+    // The app opened, joined, and the shared server's snapshot named it.
+    named = shared
+    router.forget()
+    expect(await router.route()).toEqual({
+      mode: 'server',
+      connection: {
+        baseUrl: 'https://pi.example.ts.net',
+        token: 'this-account-there',
+        serverId: 'the-shared-server',
+      },
+      typed: false,
+    })
   })
 
   it('has nowhere to go without an account, and says so rather than guessing', async () => {
@@ -105,7 +148,7 @@ describe('chooseRoute', () => {
     const { probe } = answersAt([])
     expect(
       await chooseRoute(sources({ probe, typedServer: () => Promise.resolve(TYPED) })),
-    ).toEqual({ mode: 'bucket' })
+    ).toEqual({ mode: 'bucket', noServer: false })
   })
 
   it('is away, not signed out, when a typed-in server is all there is', async () => {
@@ -126,7 +169,8 @@ describe('chooseRoute', () => {
     const route = await chooseRoute(
       sources({ probe, cloudServer: () => Promise.reject(new Error('offline')) }),
     )
-    expect(route).toEqual({ mode: 'bucket' })
+    // Not read is not "names none": nothing tells the person to open the app.
+    expect(route).toEqual({ mode: 'bucket', noServer: false })
   })
 })
 

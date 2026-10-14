@@ -15,9 +15,8 @@ import { EASE_OUT_CSS } from '../motion.model'
  * The lengths and the curve are the app's own tokens written into the CSS, not
  * numbers of its own: `motion.fast` for the thumb appearing and for the filled
  * part following the value, and `ease.out`'s curve, spelled out here because a
- * `cubic-bezier` cannot be taken from `Easing.bezier`. The app has no generated
- * CSS variables to read them from — `tokens.reference.css` is a reference the
- * native tokens are tested against, not a stylesheet the app loads.
+ * `cubic-bezier` cannot be taken from `Easing.bezier`. The app has no CSS
+ * variables to read them from: its tokens are JavaScript (`tokens.ts`).
  *
  * `--progress` is registered with `@property` so that the boundary between the
  * filled part and the rest can be transitioned at all: a custom property with no

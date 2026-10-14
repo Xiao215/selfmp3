@@ -10,6 +10,7 @@ and an Ask answer all select the same way.
 | The selection's rules | `packages/client/src/selection/selection.ts` |
 | The hook a list uses | `apps/app/src/selection/useSelection.ts` |
 | A row's press, hold, tick and drag | `apps/app/src/ui/components/useSongRows.tsx`, `SongRow.tsx`, `Checkbox.tsx` |
+| A list's keys: arrows, Space, ⌘A | `apps/app/src/selection/useListKeys.web.ts`, `apps/app/src/shell/keyOwner.ts` |
 | The bar, and where a page puts it | `apps/app/src/ui/components/SelectionBar.tsx`, `useListSelectionBar.tsx` |
 | What More offers (the song menu's items, for many) | `apps/app/src/ui/songActions.model.ts`, `apps/app/src/ui/components/SongActionItems.tsx` |
 | Select songs in a list's ⋯ | `apps/app/src/ui/components/useListActions.tsx` |
@@ -20,7 +21,7 @@ and an Ask answer all select the same way.
 | Removing a song, everything hanging off it | `apps/server/src/services/songRemoval.ts` |
 | Bulk SQL | `apps/server/src/repositories/songs.ts`, `repositories/playlists.ts` |
 | Wire schemas | `packages/shared/src/schemas/song.ts`, `schemas/playlist.ts` |
-| Tests | `apps/server/src/repositories/bulk.test.ts`, `apps/server/src/services/songRemoval.test.ts` |
+| Tests | `apps/server/src/repositories/bulk.test.ts`, `apps/server/src/services/songRemoval.test.ts`, `apps/app/src/selection/useListKeys.test.tsx`, `verify/flows/selection.spec.ts` |
 
 ## Getting into it
 
@@ -37,7 +38,8 @@ Three ways in, because a computer and a phone are not the same machine:
 - **Select songs, in the list's own ⋯** — every list page has it, and it is the only way in on
   a playlist you made and on an Ask answer, where holding a row moves it.
 
-Shift-click and Cmd/Ctrl-click work too, as accelerators.
+Shift-click and Cmd/Ctrl-click work too, as accelerators, and so does a computer's keyboard
+(below).
 
 ## What a press means
 
@@ -48,15 +50,41 @@ Shift-click and Cmd/Ctrl-click work too, as accelerators.
 | Shift-click | Selects the range from the last row clicked | Same |
 | Click the circle | Toggles, and shows every row's circle | Toggles |
 | Hold a row | Starts selecting with it | Toggles that row |
+| ↑ / ↓ on a row | Moves to the row above or below | Same |
+| Space on the row the keyboard is on | Ticks it, as its circle does | Same |
+| Enter on a row | A plain click: puts any selection down, and plays | Toggles that row |
+| ⌘A or Ctrl+A | Selects every song in the list | Same |
 | Escape | — | Clears the selection and stops selecting |
+
+**The keyboard, on a computer** (browser and the installed app; a phone has none). Every
+list that selects answers it: Library, Search, a tag's, an artist's or a combination's page, a
+playlist and an Ask answer (`useListKeys`, wired once in `useSongRows`). Tab reaches a row, or
+a click leaves focus on one; the arrows then move from row to row, skipping an artist page's
+album heads, and scroll the row out from under a bar pinned at the top. The row the keyboard is
+on wears the focus ring round its whole width and shows its circle, ▶, + and ⋯ as the pointer
+would.
+
+Space is the row's only while that ring shows — Tab or an arrow brought focus there. After a
+click there is no ring, and Space is still play and pause: clicking a song and pressing Space
+to pause it must not tick it. The page's play and pause stands aside for a ringed row
+(`rowOwnsKey` in `shell/keyOwner.ts`), and the list listens before the row's own button,
+which would otherwise take Space as a press and play the song. A held Space ticks once.
+
+⌘A takes either ⌘ or Ctrl, since neither means anything else on a page. It stands aside in a
+text field, where it selects the words (the palette's box, Library's search), in a menu,
+dialog or list box, and while a sheet, popover or dialog is open over the page
+(`shell/layers.ts`), so the songs under an open More are not changed beneath it. Only the
+page in front listens: a page pushed over Library leaves Library mounted, and its ⌘A must not
+select Library's songs. Settings › Keyboard shortcuts lists these keys after the menu's.
 
 **What a hold means: two things, one rule** (Xiao chose D1, 2026-10-08). In a list whose order
 you set — a playlist you made, an Ask answer, Up next — holding a row lifts it to be moved: the
 order is yours there, and reordering has nowhere else to live on a touch screen
 (`apps/app/src/ui/components/HoldToReorder.tsx`). Everywhere else holding selects, Search
 included. A playlist that fills from tags has no order to change, so holding selects there
-too. Holding never opens the song menu; the ⋯ and a right-click do. The Tags page's tiles are
-not song rows and keep their own hold.
+too. Holding never opens the song menu; the ⋯ and a right-click do. The Tags and Playlists pages'
+tiles are not song rows: holding one opens its menu (a playlist's is its page's ⋯, without
+Select songs).
 
 "Selecting" is the explicit mode the hold, the circle and Select songs turn on. It exists
 because a phone has no modifiers: in it a tap selects instead of playing, and the circles stay

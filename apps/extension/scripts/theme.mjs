@@ -85,9 +85,9 @@ export function themeCss(tokens) {
      * The two curves, which the token file cannot hold: a `cubic-bezier` is not
      * a number a native animation can be given, so `motion` in
      * packages/client has the lengths and the spring and nothing else. The
-     * curves are the app's all the same — `tokens.reference.css` writes these
-     * exact two, and apps/app's `ease.out`/`ease.in` are them in JS. They are
-     * written here, once, so no rule in the extension carries its own curve.
+     * curves are the app's all the same: apps/app's `ease.out`/`ease.in` are
+     * these exact two in JS. They are written here, once, so no rule in the
+     * extension carries its own curve.
      */
     '--ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);',
     '--ease-in: cubic-bezier(0.4, 0, 1, 1);',

@@ -39,10 +39,9 @@ playing on its own.
 rename this device, and lets you forget a device you are done with. With the server out of
 reach it shows the last list it was given, each row marked offline.
 
-The wire carries more than the app offers: `play`, `pause`, `toggle`, `next`, `prev`, `seek`
-and `setVolume` commands are all executed by the receiving device, and `playingElsewhere` is
-worked out, but no screen sends those commands or shows that state today. There is no remote
-control switch and no "Playing on iPhone" chip.
+There is no remote control: one device cannot play, skip or seek another without moving the
+music over, and nothing shows a "Playing on iPhone" chip. The wire carries only the two
+commands a handoff needs.
 
 ---
 
@@ -61,7 +60,7 @@ rather than by a hand-maintained list of React dependencies, so nothing has to r
 a beat.
 
 The payload is the whole playback state: song, position, playing, queue, queue index,
-shuffle, repeat, volume, and the client's clock.
+shuffle, repeat, and the client's clock.
 
 Heartbeats land in a `devices` table in the account's workspace on the server, so a state
 survives a server restart and a phone that has been asleep since last night can still be
@@ -83,7 +82,7 @@ Three event types travel over it, all as JSON in the `data:` line:
 | type | meaning |
 |---|---|
 | `devices` | the full device list, whenever presence or any state changes |
-| `command` | a command addressed to one device |
+| `command` | a handoff command addressed to one device |
 | `library` | the server's library version changed |
 
 SSE rather than WebSockets: it is one-directional (clients already talk back over plain
@@ -96,15 +95,16 @@ the stream is up.
 
 ### Commands
 
-`POST /api/devices/:id/command?from=<senderId>` with a discriminated union:
+`POST /api/devices/:id/command` with one of the two commands a handoff sends:
 
 ```
-{ type: "play" | "pause" | "toggle" | "next" | "prev" }
-{ type: "seek", position }
-{ type: "playSong", songId, queueIds?, queueIndex?, position?, play? }
-{ type: "setVolume", volume }
-{ type: "transfer", fromDeviceId }
+{ type: "playSong", songId, queueIds?, queueIndex?, position? }
+{ type: "pause" }
 ```
+
+"Play there instead" sends `playSong`, and the device it lands on starts playing that queue
+at that position. "Play here" plays the other device's state locally and sends it `pause`.
+Anything else is refused with a `400`.
 
 The server does not interpret them. It looks the device up, forwards the command down that
 device's stream, and answers with how many live connections received it — `404` if there is
@@ -112,12 +112,7 @@ no such device, `409` if it exists but nothing is listening.
 
 On the receiving side `apps/app/src/features/devices/DevicesProvider.tsx` is the only place
 that turns a command into player calls, as an exhaustive switch. Adding a variant to the
-shared schema makes that file stop compiling until it is handled. A phone has no volume of its
-own to set, so it accepts `setVolume` and ignores it.
-
-"Play there instead" sends `playSong`; "Play here" plays the other device's state locally and
-sends it `pause`. `transfer` is the same "take over from that one" asked of another device:
-the receiver adopts the named device's state and then tells that device to pause.
+shared schema makes that file stop compiling until it is handled.
 
 ### Finding the server
 
@@ -203,8 +198,9 @@ policy, not a bug.
 `localStorage`, so a second tab in the same browser profile shares it and both tabs will act
 on a command sent to it. A different browser, or a private window, is a different device.
 
-**Positions are extrapolated, not simulated.** A remote device reports every ten seconds;
-between reports its position advances by the wall clock, and the next beat corrects any drift.
+**Positions are extrapolated, not simulated.** Another device reports every ten seconds;
+between reports its position advances by the wall clock, so "Play here" starts where it is now
+rather than where it was at its last beat.
 
 **A device is forgotten after a week** without a heartbeat, checked at startup and every hour.
 Removing one by hand in Settings is immediate — but a device that is still open re-registers

@@ -49,7 +49,7 @@ function listing(workspaces: readonly HubWorkspace[]): string {
   return workspaces
     .map(
       workspace =>
-        `    ${workspace.id}  ${workspace.email ?? (workspace.id === 'local' ? 'this server’s own' : 'account not known yet')}  ` +
+        `    ${workspace.id}  ${workspace.email ?? 'this server’s own'}  ` +
         plural(workspace.songs, 'song', 'songs'),
     )
     .join('\n')

@@ -19,7 +19,9 @@ its own).
 Every server is a hub; there is no other mode. The one exception is a server whose bucket is
 a folder on its own disk (`SELFMP3_CLOUD_DIR`: the dev profile, the verify lanes): there are
 no accounts to work for, so it holds one library in the data folder itself, with no
-`hub.json`.
+`hub.json`. A server working for accounts refuses to start on a data folder like that, a
+`selfmp3.db` and no `hub.json`, rather than leave the library there unseen
+(`hub/registry.ts`).
 
 ## The idea
 
@@ -46,8 +48,8 @@ there is only one. A request with no token, or a token nobody here was given, is
 except `GET /api/health`.
 
 The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below), and
-`GET /api/hub`, the list of workspaces (id, account, songs, whether it reaches its bucket and
-through what), answered only to the server's own machine. There is no route to leave by: an
+`GET /api/hub`, the list of workspaces (id, account, songs, whether it reaches its bucket),
+answered only to the server's own machine. There is no route to leave by: an
 account takes its grant back (below), which works while the server is off.
 
 The server's own page on `:4600` (`apps/server/public/`), opened on the server itself, lists
@@ -110,6 +112,10 @@ it) and in Settings › Account › Computers when the list is empty. In practic
 this device removed the shared computer: removing it there is remembered on that device, so
 it does not join again by itself, and pressing the button joins by hand and forgets that.
 
+The browser extension never joins. It cannot read what a device remembered about removing
+the shared computer, so it leaves the link in the bucket and says to open self.mp3 until a
+snapshot names a server ([browser-extension.md](browser-extension.md), "Connecting it").
+
 ## Grants
 
 A grant is a doorman session with a server's name on it and no 180-day end (`grants:<sub>`
@@ -160,20 +166,6 @@ is watched. A device reaches its server for them (Settings › Smart features, S
 Advanced › Library and Importing), the way Import does; the bucket holds none of them. What a
 device acts on, such as crossfade, stays on the device.
 
-## A server from before
-
-A data folder holding `selfmp3.db` and no `hub.json` is a server from before workspaces
-(`hub/migrate.ts`). At its first start as a hub:
-
-1. **It moves into a workspace of its own.** The database and its caches move by rename;
-   the inbox moves too.
-2. **Its token goes into `hub.json`,** so no device is given a new one.
-3. **YouTube's pace goes with it**, into the machine's file.
-4. **It settles once the hub is running.** The hub asks the doorman which account the
-   database's session is for. It swaps that session, a device's that would end after 180
-   days, for a grant, opens the workspace again on the grant, and signs the old session
-   out. A doorman too old to say asks again in an hour.
-
 ## Who may sign in
 
 The doorman decides, and the server takes its word. Its owners — the `OWNER_EMAILS` secret,
@@ -222,7 +214,6 @@ A change that touches the doorman, the server and the app goes out in that order
 |---|---|
 | The hub: workspaces, routing, joining, letting go | `apps/server/src/hub/hub.ts`, `hub/app.ts` |
 | Who joined | `apps/server/src/hub/registry.ts` (`<data>/hub.json`) |
-| A server from before | `apps/server/src/hub/migrate.ts` |
 | What the workspaces share | `apps/server/src/shared.ts`, `sound/sound.ts` (`SoundModelHost`), `util/gate.ts` |
 | One library's background work | `apps/server/src/start.ts` |
 | Grants | `apps/doorman/src/grants.ts`; `DoormanGrant*` in `packages/shared/src/schemas/doorman.ts` |

@@ -351,13 +351,15 @@ simulator, and the screen is a thin renderer of it. Adding a feature is one
 folder. *Enforced by:* `no-restricted-imports` on `**/*.model.ts`; vitest runs
 the app's `.test.ts` files and jest-expo its `.test.tsx` ones.
 
-**4. One design token source.** Colours are OKLCH lightness/chroma/hue triples
-in one file (`packages/client/src/theme/tokens.ts`), resolved to hex by the
-converter beside it. Spacing, radii, type scale, motion durations and the 820-point
-breakpoint live beside them. Unistyles builds the light and dark themes from
-that file; the accent hue is a runtime theme change. The one copy
-in CSS, `tokens.reference.css`, is held to it. *Enforced by:* the token-parity
-test in `packages/client/src/theme/tokens.test.ts`.
+**4. One design token source.** Colours live in one file
+(`packages/client/src/theme/tokens.ts`): the ones that follow a hue (the accent,
+a tag's, the charts') as OKLCH lightness/chroma pairs resolved to hex by the
+converter beside it, the rest as fixed hex. Spacing, radii, type scale, motion
+durations and the 820-point breakpoint live beside them. Unistyles builds the
+light and dark themes from that file; the accent hue is a runtime theme change.
+The extension's stylesheet is written from it on every build, so there is no
+second copy to drift. *Enforced by:* `packages/client/src/theme/tokens.test.ts`,
+which holds the converter to colours read out of Chrome.
 
 **5. Layout responds to width.** A component is written once with breakpoint
 variants, not as a phone version and a desktop version. Where the two really
@@ -426,6 +428,7 @@ interface each implements where a package declares one:
 | `events` (`ServerEventStream`, packages/client) | the server's event stream | `EventSource` | the same stream over `XMLHttpRequest` |
 | `mediaSession` | what the operating system shows for the song | `navigator.mediaSession` (Now Playing and the media keys in the desktop app) | a no-op: track-player fills the lock screen |
 | `shareLink` | handing a link to someone | `navigator.share`, else the clipboard | React Native's `Share` |
+| `clipboard` | copying words: a share link, the server's token | `navigator.clipboard` | `expo-clipboard` |
 | `install` | whether this is an installed app, which keeps songs | true only in the desktop app | true |
 | `pointer`, `keyboard` | which inputs are present | from media queries | a finger |
 | `widget` | the iOS home-screen widget's snapshot | nothing | `widget.ios.ts`; nothing on Android |

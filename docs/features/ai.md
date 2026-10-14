@@ -595,9 +595,12 @@ names', from nothing (`from: ''`, the year as its digits and the cover as the pi
 address, `tidyValue` in `packages/shared/src/tidy.ts`), "From iTunes" and so on as its
 reason; what the listings agreed on is `rule` and starts ticked, what the model chose
 waits with the sparkle. The device draws a fill as what it adds — the name, the year, or
-the cover itself — and applies the album and year as the ordinary edit (so Undo empties
-them again) and each cover through the server, which downloads it as Fix song info does
-(`useTakeCovers`). Without a model only what the catalogues agree on is offered, with a
+the cover itself — and applies the album and year as the ordinary edit and each cover
+through the server, which downloads it as Fix song info does (`useTakeCovers`). Undo puts
+back exactly what was there: it empties the album and year again, and has the server take
+each cover it took in off again (`DELETE /api/songs/:id/cover`, server-only like
+apply-metadata), since a fill only fills a cover that was missing; a cloud library sees the
+song without a cover from the server's next snapshot, as it saw the cover arrive. Without a model only what the catalogues agree on is offered, with a
 note. Tried 2026-10-14 through a local model: 夜に駆ける got iTunes' single, its year and
 cover; 晴天 got MusicBrainz's 2003; 3.6 s for the call.
 
@@ -633,7 +636,19 @@ device the fold is a change in its log, done at once there, and the server, read
 moves the copy's play history too, so Stats and the bucket's plays files count those plays
 under the kept song; a play of the copy that arrives late lands there as well. So Delete
 asks once (`FoldCopies`), saying what moves and that the file is deleted, without the "can't
-be undone" a plain delete carries. Tried
+be undone" a plain delete carries.
+
+A fold made cannot be taken back, so it is not sent until its Undo has gone, as an email
+client's undo-send (`showPendingToast` in `ui/toast.ts`). The dialog's Delete takes the extra
+copies out of the library drawn on the device at once and says "Deleted the extra copy; its
+plays and tags are on the one kept" with Undo; Undo, within the toast's five seconds, asks for
+the library again with nothing written. The fold is sent when the time is up, or at once when
+the app is leaving — a phone sent to the background, a tab or window hidden or closed
+(`sendPending`, `ports/appLeaving.ts`). Sending it then, rather than keeping the intent to
+send at the next launch, is the choice: on a signed-in device the fold is a write to its own
+copy of the library and its log, quick enough to finish as the app goes, where a kept intent
+would be replayed later against ids that a rebuilt library may have given other songs. A
+library refetched within those seconds shows the copies again until the fold lands. Tried
 2026-10-14 through a local model: 夜に駆ける / Yoru ni Kakeru and アイドル / "アイドル (Official
 Music Video)" called copies; with every song's sound the same, Dream Aria / "Dream Aria (II)"
 and Liyue / "Liyue (Bayan)" left as versions.

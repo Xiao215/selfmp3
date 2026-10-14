@@ -110,6 +110,64 @@ export function showUndoToast(
   })
 }
 
+/** What `showPendingToast` has said is done and not sent yet: each sends itself when called. */
+const pending = new Set<() => void>()
+
+/**
+ * Something said done that is only sent once its Undo has gone, as an email
+ * client's undo-send: for what cannot be taken back once made — an extra copy
+ * of a song folded into the one kept, its file deleted. Undo within `UNDO_MS`
+ * cancels it before anything was written, and `undone` puts back whatever
+ * the caller set aside meanwhile.
+ *
+ * Otherwise `send` runs when the time is up, wherever the app is by then, or
+ * sooner when the app is leaving (`sendPending`): a phone sent to the
+ * background or a closing tab sends it rather than losing it. If it fails,
+ * `failed` says so.
+ */
+export function showPendingToast(
+  text: string,
+  send: () => unknown,
+  options: { tone?: ToastTone; failed?: string; undone?: () => void } = {},
+): void {
+  const { tone = 'info', failed, undone } = options
+  let id = 0
+  /** Takes it out of the waiting; false when it was sent or undone already. */
+  const settle = (): boolean => {
+    if (!pending.delete(go)) return false
+    clearTimeout(timer)
+    return true
+  }
+  function go(): void {
+    if (!settle()) return
+    // Its Undo would be a promise broken: the message goes as it is sent.
+    dismissToast(id)
+    Promise.resolve()
+      .then(send)
+      .catch((caught: unknown) => {
+        if (failed) showToast(failureText(failed, caught), 'error')
+      })
+  }
+  pending.add(go)
+  const timer = setTimeout(go, UNDO_MS)
+  id = showToast(text, tone, {
+    autoDismissMs: UNDO_MS,
+    actions: [
+      {
+        label: 'Undo',
+        onPress: () => {
+          if (settle()) undone?.()
+        },
+      },
+    ],
+  })
+}
+
+/** Sends everything still waiting on its Undo, now: the app is going to the background or closing. */
+export function sendPending(): void {
+  for (const go of [...pending]) go()
+}
+
 export function dismissToast(id: number): void {
   toasts = toasts.filter(toast => toast.id !== id)
   emit()

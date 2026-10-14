@@ -43,13 +43,14 @@ import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
+import { onAppLeaving } from '../src/ports/appLeaving'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { singularPlaces } from '../src/ports/singularPlaces'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
-import { showToast } from '../src/ui/toast'
+import { sendPending, showToast } from '../src/ui/toast'
 import { SIDEBAR_WIDTH } from '../src/shell/widths'
 
 /**
@@ -68,6 +69,9 @@ hideScrollbars()
 
 // Coming back to the app is focus, for the queries that refetch on it.
 listenForAppFocus()
+
+// Leaving it sends what was waiting on its Undo, so closing the app loses none of it.
+onAppLeaving(sendPending)
 
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds

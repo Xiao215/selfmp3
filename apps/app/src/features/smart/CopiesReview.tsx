@@ -2,15 +2,23 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { artistOr, formatDuration, plural, type CopiesResult, type Song } from '@selfmp3/shared'
-import { failureText, space, textStyle, useMergeSongs } from '@selfmp3/client'
+import {
+  artistOr,
+  formatDuration,
+  plural,
+  type CopiesResult,
+  type Library,
+  type Song,
+} from '@selfmp3/shared'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys, space, useMergeSongs } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { useSongsById } from '../../ui/songsById'
 import { dialogPanel, lineSub } from '../../ui/surfaces'
-import { showToast } from '../../ui/toast'
+import { showPendingToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
 import { AnswerLine, AnswerNote } from './AnswerParts'
 import { Review, reviewText } from './Review'
@@ -27,7 +35,8 @@ import { useSmartServer } from './useSmartServer'
  * kept first (`POST /api/songs/merge`, `songMerged` in docs/SYNC.md) — its
  * tags, love, places in playlists and plays go there, and what the kept copy
  * lacks is filled in from it — and only its file goes. The button still asks
- * once, since the file does go, without the warning a plain delete carries.
+ * once, since the file does go, without the warning a plain delete carries,
+ * and the fold waits out its Undo before it is sent (`FoldCopies`).
  */
 export function CopiesReview({
   result,
@@ -141,7 +150,13 @@ export function CopiesReview({
 /**
  * The one question before the extra copies go: what happens to them, in
  * words. Nothing of theirs is lost, so there is no warning; the files do go.
- * As a delete does, the copies here and in the player are let go at once.
+ *
+ * Delete is not sent at once (`showPendingToast`): the copies leave the
+ * library here at once and the message says they are deleted, with Undo, but
+ * the fold is sent only once Undo has gone — or the app is leaving — since a
+ * fold made cannot be taken back. Undo brings them back with nothing written.
+ * As a delete does, the copies' downloads and their place in the player are
+ * let go when it is sent.
  */
 function FoldCopies({
   copies,
@@ -155,50 +170,54 @@ function FoldCopies({
   const merge = useMergeSongs()
   const player = usePlayerCommands()
   const { dropDownloads } = useDownloads()
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const client = useQueryClient()
   const count = copies.reduce((sum, each) => sum + each.extra.length, 0)
   const one = count === 1
 
-  const confirm = async (): Promise<void> => {
-    setBusy(true)
-    setError(null)
+  const confirm = (): void => {
     const ids = copies.flatMap(each => each.extra.map(song => song.id))
-    try {
-      void dropDownloads(ids)
-      player.forgetSongs(ids)
-      let folded = 0
-      for (const each of copies) {
-        const answer = await merge.mutateAsync({
-          keep: each.keep.id,
-          songIds: each.extra.map(song => song.id),
-        })
-        folded += answer.merged
-      }
-      onDone()
-      showToast(
-        folded === 1
-          ? 'Deleted the extra copy; its plays and tags are on the one kept'
-          : `Deleted ${folded} extra copies; their plays and tags are on the ones kept`,
-        'good',
-      )
-    } catch (caught) {
-      setError(failureText(one ? 'Couldn’t delete it' : 'Couldn’t delete them', caught))
-    } finally {
-      setBusy(false)
-    }
+    const gone = new Set(ids)
+    onDone()
+    // Out of the library drawn here at once. Asking for the library again
+    // brings them back: after an Undo, and after a fold that failed.
+    client.setQueryData<Library>(
+      queryKeys.library,
+      library => library && { ...library, songs: library.songs.filter(song => !gone.has(song.id)) },
+      { updatedAt: client.getQueryState(queryKeys.library)?.dataUpdatedAt },
+    )
+    const back = (): void => void client.invalidateQueries({ queryKey: queryKeys.library })
+    showPendingToast(
+      one
+        ? 'Deleted the extra copy; its plays and tags are on the one kept'
+        : `Deleted ${count} extra copies; their plays and tags are on the ones kept`,
+      async () => {
+        void dropDownloads(ids)
+        player.forgetSongs(ids)
+        try {
+          for (const each of copies) {
+            await merge.mutateAsync({
+              keep: each.keep.id,
+              songIds: each.extra.map(song => song.id),
+            })
+          }
+        } catch (caught) {
+          back()
+          throw caught
+        }
+      },
+      {
+        tone: 'good',
+        failed: one ? 'Couldn’t delete it' : 'Couldn’t delete them',
+        undone: back,
+      },
+    )
   }
 
   return (
-    <Dialog
-      onDismiss={busy ? () => undefined : onCancel}
-      dismissLabel="Cancel"
-      testID="fold-copies"
-      style={styles.dialog}
-    >
+    <Dialog onDismiss={onCancel} dismissLabel="Cancel" testID="fold-copies" style={styles.dialog}>
       <DialogHead
         title={one ? 'Delete the extra copy?' : `Delete ${count} extra copies?`}
-        onClose={busy ? () => undefined : onCancel}
+        onClose={onCancel}
         closeLabel="Cancel"
         style={styles.head}
       />
@@ -208,15 +227,13 @@ function FoldCopies({
             ? 'Its tags, plays, love and places in playlists move to the copy you keep, and anything that copy lacks is filled in from it. Then its file is deleted.'
             : 'Their tags, plays, love and places in playlists move to the copies you keep, and anything those lack is filled in from them. Then their files are deleted.'}
         </Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
       <View style={styles.actions}>
-        <Button label="Cancel" onPress={onCancel} disabled={busy} />
+        <Button label="Cancel" onPress={onCancel} />
         <Button
           label={one ? 'Delete copy' : `Delete ${count} copies`}
           variant="primary"
-          busy={busy}
-          onPress={() => void confirm()}
+          onPress={confirm}
           testID="fold-copies-confirm"
         />
       </View>
@@ -229,7 +246,6 @@ const styles = StyleSheet.create(theme => ({
   head: { paddingTop: space.lg, paddingRight: space.md, paddingLeft: 18 },
   body: { paddingVertical: space.md, paddingHorizontal: 18, gap: space.md },
   lede: lineSub(theme.colors),
-  error: { color: theme.colors.danger, ...textStyle('small') },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

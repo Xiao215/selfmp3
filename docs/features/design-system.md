@@ -434,3 +434,9 @@ the content, with the resume offer and every message raised with `showToast` (`u
 drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
 floating selection bar rather than covering its buttons; each toast is dismissible. Put new
 transient messages in that row rather than positioning them by hand.
+
+Undo comes two ways. `showUndoToast` is for what can be put back: it is done at once and
+Undo does the opposite. `showPendingToast` is for what cannot be (folding an extra copy of a
+song, [ai.md](ai.md), "Copies"): the message says it is done, but it is sent only when the
+toast's five seconds are up or the app is leaving (`sendPending`), and Undo cancels it before
+anything was written.

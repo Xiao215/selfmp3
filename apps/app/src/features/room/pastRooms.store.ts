@@ -84,6 +84,15 @@ export function withYourPicture<
   return face.name === 'You' && face.picture === null && yours ? { ...face, picture: yours } : face
 }
 
+/**
+ * The key of a past room's song's cover when it was a friend's, lent by the
+ * room and kept on this device as it played (RoomProvider); none for yours,
+ * which your library draws.
+ */
+export function lentCoverKey(entry: PastRoom['songs'][number]): string[] {
+  return !entry.mine && entry.song.cover ? [entry.song.cover.key] : []
+}
+
 /** How long a room stays at the front of Home's Recently played after it ends. */
 const RECENT_MS = 3 * 24 * 60 * 60 * 1000
 

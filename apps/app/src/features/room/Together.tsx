@@ -68,10 +68,11 @@ export function TogetherButton({
 
 /**
  * The room in the middle of the phone's Now Playing head while you are in
- * one: its faces and its name, opening the room's sheet.
+ * one: its faces and its name — Reconnecting… while the line is down —
+ * opening the room's sheet.
  */
 export function RoomPill(): ReactNode {
-  const { state } = useRoom()
+  const { state, link } = useRoom()
   if (!state) return null
   const people = peopleHere(state)
   const title = roomTitle(state)
@@ -85,7 +86,7 @@ export function RoomPill(): ReactNode {
     >
       <RoomFaces people={people.slice(0, FACES)} size={22} />
       <Text style={styles.pillText} numberOfLines={1}>
-        {title}
+        {link === 'live' ? title : 'Reconnecting…'}
       </Text>
     </Press>
   )

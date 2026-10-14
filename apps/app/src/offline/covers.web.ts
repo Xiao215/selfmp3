@@ -110,6 +110,8 @@ export const {
   picturesVersion,
   pictureFor,
   ensurePicture,
+  keepLent,
+  holdPictures,
   sweepPictures,
   forgetCovers,
 } = createCoverStore(platform)

@@ -20,7 +20,7 @@ import { meteredConnections } from '../ports/metered'
 
 type ConnectionKind = 'wifi' | 'cellular' | 'none' | 'unknown'
 
-async function connectionKind(): Promise<ConnectionKind> {
+export async function connectionKind(): Promise<ConnectionKind> {
   /*
    * A computer's connection is never metered, as far as this app is
    * concerned. Wired, Wi-Fi at a desk, a laptop tethered — none of them is the

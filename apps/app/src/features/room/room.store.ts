@@ -18,6 +18,9 @@ import {
 import { doormanUrl } from '../../ports/doormanUrl'
 import { prefs } from '../../ports/prefs'
 import { markGuideSeen } from '../guide/guideMemory'
+import { isHost } from './room.model'
+import { connectionKind } from '../../offline/connectionKind'
+import { showToast } from '../../ui/toast'
 import { session as cloudSession } from '../../replica'
 
 /**
@@ -45,6 +48,13 @@ const PASS_KEY = 'room.pass'
 
 /** How often the socket pings: the clock's samples, and a check the line is still there. */
 const PING_MS = 10_000
+/**
+ * How long a ping may go unanswered before the line is taken to be down. A
+ * phone that walks out of signal keeps its socket "open" for a minute or more;
+ * this is what notices sooner, so the room says Reconnecting… and a song that
+ * stopped waits for it (`checkRoomLink`).
+ */
+const PONG_WAIT_MS = 6000
 /** The longest wait between tries at reconnecting. */
 const MAX_BACKOFF_MS = 15_000
 
@@ -91,7 +101,7 @@ export function currentRoom(): RoomView {
   return view
 }
 
-function subscribe(listener: () => void): () => void {
+export function subscribeRoom(listener: () => void): () => void {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
@@ -99,7 +109,7 @@ function subscribe(listener: () => void): () => void {
 const snapshot = (): RoomView => view
 
 export function useRoom(): RoomView {
-  return useSyncExternalStore(subscribe, snapshot, snapshot)
+  return useSyncExternalStore(subscribeRoom, snapshot, snapshot)
 }
 
 /** Hear when a room this device was in ends, with how it ended: what Recently played keeps. */
@@ -131,12 +141,42 @@ let backoff = 1000
 let samples: ClockSample[] = []
 let pings = 0
 const pingsSent = new Map<number, number>()
+/** The unanswered ping's deadline. */
+let pongDue: ReturnType<typeof setTimeout> | null = null
+/** A ping sent now, on the open socket; null while there is none. */
+let pingNow: (() => void) | null = null
+/** Who asked whether the line is up (`checkRoomLink`), told with the next pong or its loss. */
+const linkWaiters = new Set<(alive: boolean) => void>()
+
+function tellLinkWaiters(alive: boolean): void {
+  for (const waiter of linkWaiters) waiter(alive)
+  linkWaiters.clear()
+}
+
+/**
+ * Whether the room can still hear this device, asked now: a ping, and its
+ * pong or not within a few seconds. A song of the room's that stopped asks
+ * this before it is skipped — a connection that dropped is waited out, a song
+ * that will not play is not (player/PlayerProvider).
+ */
+export function checkRoomLink(): Promise<boolean> {
+  if (!view.pass || view.link !== 'live' || !pingNow) return Promise.resolve(false)
+  const ping = pingNow
+  return new Promise(resolve => {
+    linkWaiters.add(resolve)
+    ping()
+  })
+}
 
 function closeSocket(): void {
   if (pinger) clearInterval(pinger)
   if (retry) clearTimeout(retry)
+  if (pongDue) clearTimeout(pongDue)
   pinger = null
   retry = null
+  pongDue = null
+  pingNow = null
+  tellLinkWaiters(false)
   if (socket) {
     socket.onopen = null
     socket.onmessage = null
@@ -165,10 +205,12 @@ export function connectRoom(): void {
     const id = ++pings
     pingsSent.set(id, Date.now())
     opened.send(JSON.stringify({ type: 'ping', id }))
+    if (!pongDue) pongDue = setTimeout(lost, PONG_WAIT_MS)
   }
 
   opened.onopen = () => {
     backoff = 1000
+    pingNow = ping
     set({ link: 'live' })
     ping()
     pinger = setInterval(ping, PING_MS)
@@ -190,6 +232,9 @@ export function connectRoom(): void {
         const sentAt = pingsSent.get(message.data.id)
         pingsSent.delete(message.data.id)
         if (sentAt === undefined) return
+        if (pongDue) clearTimeout(pongDue)
+        pongDue = null
+        tellLinkWaiters(true)
         samples = withClockSample(samples, {
           sentAt,
           receivedAt: Date.now(),
@@ -205,11 +250,25 @@ export function connectRoom(): void {
         return
     }
   }
-  opened.onclose = () => {
+  // Closed, or a ping that went unanswered: the line is down either way.
+  function lost(): void {
     if (socket !== opened) return
     socket = null
+    opened.onopen = null
+    opened.onmessage = null
+    opened.onclose = null
+    opened.onerror = null
+    try {
+      opened.close()
+    } catch {
+      // Already closed.
+    }
     if (pinger) clearInterval(pinger)
+    if (pongDue) clearTimeout(pongDue)
     pinger = null
+    pongDue = null
+    pingNow = null
+    tellLinkWaiters(false)
     if (!view.pass) return
     set({ link: 'offline' })
     retry = setTimeout(() => {
@@ -230,6 +289,7 @@ export function connectRoom(): void {
     }, backoff)
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
   }
+  opened.onclose = lost
 }
 
 /** The room is over for this device: remember it, and let it go. */
@@ -254,6 +314,21 @@ function enter(pass: RoomPass, state: RoomState): void {
   samples = []
   set({ pass, state, offset: 0 })
   connectRoom()
+  void sayIfMobileData(state)
+}
+
+/**
+ * Said once as you open or join a room on a phone's mobile data, where this
+ * device will play the room: a room works on any connection that holds, but
+ * it streams every song a friend brings, which a data plan should hear about.
+ * A remote in a one-speaker room plays nothing, and a computer is never on
+ * mobile data (`connectionKind`).
+ */
+async function sayIfMobileData(state: RoomState): Promise<void> {
+  if (state.mode !== 'everyone' && !isHost(state)) return
+  if ((await connectionKind()) === 'cellular') {
+    showToast('You’re on mobile data. A room streams every song, about 5 MB each.')
+  }
 }
 
 // --- starting from what was playing ---------------------------------------------

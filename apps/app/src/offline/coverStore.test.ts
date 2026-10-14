@@ -291,6 +291,41 @@ describe('the cover store', () => {
     expect(await store.ensureCover(9)).toBe(`file:///${now}.png`)
   })
 
+  it('keeps a friend’s cover from the address the room lends it at, and finds it after', async () => {
+    const friend = 'f'.repeat(64)
+    const platform = fakePlatform()
+    const keepCloud = vi.spyOn(platform, 'keepCloud')
+    const store = createCoverStore(platform)
+
+    // Before it played, there is nothing kept to find, and nothing is asked of a bucket.
+    expect(await store.keepLent(`covers/${friend}.jpg`)).toBeNull()
+    expect(keepCloud).not.toHaveBeenCalled()
+
+    const lent = 'https://doorman.example/v1/rooms/KQ7482/files/e1/cover?t=x'
+    expect(await store.keepLent(`covers/${friend}.jpg`, lent)).toBe(`file:///${friend}.jpg`)
+    // The room's address carries its own pass: no session's header goes with it.
+    expect(keepCloud.mock.calls).toEqual([[`${friend}.jpg`, lent, {}]])
+
+    // The room ended: its page finds the copy on the disk, without an address.
+    const later = createCoverStore(platform)
+    expect(await later.keepLent(`covers/${friend}.jpg`)).toBe(`file:///${friend}.jpg`)
+    expect(later.pictureFor(`covers/${friend}.jpg`)).toBe(`file:///${friend}.jpg`)
+  })
+
+  it('leaves the pictures something else holds when it sweeps, until it lets them go', async () => {
+    const friend = 'f'.repeat(64)
+    const platform = fakePlatform()
+    const store = createCoverStore(platform)
+    await store.keepLent(`covers/${friend}.jpg`, 'https://doorman.example/lent')
+
+    store.holdPictures('past-rooms', [`covers/${friend}.jpg`])
+    expect(await store.sweepPictures(new Set(['covers/other.jpg']))).toBe(0)
+    expect(await platform.listCloud()).toEqual([`${friend}.jpg`])
+
+    store.holdPictures('past-rooms', [])
+    expect(await store.sweepPictures(new Set(['covers/other.jpg']))).toBe(1)
+  })
+
   it('survives a platform that refuses to clear', async () => {
     const store = createCoverStore(
       fakePlatform({ forgetFiles: () => Promise.reject(new Error('locked')) }),

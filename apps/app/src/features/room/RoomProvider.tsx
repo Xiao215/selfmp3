@@ -9,6 +9,7 @@ import {
   roomTrackId,
   shouldResync,
   useLibrary,
+  yoursOf,
 } from '@selfmp3/client'
 import {
   ROOM_VECTORS_AT_ONCE,
@@ -29,7 +30,8 @@ import {
   usePlayingSongId,
 } from '../../player/PlayerProvider'
 import { roomTrack, setRoomTracks } from '../../player/roomTracks'
-import { rememberPastRoom } from './pastRooms.store'
+import { holdPictures, keepLent } from '../../offline/covers'
+import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
 import {
   entryOfTrack,
   freshWant,
@@ -155,6 +157,37 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     )
   }, [state, pass, host, linkStream, index])
 
+  // A friend's cover, kept on this device once their song has played: the
+  // room lends it only while it is open, and the room's page in Recently
+  // played draws it after (pastRooms.store). Held, with every past room's,
+  // so the library's sweep of pictures it does not name leaves them.
+  const keptCovers = useRef<{ code: string; keys: Set<string> }>({ code: '', keys: new Set() })
+  useEffect(() => {
+    if (!state || !pass) {
+      holdPictures('room', [])
+      return
+    }
+    if (keptCovers.current.code !== state.code) {
+      keptCovers.current = { code: state.code, keys: new Set() }
+    }
+    const kept = keptCovers.current.keys
+    for (const entry of state.entries) {
+      const cover = entry.song.cover
+      const heard = entry.playedAt !== null || entry.id === state.playing?.entryId
+      if (!cover || !heard || kept.has(cover.key) || yoursOf(entry.song, index) !== null) continue
+      kept.add(cover.key)
+      void keepLent(cover.key, roomApi.fileUrl(pass, entry.id, 'cover'))
+    }
+    holdPictures('room', kept)
+  }, [state, pass, index])
+  const pastRooms = usePastRooms()
+  useEffect(() => {
+    holdPictures(
+      'past-rooms',
+      pastRooms.flatMap(room => room.songs.flatMap(lentCoverKey)),
+    )
+  }, [pastRooms])
+
   // --- the host ---------------------------------------------------------------
 
   useEffect(() => {
@@ -274,6 +307,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     const now = currentRoom()
     const room = now.state
     if (!room || isHost(room) || room.mode !== 'everyone') return
+    // Reconnecting, what the room last said goes stale: the song this device
+    // has goes on as it is, and is put in step once the room is back.
+    if (now.link !== 'live') return
     const onRoomSong = roomTrack(live.current.playingId ?? 0) !== undefined
     if (!room.playing) {
       if (onRoomSong && live.current.playing) commands.toggle()

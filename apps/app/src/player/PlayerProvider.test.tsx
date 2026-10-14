@@ -5,6 +5,7 @@ import type { Library, Song } from '@selfmp3/shared'
 import type { EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 
 import { PlayerProvider, usePlayer, type PlayerApi } from './PlayerProvider'
+import { setRoomTracks } from './roomTracks'
 
 /**
  * The queue the commands read is the queue the last command left.
@@ -29,6 +30,7 @@ const IDLE: EngineState = {
 }
 
 const mockWiring: Partial<EngineWiring> = {}
+let mockEngineListener: ((state: EngineState) => void) | null = null
 const mockKeepPlayed = jest.fn()
 const mockKeepAhead = jest.fn((_songId: number) => Promise.resolve(false))
 const mockEngine = {
@@ -39,7 +41,10 @@ const mockEngine = {
   state: IDLE,
   currentSongId: null as number | null,
   playhead: 0,
-  subscribe: () => () => undefined,
+  subscribe: (listener: (state: EngineState) => void) => {
+    mockEngineListener = listener
+    return () => undefined
+  },
   configure: jest.fn(),
   load: jest.fn((songId: number) => {
     mockEngine.currentSongId = songId
@@ -92,6 +97,20 @@ jest.mock('../offline/covers', () => ({
   KEPT_COVER_SIZE: 640,
 }))
 jest.mock('../api/client', () => ({ mediaUrlFor: jest.fn() }))
+// The room this device is in, as far as the player asks: whether it can still hear it.
+const mockRoom = {
+  view: { pass: null as object | null, link: 'live' as 'connecting' | 'live' | 'offline' },
+  alive: true,
+  listeners: new Set<() => void>(),
+}
+jest.mock('../features/room/room.store', () => ({
+  currentRoom: () => mockRoom.view,
+  checkRoomLink: () => Promise.resolve(mockRoom.alive),
+  subscribeRoom: (listener: () => void) => {
+    mockRoom.listeners.add(listener)
+    return () => mockRoom.listeners.delete(listener)
+  },
+}))
 
 const song = (id: number): Song =>
   ({
@@ -132,6 +151,9 @@ const draw = () =>
 beforeEach(() => {
   jest.clearAllMocks()
   mockEngine.currentSongId = null
+  mockRoom.view = { pass: null, link: 'live' }
+  mockRoom.alive = true
+  setRoomTracks(new Map())
 })
 
 describe('the queue as the commands see it', () => {
@@ -283,5 +305,56 @@ describe('songs leaving the library', () => {
     expect(mockEngine.load).not.toHaveBeenCalled()
     expect([...api.queue.items]).toEqual([1, 2, 4])
     expect(api.current?.id).toBe(1)
+  })
+})
+
+describe('a room’s song that stops', () => {
+  const roomSongs = (): void =>
+    setRoomTracks(
+      new Map(
+        [-1, -2].map(id => [
+          id,
+          {
+            song: song(id),
+            stream: { url: `https://doorman.example/rooms/files/${id}`, headers: null },
+            cover: null,
+            yours: null,
+          },
+        ]),
+      ),
+    )
+  const fails = (): void => mockEngineListener?.({ ...IDLE, error: 'network' })
+
+  it('waits out a connection the room lost, and goes on once it is back', async () => {
+    roomSongs()
+    mockRoom.view = { pass: {}, link: 'live' }
+    mockRoom.alive = false
+    await draw()
+    await act(() => api.playFrom([-1, -2], 0))
+    mockEngine.load.mockClear()
+
+    await act(async () => fails())
+
+    // Not skipped down the room's list, and not tried again into a dead line.
+    expect(api.current?.id).toBe(-1)
+    expect(mockEngine.load).not.toHaveBeenCalled()
+
+    mockRoom.view = { pass: {}, link: 'live' }
+    await act(async () => {
+      for (const listener of mockRoom.listeners) listener()
+    })
+    expect(mockEngine.load).toHaveBeenCalledWith(-1, { autoplay: true })
+  })
+
+  it('is tried again as any song is when the room still hears this device', async () => {
+    roomSongs()
+    mockRoom.view = { pass: {}, link: 'live' }
+    await draw()
+    await act(() => api.playFrom([-1, -2], 0))
+    mockEngine.load.mockClear()
+
+    await act(async () => fails())
+
+    expect(mockEngine.load).toHaveBeenCalledWith(-1, { autoplay: true })
   })
 })

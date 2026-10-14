@@ -81,6 +81,7 @@ import { createValueStore, type ValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useSongsById } from '../ui/songsById'
 import { roomTrack, useRoomTracks, withRoomSongs } from './roomTracks'
+import { checkRoomLink, currentRoom, subscribeRoom } from '../features/room/room.store'
 
 /**
  * The React glue between the queue rules and whatever makes a sound.
@@ -829,6 +830,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     /** The skip message on screen, replaced rather than stacked. */
     toastId: null as number | null,
   })
+  /*
+   * A room's song waiting out a dropped connection, picked up where it
+   * stopped once the room hears this device again. A follower is then put
+   * back in step by the room's provider.
+   */
+  const roomWaitRef = useRef<{ songId: number; at: number } | null>(null)
   useEffect(() => {
     playbackErrorRef.current = state => {
       const recovery = recoveryRef.current
@@ -850,6 +857,24 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // which song, and what happened to it.
       console.warn(`Playback failed for song ${songId}:`, state.error)
 
+      // A room's song that stops may be the connection rather than the song.
+      // The room is asked whether it can still hear this device: while it
+      // cannot, the song waits where it stopped and goes on once the room is
+      // back (below), rather than being skipped down the room's list.
+      if (roomTrack(songId) && currentRoom().pass) {
+        const at = lastPositionRef.current
+        void checkRoomLink().then(alive => {
+          if (queueRef.current.items[queueRef.current.index] !== songId) return
+          if (alive) recover(songId)
+          else roomWaitRef.current = { songId, at }
+        })
+        return
+      }
+      recover(songId)
+    }
+
+    const recover = (songId: number): void => {
+      const recovery = recoveryRef.current
       const title =
         songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
       // One message about skipping at a time: each replaces the last. A run of
@@ -908,6 +933,24 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       say(`Couldn’t play “${title}”`, 'error')
     }
   }, [engine, loadIndex, mayPlay, commitQueue])
+
+  useEffect(
+    () =>
+      subscribeRoom(() => {
+        const waiting = roomWaitRef.current
+        const room = currentRoom()
+        if (!waiting) return
+        if (!room.pass) roomWaitRef.current = null
+        if (room.link !== 'live') return
+        roomWaitRef.current = null
+        if (queueRef.current.items[queueRef.current.index] !== waiting.songId) return
+        void engine.load(
+          waiting.songId,
+          waiting.at > 0 ? { autoplay: true, startAt: waiting.at } : { autoplay: true },
+        )
+      }),
+    [engine],
+  )
 
   const seekTo = useCallback(
     (seconds: number) => {

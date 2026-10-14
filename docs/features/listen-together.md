@@ -93,6 +93,18 @@ The room keeps the song and when it started, on the doorman's clock. Each device
 position out with its own clock's offset from the doorman's, measured by a ping on the
 socket. A device more than a third of a second out seeks.
 
+**A connection that drops.** A ping unanswered for six seconds is taken as the line gone, and
+the room says **Reconnecting…** (its head, Now Playing's pill, the line under the song) until
+the socket is back. Meanwhile a device that follows the host keeps playing what it has rather
+than chasing the room's last word. A room's song that stops asks the room whether it can still
+hear this device: if not, the song waits where it stopped and goes on once the room is back,
+rather than being skipped down the list; if so, it is a song that will not play, tried again
+and skipped as any other.
+
+**Mobile data.** A room works on any connection that holds, so it is not Wi-Fi only. Opening
+or joining one on a phone's mobile data, where that phone will play the room, says once that
+a room streams every song, about 5 MB each.
+
 ## Who plays next (O1)
 
 Each person's songs wait behind their own, and the list deals one from each person in turn:
@@ -129,8 +141,10 @@ room.
 
 When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**. Its page lists
 every song that played, with who brought it. The room lent its covers only while it was open,
-so a song you have draws your own copy's cover and a link the picture its page showed; a friend's
-song you do not have keeps its letter. A room you were in alone shows your own face on its tile.
+so a song you have draws your own copy's cover, a link the picture its page showed, and a friend's
+the copy this device kept of it as it played (held from the library's sweep of pictures while
+the room is remembered; a browser tab keeps none, and draws the letter). A room you were in
+alone shows your own face on its tile.
 
 - **Open the shared playlist**, when the host kept the room as one (below).
 - **Save as playlist** keeps the songs that are yours as a playlist of your own.

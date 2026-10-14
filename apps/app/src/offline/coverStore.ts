@@ -106,6 +106,14 @@ interface CoverStore {
   readonly pictureFor: (key: string) => string | undefined
   /** Make sure a bucket picture is on this device, by key, and say where. */
   readonly ensurePicture: (key: string) => Promise<string | null>
+  /**
+   * A picture from someone else's bucket — a friend's cover in a room — kept
+   * from the address it is lent at, or, without one, found among those kept
+   * before; and say where.
+   */
+  readonly keepLent: (key: string, url?: string) => Promise<string | null>
+  /** The pictures `holder` needs beyond the library's, which a sweep leaves; none lets them go. */
+  readonly holdPictures: (holder: string, keys: Iterable<string>) => void
   /** Delete every bucket picture kept here that `named` does not name; how many went. */
   readonly sweepPictures: (named: ReadonlySet<string>) => Promise<number>
   readonly forgetCovers: () => Promise<void>
@@ -160,6 +168,8 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
   const failedPictures = new Map<string, number>()
   const pictureListeners = new Set<() => void>()
   let picturesSeen = 0
+  /** Pictures kept for something besides the library, by who needs them (`holdPictures`), by name. */
+  const held = new Map<string, ReadonlySet<string>>()
 
   /**
    * Whoever wants to know when a cover arrives — the list, mostly — told which
@@ -274,10 +284,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     try {
       const uri = await keepFile(key)
       if (!uri) return null
-      pictures.set(name, uri)
-      failedPictures.delete(name)
-      picturesSeen++
-      for (const listener of pictureListeners) listener()
+      arrived(name, uri)
       return uri
     } catch (error) {
       failedPictures.set(name, Date.now())
@@ -285,6 +292,50 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
       return null
     }
   }
+
+  const arrived = (name: string, uri: string): void => {
+    pictures.set(name, uri)
+    failedPictures.delete(name)
+    picturesSeen++
+    for (const listener of pictureListeners) listener()
+  }
+
+  const keepLent = async (key: string, url?: string): Promise<string | null> => {
+    if (!platform.canKeep()) return null
+    const name = nameFromKey(key)
+    if (!BUCKET_PICTURE.test(name)) return null
+    const kept = pictureFor(key)
+    if (kept) return kept
+    const failedAt = failedPictures.get(name)
+    if (url && failedAt !== undefined && Date.now() - failedAt < RETRY_FAILED_MS) return null
+    // The name is the hash of the contents, so whoever's bucket lent it, a
+    // file of that name is that picture.
+    const work =
+      fetchingFile.get(name) ??
+      (async (): Promise<string | null> => {
+        const have = await platform.haveCloud(name)
+        if (have || !url) return have
+        return platform.keepCloud(name, url, {})
+      })().finally(() => fetchingFile.delete(name))
+    fetchingFile.set(name, work)
+    try {
+      const uri = await work
+      if (uri) arrived(name, uri)
+      return uri
+    } catch (error) {
+      failedPictures.set(name, Date.now())
+      console.warn(`self.mp3: could not keep a lent picture (${name}): ${messageOf(error)}`)
+      return null
+    }
+  }
+
+  const holdPictures = (holder: string, keys: Iterable<string>): void => {
+    const names = new Set([...keys].map(nameFromKey))
+    if (names.size > 0) held.set(holder, names)
+    else held.delete(holder)
+  }
+
+  const isHeld = (name: string): boolean => [...held.values()].some(names => names.has(name))
 
   const subscribePictures = (listener: () => void): (() => void) => {
     pictureListeners.add(listener)
@@ -300,14 +351,16 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * and revision, and are its business.
    *
    * `named` has to be the whole library's — every song's cover and every
-   * artist's picture — or what it leaves out is deleted.
+   * artist's picture — or what it leaves out is deleted. What something else
+   * holds (`holdPictures`: a past room's friends' covers) stays.
    */
   const sweepPictures = async (named: ReadonlySet<string>): Promise<number> => {
     if (!platform.canKeep()) return 0
     const keep = new Set([...named].map(nameFromKey))
     const gone = new Set<string>()
     for (const name of await platform.listCloud()) {
-      if (!BUCKET_PICTURE.test(name) || keep.has(name) || fetchingFile.has(name)) continue
+      if (!BUCKET_PICTURE.test(name) || keep.has(name) || fetchingFile.has(name) || isHeld(name))
+        continue
       try {
         await platform.removeCloud(name)
         gone.add(name)
@@ -449,6 +502,8 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     picturesVersion: () => picturesSeen,
     pictureFor,
     ensurePicture,
+    keepLent,
+    holdPictures,
     sweepPictures,
     forgetCovers,
   }

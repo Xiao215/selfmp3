@@ -7,10 +7,11 @@ interface ListKeyActions {
 }
 
 /**
- * A song list's keys, on a computer: the arrows move between rows, Space ticks
- * the row the keyboard is on, ⌘A selects every song. Enter on a row is its
- * press, which the row's button already answers; Escape is the selection's
- * (`useSelection`).
+ * A song list's keys, on a computer: the list is one Tab stop, ↑ and ↓ move
+ * between rows and ← and → along a row's controls, Space ticks the row the
+ * keyboard is on, ⇧F10 opens its menu, ⌘A selects every song. Enter on a row
+ * is its press, which the row's button already answers; Escape is the
+ * selection's (`useSelection`).
  *
  * A phone has no keyboard to speak of, so here this does nothing and names no
  * list; the browser's half is `useListKeys.web.ts`. What it returns is the

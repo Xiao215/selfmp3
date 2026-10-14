@@ -318,6 +318,162 @@ test.describe('selecting songs', () => {
   })
 
   /**
+   * The list is one Tab stop (a roving tabindex): Tab comes into it on a row,
+   * the arrows move from row to row, ← and → along a row's own controls to
+   * its ⋯, and Tab and Shift+Tab leave it from anywhere in a row. Every
+   * control in every row used to be a stop of its own, so Tab could not get
+   * past a library of any size (Xiao, 2026-10-14).
+   */
+  test('the list is one Tab stop, and ← → reach a row’s ⋯', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone has no Tab key')
+    await openLibrary(page)
+    await libraryReady(page)
+    await skipIfNoLibrary(page, 3)
+
+    const grid = page.getByRole('grid', { name: /songs$/ })
+    const rows = songRows(page)
+    const pressOf = (index: number): Locator => rows.nth(index).locator('[data-row-press]')
+    const third = await titleOf(rows.nth(2))
+    // In a row, as opposed to the page's head, which scrolls inside the list too.
+    const inRows = (): Promise<boolean> =>
+      grid.evaluate(() => document.activeElement?.closest('[role="row"]') != null)
+    /**
+     * The control the browser should land on from the rows, either way: the
+     * first one after them that Tab stops on, or the last one before them —
+     * the page's head, which scrolls with the songs.
+     */
+    const besideRows = (after: boolean): Promise<string | null> =>
+      grid.evaluate((list, forward) => {
+        const rows = Array.from(list.querySelectorAll('[role="row"]'))
+        const edge = forward ? rows[rows.length - 1] : rows[0]
+        if (!edge) return null
+        const all = Array.from(document.querySelectorAll<HTMLElement>('[tabindex], a, button'))
+        const tabbable = all.filter(
+          el =>
+            el.tabIndex >= 0 &&
+            el.closest('[role="row"]') === null &&
+            el.getClientRects().length > 0 &&
+            el.closest('[aria-hidden="true"]') === null &&
+            (edge.compareDocumentPosition(el) &
+              (forward ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING)) !==
+              0,
+        )
+        const el = forward ? tabbable[0] : tabbable[tabbable.length - 1]
+        if (!el) return null
+        el.setAttribute('data-beside-rows', forward ? 'after' : 'before')
+        return forward ? 'after' : 'before'
+      }, after)
+
+    // Tab from the top of the page reaches the list, and comes in on its first row.
+    await page.getByTestId('library-search').focus()
+    for (let press = 0; press < 40 && !(await inRows()); press += 1) {
+      await page.keyboard.press('Tab')
+    }
+    await expect(pressOf(0)).toBeFocused()
+    // One stop: no other row's controls are in Tab's way.
+    expect(await grid.locator('[role="row"] [tabindex="0"]').count()).toBe(1)
+
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('ArrowDown')
+    await expect(pressOf(2)).toBeFocused()
+
+    // → along the row to its ⋯, and ← back to the row itself.
+    const more = rows.nth(2).getByRole('button', { name: `More actions for ${third}` })
+    for (let press = 0; press < 8; press += 1) {
+      if (await more.evaluate(el => el === document.activeElement)) break
+      await page.keyboard.press('ArrowRight')
+    }
+    await expect(more).toBeFocused()
+    await expect(more).toBeVisible()
+    // Enter on the ⋯ opens the song's menu, as a click does; Escape closes it.
+    await page.keyboard.press('Enter')
+    await expect(page.getByTestId('song-menu')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('song-menu')).toHaveCount(0)
+    await more.focus()
+    for (let press = 0; press < 8; press += 1) {
+      if (await pressOf(2).evaluate(el => el === document.activeElement)) break
+      await page.keyboard.press('ArrowLeft')
+    }
+    await expect(pressOf(2)).toBeFocused()
+    // ⇧F10 opens the same menu from the row itself.
+    await page.keyboard.press('Shift+F10')
+    await expect(page.getByTestId('song-menu')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('song-menu')).toHaveCount(0)
+    await pressOf(2).focus()
+
+    // Tab leaves the list for the next control after it…
+    expect(await besideRows(true)).toBe('after')
+    await page.keyboard.press('Tab')
+    expect(await inRows()).toBe(false)
+    await expect(page.locator('[data-beside-rows="after"]')).toBeFocused()
+    // …and Shift+Tab comes back in on the row it left.
+    await page.keyboard.press('Shift+Tab')
+    await expect(pressOf(2)).toBeFocused()
+
+    // Shift+Tab from the row's ⋯ leaves backwards, not to the row itself.
+    await more.focus()
+    expect(await besideRows(false)).toBe('before')
+    await page.keyboard.press('Shift+Tab')
+    expect(await inRows()).toBe(false)
+    await expect(page.locator('[data-beside-rows="before"]')).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(pressOf(2)).toBeFocused()
+  })
+
+  /**
+   * The list draws only the rows within a few screens of where it is
+   * scrolled. The row the keyboard is on, scrolled past that, is taken out of
+   * the page with its focus; scrolled back, it has the keyboard again, and an
+   * arrow from the last row drawn draws the next one and moves to it. A short
+   * window, so that a library of a hundred songs is long enough to show it.
+   */
+  test('the keyboard keeps its row through scrolling away and back', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'a phone has no keyboard to select with')
+    // Thirty arrows and two scrolls a step at a time take a while.
+    test.setTimeout(60_000)
+    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
+      songs: { missing: boolean }[]
+    }
+    test.skip(
+      library.songs.filter(song => !song.missing).length < 90,
+      'needs a library of 90 songs or more, longer than the rows a list draws at once',
+    )
+    await page.setViewportSize({ width: 1280, height: 420 })
+    await openLibrary(page)
+    await libraryReady(page)
+
+    const grid = page.getByRole('grid', { name: /songs$/ })
+    const pressAt = (position: number): Locator =>
+      grid.locator(`[aria-rowindex="${position}"] [data-row-press]`)
+    const inRows = (): Promise<boolean> =>
+      page.evaluate(() => document.activeElement?.closest('[role="row"]') != null)
+    const scroll = async (by: number): Promise<void> => {
+      // A step at a time, as a wheel does, so the list follows each one.
+      for (let step = 0; step < 14; step += 1) {
+        await grid.evaluate((el, top) => el.scrollBy({ top }), by)
+        await page.waitForTimeout(100)
+      }
+    }
+
+    await page.getByTestId('library-search').focus()
+    for (let press = 0; press < 40 && !(await inRows()); press += 1) {
+      await page.keyboard.press('Tab')
+    }
+    for (let press = 0; press < 30; press += 1) await page.keyboard.press('ArrowDown')
+    await expect(pressAt(31)).toBeFocused()
+
+    await scroll(400)
+    await expect(pressAt(31)).toHaveCount(0)
+    await scroll(-400)
+    await expect(pressAt(31)).toBeFocused()
+    // It may be the last row drawn: the arrow draws the next and moves there.
+    await page.keyboard.press('ArrowDown')
+    await expect(pressAt(32)).toBeFocused()
+  })
+
+  /**
    * With a mouse, a ticked row dragged onto a playlist in the sidebar carries
    * every ticked song; it used to carry only the one under the pointer. The
    * playlist is put back as it was afterwards.

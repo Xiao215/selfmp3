@@ -55,6 +55,7 @@ const KEYS: Readonly<Record<string, string>> = {
   Down: '↓',
   Return: '↵',
   Esc: 'esc',
+  Tab: 'tab',
 }
 
 /** Electron's spelling of a key, split into the caps a Mac draws: `Alt+CmdOrCtrl+Right` → ⌥ ⌘ →. */
@@ -104,8 +105,11 @@ export function shortcutRows(items: readonly MenuKey[]): readonly ShortcutRow[] 
  * Electron's spelling, so they are drawn as the menu's are.
  */
 const LIST_KEYS: readonly { accelerators: readonly string[]; label: string }[] = [
+  { accelerators: ['Tab'], label: 'Into or out of the list of songs' },
   { accelerators: ['Up', 'Down'], label: 'Move between songs' },
+  { accelerators: ['Left', 'Right'], label: 'Move between a song’s buttons' },
   { accelerators: ['Space', 'Return'], label: 'Tick / play the song you moved to' },
+  { accelerators: ['Shift+F10'], label: 'Open the song’s menu' },
   { accelerators: ['CmdOrCtrl+A'], label: 'Select all songs' },
   { accelerators: ['Esc'], label: 'Clear the selection' },
 ]

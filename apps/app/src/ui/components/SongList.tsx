@@ -15,6 +15,7 @@ import { useArrival } from '../motion'
 import { PinnedHeaderScope, pinnedHeaderProps } from '../../ports/pinnedHeader'
 import { useListScrollbar } from '../../ports/listScrollbar'
 import { useLayoutValue } from '../../shell/useLayout'
+import { LIST_SEMANTICS } from '../../selection/listSemantics'
 import { positionLabel, type ScrollLabel } from './listScrollbar.model'
 import { FlatList } from './Scroll'
 
@@ -37,7 +38,9 @@ const ARRIVING = 12
  * `docs/ARCHITECTURE.md` asks, so the choice of list can change in one file and
  * no screen knows. It also keeps the table semantics in one place: the library
  * is a `role=table` of `role=row`s, and a row with no table around it
- * announces nothing useful.
+ * announces nothing useful. In a browser it is a `grid` (`LIST_SEMANTICS`):
+ * one Tab stop whose rows the arrows move between. Each row says where it is
+ * in the whole list (`aria-rowindex`), since only some of them are drawn.
  *
  * **Do not swap this for FlashList v2 without re-testing accessibility.** It
  * draws and scrolls well, but on the phone its recycled cells stop exposing
@@ -167,8 +170,9 @@ export function SongList({
         <FlatList
           ref={listRef}
           onLayout={scrollbar.onLayout}
-          role="table"
+          {...LIST_SEMANTICS}
           aria-label={label}
+          aria-rowcount={songs.length}
           data={songs}
           keyExtractor={keyOf}
           renderItem={renderItem}

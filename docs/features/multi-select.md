@@ -10,7 +10,7 @@ and an Ask answer all select the same way.
 | The selection's rules | `packages/client/src/selection/selection.ts` |
 | The hook a list uses | `apps/app/src/selection/useSelection.ts` |
 | A row's press, hold, tick and drag | `apps/app/src/ui/components/useSongRows.tsx`, `SongRow.tsx`, `Checkbox.tsx` |
-| A list's keys: arrows, Space, ⌘A | `apps/app/src/selection/useListKeys.web.ts`, `apps/app/src/shell/keyOwner.ts` |
+| A list's keys: Tab, arrows, Space, ⇧F10, ⌘A | `apps/app/src/selection/useListKeys.web.ts`, `apps/app/src/selection/listRows.ts`, `apps/app/src/selection/useRowFocus.web.ts`, `apps/app/src/shell/keyOwner.ts` |
 | The bar, and where a page puts it | `apps/app/src/ui/components/SelectionBar.tsx`, `useListSelectionBar.tsx` |
 | What More offers (the song menu's items, for many) | `apps/app/src/ui/songActions.model.ts`, `apps/app/src/ui/components/SongActionItems.tsx` |
 | Select songs in a list's ⋯ | `apps/app/src/ui/components/useListActions.tsx` |
@@ -50,19 +50,50 @@ Shift-click and Cmd/Ctrl-click work too, as accelerators, and so does a computer
 | Shift-click | Selects the range from the last row clicked | Same |
 | Click the circle | Toggles, and shows every row's circle | Toggles |
 | Hold a row | Starts selecting with it | Toggles that row |
+| Tab / Shift+Tab | Into the list on one row; from anywhere in a row, on past the list | Same |
 | ↑ / ↓ on a row | Moves to the row above or below | Same |
+| ← / → on a row | Moves along the row's own buttons: circle, ▶, the row, tags, +, ⋯ | Same |
 | Space on the row the keyboard is on | Ticks it, as its circle does | Same |
+| ⇧F10 (or the menu key) on a row | Opens the song's menu | Same |
 | Enter on a row | A plain click: puts any selection down, and plays | Toggles that row |
 | ⌘A or Ctrl+A | Selects every song in the list | Same |
 | Escape | — | Clears the selection and stops selecting |
 
 **The keyboard, on a computer** (browser and the installed app; a phone has none). Every
 list that selects answers it: Library, Search, a tag's, an artist's or a combination's page, a
-playlist and an Ask answer (`useListKeys`, wired once in `useSongRows`). Tab reaches a row, or
-a click leaves focus on one; the arrows then move from row to row, skipping an artist page's
-album heads, and scroll the row out from under a bar pinned at the top. The row the keyboard is
+playlist and an Ask answer (`useListKeys`, wired once in `useSongRows`). The row the keyboard is
 on wears the focus ring round its whole width and shows its circle, ▶, + and ⋯ as the pointer
 would.
+
+A list is **one Tab stop**, as WAI-ARIA's grid is (a roving tabindex): Tab gets past a library
+of 1,400 songs in one press. Every control in every row renders at `tabIndex` -1, and just
+before Tab moves focus the list puts one row's press target back in the way (`placeStop` in
+`selection/listRows.ts`) — set on the element rather than rendered, so an arrow does not redraw
+the list. Tab comes in on the row the keyboard or a click was last on; once that row has
+scrolled so far away that the list no longer draws it, on the first row in view instead of a
+jump back (`entryRow`); with neither, the first row. From anywhere in a row — its circle, its
+⋯ — Tab and Shift+Tab go on past the list, since for that one press no row is a stop. The
+list's own box is never a stop either (`selection/listSemantics.web.ts`): Chrome stops on a
+scrolling box with nothing in it that takes Tab.
+
+The arrows then move from row to row, skipping an artist page's album heads, and scroll the
+row out from under a bar pinned at the top. ↑ and ↓ land on the row itself, wherever in the row
+focus was. ← and → move along the row's own controls in the order they are drawn, stopping at
+either end (`controlsOf`); Enter presses the one you are on, so → to the ⋯ and Enter opens the
+song's menu. ⇧F10 opens that menu from anywhere in the row, beside the ⋯; a keyboard's menu key
+is a right-click already, and opens it where the row is.
+
+The list draws only the rows within a few screens of where it is scrolled. A focused row
+scrolled past that is taken out of the page with its focus; it says so as it goes, and takes
+focus back when it is drawn again, unless something else has been focused or pressed in
+between (`useRowFocus.web.ts`). An arrow while it is away picks up from the first row in view.
+An arrow from the last row drawn — a row scrolled back into reach but not into view — brings it
+into view, waits for the list to draw the next one, and moves there.
+
+To a screen reader a computer's list is a `grid` labelled with its name, which hands it the
+arrow keys, with `aria-rowcount` for the whole list and `aria-rowindex` on each row, since only
+some rows are drawn. A row is still a row of buttons, each with its own name; a phone's list
+stays a `table`.
 
 Space is the row's only while that ring shows — Tab or an arrow brought focus there. After a
 click there is no ring, and Space is still play and pause: clicking a song and pressing Space

@@ -10,6 +10,7 @@ import { useHotkeys } from '../shell/useHotkeys.web'
 import { closeLayer, openLayer } from '../shell/layers'
 import { setTabbing, tabbing } from '../shell/tabbing'
 import { useListKeys } from './useListKeys.web'
+import { useRowFocus } from './useRowFocus.web'
 
 jest.mock('expo-router', () => ({
   // The page is in front for as long as the hook is mounted.
@@ -19,28 +20,49 @@ jest.mock('expo-router', () => ({
   },
 }))
 
-/** A list's rows as the browser has them: the row, and its press target inside. */
+/** A control in a row as React Native for web draws it: a button out of Tab's way. */
+function control(label: string): HTMLElement {
+  const button = document.createElement('div')
+  button.setAttribute('role', 'button')
+  button.setAttribute('aria-label', label)
+  button.setAttribute('tabindex', '-1')
+  return button
+}
+
+/**
+ * A list's rows as the browser has them, between a button before the list and
+ * one after it: each row its circle, its press target and its ⋯, every one at
+ * `tabindex` -1 as `SongRow` renders them. What is returned is the press
+ * targets.
+ */
 function drawRows(listKey: string, songIds: readonly number[]): HTMLElement[] {
-  const table = document.createElement('div')
-  table.setAttribute('role', 'table')
+  const grid = document.createElement('div')
+  grid.setAttribute('role', 'grid')
   const targets = songIds.map(songId => {
     const row = document.createElement('div')
     row.setAttribute('role', 'row')
     row.setAttribute('data-song-row', listKey)
     row.setAttribute('data-song-id', String(songId))
-    const press = document.createElement('div')
-    press.setAttribute('role', 'button')
-    press.setAttribute('tabindex', '0')
+    const press = control(`Song ${songId}`)
     press.setAttribute('data-row-press', 'true')
-    const more = document.createElement('div')
-    more.setAttribute('role', 'button')
-    more.setAttribute('tabindex', '0')
-    row.append(press, more)
-    table.append(row)
+    const more = control(`More actions for ${songId}`)
+    more.setAttribute('data-row-more', 'true')
+    row.append(control(`Select ${songId}`), press, more)
+    grid.append(row)
     return press
   })
-  document.body.append(table)
+  document.body.append(grid)
   return targets
+}
+
+/** The press targets of a list that Tab would stop on. */
+function stops(targets: readonly HTMLElement[]): HTMLElement[] {
+  return targets.filter(target => target.tabIndex === 0)
+}
+
+/** A row's ⋯, from its press target. */
+function moreOf(target: HTMLElement): HTMLElement {
+  return target.nextElementSibling as HTMLElement
 }
 
 function press(
@@ -109,7 +131,7 @@ describe('a song list’s keys', () => {
     expect(toggle).toHaveBeenCalledTimes(1)
 
     // From the row's ⋯ too: Space is the row's wherever in it the keyboard is.
-    const more = rows[2]!.nextElementSibling as HTMLElement
+    const more = moreOf(rows[2]!)
     more.focus()
     press(more, ' ')
     expect(toggle).toHaveBeenLastCalledWith(13)
@@ -195,6 +217,152 @@ describe('a song list’s keys', () => {
     expect(press(document.body, 'a', { ctrlKey: true }).prevented).toBe(false)
     expect(empty.selectAll).toHaveBeenCalledTimes(1)
     await empty.unmount()
+  })
+
+  /** What Tab's own default does next, after the list's say on where it may land. */
+  const afterTab = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
+
+  it('is one Tab stop: the first row, then the row the keyboard was last on', async () => {
+    const { rows, unmount } = await list()
+    const before = document.createElement('button')
+    document.body.prepend(before)
+    before.focus()
+
+    // Nothing in a row takes Tab until Tab is pressed, and then only one row's target.
+    expect(stops(rows)).toEqual([])
+    press(before, 'Tab')
+    expect(stops(rows)).toEqual([rows[0]])
+
+    // The keyboard moves to the third row; Tab out and back comes in there.
+    rows[0]!.focus()
+    press(rows[0]!, 'ArrowDown')
+    press(rows[1]!, 'ArrowDown')
+    expect(document.activeElement).toBe(rows[2])
+    before.focus()
+    press(before, 'Tab')
+    expect(stops(rows)).toEqual([rows[2]])
+
+    // A click counts as much as the keyboard does.
+    rows[1]!.focus()
+    before.focus()
+    press(before, 'Tab', { shiftKey: true })
+    expect(stops(rows)).toEqual([rows[1]])
+    await unmount()
+  })
+
+  it('lets Tab and Shift+Tab out of the list from anywhere in a row', async () => {
+    const { rows, unmount } = await list()
+    rows[1]!.focus()
+    press(document.body, 'Tab')
+    expect(stops(rows)).toEqual([rows[1]])
+
+    // From the row's ⋯, nothing in the list is a stop for this one press, so
+    // the browser's Tab goes past the list rather than back to the row.
+    const more = moreOf(rows[1]!)
+    more.focus()
+    press(more, 'Tab', { shiftKey: true })
+    expect(stops(rows)).toEqual([])
+    // Once it has gone, the row it left is the way back in.
+    await afterTab()
+    expect(stops(rows)).toEqual([rows[1]])
+    await unmount()
+  })
+
+  it('comes in on the first row when the one it was on is no longer drawn', async () => {
+    const { rows, unmount } = await list()
+    rows[2]!.focus()
+    rows[2]!.closest('[role="row"]')!.remove()
+    press(document.body, 'Tab')
+    expect(stops(rows)).toEqual([rows[0]])
+    await unmount()
+  })
+
+  it('moves along a row’s own controls with ← and →, and no further', async () => {
+    const { rows, unmount } = await list()
+    const row = rows[1]!.closest('[role="row"]')!
+    const [circle, target, more] = Array.from(row.children) as HTMLElement[]
+    target!.focus()
+
+    expect(press(target!, 'ArrowRight').prevented).toBe(true)
+    expect(document.activeElement).toBe(more)
+    expect(tabbing()).toBe(true)
+    press(more!, 'ArrowRight')
+    expect(document.activeElement).toBe(more)
+
+    press(more!, 'ArrowLeft')
+    press(target!, 'ArrowLeft')
+    expect(document.activeElement).toBe(circle)
+    press(circle!, 'ArrowLeft')
+    expect(document.activeElement).toBe(circle)
+
+    // ↓ from a control goes to the next row itself.
+    press(circle!, 'ArrowDown')
+    expect(document.activeElement).toBe(rows[2])
+    await unmount()
+  })
+
+  it('opens the row’s menu from its ⋯ with Shift+F10', async () => {
+    const { rows, unmount } = await list()
+    const more = moreOf(rows[0]!)
+    const clicked = jest.fn()
+    more.addEventListener('click', clicked)
+    rows[0]!.focus()
+    expect(press(rows[0]!, 'F10', { shiftKey: true }).prevented).toBe(true)
+    expect(clicked).toHaveBeenCalledTimes(1)
+    // Elsewhere it is not the list's.
+    expect(press(document.body, 'F10', { shiftKey: true }).prevented).toBe(false)
+    await unmount()
+  })
+
+  it('gives a row its focus back when it is drawn again after scrolling away', async () => {
+    const { rows, unmount } = await list()
+    const listKey = rows[0]!.closest('[data-song-row]')!.getAttribute('data-song-row')!
+    // The row's half, as a `SongRow` mounts it.
+    const drawn = await renderHook(() => useRowFocus(listKey, 12))
+    setTabbing(true)
+    rows[1]!.focus()
+
+    // Scrolled out of the drawn rows: the row goes, and its focus with it.
+    await drawn.unmount()
+    const row = rows[1]!.closest('[role="row"]')!
+    const parent = row.parentElement!
+    row.remove()
+    expect(document.activeElement).toBe(document.body)
+
+    // Scrolled back: the row is drawn again, and has the keyboard again.
+    parent.insertBefore(row, parent.children[1] ?? null)
+    const again = await renderHook(() => useRowFocus(listKey, 12))
+    expect(document.activeElement).toBe(rows[1])
+    await again.unmount()
+
+    // Not when something else took focus meanwhile.
+    rows[1]!.focus()
+    const third = await renderHook(() => useRowFocus(listKey, 12))
+    await third.unmount()
+    row.remove()
+    const field = document.createElement('input')
+    document.body.append(field)
+    field.focus()
+    parent.insertBefore(row, parent.children[1] ?? null)
+    const fourth = await renderHook(() => useRowFocus(listKey, 12))
+    expect(document.activeElement).toBe(field)
+    await fourth.unmount()
+    await unmount()
+  })
+
+  it('picks the arrows up from the first row in view after the focused row went', async () => {
+    const { rows, unmount } = await list()
+    const listKey = rows[0]!.closest('[data-song-row]')!.getAttribute('data-song-row')!
+    const drawn = await renderHook(() => useRowFocus(listKey, 13))
+    rows[2]!.focus()
+    await drawn.unmount()
+    rows[2]!.closest('[role="row"]')!.remove()
+
+    expect(press(document.body, 'ArrowDown').prevented).toBe(true)
+    expect(document.activeElement).toBe(rows[0])
+    // With focus somewhere, an arrow on the page is the page's again.
+    expect(press(document.body, 'ArrowDown').prevented).toBe(false)
+    await unmount()
   })
 
   it('stops listening when the page is no longer in front', async () => {

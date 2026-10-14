@@ -38,8 +38,11 @@ describe('keyboard shortcuts', () => {
 
   it('lists a song list’s keys, drawn as the menu’s are', () => {
     expect(listShortcutRows().map(row => `${row.keys.join(' ')} ${row.label}`)).toEqual([
+      'tab Into or out of the list of songs',
       '↑ ↓ Move between songs',
+      '← → Move between a song’s buttons',
       'space ↵ Tick / play the song you moved to',
+      '⇧ F10 Open the song’s menu',
       '⌘ A Select all songs',
       'esc Clear the selection',
     ])

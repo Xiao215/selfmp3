@@ -44,6 +44,7 @@ export function Checkbox({
   label,
   style,
   testID,
+  tabIndex,
 }: {
   checked: boolean
   mixed?: boolean
@@ -54,6 +55,8 @@ export function Checkbox({
   /** The press target's own room round the mark. */
   style?: StyleProp<ViewStyle>
   testID?: string
+  /** -1 inside something that is one Tab stop and moves focus itself: a song list's row. */
+  tabIndex?: 0 | -1
 }): ReactNode {
   if (onChange) {
     return (
@@ -65,6 +68,7 @@ export function Checkbox({
         onPress={() => onChange(!checked)}
         style={style}
         testID={testID}
+        tabIndex={tabIndex}
       >
         <Mark checked={checked} mixed={mixed} />
       </CheckRow>

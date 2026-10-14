@@ -44,9 +44,12 @@ export async function shuffleLibrary(page: Page): Promise<void> {
   else await page.getByTestId('library-shuffle').click()
 }
 
-/** The songs table, which is labelled `<heading> songs`. */
+/**
+ * The songs list, which is labelled `<heading> songs`: a grid in a browser,
+ * one Tab stop whose rows the arrows move between.
+ */
 function songTable(page: Page): Locator {
-  return page.getByRole('table', { name: /songs$/ })
+  return page.getByRole('grid', { name: /songs$/ })
 }
 
 export function songRows(page: Page): Locator {

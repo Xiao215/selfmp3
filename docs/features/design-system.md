@@ -180,7 +180,9 @@ Notes for anyone extending it:
   in, so a dropdown opened from a sheet or a dialog sits above it.
 - A screen's keys (`useHotkeys`) and Escape stand aside for a focused `combobox`, `listbox`,
   `menu` or `dialog`, as they do for a text field (`shell/keyOwner.ts`). If you build a
-  control with its own keyboard language, give it one of those roles. Open layers are listed
+  control with its own keyboard language, give it one of those roles. A song list's `grid` is
+  the exception: Space after clicking a song is still play and pause, so the page stands aside
+  only for a row the keyboard is on (`rowOwnsKey`). Open layers are listed
   in `shell/layers.ts`, for keys that must also stand aside while one is open (a list's ⌘A).
 
 ## `data-tip` — hover captions
@@ -411,6 +413,10 @@ something is still happening.
   press target, which lies under the cover and title only; with the ring on, it shows its
   controls as the pointer would. Space on such a row is its tick, not play and pause
   ([multi-select.md](multi-select.md)).
+- A song list is one Tab stop (a roving tabindex, as WAI-ARIA's grid): its rows' controls are
+  out of Tab's way, ↑ ↓ move between rows and ← → along a row's controls, and Tab from anywhere
+  in a row goes on past the list (`selection/useListKeys.web.ts`). Anything else that draws a
+  long run of controls should do the same rather than make Tab walk through every one.
 - A text field with a border of its own takes the accent as its border colour instead; a
   field without one sits in a box that shows focus itself (`SearchField` turns its edge and
   magnifier to the accent).

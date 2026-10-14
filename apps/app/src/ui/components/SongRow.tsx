@@ -22,6 +22,7 @@ import {
 } from './rowTags'
 import { useSongPlayback } from '../../player/PlayerProvider'
 import { useSongDragSource } from '../../ports/songDrag'
+import { useRowFocus } from '../../selection/useRowFocus'
 import { useContentWidthValue } from '../../shell/contentWidth'
 import { tabbing } from '../../shell/tabbing'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
@@ -179,8 +180,10 @@ export const SongRow = memo(function SongRow({
   lifted?: boolean
   /**
    * The list this row is in, for the list's keys (`useListKeys`): the arrows
-   * find the rows above and below by it, and Space the row's song. Left out —
-   * a phone, a list with no selection — the row answers no keys of its own.
+   * find the rows above and below by it, and Space the row's song. The list is
+   * one Tab stop, so every control in the row is out of Tab's way and reached
+   * with ← and →. Left out — a phone, a list with no selection — the row
+   * answers no keys of its own, and Tab stops on each of its controls.
    */
   listKey?: string
 }): ReactNode {
@@ -223,10 +226,16 @@ export const SongRow = memo(function SongRow({
   const keys = listKey
     ? {
         dataSet: { songRow: listKey, songId: String(song.id) },
+        'aria-rowindex': index === undefined ? undefined : index + 1,
         onFocus: () => setKeyed(tabbing()),
-        onBlur: () => setKeyed(false),
+        // ← and → move focus along the row: it is still on the row.
+        onBlur: (event: { currentTarget: unknown; relatedTarget?: unknown }) =>
+          setKeyed(stillIn(event.currentTarget, event.relatedTarget)),
       }
     : null
+  // Out of Tab's way: the list is one stop, and its keys move within it.
+  const untabbed = listKey ? UNTABBED : null
+  useRowFocus(listKey, song.id)
   const moreRef = useRef<View>(null)
   const tagAddRef = useRef<View>(null)
   // With a mouse a row drags onto a playlist in the sidebar. Nothing on a phone.
@@ -280,6 +289,7 @@ export const SongRow = memo(function SongRow({
       accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
       accessibilityState={{ selected: active }}
       {...(listKey ? ROW_PRESS : null)}
+      {...untabbed}
       style={style}
     >
       {children}
@@ -310,6 +320,7 @@ export const SongRow = memo(function SongRow({
         budget={budget}
         onOpenTag={onOpenTag}
         onShowAll={anchor => onEditTags?.(anchor, song)}
+        untabbed={listKey !== undefined}
       />
     ) : null
   // The circle is there while choosing, and on a row already picked.
@@ -321,10 +332,19 @@ export const SongRow = memo(function SongRow({
         selected={selected}
         onToggle={() => onToggleSelect(song)}
         phone={phone}
+        untabbed={listKey !== undefined}
       />
     ) : null
   const more = (style: StyleProp<ViewStyle>): ReactNode =>
-    onMore ? <MoreButton moreRef={moreRef} song={song} onMore={onMore} style={style} /> : null
+    onMore ? (
+      <MoreButton
+        moreRef={moreRef}
+        song={song}
+        onMore={onMore}
+        style={style}
+        untabbed={listKey !== undefined}
+      />
+    ) : null
 
   if (!wide) {
     return (
@@ -430,6 +450,7 @@ export const SongRow = memo(function SongRow({
               accessibilityRole="button"
               accessibilityLabel={`Play ${song.title}`}
               {...tip('Play')}
+              {...untabbed}
               style={styles.indexPlay}
             >
               <Play size={iconSize.item} tone="textPrimary" />
@@ -479,6 +500,7 @@ export const SongRow = memo(function SongRow({
                 accessibilityRole="button"
                 accessibilityLabel={`Edit tags for ${song.title}`}
                 {...tip('Edit tags')}
+                {...untabbed}
                 style={styles.tagAdd}
               >
                 <Plus size={iconSize.sub} tone="textMuted" />
@@ -547,6 +569,20 @@ function phoneTextColumn(width: number, selecting: boolean, hasMore: boolean): n
 
 /** The row's press target, which the list's arrows move focus to (`useListKeys.web.ts`). */
 const ROW_PRESS = { dataSet: { rowPress: 'true' } } as const
+/** The row's ⋯, which ⇧F10 presses (`useListKeys.web.ts`). */
+const ROW_MORE = { dataSet: { rowMore: 'true' } } as const
+/**
+ * Out of Tab's way, in a list that is one Tab stop: the list's keys put its
+ * entry row's target back (`placeStop` in `selection/listRows.ts`).
+ */
+const UNTABBED = { tabIndex: -1 } as const
+
+/** Whether focus leaving `row` went to something else in it. */
+function stillIn(row: unknown, next: unknown): boolean {
+  return (
+    typeof Node !== 'undefined' && row instanceof Node && next instanceof Node && row.contains(next)
+  )
+}
 
 /** Drawn, but not read out: the press target under it carries the words as its label. */
 const UNREAD = {
@@ -600,11 +636,14 @@ function MoreButton({
   song,
   onMore,
   style,
+  untabbed,
 }: {
   moreRef: RefObject<View | null>
   song: Song
   onMore: (anchor: PopoverAnchor | null, song: Song) => void
   style: StyleProp<ViewStyle>
+  /** In a list that is one Tab stop: reached with ← and →, and pressed by ⇧F10. */
+  untabbed: boolean
 }): ReactNode {
   return (
     <View ref={moreRef} collapsable={false}>
@@ -613,6 +652,7 @@ function MoreButton({
         accessibilityRole="button"
         accessibilityLabel={`More actions for ${song.title}`}
         {...tip('More')}
+        {...(untabbed ? { ...UNTABBED, ...ROW_MORE } : null)}
         style={({ pressed }) => [style, pressed && styles.controlPressed]}
       >
         <More size={iconSize.item} tone="textMuted" />
@@ -626,11 +666,13 @@ function SelectBox({
   selected,
   onToggle,
   phone = false,
+  untabbed,
 }: {
   song: Song
   selected: boolean
   onToggle: () => void
   phone?: boolean
+  untabbed: boolean
 }): ReactNode {
   return (
     <Checkbox
@@ -638,6 +680,7 @@ function SelectBox({
       onChange={onToggle}
       label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
+      {...(untabbed ? UNTABBED : null)}
     />
   )
 }
@@ -657,12 +700,15 @@ function RowTags({
   budget,
   onOpenTag,
   onShowAll,
+  untabbed,
 }: {
   tags: readonly Tag[]
   /** How many points the chips and the count may take. */
   budget: number
   onOpenTag?: (tagId: number) => void
   onShowAll: (anchor: View | null) => void
+  /** In a list that is one Tab stop: reached with ← and →. */
+  untabbed: boolean
 }): ReactNode {
   const moreRef = useRef<View>(null)
   const { shown, hidden } = useFittedTags(tags, budget)
@@ -670,7 +716,7 @@ function RowTags({
   return (
     <>
       {shown.map(tag => (
-        <RowTag key={tag.id} tag={tag} onPress={() => onOpenTag?.(tag.id)} />
+        <RowTag key={tag.id} tag={tag} onPress={() => onOpenTag?.(tag.id)} untabbed={untabbed} />
       ))}
       {hidden > 0 ? (
         <View ref={moreRef} collapsable={false}>
@@ -678,6 +724,7 @@ function RowTags({
             onPress={() => onShowAll(moreRef.current)}
             accessibilityRole="button"
             accessibilityLabel={plural(hidden, 'more tag', 'more tags')}
+            {...(untabbed ? UNTABBED : null)}
             {...tip(
               tags
                 .slice(shown.length)
@@ -702,10 +749,19 @@ function RowTags({
  * The dot follows the theme by asking for it (`TagDot`): a row is memoised,
  * and nothing else re-renders it when light turns to dark.
  */
-function RowTag({ tag, onPress }: { tag: Tag; onPress: () => void }): ReactNode {
+function RowTag({
+  tag,
+  onPress,
+  untabbed,
+}: {
+  tag: Tag
+  onPress: () => void
+  untabbed: boolean
+}): ReactNode {
   return (
     <Pressable
       onPress={onPress}
+      {...(untabbed ? UNTABBED : null)}
       onLayout={event => rememberChipWidth(tag.name, event.nativeEvent.layout.width)}
       accessibilityRole="button"
       accessibilityLabel={tag.name}

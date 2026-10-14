@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Pressable, Text, View } from 'react-native'
+import { Animated, Keyboard, Pressable, Text, View } from 'react-native'
 import Reanimated, {
   Easing as ReanimatedEasing,
   FadeIn,
@@ -23,6 +23,7 @@ import { floating, rowTitle, menuItem, menuItemDense } from '../surfaces'
 import { ease, nativeDriver, spring, timing, useMotionReduced } from '../motion'
 import { MOVE_MS, OPACITY, OVERSHOOT_S, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
+import { pressPutsKeyboardAway } from '../../ports/keyboard'
 
 /**
  * How far a computer's dialog rises as it fades in: this sheet's wide shape,
@@ -295,7 +296,7 @@ export function Sheet({
     anyway.
   */
   const content = (
-    <View testID={testID} style={styles.content}>
+    <View testID={testID} style={styles.content} {...pressPutsKeyboardAway}>
       {children}
     </View>
   )
@@ -392,6 +393,8 @@ export function useSheetPull(onClose: () => void): {
         .activeOffsetY(8)
         .failOffsetX([-20, 20])
         .runOnJS(true)
+        // A pull puts the keyboard away first, as a list's drag does.
+        .onStart(() => Keyboard.dismiss())
         .onUpdate(event => pull.setValue(Math.max(0, event.translationY)))
         .onEnd((event, success) => {
           if (success && (event.translationY > PULL.close || event.velocityY > PULL.flick)) {

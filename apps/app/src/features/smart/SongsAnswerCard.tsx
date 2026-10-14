@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useContext, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -11,6 +11,8 @@ import { ChevronRight, Play } from '../../ui/components/Icons'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { useSongsById } from '../../ui/songsById'
 import { PlaylistCover } from '../playlists/PlaylistCover'
+import { addSongsToRoom } from '../room/addSongsToRoom'
+import { AddingToRoom } from '../room/RoomPicks'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
@@ -25,7 +27,8 @@ import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
  * C1): one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
  * answer as a page, to look before listening. An answer about what plays
- * after this song (A8) leads with Play next instead.
+ * after this song (A8) leads with Play next instead. Asked while Search is
+ * adding to a room (A2), it adds them to the room.
  */
 export function SongsAnswerCard({
   answer,
@@ -55,6 +58,7 @@ export function SongsAnswerCard({
   const ids = songs.map(song => song.id)
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
   const next = answer.lead === 'next'
+  const room = useContext(AddingToRoom)
 
   if (ids.length === 0) {
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
@@ -97,7 +101,14 @@ export function SongsAnswerCard({
           </View>
           <ChevronRight size={iconSize.field} color={theme.colors.textMuted} />
         </Press>
-        {next ? (
+        {room ? (
+          <Button
+            label={`Add to ${room.title}`}
+            variant="primary"
+            onPress={() => void addSongsToRoom(ids, room.title).then(onPlayed)}
+            testID="songs-answer-room"
+          />
+        ) : next ? (
           // Asked what plays after this song, it plays them next, and says so:
           // "Add to Up next" puts songs at the end everywhere else (T-383).
           <Button

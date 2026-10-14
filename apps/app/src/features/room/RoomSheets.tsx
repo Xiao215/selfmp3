@@ -1,52 +1,41 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import Animated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
 import {
-  artistOr,
   formatRoomCode,
   normalizeRoomCode,
-  plural,
   RoomCodeSchema,
   type RoomRights,
   type RoomSong,
   type RoomState,
-  type Song,
 } from '@selfmp3/shared'
-import { iconSize, radius, roomFace, space, type, useLibrary } from '@selfmp3/client'
+import { iconSize, radius, roomFace, space, type } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
 import { label, lineSub } from '../../ui/surfaces'
-import { SectionHead } from '../../ui/components/SectionHead'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
-import { LibrarySongPicker, PickMark } from '../../ui/components/LibrarySongPicker'
-import { SongLine } from '../../ui/components/SongLine'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Segmented } from '../../ui/components/Segmented'
-import { Sheet } from '../../ui/components/Sheet'
+import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { Chip } from '../../ui/components/Chip'
-import { Plus, ShareOut } from '../../ui/components/Icons'
+import { Devices, People as PeopleIcon, Plus, ShareOut } from '../../ui/components/Icons'
 import { useCloudSession } from '../profile/useCloudSession'
-import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
 import { RoomQr } from './RoomQr'
 import {
   inviteLink,
   isHost,
-  nameOf,
   namesOf,
   pastRoomOf,
   pastTitle,
   peopleHere,
-  playedRows,
   roomTitle,
   startingSongs,
-  youMay,
 } from './room.model'
 import { closeRoomSheet, useRoomSheet, useRoomStart } from './roomSheets.store'
 import { ArrivalRing, useRoomMoves, type RoomMoves } from './roomMotion'
@@ -83,8 +72,9 @@ function useGo(): (href: Href) => void {
 }
 
 /**
- * A room's sheets (docs/features/listen-together.md): Together — opening a
- * room, or the room itself once you are in one — and adding songs. Drawn once by the shell, opened from wherever the room is shown, and
+ * A room's sheet (docs/features/listen-together.md): Together — opening a
+ * room, or the room itself once you are in one. Adding songs is Search's
+ * (A2). Drawn once by the shell, opened from wherever the room is shown, and
  * again inside the phone's Now Playing (with `go`), which covers the shell.
  */
 export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }): ReactNode {
@@ -93,7 +83,6 @@ export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }
   return (
     <RoomGo.Provider value={go}>
       <TogetherSheet open={open === 'together'} state={state} />
-      {state ? <AddSheet open={open === 'add'} state={state} /> : null}
     </RoomGo.Provider>
   )
 }
@@ -183,16 +172,14 @@ function useLeave(): (state: RoomState) => Promise<void> {
   }
 }
 
-/** Empty seats beside yours: what a room is, without a sentence saying it. */
-const SEATS = 3
-const SEAT_FACE = 44
+/** Your face on the Start sheet. */
+const START_FACE = 48
 
 function Start(): ReactNode {
   const { data: me } = useCloudSession()
   const player = usePlayer()
   const start = useRoomStart()
   const from = startingSongs(start, player.current)
-  const [mode, setMode] = useState<'speaker' | 'everyone'>('speaker')
   const [busy, setBusy] = useState(false)
   const [joining, setJoining] = useState(!me)
 
@@ -207,7 +194,9 @@ function Start(): ReactNode {
       const wasPlaying = player.isPlaying
       // Before the room exists: its sheet mounts the moment it does, and reads this.
       noteRoomOpened()
-      await startRoom({ name: firstName(me.name, me.email), mode })
+      // It plays here to begin with (P1): where it plays is the room's to
+      // change once it is open, as Devices changes it.
+      await startRoom({ name: firstName(me.name, me.email), mode: 'speaker' })
       if (start.kind === 'playing' && songs.length > 0) {
         // What is here stays: the song playing goes in first, as yours, and
         // carries on from where it was.
@@ -232,20 +221,19 @@ function Start(): ReactNode {
 
   return (
     <View style={styles.together}>
+      {/* Your face and what a room is (S1): nothing here looks pressable that is not. */}
       <View style={styles.startHead}>
-        <View style={styles.seats}>
-          <RoomFace
-            name={me ? firstName(me.name, me.email) : 'You'}
-            colour={0}
-            picture={me?.picture ?? null}
-            size={SEAT_FACE}
-          />
-          {Array.from({ length: SEATS }, (_, seat) => (
-            <EmptySeat key={seat} />
-          ))}
-        </View>
+        <RoomFace
+          name={me ? firstName(me.name, me.email) : 'You'}
+          colour={0}
+          picture={me?.picture ?? null}
+          size={START_FACE}
+        />
         <Text style={styles.startTitle} accessibilityRole="header">
           Listen together
+        </Text>
+        <Text style={styles.centred}>
+          Friends add songs from their phones. Invite them once it starts.
         </Text>
       </View>
       {me ? (
@@ -258,20 +246,6 @@ function Start(): ReactNode {
                 {from.title}
               </Text>
             </View>
-          </View>
-          <View style={styles.fact}>
-            <Text style={styles.factKey}>Plays on</Text>
-            <Segmented
-              size="small"
-              value={mode}
-              options={[
-                { value: 'speaker', label: `This ${devicePlace(deviceKind())}` },
-                { value: 'everyone', label: 'Everyone’s' },
-              ]}
-              onChange={setMode}
-              label="Where it plays"
-              style={styles.factSegments}
-            />
           </View>
           <Button
             label="Start"
@@ -316,21 +290,17 @@ async function addInOrder(songs: readonly RoomSong[]): Promise<void> {
   }
 }
 
-function EmptySeat(): ReactNode {
-  const { theme } = useUnistyles()
-  return (
-    <View style={styles.seat}>
-      <Plus size={iconSize.small} color={theme.colors.textMuted} />
-    </View>
-  )
-}
-
 function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
   const go = useGo()
   const [code, setCode] = useState('')
+  // Return with a code that cannot be one says so, rather than doing nothing.
+  const [wrong, setWrong] = useState(false)
   const valid = RoomCodeSchema.safeParse(code).success
   const join = (): void => {
-    if (!valid) return
+    if (!valid) {
+      setWrong(true)
+      return
+    }
     closeRoomSheet()
     go({ pathname: '/join/[code]', params: { code: normalizeRoomCode(code) } })
   }
@@ -339,8 +309,15 @@ function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
       raised
       autoFocus={autoFocus}
       value={code}
-      onChangeText={setCode}
+      onChangeText={next => {
+        setCode(next)
+        setWrong(false)
+      }}
       onSubmitEditing={join}
+      // The keyboard's own key joins, and keeps the keyboard up if it cannot.
+      returnKeyType="join"
+      submitBehavior={valid ? 'blurAndSubmit' : 'submit'}
+      hint={wrong ? 'A room code is six letters and digits.' : undefined}
       placeholder="Room code"
       accessibilityLabel="Room code"
       autoCapitalize="characters"
@@ -355,343 +332,6 @@ function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
 function firstName(name: string | null, email: string): string {
   const given = name?.trim().split(/\s+/)[0]
   return (given || email.split('@')[0] || 'Me').slice(0, 40)
-}
-
-// --- Add songs -------------------------------------------------------------------
-
-type AddTab = 'mine' | 'room' | 'link'
-
-function AddSheet({ open, state }: { open: boolean; state: RoomState }): ReactNode {
-  const tabs = useMemo(() => {
-    const shown: { value: AddTab; label: string }[] = []
-    if (youMay(state, 'add')) shown.push({ value: 'mine', label: 'Mine' })
-    shown.push({ value: 'room', label: 'In the room' })
-    if (youMay(state, 'addLink')) shown.push({ value: 'link', label: 'A link' })
-    return shown
-  }, [state])
-  const [tab, setTab] = useState<AddTab>(tabs[0]?.value ?? 'room')
-  const shownTab = tabs.some(option => option.value === tab) ? tab : (tabs[0]?.value ?? 'room')
-  return (
-    <Sheet
-      open={open}
-      onClose={closeRoomSheet}
-      title={`Add to ${roomTitle(state)}`}
-      testID="room-add-sheet"
-      width={480}
-    >
-      <View style={styles.body}>
-        {tabs.length > 1 ? (
-          <Segmented
-            value={shownTab}
-            options={tabs}
-            onChange={setTab}
-            label="Where songs come from"
-          />
-        ) : null}
-        {shownTab === 'mine' ? (
-          <MyLibraryPicker
-            onAdd={song =>
-              roomAct({ type: 'add', song }).then(
-                () => true,
-                (error: unknown) => {
-                  sayRoomFailure(error)
-                  return false
-                },
-              )
-            }
-          />
-        ) : null}
-        {shownTab === 'room' ? <InTheRoom state={state} /> : null}
-        {shownTab === 'link' ? <ALink state={state} /> : null}
-      </View>
-    </Sheet>
-  )
-}
-
-/** Your own songs: found by name, added from your bucket. */
-/**
- * Your own songs, found by name, each added with `onAdd` as a song a room or a
- * shared playlist carries — lent from your bucket. `onAdd` says whether it
- * went in, so the row can say so.
- */
-export function MyLibraryPicker({
-  onAdd,
-}: {
-  onAdd: (song: RoomSong) => Promise<boolean>
-}): ReactNode {
-  const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
-
-  const add = async (song: Song): Promise<void> => {
-    const roomSong = cloudLibrary.cloudRoomSongNow(song.id)
-    if (!roomSong) {
-      showToast('That song isn’t in your storage yet', 'warn')
-      return
-    }
-    if (await onAdd(roomSong)) setAdded(before => new Set([...before, song.id]))
-  }
-
-  return (
-    <View style={styles.tab}>
-      <LibrarySongPicker
-        order="played"
-        stateOf={song => (added.has(song.id) ? 'added' : 'add')}
-        onAdd={song => void add(song)}
-        testID="room-add-search"
-      />
-    </View>
-  )
-}
-
-/** What is already in the room: friends' shelves, and songs that played. */
-function InTheRoom({ state }: { state: RoomState }): ReactNode {
-  const [added, setAdded] = useState<ReadonlySet<string>>(new Set())
-  const mayAdd = youMay(state, 'again')
-  const played = playedRows(state)
-  const act = (key: string, action: Parameters<typeof roomAct>[0]): void => {
-    void roomAct(action).then(() => setAdded(before => new Set([...before, key])), sayRoomFailure)
-  }
-  const sections = state.shelves.length + (played.length > 0 ? 1 : 0)
-  return (
-    <ScrollView style={styles.scroll}>
-      {youMay(state, 'shelf') ? <ShelfPicker state={state} /> : null}
-      {state.shelves.map(shelf => {
-        const owner = state.members.find(member => member.id === shelf.member)
-        return (
-          <View key={shelf.member} style={styles.section}>
-            <SectionHead
-              look="label"
-              lead={
-                owner ? (
-                  <RoomFace
-                    name={owner.name}
-                    colour={owner.colour}
-                    picture={owner.picture}
-                    size={20}
-                  />
-                ) : null
-              }
-              title={`${nameOf(state, owner)}’s shelf · ${shelf.name}`}
-              style={styles.sectionHead}
-            />
-            {shelf.songs.map((song, index) => (
-              <SongPick
-                key={`${shelf.member}-${index}`}
-                title={song.title}
-                sub={artistOr(song.artist)}
-                art={null}
-                done={added.has(`${shelf.member}-${index}`)}
-                disabled={!mayAdd}
-                onAdd={() =>
-                  act(`${shelf.member}-${index}`, {
-                    type: 'fromShelf',
-                    member: shelf.member,
-                    index,
-                  })
-                }
-              />
-            ))}
-          </View>
-        )
-      })}
-      {played.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={styles.label}>Played tonight</Text>
-          {played.map(row => (
-            <SongPick
-              key={row.entry.id}
-              title={row.entry.song.title}
-              sub={`${artistOr(row.entry.song.artist)} · ${nameOf(state, row.by)}`}
-              art={null}
-              done={added.has(row.entry.id)}
-              disabled={!mayAdd}
-              onAdd={() => act(row.entry.id, { type: 'again', entryId: row.entry.id })}
-            />
-          ))}
-        </View>
-      ) : null}
-      {sections === 0 ? (
-        <Text style={styles.text}>
-          Nothing here yet. When friends put up a shelf, or songs have played, they are here to add.
-        </Text>
-      ) : null}
-    </ScrollView>
-  )
-}
-
-/** Put up one tag or playlist of yours for the room to add from, or take it down. */
-function ShelfPicker({ state }: { state: RoomState }): ReactNode {
-  const { data: library } = useLibrary()
-  const mine = state.shelves.find(shelf => shelf.member === state.you)
-  const [picking, setPicking] = useState(false)
-  const put = async (name: string, songIds: readonly number[]): Promise<void> => {
-    const songs = songIds
-      .slice(0, 300)
-      .map(id => cloudLibrary.cloudRoomSongNow(id))
-      .filter((song): song is RoomSong => song !== null)
-    if (songs.length === 0) {
-      showToast('None of those songs are in your storage yet', 'warn')
-      return
-    }
-    setPicking(false)
-    await roomAct({ type: 'shelf', shelf: { name: name.slice(0, 300), songs } }).catch(
-      sayRoomFailure,
-    )
-  }
-  if (mine) {
-    return (
-      <View style={styles.shelfMine}>
-        <Text style={styles.text}>
-          Your shelf: {mine.name}, {plural(mine.songs.length, 'song', 'songs')}.
-        </Text>
-        <Button
-          label="Take it down"
-          variant="text"
-          onPress={() => void roomAct({ type: 'shelf', shelf: null }).catch(sayRoomFailure)}
-        />
-      </View>
-    )
-  }
-  if (!picking) {
-    return (
-      <View style={styles.shelfMine}>
-        <Text style={styles.text}>Let the room add from one tag or playlist of yours.</Text>
-        <Button label="Put up a shelf" onPress={() => setPicking(true)} testID="room-shelf" />
-      </View>
-    )
-  }
-  const songs = library?.songs ?? []
-  return (
-    <View style={styles.section}>
-      <Text style={styles.label}>Tags</Text>
-      <View style={styles.chips}>
-        {(library?.tags ?? []).map(tag => (
-          <Button
-            key={`tag-${tag.id}`}
-            label={tag.name}
-            onPress={() =>
-              void put(
-                tag.name,
-                songs.filter(song => song.tagIds.includes(tag.id)).map(song => song.id),
-              )
-            }
-          />
-        ))}
-      </View>
-      <Text style={styles.label}>Playlists</Text>
-      <View style={styles.chips}>
-        {(library?.playlists ?? []).map(playlist => (
-          <Button
-            key={`playlist-${playlist.id}`}
-            label={playlist.name}
-            onPress={() =>
-              void cloudLibrary.cloudPlaylistSongs(playlist.id).then(ids => put(playlist.name, ids))
-            }
-          />
-        ))}
-      </View>
-    </View>
-  )
-}
-
-/** A link from YouTube or 网易云: played through the host's server, kept by nobody. */
-function ALink({ state }: { state: RoomState }): ReactNode {
-  const [text, setText] = useState('')
-  const [found, setFound] = useState<RoomSong | null>(null)
-  const [busy, setBusy] = useState(false)
-  const url = playableLink(text)
-
-  const look = async (): Promise<void> => {
-    if (!url) return
-    setBusy(true)
-    setFound(await lookUpLink(url))
-    setBusy(false)
-  }
-  const add = async (): Promise<void> => {
-    if (!found) return
-    try {
-      await roomAct({ type: 'addLink', song: found })
-      setFound(null)
-      setText('')
-      showToast('Added to the room', 'good')
-    } catch (error) {
-      sayRoomFailure(error)
-    }
-  }
-
-  return (
-    <View style={styles.tab}>
-      <TextField
-        raised
-        value={text}
-        onChangeText={next => {
-          setText(next)
-          setFound(null)
-        }}
-        onSubmitEditing={() => void look()}
-        placeholder="A YouTube or 网易云 link"
-        accessibilityLabel="A link to a song"
-        autoCapitalize="none"
-        inputMode="url"
-        testID="room-link-field"
-      />
-      {found ? (
-        <View style={styles.found}>
-          <SongPick
-            title={found.title}
-            sub={found.artist || 'From a link'}
-            art={found.artwork}
-            done={false}
-            onAdd={() => void add()}
-          />
-          <Text style={styles.text}>
-            Plays straight from the link. Nothing is saved to anyone’s library.
-          </Text>
-        </View>
-      ) : (
-        <Button
-          label="Look it up"
-          disabled={!url}
-          busy={busy}
-          onPress={() => void look()}
-          testID="room-link-look"
-        />
-      )}
-      {state.mode === 'everyone' && !state.linkRelay ? (
-        <Text style={styles.text}>
-          Everyone else hears a link when the host’s library’s computer can be reached from the
-          internet; otherwise it plays on the host’s device alone.
-        </Text>
-      ) : null}
-    </View>
-  )
-}
-
-/** A song not in your library — on a friend's shelf, played tonight, behind a link — one + away. */
-function SongPick({
-  title,
-  sub,
-  art,
-  done,
-  disabled = false,
-  onAdd,
-}: {
-  title: string
-  sub: string
-  art: string | null | undefined
-  done: boolean
-  disabled?: boolean
-  onAdd: () => void
-}): ReactNode {
-  return (
-    <SongLine
-      artUri={art}
-      title={title}
-      sub={sub}
-      trailing={
-        <PickMark state={done ? 'added' : 'add'} title={title} onAdd={onAdd} disabled={disabled} />
-      }
-    />
-  )
 }
 
 // --- The room ----------------------------------------------------------------------
@@ -741,6 +381,7 @@ function RoomOptions({ state, onLeave }: { state: RoomState; onLeave: () => void
         />
         {host ? (
           <Animated.View entering={arrive?.rise(1)} style={styles.rights}>
+            <PlaysOn state={state} />
             <Text style={styles.label}>Friends can</Text>
             <View style={styles.chips} testID="room-rights">
               {RIGHTS.map(right => (
@@ -783,6 +424,42 @@ function RoomOptions({ state, onLeave }: { state: RoomState; onLeave: () => void
         onCancel={() => setRemoving(null)}
       />
     </LayoutAnimationConfig>
+  )
+}
+
+/**
+ * Where the room plays (P1, Xiao 2026-10-14), the host's to change while it
+ * is open: two rows drawn as Devices draws a device, the one it plays on
+ * marked. A room starts on the host's own.
+ */
+function PlaysOn({ state }: { state: RoomState }): ReactNode {
+  const { theme } = useUnistyles()
+  const set = (mode: RoomState['mode']): void => {
+    if (mode === state.mode) return
+    void roomAct({ type: 'settings', mode }).catch(sayRoomFailure)
+  }
+  return (
+    <View role="radiogroup" accessibilityLabel="Plays on" testID="room-plays-on">
+      <Text style={styles.label}>Plays on</Text>
+      <SheetItem
+        role="option"
+        icon={<Devices color={theme.colors.textSecondary} />}
+        label={`This ${devicePlace(deviceKind())}`}
+        detail="Friends add songs"
+        active={state.mode === 'speaker'}
+        onPress={() => set('speaker')}
+        testID="room-plays-here"
+      />
+      <SheetItem
+        role="option"
+        icon={<PeopleIcon color={theme.colors.textSecondary} />}
+        label="Everyone’s phones"
+        detail="Each one plays it"
+        active={state.mode === 'everyone'}
+        onPress={() => set('everyone')}
+        testID="room-plays-everyone"
+      />
+    </View>
   )
 }
 
@@ -967,19 +644,16 @@ function KeepAsShared({ state }: { state: RoomState }): ReactNode {
 }
 
 const styles = StyleSheet.create(theme => ({
-  body: { gap: space.md, paddingBottom: space.sm },
   // In line with the sheet's title, which the panel's own edge leaves short of it.
   together: { gap: space.md, paddingBottom: space.sm, paddingHorizontal: space.md },
-  tab: { gap: space.md },
   label: label(theme.colors),
-  text: lineSub(theme.colors),
   centred: { ...lineSub(theme.colors), textAlign: 'center' },
   // Start
   startHead: { alignItems: 'center', gap: space.sm, paddingTop: space.sm, paddingBottom: space.xs },
-  seats: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  // The room's Invite seat, the one empty seat that is a button.
   seat: {
-    width: SEAT_FACE,
-    height: SEAT_FACE,
+    width: PERSON_FACE,
+    height: PERSON_FACE,
     borderRadius: radius.pill,
     borderWidth: 1.5,
     borderStyle: 'dashed',
@@ -1004,7 +678,6 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     fontWeight: '600',
   },
-  factSegments: { flex: 1, marginLeft: space.lg },
   joinLink: { alignSelf: 'center', paddingVertical: space.xs },
   joinWord: { color: theme.colors.textPrimary, fontWeight: '700' },
   // The room
@@ -1039,10 +712,4 @@ const styles = StyleSheet.create(theme => ({
   rights: { gap: space.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   foot: { flexDirection: 'row', gap: space.sm, paddingTop: space.xs },
-  // Add songs
-  scroll: { maxHeight: 380 },
-  section: { gap: 2, paddingTop: space.sm },
-  sectionHead: { paddingBottom: space.xs },
-  shelfMine: { gap: space.sm, paddingBottom: space.sm },
-  found: { gap: space.sm },
 }))

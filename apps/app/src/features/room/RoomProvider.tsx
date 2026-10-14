@@ -76,7 +76,7 @@ import {
 /** How often a follower checks that it is still in step, and the host that the room has its place. */
 const CHECK_MS = 3000
 
-/** Songs Keep it going makes sure are waiting. */
+/** Songs Autoplay (`keepGoing`) makes sure are waiting. */
 const KEEP_WAITING = 2
 
 export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
@@ -275,7 +275,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     else if ((want.kind === 'pause') === live.current.playing) commands.toggle()
   }, [state, host, commands])
 
-  // Keep it going: a couple of songs always waiting, while something plays.
+  // Autoplay (`keepGoing`): a couple of songs always waiting, while something plays.
   const keptFor = useRef<string | null>(null)
   useEffect(() => {
     if (!state || !host || !state.keepGoing || !state.playing) return
@@ -291,7 +291,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [state, host, pass])
 
   // How your own songs in the room sound, told to the room once each: what
-  // the host's Keep it going ranks by. Read from your bucket's pack.
+  // the host's Autoplay ranks by. Read from your bucket's pack.
   const toldVectors = useRef<{ code: string; keys: Set<string> }>({ code: '', keys: new Set() })
   useEffect(() => {
     if (!state || !pass) return

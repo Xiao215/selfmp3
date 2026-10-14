@@ -1,7 +1,8 @@
-import { memo, useEffect, useState } from 'react'
+import { createContext, memo, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
 import {
   HIT_TARGET,
@@ -22,9 +23,8 @@ import { label, rowTitle, lineSub } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { More, Next, Play, Plus, Sparkle, ToTop } from '../../ui/components/Icons'
-import { useOpenAsk } from '../../shell/palette'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { More, Next, Play, Plus, ToTop } from '../../ui/components/Icons'
+import { closeQueueSheet } from '../queue/queueSheet.store'
 import { PlayingCard } from '../../ui/components/PlayingCard'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { ToggleRow } from '../../ui/components/Toggle'
@@ -65,16 +65,44 @@ function act(action: RoomAction): void {
  * The same on a phone's sheet, a computer's rail and the room's own page;
  * `head` leaves the room's name to a page that draws it larger.
  */
-export function RoomList({ head = true }: { head?: boolean }): ReactNode {
+export function RoomList({
+  head = true,
+  go = null,
+}: {
+  head?: boolean
+  /** How a page is reached from inside the phone's Now Playing, which covers the shell. */
+  go?: ((href: Href) => void) | null
+}): ReactNode {
   const { state, link } = useRoom()
   if (!state) return null
   return (
-    <View style={styles.root} testID="room-list">
-      {head ? <RoomHead state={state} link={link} /> : null}
-      <RoomPlaying state={state} />
-      <Upcoming state={state} />
-    </View>
+    <ListGo.Provider value={go}>
+      <View style={styles.root} testID="room-list">
+        {head ? <RoomHead state={state} link={link} /> : null}
+        <RoomPlaying state={state} />
+        <Upcoming state={state} />
+      </View>
+    </ListGo.Provider>
   )
+}
+
+const ListGo = createContext<((href: Href) => void) | null>(null)
+
+/** Search, opened to add to the room (A2): what finds songs and asks for them everywhere else. */
+const ADD_TO_ROOM: Href = { pathname: '/search', params: { to: 'room' } }
+
+/**
+ * Add songs (A2, Xiao 2026-10-14): Search, in the room's name. Up next's
+ * sheet goes down first, so the page is not opened under it.
+ */
+function useAddSongs(): () => void {
+  const router = useRouter()
+  const go = useContext(ListGo)
+  return () => {
+    closeQueueSheet()
+    if (go) go(ADD_TO_ROOM)
+    else router.push(ADD_TO_ROOM)
+  }
 }
 
 /** The room's name, its people and where it plays, with the room's sheet. */
@@ -181,13 +209,13 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
 
 /**
  * A room with nothing in it yet — opened from Home, which starts empty (Xiao
- * 2026-10-14): add songs, or ask for some, and the first one starts it.
+ * 2026-10-14): Add songs, which finds them or asks for them, and the first
+ * one starts it.
  */
 function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   const { theme } = useUnistyles()
-  const switches = useSmartSwitches()
   const commands = usePlayerCommands()
-  const ask = useOpenAsk()
+  const addSongs = useAddSongs()
   const waiting = state.order.length
   const mayAdd = youMay(state, 'add') || youMay(state, 'again') || youMay(state, 'addLink')
   // Songs waiting and nothing playing: the host's player has not started on
@@ -222,27 +250,15 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
             label="Add songs"
             variant="primary"
             icon={<Plus color={theme.colors.onPrimary} />}
-            onPress={() => openRoomSheet('add')}
+            onPress={addSongs}
             grow
             testID="room-empty-add"
           />
-          {switches.ask && youMay(state, 'add') ? (
-            <Button
-              label="Ask for songs"
-              icon={<Sparkle size={iconSize.small} />}
-              onPress={() => ask(ROOM_ASK)}
-              grow
-              testID="room-empty-ask"
-            />
-          ) : null}
         </View>
       ) : null}
     </View>
   )
 }
-
-/** Ask's question begun for you, the rest of it yours to say: "something chill". */
-const ROOM_ASK = 'Songs for the room: '
 
 /** "ヨルシカ · 1:52 of 4:23", on the room's clock, ticking on its own. */
 function RoomClock({
@@ -272,6 +288,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
   const played = playedRows(state).slice(0, SHOWN_PLAYED)
   const host = isHost(state)
   const mayAdd = youMay(state, 'again') || youMay(state, 'add') || youMay(state, 'addLink')
+  const addSongs = useAddSongs()
   return (
     <View style={styles.list}>
       {next.length > 0 ? (
@@ -309,7 +326,7 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
           <Button
             label="Add songs"
             icon={<Plus color={theme.colors.textPrimary} />}
-            onPress={() => openRoomSheet('add')}
+            onPress={addSongs}
             grow
             testID="room-add"
           />
@@ -350,8 +367,8 @@ function Upcoming({ state }: { state: RoomState }): ReactNode {
 
       {host ? (
         <ToggleRow
-          label="Keep it going"
-          hint="Near the end, adds songs from what people brought, taking turns"
+          label="Autoplay"
+          hint="When the list runs low, plays more of what people brought"
           hintLines={3}
           value={state.keepGoing}
           onChange={keepGoing => act({ type: 'settings', keepGoing })}

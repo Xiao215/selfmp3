@@ -359,7 +359,7 @@ function SheetPanel({
 
         {inRoom ? (
           <ScrollView style={styles.list} contentContainerStyle={styles.roomContent}>
-            <RoomList />
+            <RoomList go={go} />
           </ScrollView>
         ) : null}
 

@@ -64,11 +64,6 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 - [ ] **`PROPER` L — The desktop window's link check is written twice.**
   `apps/desktop/src/main/window.ts` tests `https://`/`http://` in both the window-open
   handler and `will-navigate`; an `openOutside(url)` would hold it once. Left from T-206.
-- [ ] **`PROPER` L — The Stats away notice describes plays as the server's alone.**
-  `SERVER_NEEDS.stats` in `packages/client/src/connection/reach.ts` says the computer "keeps
-  every play any of your devices has ever recorded, and your storage holds only the songs".
-  Plays are in the bucket now (`lyrics/<sha256>.plays`, one file a month, named in the
-  snapshot); the server still works the numbers out, so the notice should say that instead.
 
 ## Looked at and kept on purpose
 

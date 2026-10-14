@@ -6,17 +6,21 @@ import { ApiError } from '@selfmp3/client'
 import { ImportScreen } from './ImportScreen'
 import { resetImportDraft } from './importDraft'
 
+const mockSetParams = jest.fn()
+/** The page's query: what a share sheet opened Import with (`/import?url=…&text=…`). */
+let mockParams: Record<string, string> = {}
+
 jest.mock('expo-router', () => ({
   useRouter: () => ({
     push: () => undefined,
     back: () => undefined,
     replace: () => undefined,
-    setParams: () => undefined,
+    setParams: mockSetParams,
     canGoBack: () => false,
   }),
   useNavigation: () => ({ getState: () => undefined }),
   usePathname: () => '/',
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
 }))
 
 const mockImportPreview = jest.fn()
@@ -117,5 +121,50 @@ describe('Import, coming back after a look-up', () => {
 
     await act(async () => draw())
     expect(screen.getByLabelText('Links to import').props['value']).toBe('https://youtu.be/abc')
+  })
+})
+
+/*
+ * A link shared to Import with the server in reach (docs/features/share-to-import.md):
+ * looked up straight away, and the share cleared so coming back does not do it
+ * again. Away from the server the same share lands in the bucket's form
+ * instead (QueueViaBucket.test.tsx).
+ */
+describe('Import, opened by a share', () => {
+  beforeEach(() => {
+    mockImportPreview.mockReset()
+    mockSetParams.mockReset()
+    resetImportDraft()
+  })
+  afterEach(() => {
+    mockParams = {}
+  })
+
+  it('looks the shared link up, and lets the share go', async () => {
+    // Never answers: what matters is what was asked.
+    mockImportPreview.mockReturnValue(new Promise(() => undefined))
+    mockParams = { title: '群青', text: '群青 https://youtu.be/abc' }
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false, gcTime: Infinity },
+      },
+    })
+    await act(async () =>
+      render(
+        <SafeAreaProvider initialMetrics={METRICS}>
+          <QueryClientProvider client={client}>
+            <ImportScreen />
+          </QueryClientProvider>
+        </SafeAreaProvider>,
+      ),
+    )
+    await waitFor(() => expect(mockImportPreview).toHaveBeenCalledWith('https://youtu.be/abc'))
+    expect(mockImportPreview).toHaveBeenCalledTimes(1)
+    expect(mockSetParams).toHaveBeenCalledWith({
+      url: undefined,
+      text: undefined,
+      title: undefined,
+    })
   })
 })

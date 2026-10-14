@@ -1,5 +1,6 @@
 import type { Settings } from '@selfmp3/shared'
 import { isRateLimited } from './ytThrottle.js'
+import { YTDLP_UPDATE_HINT } from './ytdlpUpdate.js'
 
 /**
  * YouTube login cookies for yt-dlp.
@@ -9,6 +10,12 @@ import { isRateLimited } from './ytThrottle.js'
  * read a Netscape `cookies.txt`. This module turns the settings into the
  * right arguments and, when it goes wrong, turns yt-dlp's stderr into
  * something a person can act on. Pure, so both halves are unit-tested.
+ *
+ * The app has no controls for cookies (Settings lost them on purpose), so
+ * they are set by whoever runs the server, with `PATCH /api/settings`
+ * (docs/features/youtube-music-library.md). The messages below reach the
+ * Import page and the import queue on every device, so a library with no
+ * cookies — nearly all of them — is never sent to look for a setting.
  */
 
 export type YtCookieSettings = Pick<Settings, 'ytCookieSource' | 'ytCookieBrowser' | 'ytCookieFile'>
@@ -72,13 +79,13 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
       return `Couldn’t decrypt ${browser}’s cookies. yt-dlp needs to read the browser’s key from the macOS keychain; allow it when prompted, or use a cookies.txt file instead.`
     }
     if (/unsupported browser|not supported|browser .* is not/.test(lower)) {
-      return `This version of yt-dlp can’t read cookies from ${browser}. Update it (brew upgrade yt-dlp) or pick another browser.`
+      return `This version of yt-dlp can’t read cookies from ${browser}. Update it (${YTDLP_UPDATE_HINT}), or use a cookies.txt file instead.`
     }
   }
 
   if (settings.ytCookieSource === 'file') {
     if (/no such file|does not exist|not found|cannot open|errno 2/.test(lower)) {
-      return `The cookies file wasn’t found at ${settings.ytCookieFile || '(empty path)'}. Check the path in Settings.`
+      return `The cookies file wasn’t found at ${settings.ytCookieFile || '(empty path)'}. Put it back, or point ytCookieFile at where it is now.`
     }
     if (/netscape|invalid cookies?|not a valid|does not look like/.test(lower)) {
       return `That file isn’t in Netscape cookies.txt format. Export it with a “Get cookies.txt” browser extension.`
@@ -95,24 +102,28 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
    * along with the address.
    */
   if (isRateLimited(message)) {
-    const raise =
-      settings.ytCookieSource === 'none'
-        ? ' Setting up YouTube cookies in Settings → Importing raises the limit a long way.'
-        : ''
+    const notCookies =
+      settings.ytCookieSource === 'none' ? '' : ' — your cookies are not the problem'
     return (
-      'YouTube is rate-limiting this network, which it reports as a bot check — ' +
-      'your cookies are not the problem. Downloads pause by themselves and pick ' +
-      `up once it lifts.${raise}`
+      `YouTube is rate-limiting this network, which it reports as a bot check${notCookies}. ` +
+      'Downloads pause by themselves and pick up once it lifts.'
     )
   }
 
+  /*
+   * "Video unavailable" and "not available in your country" are not sign-in
+   * problems: a removed or region-locked video says them signed in or not, and
+   * left alone they reach the queue's own words for them (failure.ts). A
+   * private playlist, Liked Music included, is "does not exist" to a
+   * signed-out yt-dlp. An age check asks to sign in too, but making the video
+   * public would not help, so it keeps yt-dlp's words.
+   */
   if (
-    /sign in|login required|log in|private|does not exist|not available|unavailable|cookies/.test(
-      lower,
-    )
+    /sign in|login required|log in|private|does not exist|cookies/.test(lower) &&
+    !/confirm your age|age[- ]restricted/.test(lower)
   ) {
     return settings.ytCookieSource === 'none'
-      ? 'YouTube says that needs a signed-in account. Set up YouTube cookies in Settings → Importing first.'
+      ? 'YouTube only shows that to a signed-in account, and your library’s computer isn’t signed in to YouTube. If it’s yours, make it public or unlisted on YouTube, then try again.'
       : `YouTube didn’t accept the cookies as a signed-in session. Make sure ${
           settings.ytCookieSource === 'browser' ? browser : 'the browser you exported from'
         } is logged in to YouTube Music, then try again. (${message})`
@@ -121,7 +132,7 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
   // The link resolved but the audio itself was refused: YouTube changed how
   // it hands out media URLs and the installed yt-dlp predates the change.
   if (/http error 403/.test(lower)) {
-    return `YouTube refused the download (HTTP 403). This almost always means yt-dlp is out of date — run: brew upgrade yt-dlp, then retry.`
+    return `YouTube refused the download (HTTP 403). This almost always means yt-dlp on your library’s computer is out of date — update it (${YTDLP_UPDATE_HINT}), then try again.`
   }
 
   return message

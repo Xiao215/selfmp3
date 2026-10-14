@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cookieArgs, explainCookieError, type YtCookieSettings } from './ytCookies.js'
+import { YTDLP_UPDATE_HINT } from './ytdlpUpdate.js'
 
 const none: YtCookieSettings = {
   ytCookieSource: 'none',
@@ -57,13 +58,30 @@ describe('explainCookieError', () => {
     )
   })
 
-  it('tells a signed-out user to set up cookies', () => {
-    expect(
-      explainCookieError('The playlist does not exist. Sign in if it is private', none),
-    ).toMatch(/Settings → Importing/)
+  /*
+   * The app has no cookie settings, so a signed-out library is told what the
+   * person reading it can do — not sent to look for a setting that is not
+   * there.
+   */
+  it('tells a signed-out library what can be done without cookies', () => {
+    const out = explainCookieError('The playlist does not exist. Sign in if it is private', none)
+    expect(out).toMatch(/signed-in account/)
+    expect(out).toMatch(/make it public or unlisted/)
+    expect(out).not.toMatch(/Settings|cookies/i)
     expect(explainCookieError('This video is private', chrome)).toMatch(
       /logged in to YouTube Music/,
     )
+  })
+
+  it('leaves removed, region-locked and age-checked videos to their own words', () => {
+    for (const raw of [
+      '[youtube] abc: Video unavailable. This video has been removed by the uploader',
+      '[youtube] abc: Video unavailable. The uploader has not made this video available in your country',
+      '[youtube] abc: Sign in to confirm your age. This video may be inappropriate for some users.',
+    ]) {
+      expect(explainCookieError(raw, none)).toBe(raw)
+      expect(explainCookieError(raw, chrome)).toBe(raw)
+    }
   })
 
   /*
@@ -81,19 +99,19 @@ describe('explainCookieError', () => {
     }
   })
 
-  it('offers cookies as a way to raise the limit, but only when there are none', () => {
-    expect(explainCookieError('HTTP Error 429: Too Many Requests', none)).toMatch(
-      /raises the limit/,
-    )
-    expect(explainCookieError('HTTP Error 429: Too Many Requests', chrome)).not.toMatch(
-      /raises the limit/,
+  it('mentions cookies under a rate limit only to a library that has them', () => {
+    const signedOut = explainCookieError('HTTP Error 429: Too Many Requests', none)
+    expect(signedOut).not.toMatch(/cookies|Settings/i)
+    expect(signedOut).toMatch(/pick up once it lifts/)
+    expect(explainCookieError('HTTP Error 429: Too Many Requests', chrome)).toMatch(
+      /your cookies are not the problem/,
     )
   })
 
-  it('blames a refused download on an outdated yt-dlp', () => {
-    expect(
-      explainCookieError('unable to download video data: HTTP Error 403: Forbidden', none),
-    ).toMatch(/brew upgrade yt-dlp/)
+  it('blames a refused download on an outdated yt-dlp, with the update that fits', () => {
+    const out = explainCookieError('unable to download video data: HTTP Error 403: Forbidden', none)
+    expect(out).toMatch(/out of date/)
+    expect(out).toContain(`(${YTDLP_UPDATE_HINT})`)
   })
 
   it('leaves unrelated errors alone', () => {

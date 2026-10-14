@@ -32,12 +32,12 @@ describe('importFailure', () => {
   it('says the server’s own advice in plain words, leaving the advice to the server', () => {
     expect(
       importFailure(
-        'YouTube refused the download (HTTP 403). This almost always means yt-dlp is out of date — run: brew upgrade yt-dlp, then retry.',
+        'YouTube refused the download (HTTP 403). This almost always means yt-dlp on your library’s computer is out of date — update it (docker compose pull && docker compose up -d), then try again.',
       ),
     ).toBe('YouTube refused it. Try again later.')
     expect(
       importFailure(
-        'YouTube says that needs a signed-in account. Set up YouTube cookies in Settings → Importing first.',
+        'YouTube only shows that to a signed-in account, and your library’s computer isn’t signed in to YouTube. If it’s yours, make it public or unlisted on YouTube, then try again.',
       ),
     ).toBe('Needs a signed-in YouTube account.')
     expect(
@@ -47,7 +47,7 @@ describe('importFailure', () => {
     ).toBe('Your YouTube sign-in isn’t working.')
     expect(
       importFailure(
-        'YouTube is rate-limiting this network, which it reports as a bot check — your cookies are not the problem.',
+        'YouTube is rate-limiting this network, which it reports as a bot check. Downloads pause by themselves and pick up once it lifts.',
       ),
     ).toBe('YouTube asked us to slow down. Try again later.')
     expect(

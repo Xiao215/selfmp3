@@ -25,8 +25,10 @@ afterwards so a reload does not look it up twice.
 Nothing is downloaded without your confirmation on this path.
 
 When the server cannot be reached, Import shows its away form instead, which leaves a link
-in the bucket for the server to take later — but the shared link is not carried into it:
-the parameters are read only by the page that looks a link up, so it has to be pasted.
+in the bucket for the server to take later. The shared link is already in its box — the
+first one, if the share held several, since a bucket request carries one link — and goes
+in with **Add for later**; the share is cleared from the address once it is added, so a
+server that comes back meanwhile does not look it up again.
 
 ## iOS (Shortcut)
 
@@ -93,7 +95,8 @@ without one is refused with `401`.
 - `sharedLinks` in `packages/client/src/import/model.ts` — reads `url` / `text` /
   `title` from the query; `ImportScreen.tsx` prefills the field, clears them, and opens
   the review once the lookup answers. `ImportViaServer.tsx` decides between that screen
-  and the away form (`QueueViaBucket.tsx`).
+  and the away form (`QueueViaBucket.tsx`), which reads the same parameters into its box.
+  Both paths are tested: `ImportLookUp.test.tsx` and `QueueViaBucket.test.tsx`.
 - The review is `apps/app/src/features/import/ImportReview.tsx`, a page of its own
   (`app/import/review.tsx`) that reads the looked-up link from the import draft
   (`importDraft.ts`), so Back keeps it and Import offers it again. What it does without

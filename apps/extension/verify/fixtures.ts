@@ -113,7 +113,8 @@ export function previewFor(url: string): {
     return {
       status: 422,
       body: {
-        error: 'This video is private. Sign YouTube in under Settings → Importing, then try again.',
+        error:
+          'YouTube only shows that to a signed-in account, and your library’s computer isn’t signed in to YouTube. If it’s yours, make it public or unlisted on YouTube, then try again.',
         code: 'unprocessable',
       },
     }

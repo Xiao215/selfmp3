@@ -3,10 +3,11 @@
  *
  * A failed job carries what the server knew: yt-dlp's own last line
  * ("[youtube] FDXohHp9Jso: This video is only available to Music Premium
- * members") or the server's advice for whoever runs it ("…run: brew upgrade
- * yt-dlp, then retry"). Both are right and neither is for the row a person
- * reads, so the row says what happened and, when there is one, what to do;
- * the whole text stays in the job, and in the server's log, for whoever runs it.
+ * members") or the server's advice for whoever runs it ("…update it (docker
+ * compose pull && docker compose up -d), then try again"). Both are right and
+ * neither is for the row a person reads, so the row says what happened and,
+ * when there is one, what to do; the whole text stays in the job, and in the
+ * server's log, for whoever runs it.
  *
  * Matched on words rather than a code because the words are all a failure
  * carries — yt-dlp exits 1 for a private video and a members-only one alike —
@@ -42,7 +43,7 @@ const REASONS: readonly (readonly [RegExp, string])[] = [
     'YouTube asked us to slow down. Try again later.',
   ],
   [/http error 403|refused the download/, 'YouTube refused it. Try again later.'],
-  // The server's "needs a signed-in account" names cookies too, as the thing to set up.
+  // The server's "only shows that to a signed-in account", before the cookie words below.
   [/signed-in account/, 'Needs a signed-in YouTube account.'],
   [/cookie|keychain|full disk access|signed-in session/, 'Your YouTube sign-in isn’t working.'],
   [/sign in|login required|log in/, 'Needs a signed-in YouTube account.'],

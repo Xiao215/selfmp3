@@ -8,12 +8,16 @@ import {
   ShareAskBodySchema,
   ShareCreateSchema,
   ShareIdSchema,
+  ShareSummarySchema,
+  SHARE_KEPT_MS,
+  SHARE_LIMIT_MS,
+  type ShareCreate,
   type ShareSummary,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
-import { secureHex } from './encoding.js'
+import { secureHex, sha256Hex } from './encoding.js'
 import { relayRead } from './files.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
 import { ShareFileSchema } from './share.js'
@@ -30,6 +34,11 @@ import { bearerToken, facePicture, type Session } from './sessions.js'
  * first opened by that account, or is taken off it: a few times a day at most.
  * Every entry is checked with the link itself before it is shown, and one the
  * link no longer knows is dropped.
+ *
+ * Sharing the same songs again under the same name gives back the same link
+ * (`share-same:<sub>:<sha256>`), shared again if it ran out. One its sender
+ * ended, or whose songs left the bucket, is not brought back: a new link is
+ * made instead.
  */
 
 const SHARE = DOORMAN_PATHS.share
@@ -63,6 +72,51 @@ async function remember(ctx: Context, side: Side, sub: string, id: string): Prom
   const ids = await linkIds(ctx, side, sub)
   if (ids.includes(id)) return
   await ctx.env.KV.put(indexKey(side, sub), JSON.stringify([id, ...ids].slice(0, INDEX_MAX)))
+}
+
+/** A link lives at most a month from when it was last shared, and its card ninety days more. */
+const SAME_TTL_SECONDS = Math.ceil((SHARE_LIMIT_MS + SHARE_KEPT_MS) / 1000)
+
+/** What makes two shares the same: who, what it is called, and which songs, in any order. */
+async function sameKey(sub: string, body: ShareCreate): Promise<string> {
+  const songs = body.songs.map(song => song.audio?.key ?? song.uid ?? song.link ?? song.title)
+  const hash = await sha256Hex(JSON.stringify([body.kind, body.name, songs.sort()]))
+  return `share-same:${sub}:${hash}`
+}
+
+/**
+ * The link these songs were shared as before, while it can still be: as it
+ * is while it plays, shared again once it ran out. Null when there is none,
+ * or it was ended by its sender or by its songs leaving the bucket.
+ */
+async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Response | null> {
+  const id = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
+  if (!id.success) return null
+  const object = shareObject(ctx, id.data)
+  const answer = await object.fetch(`https://share/summary?sub=${encodeURIComponent(sub)}`)
+  if (!answer.ok) {
+    await answer.body?.cancel()
+    return null
+  }
+  const before = ShareSummarySchema.parse(await answer.json())
+  if (!before.yours) return null
+  await remember(ctx, 'out', sub, before.id)
+  if (!before.ended) {
+    // Its sender opening it: the link as it is, nothing counted.
+    return object.fetch(
+      'https://share/open',
+      post({ key: before.key, sub, name: null, visitor: null }),
+    )
+  }
+  if (before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
+  const renewed = await object.fetch('https://share/act', post({ sub, action: { type: 'renew' } }))
+  if (!renewed.ok) {
+    await renewed.body?.cancel()
+    return null
+  }
+  // Its new month starts now: the way back to it lasts as long as the link can.
+  await ctx.env.KV.put(same, before.id, { expirationTtl: SAME_TTL_SECONDS })
+  return renewed
 }
 
 async function forget(ctx: Context, side: Side, sub: string, id: string): Promise<void> {
@@ -122,12 +176,18 @@ export async function share(ctx: Context): Promise<Response> {
     if (!(await ctx.accounts.bucket(session.sub))) {
       throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
     }
+    const same = await sameKey(session.sub, body)
+    const before = await sharedBefore(ctx, session.sub, same)
+    if (before) return relayed(before)
     const id = secureHex(8)
     const made = await shareObject(ctx, id).fetch(
       'https://share/create',
       post({ ...body, id, sub: session.sub, picture: facePicture(session) }),
     )
-    if (made.ok) await remember(ctx, 'out', session.sub, id)
+    if (made.ok) {
+      await remember(ctx, 'out', session.sub, id)
+      await ctx.env.KV.put(same, id, { expirationTtl: SAME_TTL_SECONDS })
+    }
     return relayed(made)
   }
 

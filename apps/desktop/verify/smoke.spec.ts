@@ -116,7 +116,7 @@ test.describe('the shell', () => {
     }
   })
 
-  test('is an installed app, so it downloads rather than streams', async () => {
+  test('is an installed app, so it downloads ahead', async () => {
     const app = await launchApp()
     try {
       const page = await app.firstWindow()

@@ -6,7 +6,6 @@ import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { plural, formatLongDuration, type Tag, NameSchema } from '@selfmp3/shared'
 import {
-  ApiError,
   failureText,
   radius,
   space,
@@ -17,6 +16,7 @@ import {
   iconSize,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
+import { noServerToAsk } from '../../connection/via'
 import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { StatusLine } from '../../ui/components/StatusLine'
@@ -77,7 +77,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
   const describe = useMutation({
     mutationFn: (text: string) => {
-      if (!server.api) throw new ApiError(0, 'no server to ask', 'offline')
+      if (!server.api) throw noServerToAsk()
       return server.api.describePlaylist({ text, understanding: null })
     },
   })

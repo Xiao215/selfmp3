@@ -33,6 +33,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { noServer } from '../../connection/via'
 import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
 import { usePresenceServer } from './usePresenceServer'
 import { PresenceConnection } from './presenceConnection'
@@ -335,10 +336,7 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     queryKey: devicesKey,
     // The closure, not the ref: this one is called from the query rather than
     // from a timer, so it is already re-made with every render that matters.
-    queryFn: () => {
-      if (!api) throw new Error('no server to ask for devices')
-      return api.devices()
-    },
+    queryFn: () => (api ? api.devices() : noServer()),
     enabled: server !== null,
     staleTime: STALE.tenSeconds,
     refetchInterval: connected ? false : 15_000,

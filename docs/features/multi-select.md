@@ -55,8 +55,9 @@ you set — a playlist you made, an Ask answer, Up next — holding a row lifts 
 order is yours there, and reordering has nowhere else to live on a touch screen
 (`apps/app/src/ui/components/HoldToReorder.tsx`). Everywhere else holding selects, Search
 included. A playlist that fills from tags has no order to change, so holding selects there
-too. Holding never opens the song menu; the ⋯ and a right-click do. The Tags page's tiles are
-not song rows and keep their own hold.
+too. Holding never opens the song menu; the ⋯ and a right-click do. The Tags and Playlists pages'
+tiles are not song rows: holding one opens its menu (a playlist's is its page's ⋯, without
+Select songs).
 
 "Selecting" is the explicit mode the hold, the circle and Select songs turn on. It exists
 because a phone has no modifiers: in it a tap selects instead of playing, and the circles stay

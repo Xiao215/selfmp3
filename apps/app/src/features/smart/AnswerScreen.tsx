@@ -6,7 +6,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
 import {
-  ApiError,
   failureText,
   type,
   useCreatePlaylist,
@@ -41,6 +40,7 @@ import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
+import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { OPACITY } from '../../ui/motion.model'
@@ -99,7 +99,7 @@ export function AnswerScreen(): ReactNode {
 
   const again = useMutation({
     mutationFn: (understanding: Understanding) => {
-      if (!server.api || !kept) throw new ApiError(0, 'no server to ask', 'offline')
+      if (!server.api || !kept) throw noServerToAsk()
       // The songs shown, as the server knows them, stay out while others fit.
       const shown = ids.flatMap(each => {
         const serverId = server.onServer(each)

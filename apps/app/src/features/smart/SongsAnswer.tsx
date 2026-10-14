@@ -5,15 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import {
-  ApiError,
-  failureText,
-  space,
-  type,
-  useCreatePlaylist,
-  useLibrary,
-  iconSize,
-} from '@selfmp3/client'
+import { failureText, space, type, useCreatePlaylist, useLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
@@ -24,6 +16,7 @@ import { useSongsById } from '../../ui/songsById'
 import { followRules } from '../lists/followRules'
 import { newPlaylist } from '../playlists/playlists.model'
 import { describeNotes, onlyTags, parts, picksHere, tagIdsFor } from './smart.model'
+import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -73,7 +66,7 @@ export function SongsAnswer({
 
   const again = useMutation({
     mutationFn: (understanding: Understanding) => {
-      if (!server.api) throw new ApiError(0, 'no server to ask', 'offline')
+      if (!server.api) throw noServerToAsk()
       return server.api.describePlaylist({ text, understanding })
     },
     onSuccess: answer => {

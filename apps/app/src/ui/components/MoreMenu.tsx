@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { space } from '@selfmp3/client'
 import { IconButton } from './IconButton'
 import { More } from './Icons'
+import type { PopoverAnchor } from '../rightClick'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 
@@ -86,7 +87,8 @@ export function Menu({
 }: {
   open: boolean
   onClose: () => void
-  anchorRef: RefObject<View | null>
+  /** What it hangs off: a ⋯, a row, or the point a right-click was at. */
+  anchorRef: RefObject<PopoverAnchor | null>
   items: readonly MenuItem[]
   /** Shown over the items when the menu is a phone's sheet. */
   title?: string

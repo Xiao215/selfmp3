@@ -42,7 +42,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
-import { label as groupLabel, hint, textColumn, dialogPanel } from '../../ui/surfaces'
+import { hint, textColumn, dialogPanel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
@@ -51,6 +51,7 @@ import { Spinner } from '../../ui/components/Spinner'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
 import { Check, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
+import { SectionHead } from '../../ui/components/SectionHead'
 import { StatusLine } from '../../ui/components/StatusLine'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
@@ -161,7 +162,7 @@ export function MetadataDialog({
 
   const current = (
     <View style={[styles.current, !wide && styles.currentNarrow]}>
-      <Text style={[styles.groupTitle, !wide && styles.fullRow]}>IN YOUR LIBRARY</Text>
+      <SectionHead look="label" title="In your library" style={wide ? undefined : styles.fullRow} />
       <Cover uri={artFor(song)} title={song.album || song.title} size={wide ? 120 : 96} />
       <View style={[styles.fields, wide && styles.fieldsWide]}>
         {TEXT_FIELDS.map(([field, keyboard]) => (
@@ -199,7 +200,7 @@ export function MetadataDialog({
   const suggestions = (
     <View style={styles.candidates}>
       <View style={styles.sectionHead}>
-        <Text style={styles.groupTitle}>SUGGESTIONS</Text>
+        <SectionHead look="label" title="Suggestions" />
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
         {lookup.isPending ? <Spinner tone="accent" /> : null}
       </View>
@@ -274,7 +275,7 @@ export function MetadataDialog({
             <>
               <View style={styles.diffHead}>
                 <View style={styles.sectionHead}>
-                  <Text style={styles.groupTitle}>CHANGES TO APPLY</Text>
+                  <SectionHead look="label" title="Changes to apply" />
                   <Pill text={`${count} of ${diffs.length}`} />
                 </View>
                 <View style={styles.diffActions}>
@@ -566,7 +567,6 @@ const styles = StyleSheet.create(theme => ({
   },
   fieldEdited: { borderBottomColor: theme.colors.accent },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  groupTitle: groupLabel(theme.colors),
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: space.md },
   hint: hint(theme.colors),
   strong: { color: theme.colors.textPrimary },

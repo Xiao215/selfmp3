@@ -123,7 +123,7 @@ describe('awayCopy', () => {
   it('offers the shared computer to a library that never had one', () => {
     const offer = awayCopy(false, 'stats', true)
     expect(offer.title).toBe('No computer works for your library yet')
-    expect(offer.why).toContain('Stats come from your library’s computer')
+    expect(offer.why).toContain('Stats are worked out on your library’s computer')
     expect(offer.why).toContain('The shared computer can')
     // A computer of its own that is only off is not offered a different one.
     expect(awayCopy(true, 'stats', true).title).toBe('Your library’s computer isn’t answering')
@@ -131,7 +131,7 @@ describe('awayCopy', () => {
 
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {
     expect(awayCopy(true, 'import').why).toContain('Importing goes through your library’s computer')
-    expect(awayCopy(true, 'stats').why).toContain('Stats come from your library’s computer')
+    expect(awayCopy(true, 'stats').why).toContain('Stats are worked out on your library’s computer')
     expect(awayCopy(true, 'metadata').why).toContain(
       'Looking a song up goes through your library’s computer',
     )

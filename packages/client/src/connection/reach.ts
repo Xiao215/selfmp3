@@ -126,14 +126,15 @@ export async function reachServerAgain(
  * What a screen needs the server for, and what can be done while it is away.
  *
  * Said without the word: on everyday screens the server is "your library's
- * computer" — the one machine that imports, keeps every play and asks the
+ * computer" — the one machine that imports, works out the stats and asks the
  * model — and the bucket is "your storage". `needs` is what goes through that
  * computer, and what is lost while it is off. `meanwhile` is what the screen
  * can still offer — importing has one, because a link can be left in the
  * bucket for the server to take when it wakes
  * (SYNC.md, rule 6), and a screen with a way forward should not be telling
- * anyone to come back later. Stats and metadata have none: the history and the
- * lookups exist only where the server is, so waiting really is the answer.
+ * anyone to come back later. Stats and metadata have none: the plays are kept
+ * in the bucket, but only the server adds them up, and the lookups exist only
+ * where the server is, so waiting really is the answer.
  * `still` is the one line the card leads with, under its title: what still
  * works, with everything else behind its Why?.
  */
@@ -149,7 +150,7 @@ export const SERVER_NEEDS = {
   },
   stats: {
     needs:
-      'Stats come from your library’s computer: it keeps every play any of your devices has ever recorded, and your storage holds only the songs.',
+      'Stats are worked out on your library’s computer: it reads every play your devices have recorded and adds them up.',
     meanwhile: null,
     still: SONGS_STILL_PLAY,
   },

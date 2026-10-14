@@ -134,7 +134,7 @@ test('a song already in the library says so, without asking the server to read i
 
 test('a link the server cannot read shows its reason', async () => {
   const page = await popup(PRIVATE_URL)
-  await expect(page.getByRole('alert')).toContainText('This video is private.')
+  await expect(page.getByRole('alert')).toContainText('YouTube only shows that to a signed-in account')
   await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
   await page.close()
 })

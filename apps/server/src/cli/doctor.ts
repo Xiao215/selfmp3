@@ -5,6 +5,7 @@ import { promisify } from 'node:util'
 import { formatBytes } from '@selfmp3/shared'
 import type { ServerClient } from './api.js'
 import { YTDLP_STALE_DAYS, ytdlpAgeDays } from '../services/ytdlp.js'
+import { YTDLP_UPDATE_HINT } from '../services/ytdlpUpdate.js'
 
 /**
  * `selfmp3 doctor`: the six things that are usually wrong when something does
@@ -14,15 +15,6 @@ import { YTDLP_STALE_DAYS, ytdlpAgeDays } from '../services/ytdlp.js'
  */
 
 const exec = promisify(execFile)
-
-/**
- * How to get a newer yt-dlp, which depends on where this is running: the doctor
- * runs inside the Docker image too, where there is no brew and the binary is
- * baked in, so the fix there is a newer image rather than a newer package.
- */
-const YTDLP_UPDATE_HINT = fs.existsSync('/.dockerenv')
-  ? 'docker compose pull && docker compose up -d'
-  : 'brew upgrade yt-dlp'
 
 interface DoctorLine {
   readonly ok: boolean

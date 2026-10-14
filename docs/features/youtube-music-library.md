@@ -107,7 +107,10 @@ Errors from yt-dlp are translated into messages a person can act on
 | `failed to decrypt` / keychain | Allow the keychain prompt or use a file |
 | missing `cookies.txt` | The path is wrong (checked before yt-dlp runs — yt-dlp itself silently ignores a missing file) |
 | "not a bot" / rate limited | YouTube is rate-limiting the network, not a cookie problem; downloads pause and pick up by themselves |
-| `Sign in` / `private` / `does not exist` | Not signed in — set up cookies, or the browser is logged out |
+| `Sign in` / `private` / `does not exist`, no cookies | Needs a signed-in account; make it public or unlisted on YouTube (the app has no cookie setting to point at) |
+| `Sign in` / `private` / `does not exist`, with cookies | The cookies aren't a signed-in session; log the browser in to YouTube Music |
+| `Video unavailable`, an age check | Left as yt-dlp said it; the queue row has its own words for it (`packages/client/src/import/failure.ts`) |
+| `HTTP Error 403` | yt-dlp is out of date; the update named is `docker compose pull && docker compose up -d` in Docker, `brew upgrade yt-dlp` elsewhere (`ytdlpUpdate.ts`) |
 
 ## A note on terms
 

@@ -152,6 +152,8 @@ export class Share {
           return await this.#create(CreateSchema.parse(await request.json()))
         case 'POST /open':
           return await this.#open(OpenSchema.parse(await request.json()))
+        case 'GET /peek':
+          return await this.#peek(url.searchParams.get('k') ?? '')
         case 'GET /summary':
           return await this.#summary(SubSchema.parse(url.searchParams.get('sub')))
         case 'GET /file':
@@ -225,6 +227,17 @@ export class Share {
       await this.#save(opened, next)
     }
     return Response.json(this.#viewOf(opened, next, sub))
+  }
+
+  /**
+   * `GET /peek?k=`: the link as a chat app's preview reads it, for its card
+   * (linkPage.ts). Nobody opened it, so nothing is counted or written.
+   */
+  async #peek(key: string): Promise<Response> {
+    const found = await this.#found()
+    if (!found) return MISSING()
+    if (key !== found.secrets.key) return WRONG_KEY()
+    return Response.json(this.#viewOf(found.doc, found.secrets, null))
   }
 
   /** The link in a list: its sender's, or of someone who opened it signed in. */

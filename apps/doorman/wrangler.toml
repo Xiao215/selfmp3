@@ -32,6 +32,10 @@ GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleuse
 # are always allowed: they are the same on every install, and the doorman takes
 # them from packages/shared/src/origins.ts.
 APP_ORIGINS = "https://xiao215.github.io"
+# Where the web app is, path and all. A share link's own address on the doorman
+# (`/l/<id>/<key>`) shows a chat app the song's card and sends a person on to
+# the same address here (src/linkPage.ts).
+APP_URL = "https://xiao215.github.io/selfmp3"
 
 # Sign-ins waiting for their code, sessions, and each Google account's sealed
 # bucket. Create the namespace with
@@ -98,6 +102,7 @@ new_sqlite_classes = ["ShareLink"]
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
 APP_ORIGINS = "http://localhost:4600,http://localhost:4601"
+APP_URL = "http://localhost:4601"
 DEV = "true"
 
 [[env.dev.kv_namespaces]]

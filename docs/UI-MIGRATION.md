@@ -1,9 +1,11 @@
 # Moving the app to the new interface
 
-**Status: built through Phase 11, 2026-09-19, on branches not yet merged. The widget waits
-on a signed build.** Written 2026-09-18, against the app as it stands on
-`main` that day. The target is the mock in [`docs/ui-mock/`](ui-mock/README.md); screen
-numbers like `P04` and `C11` in this document are files in `docs/ui-mock/boards/`.
+**Status: done.** Every phase is on `main`; the app has moved on since, so read the code,
+not this, for how a screen works today. The plan is kept as the record of the decisions it
+made — the Open questions and their answers, the Risks, "Routes after" — which code comments
+cite by name. What it left open is in [FEATURE_TODO.md](FEATURE_TODO.md). The target was the
+mock in [`docs/ui-mock/`](ui-mock/README.md); screen numbers like `P04` and `C11` in this
+document are files in `docs/ui-mock/boards/`.
 
 Read `S1`, `S2` and `S3` of the mock before this. They say what the design is. This document
 says how to get the app there without a week in which it does not work.
@@ -606,17 +608,9 @@ Answered by Xiao on 2026-09-18.
 
 ## Progress
 
-**Phases 1 to 11** on `ui/phase-1` … `ui/phase-11`, each on top of the last (the order is
-1–8, 10, 9, 11), 2026-09-18 and 19. The widget (Phase 11's second half, `ui/widget`) is built
-and its target compiles for the simulator; it waits on a team id, the App Group and a signed
-build (docs/features/widget.md); on the simulator it shows the tags and Now playing faces and
-a tile opens its tag. Leftovers are on `ui/finish`. Not merged to `main`. Gates: `npm run
-check` green; `verify:flows` green (select-all counts only songs whose files are there);
-Maestro `connect`, `smoke`, `downloads` and `offline` green on the iPhone 17 with a dev client
-rebuilt from this branch; `connect` and `tablet` green on the iPad Pro 11-inch in portrait,
-built to the iPad boards `T01`–`T09` (see FEATURE_TODO.md, The iPad).
-The packaged desktop app (a dmg built on the Mac) passes `verify:desktop` against the lane
-server. `devices.yaml` needs a second device and was not run. Not yet looked at: Android.
+**Phases 1 to 11**, built 2026-09-18 and 19 in the order 1–8, 10, 9, 11, and merged to
+`main` with the widget and the leftovers. The widget's signed build and Android are open
+(FEATURE_TODO.md, "The phone").
 
 Deliberate differences, kept in the commit messages too:
 
@@ -660,9 +654,3 @@ Deliberate differences, kept in the commit messages too:
 - The sidebar's name row reads the connection line, not a name: the app does not know the
   account's name on every kind of library.
 - No haptic on play and pause: `expo-haptics` is not in the Stack.
-
-## What to do first
-
-Answer the Open questions. Then Phase 1, on `ui/phase-1`, starting with the tokens and the
-fonts, because the dev client has to be rebuilt once and everything after can then be seen
-as it is meant to look.

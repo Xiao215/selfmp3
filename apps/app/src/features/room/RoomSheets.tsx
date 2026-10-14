@@ -792,7 +792,7 @@ function Invite({ state, moves }: { state: RoomState; moves: RoomMoves | null })
   const link = inviteLink(appAddress(), state.code)
   const code = formatRoomCode(state.code)
   const share = async (): Promise<void> => {
-    const how = await shareLink(`Listen with me in ${roomTitle(state)}:`, link)
+    const how = await shareLink(`Listen with me in ${roomTitle(state)}`, link)
     if (how === 'copied') showToast('Invite link copied', 'good')
   }
   return (
@@ -896,7 +896,7 @@ function People({
         <Press
           feedback="dim"
           onPress={() =>
-            void shareLink(`Listen with me in ${roomTitle(state)}:`, link).then(how => {
+            void shareLink(`Listen with me in ${roomTitle(state)}`, link).then(how => {
               if (how === 'copied') showToast('Invite link copied', 'good')
             })
           }

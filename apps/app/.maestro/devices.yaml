@@ -1,12 +1,13 @@
-# Phase 3 gate: devices and handoff, which the phone gains with the move.
+# Devices and handoff on the phone.
 #
 # Run as:
 #   maestro test .maestro/smoke.yaml .maestro/offline.yaml .maestro/devices.yaml
 #
-# Needs two devices on one Mac, which a one-device run cannot fake:
-#   - this phone, connected to the Mac by address (connect.yaml), not signed in
-#     to the cloud — presence travels through the Mac's event stream, so a
-#     cloud-only phone is alone by design (progress log, question 5);
+# Needs two devices on one development server, which a one-device run cannot
+# fake:
+#   - this phone, connected to that server by address (connect.yaml), not
+#     signed in to the cloud — presence travels through the server's event
+#     stream, so a cloud-only phone is alone by design;
 #   - another device playing against the same server, e.g. the web app open
 #     in a browser with a song going, or a second simulator (an iPad) playing
 #     a song other than this phone's first row.
@@ -18,7 +19,7 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
-# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+# The app opens on Home; Library is a tab.
 - extendedWaitUntil:
     visible:
       id: 'home-screen'

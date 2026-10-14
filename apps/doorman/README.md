@@ -3,7 +3,8 @@
 A small Cloudflare Worker that stands between every self.mp3 device and your
 Backblaze B2 bucket. It does three things:
 
-1. **Signs you in with Google.** Only the Google accounts you list may sign in.
+1. **Signs you in with Google.** Only its owners and the accounts they let in may sign
+   in (*Who may sign in*, below).
 2. **Keeps the one bucket that belongs to your Google account.** Its key is
    sealed (AES-256-GCM) before it is stored, and it is never sent back to any
    device.
@@ -12,7 +13,14 @@ Backblaze B2 bucket. It does three things:
 
 It also hands out **grants**: a session an account gives a server, so that the
 server can work in the account's bucket while none of its devices is open
-([docs/features/shared-server.md](../../docs/features/shared-server.md)).
+([docs/features/shared-server.md](../../docs/features/shared-server.md)). And it
+holds what friends share with each other, which no one person's bucket can:
+**listening rooms** and **shared playlists**
+([docs/features/listen-together.md](../../docs/features/listen-together.md)), and
+**share links** ([docs/features/share-links.md](../../docs/features/share-links.md)).
+The songs themselves never move: each stays in its owner's bucket, and the
+doorman lends exactly the files a room or a link names, through the owner's
+sealed key, to the people in it.
 
 Why it exists, and how devices use the bucket, is in [docs/SYNC.md](../../docs/SYNC.md).
 The API it serves is the contract in
@@ -25,13 +33,23 @@ allows about 100,000 reads and 1,000 writes a day. Nothing is written until
 Google has vouched for an address on your list; a whole sign-in costs three
 writes, and using the library afterwards costs none.
 
-Each account also has a change counter, in a Durable Object (`src/changes.ts`;
-the free plan allows 100,000 requests a day). It moves whenever a snapshot or
-a log file is written or deleted, and devices ask it before they list the
-bucket, so a device whose library is already up to date costs the bucket
-nothing: Backblaze counts every listing against a daily allowance
-([docs/SYNC.md](../../docs/SYNC.md), "Caps"). `npx wrangler deploy` creates
-it from `wrangler.toml`; there is nothing to set up by hand.
+Four kinds of Durable Object keep the rest (the free plan allows 100,000
+requests a day across them, with their storage in SQLite):
+
+| Binding | Class | One per | Kept |
+|---|---|---|---|
+| `CHANGES` | `Changes` (`src/changes.ts`) | account | for good |
+| `ROOMS` | `Room` (`src/room.ts`) | listening room | until two hours pass with nothing done; forgotten ten minutes after it ends |
+| `SHARED` | `SharedPlaylist` (`src/shared.ts`) | shared playlist | until its last person leaves |
+| `SHARES` | `ShareLink` (`src/share.ts`) | share link | until ninety days after it ends |
+
+The change counter moves whenever a snapshot or a log file is written or
+deleted, and devices ask it before they list the bucket, so a device whose
+library is already up to date costs the bucket nothing: Backblaze counts every
+listing against a daily allowance ([docs/SYNC.md](../../docs/SYNC.md), "Caps").
+`npx wrangler deploy` creates every class from the migrations in
+`wrangler.toml`; there is nothing to set up by hand. Without `ROOMS`, `SHARED`
+or `SHARES`, their routes answer 404.
 
 ## How signing in works
 
@@ -73,9 +91,10 @@ root. Every command below is run from this folder, `apps/doorman`.
    npx wrangler kv namespace create KV
    ```
 
-   It prints an `id`. In `wrangler.toml`, replace
-   `replace-with-the-id-from-wrangler-kv-namespace-create` with it, and keep
-   the binding's name as `KV`.
+   It prints an `id`. In `wrangler.toml`, put it in place of the `id` under
+   `[[kv_namespaces]]` (the one there is Xiao's doorman's), and keep the
+   binding's name as `KV`. The `[env.dev]` section's `local-dev-only` stays as
+   it is.
 
 4. Find your workers.dev address. The doorman will live at
    `https://selfmp3-doorman.<your-subdomain>.workers.dev`. Your subdomain is
@@ -127,7 +146,8 @@ The doorman signs people in with an OAuth client that you own, in the
 
 ### 3. Settings and secrets
 
-1. In `wrangler.toml`, set `GOOGLE_CLIENT_ID` to the client ID. It is not a
+1. In `wrangler.toml`, set `GOOGLE_CLIENT_ID` to the client ID, both under
+   `[vars]` and under `[env.dev.vars]` (the one there is Xiao's). It is not a
    secret: it appears in every sign-in link.
 2. Check `APP_ORIGINS` in `wrangler.toml`: the address the web app is served
    from, `https://xiao215.github.io`. Browsers may call the doorman only from
@@ -135,7 +155,9 @@ The doorman signs people in with an OAuth client that you own, in the
    (`http://localhost` or `http://127.0.0.1`, for the server's own page, where
    it signs itself in and names its bucket). The desktop app's and the browser
    extension's own origins are always allowed and are not listed: the doorman
-   takes them from `packages/shared/src/origins.ts`.
+   takes them from `packages/shared/src/origins.ts`. `APP_URL` beside it is the web app's
+   full address, path and all (`https://xiao215.github.io/selfmp3`): where a share link's
+   page on the doorman sends a person on to.
 
    `APP_SCHEMES` is the same idea for the native app: the URL schemes the
    doorman may send a signed-in phone back to, comma separated, defaulting to
@@ -170,9 +192,31 @@ It builds `packages/client` and `packages/shared` first (`wrangler.toml` says to
 Worker and prints its address. Open `/v1/health` on it: you should see
 `{"ok":true,"version":"1.0.0"}`.
 
+No workflow deploys the doorman: every change to `apps/doorman`, or to what it
+takes from `packages/shared`, reaches the real doorman only when someone runs
+`npx wrangler deploy` from this folder again. When a change also touches the
+server or the app, deploy the doorman first, since they ask it for what is new
+([docs/features/shared-server.md](../../docs/features/shared-server.md),
+"Deploying").
+
 Wrangler may warn that `wrangler.toml` defines more than one environment. The
 other one, `dev`, is only for running the doorman on your own computer (see
 below); the plain command deploys the real doorman.
+
+### 5. Share links in chats
+
+A share link points at the doorman, not at the web app (`/l/<id>/<key>`,
+`src/linkPage.ts`). GitHub Pages has no file for a link's address, so it
+answers with a 404 and a chat app draws nothing. The doorman answers instead.
+A chat app gets a card with the song, who sent it and its cover, and a person
+is sent on to the same link in the app (`APP_URL` in `wrangler.toml`).
+
+The `workers.dev` address is long, and mainland China blocks it, as it does
+everything the doorman lends. A domain of your own on Cloudflare would fix
+both: add it to the Worker with
+`routes = [{ pattern = "listen.example.com", custom_domain = true }]` and make
+it the doorman's address everywhere (`DEFAULT_DOORMAN_URL`, and Google's
+redirect URI in step 2).
 
 ---
 
@@ -227,6 +271,10 @@ below); the plain command deploys the real doorman.
   secrets in a file named `.dev.vars` in this folder (one `NAME=value` per
   line; git ignores it), add `http://localhost:8787/v1/auth/callback` to the
   Google client's redirect URIs, and run `npx wrangler dev --env dev`. That
-  development setup also lets the web app's local addresses call the doorman,
-  and lets it use a bucket on this computer over plain http. It is never
-  deployed.
+  development setup also lets the web app's local addresses
+  (`http://localhost:4600` and `:4601`) call the doorman, and lets it use a
+  bucket on this computer over plain http. It is never deployed. 8787 is
+  Wrangler's own default port; it has nothing to do with cli-bridge, the
+  smart features' model service, which listens on 8787 too. On a machine
+  running both, give one of them another port (`npx wrangler dev --env dev
+  --port 8788`, and that port in the redirect URI).

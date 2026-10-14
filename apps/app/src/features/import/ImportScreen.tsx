@@ -56,6 +56,7 @@ import { Cover } from '../../ui/components/Cover'
 import { Check, Next, Refresh, Search, X } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useFade } from '../../ui/motion'
+import { isComposing } from '../../shell/composing'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
@@ -210,6 +211,12 @@ export function ImportScreen({
   const folded = queue ? foldQueue(queue.jobs) : null
   const controls = folded ? queueControls(folded.importing) : null
   const ready = canLookUp(links) && !preview.isPending && tools?.ytdlp !== false
+  /** The box's commit — Search for words, Look it up for links — as its button does it. */
+  const submit = (): void => {
+    if (query !== null) {
+      if (tools?.ytdlp !== false) openSearch(query)
+    } else if (ready) lookUp(links.trim())
+  }
 
   const form = (
     <View style={styles.form}>
@@ -233,6 +240,20 @@ export function ImportScreen({
           onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
           onFocus={() => setLinksFocused(true)}
           onBlur={() => setLinksFocused(false)}
+          onKeyPress={event => {
+            // Enter commits, as a search box's does; Shift+Enter is the new
+            // line for a list of names. An input method's Enter picks its
+            // candidate and is not ours. Only a keyboard's Enter carries
+            // shiftKey: a phone's Return still starts a line.
+            const key = event.nativeEvent as {
+              key: string
+              shiftKey?: boolean
+              isComposing?: boolean
+            }
+            if (key.key !== 'Enter' || key.shiftKey !== false || isComposing(key)) return
+            ;(event as unknown as { preventDefault: () => void }).preventDefault()
+            submit()
+          }}
           placeholder="Search for a song, or paste links or song names"
           placeholderTextColor={theme.colors.textMuted}
           multiline
@@ -266,7 +287,7 @@ export function ImportScreen({
               label="Search"
               variant="primary"
               disabled={tools?.ytdlp === false}
-              onPress={() => openSearch(query)}
+              onPress={submit}
               testID="import-search"
             />
           ) : (
@@ -274,9 +295,7 @@ export function ImportScreen({
               label={preview.isPending ? 'Looking…' : 'Look it up'}
               variant="primary"
               disabled={!ready}
-              onPress={() => {
-                if (canLookUp(links)) lookUp(links.trim())
-              }}
+              onPress={submit}
               testID="import-look-up"
             />
           )}

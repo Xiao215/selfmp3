@@ -5,10 +5,10 @@ import type { ServerConnection } from './connection.js'
  * Finding the server from a device signed in to the cloud, without the screen.
  *
  * A few things only the server can do. It runs yt-dlp, so importing is its —
- * and so is seeing what a link holds before it is added. It keeps every play
- * ever recorded, so the stats are its. It asks iTunes and MusicBrainz, so
- * metadata lookup is its. The bucket holds none of that: a snapshot is the
- * library as it stands, not the history behind it or the tools beside it.
+ * and so is seeing what a link holds before it is added. It works the stats out
+ * from every play, so the stats are its. It asks iTunes and MusicBrainz, so
+ * metadata lookup is its. A snapshot holds none of that: it is the library as
+ * it stands, not the history behind it or the tools beside it.
  *
  * So the screens that need it talk to it directly when this device can reach
  * it, and say so plainly when it cannot — rather than not being drawn at all,

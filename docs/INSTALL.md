@@ -1,43 +1,344 @@
 # Installing self.mp3
 
-Three ways to run it, depending on where you want it to live:
+self.mp3 has three parts, and only one of them is installed on a computer of your own:
+
+- **The app** you listen in: the [GitHub Pages tab](https://xiao215.github.io/selfmp3), the
+  phone app and the desktop app. You sign in with Google and the library is there.
+- **The bucket and the doorman.** The library lives in a storage bucket that belongs to your
+  Google account, and the doorman signs you in and lets devices into it
+  ([SYNC.md](SYNC.md)).
+- **The server**, on a computer that is always on. It is the one with `yt-dlp`: it imports,
+  analyses each song, publishes to the bucket, and runs the Smart features. One server works
+  for every Google account that joins it ([features/shared-server.md](features/shared-server.md)).
+
+If somebody already runs a server and a doorman and has let you in, you need nothing from
+this guide: open the app and sign in. Your devices join that server by themselves. This guide
+is for running the server.
 
 | You want | Go to |
 |---|---|
-| It on your Mac, which is where your music already is | [On a Mac](#on-a-mac) |
-| It on your phone too | [On your phone](#on-your-phone) |
-| It on a box that never sleeps — a VPS, a NAS, a Pi | [With Docker](#with-docker) |
-
-Everything below assumes you have the repo checked out and a terminal open in it.
+| The server on an always-on computer — a Raspberry Pi, a NAS, a small VPS | [With Docker](#with-docker) |
+| The Smart features (Ask, tidy, describing songs) | [Smart features](#smart-features-cli-bridge-beside-the-server) |
+| Your own bucket and doorman | [The bucket and the doorman](#the-bucket-and-the-doorman) |
+| The server on a Mac or Linux box without Docker | [Without Docker](#without-docker) |
+| The app on your phone, or on a Mac | [On your phone](#on-your-phone), [The desktop app](#the-desktop-app) |
 
 ---
 
-## On a Mac
+## With Docker
+
+The image is `ghcr.io/xiao215/selfmp3`, built for arm64 and amd64 by
+`.github/workflows/docker.yml` whenever a push to `main` changes the server, and again every
+Monday so the `yt-dlp` inside it stays current. It carries the server, `ffmpeg` and `yt-dlp`,
+so a computer with Docker needs nothing else. The server's settings come from a `.env` beside
+the compose file.
+
+On any Linux computer with Docker and Docker Compose 2.24 or newer:
+
+```bash
+mkdir -p ~/services/selfmp3 && cd ~/services/selfmp3
+curl -fsSLO https://raw.githubusercontent.com/Xiao215/selfmp3/main/docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/Xiao215/selfmp3/main/.env.example -o .env
+mkdir -p library data
+docker compose up -d
+docker compose logs -f
+```
+
+Make the two folders yourself before the first `up`. Left to Docker, they are created
+owned by root, and the server, which runs as uid 1000, cannot write to them.
+
+The log should show `listening on http://…:4600` for each of the computer's addresses and
+`working for 0 libraries`. `docker compose ps` says `healthy` once the image's health check
+has had an answer from `/api/health`.
+
+What `docker-compose.yml` sets, and why:
+
+- **The host's own network** (`network_mode: host`), not a published port. The server sees
+  the computer's home and Tailscale addresses and publishes them into each bucket, which is
+  how devices find it. It can reach a helper on the same computer at `127.0.0.1`, which is
+  where [cli-bridge](#smart-features-cli-bridge-beside-the-server) listens. And a firewall
+  still decides who reaches port 4600 (see [The firewall](#the-firewall)). Docker Desktop on
+  a Mac or Windows has host networking off unless it is turned on in its settings. There,
+  use `ports: ['127.0.0.1:4600:4600']` instead.
+- **`user: '1000:1000'`**, the uid that owns `library/` and `data/` on the host. If your
+  account has another uid, put yours there or run `sudo chown -R 1000:1000 library data`
+  once.
+- **`env_file`**: the `.env` beside it, if there is one. The server reads nothing else in a
+  container.
+- **`TZ`**, from `.env`, so the log's times and the days the server counts are yours rather
+  than UTC.
+- **`./library` and `./data`**, bind-mounted to `/app/library` and `/app/data`, so they are
+  ordinary folders on the host.
+
+To build the image yourself instead of pulling it, run `docker compose build` from a
+checkout.
+
+### On a Raspberry Pi
+
+This is how Xiao's server runs: a Raspberry Pi 4 with 4 GB of memory and a 32 GB card,
+running **Raspberry Pi OS Lite (64-bit)**. The OS must be 64-bit: the image has an arm64
+build and no 32-bit one. A card is enough space: the music lives in the bucket, and the
+server keeps only an inbox, caches and the listening model (about 750 MB, downloaded the
+first time analysis wants it).
+
+1. Write Raspberry Pi OS Lite (64-bit) to the card with Raspberry Pi Imager, with SSH turned
+   on and your own user. Then `ssh` in and run `sudo apt update && sudo apt full-upgrade`.
+2. Install Docker from Docker's own script, and let your user run it:
+
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   sudo usermod -aG docker "$USER"      # then log out and in again
+   ```
+
+3. Install Tailscale and join your tailnet:
+
+   ```bash
+   curl -fsSL https://tailscale.com/install.sh | sh
+   sudo tailscale up
+   ```
+
+4. Make `~/services/selfmp3` and start the server, as in [With Docker](#with-docker) above.
+5. Give it a public HTTPS address (next section), and put that address in `.env`.
+
+The first user on Raspberry Pi OS is uid 1000, so the `user:` line needs no change.
+
+### A public address: Tailscale Funnel
+
+The server needs one `https://` address that works from anywhere. The addresses it finds on
+the computer are all local and all plain `http://`, and the app on GitHub Pages is served
+over HTTPS, so a browser will not let it call any of them, even on the same Wi-Fi. A friend's
+phone has nothing local to try at all.
+
+Tailscale Funnel gives the Pi such an address, with a real certificate, without opening a
+port on your router:
+
+```bash
+sudo tailscale funnel --bg 4600
+tailscale funnel status
+```
+
+The first time, it may say that HTTPS certificates or Funnel are not turned on for your
+tailnet, with a link to the admin console that turns them on. `--bg` keeps the funnel
+running across reboots. The address it prints looks like `https://pi.tail1a2b.ts.net`.
+Put it in `.env`, with no trailing slash:
+
+```bash
+SELFMP3_PUBLIC_URL=https://pi.tail1a2b.ts.net
+```
+
+Then run `docker compose up -d` again. A changed `.env` makes Compose recreate the container.
+The log now says `published as reachable at https://… (SELFMP3_PUBLIC_URL)`, and warns if
+the address is not `https://`. From then on the address goes into every snapshot beside the
+local ones, and each device races the lot: at home the local address answers first, and
+anywhere else the public one does. Setting it also lets the Pages app's origin call the
+server. Without it, the Pages tab cannot reach the server at all.
+
+Check it from a computer that is not on your tailnet (a phone on mobile data will do):
+
+```bash
+curl -s https://pi.tail1a2b.ts.net/api/health
+```
+
+`tailscale serve --bg 4600` is the same thing for your tailnet only. That is enough when you
+are the only user and every device you use runs Tailscale. A Cloudflare *named* tunnel
+(`cloudflared tunnel create selfmp3`, routed to a hostname on a domain you own) works as
+well. A throwaway `trycloudflare.com` address changes every run, so it is no good in a
+snapshot.
+
+Being reachable is not being let in. A request through the funnel needs the token of the
+library it is for, which each library's devices are given with the sync. Only the health
+check answers without one, and joining, which takes a doorman session instead.
+
+### The firewall
+
+Raspberry Pi OS ships with no firewall rules. If you add `ufw`, know one thing: ports that Docker
+publishes with `ports:` **bypass ufw**, because Docker writes its own packet-filter rules
+ahead of ufw's. That is one more reason the compose file uses the host's network. The
+server then listens like any other program on the computer, and ufw applies to it.
+
+Funnel traffic reaches the server through Tailscale on the computer itself, so it needs no
+rule. Open port 4600 to your home network and your tailnet if you want devices there to use
+the shorter local route:
+
+```bash
+sudo ufw allow from 192.168.1.0/24 to any port 4600 proto tcp   # your home network's range
+sudo ufw allow in on tailscale0
+```
+
+If you publish a port instead, bind it to `127.0.0.1`, as in `127.0.0.1:4600:4600`, and let
+Tailscale be the only way in.
+
+### Updating itself
+
+Updating is pulling the new image and recreating the container:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+`up -d` recreates the container only when the image changed, so this is safe to run often.
+To have the server follow `main` by itself, run it on a timer, for example from
+`crontab -e`:
+
+```cron
+*/10 * * * *  cd ~/services/selfmp3 && docker compose pull -q && docker compose up -d
+```
+
+Xiao's Pi does the same from its own dashboard, so a push to `main` reaches it a few minutes
+after the image is published. Old images pile up; `docker image prune -f` clears them.
+
+---
+
+## Smart features: cli-bridge beside the server
+
+Ask, tidy, describing songs and the other Smart features call a language model through any
+endpoint that speaks OpenAI's chat completions with JSON-schema replies
+([features/ai.md](features/ai.md)). With no endpoint set they are off, and the screens that
+offer them say so. Everything else works without one.
+
+Xiao's server uses [cli-bridge](https://github.com/Xiao215/cli-bridge), a small service on
+the same computer that answers through the Claude Code CLI signed in there, and optionally
+Gemini through its own CLI. It runs outside Docker, as a systemd user service:
+
+```bash
+# Node 22 or newer, and Claude Code signed in: run `claude` once and /login.
+git clone https://github.com/Xiao215/cli-bridge && cd cli-bridge
+npm run install-service                 # systemd user unit cli-bridge.service
+sudo loginctl enable-linger "$USER"     # keep it running with nobody logged in
+journalctl --user -u cli-bridge -f      # its log
+```
+
+It listens on `127.0.0.1:8787`, which the container reaches because it shares the host's
+network. Tell the server in `.env`, then `docker compose up -d`:
+
+```bash
+SELFMP3_AI_BASE_URL=http://127.0.0.1:8787/v1
+```
+
+Add `SELFMP3_AI_API_KEY` only if you gave cli-bridge an `API_KEY`. The two model tiers are
+`SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART`, both `sonnet` unless you set them.
+Settings › Advanced › Model in the app shows the address and has a **Test** that checks
+both legs: the device to the server, then the server to the model.
+
+cli-bridge runs on your own Claude subscription, and its README asks that it serve only you.
+A server that works for other people's accounts runs their Smart features on the same model.
+If other people use your server, point `SELFMP3_AI_BASE_URL` at an endpoint with an API key
+of its own instead.
+
+---
+
+## The bucket and the doorman
+
+The library is the bucket. Setting one up, and the doorman that signs devices in to it, is
+**[SYNC.md](SYNC.md), "Setting up"**: a Backblaze B2 bucket, a Cloudflare Worker deployed
+by hand from `apps/doorman` ([apps/doorman/README.md](../apps/doorman/README.md)), and the
+key pasted once, on the first device that signs in.
+
+The server is never given a bucket key by hand. When a device whose bucket names no server
+asks for one, it joins the server the app offers. The server gets a **grant** for that
+account from the doorman, and works for it from then on in a workspace of its own
+([features/shared-server.md](features/shared-server.md)).
+
+### Who uses your server
+
+Two settings decide this, and neither of them is on the server.
+
+- **Who may sign in** is the doorman's decision. Its owners (the `OWNER_EMAILS` secret) are
+  always let in. Everyone else is on the list an owner keeps in Settings › Who can sign in,
+  unless the owner turns on **Anyone with a Google account**. Taking someone off also cuts
+  off the server's grant for them.
+- **Which server the app offers** is `DEFAULT_SERVER_URL` in
+  `packages/shared/src/cloud.ts`. A fork that runs its own server changes that line, or sets
+  the repository variable `SERVER_URL`, which the Pages and desktop builds read, and
+  `SELFMP3_SERVER_URL` when building the phone app. It does the same for its doorman
+  (`DOORMAN_URL`, and `SELFMP3_DOORMAN_URL` in the server's `.env`) and, if it publishes its
+  own Pages site, `SELFMP3_APP_URL`.
+
+Each account's devices list the servers that hold a grant in Settings › Account ›
+Computers, where **Remove** ends one. Every account that joins imports from your server's
+internet address and asks your model for its Smart features, so the doorman's list is also
+the list of people who use those.
+
+---
+
+## Without Docker
+
+The server is an ordinary Node program, and runs on any Mac or Linux computer with Node 22 or
+newer, `yt-dlp` and `ffmpeg`. The scripts in `scripts/` are for this route. Nothing here is
+needed for Docker.
+
+### On a Mac
 
 ```bash
 ./scripts/setup-mac.sh
 ```
 
-That is the whole thing. It checks you have Node 22 or newer, installs `yt-dlp` and
-`ffmpeg` with Homebrew if they are missing, installs the npm packages, builds the app,
-creates the library and data folders, and offers to install the background service so the server
-starts at login.
-
-It is safe to run again whenever you like — every step is a no-op once it has been done,
-so it doubles as the "I pulled new code, set me up again" command.
-
-Two flags, if you want them:
+It checks for Node 22 or newer, installs `yt-dlp` and `ffmpeg` with Homebrew if they are
+missing, runs `npm install` and `npm run build`, creates the library and data folders, and
+offers to install the background service. It is safe to run again. Every step does nothing
+once it has been done, so it is also the command to run after pulling new code.
 
 ```bash
 ./scripts/setup-mac.sh --yes          # don't ask anything
-./scripts/setup-mac.sh --no-service   # skip the launchd step; I'll run it by hand
+./scripts/setup-mac.sh --no-service   # skip the launchd step; I'll run `npm start` myself
 ```
 
-When it finishes, open <http://localhost:4600>. That is the server's own page — how many
-songs it has, the Cloud section where you sign in with Google and name your bucket, and a
-**Publish now** button. It is setup and status, not a music player: once the library is
-published you listen in the [GitHub Pages tab](https://xiao215.github.io/selfmp3), the
-desktop app or the phone app, each signed in with the same Google account.
+The background service is `./scripts/install-service.sh`: a launchd job,
+`com.selfmp3.server`, that starts the server at login and restarts it if it crashes.
+`./scripts/uninstall-service.sh` removes it and leaves the folders alone.
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.selfmp3.server   # restart
+launchctl bootout gui/$(id -u)/com.selfmp3.server        # stop
+tail -f ~/Library/Logs/selfmp3.log                       # watch the log
+```
+
+The job binds the server to `127.0.0.1`, so it publishes no local addresses, and devices
+reach it only through a public address in front of it: `tailscale funnel --bg 4600` and
+`SELFMP3_PUBLIC_URL` in the checkout's `.env`, as in
+[A public address](#a-public-address-tailscale-funnel).
+
+A Mac that sleeps is a server that is away. The server holds off idle sleep while it is
+streaming or importing, but closing a laptop's lid still sleeps it. On power, this keeps it
+awake with the lid open:
+
+```bash
+sudo pmset -c sleep 0
+```
+
+### On Linux
+
+There is no setup script. By hand:
+
+```bash
+sudo apt install ffmpeg pipx            # and Node 22 or newer, from nodejs.org or fnm
+pipx install "yt-dlp[default]"          # a distribution's yt-dlp is months behind
+git clone https://github.com/Xiao215/selfmp3 && cd selfmp3
+npm install
+npm run build
+npm start
+```
+
+The server reads `.env` from the checkout it is started in. To keep it running, a systemd user
+unit in `~/.config/systemd/user/selfmp3.service` does what launchd does on a Mac:
+
+```ini
+[Unit]
+Description=self.mp3 server
+
+[Service]
+WorkingDirectory=%h/selfmp3
+ExecStart=/usr/bin/node apps/server/dist/main.js
+Environment=NODE_ENV=production
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+Use the path `command -v node` prints for `ExecStart`. Then
+`systemctl --user enable --now selfmp3`, and `sudo loginctl enable-linger "$USER"` so it
+runs with nobody logged in.
 
 ### Is it working?
 
@@ -45,437 +346,203 @@ desktop app or the phone app, each signed in with the same Google account.
 ./scripts/doctor.sh
 ```
 
-One screen: Node, `yt-dlp` and `ffmpeg` versions, whether the build is there, whether the
-background service is running, whether the port is answering, where the library and data
-folders are and how big, your Tailscale address, and the last few log lines. Every line is a tick or a
-cross, and the crosses tell you the command that fixes them.
-
-Run it first whenever something is wrong. It is usually one of five things and this tells
-you which.
-
-### Doing it by hand
-
-If you would rather see each step:
-
-```bash
-brew install node yt-dlp ffmpeg
-npm install
-npm run build
-npm start
-```
-
-`docs/SETUP.md` walks through the same ground more slowly, plus the parts that only matter
-for your phone.
-
----
-
-## On your phone
-
-Two ways, and they are not alternatives so much as steps.
-
-**A browser tab.** The quickest: open <https://xiao215.github.io/selfmp3> and sign in with
-Google. There is no address to type and nothing to install, because the tab reads the
-library from your bucket rather than from your server — so it works with the server asleep.
-It streams and keeps no songs. **Add to Home Screen** in Safari, or **Install app** in
-Chrome, gives it an icon and a full screen.
-
-Your server still has to publish to that bucket before there is anything to open, and the
-bucket is where you set that up: **[docs/SYNC.md](SYNC.md)**. Tailscale is worth doing too —
-not to reach the app, which is on Pages, but so your phone can hand an import straight to
-the server while it is awake, and so handoff and remote control work at home:
-**[docs/SETUP.md](SETUP.md)**.
-
-**The app, for music with no signal.** A browser tab keeps no songs. The iPhone and Android
-app does: it signs in with Google, reads the library from your bucket
-([docs/SYNC.md](SYNC.md)) and downloads the audio to the device, so it plays with the server
-asleep and in a bag. You build it yourself from this repository —
-**[docs/MOBILE.md](MOBILE.md)** — which needs a Mac with Xcode for iOS, or the Android SDK.
-
----
-
-## The desktop app
-
-A self.mp3 in the Dock, with its own window, the media keys, and your music on the disk
-rather than in a browser's cache. Same app as the tab — it is the same build inside a
-window — so nothing is set up twice and a library downloaded in one is not downloaded
-again in the other.
-
-The easy way: open the web app in a browser on the Mac and go to Settings → **Mac app**.
-It finds the latest release and offers a download for each chip, with this Mac's first
-where the browser can tell (Chrome and Edge can; Safari cannot, and the line under the
-button says how to check). The same files are on
-[the releases page](https://github.com/Xiao215/selfmp3/releases) — `-arm64` for a Mac
-with Apple silicon (M1 or later), `-x64` for an Intel Mac; Apple menu → About This Mac
-says which. Open the `.dmg` and drag **self.mp3** to Applications.
-
-**The first launch, if the build was not signed.** macOS refuses an app it cannot trace to
-a registered developer, and a personal project usually has no such certificate. Open
-System Settings → **Privacy & Security**, and press **Open Anyway** under the message
-about self.mp3. Or, in Terminal, once:
-
-```
-xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
-```
-
-It is the same app either way. The one thing an unsigned copy cannot do is replace itself
-when there is a new version — Settings → **Desktop app** → Check for updates then offers
-the release page instead of a button.
-
-**If the keychain asks for your password after every install.** An unsigned build is
-signed ad-hoc, which identifies it by a hash of that exact binary, so macOS treats each
-new build as a different app asking for the first one's "self.mp3 Safe Storage" key.
-Pressing Always Allow lasts until the next build. Building it yourself with a free Apple
-Development certificate ends it: add your Apple ID in Xcode → Settings → Accounts,
-then Manage Certificates → + → Apple Development. Check that
-`security find-identity -v -p codesigning` lists it as valid — if it says 0 valid
-identities, install Apple's "Worldwide Developer Relations - G3" intermediate from
-[apple.com/certificateauthority](https://www.apple.com/certificateauthority/) with
-`security add-certificates -k ~/Library/Keychains/login.keychain-db AppleWWDRCAG3.cer`
-— and put its name in a `.env` at the top of your main checkout (copy `.env.example`;
-git ignores `.env`):
-
-```
-CSC_NAME="Apple Development: you@example.com (TEAMID)"
-```
-
-Every `npm run build:desktop` reads it and prints `development-signed build`, from a
-worktree too — a worktree branched from your checkout has no `.env` of its own, so the
-main checkout's is read after it. The same file holds the server's own settings, such as
-`SELFMP3_PUBLIC_URL`; a variable set in the shell wins over the file. The keychain asks
-once more, the first time that build runs; after Always Allow, every later build signed
-with the same certificate is the same app to it.
-
-Signing in is the same as anywhere: Settings → Cloud → Sign in with Google, which opens
-your own browser and comes back to the app.
-
-**Where things are.** `~/Library/Application Support/self.mp3` — downloaded songs under
-`songs/`, covers under `covers/`, and the window's size. Settings → Offline music shows
-the folder and has a **Reveal in Finder** button.
-
-To build it yourself on a Mac, rather than downloading it:
-
-```
-npm install
-npm run build:desktop
-```
-
-The `.dmg` lands in `apps/desktop/release/`.
-
----
-
-## Letting someone else in
-
-Your server is at home behind a router, and the app is a web page on the internet. Two
-separate things have to be true before somebody else's browser can import into your
-library, and it is worth keeping them apart, because each fails in its own way.
-
-### 1. An address their browser can call
-
-The server publishes the addresses it finds on this machine with every snapshot it writes,
-and every one of them is a `http://192.168.…` or `http://100.…` — useless from anywhere
-else, and refused outright by the Pages app even at home, because a page served over HTTPS
-may not call `http://`. So it needs one address it cannot work out for itself, and
-`SELFMP3_PUBLIC_URL` is where you put it:
-
-```bash
-SELFMP3_PUBLIC_URL=https://music.example.com
-```
-
-Set it and the server publishes that address beside the local ones. Every device races the
-whole list at once, so at home the Wi-Fi address still answers first and the public one is
-only paid for when nothing nearer replies. The boot log prints `published as reachable at
-…`, and warns if what you gave it is not `https://` — a plain `http://` address is one the
-app is not allowed to call at all, which looks exactly like the server being switched off.
-
-Two ways to get such an address, neither of which asks you to open a port on your router:
-
-**Tailscale Funnel**, if you already followed [SETUP.md](SETUP.md) and have `tailscale
-serve` running. `serve` is your tailnet only; `funnel` is the same HTTPS address opened to
-the public internet:
-
-```bash
-tailscale funnel --bg 4600
-tailscale funnel status
-```
-
-**A Cloudflare tunnel**, if you would rather use a name of your own. `cloudflared tunnel
---url http://localhost:4600` gives you a throwaway `trycloudflare.com` address in one
-command, which changes every run — fine for an afternoon, no good in a published snapshot.
-A *named* tunnel (`cloudflared tunnel create selfmp3`, then route it at a hostname on a
-domain you own) keeps the same address forever, which is the one to put in
-`SELFMP3_PUBLIC_URL`.
-
-Either way the token still stands between the address and your library. A request arriving
-through a tunnel carries the tunnel's hostname and a forwarding header, so it is not the
-"came from this computer" case that skips the check (`apps/server/src/http/local.ts`) — it
-needs the token like any other request from the network, and devices are handed that with
-the sync. Setting a public address also lets the published app's own origin call the API,
-which it otherwise could not; nothing else is let in.
-
-The server does not have to be awake for any of this. A device that cannot reach it says
-so and keeps looking, and a link left on the Import screen is picked up the next time the
-server is on ([SYNC.md](SYNC.md), rule 6) — so "tell me when you want to import and I will
-switch it on" works.
-
-### 2. An account that can see your library
-
-This is the part an address does not solve. **Your library is your bucket, not your
-server.** Signing in with Google gets somebody into the app; what they then see is whatever
-bucket is attached to their own account, which for a friend is none. So a friend who signs
-in does not see a smaller version of your library — they see an empty app, and your server
-never enters into it.
-
-For them to use your library they have to be *on* your bucket:
-
-1. Add their address in Settings › Who can sign in, which only the doorman's owner sees
-   (`apps/doorman/README.md`), or the door does not open at all. (Its **Anyone with a
-   Google account** switch opens it to everyone; the README says what that costs.)
-2. Give them the bucket's keys, which they connect in the app's Settings the same way you
-   did.
-
-Be clear-eyed about what step 2 hands over: the same bucket, with no read-only version of
-it, so they can delete songs, and the snapshot they read carries your server's token. It is
-the arrangement for somebody you would give a key to the house — a partner, a sibling —
-rather than for lending a friend your music for an evening. Sharing that is genuinely
-one-way does not exist here yet.
-
----
-
-## With Docker
-
-For a machine that is always on — a Raspberry Pi, a Synology, a small VPS. The image
-carries `ffmpeg` and `yt-dlp`, so there is nothing else to install. It is published for
-arm64 and amd64 as `ghcr.io/xiao215/selfmp3`, so the machine pulls it rather than building.
-
-```bash
-mkdir -p library data
-docker compose up -d
-docker compose logs -f
-```
-
-Then <http://localhost:4600> on that machine, which is the server's own page: the library
-count, the Cloud section and **Publish now**. Listening happens elsewhere, signed in with
-Google.
-
-`library/` and `data/` next to `docker-compose.yml` are bind-mounted into the container, so
-your music and your database stay ordinary folders on the host. Backing up is still "copy
-those two folders", and moving to a different machine is still "copy those two folders".
-
-Without compose:
-
-```bash
-docker pull ghcr.io/xiao215/selfmp3:latest
-docker run -d --name selfmp3 --restart unless-stopped \
-  -p 127.0.0.1:4600:4600 \
-  -v "$PWD/library:/app/library" \
-  -v "$PWD/data:/app/data" \
-  ghcr.io/xiao215/selfmp3:latest
-```
-
-To build the image yourself instead: `docker build -t selfmp3 .` from a checkout.
-
-A few things worth knowing:
-
-- **It runs as an ordinary user**, uid 1000, not root. If your host account is a different
-  uid you will see permission errors on the two mounted folders; fix it once with
-  `sudo chown -R 1000:1000 library data`, or uncomment the `user:` line in
-  `docker-compose.yml`.
-- **The port is bound to `127.0.0.1` on purpose.** Put Tailscale in front of it rather than
-  opening it to the internet (next section). Drop the `127.0.0.1:` prefix only if something
-  else is already terminating TLS in front.
-- **There is a `HEALTHCHECK`** against `/api/health`, so `docker ps` tells you whether the
-  app is actually up rather than merely running. That route stays open whatever token the
-  server is using, so a monitor never needs the secret.
-- **The image is multi-stage.** The web app is built once, as static files; the server is
-  built with its compilers in a stage of its own. The runtime image is the built server, its
-  production dependencies, the web app, `ffmpeg`, `yt-dlp` and `tini`.
-
-### On a Raspberry Pi
-
-A Pi 4 or 5 with 4 GB or more, running a **64-bit** OS (Raspberry Pi OS Lite 64-bit is
-enough; the image is arm64 only on a Pi). Keep the music on a USB SSD rather than the SD
-card: the library is read constantly and the database written often.
-
-```bash
-curl -fsSL https://get.docker.com | sh            # Docker, from Docker's own script
-sudo usermod -aG docker "$USER"                   # then log out and in again
-mkdir -p /mnt/ssd/selfmp3 && cd /mnt/ssd/selfmp3
-curl -fsSLO https://raw.githubusercontent.com/Xiao215/selfmp3/main/docker-compose.yml
-mkdir -p library data
-docker compose up -d
-```
-
-The Pi never builds the image; it pulls the one GitHub builds for it. Moving from an existing
-server is copying the two folders across while that server is stopped:
-
-```bash
-rsync -a --info=progress2 ~/Music/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/library/
-rsync -a ~/Library/Application\ Support/selfmp3/ pi@<pi>:/mnt/ssd/selfmp3/data/
-```
-
-(The folders are wherever `npm run cli -- doctor` says they are on the old server.) Then point
-Tailscale at the Pi as below, and each device at the Pi's address.
-
-### Tailscale in front of it
-
-Same idea as on a Mac: your own devices reach the server, nobody else does, and you get a
-real Let's Encrypt certificate rather than a warning page.
-
-Install Tailscale on the host, then:
-
-```bash
-tailscale serve --bg 4600
-tailscale serve status
-```
-
-The server's page is now at `https://<machine>.<tailnet>.ts.net/`, reachable from your
-laptop or phone wherever you are. It is not how you listen — that is Google sign-in, in the
-Pages tab or an installed app — but it is how you check on the box without an SSH session,
-and it is the address the browser extension and the apps' Import screens use to hand it
-links. [SETUP.md](SETUP.md) has the same ground in more detail.
-
-If you would rather run Tailscale in a container next to this one, the usual
-`tailscale/tailscale` sidecar with `network_mode: service:selfmp3` works; nothing in the app
-cares either way.
-
-### Settings
-
-Anything from the table in `README.md` can go in the `environment:` block of
-`docker-compose.yml`. The two most likely:
-
-```yaml
-environment:
-  SELFMP3_PUBLIC_URL: https://<machine>.<tailnet>.ts.net
-  SELFMP3_LOG_LEVEL: debug
-```
-
-The tokens are worth a word in a container. The server works for every account that joins
-it, and each account's library answers to a token of its own, kept in `./data/hub.json`
-with the grant the account gave it ([features/shared-server.md](features/shared-server.md)).
-Everything else under `./data` is a copy of the accounts' buckets, but that file is not: a
-`docker compose down -v` or a fresh `./data` would leave every device holding a token
-nothing answers to, until it joins again. Keep the bind mount. The exemption for requests
-from the server's own machine does not help you here either: the container is its own
-machine, so a request from the host arrives over the network like any other.
+One screen: Node, `yt-dlp` and `ffmpeg` versions, whether the build is there, whether port
+4600 answers, where the library and data folders are and how big, the Tailscale address, and
+the last few log lines. On a Mac it also checks the launchd job. Each line is a tick or a
+cross, and each cross names the command that fixes it.
 
 ---
 
 ## The `selfmp3` command
 
-The same operations, without a browser. It works against a running server over the API, so
-it never opens the database behind the server's back.
+The same operations without the app. It talks to the running server over its API, so it never
+opens a database behind the server's back.
 
 ```bash
-npm run cli -- doctor            # from the repo
-selfmp3 doctor                   # after `npm link`, or inside the container
+npm run cli -- doctor                                      # from a checkout
+docker compose exec selfmp3 node apps/server/dist/cli.js doctor   # in Docker
 ```
 
 | Command | What it does |
 |---|---|
-| `selfmp3 start` | run the server in the foreground |
-| `selfmp3 scan` | sweep the inbox folder for files dropped there |
-| `selfmp3 import <url…>` | queue one or more links for download |
-| `selfmp3 backup <dest-dir>` | copy the data and library folders, only what changed |
-| `selfmp3 doctor` | node, yt-dlp, ffmpeg, the server, the folders |
-| `selfmp3 --version` | print the version |
+| `start` | run the server in the foreground |
+| `scan` | sweep the inbox folder for files dropped there |
+| `import <url…>` | queue one or more links for download |
+| `backup <dest-dir>` | copy the data and library folders, only what changed |
+| `doctor` | Node, `yt-dlp`, `ffmpeg`, the server, the folders |
+| `--version` | print the version |
 
-`--url` points it at a server somewhere else. On the machine the server runs on you need no
-token — the default `http://localhost:4600` is not asked for one — and `--token` supplies it
-when you are reaching a server anywhere else:
-
-```bash
-selfmp3 --url https://nas.tail1a2b.ts.net --token "$SELFMP3_AUTH_TOKEN" scan
-```
-
-Inside the container:
+On the server's own computer, a command with no token goes to the only library, when there is
+only one. With several, or from another computer, give it the library's token with `--token`.
+The token is in `data/hub.json`, and the server's log prints it when it works for one library.
+`--url` points the command at a server elsewhere:
 
 ```bash
-docker compose exec selfmp3 node apps/server/dist/cli.js doctor
+npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan
 ```
 
 ---
 
-## Where your music lives
+## Where things live
 
-The server keeps the two folders outside the checkout, so a `git pull` can never touch
-your music and every checkout or worktree finds the same library:
+| | In Docker | Without Docker |
+|---|---|---|
+| The inbox: downloads, and files dropped in to import | `./library` (`/app/library`) | `~/Music/selfmp3` |
+| The databases, caches, `hub.json` and the listening model | `./data` (`/app/data`) | `~/Library/Application Support/selfmp3` on a Mac, `~/.local/share/selfmp3` elsewhere |
 
-| | Where |
-|---|---|
-| Your music | `~/Music/selfmp3` (`~/Music/selfmp3-dev` with `SELFMP3_PROFILE=dev`) |
-| The database and cover art | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) |
+`SELFMP3_LIBRARY_DIR` and `SELFMP3_DATA_DIR` put them anywhere else. Docker sets both
+itself. `SELFMP3_PROFILE=dev` adds `-dev` to both default names, which is how `npm run dev`
+keeps a development server away from a real one. `./scripts/doctor.sh` and `selfmp3 doctor`
+print the paths in use.
 
-`./scripts/doctor.sh` prints both paths.
-
-To keep them somewhere else entirely — an external drive, say — name it and the
-defaults are not consulted at all:
-
-```bash
-export SELFMP3_LIBRARY_DIR=/Volumes/Music/selfmp3
-export SELFMP3_DATA_DIR=/Volumes/Music/selfmp3-data
-```
-
-Docker sets both variables itself, so none of this changes anything there.
+Inside the data folder, `hub.json` lists who the server works for. Each account's workspace
+is `accounts/<id>/` (its `selfmp3.db` and `covers/`), with its inbox at `<library>/<id>/`.
+The listening model is in `models/`, and `yt-throttle.json` keeps YouTube's pace for the
+whole computer. The inbox empties itself. Once a song is wholly in the bucket, the server
+deletes its copy ([SYNC.md](SYNC.md)).
 
 ---
 
 ## Backing up
 
+The server holds no one's only copy of anything that matters. The library is the bucket.
+Plays go to the bucket too, one file a month, and a workspace deleted or lost is rebuilt from
+its bucket, Stats included, the next time the server starts.
+
+What the server alone has is `data/hub.json`: which accounts it works for, each library's
+token and each grant. Lose it and every account joins again from its next device, with a new
+token. Each library's few server settings, such as how it signs in to YouTube, are in its
+database and would need setting again. Copy `hub.json` off the computer now and then, and keep
+the copy as private as the original, which holds every library's key:
+
 ```bash
-npm run cli -- backup /Volumes/Backup/selfmp3
+scp pi:~/services/selfmp3/data/hub.json ~/selfmp3-hub.json
 ```
 
-It copies the data and library folders and skips anything already there with the same size and
-timestamp, so the first run is as slow as your disk and every run after it takes seconds.
-It never deletes from the destination.
+For a full copy of both folders, `selfmp3 backup` copies only what changed: size and
+modification time, no hashing. Databases are copied through SQLite's own backup API, so the
+copy is consistent while the server writes, and nothing needs stopping. It never deletes from
+the destination.
 
-The database is copied through SQLite's own backup API rather than as bytes, so the copy is
-consistent even though the server is running and writing to it. You do not have to stop
-anything.
-
-Nightly, if you want, with cron:
-
-```cron
-0 3 * * *  cd ~/self.mp3 && npm run cli -- backup /Volumes/Backup/selfmp3 >> ~/Library/Logs/selfmp3-backup.log 2>&1
+```bash
+npm run cli -- backup /Volumes/Backup/selfmp3              # from a checkout
+docker compose run --rm -v /mnt/backup:/backup selfmp3 \
+  node apps/server/dist/cli.js backup /backup              # in Docker
 ```
 
-Restoring is copying the two folders back. `covers/` in the data folder is a disposable cache and rebuilds
-itself on the next scan, so if you are short of space that is the one directory you can drop.
+In Docker, the destination folder must be writable by uid 1000. Restoring is putting the two
+folders back. `covers/` is a cache, and `models/` downloads again, so either can be left out.
 
 ---
 
 ## Updating
 
-On a Mac:
+| | |
+|---|---|
+| Docker | `docker compose pull && docker compose up -d`, by hand or [on a timer](#updating-itself) |
+| A Mac | `git pull && ./scripts/setup-mac.sh`, which installs, builds and restarts the service |
+| Linux | `git pull && npm install && npm run build && systemctl --user restart selfmp3` |
+
+Database migrations run by themselves at startup and only go forwards.
+
+Keep `yt-dlp` current. It is the piece that breaks when YouTube changes something. The image
+gets a fresh one every week, so in Docker pulling is enough. Elsewhere, run
+`brew upgrade yt-dlp` or `pipx upgrade yt-dlp`.
+
+---
+
+## On your phone
+
+The quickest way is a browser tab. Open <https://xiao215.github.io/selfmp3> and sign in with
+Google. There is no address to type, because the tab reads the library from the bucket. **Add
+to Home Screen** in Safari, or **Install app** in Chrome, gives it an icon and a full screen.
+Open it from the icon: that is what keeps playback going on a locked iPhone.
+
+A tab streams and keeps no songs. For music with no signal, the iPhone and Android app
+downloads the audio to the device. You build it yourself from this repository:
+**[MOBILE.md](MOBILE.md)**. That needs a Mac with Xcode for iOS, or the Android SDK.
+
+---
+
+## The desktop app
+
+The same app in a window of its own, with the media keys, and songs kept on the disk rather
+than in a browser's cache ([features/desktop-app.md](features/desktop-app.md)).
+
+In the web app on a Mac, Settings › Advanced › **Mac app** finds the latest release and offers
+the download for this Mac's chip where the browser can tell. The same files are on
+[the releases page](https://github.com/Xiao215/selfmp3/releases): `-arm64` for Apple silicon,
+`-x64` for an Intel Mac. Open the `.dmg` and drag **self.mp3** to Applications. Signing in with Google opens your own
+browser and comes back to the app.
+
+**The first launch of an unsigned build.** macOS refuses an app it cannot trace to a
+registered developer. Open System Settings › **Privacy & Security** and press **Open Anyway**
+under the message about self.mp3, or run this once:
 
 ```bash
-git pull
-./scripts/setup-mac.sh          # installs, builds, restarts the service
+xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
 ```
 
-With Docker:
+An unsigned copy cannot replace itself with a new version. Settings › Advanced › Desktop app ›
+**Check for updates** then offers the release page instead.
 
-```bash
-docker compose pull
-docker compose up -d
+**If the keychain asks for your password after every install.** An unsigned build is signed
+ad hoc, by a hash of that exact binary, so macOS treats each build as a different app. Build
+it yourself with a free Apple Development certificate instead. Add your Apple ID in Xcode ›
+Settings › Accounts, then Manage Certificates › + › Apple Development. If
+`security find-identity -v -p codesigning` reports 0 valid identities, install Apple's
+"Worldwide Developer Relations - G3" intermediate from
+[apple.com/certificateauthority](https://www.apple.com/certificateauthority/). Then put the
+certificate's name in the main checkout's `.env` (copy `.env.example`):
+
+```
+CSC_NAME="Apple Development: you@example.com (TEAMID)"
 ```
 
-Database migrations run automatically at startup and only ever go forwards. Take a backup
-first if you want to be able to go back.
+`npm run build:desktop` reads it, from a worktree too, and prints `development-signed build`.
+The `.dmg` lands in `apps/desktop/release/`. The keychain asks once more on that build's first
+run. After **Always Allow**, every later build signed with the same certificate is the same
+app to it.
 
-Keep `yt-dlp` current either way — it is the piece that breaks when YouTube changes
-something:
-
-```bash
-brew upgrade yt-dlp             # on a Mac
-docker compose pull && docker compose up -d   # in Docker, it comes from the image
-```
+The app keeps its files in `~/Library/Application Support/self.mp3`: songs under `songs/`,
+covers under `covers/`. Settings › On this computer shows the folder, with **Reveal in
+Finder**.
 
 ---
 
 ## When something is wrong
 
-Start with `./scripts/doctor.sh` (or `selfmp3 doctor`, which works anywhere Node does,
-container included). Beyond that, `docs/SETUP.md` has a troubleshooting section covering the
-phone-specific failures — offline downloads not starting, playback stopping on lock,
-Tailscale relaying instead of connecting directly.
+Start with the server's log (`docker compose logs --tail 100`, or the launchd log file), then
+`selfmp3 doctor` or `./scripts/doctor.sh`.
+
+**The app shows no songs.** The library comes from the bucket, so this is the bucket, not the
+server. Check that the device is signed in to the right Google account and that a bucket is
+connected (Settings › Account › Storage). [SYNC.md](SYNC.md) has the rest.
+
+**"No computer works for your library yet", or "Your library's computer isn't answering".**
+Check that the server is up (`docker compose ps` says `healthy`) and that
+`curl -s https://<your address>/api/health` answers from outside your network. If it does not,
+check `tailscale funnel status`. If it does, check that `SELFMP3_PUBLIC_URL` is set, is
+`https://`, and matches the address. Without it the Pages tab is not allowed to call the
+server.
+
+**Permission errors on `/app/library` or `/app/data`.** The folders are not owned by the uid in
+the `user:` line. Run `sudo chown -R 1000:1000 library data` in the compose folder.
+
+**Imports fail with a yt-dlp error.** Update it ([Updating](#updating)). If YouTube says
+"Sign in to confirm you're not a bot" on every link, the block may be on your network's
+address rather than on the request. The server's log has yt-dlp's own words.
+
+**Smart features say they are off, or the Test fails at the second leg.** Check
+`SELFMP3_AI_BASE_URL` in `.env`, and that cli-bridge is running:
+`systemctl --user status cli-bridge`, then `curl -s http://127.0.0.1:8787/v1/models` on the
+server.
+
+**The server is not running after a reboot.** In Docker, `restart: unless-stopped` brings it
+back once Docker starts, and Docker's install script enables it at boot. On a Mac,
+`launchctl list | grep selfmp3` should show the job. If it does not, run
+`./scripts/install-service.sh` again.
+
+**Everything is slow over Tailscale.** A device is probably relaying through Tailscale's
+servers rather than connecting directly. `tailscale netcheck` says so. It usually sorts
+itself out, and turning on UPnP on your router helps.

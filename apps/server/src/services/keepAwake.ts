@@ -19,7 +19,7 @@ import type { Logger } from '../logger.js'
  *
  * **What this does not do.** `-i` prevents *idle* sleep only. Closing a
  * laptop's lid still sleeps it, and no assertion short of the ones Apple
- * reserves for itself changes that; `docs/SETUP.md` covers the lid case. On a
+ * reserves for itself changes that; `docs/INSTALL.md` covers the lid case. On a
  * desktop, or a laptop with the lid open, this is the whole of it.
  */
 

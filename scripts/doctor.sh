@@ -106,7 +106,7 @@ if [[ -n "$TAILSCALE_BIN" ]]; then
     bad tailscale "installed but not connected — open the Tailscale app and sign in"
   fi
 else
-  echo "  ${DIM}- tailscale  not installed; needed to reach the server from your phone (docs/SETUP.md)${RESET}"
+  echo "  ${DIM}- tailscale  not installed; needed to reach the server from your phone (docs/INSTALL.md)${RESET}"
 fi
 
 # --- logs -------------------------------------------------------------------

@@ -1,8 +1,8 @@
 # Design system
 
 **The visual reference is `S2` of the UI mock** ([`docs/ui-mock/boards/S2-the-visual-system.html`](../ui-mock/boards/S2-the-visual-system.html)),
-with the behaviour in `S3`. Design against it, not against older screenshots. The move there
-is [`docs/UI-MIGRATION.md`](../UI-MIGRATION.md).
+with the behaviour in `S3` and the moves in `M1`–`M3`. Design against those, not against older
+screenshots.
 
 The shared UI primitives: the dropdown, the floating-layer shell every menu sits in, the
 tokens, and the rules for stacking and focus. Anything built on top of these should not
@@ -14,18 +14,19 @@ Files:
 |---|---|
 | Dropdown | `apps/app/src/ui/components/Select.tsx` |
 | The song row | `apps/app/src/ui/components/SongRow.tsx` |
-| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `SectionHead.tsx`, `SongLine.tsx` |
+| The song menu | `apps/app/src/ui/components/SongMenu.tsx`, what it offers in `apps/app/src/ui/songActions.model.ts` |
+| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `SectionHead.tsx`, `SongLine.tsx`, `Chip.tsx`, `Button.tsx`, `Press.tsx` |
 | Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
 | Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
-| Tokens | `packages/client/src/theme/tokens.ts`, `tokens.reference.css`; themes in `apps/app/src/ui/theme/unistyles.ts` |
+| Tokens | `packages/client/src/theme/tokens.ts`; shared shapes in `apps/app/src/ui/surfaces.ts`; themes in `apps/app/src/ui/theme/unistyles.ts` |
+| Motion | `apps/app/src/ui/motion.ts`, `motion.model.ts` |
 | Focus | `apps/app/src/shell/FocusStyle.web.tsx` |
 
 ## `<Select>` — the dropdown
 
 A native `<select>` renders its list with the operating system: on a Mac that is a white
-sheet with a blue system highlight dropped on top of a dark app. There were 21 of them;
-there are now none. `Select` is the replacement — a button trigger plus a listbox of our
-own, following the ARIA select-only combobox pattern.
+sheet with a blue system highlight dropped on top of a dark app. The app has none; `Select`
+is a button showing the current value plus a list of our own.
 
 ```tsx
 <Select<SongSortField>
@@ -39,7 +40,7 @@ own, following the ARIA select-only combobox pattern.
 | Prop | Meaning |
 |---|---|
 | `value` / `onChange` | Controlled, generic over the value type — call sites keep their unions (`Select<SongSortField>`), and values may be strings or numbers |
-| `options` / `groups` | Either `{ value, label, hint?, disabled? }[]`, or labelled groups: `{ label, options }[]` |
+| `options` | `{ value, label, hint?, disabled? }[]`; `hint` is a quieter note beside the label |
 | `label` | What is being chosen. Required |
 | `size` | `normal` \| `small` \| `inline` — the ordinary control, one in a row of them, and text-sized for use inside a sentence |
 | `testID` | For the end-to-end flows |
@@ -49,75 +50,79 @@ Behaviour worth knowing:
 - **A `Popover` underneath.** The trigger is a button showing the current value; the list is
   a `Popover`, so it is drawn by the shell's overlay host (nothing can clip it), sits under
   the trigger, and flips above near the bottom of the window.
-- **Phone.** Below 820px (`BREAKPOINT`) the list becomes a bottom sheet, titled with the
+- **Phone.** Below 820 points (`BREAKPOINT`) the list becomes a bottom sheet, titled with the
   `label` — decided by the primitive, not by the caller.
 - The selected option is marked with a check; long values truncate with an ellipsis in the
-  trigger rather than stretching the row.
+  trigger rather than stretching the row. The chevron turns over the same length the panel
+  takes to open.
 
 ## `<SongRow>` — the one song row
 
-**There is one song row in the app, and every list of songs draws it.** The library and a
-playlist are the two, and for a while they were two components: the playlist's had no heart,
-no tag chips, no dashed ＋, no equaliser on the cover and none of the colour the playing
-song's cover gives its row — so the same song looked like a different kind of thing
-depending on which page you found it on. A new list of songs uses this; it does not start a
-row of its own.
+**There is one song row in the app, and every list of songs draws it** — Library, a playlist,
+a tag, an artist, Search's Songs, the phone's Up next. A new list of songs uses this; it does
+not start a row of its own. At phone width a tap plays, the ⋯ is always there and holding the
+row selects it; at desktop width it is a table row with the checkbox, the position (or the
+equaliser for the loaded song), the album once there is room, the tags, the length and ⋯.
 
 What a page adds, it adds as props rather than as a second row:
 
 | Prop | For |
 |---|---|
-| `leading` | A node at the very start of the row, before the checkbox. A playlist's drag grip is the only one |
-| `lifted` | This row is being moved: it wears a raised surface and a shadow |
-| `dropTarget` | A move would land here: a line in the accent along the row's top edge |
+| `tags` / `hideTagIds` | The song's tag chips, two and a count. Only Library, Search and Up next pass them; inside a place they are left off, and tags the list is already about are hidden |
 | `index` | The position number at desktop width, which becomes a play button on hover |
-| `onLongPress` | What holding it on a phone does. Left out, the ⋯ menu opens; `null` when something outside the row owns the hold, as a playlist's move does |
+| `lifted` | This row is being moved, so it rides above its neighbours |
+| `onLongPress` | What holding it does: selecting. Left out in a list whose order is yours, where the hold belongs to the list's mover |
+| `unavailable` | Nothing could play it right now; drawn faded |
+
+A list whose order is yours (a playlist, an Ask answer) is `OrderedSongList`: the same rows,
+held to lift (`HoldToReorder`), with the rows around opening a gap where it will land. There
+is no grip column.
 
 Anything a page wants to *do* to a song goes in the ⋯ menu (`SongMenu`, docs/ui-mock `P14`).
-It is one menu, the same items in the same order wherever a song is (proposal B1,
-2026-10-08): headed by the song (cover, title, artist, tags, heart), then **Tags**, Add to
-playlist ›, Add to Up next, Play similar songs, **Download** or **Remove from this phone** (computer) where the
-app keeps songs, and **Song details**, which opens the song's own page (`/song/<id>`, `P15`).
-After those come what the song is to where the menu was opened — it takes a `playlist` and
-offers **Remove from this playlist** there, so a playlist needs no button of its own in the
-row — and the phone's Now Playing adds a "This player" group with Devices. **Delete from
-library…** is last. Play next lives on the song's page, not in the menu, and so does selecting.
+It is one menu, the same items in the same order wherever a song is, and the selection bar's
+More asks the same list (`songActions`). It is headed by the song (cover, title, artist, tags,
+heart), then **Tags…**, Add to playlist, Add to Up next, Play similar songs, **Share link**
+when signed in with storage, **Download** or **Remove from this phone** (computer) in an
+installed app, and **Song details**, which opens the song's own page (`/song/<id>`, `P15`).
+Opened from a playlist you made it adds **Remove from this playlist**, so a playlist needs no
+button of its own in the row. **Delete from library…** is last. On Now Playing the menu leaves
+out what the page already shows (the heart, the tags, Tags…, Song details) and Add to Up
+next, and the phone's adds a "This player" group with the sleep timer and Devices. A friend's
+song in a room gets none of the library's actions. Play next and Fix song info… live on the
+song's page, not in the menu; selecting starts from a held row or the checkbox.
 
-On the web and in the Mac app a right-click on a song row, a Home song tile or a sidebar tag
-opens that row's menu at the pointer (`ui/rightClick.ts`: a point stands in for the ⋯ as the
-popover's anchor), and the browser's own menu stays away.
+In a browser and the desktop app a right-click on a song row, a Home tile, a shelf's card or
+a sidebar tag opens that thing's menu at the pointer (`ui/rightClick.ts`: a point stands in
+for the ⋯ as the popover's anchor), and the browser's own menu stays away.
 
-Up next has three icons for its three actions (proposal H2): `UpNext`, a list with a play
+Up next has three icons for its three actions: `UpNext`, a list with a play
 mark, on every control that opens it (the mini player, the player bar, Now Playing's foot);
 `QueueAdd`, a list with a plus, only for Add to Up next; and `Next`, the skip mark, for Play
 next.
 
 The row is memoised, and the list it is in is long, so nothing handed to it may be new on
 every render: hand it the page's own stable handlers (each takes the song, so one function
-serves every row), memoise `leading`, and look tags up through `songTagLookup`
-(`features/library/library.model.ts`), which keeps one array per song.
+serves every row), and look tags up through `songTagLookup` (`ui/songTags.ts`), which keeps
+one array per song. Whether a row is the loaded song it asks the player itself.
 
 ## One look per part
 
-The same part looks the same wherever it is (proposal P1, 2026-10-08). There were six chip
-styles, four search fields, nine empty states laid out nine ways, two section headings and a
-dozen small song rows with nine cover sizes between them. A screen uses these; it does not
-draw its own.
+The same part looks the same wherever it is. A screen uses these; it does not draw its own.
 
 | Part | What it is | Where |
 |---|---|---|
-| `SearchField` | The one search field: a pill one step up from what it sits on, a magnifier, a × once there are words. Its edge and magnifier turn the accent with the focus. 48 high with a finger, 40 with a mouse. `raised` on a card, a sheet or a panel. Given `onPress` and no `value` it is a **door** to the real search (Home, Library); `trailing` takes the ×'s place (Ask's Stop, the palette's count) | Search, the palette, Add songs, a tag's Add, the tag picker, the listen-tags panel |
-| `EmptyState` | What stands where a list would be: an optional icon, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Stats, Home's tags, Search, the palette, the add sheets, Now Playing |
-| `SectionHead` | A section's heading: its name in the display face at 18, and a link to the rest at the other end ("All 9", "See all") | Home, Search |
-| `SongLine` | The compact song line: a 36 cover (`SONG_LINE_COVER`), the title at 13, a line under it at 12, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, Add songs, Profile, Ask's answers, Tidy up's review |
+| `SearchField` | The one search field: a pill one step up from what it sits on, a magnifier, a × once there are words. Its edge and magnifier turn the accent with the focus. 48 high with a finger, 40 with a mouse. `raised` on a card, a sheet or a panel. Given `onPress` and no `value` it is a **door** to the real search (Home, Library); `trailing` takes the ×'s place (Ask's Stop, the palette's count) | Search, Home and Library (as doors), the palette, Import's search, a tag's Add, the song picker, the tag picker, the listen-tags panel |
+| `EmptyState` | What stands where a list would be: an optional icon, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Home, Stats, the Report, Search, the palette, the add sheets, Now Playing |
+| `SectionHead` | A section's heading: its name in the display face at 18, and a link to the rest at the other end ("All 9", "See all"). `aside` for quiet words beside it, `collapsible`, `end` for buttons, `look="label"` for a quiet group inside a sheet or list | Home, Search, Settings, Stats, Import, Up next's rail, a song's similar shelf, a room's sheets |
+| `SongLine` | The compact song line: a 36 cover (`coverSize.line`), the title, a line under it, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, the song picker, Profile, a room, Ask's answers, Tidy up's review |
 
 `SongLine` is not `SongRow`. A list of songs — Library, a playlist, a tag, Search's Songs, the
 phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The small uppercase
 label (`label()`) is not a section heading either: it names a group of settings or a card's
 figure.
 
-**Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's tags before typing, Settings'
-sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
+**Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's tags before
+typing, Settings' sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
 
 **"On"** is said one of two ways. A pill, a chip, a segment or a section index that is chosen
 is **white** with dark ink (`textPrimary` behind `onPrimary`; on Paper that is ink behind
@@ -129,18 +134,20 @@ grey: that read as hovered.
 Not on these yet, on purpose: Stats' ranked lines (a rank, a picture of three kinds and a share
 bar, not a song line), the import rows waiting above Library (they stand in for `SongRow`s in
 the list below them), Forgotten gems' cards (a shelf of posters), and the sidebar's search
-row (a 32-high row of the rail, which opens the palette). Up next on a phone keeps its own
-panel rather than `Sheet`: it is drawn by the shell under the overlay host so a song's menu
-and the Undo toast for a swiped-away row land above it, it stays mounted while shut so that
-Undo still reaches the queue, and it is the window's full height; its rise, pull and
-thresholds are `Sheet`'s own (`MOVE_MS.sheetUp`/`sheetDown`, `PULL`).
+row (a row of the rail, which opens the palette). Up next on a phone keeps its own panel
+rather than `Sheet` (`features/queue/QueueSheet.tsx`): it is drawn by the shell under the
+overlay host so a song's menu and the Undo toast for a swiped-away row land above it, and it
+stays mounted while shut so that Undo still reaches the queue; its rise, pull and thresholds
+are `Sheet`'s own (`MOVE_MS.sheetUp`/`sheetDown`, `PULL`).
 
 ## `<Popover>` — the floating-layer shell
 
 `ui/components/Popover.tsx` holds the parts every menu, popover and dropdown needs: anchored
 positioning with flipping, a backdrop that dismisses, Escape, and the phone bottom sheet.
 What a popover *contains* is entirely the caller's business — this is a shell, not a menu
-framework. `SongMenu`, `TagPicker`, `Select`, the sleep menu and the devices list all use it.
+framework. `SongMenu`, `TagPicker`, `Select`, `MoreMenu`, the selection bar's More, the sleep
+menu and the devices list all use it. Without an `anchorRef`, or below the breakpoint, it is a
+`Sheet`.
 
 ```tsx
 const buttonRef = useRef<View>(null)
@@ -157,8 +164,9 @@ const buttonRef = useRef<View>(null)
 | Prop | Meaning |
 |---|---|
 | `open` / `onClose` | Controlled; `onClose` is called on Escape and on a press outside |
-| `anchorRef` | The control this belongs to. Measured with `measureInWindow` when it opens |
-| `title` / `titleTone` | Shown when it falls back to a sheet, where a panel has room for a heading |
+| `anchorRef` | The control this belongs to, or a right-click's point. Measured with `measureInWindow` when it opens |
+| `title` / `titleTone` / `subtitle` | Shown when it falls back to a sheet, where a panel has room for a heading |
+| `panelTitle` | A quiet line at the top of the panel, where the sheet would have its title |
 | `placement` | `auto` (below when it fits, else above), `below` or `above` |
 | `align` | `end` (default) or `start`: which edge of the control the panel lines up with |
 | `width` | The panel's width above the breakpoint (240 by default) |
@@ -168,9 +176,11 @@ Notes for anyone extending it:
 - React Native has no `position: fixed`, so above the breakpoint the panel is drawn by the
   shell's overlay host (`shell/Overlay.tsx`) at the anchor's measured coordinates, and kept
   on screen. Below it, the same children go into a `Sheet`.
-- Global hotkeys (`useHotkeys`) ignore keystrokes aimed at a `combobox`, `listbox`, `menu`
-  or `dialog`, exactly as they already ignored a focused `<select>` or text field. If you
-  build a control with its own keyboard language, give it one of those roles.
+- Open overlays paint in the order they opened, which is the order `useEscape` closes them
+  in, so a dropdown opened from a sheet or a dialog sits above it.
+- A screen's keys (`useHotkeys`) and Escape stand aside for a focused `combobox`, `listbox`,
+  `menu` or `dialog`, as they do for a text field (`shell/keyOwner.ts`). If you build a
+  control with its own keyboard language, give it one of those roles.
 
 ## `data-tip` — hover captions
 
@@ -187,9 +197,9 @@ React Native for web turns into a `data-tip` attribute (a phone ignores it):
 above the control (below near the top of the window, clamped at the sides). A trailing
 `(key)` of up to five characters, as in "Done (Esc)", is drawn as a key cap.
 
-- **Timing.** 300ms of rest with a mouse; none when moving straight on from another
-  caption, so running along the transport reads every button; none on keyboard focus.
-  Never on touch.
+- **Timing.** 300 ms of rest with a mouse (`MOVE_MS.tooltipDelay`); none when moving
+  straight on from another caption, so running along the transport reads every button; none
+  on keyboard focus. Never on touch.
 - **Dismissal.** Pressing the control, any key, a scroll that moves it, and leaving the
   window all close it. A pressed control stays quiet until the pointer leaves it.
 - **Live.** If the control's `data-tip` changes while its caption is up, the caption follows;
@@ -198,13 +208,11 @@ above the control (below near the top of the window, clamped at the sides). A tr
   links the caption with `aria-describedby` while it is showing.
 - Text that only repeats what is already fully visible is skipped, so `data-tip` on a
   truncating title shows only once the title is actually cut off.
-- Captions are for controls. The one native `title` left is on synced lyric lines: a caption
-  there would cover the next lines and hop between them as they scroll under the pointer.
 
 ## Words
 
 One way to say each thing, everywhere: labels, menus, toasts, accessibility labels, empty
-states, and the flows that assert them (proposal G, 2026-10-08). Sentence case, plain words.
+states, and the flows that assert them. Sentence case, plain words.
 
 | Thing | Say | Not |
 | --- | --- | --- |
@@ -240,13 +248,17 @@ request line or a status code, which go to the console.
 ## Tokens
 
 The app reads its tokens from `packages/client/src/theme/tokens.ts` (`colors`, `radius`,
-`space`, `type`, `leading`, `iconSize`, `fonts`, `motion`, `HIT_TARGET`, `BREAKPOINT`), and
-Unistyles holds the light and dark themes built from them. The extension's stylesheet is
-written from the same tokens on every build (`apps/extension/scripts/theme.mjs`).
+`space`, `type`, `leading`, `textStyle()`, `tracking`, `iconSize`, `coverSize`, `fonts`,
+`motion`, `HIT_TARGET`, `BREAKPOINT`, and `buildAccent`, `tagColors`, `roomFace` for colours
+worked out from a hue). Unistyles holds the dark and light themes built from them at this
+device's accent hue, and restyles every `StyleSheet.create(theme => …)` when the theme or the
+accent changes, without a reload. The extension's stylesheet is written from the same tokens
+on every build (`apps/extension/scripts/theme.mjs`). `tokens.reference.css` is the stylesheet
+the palette was first written in; the app does not load it, and the tests check the light
+palette against it.
 
-**Nine type sizes and no others** (proposal P1), each with the line height to use when its
-words wrap. A line that never wraps leaves `lineHeight` off. The serif's big numbers keep the
-room their figures need above the line rather than `leading`.
+**Nine type sizes and no others**, each with the line height to use when its words wrap
+(`textStyle(step)` gives both). A line that never wraps leaves `lineHeight` off.
 
 | Token | Size | `leading` | For |
 |---|---|---|---|
@@ -264,63 +276,42 @@ What is left outside the scale: the Report's shareable looks (`features/wrapped/
 are posters with their own typography; Now Playing's stage title and lyrics, which grow with
 the window; and a letter tile's initial, which is a share of its cover.
 
-**Room** is `space`: `xs` 4, `sm` 8, `md` 12, `lg` 16, `xl` 24, and the two page gutters,
-`gutter` 20 on a phone and `gutterWide` 40 on a computer.
+**Room** is `space`, on a two-point grid: `xs` 4, `tight` 6, `sm` 8, `snug` 10, `md` 12,
+`roomy` 14, `lg` 16, `card` 18 (a card's own padding), `xl` 24, and the two page gutters,
+`gutter` 20 on a phone and `gutterWide` 40 on a computer. `pageFrame(wide)` in `surfaces.ts`
+gives a page its top and sides.
 
 The rules from `S2`, as the code keeps them:
 
 - **No hairlines.** Separation is tone on tone: the ground (`surface0`), a card one step up
   (`surface1`), a control (`surface2`), a raised control (`surface3`), and the empty part of a
-  track (`surfaceSelected`: a switch that is off, a bar not yet played). An edge is drawn only where the edge is the mark itself: a checkbox's
-  ring, a dashed "add", a focus ring, a drop line.
-- **Paper**, the light theme, is warm and is not tinted by the accent hue. White cards on
+  track (`surfaceSelected`: a switch that is off, a bar not yet played). An edge is drawn
+  only where the edge is the mark itself: a checkbox's ring, a dashed "add", a focus ring.
+- **Paper**, the light theme, is warm; only its accent follows the hue. White cards on
   cream have no tone to separate them, so a card casts a soft shadow there (`card()` in
   `apps/app/src/ui/surfaces.ts`); in the dark it casts none. Only floating things (sheets,
   menus, the bars, a lifted row) cast a shadow in both (`floating()`).
 - **Shapes** are named: `radius.pill` for buttons, search fields, chips and segments; `field`
-  12 for a text field that is not a search; `card` 18 and `cardLg` 22; `sheet` 26; `mini` 16;
-  `row` 14; covers `cover` 10 and `coverSm` 8.
+  12 for a text field that is not a search; `item` 12 for a menu's line or a caption; `card`
+  18 and `cardLg` 22; `sheet` 26; `mini` 16; `row` 14; covers `cover` 10 and `coverSm` 8.
 - **Type**: the system font for rows and body; `fonts.display` (Bricolage Grotesque 600) for
   page titles at `type.page` and sections at `type.section`; `fonts.serif` (Instrument Serif)
   for greetings and big numbers. Neither face takes a `fontWeight`: the weight is in the file.
-  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `label()` and `serif()`.
+  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `heroTitle()`, `label()` and `serif()`,
+  and `card()`, `floating()`, `dialogPanel()` and `menuItem` for the shapes around them.
 - **Buttons** come in four shapes (`Button.tsx`): the round white `PlayButton`, at most one
   per page; the tonal pill; the text action; the accent pill, kept for the one button that
   commits. **Chips** are neutral pills with a dot of the tag's hue; chosen is white (see
   "On", above).
 - **Tags' colours** come from `tagColors(hue)`: a tile fill and its ink, a dot, and the name in
-  its hue.
-- **Motion**: everything goes through `apps/app/src/ui/motion.ts`, which answers Reduce Motion
-  once. Pressables sink to 0.96 on the one spring (`motion.spring`). The stylesheet's custom properties they came from are kept for
-reference in `tokens.reference.css`, including:
+  its hue. A person's face in a listening room comes from `roomFace(colour)`.
 
-```css
---radius-pill: 999px;                  /* chips, toasts, the toggle track   */
---shadow-1 / --shadow-2                /* small lift / floating element     */
---shadow-panel                         /* full panels and popovers (existing) */
-
---dur-fast: 100ms; --dur: 140ms; --dur-slow: 220ms;
---ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
-
---focus-ring-width / --focus-ring-color / --focus-ring-offset
---hit-target: 44px;                    /* smallest comfortable touch target */
-```
-
-**Stacking.** Everything that leaves the flow picks a layer from the scale instead of
-inventing a number:
-
-| Token | Value | For |
-|---|---|---|
-| `--z-raised` | 2 | stacking inside one component (the mini player's layers) |
-| `--z-sticky` | 10 | sticky headers, the selection bar |
-| `--z-panel` | 20 | side panels |
-| `--z-toast` | 60 | the toast row |
-| `--z-modal` | 100 | full-screen overlays: command palette, now playing, dialogs |
-| `--z-popover` | 200 | menus and dropdowns |
-| `--z-tooltip` | 300 | hover captions |
-
-Popovers are the top of the scale on purpose: a dropdown opened *from* a dialog has to sit
-above it.
+**Stacking.** Sheets, popovers and dialogs are not native modals: they are drawn by one
+overlay host at the root of the shell (`shell/Overlay.tsx`), in the order they opened, so the
+one opened last is on top. The few layers that stand over a page from inside it — a list's
+pinned head, its scrollbar and the playing song's mark on it, and the hover caption over
+everything — take their numbers from `Z` in `surfaces.ts`; a component's own stacking stays
+its own.
 
 **Motion.** Every move goes through `apps/app/src/ui/motion.ts` (`spring`, `timing`,
 `useEntrance`, `useArrival`, `useFade`, `usePresence`, and the curves in `ease`), which
@@ -328,7 +319,7 @@ answers Reduce Motion once: under it each move lands where it was going with no 
 between. The navigator's own moves are outside it, so `shell/pageStep.ts` answers for them
 (`stackAnimation`, `nowPlayingAnimation`: none under Reduce Motion). The fades are 100–220 ms
 (`motion` in `tokens.ts`) and ease out; anything that moves in space takes the one spring
-(`motion.spring`) or a length the boards give. Every length has a name in `MOVE_MS`
+(`motion.spring`, stiffness 220, damping 24) or a length the boards give. Every length has a name in `MOVE_MS`
 (`ui/motion.model.ts`, which also holds the overshoot curve, the stagger, the press depths,
 the pull thresholds and what a session remembers); a duration written as a number in a screen
 is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
@@ -348,7 +339,8 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 - **One press.** `ui/components/Press` is the Pressable, and answers a press one of three
   ways (`feedback`): `sink`, the default, on the spring and back on release, a control to
   0.96 and a row to 0.985 (`PRESS`) — anything with a shape of its own; `wash`, the ink's
-  veil over a bare row (`OPACITY.wash`); `dim`, bare ink fading to `OPACITY.pressed`. A
+  veil over a bare row (the palette's `veilPressed`); `dim`, bare ink fading to
+  `OPACITY.pressed`. A
   `pressed` style may add a tint; it never scales. What cannot be pressed now is drawn at
   `OPACITY.disabled`, and what is there but not live (a song that cannot play here) at
   `OPACITY.dim`. A small target reaches the 44-point minimum by `hitSlopFor(size)`. Screens
@@ -365,7 +357,7 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   restarting; a stage exit or a page's own close plays once, however many times it is asked
   (`shell/stageExit.ts`).
 - Play and pause turn through each other, out on `ease.in` and in on `ease.out`, with a light
-  tap from the phone's engine (`ui/haptics.ts`, behind `ports/haptics`); a spinner that
+  tap on a phone (`ports/haptics.ts`); a spinner that
   replaces the glyph crossfades in and stays at least `MOVE_MS.busyHold`.
 - The mini player rises from under the tab bar with a few points of overshoot, 320 ms, on
   the first song of a session (again only after the queue has emptied); a later song's words
@@ -382,8 +374,8 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   from 6 points below, 180 ms (`shell/pageStep.ts`, `ui/components/SlidingHighlight.tsx`).
   The phone's stack pushes pages with iOS's own slide, the one the swipe back drags. A tag
   opened from its Home tile crossfades over 340 ms instead while its head grows out of the
-  tile (`ui/coverHandoff.ts`), and Back shrinks the head into the tile as the page fades
-  (Xiao, 2026-10-04). The grow starts with the navigator's `transitionStart`; a page going
+  tile (`ui/coverHandoff.ts`), and Back shrinks the head into the tile as the page fades.
+  The grow starts with the navigator's `transitionStart`; a page going
   away is told nothing, so the shrink starts with the press.
 - Now Playing rises from the foot on the spring on a phone and in a browser, its cover
   travelling from where the mini player's or the bar's was (`ui/coverHandoff.ts`), and sinks
@@ -405,17 +397,19 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
 
 Still not built: true shared elements. The cover and the tile travel from a measured frame
 instead, which is the same picture on every device the app runs on. Looping indicators — the
-spinner, the equalizer — are left alone under Reduce Motion, because they are saying that
+spinner, the equaliser — are left alone under Reduce Motion, because they are saying that
 something is still happening.
 
 ## Focus and interaction
 
 - In a browser, `shell/FocusStyle.web.tsx` turns the browser's own ring off once and draws
-  ours: one line in the accent, only for keyboard focus (`:focus-visible`), so a Tab still
-  shows where you are and a click shows nothing. The colour follows the accent picker.
+  ours: one line in the accent, only while someone is moving focus with Tab. `:focus-visible`
+  alone counts any key as keyboard use, so Tab turns the ring on and a pointer press turns it
+  off: a Tab still shows where you are, and Space to pause after a click draws nothing. The
+  colour follows the accent picker.
 - A text field with a border of its own takes the accent as its border colour instead; a
-  field without one sits in a box that shows focus itself (the library's search turns its
-  border to the accent while its input has focus).
+  field without one sits in a box that shows focus itself (`SearchField` turns its edge and
+  magnifier to the accent).
 - Sliders and checkboxes keep what they draw. In a browser the slider is a real
   `input[type='range']` with its own rules (`ui/components/Slider.web.tsx`), keyboard and all.
 

@@ -51,6 +51,12 @@ export interface Env {
    * for CORS: a scheme has no origin to check one against.
    */
   readonly APP_SCHEMES?: string
+  /**
+   * Where the web app is, path and all (`https://xiao215.github.io/selfmp3`):
+   * where a share link's address sends a person on to (linkPage.ts). Unset,
+   * the doorman answers no link addresses.
+   */
+  readonly APP_URL?: string
   /** "true" only in `wrangler dev --env dev`: allows a bucket on this computer, over http. */
   readonly DEV?: string
 }

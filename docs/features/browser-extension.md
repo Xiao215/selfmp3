@@ -2,8 +2,8 @@
 
 Import the song you are already listening to. A button in the YouTube page, a
 popup in the toolbar, and a right-click item anywhere — each of them hands a
-link to your own server, which does the fetching as it always has. With the
-server asleep the link waits in your bucket until it wakes.
+link to your server, which does the fetching. When the server is not answering,
+the link waits in your bucket until it is.
 
 Chrome, Edge, Brave and Arc. Firefox and Safari are not built.
 
@@ -31,29 +31,32 @@ copy or upload one.
 
 The options page opens the first time you install it, and from the gear in the
 popup after that. **Sign in with Google** — the same account as your phone and
-the app — and there is nothing to type: your server's addresses come with every
-sync, and the extension tries them all each time it needs one.
+the app — and there is nothing to type: your server's addresses and token come
+with every sync, in the snapshot the server writes to your bucket, and the
+extension tries them all each time it needs one. That is the shared server
+([shared-server.md](shared-server.md)) once any of your devices has joined it;
+the extension does not join it by itself.
 
 Importing still goes through the server, because the server is what runs yt-dlp.
-What signing in changes is what happens when the server is off: the link is
-written into your bucket instead, and the server fetches it the next time it is
-awake. See *Importing while your server is asleep*, below.
+What signing in changes is what happens when the server does not answer: the
+link is written into your bucket instead, and the server fetches it the next time
+it is reachable. See *Importing while your server is away*, below.
 
-**Or point it at one server.** Under the sign-in there is still an address —
-`http://localhost:4600` on the same computer, or its `https://….ts.net` address
-over Tailscale — for a library with no bucket, or a server this computer can
-reach that your library has never been told about. An address here is tried
+**Or point it at one server.** Under the sign-in there is still an address,
+for a server this computer can reach that your bucket does not name — a
+development server on `http://localhost:4600`, say. An address here is tried
 before the ones from your sync.
 
 A token is asked for only if that server turns out to want one, so the page tries
 the address on its own first and the token field appears if the server refuses
-without it. Pointed at `http://localhost:4600` it will not: the server does not
-ask its own machine for a token. Over Tailscale or across the Wi-Fi it will, and
-the token is the one in the server's startup log — or in `SELFMP3_AUTH_TOKEN`,
-if you set one of your own.
+without it. Pointed at `localhost` on a server holding one library it will not:
+a server does not ask its own machine for a token. Anywhere else it will, and the
+token is your library's on that server — printed in the server's log when it
+starts holding a single library, and otherwise in its `data/hub.json`.
 
 The address is checked before it is kept: it has to answer, and the token, where
-there is one, has to be right. Everything the extension knows — the session, the
+there is one, has to be right. Every server needs a bucket, so a typed address
+still serves a library that lives in one. Everything the extension knows — the session, the
 token, your copy of the library — lives in the extension's own storage, which no
 web page can read, not even the script it runs inside YouTube.
 
@@ -100,10 +103,10 @@ one, or anything else yt-dlp can read — with your defaults. *Import with tags�
 opens the popup on that link instead. Both work on a link, on selected text
 holding one, or on the page you are reading.
 
-**Importing while your server is asleep.** Signed in, the extension asks your
+**Importing while your server is away.** Signed in, the extension asks your
 server directly whenever one of its addresses answers, and when none does it
 writes the link into your bucket instead — your server downloads it the next
-time it is awake, and it arrives in your library with the sync after that. The
+time it is reachable, and it arrives in your library with the sync after that. The
 header says which is happening: *Your server* (its address on hover), or *Via
 your bucket*.
 
@@ -273,7 +276,8 @@ The options page offers two ways in:
    change waiting for the next open. A write the doorman refuses is retried
    under the same seq and never reported, so the popup shows an outbox that has
    not emptied for a minute as not sent yet.
-2. **A server address and token** typed in, for a server with no bucket.
+2. **A server address and token** typed in, for a server the bucket does not
+   name.
 
 Before a preview or an import, and each time the popup opens, the background
 probes every candidate address with `reachServer` (`packages/client`) and keeps the answer for 60 seconds. The header pill shows what won:
@@ -284,7 +288,7 @@ they do:
 
 | | Server direct | Via the bucket |
 |---|---|---|
-| Details before importing | Preview; title and artist editable | No preview. The page's own title and channel (YouTube oEmbed) shown read-only, with "Your server will read the details when it fetches this." |
+| Details before importing | Preview; title and artist editable | No preview. The tab's own title (or the link's host) shown read-only, with "Your server will read the details when it fetches this." |
 | Tags | The server's ids; "+ new" is `POST /api/tags` | The replica's ids, mapped to uids by `requestImport`; "+ new" is the replica's own tag route |
 | C: a playlist's tracks | Listed, every one coming in unless left out, names editable | Not listed; the whole list is kept for later (the server skips what you have) |
 | A playlist | Never: an import only tags | Never: `requestImport` sends no playlist |
@@ -325,12 +329,13 @@ Two small corrections to the mock, found in the code:
 - The cleaned title for the example is アイドル, not "Idol". The tidy rule
   takes what is inside 「」; it does not translate.
 
-**Open in self.mp3** opens the app's Import page at `<app>/import`, where the
-queue and the song are. The app has no song route and the library does not read
-a search from the URL. `<app>` is the server's own address when connected
-directly, `https://xiao215.github.io/selfmp3` through the bucket. **Open the full
-review** opens `<app>/import?url=<link>`, which the Import page already
-understands from the share target.
+**Open in self.mp3** opens the app, which is `DEFAULT_APP_URL` in
+`packages/shared/src/cloud.ts` (`https://xiao215.github.io/selfmp3`) whichever
+way the extension is connected: the server's own address serves only its admin
+page, not the app. After an import, and from the queue's footer, it opens
+`<app>/import`, where the queue is; from a song already in the library it opens
+the app's front page. **Open the full review** opens `<app>/import?url=<link>`,
+which the Import page understands from the share target.
 
 ---
 
@@ -363,9 +368,9 @@ understands from the share target.
   root and an inline layout style on the outer element: content scripts have no
   `customElements`, and `:host` rules lose to YouTube's CSS. The video id is
   read from `location` at click time, since the row lags the URL by a second.
-  Its states: **self.mp3** → **In the queue** → **Importing 40%** → **Added ·
-  Undo** (Undo cancels while the job can still be cancelled, for six seconds)
-  → **In library**.
+  Its states: **self.mp3** → **In the queue** → **Importing 40%** → **Added**
+  → **In library**, or **Waiting for your server** when the link went to the
+  bucket. There is no Undo on the pill; cancelling is in the popup.
 - Unit tests use small hand-written fixtures of those structures in jsdom, with
   `isVisible` and the navigation source passed in, since jsdom has neither
   layout nor the Navigation API.
@@ -410,33 +415,17 @@ understands from the share target.
 
 ## What the spike settled
 
-Four questions that could have changed the design were answered with a scrap
-MV3 extension before anything was built (2026-09-15, Playwright's Chromium 153,
+Four questions that could have changed the design were answered with a scrap MV3
+extension before anything was built (2026-09-15, Playwright's Chromium 153,
 headless). Code comments cite them by number.
-
-1. **Local network.** Can the service worker `POST` to
-   `http://100.x.y.z:4600`, to a LAN address, and to the `https://….ts.net`
-   address from SETUP.md, with the server letting the extension's origin
-   through? Chrome's Local Network Access rules are the unknown. If only HTTPS
-   works, the options page prefers the `ts.net` address and says why. If a
-   permission is needed, the options page asks for that one origin.
-2. **Sign-in.** Does `launchWebAuthFlow` against `wrangler dev` finish on
-   `https://<id>.chromiumapp.org/#signin-code=…`, with the dev vars changed?
-3. **Replica in a worker.** Does `createCloudLibrary` open in an MV3 service
-   worker on IndexedDB, and how long does it take on the real bucket? If it is
-   too slow, fall back to writing the `importRequested` log file directly
-   (`HlcClock`, `newUid`, `logKey`) with no tags or playlist in bucket mode.
-4. **The pill's anchors** on today's YouTube watch page and YouTube Music player,
-   across in-app navigation.
-
 
 | Question | Answer | What it changed |
 |---|---|---|
-| 1. Local network | The worker and extension pages reached loopback and a local-marked address with no Local Network Access block, preflight header or prompt. Chrome sends `Origin: chrome-extension://<id>` on every POST, with or without host permissions, so today's server answers 403. A content script on a public page is blocked before the request leaves. | Phase 1 item 1 is required; no host permission for the server; only the background talks to it |
-| 2. Sign-in | `launchWebAuthFlow` (`interactive: true`) returned `https://<id>.chromiumapp.org/#signin-code=…` with the fragment intact. The doorman's own code, with both addresses in `APP_ORIGINS`, redirects there and accepts the claim and the log `PUT`s; today it refuses both. The replica needs no change. | Sign-in from the options page |
+| 1. Local network: can the worker `POST` to a loopback, LAN, `100.x` or `https://….ts.net` server? | The worker and extension pages reached loopback and a local-marked address with no Local Network Access block, preflight header or prompt. Chrome sends `Origin: chrome-extension://<id>` on every POST, with or without host permissions. A content script on a public page is blocked before the request leaves. | The server lets the extension's fixed origin through (`EXTENSION_ORIGIN` in `packages/shared/src/origins.ts`); no host permission for the server; only the background talks to it |
+| 2. Sign-in: does `launchWebAuthFlow` come back with the doorman's code? | `launchWebAuthFlow` (`interactive: true`) returned `https://<id>.chromiumapp.org/#signin-code=…` with the fragment intact, once the doorman listed the extension's addresses in `APP_ORIGINS`. The replica needed no change. | Sign-in from the options page |
 | 3. Replica in a worker | Runs unchanged. At 5,000 songs: cold open 150 ms (620 ms with 150 ms added per request), 45 ms after a worker restart, 3.9 MB of IndexedDB, a 36 KB gzipped bundle. No seq reused across worker and browser restarts; 600 concurrent `store.update`s from the worker and a page ended at 600. | The full replica, no log-only fallback; explicit flush; first open while connecting |
-| 4. Anchors | Exactly one pill on every watch page on all three sites, through sidebar clicks, Back and every page type; none elsewhere. | The pill section above |
+| 4. The pill's anchors on YouTube and YouTube Music, across in-app navigation | Exactly one pill on every watch page on all three sites, through sidebar clicks, Back and every page type; none elsewhere. | The pill section above |
 
-Not testable on this Mac: Tailscale (`100.x` and `https://….ts.net`), real
-Chrome 152 (it ignores `--load-extension`), real Google sign-in. They are on the
-by-hand list in [`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
+Not testable headless: Tailscale addresses, real Chrome (it ignores
+`--load-extension`), and a real Google sign-in. They are on the by-hand list in
+[`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).

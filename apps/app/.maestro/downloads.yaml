@@ -1,4 +1,4 @@
-# Phase 4: a song that is not on the phone, with streaming off, says why
+# A song that is not on the phone, with streaming off, says why
 # instead of loading and sitting paused.
 #
 # The design (docs/features/offline-sync.md): two
@@ -12,7 +12,7 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
-# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+# The app opens on Home; Library is a tab.
 - extendedWaitUntil:
     visible:
       id: 'home-screen'

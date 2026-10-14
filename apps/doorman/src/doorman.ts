@@ -16,6 +16,7 @@ import * as files from './files.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
+import { linkPage } from './linkPage.js'
 import { share } from './shareRoutes.js'
 import {
   errorResponse,
@@ -151,6 +152,8 @@ export function createDoorman(deps: DoormanDeps = {}): Doorman {
 async function route(ctx: Context): Promise<Response> {
   const { request } = ctx
   const path = ctx.url.pathname
+  // A share link's own address, and the domain's front door: pages, not the API.
+  if (path === '/' || path.startsWith('/l/')) return linkPage(ctx)
   if (!path.startsWith('/v1/')) throw notFound()
   if (request.method === 'OPTIONS') return preflight(request, ctx.origins)
   if (isForeignWrite(request, ctx.origins)) throw forbidden('this address may not use the doorman')

@@ -4,6 +4,8 @@ Import's one box takes words to search for, a link from YouTube, YouTube Music, 
 or Spotify, or a list of song names. A search opens its own page of what it found; anything
 else shows every song on the same review before anything downloads. Under
 the box it says what it read ("网易云 playlist", "Spotify album", "A list of song names").
+On a keyboard, Enter does what the button does (Search or Look it up) and Shift+Enter
+starts a new line; a phone's Return still starts a line.
 
 Each song comes from one of two places: YouTube, or 网易云 itself. Spotify's audio cannot
 be downloaded, so a Spotify song is found on YouTube by its name, as is a song from a

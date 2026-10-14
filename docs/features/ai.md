@@ -5,9 +5,10 @@ put together that way rather than as a chat window or a free-roaming agent. The 
 on the AI ideas canvas (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>); this page is
 the engineering under them.
 
-Built so far: **S1, Ask in the Search box**, which is where most of it is reached; **L2, New
-playlist's Describe it**; the **Describe** pipeline (A1c) they both use; and **Tags**, the
-tag review that Ask and Suggest tags share (it grew out of A7, Suggest tags).
+Most of it is reached through **S1, Ask in the Search box**. Besides Ask there are **L2, New
+playlist's Describe it**, the **Describe** pipeline (A1c) both use, **Tags** (the tag review
+Ask and Suggest tags share), **Tidy up** for names, the **Report in words** and **Fix song
+info's Suggested card**. The letters and numbers are the canvas's names for them.
 
 ---
 
@@ -28,13 +29,16 @@ Carried over from the Later page of the UI mock, and they decide most of what fo
 
 ## Where it runs
 
-On the server, the one process that holds the whole library together with its plays,
-lyrics index and audio analysis. A device reaches it the way it reaches the metadata lookup
-and the stats (SYNC.md, "Reaching the server for what only it can do"): the screen probes
-the server's addresses, talks to the first that answers, and says so in its own words when
-none does. Songs come back as the server's ids and the device lines them up with its own
-(`useServerSongIds`), exactly as the stats do; tags travel by name, which is unique in every
-library. What is made from an answer is made on the device, through the same edits as
+On the server: the always-on computer that works for your library (a Raspberry Pi in
+Xiao's case; [shared-server.md](shared-server.md)), which holds the library's working copy
+together with its plays, lyrics index and audio analysis. The device itself answers from
+its copy of the bucket, and every `/api/ai/…` route is one of the routes only a server can
+answer (`SERVER_ONLY_ROUTES` in `packages/replica/src/routes.ts`). A device reaches it the
+way it reaches the metadata lookup and the stats (docs/SYNC.md, "Reaching the server for
+what only it can do"): the screen probes the server's addresses, talks to the first that
+answers, and says so in its own words when none does. Songs come back as the server's ids
+and the device lines them up with its own (`useServerSongIds`), exactly as the stats do;
+tags travel by name, which is unique in every library. What is made from an answer is made on the device, through the same edits as
 everything else (`apps/app/src/features/smart/useSmartServer.ts`).
 
 The model itself is behind one setting: any **OpenAI-compatible chat-completions endpoint**
@@ -43,10 +47,17 @@ format there is, so the endpoint is a swap, not a rewrite:
 
 | Endpoint | `SELFMP3_AI_BASE_URL` | Notes |
 |---|---|---|
-| `~/UofT/claude-api` (default for this Mac) | `http://127.0.0.1:8787/v1` | Your Claude subscription through the `claude` CLI; 2–5 s per call to start a process; no `tools` |
+| [cli-bridge](https://github.com/Xiao215/cli-bridge), on the server itself (Xiao's) | `http://127.0.0.1:8787/v1` | A small service beside the server (a systemd user unit, `cli-bridge.service`) that answers through the Claude Code CLI signed in on that machine, and through Google's Antigravity CLI for `gemini-*` models. 2–5 s per call to start a process. Takes `tools` and `web_search_options` |
 | Anthropic | `https://api.anthropic.com/v1` | Its OpenAI-compatible endpoint, with an API key |
 | OpenAI, OpenRouter, … | their `/v1` | |
-| Ollama (nothing leaves the Mac) | `http://127.0.0.1:11434/v1` | Weaker picks; structured output still works |
+| Ollama (nothing leaves the server) | `http://127.0.0.1:11434/v1` | Weaker picks; structured output still works |
+
+The address is read by the server, so `127.0.0.1` is the server's own machine. With the
+Docker image on `network_mode: host`, as Xiao's runs, that reaches a service listening on
+the host's loopback; in a container on a network of its own, `127.0.0.1` would be the
+container. cli-bridge runs on its owner's own Claude subscription, which its README says is
+for that person's use only: for a server that friends use too, see
+[shared-server.md](shared-server.md), "Cost and risk".
 
 | Setting | |
 |---|---|
@@ -58,11 +69,11 @@ format there is, so the endpoint is a swap, not a rewrite:
 
 The two model names are **tiers**, not vendors: a task asks for `fast` or `smart` and never
 names a model, so moving to another provider is three environment variables. Both default
-to `sonnet` because of what was measured through claude-api on 2026-10-03: a plan took
+to `sonnet` because of what was measured through cli-bridge on 2026-10-03: a plan took
 3.7 s on `sonnet` and 14–82 s on `haiku` (the CLI's structured output, not the model, is
 the likely cost). On a provider billed per token, set the fast tier to its small model.
 
-Measured on the real library (1,342 songs) through claude-api: Describe 8–15 s (plan
+Measured on the real library (1,342 songs) through cli-bridge: Describe 8–15 s (plan
 4–15 s, pick 4–8 s); "tag the songs that should be 中文流行" 12 s over 1,336 songs (route,
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
@@ -70,13 +81,15 @@ plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 never the key) and the two models, and its **Test** goes the whole way a leg at a time:
 this device to the server, timed, then `POST /api/ai/check`, one fast-tier call with a JSON
 schema like every feature makes, timed or failed with the endpoint's own words. So "couldn't
-reach" always says which leg: the server away, the server older than the app (a 404), or
-the model's endpoint down, refusing the key, or over a limit.
+reach" always says which leg: the server away, the server answering with an error, or the
+model's endpoint down, refusing the key, or over a limit.
 
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
 `Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
-Suggest tags, and the Smart features heading. A press with a sparkle asks a model; one
-without only searches, sorts or edits.
+Suggest tags, the Report's "In words", Fix song info's Suggest, a model's guesses in a
+review, and the Smart features and Model headings. An Ask answer kept in Home's recents or
+named as Up next's source carries it too. A press with a sparkle asks a model; one without
+only searches, sorts or edits.
 
 ---
 
@@ -87,7 +100,8 @@ The industry has settled on a short list of shapes for putting a model inside a 
 a **workflow**, where code fixes the steps and the model fills some of them; and an
 **agent**, where the model decides the next step in a loop with tools. The advice that
 holds up is to use the simplest one that does the job, because every step up costs
-latency, money and testability. Both features here are workflows.
+latency, money and testability. Almost every feature here is a workflow; `explore` is the
+one agent.
 
 ```
                   ┌──────────── deterministic, testable, free ────────────┐
@@ -97,12 +111,14 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
 
 ### The pieces (`apps/server/src/ai/`)
 
-- **`llm.ts`, the port.** One function: `generate({ tier, system, prompt, schema })` returns
-  a value that has passed the zod schema, plus token usage and time taken. The schema is
-  sent as JSON Schema in `response_format`, and the reply is parsed and validated again on
-  our side, because "the model was asked for JSON" is not "the model returned valid JSON".
-  An invalid reply gets one repair turn (the validation error goes back to the model) and
-  then fails cleanly. No SDK: it is one `fetch`, like the server's other outbound calls.
+- **`llm.ts`, the port.** One function: `generate({ task, tier, system, prompt, schema })`
+  returns a value that has passed the zod schema, and the time taken. The schema is sent as
+  JSON Schema in `response_format`, and the reply is parsed and validated again on our
+  side, because "the model was asked for JSON" is not "the model returned valid JSON". An
+  invalid reply gets one repair turn (the validation error goes back to the model) and then
+  fails cleanly. A call may also offer `tools` (run on the server, six rounds unless the
+  task says otherwise), ask for `webSearch`, and carry a `signal` that drops it once nobody
+  is waiting. No SDK: it is one `fetch`, like the server's other outbound calls.
 - **Tasks.** Each model call is a task with four parts kept side by side: a *system prompt*
   that never changes between requests (so a provider can cache it), a *context builder*
   that chooses what the model sees, an *output schema*, and a *check* that grounds the
@@ -114,8 +130,10 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
 - **Cache.** A task's answer is kept in memory against a hash of its exact input, so
   opening Suggest tags twice costs one call, and an unchanged library gives the same
   suggestions instead of a fresh roll of the dice.
-- **Logs.** Task, tier, tokens, milliseconds, outcome. Never the prompt or the reply: they
-  hold your library, and the claude-api service keeps the same rule.
+- **Logs.** Task, model, milliseconds, attempts, and the rounds and tool calls when there
+  were any; a reply that did not fit is logged with what was wrong. Never the prompt or the
+  reply: they hold your library, and cli-bridge keeps the same rule (it logs route, status
+  and timing only).
 
 ### Not over-fetching: the context ladder
 
@@ -137,20 +155,19 @@ climbed when the one below cannot answer:
 4. **One song in depth** (its lyrics, say): only for a feature about one song. None built
    here climbs to it.
 
-### Tools, skills, MCP: why not yet, and when
+### Tools, skills, MCP: where each fits
 
 - **Tool calling** (the model asks for a fetch, sees the result, decides the next one) is the
   right shape when the next fetch depends on what the last one found and the number of
-  steps is not known, which is what makes an agent. Neither feature is like that: what
+  steps is not known, which is what makes an agent. Most features are not like that: what
   Describe needs (rules, maybe a title keyword) can be **planned in one structured reply and
   executed by the server**. That is the same capability as a tool call, at one round trip
-  instead of several. Round trips matter here: each one is 2–5 s through claude-api.
-- The first feature that needs a real loop is **Tidy up** (A4): look at artists, notice two
-  spellings, ask MusicBrainz, look again. When it is built, the loop lives in our runner
-  and speaks the provider's native `tools` where the endpoint supports it, and a JSON "next
-  step" union (`{ call: … } | { done: … }`) through `response_format` where it does not, so
-  it never depends on one vendor's agent runtime. claude-api already accepts `mcp_servers`
-  and `max_turns` for its own loop; that is an option for later, not a dependency.
+  instead of several. Round trips matter here: each one is 2–5 s through cli-bridge.
+- The one feature that does loop is **`explore`** (Looking things up, below). The loop lives
+  in our runner (`llm.ts`) and speaks OpenAI's own `tools` together with `response_format`,
+  so it depends on no vendor's agent runtime. cli-bridge also accepts `mcp_servers` and
+  `max_turns`, which would let Claude Code run the loop itself; nothing here uses them, and
+  they are refused for `gemini-*` models.
 - **Skills** are Claude Code's packaging of instructions loaded on demand. The equivalent
   here is a task's own system prompt, which is already loaded only by its task.
 - **MCP** is the right way to let *other* assistants (Claude Desktop, Claude Code) ask
@@ -167,7 +184,9 @@ climbed when the one below cannot answer:
 - The model's judgement itself (does "calm piano" give calm piano?) is an eval, not a unit
   test. `apps/server/src/ai/eval.ts` asks the real endpoint about a copy of a real
   library and prints what came back, for a person to read:
-  `npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano"`.
+  `npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano"` (also
+  `ask`, `tags`, `tidy` and `written`). On a hub the database is a workspace's,
+  `<data>/accounts/<id>/selfmp3.db`.
 
 ---
 
@@ -178,8 +197,7 @@ command palette), the Search page on a phone. Letters stay a search, matched on 
 as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
 row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
 otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
-the keyboard away. Narrowed 2026-10-08 (I1): before it, a sentence that matched a song (a
-two-word title) went to Ask on ↵. Asking answers in place of the results, and Esc goes back
+the keyboard away. Asking answers in place of the results, and Esc goes back
 to them. The box is not held while Ask works: new words drop the question and bring the
 results back, and Stop does the same without them. One request, one answer you act on: a
 command box, not a chat.
@@ -211,7 +229,11 @@ list as it is: what would change is the loop, not the actions.
 | `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
 | `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something") | the names pass, or one call per 60 songs |
 | `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code | a pick only when the words go past the filters |
-| `open` | "download the new Yorushika album" | a sentence and a button to the place | none |
+| `remember` | "from now on, Chinese names only" | a card that saves the note (Remembered preferences, below) | none |
+| `playlists` | "delete the chill playlists", "rename hi to 华语慢歌" | the names matched to yours (Playlists from the box, below) | none |
+| `explore` | "which albums do I have only part of" | the model looks things up with tools (Looking things up, below) | the tool loop |
+| `getMusic` | "download 春泥棒", "get the rest of the Liyue OST" | 网易云 searched, what you already have marked (Getting music, below) | none |
+| `open` | "where do I paste a Spotify link", "take me to my stats" | a sentence and a button to the place | none |
 | `none` | anything else | what the box can do instead, and up to two requests it can do, each a press away | none |
 
 Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
@@ -229,9 +251,8 @@ request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and 
 answers with the stages so far in plain words and real numbers — "Read what you asked",
 "67 songs fit", "Choosing 25 that suit it"; for a half-remembered song "Looking for … in
 titles and lyrics", "Choosing the one you mean"; for Tidy up "Reading the names of 1,340
-songs". The answer itself still comes back as one response; a server without the route
-leaves the device on its two always-true steps. Measured on the
-real library: a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
+songs". The answer itself still comes back as one response. Measured on the real library:
+a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
 
 An Ask outlasts its connection (`outlast` in `ai/progress.ts`, `askKept.ts` on the device). A
 phone sent to the background loses the connection though nobody stopped asking, so a closed
@@ -239,8 +260,7 @@ connection no longer stops the model: the work goes on for as long as the device
 the ticket within a minute, and its answer or failure is kept under the ticket. The device
 collects it with `GET /api/ai/ask/progress?answer=1` when its response was lost, or when the
 server has said it is done and the response is late. Stop, new words and a closed box send
-`POST /api/ai/ask/stop`, which stops it at once. Added 2026-10-13: before it, a follow-up
-answered while the phone was away for a moment was lost with the connection.
+`POST /api/ai/ask/stop`, which stops it at once.
 
 ## Playlists from the box
 
@@ -324,7 +344,7 @@ For a question the fixed actions can't put as filters ("which albums do I have o
 rows with ids), `library_counts` (songs per artist, album, tag or year), and `search_catalogue`
 (网易云's search). With Settings' "Search the web" on, the call also asks the endpoint for web
 search (`web_search_options`). The answer is a few sentences and the songs it is about; every
-id is checked to be one of yours. Tried 2026-10-04 with the real model through claude-api: 9 s
+id is checked to be one of yours. Tried 2026-10-04 with the real model through cli-bridge: 9 s
 and 17 s, two to three tool calls each.
 
 ## Getting music (`getMusic`)
@@ -343,10 +363,10 @@ song 网易云 only previews on YouTube instead. No model call beyond the router
 Settings › Smart features › Search the web, off by default (`smartWeb`). On, two things may
 search: `explore` (the call carries `web_search_options`), and the names pass for songs no
 catalogue has, a second model call per 15 songs with web search (at most 150 songs), whose
-names are the model's, unticked, under "Found on the web". The endpoint does the searching:
-claude-api runs Claude Code's WebSearch and WebFetch for that request only (its f51efe0); an
-endpoint without web search ignores the option. Tried 2026-10-04: an explore question took 26
-s and said where its answer came from.
+names are the model's and wait unticked, with a note saying the web was searched. The
+endpoint does the searching: cli-bridge runs Claude Code's WebSearch and WebFetch for that
+request only; an endpoint without web search ignores the option. Tried 2026-10-04: an
+explore question took 26 s and said where its answer came from.
 
 ## Remembered preferences
 
@@ -365,31 +385,28 @@ and the server reads them as one request (`followed` in `ask.ts`: "They first as
 said … Now they say …"), so the router and the action it chooses both see all of it. The new
 answer takes the old one's place, which stays on screen until it lands; what was said is a
 trail above the field, and pressing an earlier step shows its answer again from the cache. A
-song answer keeps Change it, which keeps the songs it already chose. Added 2026-10-04: before
-it, a tags or tidy answer that missed could only be asked again from nothing.
+song answer keeps Change it, which keeps the songs it already chose.
 
 While a follow-up is worked on, the field gives way to the same steps the first question
 shows, ticked as they finish, and the box that asked holds the one Stop: on a first question
 it lets go of it, on a follow-up it goes back to the answer followed, its words in the field
-again. Changed 2026-10-13: the field had its own Stop beside the box's, two at once.
+again.
 
 A tidy answer that changes nothing still answers: the model says which song it took them to
 mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change
-in N songs". Added 2026-10-13: before it, a request about one song the model could not name
-for certain came back as that one line, which read as no answer at all.
+in N songs", so a request about one song the model could not name for certain does not
+read as no answer at all.
 
 ## L2 · New playlist, kind first
 
 New playlist (`NewPlaylist.tsx`) offers three kinds before anything is typed: **Pick
 songs**, **Fills from tags**, and **Describe it** when Ask is on. Describe it takes what you
 want to hear, then a name that starts as those words, then runs Describe and shows its picks
-(`SongsAnswer`, with the name). The other two are ordinary playlists (docs/features/lists.md,
-"New playlist").
+(`SongsAnswer`, with the name). The other two are ordinary playlists
+([lists.md](lists.md), "New playlist").
 
-It replaced N1 (Oct 3), one field whose words were a tag, a name or a description by what
-they matched, on 2026-10-08: ↵ sent a plain name to Ask, and an empty playlist was the last
-and smallest choice. Following an artist is still not offered: a playlist follows tags only
-(`follows.model.ts`), and "calm songs by Yorushika" is a description.
+Following an artist is not offered: a playlist follows tags only (`follows.model.ts`), and
+"calm songs by Yorushika" is a description.
 
 ## A1c · Describe a playlist
 
@@ -483,8 +500,8 @@ Without a model, the untagged songs still get what the library says, with a note
 
 ## A4 · Tidy up (names)
 
-Asked for in the Search box ("any songs with wrong metadata?"; the router's `tidy` action) —
-Library has no button for it since 2026-10-04. The song names that look wrong, each as a change to approve: a field, what
+Asked for in the Search box ("any songs with wrong metadata?"; the router's `tidy` action);
+Library has no button of its own for it. The song names that look wrong, each as a change to approve: a field, what
 it is struck through, what it would be, and how many songs. Nothing writes until Apply,
 which is one ordinary edit per song (`POST /api/songs/bulk/edit`, on the server and on a
 cloud replica alike), so it syncs and undoes like an edit made by hand.
@@ -518,8 +535,7 @@ the request itself, 60 songs a call (title, artist, album, album artist; an albu
 side by side so one call names the whole album), four calls at once, up to 2,000 songs. Each
 edit must name a song in its batch, once per field, with a value a song may have; they group
 like the checkup's, all the model's, so none starts ticked. A batch that fails is left out and
-the note says how many songs; when every batch fails, the answer is the model's failure. Before
-2026-10-04 any names request ran the checkup, and the request itself was never read.
+the note says how many songs; when every batch fails, the answer is the model's failure.
 
 **Which songs, and how many.** A number they give ("先换 300 首") is the filters' `size`, the same
 "how many" every action reads (up to 2,000; a playlist's pick still stops at 200). Which of the
@@ -527,8 +543,7 @@ chosen songs still need the change ("the ones in English now") is no filter: whe
 more than that number, or more than one batch are about to be looked up, a fast model call per
 200 songs reads their names with the request and keeps the ones the change is still to be made
 on, keeping a song whenever it can't tell (and a whole batch it can't answer). The number is
-counted from those, in album order, and the note says how many are left for asking again. Before
-this the number was dropped and all 1,120 Genshin songs were looked up for "up to 300".
+counted from those, in album order, and the note says how many are left for asking again.
 
 **Names from the catalogues.** The router's `lookUp` says when the new names must come from
 outside the library ("official Chinese names", an album's real name). Then each song is looked
@@ -562,8 +577,9 @@ translated with `useSmartServer().onServer`), and the router is shown it as a ta
 under "Now playing", so "this" has an artist, tags, energy and tempo. Its `next` flag leads
 the answer as **Up next**: Describe's pipeline as usual, with the playing song described to
 the pick too, the playing song left out of the picks, and ten songs unless a number is said.
-**Add to Up next** puts them right after the playing song (`playNext`), so nothing that is
-playing stops. Without a song playing, `next` falls back to the usual playlist answer.
+The card's button is **Play next**, which puts them right after the playing song
+(`playNext`), so nothing that is playing stops; Add to Up next, everywhere else, adds at the
+end. Without a song playing, `next` falls back to the usual playlist answer.
 
 Measured on the real library: about 10 s, "calmer" read as an energy range under the
 playing song's.
@@ -609,7 +625,8 @@ rest is yours to say.
 
 ## A5 · The Report in words
 
-`Stats › Report`, under the page: "✦ In words", three to five sentences about the period,
+The Report (`/stats/report`, opened from Stats or Profile), under the page: "✦ In words",
+three to five sentences about the period,
 with **Write it again**. The server writes the Report's numbers as plain facts (hours
 beside minutes, the hour as "3 pm", the weekday by name, so the model never has to work
 anything out) and the model writes from those alone (`GET /api/ai/written`). With the server
@@ -645,10 +662,11 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: a switch per feature
 
-Five switches, shared across devices with the other server settings (`smartAsk`,
-`smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, all on by default): Ask in
-Search (which also covers New playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's
-tag changes), the Report in words and Fix song info's Suggested card. Each
+Five switches, kept with the other settings (`smartAsk`, `smartTidy`, `smartTags`,
+`smartWritten`, `smartMetadata`, all on by default): Ask in Search (which also covers New
+playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes),
+the Report in words and Fix song info's Suggested card. A sixth, Search the web
+(`smartWeb`), is off by default, and the remembered preferences are listed under them. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Off, the way in is not
 drawn (`useSmartSwitches`) and the server refuses the route with 403 `ai_disabled` before any

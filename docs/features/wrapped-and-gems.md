@@ -1,26 +1,38 @@
 # The Report, anytime — and forgotten gems
 
-Two ways of looking back at your own listening, both built entirely from the `play_events`
-table that the app has been filling since day one. No new data is collected and no
-migration is needed.
+Two ways of looking back at your own listening, built from what the library already records:
+every play, and each song's play count, last play and love.
 
-That table lives on the server, and only there — a bucket snapshot says a song has been
-played 41 times, never *when*, so there is no history in the cloud to work a streak or a
-chart out of. A device signed in to the cloud therefore reaches its server by the addresses
-in the last snapshot and asks it directly; the songs its answers name are lined up with
-this device's by the uid both know them by, so a cover still draws and a line still plays.
-With no server in reach the page is still drawn, tabs and all, and says why it is empty.
-See docs/SYNC.md, "Reaching the server for what only it can do".
+**Where the plays come from.** A play is written on the device that heard it, goes up to the
+bucket in that device's log, and is folded into the server's `play_events` table; the server
+keeps the history in the bucket too, a file a month (`lyrics/<sha256>.plays`, docs/SYNC.md,
+"Plays"), so a server starting over has every play back. A snapshot only says how often a
+song was played, never *when*, so the Report needs the server: a device reaches it by the
+addresses in the last snapshot and asks it directly, and the songs its answers name are lined
+up with this device's by the uid both know them by, so a cover still draws and a line still
+plays. With no server in reach the page is still drawn and says why it is empty. See
+docs/SYNC.md, "Reaching the server for what only it can do".
+
+Forgotten gems need no server: they are worked out on the device from its own copy of the
+library.
 
 ---
 
 ## The Report
 
-`/stats/report`: the Stats page, opened on its **Report** tab.
+`/stats/report`, a page of its own. It is reached from the Report button in Stats' header on a
+computer (the page's last row on a phone), from **Report** on the You page, and from Home's
+*This week* card once a week is ready to look back on.
 
 The yearly version of this is a marketing exercise that arrives once, in December. The
 useful version is being able to ask *"what did last week sound like"* on a Tuesday, so the
-range is a control: **Week / Month / Year / All time**.
+range is a control, shared with Stats: **Week / Month / 3 months / Year / All time** (the
+last 7, 30, 90 and 365 days, or everything).
+
+The period is drawn as one picture in a **look** of your choosing — Paper, Receipt, Wall,
+Calendar or Words, and on a computer a newspaper Front page, which it opens on (a phone opens
+on Paper). Every look is drawn from the same numbers (`apps/app/src/features/wrapped/looks.model.ts`,
+`looks/`).
 
 ### What it shows
 
@@ -84,10 +96,12 @@ around it.
 ### API
 
 ```
-GET /api/stats/wrapped?range=week|month|year|all      → Wrapped     (default: month)
+GET /api/stats/wrapped?range=week|month|quarter|year|all   → Wrapped     (default: month)
 ```
 
-Schema: `WrappedSchema` in `packages/shared/src/schemas/wrapped.ts`. All the SQL is in
+Asked of the server, through the reached address on a cloud library
+(`apps/app/src/features/stats/statsSource.ts`). Schema: `WrappedSchema` in
+`packages/shared/src/schemas/wrapped.ts`. All the SQL is in
 `apps/server/src/repositories/wrapped.ts`; only the streak and the personality line are
 worked out in JavaScript, from a handful of rows.
 
@@ -100,11 +114,11 @@ in a long while.
 
 Where you'll see it:
 
-- a **Forgotten gems** row at the top of the Library, with *Play all* and *Add to queue*.
-  It collapses, and it only appears on the unfiltered library: inside a search result it
-  would be about the search, not about what you have forgotten;
-- a built-in card among your **Playlists**. It is not a row in the database, so there is
-  nothing to delete or rename. Clicking it starts the list — there is no detail page,
+- a **Forgotten gems** row at the top of the Library, with *Play all* and *Add to Up next*.
+  It collapses, and it is left out while the library is narrowed to tags: there it would be
+  about the tags, not about what you have forgotten;
+- a built-in tile among your **Playlists**. It is not a playlist in the library, so there is
+  nothing to delete or rename. Pressing it starts the list — there is no detail page,
   because the list is different every time it is asked for and a page claiming to show
   *the* forgotten gems would be lying about being stable.
 
@@ -113,9 +127,8 @@ Where you'll see it:
 A song is a gem when all of these hold:
 
 - it is **loved**, or has **≥ 5 plays**;
-- its file is **present** (a song on an unplugged drive is not forgotten, it is unreachable);
-- it has not been played for at least the **threshold** — counted from `last_played_at`, or
-  from `added_at` for a loved song that has never been played at all.
+- it has not been played for at least the **threshold** — counted from when it was last played, or
+  from when it was added for a loved song that has never been played at all.
 
 **The threshold scales with the library's age**: one fifth of the age of the oldest song,
 clamped to 14–60 days. A fixed sixty days would leave a six-week-old library with nothing
@@ -123,7 +136,7 @@ to show; a two-week-old library cannot have forgotten anything yet.
 
 ### Ranking, and why it moves
 
-Songs are ranked by `play_count × days since last played`, multiplied by a random factor
+Songs are ranked by `plays × days since last played`, multiplied by a random factor
 between 0.75 and 1.25.
 
 The random nudge is the point. A stable ranking would put the same five songs at the top
@@ -131,7 +144,7 @@ forever and become a reproach you learn to ignore; a list that rotates is a disc
 nudge is small enough that a song you played thirty times two years ago still outranks one
 you played five times last quarter — it shuffles neighbours, it does not invert the order.
 
-Because the server re-ranks on every request, the client caches the response with
+Because the ranking is drawn again on every request, the client caches the response with
 `staleTime: Infinity`: a background refetch would silently rearrange the row under your
 finger. It reloads when you open the page again, which is the only moment a different set
 is welcome.
@@ -142,7 +155,9 @@ is welcome.
 GET /api/library/gems?limit=1..100                    → ForgottenGems   (default: 20)
 ```
 
-Returns full `Song` objects — the same shape the library uses, so the row can hand them
-straight to the player — plus `minDays` (the threshold actually applied) and `total` (how
-many qualified before the limit). Schema: `ForgottenGemsSchema` in
-`packages/shared/src/schemas/gems.ts`; SQL in `apps/server/src/repositories/gems.ts`.
+Answered by this device's own copy of the library (`packages/replica/src/routes.ts`), and by
+the server's `routes/gems.ts` for a development build pointed at a server; both run the one
+rule, `forgottenGems` in `packages/shared/src/gems.ts`. Returns full `Song` objects — the same
+shape the library uses, so the row can hand them straight to the player — plus `minDays` (the
+threshold actually applied) and `total` (how many qualified before the limit). Schema:
+`ForgottenGemsSchema` in `packages/shared/src/schemas/gems.ts`.

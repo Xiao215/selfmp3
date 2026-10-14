@@ -68,11 +68,16 @@ async function link(response: Response): Promise<ShareLink> {
   return ShareLinkSchema.parse(await response.json())
 }
 
-async function make(s: Setup, songs = [song(1)]): Promise<ShareLink> {
+async function make(
+  s: Setup,
+  songs = [song(1)],
+  name = songs[0]?.title ?? '',
+  kind: 'song' | 'list' = 'song',
+): Promise<ShareLink> {
   return link(
     await s.h.call('/v1/share', {
       token: s.me,
-      json: { name: songs[0]?.title ?? '', kind: 'song', you: 'Xiao', songs },
+      json: { name, kind, you: 'Xiao', songs },
     }),
   )
 }
@@ -134,6 +139,45 @@ describe('a share link', () => {
       await (await s.h.call('/v1/share/received', { token: s.mia })).json(),
     )
     expect(received.map(item => [item.id, item.yours, item.plays])).toEqual([[made.id, false, 0]])
+  })
+
+  it('is the same link when the same songs are shared again under the same name', async () => {
+    const s = await setup()
+    const made = await make(s, [song(1), song(2)], 'Chill', 'list')
+    await open(s, made, s.mia)
+    // In any order, and with nothing counted as an opening.
+    const again = await make(s, [song(2), song(1)], 'Chill', 'list')
+    expect([again.id, again.key]).toEqual([made.id, made.key])
+    expect(again.opened).toEqual(['Mia'])
+    const sent = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share', { token: s.me })).json(),
+    )
+    expect(sent.map(item => item.id)).toEqual([made.id])
+
+    // Other songs, or another name, are another link.
+    expect((await make(s, [song(1)], 'Chill', 'list')).id).not.toBe(made.id)
+    expect((await make(s, [song(1), song(2)], 'Mix', 'list')).id).not.toBe(made.id)
+  })
+
+  it('shares the same link again once it ran out, but not once its sender ended it', async () => {
+    const s = await setup()
+    const made = await make(s)
+    s.h.clock.now += SHARE_IDLE_MS
+    expect((await file(s, made, 'audio')).status).toBe(410)
+    const renewed = await make(s)
+    expect(renewed.id).toBe(made.id)
+    expect(renewed.ended).toBeNull()
+    expect(renewed.limitAt).toBe(s.h.clock.now + SHARE_LIMIT_MS)
+    expect((await file(s, made, 'audio')).status).toBe(200)
+
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'end' } })
+    const fresh = await make(s)
+    expect(fresh.id).not.toBe(made.id)
+    expect((await file(s, made, 'audio')).status).toBe(410)
+    // The new one is the one given back from now on; one forgotten is not.
+    expect((await make(s)).id).toBe(fresh.id)
+    await s.h.call(`/v1/share/${fresh.id}/act`, { token: s.me, json: { type: 'forget' } })
+    expect((await make(s)).id).not.toBe(fresh.id)
   })
 
   it('lasts a week from the last play, and a month at most', async () => {

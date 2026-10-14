@@ -1,11 +1,12 @@
-# self.mp3 on an always-on box.
+# The self.mp3 server on an always-on computer (docs/INSTALL.md, "With Docker").
 #
 #   docker compose up -d
 #   docker compose logs -f
 #   docker compose pull && docker compose up -d           # update
 #
-# library/ and data/ next to this file are bind-mounted in, so a backup is
-# still "copy those two folders" — see docs/INSTALL.md.
+# library/ and data/ next to this file are bind-mounted in, and a `.env` beside
+# it, if there is one, is handed to the server (copy .env.example). Needs
+# Docker Compose 2.24 or newer, for the optional env file.
 
 name: selfmp3
 
@@ -17,18 +18,26 @@ services:
     build: .
     container_name: selfmp3
     restart: unless-stopped
-    # The image runs as uid 1000. If your host account is a different uid, either
-    # `sudo chown -R 1000:1000 library data` once, or uncomment this line.
-    # user: '1000:1000'
-    ports:
-      # Bind to localhost only when Tailscale (or a reverse proxy) sits in
-      # front; drop the 127.0.0.1: prefix to expose it on every interface.
-      - '127.0.0.1:4600:4600'
+    # The host's own network rather than a published port. The server then sees
+    # the computer's home and Tailscale addresses and publishes them for devices
+    # to find it by; it can reach a helper on the host at 127.0.0.1 (the model
+    # behind Smart features); and a firewall such as ufw still decides who gets
+    # to port 4600, which a port Docker publishes would bypass. Docker Desktop
+    # (Mac, Windows) has host networking off unless turned on in its settings;
+    # there, replace this line with `ports: ['127.0.0.1:4600:4600']`.
+    network_mode: host
+    # The uid that owns library/ and data/ on the host. The image's own user is
+    # 1000; a host account with another uid either puts its own here or runs
+    # `sudo chown -R 1000:1000 library data` once.
+    user: '1000:1000'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # The log's clock, and the days the server counts by. Set TZ in .env
+      # (America/Toronto, Europe/London…); UTC otherwise.
+      TZ: ${TZ:-Etc/UTC}
     volumes:
       - ./library:/app/library
       - ./data:/app/data
-    environment:
-      SELFMP3_LOG_LEVEL: info
-      # SELFMP3_AUTH_TOKEN: change-me-to-something-long
-      # SELFMP3_SCAN_ON_BOOT: 'true'
     # yt-dlp and ffmpeg are inside the image; nothing else to install.

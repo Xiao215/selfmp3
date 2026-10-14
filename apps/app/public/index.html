@@ -13,6 +13,23 @@
       itself is public/privacy.html, served beside this page.
     -->
     <link rel="privacy-policy" href="privacy.html" />
+    <!--
+      What a chat app draws when someone pastes the app's address: a card with
+      the name, the line from manifest.webmanifest and the icon. The picture's
+      address has to be whole, so it names the Pages site, as DEFAULT_APP_URL in
+      packages/shared/src/cloud.ts does. A share link's own card comes from the
+      doorman (apps/doorman/src/linkPage.ts): Pages answers a link's address
+      with a 404, which a chat app does not read.
+    -->
+    <meta name="description" content="Your own music library. Private, offline, yours." />
+    <meta name="theme-color" content="#0c0b10" />
+    <meta property="og:site_name" content="self.mp3" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="self.mp3" />
+    <meta property="og:description" content="Your own music library. Private, offline, yours." />
+    <meta property="og:image" content="https://xiao215.github.io/selfmp3/icons/icon-512.png" />
+    <meta property="og:image:alt" content="self.mp3" />
+    <meta name="twitter:card" content="summary" />
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
       /* These styles make the body full-height */

@@ -1,12 +1,7 @@
-# Phase 2 gate: the phone app's current feature set, after the move to apps/app.
+# The phone app's everyday feature set.
 #
 # Run as:
 #   maestro test .maestro/smoke.yaml   # play, next, mini player, sort, tag filter, menu, download
-#
-# SKELETON. The steps below are the flow the gate asks for, written against the
-# screens phase 2 produces. They will fail until those screens exist with these
-# testIDs — which is the point: the flow is written before the screens, so the
-# screens are built to be testable rather than retro-fitted.
 #
 # Needs a configured server or a signed-in session; unlike the spike flows this
 # one goes through the real app.
@@ -14,7 +9,7 @@ appId: com.selfmp3.app
 ---
 - launchApp
 
-# The app opens on Home (docs/UI-MIGRATION.md, Phase 2); Library is a tab.
+# The app opens on Home; Library is a tab.
 - extendedWaitUntil:
     visible:
       id: 'home-screen'

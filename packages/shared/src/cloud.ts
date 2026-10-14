@@ -345,8 +345,9 @@ export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
  * The server's own address is not it: the server serves its own page there
  * (`apps/server/src/http/admin.ts`), so the two are different places. A fork
  * publishes its own Pages site and changes this one line, as with the doorman
- * above. `apps/server/public/admin.html` links to the same address, and is the
- * one copy that cannot import this: it is a plain file with no build step.
+ * above. `apps/server/public/admin.html` links to the same address, and
+ * `apps/app/public/index.html` names it for its link card: plain files that
+ * cannot import this.
  */
 export const DEFAULT_APP_URL = 'https://xiao215.github.io/selfmp3'
 

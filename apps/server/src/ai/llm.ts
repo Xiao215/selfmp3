@@ -8,8 +8,8 @@ import { sha256 } from '../util/hash.js'
  * The one door to a language model (docs/features/ai.md).
  *
  * Any endpoint that speaks OpenAI's chat completions with
- * `response_format: json_schema` will do: the claude-api service on this Mac,
- * Anthropic's or OpenAI's own, Ollama. One `fetch`, no SDK, so changing
+ * `response_format: json_schema` will do: cli-bridge running beside the
+ * server, Anthropic's or OpenAI's own, Ollama. One `fetch`, no SDK, so changing
  * provider is a base URL and two model names.
  *
  * A task never names a model. It asks for a tier, `fast` for planning and small

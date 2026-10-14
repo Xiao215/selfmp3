@@ -288,7 +288,7 @@ function SharedInvite({
         label="Share invite"
         variant="primary"
         onPress={() =>
-          void shareLink(`Add your songs to “${name}”:`, link).then(how => {
+          void shareLink(`Add your songs to “${name}”`, link).then(how => {
             if (how === 'copied') showToast('Invite link copied', 'good')
           })
         }

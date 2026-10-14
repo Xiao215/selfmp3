@@ -74,7 +74,6 @@ cat > "$PLIST" <<PLIST_EOF
         <string>127.0.0.1</string>
         <key>SELFMP3_PORT</key>
         <string>$PORT</string>
-        <!-- Add SELFMP3_AUTH_TOKEN here if you want a shared secret. -->
     </dict>
 
     <key>RunAtLoad</key>
@@ -122,4 +121,4 @@ echo
 echo "  tailscale serve --bg $PORT"
 echo
 echo "That also gives you real HTTPS, which iOS requires for offline downloads."
-echo "See docs/SETUP.md for the full walkthrough."
+echo "See docs/INSTALL.md for the full walkthrough."

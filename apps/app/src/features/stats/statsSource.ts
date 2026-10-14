@@ -21,8 +21,9 @@ import { noServer, viaKey } from '../../connection/via'
  * reach — that server directly.
  *
  * Stats are the server's and can be nobody else's. Every number here is worked
- * out from `play_events`, which the server keeps and the bucket does not carry:
- * a snapshot says a song has been played 41 times, never when. So a cloud
+ * out from `play_events`, which the server keeps. The bucket holds plays only as
+ * monthly archives the server reads back, and a snapshot says a song has been
+ * played 41 times, never when. So a cloud
  * library asks the server itself (`useServerDirect`), the same way Import does.
  *
  * The answers then name songs by the server's ids, which mean nothing here, so

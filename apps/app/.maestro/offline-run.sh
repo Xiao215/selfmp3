@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Run offline.yaml with the Mac's server frozen, and always thaw it after.
+# Run offline.yaml with the development server frozen, and always thaw it after.
 #
 #   .maestro/offline-run.sh [maestro options, e.g. --device <udid>]
 #
 # SIGSTOP rather than stopping the server: nothing has to be restarted with
 # the right environment afterwards, and a server that accepts a connection and
-# never answers is exactly what a sleeping Mac looks like from a phone.
+# never answers is exactly what a sleeping server looks like from a phone.
 set -euo pipefail
 
 port="${SELFMP3_PORT:-4600}"

@@ -72,8 +72,8 @@ From its last day, the page says **Ends tonight** or **Ends tomorrow**, in amber
 it** becomes the main button. There is no notification.
 
 **Get it** is a room's Get it (`features/room/useGetSongs.ts`). Your own server imports the
-song from its source link into your bucket. It needs you signed in and your library's
-computer reachable. A song with no source link, such as a file you dropped in, has no Get
+song from its source link into your bucket. It needs you signed in and your server
+reachable. A song with no source link, such as a file you dropped in, has no Get
 it.
 
 ## After it ends (E1)
@@ -163,15 +163,15 @@ POST /v1/share                       ShareCreate → ShareLink       signed in, 
 GET  /v1/share                                   → ShareSummary[] the links you sent
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
-GET  /v1/share/<id>/files/<entry>/<part>?k=<key> audio | cover | lyrics | romanized
+GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics | romanized
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
 ```
 
 **Deploying.** The `SHARES` binding and the `v4` migration are in
 `apps/doorman/wrangler.toml`. Deploy the doorman by hand (`cd apps/doorman && npx wrangler
-deploy`) before the app. Until then, the app's Share link says the doorman keeps no share
-links, and Home and Settings show nothing of them.
+deploy`) before the app: a doorman without the binding answers that it keeps no share links,
+and Home and Settings then show nothing of them.
 
 ## Where the code lives
 

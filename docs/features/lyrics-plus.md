@@ -1,19 +1,19 @@
 # Lyrics+
 
-Romanization and search inside lyrics. Both build on the lyrics the app
-already resolves (sidecar → embedded tag → YouTube Music → lrclib), and every
-derived form comes back **aligned 1:1** with the original lines —
-same order, same count, same timestamps — so the lyrics view just renders
-"line N, then its extras". The lyrics themselves are shown on the song's page; see
-[now-playing.md](now-playing.md).
+Romanization and search inside lyrics. Both build on the lyrics the server already
+resolves (`apps/server/src/services/lyrics.ts`: a sidecar file → a tag embedded in the
+audio → the bucket's copy of the words → the network, where the place the song was
+downloaded from comes first — YouTube Music's timed lyrics or 网易云's — then lrclib), and
+every derived form comes back **aligned 1:1** with the original lines — same order, same
+count, same timestamps — so the lyrics view just renders "line N, then its extras". The
+lyrics themselves are shown on Now Playing; see [now-playing.md](now-playing.md).
 
 ## Romanization (offline)
 
-Open the song's page (the mic button, or the artwork in the player bar) and press
-**Romaji** / **Pinyin** — on a phone, the **Aa** button over the lyrics.
-Chinese lines get pinyin with tone marks under them; Japanese lines get Hepburn
-romaji. It is generated on the server with pure-JS libraries — nothing leaves
-your library:
+On Now Playing, the **Romaji** / **Pinyin** pill beside the words (on a phone and a
+computer alike, `LyricsTools.tsx`) draws the romanization under each line. Chinese lines
+get pinyin with tone marks; Japanese lines get Hepburn romaji. It is generated on the
+server with pure-JS libraries — nothing leaves your library:
 
 - Chinese → [`pinyin-pro`](https://www.npmjs.com/package/pinyin-pro)
 - Japanese → [`kuroshiro`](https://www.npmjs.com/package/kuroshiro) +
@@ -26,72 +26,79 @@ included — goes through kuroshiro; Han with no kana is Chinese and goes throug
 pinyin. Latin-only lines are left alone. Detection is in
 `packages/shared/src/script.ts`.
 
-Pinyin and romaji are two switches, each a preference of the device rather than
-a synced setting (`apps/app/src/features/nowPlaying/romanizationPref.ts`), in
-Settings → Lyrics; the button over the lyrics flips the one for the song's language. Results are cached on disk at
-`data/lyrics/<songId>/romanized.<hash>.json`, keyed by a hash of the lyrics
-text — edit the `.lrc` and the cache misses automatically. Like cover art, the
-folder is disposable.
+Romaji is part of the lyrics (`services/romanizedLines.ts`): it is worked out when the
+words are first seen — an import, a fetch, a hand edit, and a pass over the whole library
+after start — and kept in the server's cache at `lyrics/<songId>/romanized.<hash>.json`
+under the library's data folder, keyed by a hash of the lyric text, so an edited lyric
+gets fresh romaji and an unchanged one is never romanized twice. The cloud pass uploads
+the lines beside the words in the bucket and names them in the snapshot
+(`lyrics.romanized`), so a device reading the bucket has them without asking the server.
+A server answers them inside the lyrics response itself, as its `romanized` field
+(`GET /api/songs/:id/lyrics`); there is no separate route.
 
-The romanized lines travel inside the lyrics answer itself, as its `romanized`
-field (`GET /api/songs/:id/lyrics`); there is no separate route for them.
+Whether they are shown is two switches, **Show pinyin** and **Show romaji** under
+Settings → Lyrics, each a preference of the device rather than a synced setting
+(`apps/app/src/features/nowPlaying/romanizationPref.ts`); the pill flips the one for the
+song's language.
 
 ## Search by lyric
 
-Type at least three characters (two if they are Chinese or Japanese) into the
-search box — **Search** at the top of the sidebar, or `⌘K` in the desktop app,
-whose menu has a key for it — and a **Lyrics** group appears with the best
-matching line per song, the match highlighted. Enter plays the song.
+Type at least three characters (two if they are Chinese or Japanese) into Search — the
+Search page, or the command palette (the sidebar's Search row; ⌘K in the installed app)
+— and a **Lyrics** section appears with the best matching line per song, the match
+highlighted. Choosing a hit plays the song (`useLibrarySearch.ts`).
 
 ```
-GET /api/lyrics/search?q=夜空&limit=12
+GET /api/lyrics/search?q=夜空&limit=20
 → { hits: [{ songId, title, artist, hasArt, line, before, match, after }] }
 ```
+
+The index is the server's, so only a device talking to a server directly asks it. A
+device answering from the bucket — every signed-in device — has no words to search, and
+the section stays empty there.
 
 Backed by an FTS5 table `lyrics_fts` (one row per line). Because SQLite's
 unicode61 tokenizer treats a run of CJK characters as one token, the indexed
 column stores the line with every CJK character space-separated, and a query is
 turned into a phrase of single characters — so `夜空` matches anywhere inside a
 line. Latin words get the usual prefix match. Songs are indexed whenever their
-lyrics are resolved, refreshed or saved, and a backfill runs after the boot scan
-(and after any manual rescan) for songs the scanner knows have lyrics but that
-have not been opened yet. `lyrics_index` remembers the hash each song was
-indexed from so re-indexing an unchanged song is one row lookup.
+lyrics are resolved, refreshed or saved, and a backfill runs after start (and after
+any manual rescan) for songs whose lyrics have not been indexed yet. `lyrics_index`
+remembers the hash each song was indexed from, so re-indexing an unchanged song is one
+row lookup.
 
 ## Songs with no words
 
 lrclib answers `instrumental: true` for tracks with no words. The server
 remembers that on the song as `Song.instrumental` (the `songs.instrumental`
-column), so the app can say the song has no words rather than "no lyrics
-found" — and show it a visual instead of an empty page, see
-[now-playing.md](now-playing.md#songs-with-no-words) — and the song is not
-looked up again every time it plays. It is a flag of its own
-rather than a `lyricsKind` value: `lyricsKind: 'none'` only means nothing was
-found, the scanner rewrites `lyrics_kind` from the files on every rescan, and
-live playlists read `lyrics_kind != 'none'` as "has lyrics".
+column), so the app can say the song has no lyrics rather than look again every time
+it plays (and a computer shows a visual in their place, see
+[now-playing.md](now-playing.md)). It is a flag of its own rather than a `lyricsKind`
+value: `lyricsKind: 'none'` only means nothing was found, the sweep rewrites
+`lyrics_kind` from the files, and live playlists read `lyrics_kind != 'none'` as
+"has lyrics".
 
 ```
 GET /api/songs/:id/lyrics
-404 instrumental   no local lyrics, and the song is flagged or lrclib just said so
+404 instrumental   no lyrics of its own, and the song is flagged or lrclib just said so
 ```
 
-- Local lyrics (a sidecar or an embedded tag) always win and are returned as
-  usual; the flag is left alone.
-- A flagged song with no local lyrics answers `404 instrumental` without
-  touching the network. When lrclib is the one saying so, the flag is set first.
+- Lyrics of its own (a sidecar, an embedded tag, the bucket's copy) always win and are
+  returned as usual; the flag is left alone.
+- A flagged song with none answers `404 instrumental` without touching the network.
+  When lrclib is the one saying so, the flag is set first.
 - Only lrclib's exact match is believed about a track having no words. The
   fuzzy search fallback readily returns the karaoke version of a song with
   words, and a wrong flag would stop the song from ever being looked up again.
-- Imports with lyric fetching on set the flag when lrclib says so.
-- `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by
-  hand.
+- **Find lyrics** beside the words asks again and clears the flag.
+- `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by hand.
 
 ## Files
 
 | Area | Where |
 |---|---|
-| Contract | `packages/shared/src/schemas/lyrics.ts`, settings keys in `schemas/settings.ts` |
+| Contract | `packages/shared/src/schemas/lyrics.ts` |
 | Script detection, LRC writer | `packages/shared/src/script.ts`, `lrcBuild.ts` (+ tests; used for YouTube Music's lyrics) |
 | Migration | `apps/server/src/db/migrate.ts` — v2: `lyrics_fts`, `lyrics_index` (its `secrets` table belonged to a since-removed translation feature and is unused); later `songs.instrumental` |
-| Server | `services/lyrics.ts` (lrclib, instrumental), `romanization.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
-| App | `apps/app/src/features/nowPlaying/` (see [now-playing.md](now-playing.md)), `romanizationPref.ts` there; Lyrics group in `apps/app/src/features/commandPalette/CommandPalette.tsx` |
+| Server | `services/lyrics.ts` (sources, instrumental), `romanization.ts`, `romanizedLines.ts`, `lyricsCache.ts`, `lyricsIndex.ts`; `repositories/lyricsSearch.ts`; `routes/lyrics.ts`, `routes/songs.ts` |
+| App | `apps/app/src/features/nowPlaying/` (`LyricsTools.tsx`, `romanizationPref.ts`, `useSongWords.ts`); `features/search/useLibrarySearch.ts`, `SearchScreen.tsx`, `features/commandPalette/CommandPalette.tsx` |

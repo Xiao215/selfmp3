@@ -32,17 +32,25 @@ First launch signs in with Google through your ordinary browser and comes back
 to the app by `selfmp3://` — the same doorman flow every device uses, so the
 library and its files arrive with the sign-in and nothing else is asked for.
 
-**That is the only way in.** This was the last surface that could be pointed at
-a server by typing its address, and it no longer can (2026-09-16): Settings ›
-Connection shows who you are signed in as and how to sign out, and there is no
-server switch, no address field and no confirmation about clearing downloads
-before one. The library is the bucket's on a computer for the same reason it is
-on a phone, and importing still reaches the server directly when it can — by the
-addresses in the bucket's own snapshot, never by anything typed
-(`packages/client/src/connection/reach.ts`).
+**That is the only way in.** There is no address field: Settings › Account
+shows who you are signed in as and how to sign out. The library is the bucket's
+on a computer for the same reason it is on a phone. What needs the server —
+importing, Stats, metadata lookup, the smart features — reaches it directly by
+the addresses in the bucket's own snapshot, or the shared server when the bucket
+names none, never by anything typed (`packages/client/src/connection/reach.ts`,
+[shared-server.md](shared-server.md)).
 
 Every connection on a computer counts as Wi-Fi, so the 500 MB ask and the two
 offline settings behave as they do on a phone at home.
+
+**A song must be on the computer before it plays.** A tab streams a bucket song
+through its service worker and a phone through its player, both of which can
+send the doorman's bearer header; the window's `<audio>` element cannot, and the
+shell registers no service worker. So a song that is not downloaded asks to be
+downloaded first (`playBlock('cloud')` in `packages/client/src/downloads/syncPolicy.ts`).
+Since the app downloads by default this is rarely met. A range proxy in the main
+process that adds the header is the fix, listed in
+[`docs/FEATURE_TODO.md`](../FEATURE_TODO.md).
 
 ## What it is not
 
@@ -50,8 +58,8 @@ offline settings behave as they do on a phone at home.
   Desktop-only code lives in `apps/app/src/ports/`, chosen at runtime by the
   presence of the bridge — never a second Metro platform or a build switch.
 - **Not the server.** It does not hold the library, run yt-dlp or open the
-  SQLite file. The server keeps running where it runs. Embedding it is written
-  up in `docs/FEATURE_TODO.md`, with the reason it waits.
+  SQLite file. The server runs on an always-on computer
+  ([INSTALL.md](../INSTALL.md)); the Mac app is one more client of it.
 - **Not a Mac App Store app**, and not Windows or Linux yet: their targets are
   in the packaging config and are not built.
 
@@ -84,27 +92,27 @@ one rendering engine on every OS, and the desktop layout has only ever been
 checked in Chromium; TypeScript end to end; the four things the shell needs are
 first-party (`protocol.handle` for files with `Range`, `safeStorage` for the
 keychain, `navigator.mediaSession` for Now Playing and the media keys,
-`setAsDefaultProtocolClient` for the `selfmp3://` return); and it can host a
-Node process later if the server is ever embedded. The packages and their pinned
-versions are in the Stack table of [ARCHITECTURE.md](../ARCHITECTURE.md).
+`setAsDefaultProtocolClient` for the `selfmp3://` return); and it can run a
+Node child process if one is ever wanted. The packages and their pinned versions
+are in the Stack table of [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-sources are in the progress file's Desktop section once phase 0 writes it):
+What was checked before choosing it:
 
 - Official Electron builds decode AAC and MP3 (`proprietary_codecs`,
   `ffmpeg_branding = "Chrome"`), and the default `autoplayPolicy` needs no
   gesture, so the engine's `play()` and `AudioContext.resume()` work cold.
 - A privileged custom scheme (`standard`, `secure`, `supportFetchAPI`,
   `allowServiceWorkers`, `stream`) registers service workers and keeps a stable
-  origin for IndexedDB; `file://` does neither. `protocol.handle` hands over the
-  request's `Range:` header but `net.fetch('file://…')` ignores it and answers
-  200 with the whole body, so the 206 has to be built by hand — which is why
-  the server's range rule moves to `packages/shared`.
-- `safeStorage` is the keychain-backed store; `utilityProcess` is the sanctioned
-  way to run Node in a child if the server is ever embedded; better-sqlite3 13
-  and sharp 0.35 are Node-API with prebuilds, so that later phase needs no
-  rebuild step either.
+  origin for IndexedDB; `file://` does neither. (The shell in the end registers
+  `app://` with `allowServiceWorkers: false`: songs and covers are files there.)
+  `protocol.handle` hands over the request's `Range:` header but
+  `net.fetch('file://…')` ignores it and answers 200 with the whole body, so the
+  206 has to be built by hand — which is why the range rule lives in
+  `packages/shared`.
+- `safeStorage` is the keychain-backed store.
 - Tauri 2.11 would put the UI in WKWebView, which refuses service workers on
-  custom schemes (tauri #13031). Tauri 3's Chromium runtime is an alpha as of 2026-09-13. Revisit only if it stabilises.
+  custom schemes (tauri #13031). Tauri 3's Chromium runtime was an alpha as of
+  2026-09-13; revisit only if it stabilises.
 - react-native-macos is at 0.81 against the app's 0.86; Expo has no prebuild
   for it; Unistyles 3 and track-player do not build for it.
 - "Designed for iPad" is Mac App Store or TestFlight only; Catalyst needs the
@@ -116,8 +124,8 @@ sources are in the progress file's Desktop section once phase 0 writes it):
   feature asks a port for the capability, never for the platform; ESLint
   enforces it.
 - The shell has no native modules and no runtime dependencies: esbuild bundles
-  main and preload, `electron` excepted. If a change seems to need a native
-  module, it is the "embedding the server" phase in disguise.
+  main and preload, `electron` excepted. Keep it that way; a native module brings
+  a rebuild step for Electron's Node ABI into every build.
 - Tokens go through `desktop.secrets` (`safeStorage`, encrypted at rest in
   `userData/secrets.json`) and nowhere else.
 - An unsigned build is ad-hoc signed. Downloaded through a browser it carries
@@ -125,9 +133,17 @@ sources are in the progress file's Desktop section once phase 0 writes it):
   Security › Open Anyway, or `xattr -dr com.apple.quarantine`. A build made on
   the Mac it runs on simply opens.
 - The signing tier is decided by the environment, not by a flag: `CSC_LINK` and
-  `CSC_KEY_PASSWORD` make a signed build, their absence an ad-hoc one, and
-  `apps/desktop/scripts/dist.mjs` prints which. It is baked into the bundle as well, because
+  `CSC_KEY_PASSWORD` make a signed build (notarised too with the `APPLE_API_*`
+  variables), `CSC_NAME` naming a certificate in this Mac's keychain a
+  development-signed one, and neither an ad-hoc one; `apps/desktop/scripts/dist.mjs`
+  prints which, and reads `CSC_NAME` from the checkout's `.env`. It is baked into the bundle as well, because
   the updater has to know and a running app cannot ask about its own signature.
+- The media keys and Now Playing in Control Center come from Chromium turning
+  the page's `navigator.mediaSession` into macOS's own; the shell adds only the
+  Dock menu and `powerSaveBlocker` (`apps/desktop/src/main/nowPlaying.ts`).
+- In development, `npm run dev:desktop` loads the window from the web dev server
+  (`SELFMP3_DESKTOP_DEV_URL`) instead of `app://selfmp3/`; it is the same build
+  either way.
 - Five of the Playback menu's accelerators are drawn without being registered
   (Space, ⌘←, ⌘→, ⌥⌘←, ⌥⌘→). A registered Electron accelerator fires inside text
   fields too, so registering Space would take the space bar out of the search

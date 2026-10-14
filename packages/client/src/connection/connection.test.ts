@@ -15,7 +15,7 @@ import { normaliseBaseUrl, serverTransport } from './connection.js'
 describe('normaliseBaseUrl', () => {
   it('takes a bare Tailscale name as https', () => {
     // `tailscale serve --bg 4600` puts the server behind Tailscale's HTTPS on
-    // 443, so this is the address docs/SETUP.md tells someone to use.
+    // 443, so this is the address docs/INSTALL.md tells someone to use.
     expect(normaliseBaseUrl('mac-mini.tail1234.ts.net')).toBe('https://mac-mini.tail1234.ts.net')
   })
 

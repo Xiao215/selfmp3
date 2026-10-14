@@ -21,7 +21,7 @@ export interface ServerConnection {
  *
  * A missing scheme is guessed from whether a port was named, because the two
  * ways of reaching the server differ in exactly that. `tailscale serve --bg 4600`
- * (docs/SETUP.md) puts the server behind Tailscale's own HTTPS on 443, so a
+ * (docs/INSTALL.md) puts the server behind Tailscale's own HTTPS on 443, so a
  * bare hostname is `https://`. A port typed out is someone reaching the server
  * directly, which is plain HTTP. Guessing `http://` for both would make the
  * address the setup guide produces impossible to enter.

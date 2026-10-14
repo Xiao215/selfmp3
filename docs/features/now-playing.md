@@ -8,10 +8,9 @@ lyrics — or, for a song with no words, something to look at instead.
 | From | Does |
 |---|---|
 | The artwork, title and artist in the player bar | Opens **Stage**; again closes it |
-| The mic button in the bar | Opens straight into **Focus**; again closes it |
 | ⤢ on the lyrics' top-right corner, ⤡ in Focus | Switches between the two |
-| The ⌄ in the corner | Steps back one level: Focus → Stage → closed |
-| The ⓘ, or the title | Opens the song's own page, `/song/<id>` |
+| The ⌄ in the corner, or Escape | Steps back one level: Focus → Stage → closed |
+| The title (ⓘ on a phone) | Opens the song's own page, `/song/<id>` |
 
 The page covers the library, not the player bar, so play and pause never move under your
 hand. The view underneath stays mounted — its scroll position, search and filters are
@@ -53,9 +52,6 @@ the same hue as its placeholder cover.
 - Click a line to jump there.
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
   only; see [lyrics-plus.md](lyrics-plus.md)).
-- While the page is closed, the current line of a song with timed lyrics rides under the
-  artist in the player bar. It only uses lyrics the app already has — it never causes a
-  lookup.
 - In the last fifteen seconds of a song, a card says what is next; clicking it skips there.
 
 ## Songs with no words

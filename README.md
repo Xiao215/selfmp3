@@ -6,27 +6,36 @@ A private music library you run yourself. Import songs from a link or drop in fi
 already have, tag them your way, and play them on your computer and your phone, with no
 signal if need be.
 
-![Home in the Mac app: your tags as tiles, this week's listening, and what you played last](docs/screenshots/home.webp)
+![Home in the desktop app: your tags as tiles, this week's listening, and what you played last](docs/screenshots/home.webp)
 
-It is for one person, or a household, who wants their music as files they own rather than
-a catalogue they rent. There is no account to make with anyone, no subscription and no
-telemetry. The music is a folder of audio files and the metadata is one SQLite database
-beside it. Copy those two folders and you have a complete backup.
+It is for one person, or a few friends, who want their music as files they own rather than
+a catalogue they rent. There is no subscription and no telemetry. You sign in with Google,
+and your library — every song, cover, lyric and play — lives in a storage bucket of your
+own. A small server on an always-on computer imports and analyses music into that bucket;
+your devices read it from there, so they keep working, and keep their edits, while the
+server is out of reach.
 
 ```
-your server                     a storage bucket you own          your devices
-┌──────────────────────┐        ┌──────────────────────┐        ┌──────────────────────┐
-│ ~/Music/selfmp3      │        │ Backblaze B2         │        │ browser tab          │
-│ selfmp3.db           │───────►│ audio, covers,       │◄──────►│ iPhone / Android app │
-│ yt-dlp, ffmpeg       │ publish│ lyrics, change log   │  sync  │ Mac desktop app      │
-└──────────────────────┘        └──────────────────────┘        └──────────────────────┘
-          ▲                                                               │
-          └───────── Tailscale: imports, and the server's own page ───────┘
+  your devices                         Cloudflare                       Backblaze B2
+┌──────────────────────┐   sign in,  ┌──────────────────────┐        ┌──────────────────────┐
+│ the web app (Pages)  │   read and  │ the doorman          │        │ your bucket          │
+│ iPhone / Android app │◄───────────►│ Google sign-in,      │◄──────►│ audio, covers,       │
+│ desktop app          │   write     │ bucket access, rooms,│        │ lyrics, the snapshot,│
+└──────────────────────┘             │ share links, grants  │        │ change log and plays │
+           │                         └──────────────────────┘        └──────────────────────┘
+           │ imports, Stats, Ask,               ▲
+           │ metadata lookup, handoff           │ a grant from each account
+           ▼                                    │
+┌───────────────────────────────────────────────┴──┐
+│ an always-on computer (a Raspberry Pi, here)     │
+│ the selfmp3 server, in Docker: one workspace per │
+│ signed-in account; imports, analysis, publishing │
+│ cli-bridge beside it: the AI helper              │
+└──────────────────────────────────────────────────┘
 ```
 
-The server imports and analyses. The bucket holds a copy of the library that every device
-reads and writes, so your phone keeps working, and keeps its edits, while the server is
-asleep.
+The bucket is the source of truth. The server keeps a working copy of each library it
+works for, and nothing it could not get back from the bucket.
 
 ## Contents
 
@@ -46,7 +55,7 @@ asleep.
 
 ## A look around
 
-A real library of 1,472 songs, in the Mac app.
+A real library of 1,472 songs, in the desktop app.
 
 **The song that is playing**, with its synced lyrics, tempo, key and tags beside the cover.
 
@@ -76,35 +85,51 @@ A real library of 1,472 songs, in the Mac app.
 
 ## Where it runs
 
-One server, and one app (`apps/app`, Expo) that runs in a browser, on a phone and inside
-the desktop app. The screens are the same everywhere; the layout follows the width of the
-window, not the platform.
+Five pieces, each in its own place:
 
-**Every device gets in the same way — sign in with Google, and the library is your
-bucket's.** There is no server address to type anywhere. The server's own page, on
-`:4600`, is not where you listen: it is where you set the server up and see what it is
-doing.
+- **The server** (`apps/server`) runs on an always-on computer, in Docker: the image
+  `ghcr.io/xiao215/selfmp3`, built for arm64 and amd64. Xiao's runs on a Raspberry Pi 4. It
+  runs yt-dlp and ffmpeg, analyses each song, answers the questions only it can (Stats,
+  metadata lookup, Ask, handoff) and publishes each library to its bucket.
+- **The hub.** One server works for every Google account that signs in, each in a
+  workspace of its own: its own database, inbox and import queue, publishing to that
+  account's own bucket through a revocable grant. A device joins the shared server by itself
+  the first time its bucket names none. See
+  [shared-server.md](docs/features/shared-server.md).
+- **The bucket** (Backblaze B2, one per account) holds the library: audio, covers, lyrics,
+  the snapshot every device reads, the change log every device writes, and the play history,
+  a file a month. See [SYNC.md](docs/SYNC.md).
+- **The doorman** (`apps/doorman`, a Cloudflare Worker) signs devices in with Google, hands
+  out bucket access so no device holds the bucket's key, keeps the list of who may sign in,
+  and hosts listening rooms, shared playlists and share links. It is deployed by hand
+  ([apps/doorman/README.md](apps/doorman/README.md)).
+- **The AI helper.** The smart features call any OpenAI-compatible endpoint. Xiao's is
+  [cli-bridge](https://github.com/Xiao215/cli-bridge), a small service on the same computer
+  as the server (`127.0.0.1:8787`) that answers through the AI command-line tools signed in
+  there. See [ai.md](docs/features/ai.md).
 
-| | Server | Browser tab | iPhone and Android app | Mac desktop app |
+And one app (`apps/app`, Expo) that runs in a browser, on a phone and inside the desktop
+app. The screens are the same everywhere; the layout follows the width of the window, not
+the platform.
+
+**Every device gets in the same way: sign in with Google, and the library is your
+bucket's.** There is no server address to type anywhere; the app knows the shared server's
+address as it knows the doorman's. The server's own page, on `:4600`, is not where you
+listen: it is an admin page for the server.
+
+| | Server | Browser tab | iPhone and Android app | Desktop app |
 |---|---|---|---|---|
-| **What it is** | Node, Express and SQLite on a Mac, a Linux box or in Docker | The GitHub Pages build at `xiao215.github.io/selfmp3`, signed in to your bucket | The Expo app, built yourself from this repo | An Electron window around the same web build, a `.dmg` on the releases page |
-| **Holds the library** | Yes: the folder and the database | No | A copy of the bucket's library | A copy of the bucket's library |
-| **Music with no signal** | — | Streams, keeps nothing | Downloads, and plays from the files | Downloads, and plays from the files |
-| **Import from a link** | Runs yt-dlp itself | Reaches the server directly when it can, otherwise leaves the request in the bucket | The same | The same |
-| **Stats, Untagged, metadata lookup** | Serves them over `/api` | Hidden — see below | Hidden | Hidden |
-| **Controls outside the app** | — | The browser's media controls | Lock screen, Control Center, Android Auto (partly) | Media keys, Now Playing in Control Center, the menu bar |
+| **What it is** | Node, Express and SQLite in Docker on an always-on computer | The GitHub Pages build at `xiao215.github.io/selfmp3` | The Expo app, built yourself from this repo | An Electron window around the same web build, a `.dmg` on the releases page |
+| **Holds the library** | A working copy per account, rebuilt from the bucket when lost | No | A copy of the bucket's library | A copy of the bucket's library |
+| **Music with no signal** | — | Streams; keeps only the last few songs it played | Downloads, and plays from the files | Downloads, and plays from the files |
+| **Import from a link** | Runs yt-dlp itself | Hands the link to the server when it can reach it, otherwise leaves the request in the bucket | The same | The same |
+| **Stats, metadata lookup, Ask, handoff** | Answers them over `/api` | Asks the server directly when it can reach it, and says why when it cannot | The same | The same |
+| **Controls outside the app** | — | The browser's media controls | Lock screen, Control Center, an iOS home-screen widget, Android Auto | Media keys, Now Playing in Control Center, the application menu |
 | **Keyboard** | — | Space for play and pause | — | The application menu's shortcuts, and `⌘K` for Search |
 
-On a phone the tabs are **Home · Library · Playlists**. The rest is reached from Home: the
-tags from its tiles, Import from its +, and Profile from its avatar, which leads on to Stats,
-the report and Settings. On a computer those live in the sidebar.
-
-**Stats, the Untagged inbox and looking metadata up are the server's own.** They need its
-database and the calls only it makes, so the app hides them whenever the library it is
-showing is the bucket's. Every surface now signs in to the bucket, so today none of them
-draws those screens, and the server's page does not draw them either — it serves them over
-`/api` and nothing asks. That is a gap rather than a decision, and it is the next thing to
-close.
+On a phone the tabs are **Home · Library · Playlists**. Search opens from Home, and Profile
+from Home's avatar; Profile leads on to Stats, Import, the Report and Settings. On a
+computer those live in the sidebar.
 
 ---
 
@@ -113,241 +138,233 @@ close.
 ### Your library
 
 **The bucket is the library.** Every song, cover and lyric lives in a storage bucket of your
-own, and every device reads it from there. The server's folder, `~/Music/selfmp3`, is an
-inbox: an import lands there, a file you drop there is imported too, and once a song is in
-the bucket the copy is deleted. Filtering, sorting and search run on the device, so they are
-instant and work offline. See [watched-library-folder.md](docs/features/watched-library-folder.md)
-and [SYNC.md](docs/SYNC.md).
+own, and every device reads it from there. The server's folder is an inbox: an import lands
+there, a file you drop there is imported too, and once a song is in the bucket the copy is
+deleted. Filtering, sorting and search run on the device, so they are instant and work
+offline. See [watched-library-folder.md](docs/features/watched-library-folder.md) and
+[SYNC.md](docs/SYNC.md).
 
-**Tags instead of folders.** One flat vocabulary you define. Combine tags — `chinese` and
-`chill` — or leave one out: `chill`, but not `live`. Rename and recolour them in place, tag
-the song that is playing from the player bar, and work through everything untagged one song
-at a time with the number keys. See [tagging.md](docs/features/tagging.md).
+**Tags instead of folders.** One flat vocabulary you define. Combine tags, or leave one out.
+Rename and recolour them in place, tag the song that is playing, and work through the songs
+that have no tag yet from the Tags page. See [tagging.md](docs/features/tagging.md).
 
-**Playlists, three kinds.** A **Playlist** is songs you pick and drag into order. **Smart**
-builds an ordinary playlist in one go from a template — Most played, Forgotten gems, Short
-ones, Long songs, Recently added, Loved, By tag — and then leaves it to you. A **Live**
-playlist keeps
-its rules ("tagged chill, played more than 5 times, between 120 and 130 BPM") and updates
-itself as the library changes. Pin a playlist and it sits in the sidebar's Playlists section.
+**Tags, playlists and Up next.** A tag's page is always that tag. A playlist is songs you
+picked, or one that fills itself from tags. Up next is what you are listening to, named after
+what you played, and **Save** turns it into a playlist. See [lists.md](docs/features/lists.md).
+
+**Search, and pages for artists and songs.** One box finds places, songs and lines of
+lyrics. An artist has a page of their own, and a song's page shows its details and the songs
+that sound like it.
 
 **Metadata that fixes itself.** Look a song up on iTunes or MusicBrainz, compare the
-candidates with what you have, and apply only the fields you want. Missing cover art can be
-filled in across the whole library in one pass. See [metadata-polish.md](docs/features/metadata-polish.md).
+candidates with what you have, and apply only the fields you want. See
+[metadata-polish.md](docs/features/metadata-polish.md).
 
-**Select several, act once.** Tick songs and a bar floats over the list — at the top on a
-computer, at the bottom on a phone — to play, queue, tag, add to a playlist, download or
-remove them together. See [multi-select.md](docs/features/multi-select.md).
+**Select several, act once.** Tick songs and a bar appears to play them or add them to Up
+next, with everything the song menu offers — tags, a playlist, removing them — in its More. See
+[multi-select.md](docs/features/multi-select.md).
 
 ### Bringing music in
 
 **From a link.** Paste one link or twenty, or a whole playlist. Metadata is fetched first,
 so you can correct it, listen to a track and untick duplicates before anything downloads.
-The queue lives in the database, so it survives a restart.
+The queue lives in the server's database, so it survives a restart. Import can also search
+YouTube Music and 网易云 for a song by name.
 
-**And from anywhere.** Only your server can fetch a link, but you do not have to be near it
-to add one. Out of its reach, the link goes into the bucket with the tags and the playlist
-you chose, and your server takes it the next time it is awake; it arrives on your devices
-with the sync after that. What you lose while away is the looking — what a link holds, and
-playing a song before it is added — not the adding.
+**And from anywhere.** Only the server can fetch a link, but you do not have to reach it to
+add one. When it is out of reach, the link goes into the bucket with the tags and the
+playlist you chose, and the server takes it the next time it looks; it arrives on your
+devices with the sync after that.
 
 **Titles arrive as song titles.** Where YouTube has no music metadata of its own, the
 video's title is read as the song's: "YOASOBI「アイドル」 Official Music Video" comes in as
-アイドル by YOASOBI. It drops what the video says about itself — "Official Music Video",
-【MV】, a trailing "| Official Video", and the artist written in front when that is the
-channel — and keeps what belongs to the song, so "(Live)", a "(From …)" note and a
-"feat." credit all survive. It happens in the server's probe
-(`tidyVideoTitle` in `packages/shared/src/titles.ts`), so the Import page, a share from
-your phone and the iOS Shortcut all get the same titles.
+アイドル by YOASOBI. It drops what the video says about itself and keeps what belongs to the
+song, so "(Live)", a "(From …)" note and a "feat." credit all survive (`tidyVideoTitle` in
+`packages/shared/src/titles.ts`).
 
 **From your phone's share sheet.** Share a track from the YouTube Music app and it queues on
 the server: a share target on Android, a one-step Shortcut on iOS. See
 [share-to-import.md](docs/features/share-to-import.md).
 
-**From your existing library.** Point yt-dlp at your browser's YouTube cookies and your Liked
-Music, private playlists and artist pages import like any other link
-([youtube-music-library.md](docs/features/youtube-music-library.md)). A 网易云音乐 song,
-album, playlist or artist link downloads each song from 网易云 where it gives the whole song out, and
-from YouTube where it would give a preview; a Spotify link, a CSV export or a plain list of
-song names has each song found on YouTube, and every one of them shows on the same review
-first ([import-sources.md](docs/features/import-sources.md)).
+**From other services.** Liked Music, private playlists and artist pages import like any
+other link once yt-dlp has YouTube cookies
+([youtube-music-library.md](docs/features/youtube-music-library.md)). A 网易云音乐 link
+downloads from 网易云 where it gives the whole song out; a Spotify link, a CSV export or a
+plain list of song names has each song found on YouTube
+([import-sources.md](docs/features/import-sources.md)).
 
-**From the browser.** A Chrome extension that imports the song you are looking at without
-leaving the page: a **self.mp3** button in the YouTube page itself, a popup with the title,
-your tags and a playlist to put it in, a whole playlist ticked through, and a right-click
-item for any link anywhere. The toolbar counts what it is importing and says what landed.
-Sign in with Google and it finds your server by itself — and when the server is asleep it
-leaves the link in your bucket for the server to fetch when it wakes. It is
-loaded unpacked from `apps/extension` rather than installed from a store. See
+**From the browser.** A Chrome extension imports the song you are looking at without
+leaving the page: a button in the YouTube page, a popup with your tags and a playlist, and a
+right-click item for any link. It is loaded unpacked from `apps/extension`. See
 [browser-extension.md](docs/features/browser-extension.md).
 
 ### Listening
 
-**Playback.** Gapless and crossfade in a browser and the desktop app, a reorderable up-next
-queue, playback speed, and a sleep timer that fades out rather than cutting off. Nothing is
-drawn at the foot of the window until something plays.
+**Playback.** Gapless and crossfade in a browser and the desktop app, a reorderable Up next,
+and a sleep timer.
 
-**A page for the song that is playing.** Click the artwork in the player bar and the song
-opens into Stage: its artwork, what the app knows about it, and its synced lyrics, up next
-or details beside it. Focus turns the page into the words alone, big, each line filling in
-as it is sung. A song with no lyrics gets an animated visual instead — Aurora, Pulse,
-Spectrum or Drift — that follows the actual sound and takes its colours from the cover. See
-[now-playing.md](docs/features/now-playing.md).
-
-**The song's own colour.** The playing row, the player bar and the phone's mini player take
-their colour from the cover rather than the app's accent. See
+**A page for the song that is playing.** Its artwork, what the app knows about it, and its
+synced lyrics, Up next or details beside it. Focus turns the page into the words alone. A
+song with no lyrics gets a visual instead that follows the actual sound and takes its
+colours from the cover. See [now-playing.md](docs/features/now-playing.md) and
 [now-playing-colour.md](docs/features/now-playing-colour.md).
 
-**Lyrics.** Synced `.lrc` lyrics: click a line to jump there, right-click it to loop it.
-Found in a sidecar file, the audio file's tags, YouTube Music's timed lyrics or lrclib.net,
-then kept. Chinese lyrics can show pinyin and Japanese romaji underneath, and you can find a
-song by a line you remember. See [lyrics-plus.md](docs/features/lyrics-plus.md).
+**Lyrics.** Synced `.lrc` lyrics: tap a line to jump there. Found in a sidecar file, the
+audio file's tags, YouTube Music's timed lyrics or lrclib.net, then kept. Chinese lyrics can
+show pinyin and Japanese romaji underneath, and you can find a song by a line you remember.
+See [lyrics-plus.md](docs/features/lyrics-plus.md).
 
 **Audio it has actually listened to.** Every song is analysed on the server for tempo, key,
-energy and loudness, with ffmpeg and plain TypeScript. That feeds live playlist rules, a
-"similar songs" pick, and an auto-mix mode that orders the queue into a smooth path and sets
-each crossfade to suit the transition. See [audio-intelligence.md](docs/features/audio-intelligence.md).
+energy and loudness, and heard by a listening model for "Sounds like". That feeds rules for
+playlists, similar songs, and an auto-mix that orders Up next into a smooth path. See
+[audio-intelligence.md](docs/features/audio-intelligence.md).
+
+**Smart features.** Ask in the Search box — play something, find songs, make a playlist,
+tidy names or tags — and Describe it when making a playlist. The model only ever proposes,
+from your own songs, and you approve. Each feature has its own switch in Settings. See
+[ai.md](docs/features/ai.md).
+
+### With friends
+
+**Listening together.** Press Listen together beside the song that is playing and your Up
+next becomes a room friends join with a link, a QR code or a code; a friend without
+self.mp3 joins from a browser with only a name. Shared playlists are the lasting kind. See
+[listen-together.md](docs/features/listen-together.md).
+
+**Share links.** Send a song as a link; a friend plays it from your bucket for a while, with
+no account. See [share-links.md](docs/features/share-links.md).
 
 ### Across your devices
 
-**Offline, on the devices that keep songs.** The phone app and the desktop app download on
-Wi-Fi by themselves, ask first on mobile data or past 500 MB, and mark every song that is on
-the device. Plays made with no connection are sent later, dated when they happened. A browser
+**Offline, on the devices that keep songs.** The phone app and the desktop app download by
+themselves, ask first on mobile data or past 500 MB, and mark every song that is on the
+device. Plays made with no connection are sent later, dated when they happened. A browser
 tab streams. See [offline-sync.md](docs/features/offline-sync.md).
 
-**A library in a bucket.** Sign in with Google and every device reads and writes the same
-library in a Backblaze B2 bucket you own, through a small Cloudflare Worker (the doorman)
-that keeps the bucket's key off your devices. Edits made anywhere combine by fixed rules. See
-[docs/SYNC.md](docs/SYNC.md).
+**Handoff.** Devices that reach the server see what each other is playing. Move a song to
+another device mid-track, or continue where you left off. See [devices-and-handoff.md](docs/features/devices-and-handoff.md).
 
-**Handoff and remote control.** Devices that answer from the server see what each other is
-playing. Move a song to another device mid-track, drive one from another, or continue where
-you left off. The switchboard is `/api/devices` and a bucket cannot be one, so this is not
-reachable while every surface reads the bucket — the honest version is in
-[devices-and-handoff.md](docs/features/devices-and-handoff.md).
+**A desktop app, not a tab.** A Dock icon, the media keys, the application menu with `⌘K`
+for Search, songs kept as files on the disk, and the keychain for its sign-in. See
+[desktop-app.md](docs/features/desktop-app.md).
 
-**A desktop app, not a tab.** A Dock icon, the media keys, the menu bar, `⌘K` search, songs
-kept as files in `~/Library/Application Support/self.mp3`, and the keychain for its token.
-See [desktop-app.md](docs/features/desktop-app.md).
+**A widget, and guides.** Two iOS home-screen widgets: your tags, and the song that is
+playing ([widget.md](docs/features/widget.md)). A gesture nothing on screen shows is taught
+once per device by a short spotlight guide ([guides.md](docs/features/guides.md)).
 
 ### Looking back
 
-**Stats, and Wrapped whenever you want it.** Plays over time, when you listen, top artists
-and tags, streaks, and how much you have never played. A report for any range — week, month,
-year, all time — that you can save as an image. Forgotten gems brings back songs you loved
-and stopped playing. All of it is the server's own, so it is hidden from a bucket library
-and — see [Where it runs](#where-it-runs) — not reachable from any surface today. See
-[wrapped-and-gems.md](docs/features/wrapped-and-gems.md).
+**Stats, and the Report whenever you want it.** Plays over time, when you listen, top
+artists and tags, streaks, and how much you have never played. A report for any range —
+week, month, year, all time — that you can save as an image. Forgotten gems brings back
+songs you loved and stopped playing. The numbers are worked out by the server from the play
+history, which it keeps in the bucket a month at a time, so a device asks the server for
+them directly. See [wrapped-and-gems.md](docs/features/wrapped-and-gems.md).
 
 ---
 
 ## Quick start
 
-You need Node 22 or newer. On a Mac:
+The server belongs on a computer that is always on — a Raspberry Pi, a NAS, a small VPS —
+with Docker. In a folder of its own, with the repository's
+[`docker-compose.yml`](docker-compose.yml):
 
 ```bash
-./scripts/setup-mac.sh
+mkdir -p library data
+docker compose up -d
+docker compose logs -f
 ```
 
-It installs `yt-dlp` and `ffmpeg` with Homebrew if they are missing, installs the npm
-packages, builds, creates the library and data folders, and offers to start the server at
-login. It is safe to run again after every `git pull`. Then open <http://localhost:4600>:
-that is the server's own page — the library count, the Cloud section where you sign in
-with Google and name your bucket, and a **Publish now** button. Once it has published, you
-listen in the [GitHub Pages tab](https://xiao215.github.io/selfmp3), the Mac desktop app or
-the phone app, each signed in with the same Google account.
+It pulls `ghcr.io/xiao215/selfmp3:latest`, which carries yt-dlp and ffmpeg, so there is
+nothing else to install. To update, `docker compose pull && docker compose up -d`, by hand or
+on a timer: the image is rebuilt on every push to `main`, and weekly for a fresh yt-dlp.
 
-By hand:
+It runs on the host's own network, so it sees and publishes the computer's home and
+Tailscale addresses. To reach it away from home, put Tailscale Funnel in front of it
+(`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
+`.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
+the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
+connect your bucket in Settings.
 
-```bash
-brew install yt-dlp ffmpeg     # yt-dlp downloads; ffmpeg analyses and embeds artwork
-npm install
-npm run build
-npm start
-```
+The whole walkthrough — the Raspberry Pi, Tailscale, the bucket, the AI helper, the desktop
+app and the phone — is in **[docs/INSTALL.md](docs/INSTALL.md)**. For the phone app, see
+[MOBILE.md](docs/MOBILE.md); for the bucket, [SYNC.md](docs/SYNC.md).
 
-Then, depending on where you want it:
-
-| You want | Read |
-|---|---|
-| The server on an always-on box — a NAS, a Pi, a VPS | [INSTALL.md, With Docker](docs/INSTALL.md#with-docker) |
-| To reach the server from your phone, anywhere | [SETUP.md](docs/SETUP.md): Tailscale and HTTPS |
-| The Mac desktop app | [INSTALL.md, The desktop app](docs/INSTALL.md#the-desktop-app) |
-| The iPhone or Android app | [MOBILE.md](docs/MOBILE.md) |
-| Your library on every device while the server sleeps | [SYNC.md, Setting up](docs/SYNC.md#setting-up) |
-
-`./scripts/doctor.sh` checks Node, yt-dlp, ffmpeg, the build, the service, the port and the
-folders, and tells you the command that fixes whatever is wrong.
+The server also runs without Docker, on a Mac or a Linux machine with Node 22 or newer:
+`./scripts/setup-mac.sh` installs yt-dlp and ffmpeg, builds, and offers to start the server
+at login (`scripts/install-service.sh`, launchd or systemd), and `./scripts/doctor.sh`
+checks the setup and tells you the command that fixes whatever is wrong.
 
 ---
 
 ## Configuration
 
-Everything is optional; the defaults work. Set these in the environment, or in a `.env` at
-the top of the checkout (copy `.env.example`; git ignores `.env`).
+Everything is optional; the defaults work. Set these in a `.env` beside
+`docker-compose.yml`, which the container is handed, or in the environment; outside Docker,
+in a `.env` at the top of the checkout. Copy `.env.example` to start; git ignores `.env`.
+They are read in `apps/server/src/config.ts`.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `SELFMP3_PORT` | `4600` | Port to listen on |
-| `SELFMP3_HOST` | `0.0.0.0` | Bind address. `127.0.0.1` keeps it to this machine |
-| `SELFMP3_PUBLIC_URL` | none | One more address to publish, for a device that cannot reach a local one: the HTTPS address of a tunnel in front of this server ([INSTALL.md](docs/INSTALL.md#letting-someone-else-in)) |
-| `SELFMP3_LIBRARY_DIR` | `~/Music/selfmp3` | The inbox: where an import lands until it is in the bucket |
-| `SELFMP3_DATA_DIR` | `~/Library/Application Support/selfmp3` (`~/.local/share/selfmp3` off macOS) | The database and cover art |
-| `SELFMP3_PROFILE` | none | A separate installation: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
-| `SELFMP3_AUTH_TOKEN` | one the server makes for itself | A bearer token of your own, 8 characters or more |
-| `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman this server signs in to the cloud through. Empty for none |
-| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features ([docs/features/ai.md](docs/features/ai.md)); also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST`, `SELFMP3_AI_MODEL_SMART` (both `sonnet`) and `SELFMP3_AI_TIMEOUT_SECONDS` (240). Unset, they are off |
-| `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API; none means same-origin only |
-| `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
-| `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox folder at startup, so a file dropped in while the server was off is imported |
-| `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data directory unless absolute |
-| `SELFMP3_SOUND` | `true` | The listening model, which hears each song for “Sounds like” and for Ask ([audio-intelligence.md](docs/features/audio-intelligence.md#how-songs-sound)). Its files, about 750 MB, are downloaded to the data folder the first time it is wanted. `false` turns it off |
+| `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
+| `SELFMP3_PUBLIC_URL` | none | One more address to publish: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
+| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: the server's page links there, and with a public address its origin may call the server |
+| `SELFMP3_LIBRARY_DIR` | `/app/library` in Docker; `~/Music/selfmp3` otherwise | The inbox: where an import lands until it is in the bucket. Each workspace has a folder of its own inside it |
+| `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
+| `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
+| `SELFMP3_AUTH_TOKEN` | one the server makes | The token of a server whose bucket is a folder. A server working for accounts gives each library its own, kept in `hub.json` |
+| `SELFMP3_DOORMAN_URL` | the one in `packages/shared/src/cloud.ts` | The doorman the server signs in to the cloud through. Empty for none |
+| `SELFMP3_CORS_ORIGINS` | none | Comma-separated origins allowed to call the API, beyond the desktop app, the extension and (with a public address) the web app |
+| `SELFMP3_AI_BASE_URL` | unset | An OpenAI-compatible endpoint for the smart features, such as cli-bridge's `http://127.0.0.1:8787/v1` ([ai.md](docs/features/ai.md)). Also `SELFMP3_AI_API_KEY`, `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART` (both `sonnet`), and `SELFMP3_AI_TIMEOUT_SECONDS` (240). Unset, the smart features are off and say so |
+| `SELFMP3_SOUND` | `true` | The listening model, which hears each song for "Sounds like" and for Ask. Its files, about 750 MB, are downloaded to the data folder the first time they are wanted. `false` turns it off |
 | `SELFMP3_SOUND_MODELS` | the `sound-models-v1` release | Where the model's files come from: an address, or a folder that already holds them ([scripts/sound-models](scripts/sound-models/README.md)) |
 | `SELFMP3_SOUND_THREADS` | `2` | CPU threads the model may use while it listens |
+| `SELFMP3_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error`, `silent` |
+| `SELFMP3_SCAN_ON_BOOT` | `true` | Sweep the inbox at startup, so a file dropped in while the server was off is imported |
+| `SELFMP3_CLOUD_DIR` | unset | A folder to use as the bucket instead of an account — the dev profile and the verify lanes run with one. Relative to the data folder unless absolute |
+| `SELFMP3_PUBLISH_ANYWAY` | `false` | Publish this server's library to the bucket as it stands, without taking on the bucket's first or refusing to replace a bigger one. An escape hatch ([SYNC.md](docs/SYNC.md)) |
 
-The bucket every device syncs with is set up separately, in [SYNC.md](docs/SYNC.md).
+The bucket each account syncs with is connected in the app's Settings, and who may sign in
+at all is kept by the doorman's owner in Settings › Who can sign in.
 
-Day-to-day behaviour — crossfade, the watched folder, romanization — lives in the app's
-Settings rather than in the environment, so every device agrees on it.
+Day-to-day behaviour — crossfade, the watched folder, romanization, the smart features —
+lives in the app's Settings rather than in the environment.
 
-Five of the server's settings have no screen yet, so they sit at their defaults unless the
-database is edited by hand: the YouTube cookie source and cookie file, the tags added to
-every import, the automatic rescan interval, and the fraction of a song that counts as a
-play. The server reads all five; nothing writes them.
+A few of the server's settings have no screen yet, so they sit at their defaults unless the
+database is edited by hand: where yt-dlp gets YouTube cookies from (a browser or a cookies
+file), the tags added to every import, and the automatic rescan interval.
 
-**About that token.** The server listens on every interface, because the addresses those
-interfaces give it are how your phone finds it to import (docs/SYNC.md). So it needs a key,
-and one you have to remember to set is one that is usually not set — so it makes its own on
-the first boot that finds none and keeps it in its database. You never type it: it goes into
-the bucket beside those addresses, and every device signed in to your Google account is
-handed it with the sync. Requests from the computer running the server are not asked for it
-at all — its own page at `http://localhost:4600`, the `selfmp3` command and an extension
-pointed at localhost all keep working untouched — because anyone at that keyboard could read
-the database the token is in. Set `SELFMP3_AUTH_TOKEN` to choose your own instead; the
-server prints the one it made in its startup log, for the rare case of opening its page from
-another computer.
+**About the token.** Each library on the server has a token of its own, kept in
+`<data>/hub.json`. You never type it: it goes into that account's bucket with the server's
+addresses, and every device signed in to the account is handed it with the sync. A request
+with no token from the server's own machine (its own page at `http://localhost:4600`, the
+`selfmp3` command) goes to the only library when there is just one, because anyone at that
+keyboard could read the token anyway.
 
 ---
 
 ## Development
+
+On a development machine (a Mac, in Xiao's case), with Node 22 or newer:
 
 ```bash
 npm install
 npm run dev        # the server on :4600 with the dev profile, the app's web dev server on :4601
 ```
 
-The dev profile keeps its own library and database, so working on the code never touches
-your real collection. Every root script:
+The dev profile keeps its own library and database, and uses a folder as its bucket, so
+working on the code never touches a real collection. Every root script:
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | `dev:api` and `dev:web` together |
-| `npm run dev:api` | The server with reload, on the `dev` profile |
+| `npm run dev:api` | The server with reload, on the `dev` profile with a folder for a bucket |
 | `npm run dev:web` | Builds the packages, then the app's web dev server on `:4601` |
 | `npm run dev:desktop` | The desktop app against a dev build |
 | `npm run build:packages` | The four shared packages, in dependency order — every other build starts here |
 | `npm run build` | The packages and the server — what `npm start` runs |
-| `npm run build:desktop` | The same web export, packaged as a `.dmg` in `apps/desktop/release/` |
+| `npm run build:desktop` | The app's web export, packaged as a `.dmg` in `apps/desktop/release/` |
 | `npm run build:extension` | The packages and the browser extension, into `apps/extension/dist/` |
 | `npm run zip:extension` | That build, zipped into `apps/extension/release/` |
 | `npm start` | Run the built server |
@@ -363,7 +380,7 @@ your real collection. Every root script:
 | `npm test` / `npm run test:watch` | The Vitest suite, once or watching |
 | `npm run test:app` | The app's component tests (Jest) |
 | `npm run check:app` | `typecheck:app`, `lint:app` and `test:app` |
-| `npm run check` | Typecheck, lint and tests, the app included — what CI runs |
+| `npm run check` | Every typecheck, lint, format and test above, the app included — what CI runs |
 | `npm run format` / `npm run format:check` | Prettier, writing or checking |
 | `npm run verify:flows` | Playwright flows at computer and phone width, against `npm run dev` ([verify/README.md](verify/README.md)) |
 | `npm run verify:desktop` | Playwright against the built desktop app |
@@ -376,11 +393,14 @@ Inside `apps/app`, `npx expo run:ios` or `npx expo run:android` builds the phone
 A few habits keep this repository in order:
 
 - Run `npm run check` before you commit. [`check.yml`](.github/workflows/check.yml) runs the
-  same thing on every push and pull request, and the Pages build will not publish without it.
+  same steps on every push and pull request, and the Pages, desktop and extension builds
+  will not run without it.
 - A schema change is a new migration appended to `apps/server/src/db/migrate.ts`. Never edit
   or renumber an existing one.
 - A change to the API starts in `packages/shared`'s zod schemas; the compile errors then lead
   you to every place that needs updating.
+- A push to `main` reaches the server within minutes, by way of the Docker image. The
+  doorman does not: deploy it by hand after a change to `apps/doorman`.
 
 ---
 
@@ -390,25 +410,38 @@ A few habits keep this repository in order:
 packages/shared          zod schemas (the API contract) and pure helpers: queue rules,
                          LRC parsing, fuzzy search, sync rules, audio feature distances
 packages/client          what every client shares: API client, React Query hooks, the
-                         download queue, auto-mix rules, theme tokens
+                         download queue, auto-mix rules, theme tokens, platform ports
 packages/replica         a device's own copy of the bucket's library, and its outbox
 packages/desktop-bridge  the contract between the desktop shell and the page
-apps/server              Express 5 and better-sqlite3: routes → services → repositories,
-                         plus public/ — the hand-written page it serves on :4600
+apps/server              Express 5 and better-sqlite3: the hub, then routes → services →
+                         repositories per workspace; public/ is its admin page on :4600
 apps/app                 Expo / React Native: one app for iOS, Android and the web
 apps/desktop             the Electron shell around apps/app's web export
-apps/doorman             Cloudflare Worker: Google sign-in and bucket access
+apps/doorman             Cloudflare Worker: Google sign-in, bucket access, grants, rooms,
+                         shared playlists and share links
+apps/extension           the Chrome extension
 ```
 
 The decisions that shape it — shared schemas instead of documented ones, storage behind an
-interface, missing files marked rather than deleted, every play kept as a row, platform
-differences behind ports — are explained in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+interface, the bucket as the library, every play kept as a row, platform differences behind
+ports — are explained in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-Four GitHub workflows: [`check.yml`](.github/workflows/check.yml) on every push,
-[`pages.yml`](.github/workflows/pages.yml) publishes the web app from `main`,
-[`docker.yml`](.github/workflows/docker.yml) publishes `ghcr.io/xiao215/selfmp3`, and
-[`desktop.yml`](.github/workflows/desktop.yml) builds the desktop app on a `desktop-v*` tag.
-The doorman is deployed by hand with `npx wrangler deploy`
+Six GitHub workflows:
+
+- [`check.yml`](.github/workflows/check.yml): typecheck, lint, format and tests on every
+  push and pull request, and called by the three builds below before they run.
+- [`e2e.yml`](.github/workflows/e2e.yml): the extension and desktop Playwright suites, on
+  every push to `main` and every pull request.
+- [`pages.yml`](.github/workflows/pages.yml): publishes the web app to GitHub Pages from
+  `main`.
+- [`docker.yml`](.github/workflows/docker.yml): publishes `ghcr.io/xiao215/selfmp3` for
+  arm64 and amd64 on every push to `main` that touches the server, and weekly.
+- [`desktop.yml`](.github/workflows/desktop.yml): builds the desktop app on a `desktop-v*`
+  tag.
+- [`extension.yml`](.github/workflows/extension.yml): zips the extension on an
+  `extension-v*` tag.
+
+The doorman is deployed by hand with `npx wrangler deploy` from `apps/doorman`
 ([apps/doorman/README.md](apps/doorman/README.md)).
 
 ---
@@ -417,57 +450,68 @@ The doorman is deployed by hand with `npx wrangler deploy`
 
 | Document | What it covers |
 |---|---|
-| [docs/INSTALL.md](docs/INSTALL.md) | A Mac, Docker, a Raspberry Pi, the desktop app, the CLI, backups and updating |
-| [docs/SETUP.md](docs/SETUP.md) | Reaching the server from your phone: Tailscale, HTTPS, running in the background |
+| [docs/INSTALL.md](docs/INSTALL.md) | Running the server in Docker on a Raspberry Pi or another always-on computer, Tailscale, the AI helper, the desktop app, the CLI, backups and updating |
 | [docs/SYNC.md](docs/SYNC.md) | The library in a bucket: the layout, signing in, how edits combine, setting it up |
 | [docs/MOBILE.md](docs/MOBILE.md) | Building and running the iPhone and Android app, and Android Auto |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the code is laid out, and why |
-| [docs/FEATURE_TODO.md](docs/FEATURE_TODO.md) | What was planned or researched and is not built yet: the iPad, the desktop, the extension |
-| [docs/UI-MIGRATION.md](docs/UI-MIGRATION.md) | The plan for moving the app to the redesigned interface. The mock it builds to is [docs/ui-mock/](docs/ui-mock/README.md) |
-| [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
-| [verify/README.md](verify/README.md) | The Playwright flows and what they need |
 | [docs/PREPROD.md](docs/PREPROD.md) | Checking a build against the real thing before calling it good: what to test on each platform, and how not to damage the library doing it |
+| [docs/UI-MIGRATION.md](docs/UI-MIGRATION.md) | How the app was moved to the redesigned interface, phase by phase |
+| [docs/FEATURE_TODO.md](docs/FEATURE_TODO.md) | What was planned or researched and is not built yet |
+| [docs/CODE_TODO.md](docs/CODE_TODO.md) | What is left from the code audits, and what was kept on purpose so it is not reported again |
+| [docs/ui-mock/README.md](docs/ui-mock/README.md) | The UI mock the interface is built to |
+| [apps/doorman/README.md](apps/doorman/README.md) | Deploying the doorman, and what each setting means |
+| [scripts/sound-models/README.md](scripts/sound-models/README.md) | Exporting the listening model's files |
+| [verify/README.md](verify/README.md) | The Playwright flows and what they need |
 | [apps/app/.maestro/README.md](apps/app/.maestro/README.md) | The phone flows, run with Maestro on a simulator |
 
 Feature pages, each with what it does, how it works and where the code is:
 
 | Feature | |
 |---|---|
-| [audio-intelligence.md](docs/features/audio-intelligence.md) | Tempo, key, energy and loudness; similar songs; auto-mix |
+| [ai.md](docs/features/ai.md) | The smart features: Ask, Describe it, tidying names and tags, and the model behind them |
+| [audio-intelligence.md](docs/features/audio-intelligence.md) | Tempo, key, energy and loudness; the listening model; similar songs; auto-mix |
+| [browser-extension.md](docs/features/browser-extension.md) | The Chrome extension: the button, the popup, and what it asks Chrome for |
 | [design-system.md](docs/features/design-system.md) | Dropdowns, popovers, hover captions, tokens and focus |
-| [desktop-app.md](docs/features/desktop-app.md) | The Mac app: why it exists and how the shell is built |
-| [browser-extension.md](docs/features/browser-extension.md) | The Chrome extension: the pill, the popup, and what it asks Chrome for |
-| [devices-and-handoff.md](docs/features/devices-and-handoff.md) | Presence, handoff, remote control, continue where you left off |
+| [desktop-app.md](docs/features/desktop-app.md) | The desktop app: why it exists and how the shell is built |
+| [devices-and-handoff.md](docs/features/devices-and-handoff.md) | Presence, handoff, continue where you left off |
+| [guides.md](docs/features/guides.md) | One-time guides for gestures nothing on screen shows |
+| [import-sources.md](docs/features/import-sources.md) | Importing from 网易云音乐, Spotify, or a list of song names |
 | [install-and-ops.md](docs/features/install-and-ops.md) | The setup script, `doctor`, the CLI and the Docker image |
+| [listen-together.md](docs/features/listen-together.md) | Rooms and shared playlists |
 | [lists.md](docs/features/lists.md) | Tags, playlists and Up next: what each is, Save, Recently played |
 | [lyrics-plus.md](docs/features/lyrics-plus.md) | Romanization, search by lyric, songs with no words |
 | [metadata-polish.md](docs/features/metadata-polish.md) | iTunes and MusicBrainz lookups, finding missing covers |
 | [multi-select.md](docs/features/multi-select.md) | Selecting songs and acting on them together |
 | [native-app.md](docs/features/native-app.md) | The app on a phone, in brief |
-| [now-playing.md](docs/features/now-playing.md) | Stage, Focus, lyrics and the visuals for songs with no lyrics |
+| [now-playing.md](docs/features/now-playing.md) | The now-playing page, Focus, lyrics and the visual for songs with no lyrics |
 | [now-playing-colour.md](docs/features/now-playing-colour.md) | The playing song marked in its cover's colour |
 | [offline-sync.md](docs/features/offline-sync.md) | Automatic downloads and plays made offline |
-| [import-sources.md](docs/features/import-sources.md) | Importing from 网易云音乐, Spotify, or a list of song names |
+| [share-links.md](docs/features/share-links.md) | Sending a song or a few as a link that ends by itself |
 | [share-to-import.md](docs/features/share-to-import.md) | Importing from the share sheet on Android and iOS |
-| [tagging.md](docs/features/tagging.md) | Hiding and editing tags, tagging what plays, Untagged |
-| [watched-library-folder.md](docs/features/watched-library-folder.md) | Rescanning when the library folder changes |
-| [wrapped-and-gems.md](docs/features/wrapped-and-gems.md) | The listening report and forgotten gems |
+| [shared-server.md](docs/features/shared-server.md) | One server for every account: workspaces, grants, plays in the bucket, who may sign in |
+| [tagging.md](docs/features/tagging.md) | Picking, editing and colouring tags, tagging what plays, songs with no tag |
+| [watched-library-folder.md](docs/features/watched-library-folder.md) | The inbox folder, and sweeping it when it changes |
+| [widget.md](docs/features/widget.md) | The iOS home-screen widgets |
+| [wrapped-and-gems.md](docs/features/wrapped-and-gems.md) | The Report and forgotten gems |
 | [youtube-music-library.md](docs/features/youtube-music-library.md) | Liked Music, private playlists and artist pages |
 
 ---
 
 ## Backing up
 
-```bash
-npm run cli -- backup /Volumes/Backup/selfmp3     # or copy the two folders yourself
-```
+The bucket is the library: the audio, covers and lyrics, the snapshot every device reads,
+and the play history, a file a month. Keeping a second copy of the library means keeping a
+second copy of the bucket, with your storage provider's own tools.
 
-That is the whole thing. The music is in your bucket; `selfmp3.db` in the data folder
-(`~/Library/Application Support/selfmp3`) holds the play history, which is the one thing only
-the server has (see [FEATURE_TODO.md](docs/FEATURE_TODO.md), "The cloud"). The backup copies
-only what changed, and copies the database through SQLite's backup API, so the server can
-keep running. `covers/` in the data folder is a cache. More in
-[INSTALL.md](docs/INSTALL.md#backing-up).
+The server keeps nothing it cannot get back. Each workspace's folders are a cache of its
+bucket: delete one and the next start takes the library back from the bucket, plays
+included. The one file of the server's own is `<data>/hub.json`, the list of who joined and
+the token each library's devices hold; lose it and each account joins again from its next
+device.
+
+`npm run cli -- backup <dest-dir>` still copies the data and inbox folders, only what
+changed, with each database copied through SQLite's backup API so the server can keep
+running. More in [INSTALL.md](docs/INSTALL.md).
 
 ---
 

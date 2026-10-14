@@ -1,16 +1,12 @@
 # What is not built yet
 
-The work that was planned, researched or deferred and has not been done. Three finished plans
-used to carry these lists (the one-app migration, the desktop app, the browser extension);
-the plans are gone now that they are built, and what they left open is here so it is not
-re-derived. The research that went with each item is kept, because it was the expensive part.
+The work that was planned, researched or deferred and has not been done. Finished plans do
+not stay in `docs/`; what they left open is here so it is not re-derived. The research that
+went with each item is kept, because it was the expensive part.
 
-Two other places hold open work and are not repeated here:
-
-- [UI-MIGRATION.md](UI-MIGRATION.md): moving the app to the redesigned interface. A whole
-  plan, with its own phases and open questions.
-- [SYNC.md](SYNC.md), "Still to come": adding a file from a device, Android fetching links
-  itself, snapshots written from the log, and the rest of what the bucket does not do yet.
+[SYNC.md](SYNC.md), "Still to come", holds the rest of the open work on the bucket (adding a
+file from a device, Android fetching links itself, snapshots written from the log) and is not
+repeated here.
 
 Nothing here is scheduled. When something is built, delete its entry and say what it does
 in the feature's own document under `docs/features/`.
@@ -45,10 +41,10 @@ iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678
   module (`apps/app/modules/key-commands`, about 60 lines of Swift over `expo-modules-core`)
   that adds `UIKeyCommand`s with a `discoverabilityTitle` to the root view controller and
   emits `{ input, modifiers }` to JS. Then `useHotkeys.ts` and `useEscape.ts` on native
-  register the web's set, and Settings shows Shortcuts when a keyboard is attached
-  (`sectionsFor` already takes the flag). Two UIKit rules: an unmodified command (Space,
-  digits, arrows) beats a focused text field, so those are withdrawn while a `TextInput`
-  has focus; arrows need `wantsPriorityOverSystemBehavior`. Packages checked in September
+  register the keys the desktop app's menu has, and Settings shows Keyboard shortcuts when a
+  keyboard is attached (`sectionsFor` already takes the flag). Two UIKit rules: an
+  unmodified command (Space, digits, arrows) beats a focused text field, so those are
+  withdrawn while a `TextInput` has focus; arrows need `wantsPriorityOverSystemBehavior`. Packages checked in September
   2026 and passed over: `react-native-key-command` (Expensify, 1.0.16) works but needs an
   `AppDelegate` patch, has no config plugin and no `discoverabilityTitle`;
   `react-native-keyevent` is unmaintained; `react-native-keyboard-controller` is the soft
@@ -59,38 +55,36 @@ iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678
 
 What exists is in [features/desktop-app.md](features/desktop-app.md).
 
-- **Streaming from the bucket.** Signed in to the cloud, the desktop plays only what it has
-  downloaded (`playBlock('cloud')`), because an `<audio>` element cannot send the doorman's
-  header. The browser streams through its service worker and the phone through its player,
-  which takes headers with each track (`apps/app/src/ports/bucketMedia.ts`); the desktop is
-  the one platform left without. Its equivalent is a range proxy in the main process at
-  `app://selfmp3/_stream/<key>` that adds the header: the service worker's `cloud` branch,
-  in Node. Worth doing; not needed for "download by default".
+- **Streaming from the bucket.** A song the desktop has not downloaded does not play from
+  the bucket (`playBlock` answers `'cloud'`, `packages/client/src/downloads/syncPolicy.ts`),
+  because an `<audio>` element cannot send the doorman's header. The browser streams through
+  its service worker and the phone through its player, which takes headers with each track
+  (`apps/app/src/ports/bucketMedia.ts`); the desktop is the one platform left without. Its
+  equivalent is a range proxy in the main process at `app://selfmp3/_stream/<key>` that adds
+  the header: the service worker's `cloud` branch, in Node. Worth doing; not needed for
+  "download by default".
 - **Windows and Linux.** `electron-builder --win --linux` on their runners, deep-link
   registration through the NSIS installer, media keys through Chromium's controls, and a
   pass over the menu's accelerators. The targets are in `apps/desktop/electron-builder.yml`
   and are not built or tested. Nothing in the shell prevents it.
-- **A signed build.** Signing, the hardened runtime, notarization and auto-update all work
-  from the same script when `CSC_LINK` and `CSC_KEY_PASSWORD` exist. They need a Developer
-  ID, which needs the paid Apple Developer Program. Until then builds are ad-hoc signed and
-  "check for updates" opens the release page. The signed tier has never been run.
-- **Embedding the server.** `utilityProcess.fork` of `apps/server/dist/main.js`, with
-  better-sqlite3 and sharp rebuilt for Electron's Node ABI, yt-dlp and ffmpeg found on
-  `PATH` or bundled, and the library folder chosen in Settings. This is what would let the
-  app replace `scripts/setup-mac.sh` on the computer that holds the music. It waits because
-  the server is moving to a Pi, and because it is the one thing that would put native
-  modules and a rebuild step into a shell that has none.
+- **A Developer ID build.** `apps/desktop/scripts/dist.mjs` picks one of three tiers from
+  the environment: ad-hoc (nothing set), development (`CSC_NAME`, a certificate in this Mac's
+  keychain) and signed (`CSC_LINK` and `CSC_KEY_PASSWORD`, notarised when Apple's credentials
+  are there too, and the only one that installs its own updates). The signed tier needs a
+  Developer ID, which needs the paid Apple Developer Program, and has never been run. Until
+  then "check for updates" opens the release page.
 - **A tray icon or a floating mini player.** Not wanted for now: Now Playing in Control
   Center covers the need on macOS.
 
 ## The phone
 
-- **Streaming and downloading from the server when it is reachable**, on a phone that is
-  signed in to the cloud. A device would need one identity for a song across both
-  answerers, which is `uid`, and the download index keyed by it. A feature of its own, not
-  a small change.
 - **Android.** No Android binary has ever been built and nothing has run on a physical
   Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
+- **The widget on a real iPhone.** It builds and runs on the simulator; a signed build needs
+  the App Group `group.com.selfmp3.app` registered in a paid Apple Developer account and
+  `ios.appleTeamId` in `app.config.js` ([features/widget.md](features/widget.md), "Building
+  it"). A play button that plays without opening the app needs an App Intent in the app's
+  process and is not built either.
 
 ## The browser extension
 
@@ -119,7 +113,7 @@ to Google or reach a Tailscale address.
 | Load unpacked in real Chrome | Done 2026-09-16 |
 | The pill on a real YouTube watch page | Done 2026-09-16: it lands in YouTube's own button row, left of Like, and reads the library correctly |
 | Import a song from YouTube and one from YouTube Music | Not recorded |
-| A playlist with "Also create playlist" | Not recorded |
+| A playlist link: its songs reviewed in the popup and imported (no playlist is made) | Not recorded |
 | The pill on three videos in a row without reloading | Not recorded |
 | A right-click import from a link on another site | Not recorded |
 | The notification after a batch finishes | Not recorded |
@@ -129,33 +123,17 @@ to Google or reach a Tailscale address.
 
 ## Smart features
 
-What exists is in [features/ai.md](features/ai.md): S1 (Ask in the Search box, which also
-covers finding a song by what you remember and questions about your listening), L2 (New
-playlist's Describe it), the Describe pipeline (A1c), Tags (A7's Suggest tags grown into
-changes to your tags from Ask), A4 Tidy up's
-names pass, A9's rules, A8 (steer Up next), A5 (the Report in words) and Settings › Smart
-features (address, Test, a switch per feature). The letters are the AI ideas canvas's
+What exists is in [features/ai.md](features/ai.md). The letters are the AI ideas canvas's
 (<https://claude.ai/artifact/F9yEDvXnGRhgMrVQevHumS>). Drawn there, not built:
 
-- **A4, the rest**: filling a missing album, year or cover from MusicBrainz/iTunes (the
-  first real tool loop), and near-duplicate songs. Put off on 2026-10-03 because the real
-  library has nothing for them: of 1,342 songs none lacks an album, a year or a cover, and
-  the six title-and-artist pairs that repeat are real versions (Bayan, Orchestral, "(II)",
-  one theme on two soundtracks). Worth building when an import source starts leaving gaps.
+- **A4, the rest**: filling a missing album, year or cover from MusicBrainz/iTunes, and
+  near-duplicate songs. Put off on 2026-10-03 because the real library has nothing for them:
+  of 1,342 songs none lacks an album, a year or a cover, and the six title-and-artist pairs
+  that repeat are real versions (Bayan, Orchestral, "(II)", one theme on two soundtracks).
+  Worth building when an import source starts leaving gaps. The tool loop it would run in
+  exists now (`explore`, `llm.ts`).
 - **A9, the model's part**: a model reading each import row's names. The rules part is
   built (repeats and translations at import), and nothing seen yet needs more.
-- Not tried yet: the phone app (every screen was checked in Chrome at 1280 and 390 wide),
-  and a device reaching the server through the cloud (the check ran against a server
-  directly; the id translation is the same code Stats uses).
-
-## The cloud
-
-- **Play history in the bucket.** The server's `play_events` table is the only place the
-  *when* of a play survives, so Stats is server-only and dies with the server's disk. Agreed
-  2026-09-22, when the server stopped keeping any copy of the library (SYNC.md, "The server
-  keeps no copy of the library"): one small file per device per month under a `plays/` folder
-  would let any device answer, and let the server hold no user data at all. Phased after the
-  server-side cleanup, which is built.
 
 ## Tooling
 

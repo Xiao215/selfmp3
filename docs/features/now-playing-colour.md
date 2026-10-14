@@ -8,8 +8,10 @@ Files:
 
 | What | Where |
 |---|---|
-| Picking the colour from pixels (tested) | `packages/client/src/art/palette.ts`, `packages/client/src/art/coverColor.ts` |
-| Reading a cover, caching the result | `apps/app/src/ui/useSongColor.ts`, `apps/app/src/ports/coverPixels.ts` (+ `.web.ts`) |
+| Picking the colour from pixels (tested) | `packages/shared/src/coverTone.ts` |
+| Picking it once per cover, on the server | `apps/server/src/services/coverTones.ts` |
+| Turning a colour into wash and text colours | `packages/client/src/art/coverColor.ts` |
+| The colour for the playing song | `apps/app/src/ui/useSongColor.ts`, `apps/app/src/ports/coverPixels.ts` (+ `.web.ts`) |
 | The row | `apps/app/src/ui/components/SongRow.tsx`, `Equalizer.tsx` |
 | The player bar and mini player | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/ui/components/MiniPlayer.tsx`, `ProgressWash.tsx` |
 
@@ -26,13 +28,21 @@ Files:
 
 ## How the colour is picked
 
-Only for the song that is playing. Its cover — already on screen, so already cached — is drawn
-into a 24×24 canvas and read back. In OKLCH, pixels are grouped by hue and weighted by how
-colourful they are; near-black and near-white are skipped, so the dark skyline on the THE
-BOOK covers does not win over the sky. The heaviest hue becomes two colours: one at mid
-lightness for washes and lines, one light for text, so a dark cover never makes a dark title.
-Pale covers are pushed up in saturation, or the row would wash in grey.
+The server picks each cover's colour once (`coverTones.ts`): ffmpeg draws the cover at
+24×24, and the result travels with the song as `coverTone`, in the API and in the
+snapshot, so a phone never decodes a cover itself. It works through the covers in the
+background at start and again whenever one is saved. A song the server has not read yet is
+read on the device where the platform can (a canvas in a browser), and the accent stands
+in until then.
 
-A cover with no real colour in it falls back to the accent, and a song with no cover uses its
-generated placeholder's hue. Results are kept for the session per song and cover revision; a
-read that fails is retried twice and then left for the next time the song plays.
+The picking (`pickCoverTone`) works in OKLCH: pixels are grouped by hue and weighted by how
+colourful they are; near-black and near-white are skipped, so the dark skyline on the THE
+BOOK covers does not win over the sky. The heaviest hue becomes two colours
+(`songColors`): one at mid lightness for washes and lines, one light for text, so a dark
+cover never makes a dark title. Pale covers are pushed up in saturation, or the row would
+wash in grey.
+
+A cover with no real colour in it (black and white) washes the row in its own grey and
+keeps the accent for the text, so it still reads as playing, not selected. A song with no
+cover uses its letter tile's hue. Only the playing song is ever asked for its colour,
+never a whole list.

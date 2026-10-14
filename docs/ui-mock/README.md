@@ -3,7 +3,8 @@
 The interface agreed in September 2026, as 81 screens you can open in a browser: phone,
 computer and web, the iPad, the browser extension, motion, and a page of ideas that are not
 scheduled.
-It is the target of [`docs/UI-MIGRATION.md`](../UI-MIGRATION.md).
+The app was built to it ([`docs/UI-MIGRATION.md`](../UI-MIGRATION.md) was the plan, and is
+done); the app has moved on in places since, and the code is what is true today.
 
 Open [`index.html`](index.html). Nothing to install or build; fonts come from Google Fonts,
 so the serif and the display face need a connection the first time.

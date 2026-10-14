@@ -1,12 +1,13 @@
 # Sync: the cloud holds the library
 
-Until now the server *was* the library. Every other device was a window onto it, and when the server
-slept, those windows went dark: no new songs, no edits, nothing you had not already
-downloaded. This document describes where the library lives instead — a storage bucket in
-the cloud that every device syncs with — and how devices stay in step without a server of
-their own to ask.
+The library lives in a storage bucket in the cloud, and every device syncs with it. The
+server — an always-on computer running `apps/server` in Docker, a Raspberry Pi in Xiao's
+case — is one more device: the one with yt-dlp, the listening model and the SQL behind Stats.
+It keeps a working copy of each library it serves and nothing it could not get back from the
+bucket. This document describes the bucket, how devices stay in step through it, and what
+still needs the server.
 
-Most of it is built. What is not is marked **Still to come**, at the end.
+Most of it is built. What is not is marked **Still to come**, near the end.
 
 ---
 
@@ -28,7 +29,7 @@ storage — no code runs there — so every rule about how changes combine lives
 | Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB, no card. $0.005/GB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
-| Fetching YouTube links (yt-dlp) | The server — one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)); later the Android app | — |
+| Fetching YouTube links (yt-dlp), Stats, the smart features | The server, one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)), on a computer at home | The computer's electricity |
 
 **Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. It
 needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
@@ -94,12 +95,13 @@ proprietary API, an OAuth app that must be moved to "production" or it signs you
 seven days, and your whole Google account on the line if a file is ever flagged. The bucket
 is behind an interface, so a Drive driver can still be added later.
 
-**Why not a server.** A server that is always on costs money. The free ones either sleep,
-lose their disk (and the database with it), or can be reclaimed when idle — which a personal
-music server nearly always is. And it could not import from YouTube anyway: YouTube blocks
-yt-dlp from data-centre addresses, so fetching has to happen on a device on a home or mobile
-connection regardless. The doorman is not that server: it keeps no library and no disk, and
-song bytes stream through it without it holding them.
+**Why not keep the library on the server.** The server is a computer at home: it can be
+switched off, lose its network or lose its disk, and while it is away the bucket and the
+doorman still answer, so every device keeps its library, its edits and its music. A hosted
+server instead would cost money, or sleep, lose its disk or be reclaimed when idle — and it
+could not import from YouTube anyway, since YouTube blocks yt-dlp from data-centre addresses.
+The doorman is not a server of that kind: it keeps no library and no disk, and song bytes
+stream through it without it holding them.
 
 ---
 
@@ -164,9 +166,15 @@ selfmp3/
   lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
+  lyrics/<sha256>.plays              one month of plays: which song, when, for how long. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
 ```
+
+The motion curves, the sound vectors and the plays sit in `lyrics/` rather than folders of
+their own because the doorman lets a device reach only the folders it knows
+(`isCloudFileKey`), and a new folder would need every doorman redeployed before any device
+could read it.
 
 **`format.json`** says `{"app":"self.mp3","format":1,…}`. A device that finds a format number
 newer than it understands refuses to write to the bucket and says why, instead of corrupting
@@ -194,6 +202,15 @@ snapshot's `sound` names it; the one it replaces goes in the trash. Before it se
 server reads back the file the bucket's snapshot names, so a new server hears only the songs
 nobody has heard, and a file it could not read is never replaced by one without its vectors.
 
+**Plays** are a file a month (`apps/server/src/services/playsArchive.ts`): each play as its
+song's uid, when it happened, how long it was heard, whether it ran to the end, and an id
+that makes the same play read twice count once. A snapshot says how often a song was played,
+never when, and a device's log is tidied away once a snapshot has folded it in, so these files
+are where the history behind Stats is kept. The server writes them, since plays reach it
+through the devices' logs; the snapshot's `plays` names each month. This month goes up at most
+once an hour, a past month as soon as it changes, and a server starting from an empty
+database reads every month back as soon as it has taken on the bucket's library.
+
 **Log files** are one batch of one device's changes: `log/<device>/000000000042.json`. A
 device numbers its files 1, 2, 3, … and never writes the same number twice with different
 contents, so a file, once written, never changes and a resend is harmless. A device tidies
@@ -220,7 +237,9 @@ The bucket's key must not sit on a phone, and a phone should not have to be hand
 between every device and the bucket there is **the doorman** (`apps/doorman`): a small
 Cloudflare Worker that signs you in with Google, keeps the one bucket that belongs to your
 Google account with its key sealed, and passes a signed-in device's reads and writes through
-to it. No device ever holds the key. Only the Google addresses on its list may sign in.
+to it. No device ever holds the key. Its owners (the `OWNER_EMAILS` secret) may always sign
+in; anyone else only if the owner has put their address on the list in *Settings › Who can
+sign in*, or let in anyone with a Google account (`apps/doorman/src/access.ts`).
 
 **One Google account, one bucket.** You connect the bucket once, from any device; every
 device you sign in on afterwards gets the same library. Someone else — a friend — signs in
@@ -244,9 +263,14 @@ Deploying it, and what each setting means, is in [apps/doorman/README.md](../app
 
 ### The server publishes the library
 
-*Settings → Cloud* on the server signs in with Google through the doorman, and then asks for the
-bucket if the account has none. (With no doorman set up, a bucket can still be connected
-directly with its key, as the way in.)
+A server reaches an account's bucket through a **grant**, a doorman session of its own for
+that account, which it is given when one of the account's devices joins it — by itself, the
+first time the device looks for a server and the bucket names none
+([features/shared-server.md](features/shared-server.md)). Each account it works for is a
+workspace of its own, with its own database and inbox, and everything below happens once per
+workspace. The *Cloud* card on the server's own page (port 4600, opened on the server itself)
+can also sign a server with one library in with Google, or connect a bucket directly with its
+key when there is no doorman.
 
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
@@ -279,10 +303,12 @@ of the library for longer than it has to. That includes the plays: each month of
 the bucket as a file of its own (`lyrics/<sha256>.plays`, named in the snapshot's `plays`),
 so a database made again from the bucket has its Stats back. And it may keep several: a
 server works for every account that joins it, one database each
-([features/shared-server.md](features/shared-server.md)).
+([features/shared-server.md](features/shared-server.md)). The only record that is the
+server's own is `data/hub.json`: who joined, and the token and grant of each.
 
-**The folder is an inbox, not a library.** An import downloads into `~/Music/selfmp3`, and a
-file dropped there by hand is an import too (`services/scanner.ts` sweeps it, on a watch and
+**The folder is an inbox, not a library.** An import downloads into the workspace's folder
+under the library folder (`/app/library/<id>` in Docker; `~/Music/selfmp3` is only the
+default outside it), and a file dropped there by hand is an import too (`services/scanner.ts` sweeps it, on a watch and
 at boot). The pass uploads what it finds. Once a song is wholly in the bucket — audio, cover,
 words, motion curve — and analysis is done with it, and the snapshot naming it is up, **the
 pass deletes the copy here** (`#letGo` in `services/cloudSync.ts`) — the audio, the words
@@ -304,15 +330,13 @@ caches, and its bucket files are put in `cloud_trash`. Nothing is deleted from t
 once: the snapshot every device is reading still names the song. The next pass writes the
 snapshot without it, and then deletes from the bucket every trashed file that no remaining
 song names (two songs can share a cover; a song imported twice shares everything). There is
-no "keep the file" option any more, on any device: a copy left on a disk is exactly how
-forty-three removed songs came back as new ones on 2026-09-22, resurrected by the sweep that
-the next import's file set off.
+no "keep the file" option on any device: a copy left on a disk is how removed songs once came
+back as new ones, picked up by the sweep that the next import set off.
 
 **A replaced file goes the same way.** A cover made again, words edited, an artist's new
 picture: the file the row named before is put in `cloud_trash` as the row is saved
 (`CloudRepository.saveState`, `saveArtist`), and deleted after the next snapshot like a removed
-song's. Before 2026-10-07 nothing did this, so every replaced file stayed in the bucket,
-nameless — the covers squared that day among them. Once per bucket listing the pass also
+song's. Once per bucket listing the pass also
 trashes every cover nothing names (`trashUnnamedCovers`): covers only, since a cover the server
 can always send again, where audio or words no row names may be the only copy of a song whose
 row was reconciled away.
@@ -333,13 +357,12 @@ it is one this server publishes to and streams from.
 
 ### A server joining a bucket that already has a library
 
-For a long time the server only ever *wrote* snapshots. That is the right shape for exactly one
-server — the one that filled the bucket — and the wrong shape for every other, and the difference
-is not academic: a fresh install signed in to an account holding 52 songs, published its empty
-library as the whole library, and every device followed it within seconds. The audio survived,
-because nothing deletes from the bucket; the index did not.
+A server that only ever *wrote* snapshots would be right for exactly one server — the one that
+filled the bucket. Any other, a fresh install or a workspace whose folder was deleted, would
+publish its empty library as the whole library, and every device would follow it within
+seconds.
 
-So a server that connects to a bucket now reads the newest snapshot **before it publishes
+So a server that connects to a bucket reads the newest snapshot **before it publishes
 anything**, and takes on every song in it that it does not already have
 (`apps/server/src/services/cloudAdopt.ts`).
 
@@ -350,7 +373,7 @@ anything**, and takes on every song in it that it does not already have
 | **Matching** | By uid first, and then by the audio itself. A song already here under the same uid is left exactly as it is, field for field — a snapshot is not a change with a stamp, so it must never win an edit; anything genuinely later still arrives through the other device's log. A song here under a *different* uid whose audio is the same file — the bucket names audio by the hash of its bytes, so the same key is the same song — is left alone too, and the other uid is kept as an alias (`song_aliases`), so a change or a playlist that names it still finds the song. Ten of the bucket's fifty-two here ends at fifty-two, not sixty-two, whatever the two sides call the ten, and a second run adopts nothing. |
 | **A song the bucket has no audio for** | Gets its row — its tags, its plays and its place in a playlist are all still true — but nothing in `cloud_songs`, so it is left out of what this server publishes. No device is ever pointed at a file it cannot download. |
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
-| **`SELFMP3_PUBLISH_ANYWAY=1`** | Skips adoption as well as the guard below. It is how you say *this server's library is the one I want everywhere*, and merging the bucket's in first would be the opposite of that. |
+| **`SELFMP3_PUBLISH_ANYWAY=1`** | Skips adoption as well as the guard that refuses to publish over a snapshot holding songs this server lacks (`#refuseToLoseLibrary` in `cloudSync.ts`). It is how you say *this server's library is the one I want everywhere*, and merging the bucket's in first would be the opposite of that. |
 
 **What is not adopted.** The snapshot's `upTo` cursors: this server reads every log file from the
 beginning on its first pass instead. Replaying is idempotent by design — plays are
@@ -362,9 +385,7 @@ say how they went.
 
 **What adoption cannot see.** A re-encode. A library restored from a disk backup with no database
 is scanned into fresh uids, and that much is fine: the files are the same files, their hashes match
-the bucket's, and each is folded into the bucket's song rather than adopted beside it. (It was not
-always: until 2026-09-17 uid was the only identity compared, two servers that had each imported the
-same songs added a copy of every one on every round, and a real library reached three rows a song.)
+the bucket's, and each is folded into the bucket's song rather than adopted beside it.
 What still makes a second row is audio that really differs — the same song downloaded again at
 another bitrate, or re-tagged by a tool that rewrites the file. Guessing those are one on the
 strength of their names would be a worse failure than the duplicate; the import's own matcher
@@ -427,12 +448,17 @@ ever set, so a change that arrives late combines with them correctly.
 The server folds other devices' logs into its database on every pass, following the same rules
 (`apps/server/src/services/cloudIngest.ts`), and publishes a snapshot saying how far it has
 read. A test runs one set of changes of every kind through both, and expects the same library.
-A song removed on another device takes its file from the server's library folder too — left there,
-the next scan would add it back as a new song — and the bucket keeps its audio.
+A song removed on another device takes whatever copy was still in the server's inbox too — left
+there, the next sweep would add it back as a new song — and its bucket files go as described
+under "Removing is one thing, everywhere".
 
 Live playlists are worked out on the device (`packages/shared/src/smartRules.ts`), the same
 rules the server compiles to SQL, so a playlist of loved songs gains a song the moment it is loved
-on a phone with the server asleep.
+on a phone, with the server away or not.
+
+An edit made with no connection at all is not lost either: the device's copy of the library
+applies it at once and keeps it in an outbox stored on the device
+(`packages/replica/src/library.ts`), and the outbox goes up to the device's log once the bucket answers again.
 
 ### Importing from anywhere
 
@@ -442,10 +468,11 @@ have. *Adding it to the library* works anywhere.
 | Device | Import a link |
 |---|---|
 | Server | Yes, itself |
-| iPhone, iPad, any browser | Asks the server, through the bucket |
-| Android app | Later (still to come) |
+| iPhone, iPad, the desktop app, any browser | Asks the server: directly when it answers, through the bucket when it does not |
+| Android app | The same; fetching by itself is still to come |
 
-A link pasted in the web app becomes an `importRequested` change in that device's log, with
+With the server in reach, Import talks to it directly (below). Away from it, a link pasted
+becomes an `importRequested` change in that device's log, with
 the tags and playlist to put what it brings in. The server reads it with the rest of the log,
 looks the link up — one song, or a whole playlist — queues what the library does not have
 already, and downloads it as any other import. Every snapshot says how each request from the
@@ -457,10 +484,15 @@ reason, or called off.
 Some things are the server's and cannot be anyone else's. It runs yt-dlp, so importing is
 its. It works the stats out — the history is in the bucket, a file a month, but the queries
 over it are SQL on the server. It asks iTunes and MusicBrainz and downloads the cover you
-pick, so metadata polish is its.
+pick, so metadata polish is its. It holds the whole library together and asks the model, so
+the smart features (Ask, tidying tags) are its, and so is searching the words of every song,
+whose index only it builds. A device's copy of the library answers each of these routes with
+a `needs_server` refusal (`SERVER_ONLY_ROUTES` in `packages/replica/src/routes.ts`).
 
 A device signed in to the cloud reaches it directly. Every snapshot carries the addresses
-the server listens on and the token (`CloudServerSchema`); a screen that needs the server
+the server listens on — the ones on its own network, and `SELFMP3_PUBLIC_URL` last, the
+Tailscale Funnel address that answers from anywhere — and the token (`CloudServerSchema`,
+`apps/server/src/services/addresses.ts`); a screen that needs the server
 probes them all at once and talks to the first that answers, and looks again every twenty
 seconds so a server switched on is found without a tap. Nothing is typed, and there is no
 "connect to a server" screen — that was removed on purpose.
@@ -477,18 +509,18 @@ When no address answers the screen is still drawn, and says why in its own words
 answering, or never having said where it is. A library that never had a server joins the
 shared one this build knows of (`DEFAULT_SERVER_URL`) by itself
 ([features/shared-server.md](features/shared-server.md)). **A feature that is simply not drawn is
-indistinguishable, from where the user sits, from one that does not exist** — which is what
-Stats, the metadata lookup and the untagged inbox all looked like for months.
+indistinguishable, from where the user sits, from one that does not exist**, so the screen is
+always drawn (`ServerAway`, with the words for each in `SERVER_NEEDS`,
+`packages/client/src/connection/reach.ts`).
 
 | Screen | Needs the server for | When it is away |
 |---|---|---|
-| Import | reading a link, playing a song before it is added, downloading it | says so, keeps looking |
-| Stats (Overview and Report) | every play ever recorded | says so, keeps looking |
+| Import | reading a link, playing a song before it is added, downloading it | says so, takes the link through the bucket, keeps looking |
+| Stats and the Report | working the numbers out of every play | says so, keeps looking |
 | Fix metadata… | iTunes, MusicBrainz, and writing the correction | says so, keeps looking |
+| Ask and the other smart features | the model, and the whole library in one place | says so, keeps looking |
 | Settings › Devices | the device list | shows the last list it was given, marked offline |
-| Devices, handoff, remote control | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
-| An artist's page | its picture, from the artist's page on YouTube Music | lit by a song's cover instead, as every place is |
-| Untagged | *nothing* — it is a pass over the library, and tagging is an ordinary edit | always works |
+| The Devices sheet (handoff) | presence itself: a heartbeat and an open stream | says so in the sheet, and keeps looking while the app is in use |
 
 **Two libraries, two sets of numbers.** The bucket names songs by uid; the server numbers
 them its database's way, and a device numbers them as uids arrive
@@ -526,8 +558,9 @@ is that decision, written down.
 **Whose numbers travel.** A handoff carries song ids, and a cloud device numbers songs its
 own way — the same song is 47 on a phone, 812 on the server and 3 on a laptop that synced in
 a different order. **The wire speaks the server's numbering.** A cloud device translates into
-it on the way out and back on the way in, through the same uid table the stats use; a device
-talking to its own server translates nothing, because its ids already are the server's. Two
+it on the way out and back on the way in, through the same uid table the stats use (a
+development build given a server's address by hand translates nothing, because its ids
+already are the server's). Two
 cloud devices therefore agree without either knowing the other exists: both pass through the
 same third numbering.
 
@@ -556,23 +589,23 @@ libraries that deliberately number different songs the same.
 
 ## What this gives up
 
-- **Handoff and remote control still need the server awake.** A bucket cannot hold a
-  connection open between two devices, so this is the one thing a cloud library cannot do
-  from the bucket alone. What it *can* do is find the server the way every other screen
-  does and hold presence against it — see "Presence from a cloud library" below — so a
-  phone and a laptop that both read the bucket hand playback to each other whenever the
-  server is within reach. When it is not, the devices sheet says so rather than listing
-  nothing forever.
+- **Handoff needs the server reachable.** A bucket cannot hold a connection open between two
+  devices, so this is the one thing a cloud library cannot do from the bucket alone. What it
+  *can* do is find the server the way every other screen does and hold presence against it —
+  see "Presence from a cloud library" above — so a phone and a laptop that both read the
+  bucket hand playback to each other whenever the server is within reach. When it is not,
+  the devices sheet says so rather than listing nothing forever.
 - **Other devices see a change on their next sync**, not instantly: when the app opens, comes
   back to the foreground, or the next time the library is asked for.
-- **Some things still need the server**: looking metadata up, the stats, and searching inside
-  lyrics. The screens that need it reach for it and say so when it is away, rather than
-  hiding — see "Reaching the server for what only it can do" above.
-- **Importing does not**, though only the server can fetch a link. Near it, the whole import
-  screen works: what a link holds, a song played before it is added, the download. Away from
-  it, the link goes into the bucket with its tags and its playlist, and the server takes it
-  the next time it is awake — rule 6, and the reason a device never has to be anywhere in
-  particular to add a song. What is lost while away is the looking, not the importing.
+- **Some things still need the server**: looking metadata up, the stats, the smart features
+  and searching inside lyrics. The screens that need it reach for it and say so when it is
+  away, rather than hiding — see "Reaching the server for what only it can do" above.
+- **Importing does not**, though only the server can fetch a link. In reach of it, the whole
+  import screen works: what a link holds, a song played before it is added, the download.
+  Away from it, the link goes into the bucket with its tags and its playlist, and the server
+  takes it the next time it is running — rule 6, and the reason a device never has to be
+  anywhere in particular to add a song. What is lost while away is the looking, not the
+  importing.
 - **Space.** 10 GB free is roughly 2,000–2,500 songs.
 
 ---
@@ -608,12 +641,20 @@ reaches your devices only when you run `npx wrangler deploy` yourself.
 Then tell the apps about it: set `DEFAULT_DOORMAN_URL` in `packages/shared/src/cloud.ts`, or
 the repository variable `DOORMAN_URL` for the web app and `SELFMP3_DOORMAN_URL` for the server.
 
-### 3. The web app
+### 3. The server
+
+Run it on a computer that stays on, as [INSTALL.md](INSTALL.md) describes (Docker, with
+`SELFMP3_PUBLIC_URL` set to its Tailscale Funnel address so devices away from home and the
+web app can reach it). Then tell the apps where it is: `DEFAULT_SERVER_URL` in
+`packages/shared/src/cloud.ts`, or the repository variable `SERVER_URL` for the web app. A
+library whose bucket names no server joins that one by itself.
+
+### 4. The web app
 
 Every push to `main` builds it and publishes it to GitHub Pages
 (`.github/workflows/pages.yml`). Nothing to do but push.
 
-### 4. Each device
+### 5. Each device
 
 Open self.mp3, sign in with Google, and — the first time, on any device — paste the bucket's key
 ID and application key on the page that follows, *Where it lives* (`POST /v1/storage/backblaze`).
@@ -621,8 +662,9 @@ The doorman asks Backblaze which bucket the key opens, where, and whether it kee
 (step 3); for another provider, *Not
 Backblaze?* takes the endpoint, name and region instead (`PUT /v1/storage`). The key goes to the
 doorman, sealed; no device keeps it. A second device signed in to the same account skips the
-page: the bucket is already the account's. Afterwards it is *Settings → Account → Storage*, to
-change or forget. On the server it is *Settings → Cloud*, where the full form still lives.
+page: the bucket is already the account's. Afterwards it is *Settings › Account › Storage*, to
+change or disconnect, and *Settings › Account › Computers* lists the servers the account has
+given a grant to, with *Remove* on each.
 
 ---
 
@@ -634,16 +676,19 @@ change or forget. On the server it is *Settings → Cloud*, where the full form 
 | When a change was made | `packages/shared/src/hlc.ts` |
 | How changes combine, for every device | `packages/shared/src/sync.ts` |
 | Live playlists on a device | `packages/shared/src/smartRules.ts` |
-| The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`), `apps/doorman/README.md` |
-| The doorman's contract | `packages/shared/src/schemas/doorman.ts` |
-| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes) |
-| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts` |
+| The doorman | `apps/doorman/` (`src/auth.ts`, `src/signin.ts`, `src/files.ts`, `src/bucket.ts`, `src/changes.ts` the change counter, `src/access.ts` who may sign in, `src/grants.ts`), `apps/doorman/README.md` |
+| The doorman's contract | `packages/shared/src/schemas/doorman.ts`, `packages/shared/src/doormanWire.ts` |
+| A day past the bucket's cap | `packages/replica/src/hold.ts`, `BUCKET_HOLD_MS` in `packages/shared/src/doormanWire.ts`, `apps/app/sw/sw.ts` |
+| Talking to the bucket, from the server | `apps/server/src/bucket/store.ts` and `s3.ts` (S3), `apps/server/src/bucket/doorman.ts` (through the doorman), `apps/server/src/bucket/local.ts` (a folder, for the dev profile and the lanes), `apps/server/src/bucket/kept.ts` (words read from the bucket, kept on disk) |
+| One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
+| Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
+| Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |
-| The server's cloud API and settings | `apps/server/src/routes/cloud.ts`, `apps/app/src/features/settings/CloudPanel.tsx` |
+| The server's cloud API and its own page | `apps/server/src/routes/cloud.ts`, `apps/server/public/admin.js` |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/welcome/WelcomeScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Finding the server from a cloud library, and what each screen says when it is away | `packages/client/src/connection/reach.ts`; `apps/app/src/connection/useServerDirect.ts`, `ServerAway.tsx`; `apps/server/src/services/addresses.ts` |
@@ -651,6 +696,6 @@ change or forget. On the server it is *Settings → Cloud*, where the full form 
 | Stats and the Report through the reached server | `apps/app/src/features/stats/StatsViaServer.tsx`, `statsSource.ts` |
 | Fixing metadata through the reached server | `apps/app/src/features/metadata/FixMetadata.tsx`, `metadataSource.ts` |
 | Lining the two libraries' song ids up by uid | `packages/client/src/connection/serverIds.ts`, `apps/app/src/connection/useServerSongIds.ts`; `GET /api/cloud/uids` in `apps/server/src/routes/cloud.ts` and `packages/replica/src/routes.ts` |
-| Presence, handoff and remote control from a cloud library | `apps/app/src/features/devices/usePresenceServer.ts`, `DevicesProvider.tsx`, `DevicesSheet.tsx`; `packages/client/src/devices/translate.ts` |
+| Presence and handoff from a cloud library | `apps/app/src/features/devices/usePresenceServer.ts`, `DevicesProvider.tsx`, `DevicesSheet.tsx`; `packages/client/src/devices/translate.ts` |
 | Publishing the web app | `.github/workflows/pages.yml` |
 | Tests | `packages/shared/src/sync.test.ts`, `hlc.test.ts`, `smartRules.test.ts`, `apps/server/src/services/cloudIngest.test.ts` (the server and the shared rules held to the same answers), `cloudSync.test.ts`, `cloudImports.test.ts`, `packages/replica/src/edits.test.ts`, `apps/doorman/src/*.test.ts` |

@@ -3,10 +3,10 @@
 Correct a song's title, artist, album, year and track number — and find missing cover art —
 from free public databases. No API keys, nothing to configure.
 
-The lookups are the server's own HTTP calls, rate limiter and cover cache, so a library
-read from the bucket asks the server directly for them (`features/metadata/FixMetadata.tsx`),
-and the names are saved on the device. The model's Suggested card on the same page is in
-[ai.md](ai.md), "Fix song info · Suggested".
+The lookups are the server's own HTTP calls, rate limiter and cover cache, so a device
+reading its library from the bucket asks the server directly for them
+(`features/metadata/FixMetadata.tsx`), and the names are saved on the device. The model's
+Suggested card on the same dialog is in [ai.md](ai.md), "Fix song info · Suggested".
 
 ## What it does
 
@@ -26,21 +26,23 @@ the dialog twice is free. Every failure — timeout (8 s), DNS, an HTML error pa
 JSON, a 503 from MusicBrainz — produces an empty candidate list and a `WARN` line in the
 server log, never an error in the UI.
 
-Corrections are written to the **database only**, exactly like a manual edit. The audio
-file is never rewritten, so a rescan cannot undo them and a wrong pick is one more edit
-away from fixed. Artwork is downloaded by the server into `data/covers/<id>` through the
-existing cover cache.
+Corrections are an ordinary edit of the song's names, like one typed by hand: the audio
+file is never rewritten, so nothing undoes them and a wrong pick is one more edit away
+from fixed. Artwork is downloaded by the server through its cover cache and goes up to the
+bucket with its next sync.
 
 ## Using it
 
 **One song.** Open a song's `⋯` menu, choose **Song details**, and on the song's own page
-press **Fix song info…**. The left column shows
+(or Now Playing's About tab) press **Fix song info…**. The left column shows
 what the library has; the right lists candidates with artwork thumbnails, a source badge
 and a match percentage. Pick a candidate, and the diff below it lists only the fields that
 would change — untick anything you do not want, then **Apply**.
 
-**Whole library.** In *Settings → Advanced → Library*, **Find missing cover art** starts a background
-pass over every song without artwork. It stores art only from candidates scoring at least
+**Whole library.** In *Settings → Advanced → Library → Cover art*, **Find missing art** starts a
+background pass over every song without artwork. That panel is drawn only for a device
+talking to a server by its address (development builds); otherwise start it with
+`POST /api/library/fix-covers`. It stores art only from candidates scoring at least
 0.85 — a missing cover is a placeholder gradient, a wrong one is misleading. Progress is
 shown live and covers fill in as they land; **Stop looking** cancels. The pass is safe to
 re-run: it only ever looks at songs that still lack art.
@@ -62,14 +64,13 @@ Schemas live in `packages/shared/src/schemas/metadata.ts`.
 Everywhere. The lookup runs on the server — it is what holds the day-long cache, obeys
 MusicBrainz's one-request-a-second rule, and downloads the artwork — so a device signed in
 to the cloud reaches its server by the addresses in the last snapshot and asks it there
-(docs/SYNC.md, "Reaching the server for what only it can do"). The two libraries number
-songs differently, so the song is named to the server by *its* id, translated through the
-uid both know it by.
+(docs/SYNC.md). The two libraries number songs differently, so the song is named to the
+server by *its* id, translated through the uid both know it by.
 
-With no server in reach the button is still on the details panel, and opening it says the
-server is not answering. A correction applied from a cloud library lands in the server's
-database and reaches the device with the server's next snapshot, not the moment the dialog
-closes — the dialog says so.
+With no server in reach the button is still there, and opening it says the server is not
+answering; a song the server has not taken down from the bucket yet says it is not ready
+to look up. The corrected names are this device's own edit and show the moment the dialog
+closes. A new cover arrives with the server's next sync, not at once.
 
 ## Where the code is
 

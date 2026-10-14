@@ -1,81 +1,88 @@
 # Offline sync
 
-Keeping a device's music, and its listening, in step with the server — without being asked.
+Keeping a device's music, and its listening, in step with the library — without being asked.
 
-Before this, offline was a button. "Download everything" lived in Settings, and a song
-imported afterwards (say, one shared from the YouTube Music app on the phone) stayed on the
-server until you went back and pressed it again. Worse, a play made with the server asleep was
-sent, failed, and was thrown away: every song heard on a train was missing from play counts,
-stats, Wrapped and forgotten gems — which is exactly the listening this app exists for.
+The library is the bucket's (docs/SYNC.md), and every device keeps its own copy of the
+library's metadata. What this page is about is the rest: which songs an installed app keeps
+on the device, and how a play or an edit made with no connection still counts. A song
+imported on another device turns up here by itself, and every song heard on a train is in
+the play counts, Stats, the Report and forgotten gems like any other.
 
 Files:
 
 | What | Where |
 |---|---|
 | The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
-| …kept on the device (a JSON file) | `apps/app/src/offline/listenOutbox.ts` |
+| …kept on the device (a JSON file, IndexedDB in a browser) | `apps/app/src/offline/listenOutbox.ts` (+ `.web.ts`) |
+| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts` |
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
-| Download, prune, storage guard | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
+| Download, prune | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
 | Which address a song plays and draws from | `apps/app/src/api/mediaAddress.model.ts`, `apps/app/src/ports/bucketMedia.ts` (+ `.web.ts`), `apps/app/sw/sw.ts` |
 | Row mark, status line | `apps/app/src/ui/components/SongRow.tsx`, `apps/app/src/ui/components/SyncStatus.tsx` |
 | What the counts mean | `downloadTally` in `packages/client/src/downloads/downloadIndex.ts` |
-| Late plays on the server | `apps/server/src/routes/songs.ts`, `repositories/stats.ts` |
+| Late plays on the server | `apps/server/src/services/cloudIngest.ts`, `repositories/stats.ts`, `services/playsArchive.ts` |
 | Tests | `packages/shared/src/outbox.test.ts`, `apps/server/src/repositories/plays.test.ts`, `packages/client/src/downloads/downloadIndex.test.ts`, `apps/app/src/features/settings/OfflinePanel.test.tsx`, `apps/app/src/ui/components/SongMenu.test.tsx` |
 
 ## Plays made offline
 
-A play is written to the device first and sent from there: at once if the server answers,
-otherwise the next time it does — when the app comes back to the foreground, when the
-reachability probe succeeds, or when the browser says it is online again.
+A play is written to the device first and handed from there to this device's copy of the
+library (`POST /api/songs/:id/played`, answered by `packages/replica`), which records it as a
+change in the device's log. The log goes up to the bucket when it can; the server folds it in,
+and the play lands in the month's plays file in the bucket (docs/SYNC.md, "Plays"). The
+listening outbox sends again when the app comes back to the foreground.
 
-Each play carries two things it did not before:
+Each play carries two things:
 
 - **`playedAt`** — when it happened. The server stores that rather than the time the play
   arrived, so Tuesday's listening lands on Tuesday. A time in the future (a phone clock
   running fast) is treated as now.
-- **`clientId`** — unique per play. A send whose response is lost gets retried, and the server
-  ignores an id it has already recorded. There is a partial unique index on
-  `play_events.client_id`, so live plays without one are unaffected.
+- **`clientId`** — unique per play. A play sent twice is recorded once: the device's copy of
+  the library remembers the ids it has counted, and the server has a partial unique index on
+  `play_events.client_id`.
 
 "Last played" only ever moves forward: a late play from last week does not overwrite one from
 an hour ago.
 
 A failed send is judged by status: no response, 401, 408, 429 and 5xx wait for next time;
-anything else the server will never accept (a song deleted meanwhile) is dropped. The queue is
+anything else that will never be accepted (a song deleted meanwhile) is dropped. The queue is
 bounded — 5,000 events or 400 days — and in practice never trimmed.
+
+## Edits made offline
+
+A love, a tag, a playlist change made with no connection is applied to this device's copy of
+the library at once and kept in its outbox, which goes up to the bucket once it answers again
+(docs/SYNC.md, "Editing from anywhere"). Nothing has to be redone by hand.
 
 ## Automatic downloads
 
 On the devices that keep songs — the phone app and the desktop app — on by default, per
 device. A browser tab streams and downloads nothing, so none of this applies there. Whenever
-the library is reachable and something changes — a song imported, the app opened, the
-connection switching to Wi-Fi — the device works out what it is missing and fetches it, one
-song at a time.
+something changes — a song imported, the app opened, the connection switching to Wi-Fi — the
+device works out what of the library it is missing and fetches it from the bucket, one song
+at a time.
 
-- **Only on Wi-Fi** (on by default). A phone reports its connection type
+- **Download automatically on Wi-Fi** (on by default). A phone reports its connection type
   (`connectionKind.ts`). A computer reports nothing, and is taken to be on Wi-Fi or a cable
   rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data,
   or for any sync over 500 MB (`LARGE_SYNC_BYTES`), it shows "12 to download · Download" and
   waits for a tap rather than spending the allowance for you.
-- **Keep offline: every song, or songs in playlists.** The second resolves live playlists on
-  the server (`GET /api/library/manifest?scope=playlists`), so a live playlist like "loved,
-  played in the last 30 days" keeps the phone current by itself.
-- **Storage.** Before each song the space available is checked, and downloading stops at 90%
-  of it — filling it completely gets the whole origin's storage evicted on some browsers,
-  downloads and all. The status then says how many songs did not fit.
-- **Songs removed by hand stay removed.** "Remove from this phone" remembers the song, so the next
-  pass does not put it straight back; downloading it again by hand forgets that.
+- **The whole library.** What to keep is every song the library has (`GET
+  /api/library/manifest`, worked out from this device's copy).
+- **A capped bucket waits.** While the bucket refuses reads for the day (docs/SYNC.md, "Caps"),
+  no download starts; each would only be refused again.
+- **Songs removed by hand stay removed.** "Remove from this phone" remembers the song, so the
+  next pass does not put it straight back; downloading it again by hand forgets that.
 - **A song that leaves the library is forgotten rather than remembered.** Removing the row is
-  not "don't download this": the id can be handed to a different song later, and a cloud
-  library hands out its own, so remembering it would keep the wrong song off the device.
-- **Remove all from this phone** also turns automatic downloads off, or the cache would simply fill
-  again. While it runs, it and "Remove leftover files" both read "Removing…" and neither can
-  be pressed: two passes over one index would have the later one write back what the earlier
-  one deleted.
+  not "don't download this": the id can be handed to a different song later, so remembering
+  it would keep the wrong song off the device.
+- **Remove all from this phone** also turns automatic downloads off, or the cache would simply
+  fill again. While it runs, it and "Remove leftover files" both read "Removing…" and neither
+  can be pressed: two passes over one index would have the later one write back what the
+  earlier one deleted.
 
-Songs that leave the library are dropped from the cache, but only against a fresh answer from
-the server and never a song the library still has, even one whose file is missing today.
+Songs that leave the library are dropped from the cache, but only once the library has
+actually answered, and never a song the library still has.
 
 ## Removing a song
 
@@ -89,7 +96,6 @@ A song removed on *another* device goes here too: when the library the device re
 names a song it kept, the download queue deletes the copy (`configure` in
 `packages/client/src/downloads/queue.ts`, only once the library has actually answered).
 
-
 ## The two numbers
 
 "How much of my library is here" and "what is this device keeping" are different questions and
@@ -97,15 +103,12 @@ names a song it kept, the download queue deletes the copy (`configure` in
 
 The first is asked of the library in front of you. A song stops counting the moment it leaves
 it — removed here, or removed on another device and arrived by sync — without waiting for
-anything to agree. It is the sidebar foot's hover, "All saved · 45 songs · 41 on this computer", and the Settings panel's
-"41 of 43 songs on this phone", and both fall together.
+anything to agree. It is the sidebar foot's hover, "All saved · 45 songs · 41 on this
+computer", and Settings' "41 of 43 songs on this phone", and both fall together.
 
 The second is asked of the index, which outlives the library it was filled from. A file left
-behind by a departed song is still a file taking up room, so it is what "Remove all from this phone"
-is offered for, and what the leftovers line above it counts. Settings used to answer the
-second question and print it as the first: two songs removed from a library of 45 left it
-reading "43 of 43 songs downloaded", with the bar full and the two departed rows still counted
-as being here.
+behind by a departed song is still a file taking up room, so it is what "Remove all from this
+phone" is offered for, and what the leftovers line above it counts.
 
 A pass that finds nothing to do remembers the manifest it saw, so the next library bump that
 changes no file — a tag, a rename — skips reading every cached entry's size again.
@@ -117,25 +120,19 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   fills as the bytes arrive while one downloads, for a single song asked for by hand as well
   as during an automatic pass. A song that is not on the device carries no mark; the song's own
   page (Song details, in the ⋯ menu) says what will happen to it.
-- **A browser tab streams** and keeps nothing — it has no Offline music settings at all; the
-  installed desktop app downloads the way a phone does (see [desktop-app.md](desktop-app.md)).
-  With the library in the cloud a tab streams from the bucket itself: it asks for
+- **A browser tab streams** and keeps only the last few songs it played — it has no settings
+  for this at all; the installed desktop app downloads the way a phone does (see
+  [desktop-app.md](desktop-app.md)). A tab streams from the bucket itself: it asks for
   `api/stream/<id>` and `api/art/<id>` under the app's own base, and the service worker
   fetches the file with the doorman's bearer header — which an `<audio>` element and an
-  `<img>` are never given the chance to send — passing the player's range straight through.
-  That is also where a cloud library's covers come from in a tab; before it was wired up,
-  every row drew its letter tile and nothing played at all. Each range is a read against the
-  bucket's daily count (docs/SYNC.md, "Caps"), so a song loaded to sit paused fetches nothing
-  until it is played, a cover is kept once under one address however it is asked for, and the
-  words and motion a tab has read survive a deploy.
+  `<img>` are never given the chance to send. Each request is a read against the bucket's
+  daily count (docs/SYNC.md, "Caps"), so a song loaded to sit paused fetches nothing until it
+  is played, a cover is kept once under one address however it is asked for, and the words
+  and motion a tab has read survive a deploy.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
-- **A pill under the library title** when there is something to say: downloading, waiting for
-  Wi-Fi, storage full, or offline.
-- **Settings → Offline music** has the switches, the reason for any wait with a Download now
-  button, and how many plays are waiting to be sent.
-
-## Not done yet
-
-- Loves and tag edits made offline still fail rather than queue. The outbox is the place they
-  would go.
+- **A line at the top of the Library** when there is something to say: downloading, waiting
+  for Wi-Fi or for a tap, the bucket's cap, or offline.
+- **Settings › On this phone** (*On this computer* in the desktop app) has the switch, what is
+  on the device and how much room it takes, the reason for any wait with a Download button,
+  and the removal buttons.

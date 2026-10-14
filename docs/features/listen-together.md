@@ -271,7 +271,7 @@ POST /v1/rooms/<code>/join           RoomJoin    → RoomJoined    a session mak
 GET  /v1/rooms/<code>?t=<token>                  → RoomState
 POST /v1/rooms/<code>/act?t=<token>  RoomAction  → RoomState     add needs the session too
 GET  /v1/rooms/<code>/socket?t=<token>           WebSocket: state down, ping up
-GET  /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
+GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
 GET | POST /v1/rooms/<code>/vectors?t=<token>    how the room's songs sound
 PUT  /v1/rooms/<code>/link-server?t=<token>      the host's server, for links
 POST /v1/rooms/<code>/keep?t=<token>             kept as a shared playlist   signed in
@@ -279,7 +279,7 @@ POST /v1/rooms/<code>/from-shared?t=<token>      a shared playlist's songs   sig
 
 GET | POST /v1/shared                            yours; make one             signed in
 GET  /v1/shared/<id>   POST …/join   POST …/act                            signed in
-GET  /v1/shared/<id>/files/<entry>/<part>?t=<listen token>
+GET | HEAD /v1/shared/<id>/files/<entry>/<part>?t=<listen token>
 ```
 
 The member's token rides in the query. A browser's WebSocket and an `<audio>` element cannot

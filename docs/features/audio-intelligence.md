@@ -1,14 +1,16 @@
 # Audio intelligence
 
-Every song is analysed once, locally, and the results power five things: live playlist rules
-over tempo, key, energy and loudness; an auto-mix mode that orders the queue into a smooth
-path and picks a crossfade per transition; the visuals a song with no lyrics is given
-([now-playing.md](now-playing.md#songs-with-no-words)); and, from a listening model that
-hears each song ([How songs sound](#how-songs-sound)), "Sounds like" and Ask finding music
-by how it sounds.
+Every song is analysed once, on the server, and the results power four things: Ask's
+filters over tempo and energy ([ai.md](ai.md)); an auto-mix mode that orders the queue into
+a smooth path and picks a crossfade per transition; the visuals a song with no lyrics is
+given ([now-playing.md](now-playing.md#songs-with-no-words)); and, from a listening model
+that hears each song ([How songs sound](#how-songs-sound)), "Sounds like" and Ask finding
+music by how it sounds.
 
-Nothing leaves the machine. The measurements are `ffmpeg` and plain TypeScript; the
-listening model runs on the server too, from files it downloads once.
+Nothing leaves the server. The measurements are `ffmpeg` and plain TypeScript; the
+listening model runs on the server too, from files it downloads once. A server working for
+several accounts ([shared-server.md](shared-server.md)) analyses one song at a time across
+all of them and holds one copy of the model for all of them.
 
 ## What is measured
 
@@ -19,11 +21,12 @@ listening model runs on the server too, from files it downloads once.
 | **Loudness** | ffmpeg's `ebur128` filter, integrated LUFS | `loudnessLufs` |
 | **Key** | Chroma from a 4096-point STFT → Krumhansl-Schmuckler correlation against the 24 key profiles | `key` ("A minor") and `camelot` ("8A") |
 | **Danceability** | How regular the gaps between onsets are relative to the beat, blended with beat strength | `danceability` 0–1 |
+| **Motion curve** | A third, whole-song decode at a lower rate (the first 15 minutes at most): how loud the song is and where the hits are, twenty times a second | a file per song, `GET /api/songs/:id/motion`, which Now Playing's visuals play back against the playhead |
 
 Analysis looks at up to 120 seconds from 30 seconds in (or the whole file when it is
 shorter than 90 s), decoded to mono 22 050 Hz. A typical song takes well under a second.
-All of the maths is plain TypeScript in `apps/server/src/services/dsp.ts` — no native
-modules, so `npm install` stays clean on a Mac.
+All of the maths is plain TypeScript in `apps/server/src/services/dsp.ts`, with no native
+modules.
 
 ## When it runs
 
@@ -38,31 +41,31 @@ The queue is the database itself (`song_audio_features` rows), so a restart lose
 
 ## Using it
 
-**Settings → Advanced → Library** has "Analyse songs without features" and "Re-analyse everything",
-with live progress. The same thing over HTTP:
+**Settings › Advanced › Library** has an "Audio analysis" row with **Analyse new songs** and
+**Redo all**, and live progress. The same thing over HTTP:
 
 ```
 POST /api/library/analyze          { "force": false }   start / resume
 GET  /api/library/analyze                               progress
 ```
 
-**Song rows** show the tempo and energy after the artist, muted: `♩ = 130`, the way a score
-marks tempo, and a small waveform drawn straight from the 0–1 energy value — taller and
-denser as a song gets more intense, with no steps or level names
-(`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
-`apps/app/src/ui/components/EnergyWave.tsx`). The key stays off the row. It shows in the queue while
-auto-mix is ordering by it, and on the song's own page (**Song details** in its ⋯ menu),
-which spells out tempo, energy and key in words alongside download state, play history and the
-file, and names the tempo and energy beside "Sounds like".
+**A song's facts** (`apps/app/src/features/song/SongFacts.tsx`: the foot of the song's own
+page, and the Details tab of Now Playing on a computer) start with how it sounds: the tempo
+as `♩ = 130`, the way a score marks it, and in words; a small waveform drawn straight from
+the 0–1 energy value, taller and denser as a song gets more intense, with no steps or level
+names (`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
+`apps/app/src/ui/components/EnergyWave.tsx`); and the key. Song rows show none of it.
 
-**Live playlists** gain an "Audio" group in the rule builder: BPM, Key (exactly this
-Camelot code, or "mixes with" — same number in the other letter, or ±1 in the same
-letter), Energy (0–1) and Loudness (LUFS). Songs that have not been analysed never match
-these rules.
+**Ask** narrows by energy and tempo ranges when the words call for them ("something calm",
+"fast songs"), and a song not analysed yet does not pass an energy range. The rule engine in
+`packages/shared/src/smartRules.ts` still understands BPM, key (exactly this Camelot code,
+or anything that mixes with it), energy and loudness, but a playlist only follows tags, so
+no screen sets those rules.
 
 **Similar songs**: the song menu has "Play similar songs", the song's own page shows them
-under "Sounds like", and Now Playing shows a "Similar" strip. They are the songs the
-listening model hears as closest ([How songs sound](#how-songs-sound)). For a song it has not
+under "Sounds like", and the card at the end of a one-song queue offers "Songs like this".
+They are the songs the listening model hears as closest ([How songs sound](#how-songs-sound)).
+For a song it has not
 heard yet, and to fill the list past the ones it has, they are nearest neighbours by a
 weighted distance over tempo (±8 %, with double/half time counted as a match), energy,
 loudness and distance around the Camelot wheel, with a bonus for shared tags and a milder
@@ -73,11 +76,12 @@ always uses the second.
 GET /api/songs/:id/similar?limit=20
 ```
 
-**Auto-mix** is a toggle in the queue panel. When on:
+**Auto-mix** is a toggle at the foot of Up next. When on:
 
 - the *upcoming* queue is reordered greedily, each step to the nearest song by BPM, key
   and energy, starting from what is playing (songs without features go to the end);
-- songs added with "Add to queue" are folded into the path; "Play next" is honoured as-is;
+- songs added with "Add to Up next", or a new list started, are folded into the path;
+  "Play next" is honoured as-is;
 - each transition's crossfade is chosen from the two songs: the full length for a close
   tempo and a compatible key, shorter for a clash. The ceiling is the crossfade setting;
   with crossfade set to 0, auto-mix uses 4 seconds.
@@ -114,7 +118,8 @@ and sounds, not music.
 `scripts/sound-models/export.py`, checked against CLaMP 3's own Python code: in full precision
 every song and description matched exactly; the 8-bit set the server downloads keeps the scores
 above to the decimal. The files (about 750 MB) are a release of this repository,
-`sound-models-v1`, downloaded into `data/models/` the first time they are wanted and checked
+`sound-models-v1`, downloaded into `<data>/models/` (`/app/data/models` in the Docker image)
+the first time they are wanted and checked
 against hashes written in `sound/models.ts`. A failed download is tried again an hour later.
 The model runs in a worker thread (`sound/clamp3Worker.ts`): a pass on onnxruntime-node
 blocks the thread it runs on, and on the event loop each one froze the server for seconds
@@ -131,14 +136,19 @@ A song's copy on the server is still kept until it has been heard, loaded or not
 
 **When it runs.** In the same background loop as the measurements, after them: a new song is
 heard while its file is open for the measurements anyway, and every song already measured
-once nothing else waits. On the Pi every song's audio is in the bucket, so hearing the
-existing library downloads each song once; those downloads are capped at 1,000 a day, which
-keeps a day's free Backblaze downloads for playing music, and a 1,500-song library is heard
-over two days. About 3 s a song on two cores of an M1; an estimated 15–25 s on a Pi 4.
+once nothing else waits. A server keeps no permanent copy of the songs (the bucket is the
+library), so measuring or hearing a song it does not have at hand downloads it once; those
+downloads are capped at 1,000 a day (`BUCKET_DOWNLOADS_PER_DAY` in
+`services/analysis.ts`), which keeps a day's free Backblaze downloads for playing music,
+and a 1,500-song library is heard over two days. About 3 s a song on two cores of an M1; an
+estimated 15–25 s on a Pi 4.
 A song that cannot be heard is recorded so and not tried again; a changed file is heard
-again. The vectors go to the bucket as one file (docs/SYNC.md, "Sound vectors"), so a server
-starting again from the bucket takes them back instead of hearing every song again. The listening half of the model (about 210 MB) and the text half (about 535 MB) each
-load when first wanted and are let go after ten idle minutes.
+again. The vectors go to the bucket as one file, `lyrics/<sha256>.vec`, named by the snapshot's
+`sound` field and sent at most once an hour while songs are being heard
+([docs/SYNC.md](../SYNC.md), "Sound vectors"), so a server starting again from the bucket
+takes them back instead of hearing every song again. The listening half of the model (about
+210 MB) and the text half (about 535 MB) each load when first wanted and are let go after
+ten idle minutes.
 
 **What uses it.**
 

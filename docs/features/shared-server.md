@@ -10,9 +10,16 @@ Xiao chose **a revocable grant** for the server's way into each bucket, and anyo
 signed in for who may use it — then, on 2026-10-13, an **allow list** for who may sign in
 at all, kept by the doorman's owner in Settings (below).
 
-**Where:** the server (`apps/server/src/hub/`), the doorman (`apps/doorman/src/grants.ts`),
-and every app, which knows the shared server's address the way it knows the doorman's
-(`DEFAULT_SERVER_URL` in `packages/shared/src/cloud.ts`).
+**Where:** the server (`apps/server/src/hub/`), the doorman (`apps/doorman/src/grants.ts`
+and `access.ts`), and every app, which knows the shared server's address the way it knows
+the doorman's (`DEFAULT_SERVER_URL` in `packages/shared/src/cloud.ts`, today
+`https://pi.tail3d8516.ts.net`, Xiao's Raspberry Pi behind Tailscale Funnel; a build may set
+its own).
+
+Every server is a hub; there is no other mode. The one exception is a server whose bucket is
+a folder on its own disk (`SELFMP3_CLOUD_DIR`: the dev profile, the verify lanes): there are
+no accounts to work for, so it holds one library in the data folder itself, with no
+`hub.json`.
 
 ## The idea
 
@@ -34,7 +41,12 @@ A request is routed to its workspace by the token it carries. The token is the w
 own, published in its snapshots to that account's bucket, exactly as the one server's token
 always was. So a device needs nothing new to talk to its library: what it read from its
 bucket is what it sends. A request from the server's own machine with no token goes to the
-only workspace, when there is only one.
+only workspace, when there is only one. A request with no token, or a token nobody here was
+given, is a 401, except `GET /api/health`.
+
+The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (below),
+`DELETE /api/hub/join` with a workspace's token, which lets that library go, and
+`GET /api/hub`, the list of workspaces, answered only to the server's own machine.
 
 What the workspaces share is what is heavy, or tied to the machine rather than to anyone's
 library (`apps/server/src/shared.ts`):
@@ -82,10 +94,11 @@ server's `POST /api/hub/join`, once:
 Joining again is harmless: an account that already has a workspace gets its token back. A
 join that fails is tried again by itself ten minutes later.
 
-The button is for one case only. **Use the shared computer**, under **No computer works for
-your library yet** and in Settings › Account › Computers, appears when this device has
-removed the shared computer. Removing it there is remembered on that device, so it does not
-join again by itself; pressing the button joins by hand and forgets that.
+The button is for when that did not happen. **Use the shared computer** appears under **No
+computer works for your library yet** (the notice a screen shows when no server answers for
+it) and in Settings › Account › Computers when the list is empty. In practice that is after
+this device removed the shared computer: removing it there is remembered on that device, so
+it does not join again by itself, and pressing the button joins by hand and forgets that.
 
 ## Grants
 
@@ -158,21 +171,35 @@ server's grant for them: the server can no longer reach their bucket.
 ## Cost and risk
 
 - **Anyone signed in may join.** Every import goes out from the server's address to YouTube,
-  and every Smart feature runs on the server's model. YouTube has blocked this home's IPv6
-  range before (yt-dlp now pins IPv4). The doorman's allow list (Settings › Who can sign in, owner only) and the Google OAuth app's
-  publishing state are what decide who can sign in at all.
+  and every Smart feature runs on the server's model (`SELFMP3_AI_BASE_URL`,
+  [ai.md](ai.md)). YouTube has blocked this home's IPv6 range before (yt-dlp now pins
+  IPv4). The doorman's allow list (Settings › Who can sign in, owner only) and the Google
+  OAuth app's publishing state are what decide who can sign in at all.
+- **The model is the owner's.** With cli-bridge as the endpoint, as on Xiao's Pi, every
+  account's Smart features run on the Claude subscription signed in on the server.
+  cli-bridge's own README says a Pro or Max plan is for its owner's use only, and that
+  anything serving other people should use an API key; an endpoint with a key of its own
+  (Anthropic's, say) is the setting for a server friends use.
 - **The Pi's memory.** A workspace is a SQLite database with a 64 MB page cache at most, and
   a few timers. The model is shared, so the cost of a friend is mostly their library's
   database.
 
 ## Deploying
 
-- **The doorman goes first**, by hand (`cd apps/doorman && npx wrangler deploy`). It adds
-  `/v1/grants` and `account` in `/v1/me`, and nothing an older server or app reads changes.
-- **Then the server.** On the Pi it updates itself from `main`. Its first start moves the
-  library into a workspace and settles its grant.
-- **Then the app**, which offers the shared computer. Pages deploys it from `main` with the
-  rest.
+A change that touches the doorman, the server and the app goes out in that order:
+
+- **The doorman first, by hand.** No workflow deploys it: `cd apps/doorman && npx wrangler
+  deploy` ([apps/doorman/README.md](../../apps/doorman/README.md)). The server and the app
+  ask it for grants (`/v1/grants`), `account` in `/v1/me` and the allow list (`/v1/access`),
+  so it has to answer before they do.
+- **Then the server, by pushing to `main`.** `.github/workflows/docker.yml` builds
+  `ghcr.io/xiao215/selfmp3:latest` (arm64 and amd64) when a push touches the server or
+  `packages/shared`, and again every Monday for a fresh yt-dlp. The server picks it up with
+  `docker compose pull && docker compose up -d`, run by hand or on a timer; Xiao's Pi does it
+  by itself within minutes of the image being published ([docs/INSTALL.md](../INSTALL.md)).
+- **Then the app.** The same push to `main` publishes the web app to GitHub Pages
+  (`.github/workflows/pages.yml`). The desktop app is released from a `desktop-v*` tag
+  (`desktop.yml`), and the phone app is built and installed by hand.
 
 ## Where the code lives
 

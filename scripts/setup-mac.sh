@@ -146,5 +146,5 @@ echo
 echo "  Open:        http://localhost:$PORT"
 echo "  Check:       ./scripts/doctor.sh"
 echo "  Import:      npm run cli -- import <url>"
-echo "  Your phone:  docs/SETUP.md"
+echo "  Your phone:  docs/INSTALL.md"
 echo

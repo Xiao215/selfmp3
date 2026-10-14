@@ -46,6 +46,7 @@ const CALLS: Calls = {
   bulkLoved: api => api.bulkLoved({ songIds: [1], loved: true }),
   lookupMetadata: api => api.lookupMetadata(1),
   applyMetadata: api => api.applyMetadata(1, {} as never),
+  removeCover: api => api.removeCover(1),
   fixCoversStart: api => api.fixCoversStart(),
   describePlaylist: api => api.describePlaylist({ text: 'calm', understanding: null }),
   refineAnswer: api => api.refineAnswer({} as never),

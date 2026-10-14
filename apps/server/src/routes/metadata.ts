@@ -5,6 +5,7 @@ import {
   type ApplyMetadataResult,
   type FixCoversStatus,
   type MetadataLookupResponse,
+  type Ok,
   type SongPatch,
 } from '@selfmp3/shared'
 import type { Container } from '../container.js'
@@ -60,6 +61,18 @@ export function metadataRoutes(container: Container): Router {
         return { ok: true, artworkSaved }
       },
     ),
+  )
+
+  // A cover taken off again: the Undo of one Tidy up filled in, where the
+  // song had none before (docs/features/ai.md, "Filling in what's missing").
+  router.delete(
+    '/songs/:id/cover',
+    route({ params: ParamsWithId }, async ({ params }): Promise<Ok> => {
+      const song = requireSong(container.songs, params.id)
+      await container.covers.remove(song.id)
+      container.bumpLibraryVersion()
+      return { ok: true }
+    }),
   )
 
   router.post(

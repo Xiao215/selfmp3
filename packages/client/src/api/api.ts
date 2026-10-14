@@ -356,6 +356,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     applyMetadata: (id: number, input: ApplyMetadata) =>
       request('POST', `/api/songs/${id}/apply-metadata`, ApplyMetadataResultSchema, input),
 
+    /** A cover taken off again, leaving the song with none: a filled-in cover's Undo. */
+    removeCover: (id: number) => request('DELETE', `/api/songs/${id}/cover`, OkSchema),
+
     fixCoversStart: () => request('POST', '/api/library/fix-covers', FixCoversStatusSchema),
 
     // --- smart features (docs/features/ai.md): the server's, never the bucket's

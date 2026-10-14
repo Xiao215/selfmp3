@@ -127,6 +127,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'GET /api/lyrics/search',
   'GET /api/songs/:id/lookup',
   'POST /api/songs/:id/apply-metadata',
+  'DELETE /api/songs/:id/cover',
   'GET /api/ai',
   'POST /api/ai/check',
   'POST /api/ai/describe',

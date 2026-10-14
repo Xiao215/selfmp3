@@ -803,6 +803,21 @@ describe('CloudSyncService', () => {
       expect(bucket.keys('covers/')).toEqual([after])
     })
 
+    it('publishes a cover taken off as none, and deletes it from the bucket', async () => {
+      const id = addSong('A - One', 'one')
+      await covers.save(id, Buffer.alloc(2048, 7), '.jpg')
+      await connect()
+      expect(latest().songs[0]?.cover?.key).toBe(`covers/${sha(Buffer.alloc(2048, 7))}.jpg`)
+
+      // A filled-in cover's Undo (DELETE /api/songs/:id/cover).
+      await covers.remove(id)
+      await pass()
+
+      expect(latest().songs[0]?.cover).toBeNull()
+      expect(latest().songs[0]?.coverTone).toBeNull()
+      expect(bucket.keys('covers/')).toEqual([])
+    })
+
     it('deletes the covers already in the bucket that nothing names, and no audio or words', async () => {
       const id = addSong('A - One', 'one')
       await covers.save(id, Buffer.alloc(2048, 7), '.jpg')

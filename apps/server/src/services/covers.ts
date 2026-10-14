@@ -173,6 +173,17 @@ export class CoverService {
     }
   }
 
+  /**
+   * A song's cover taken off, leaving it with none: the Undo of a cover Tidy
+   * up filled in (docs/features/ai.md, "Filling in what's missing"). The row
+   * says so first, so nothing serves the file while it goes; the cloud pass
+   * then publishes the song without a cover, as it does any cover replaced.
+   */
+  async remove(songId: number): Promise<void> {
+    this.#songs.setArt(songId, false, null)
+    await this.delete(songId)
+  }
+
   async delete(songId: number): Promise<void> {
     for (const extension of EXTENSIONS) {
       await fsp.rm(this.#pathFor(songId, extension), { force: true }).catch(() => undefined)

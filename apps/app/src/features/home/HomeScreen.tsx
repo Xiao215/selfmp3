@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
-import { useRecentRooms, withYourPicture } from '../room/pastRooms.store'
+import { pastRoomFaces, useRecentRooms } from '../room/pastRooms.store'
 import { FacesCover } from '../room/RoomFace'
 import { usePastRoomCovers } from '../room/usePastRoomCovers'
 import { TogetherCard } from '../room/Together'
@@ -667,12 +667,7 @@ function Recents({
  */
 function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
   const router = useRouter()
-  const yours = useCloudSession().data?.picture
-  // The others who were there; you, when nobody else came.
-  const others = room.people.filter(person => person.name !== 'You')
-  const faces = (others.length > 0 ? others : room.people).map(person =>
-    withYourPicture(person, yours),
-  )
+  const faces = pastRoomFaces(room, useCloudSession().data?.picture)
   // The songs that played behind them, as a playlist's cover is made.
   const pictures = usePastRoomCovers(room)
   const covers = room.songs.map((entry, at) => ({

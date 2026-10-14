@@ -139,18 +139,29 @@ room.
 
 ## After (A3, G1)
 
-When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**. Its page lists
-every song that played, with who brought it. The room lent its covers only while it was open,
-so a song you have draws your own copy's cover, a link the picture its page showed, and a friend's
-the copy this device kept of it as it played (held from the library's sweep of pictures while
-the room is remembered; a browser tab keeps none, and draws the letter). A room you were in
-alone shows your own face on its tile.
+When the room ends it becomes a Recently played tile, **With Mia, Ken, Ana**: the covers of
+what played, four in a square, with the others' faces big in the middle (yours, when you were
+alone). Its page is a list's page like a tag's, a playlist's or an Ask answer's (Xiao,
+2026-10-13: A1 B1 C1 D1):
 
-- **Open the shared playlist**, when the host kept the room as one (below).
-- **Save as playlist** keeps the songs that are yours as a playlist of your own.
-- **Get it** brings one of a friend's songs home. Your server imports it from the same link
-  hers came from (the song's source link), into your own bucket, and finds its words again.
-  A song with no link, such as a file Mia dropped in, says *Mia's only*.
+- **The head**, lit by its covers: that same cover, *Together · Tuesday, Oct 13*, the name, how
+  many songs and how long, then **Play** and **Shuffle**, and **Shared playlist** when the host
+  kept the room as one (below). Played, Up next is the room by its name (a `room` list source,
+  docs/features/lists.md), linking back here, with Up next's own Save.
+- **The ⋯**: Play next and Add to Up next, then **Save as playlist** (your songs, as an Ask
+  answer saves), **Get N songs from friends**, and **Forget this room**.
+- **The rows**: every song that played, in the order it played, with the face of whoever
+  brought it on its cover's corner and nothing more said. Yours play, from that row on. A
+  friend's song you don't have is faded, since the room that lent it has gone, and has **Get
+  it** in Import's own words: the download Home opens Import with, then the import's ring on
+  the row, filling as it goes (red with a retry if it failed). Your server imports it from the
+  link it came from, into your own bucket, and finds its words again; once it lands the row is
+  yours. A song with no link, such as a file Mia dropped in, is only faded.
+
+The room lent its covers only while it was open, so a song you have draws your own copy's
+cover, a link the picture its page showed, and a friend's the copy this device kept of it as it
+played (held from the library's sweep of pictures while the room is remembered; a browser tab
+keeps none, and draws the letter).
 
 ## Links (L3)
 

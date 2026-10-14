@@ -156,6 +156,33 @@ describe('Home’s Recently played songs, played again', () => {
   })
 })
 
+describe('a room that ended, played from its page', () => {
+  const room: ListSource = { kind: 'room', code: 'KQ7482', name: 'With Mia' }
+
+  it('names Up next after the room, and goes back to its page', () => {
+    expect(describeSource(room, known)).toMatchObject({
+      label: 'With Mia',
+      link: { pathname: '/past-room/[code]', params: { code: 'KQ7482' } },
+    })
+    expect(recentKind(room)).toBe('Together')
+  })
+
+  it('saves your songs from it, and is not a second tile beside the room’s own', () => {
+    expect(savePlan(room, queue([4, 5]), known)).toEqual({
+      kind: 'songs',
+      name: 'With Mia',
+      songIds: [4, 5],
+    })
+    expect(sourceKey(room, [4, 5])).toBeNull()
+    expect(withListStarted([], room, [4, 5], 100)).toEqual([])
+  })
+
+  it('reads back as it was kept', () => {
+    expect(parseListSource(JSON.parse(JSON.stringify(room)))).toEqual(room)
+    expect(parseListSource({ kind: 'room', name: 'With Mia' })).toBeNull()
+  })
+})
+
 describe('a song picked from a general list', () => {
   it('plays that song alone, with no source: Up next is just it, nameless, with no Save', () => {
     const calls: unknown[][] = []

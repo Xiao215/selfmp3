@@ -6,6 +6,7 @@ import { radius, space, type, coverSize } from '@selfmp3/client'
 import { Cover } from './Cover'
 import { Press } from './Press'
 import { smallTitle } from '../surfaces'
+import { OPACITY } from '../motion.model'
 
 /**
  * The compact song line: a 36 cover, the title, a line under it, and whatever
@@ -37,6 +38,7 @@ export function SongLine({
   accessibilityRole = 'button',
   testID,
   style,
+  faded = false,
 }: {
   title: ReactNode
   sub?: ReactNode
@@ -54,18 +56,22 @@ export function SongLine({
   accessibilityRole?: AccessibilityRole
   testID?: string
   style?: StyleProp<ViewStyle>
+  /** The song faded, its `trailing` not: one that can't play here, with what can be done about it. */
+  faded?: boolean
 }): ReactNode {
   const face = (
     <>
       {leading}
-      {cover ?? (
-        <Cover
-          uri={artUri}
-          title={coverTitle ?? (typeof title === 'string' ? title : '')}
-          size={coverSize.line}
-        />
-      )}
-      <View style={styles.text}>
+      <View style={faded && styles.faded}>
+        {cover ?? (
+          <Cover
+            uri={artUri}
+            title={coverTitle ?? (typeof title === 'string' ? title : '')}
+            size={coverSize.line}
+          />
+        )}
+      </View>
+      <View style={[styles.text, faded && styles.faded]}>
         <Text style={[styles.title, titleStyle]} numberOfLines={1}>
           {title}
         </Text>
@@ -111,6 +117,7 @@ const styles = StyleSheet.create(theme => ({
   },
   pressed: { backgroundColor: theme.colors.surface2 },
   text: { flex: 1, minWidth: 0, gap: 1 },
+  faded: { opacity: OPACITY.dim },
   title: smallTitle(theme.colors),
   sub: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

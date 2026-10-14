@@ -85,6 +85,20 @@ export function withYourPicture<
 }
 
 /**
+ * Who a room that ended is drawn as: the others who were there, or you when
+ * nobody else came, each with their picture (yours from your session).
+ */
+export function pastRoomFaces(
+  room: PastRoom,
+  yourPicture: string | null | undefined,
+): PastRoom['people'] {
+  const others = room.people.filter(person => person.name !== 'You')
+  return (others.length > 0 ? others : room.people).map(person =>
+    withYourPicture(person, yourPicture),
+  )
+}
+
+/**
  * The key of a past room's song's cover when it was a friend's, lent by the
  * room and kept on this device as it played (RoomProvider); none for yours,
  * which your library draws.

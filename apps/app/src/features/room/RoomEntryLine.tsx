@@ -37,8 +37,9 @@ function FaceBadge({ face, children }: { face: Face | null; children: ReactNode 
 /**
  * One song in a room or a shared playlist: its cover with whose it is on the
  * corner, the title, "artist · who" under it (and a note: "from a link",
- * "yours"), the place's own buttons and, where you may, Take out. A
- * `SongLine`, as every song named outside a list is.
+ * "yours"; a room that ended says only the artist), the place's own buttons
+ * and, where you may, Take out. A `SongLine`, as every song named outside a
+ * list is.
  */
 export function RoomEntryLine({
   song,
@@ -50,12 +51,14 @@ export function RoomEntryLine({
   onRemove,
   onPress,
   dim = false,
+  faded = false,
   testID,
 }: {
   song: { readonly title: string; readonly artist: string; readonly album?: string | null }
   uri: string | null | undefined
   face: Face | null
-  who: string
+  /** Whose it is, in words after the artist; left out where the face on the cover says it. */
+  who?: string
   /** After who: "from a link", "yours". */
   note?: string
   trailing?: ReactNode
@@ -63,18 +66,21 @@ export function RoomEntryLine({
   onPress?: () => void
   /** Played already, in a room's list. */
   dim?: boolean
+  /** Can't play here, its buttons still can: a friend's song once the room has ended. */
+  faded?: boolean
   testID?: string
 }): ReactNode {
   return (
     <SongLine
       style={dim ? styles.dim : undefined}
+      faded={faded}
       cover={
         <FaceBadge face={face}>
           <Cover uri={uri} title={song.album || song.title} size={coverSize.line} />
         </FaceBadge>
       }
       title={song.title}
-      sub={`${artistOr(song.artist)} · ${who}${note ? ` · ${note}` : ''}`}
+      sub={[artistOr(song.artist), who, note].filter(Boolean).join(' · ')}
       onPress={onPress}
       accessibilityLabel={onPress ? `Play ${song.title}` : undefined}
       testID={testID}

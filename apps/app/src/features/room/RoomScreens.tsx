@@ -1,12 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { formatRoomCode, plural, RoomCodeSchema, RoomMemberNameSchema } from '@selfmp3/shared'
+import {
+  formatLongDuration,
+  formatRoomCode,
+  plural,
+  RoomCodeSchema,
+  RoomMemberNameSchema,
+  type Song,
+} from '@selfmp3/shared'
 import {
   failureText,
+  iconSize,
   libraryIndex,
   queryKeys,
   space,
@@ -25,15 +33,28 @@ import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
 import { newPlaylist } from '../playlists/playlists.model'
-import { forgetPastRoom, usePastRooms, withYourPicture } from './pastRooms.store'
+import { forgetPastRoom, pastRoomFaces, usePastRooms, withYourPicture } from './pastRooms.store'
 import { usePastRoomCovers } from './usePastRoomCovers'
-import { RoomFaces } from './RoomFace'
+import { FacesCover } from './RoomFace'
+import { GetIt } from './GetIt'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
 import { useGetSongs } from './useGetSongs'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useArt } from '../../offline/useArt'
+import { usePlayerCommands } from '../../player/PlayerProvider'
+import { useLayout } from '../../shell/useLayout'
+import { ListHead, listHeadText } from '../../ui/components/ListHead'
+import { Download, ListMusic, People, Trash } from '../../ui/components/Icons'
+import { MoreMenu } from '../../ui/components/MoreMenu'
+import { PlayShuffle } from '../../ui/components/PlayShuffle'
+import { useListActions } from '../../ui/components/useListActions'
+import { useSongsById } from '../../ui/songsById'
+import { useSongColor } from '../../ui/useSongColor'
+import type { ListSource } from '../lists/lists.model'
+import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 
 /** The name a guest last joined with, offered again. */
 const GUEST_NAME_KEY = 'room.name'
@@ -178,23 +199,55 @@ export function RoomScreen(): ReactNode {
 // --- After ------------------------------------------------------------------------
 
 /**
- * `/past-room/<code>`: a room that ended, from Recently played (mock R12):
- * every song that played and who brought it. Save keeps the songs that are
- * yours as a playlist; Get it brings a friend's song home, imported by your
- * own server from the link it came from (G1).
+ * `/past-room/<code>`: a room that ended, from Recently played (mock R12), as
+ * a list's page like any other — a tag's, a playlist's, an answer's (Xiao,
+ * 2026-10-13: A1 B1 C1 D1). The head is lit by its covers, with its people's
+ * faces big on them (`FacesCover`), Play and Shuffle, and the ⋯ every list
+ * has. Nothing asks you to keep it: played, Up next is the room by its name
+ * and Save is there, and Save as playlist is in the ⋯ for a room you already
+ * want again.
+ *
+ * Every song that played stays in the order it played, with the face of
+ * whoever brought it on its cover's corner and nothing more said. Yours play.
+ * A friend's you do not have is faded, since the room that lent it has gone,
+ * and has Get it (G1): your own server imports it from the link it came from,
+ * its row following the import as Import's own do (`GetIt`).
  */
 export function PastRoomScreen(): ReactNode {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { wide } = useLayout()
   const { code } = useLocalSearchParams<{ code: string }>()
   const past = usePastRooms().find(room => room.code === code)
   const { data: library } = useLibrary()
   const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const byId = useSongsById()
   const covers = usePastRoomCovers(past)
+  const artFor = useArt()
   const yourPicture = useCloudSession().data?.picture
-  const { getting, get } = useGetSongs()
+  const player = usePlayerCommands()
+  const fly = useFlyToUpNext()
+  const heroRef = useRef<View>(null)
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const [saving, setSaving] = useState(false)
+
+  // Each song's copy in your library, in the room's order.
+  const yours = useMemo(
+    () => (past?.songs ?? []).map(entry => yoursOf(entry.song, index)),
+    [past, index],
+  )
+  // Yours, once each, in the order they played: what Play plays and Save keeps.
+  const ids = useMemo(() => [...new Set(yours.filter((id): id is number => id !== null))], [yours])
+  const gettable = (past?.songs ?? []).filter(
+    (entry, at) => yours[at] === null && entry.song.sourceUrl !== null,
+  )
+  const { getting, get, jobFor, retry } = useGetSongs({ watch: gettable.length > 0 })
+  const listActions = useListActions(ids, { heroRef })
+  const lead = useMemo(
+    () => ids.map(id => byId.get(id)).find((song): song is Song => song?.hasArt === true) ?? null,
+    [ids, byId],
+  )
+  const light = useSongColor(lead, lead ? artFor(lead) : null)
 
   if (!past) {
     return (
@@ -206,18 +259,23 @@ export function PastRoomScreen(): ReactNode {
     )
   }
 
-  const yours = past.songs.map(entry => yoursOf(entry.song, index))
-  const yourIds = [...new Set(yours.filter((id): id is number => id !== null))]
-  const gettable = past.songs.filter(
-    (entry, at) => yours[at] === null && entry.song.sourceUrl !== null,
+  const source: ListSource = { kind: 'room', code: past.code, name: past.title }
+  const play = (id: number): void => {
+    const at = Math.max(0, ids.indexOf(id))
+    fly(heroRef.current, ids.slice(at))
+    player.playFrom(ids, at, { source })
+  }
+  const seconds = past.songs.reduce((sum, entry) => sum + entry.song.duration, 0)
+  const waiting = gettable.filter(
+    entry => !getting.has(entry.song.sourceUrl ?? '') && !jobFor(entry.song.sourceUrl),
   )
 
   const save = async (): Promise<void> => {
     const input = newPlaylist('manual', past.title)
-    if (!input || yourIds.length === 0) return
+    if (!input || ids.length === 0 || saving) return
     setSaving(true)
     try {
-      const created = await createPlaylist({ input, songIds: yourIds, refresh: 'wait' })
+      const created = await createPlaylist({ input, songIds: ids, refresh: 'wait' })
       void queryClient.invalidateQueries({ queryKey: queryKeys.library })
       showToast(`Saved “${created.name}”`, 'good', {
         actions: [
@@ -235,98 +293,153 @@ export function PastRoomScreen(): ReactNode {
     }
   }
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.page} testID="past-room">
-        <BackButton to="/" />
-        <View style={styles.pastHead}>
-          <Text style={styles.big} accessibilityRole="header">
-            {past.title}
-          </Text>
-          <View style={styles.people}>
-            <RoomFaces
-              people={past.people.map(person => withYourPicture(person, yourPicture))}
-              size={22}
-            />
-            <Text style={styles.text}>
+  const head = (
+    <ListHead
+      wide={wide}
+      light={light.color}
+      art={null}
+      topBar={
+        <>
+          <BackButton to="/" always />
+          <MoreMenu
+            name={past.title}
+            title={past.title}
+            testID="past-room-more"
+            menuTestID="past-room-menu"
+            items={[
+              ...listActions,
+              {
+                key: 'save',
+                label: saving ? 'Saving…' : 'Save as playlist',
+                icon: <ListMusic tone="textSecondary" />,
+                disabled: ids.length === 0 || saving,
+                apart: true,
+                testID: 'past-room-save',
+                onPress: () => void save(),
+              },
+              ...(waiting.length > 0
+                ? [
+                    {
+                      key: 'get-all',
+                      label: `Get ${plural(waiting.length, 'song', 'songs')} from friends`,
+                      icon: <Download tone="textSecondary" />,
+                      testID: 'past-room-get-all',
+                      onPress: () => void get(waiting.map(entry => entry.song)),
+                    },
+                  ]
+                : []),
+              {
+                key: 'forget',
+                label: 'Forget this room',
+                icon: <Trash tone="textSecondary" />,
+                apart: true,
+                testID: 'past-room-forget',
+                onPress: () => {
+                  forgetPastRoom(past.code)
+                  router.replace('/')
+                },
+              },
+            ]}
+          />
+        </>
+      }
+      heroRef={heroRef}
+      cover={
+        <FacesCover
+          people={pastRoomFaces(past, yourPicture)}
+          size={wide ? 176 : 196}
+          covers={past.songs.map((entry, at) => ({
+            uri: covers[at],
+            title: entry.song.album || entry.song.title,
+          }))}
+        />
+      }
+      titles={
+        <>
+          <View style={listHeadText.kind}>
+            <People size={iconSize.tiny} />
+            <Text style={listHeadText.kindText}>
+              Together ·{' '}
               {new Date(past.endedAt).toLocaleDateString(undefined, {
                 weekday: 'long',
                 month: 'short',
                 day: 'numeric',
-              })}{' '}
-              · {plural(past.songs.length, 'song', 'songs')}
+              })}
             </Text>
           </View>
-        </View>
-        <View style={styles.actions}>
+          <Text style={listHeadText.name} numberOfLines={2} accessibilityRole="header">
+            {past.title}
+          </Text>
+          <Text style={listHeadText.summary}>
+            {plural(past.songs.length, 'song', 'songs')}
+            {seconds > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
+          </Text>
+        </>
+      }
+      actions={
+        <>
+          <PlayShuffle
+            name={past.title}
+            songIds={ids}
+            empty={false}
+            heroRef={heroRef}
+            onPlay={() => player.playFrom(ids, 0, { source })}
+            onShuffle={() => player.playShuffled(ids, source)}
+            testPrefix="past-room"
+          />
           {past.shared ? (
             <Button
-              label="Open the shared playlist"
-              variant="primary"
+              label="Shared playlist"
               onPress={() =>
                 router.push({ pathname: '/shared/[id]', params: { id: past.shared ?? '' } })
               }
               testID="past-room-shared"
             />
           ) : null}
-          <Button
-            label={`Save ${plural(yourIds.length, 'song', 'songs')} as a playlist`}
-            variant={past.shared ? 'secondary' : 'primary'}
-            busy={saving}
-            disabled={yourIds.length === 0}
-            onPress={() => void save()}
-            testID="past-room-save"
-          />
-          {gettable.length > 0 ? (
-            <Button
-              label={`Get all ${gettable.length}`}
-              onPress={() => void get(gettable.map(entry => entry.song))}
-              testID="past-room-get-all"
-            />
-          ) : null}
-          <Button
-            label="Forget it"
-            variant="text"
-            onPress={() => {
-              forgetPastRoom(past.code)
-              router.replace('/')
-            }}
-          />
+        </>
+      }
+    />
+  )
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.pastList} testID="past-room">
+        {head}
+        <View style={[styles.rows, wide && styles.rowsWide]}>
+          {past.songs.map((entry, at) => {
+            const id = yours[at] ?? null
+            const sourceUrl = entry.song.sourceUrl
+            return (
+              <RoomEntryLine
+                key={`${at}-${entry.song.title}`}
+                song={entry.song}
+                uri={covers[at]}
+                face={withYourPicture(
+                  { name: entry.by, colour: entry.colour, picture: entry.picture },
+                  yourPicture,
+                )}
+                // The room that lent a friend's song has gone: it can only be got.
+                faded={id === null}
+                onPress={id !== null ? () => play(id) : undefined}
+                testID={`past-room-row-${at}`}
+                trailing={
+                  id === null && sourceUrl ? (
+                    <GetIt
+                      title={entry.song.title}
+                      asked={getting.has(sourceUrl)}
+                      job={jobFor(sourceUrl)}
+                      onGet={() => void get([entry.song])}
+                      onRetry={job => void retry(job)}
+                      testID={`past-room-get-${at}`}
+                    />
+                  ) : null
+                }
+              />
+            )
+          })}
         </View>
-        <Text style={styles.text}>
-          Save keeps the songs that are yours. Get it imports a friend’s song from the link it came
-          from, into your own library.
-        </Text>
-        {past.songs.map((entry, at) => {
-          const mine = yours[at] !== null
-          const source = entry.song.sourceUrl
-          return (
-            <RoomEntryLine
-              key={`${at}-${entry.song.title}`}
-              song={entry.song}
-              uri={covers[at]}
-              face={withYourPicture(
-                { name: entry.by, colour: entry.colour, picture: entry.picture },
-                yourPicture,
-              )}
-              who={entry.by}
-              note={mine ? 'yours' : undefined}
-              trailing={
-                mine ? null : source ? (
-                  getting.has(source) ? (
-                    <Text style={styles.text}>Getting…</Text>
-                  ) : (
-                    <Button label="Get it" onPress={() => void get([entry.song])} />
-                  )
-                ) : (
-                  <Text style={styles.text}>{entry.by}’s only</Text>
-                )
-              }
-            />
-          )
-        })}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   )
 }
 
@@ -353,7 +466,7 @@ const styles = StyleSheet.create(theme => ({
   label: label(theme.colors),
   text: lineSub(theme.colors),
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
-  pastHead: { gap: space.sm },
-  people: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  pastList: { paddingBottom: 120 },
+  rows: { paddingHorizontal: space.gutter, gap: space.sm },
+  rowsWide: { paddingHorizontal: space.gutterWide },
 }))

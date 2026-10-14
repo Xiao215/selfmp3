@@ -1,7 +1,12 @@
-import { useState } from 'react'
-import { plural, type RoomSong } from '@selfmp3/shared'
-import { failureText } from '@selfmp3/client'
+import { useCallback, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { linkIdentity, plural, type ImportJob, type RoomSong } from '@selfmp3/shared'
+import { failureText, queryKeys } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
+import { useConnection } from '../../connection/ConnectionProvider'
+import { noServer, viaKey } from '../../connection/via'
+import { library as cloudLibrary } from '../../replica'
+import { useSongsLanding } from '../import/useSongsLanding'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { showToast } from '../../ui/toast'
 
@@ -10,16 +15,71 @@ import { showToast } from '../../ui/toast'
  * home, your own server importing it from the link it came from into your own
  * bucket. A room's song, a room that ended and a share link all offer it.
  */
-export function useGetSongs(options: { readonly enabled?: boolean } = {}): {
+export function useGetSongs(
+  options: {
+    readonly enabled?: boolean
+    /** Follow the server's import queue, so each song's import can be drawn as it goes. */
+    readonly watch?: boolean
+  } = {},
+): {
   /** Your library's computer answers, so Get it can be asked. */
   readonly reachable: boolean
   /** The source links asked for, while they import. */
   readonly getting: ReadonlySet<string>
   /** Ask for these; true once the server has taken them. */
   readonly get: (songs: readonly RoomSong[]) => Promise<boolean>
+  /** The latest import of the song from this link, while `watch` follows the queue. */
+  readonly jobFor: (sourceUrl: string | null) => ImportJob | undefined
+  /** Try a failed import again. */
+  readonly retry: (job: ImportJob) => Promise<void>
 } {
   const server = useServerDirect({ enabled: options.enabled ?? true })
   const [getting, setGetting] = useState<ReadonlySet<string>>(new Set())
+  const connection = server.state === 'reachable' ? server.connection : null
+  const api = useMemo(() => (connection ? apiFor(connection) : null), [connection])
+  const queryClient = useQueryClient()
+  const { fromCloud } = useConnection()
+
+  // The Import page's own query of the same server's queue, so the two share
+  // one poll: every second while anything imports, then not at all.
+  const queue = useQuery({
+    queryKey: viaKey(connection?.baseUrl, 'queue'),
+    queryFn: () => (api ? api.importQueue() : noServer()),
+    enabled: api !== null && options.watch === true,
+    refetchInterval: query => {
+      const data = query.state.data
+      return data && (data.active > 0 || data.queued > 0) ? 1_000 : false
+    },
+  })
+  // A song that landed is a song of yours: the library is asked again, as the
+  // Import page asks it, so its row turns into one you can play.
+  const look = useCallback(() => {
+    if (fromCloud) cloudLibrary.markCloudLibraryStale()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.library })
+  }, [fromCloud, queryClient])
+  useSongsLanding(queue.data, connection?.baseUrl ?? 'here', look)
+
+  const jobFor = useCallback(
+    (sourceUrl: string | null): ImportJob | undefined => {
+      const wanted = linkIdentity(sourceUrl)
+      if (!wanted) return undefined
+      // Newest first: a song got again after a failure is drawn as it is now.
+      return [...(queue.data?.jobs ?? [])]
+        .filter(job => linkIdentity(job.url) === wanted)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    },
+    [queue.data],
+  )
+
+  const retry = async (job: ImportJob): Promise<void> => {
+    if (!api) return
+    try {
+      await api.retryImport(job.id)
+      void queryClient.invalidateQueries({ queryKey: viaKey(connection?.baseUrl, 'queue') })
+    } catch (error) {
+      showToast(failureText('Couldn’t try it again', error), 'error')
+    }
+  }
 
   const get = async (songs: readonly RoomSong[]): Promise<boolean> => {
     const wanted = songs.filter(song => song.sourceUrl !== null)
@@ -44,12 +104,17 @@ export function useGetSongs(options: { readonly enabled?: boolean } = {}): {
         playlistId: null,
         createPlaylistName: null,
       })
-      showToast(
-        wanted.length === 1
-          ? `Getting “${wanted[0]?.title ?? ''}”. It arrives in your library as it imports.`
-          : `Getting ${plural(wanted.length, 'song', 'songs')}. They arrive in your library as they import.`,
-        'good',
-      )
+      // Followed on the row itself where the queue is watched; said otherwise.
+      if (options.watch) {
+        void queryClient.invalidateQueries({ queryKey: viaKey(connection?.baseUrl, 'queue') })
+      } else {
+        showToast(
+          wanted.length === 1
+            ? `Getting “${wanted[0]?.title ?? ''}”. It arrives in your library as it imports.`
+            : `Getting ${plural(wanted.length, 'song', 'songs')}. They arrive in your library as they import.`,
+          'good',
+        )
+      }
       return true
     } catch (error) {
       setGetting(before => new Set([...before].filter(key => !keys.includes(key))))
@@ -58,5 +123,5 @@ export function useGetSongs(options: { readonly enabled?: boolean } = {}): {
     }
   }
 
-  return { reachable: server.state === 'reachable', getting, get }
+  return { reachable: server.state === 'reachable', getting, get, jobFor, retry }
 }

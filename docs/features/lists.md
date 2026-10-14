@@ -99,8 +99,10 @@ where it stood, and the toast offers Open and Undo. Recently played's tile becom
 playlist (`noteListSaved`), so playing it again does not offer Save again.
 
 There is no Save on a tag's page, an artist's page or Library's head any more. An Ask answer
-you already trust has **Save as playlist** in its ⋯. New playlist still makes a
-playlist directly; it is the one place whose whole job is that.
+you already trust has **Save as playlist** in its ⋯, and so does a room listened in together
+once it ended (its `room` source names Up next after the room, and is not a Recently played
+tile of its own: the room already is one). New playlist still makes a playlist directly; it is
+the one place whose whole job is that.
 
 ## New playlist
 

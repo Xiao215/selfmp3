@@ -69,6 +69,12 @@ export type ListSource =
       readonly answerId?: string
     }
   | { readonly kind: 'songs'; readonly origin: SongsOrigin; readonly name: string }
+  | {
+      /** A room listened in together, once it ended: its songs that are yours (features/room). */
+      readonly kind: 'room'
+      readonly code: string
+      readonly name: string
+    }
 
 /** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
@@ -285,6 +291,8 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       }
     case 'songs':
       return plain(source.name, null)
+    case 'room':
+      return plain(source.name, { pathname: '/past-room/[code]', params: { code: source.code } })
   }
 }
 
@@ -349,6 +357,7 @@ export function savePlan(
       return songs(source.name)
     }
     case 'answer':
+    case 'room':
       return songs(source.name)
     case 'songs':
       // Songs that need a tag are a chore, not a list; Recently played is
@@ -406,6 +415,11 @@ export function parseListSource(value: unknown): ListSource | null {
       const known = SONGS_ORIGINS.find(each => each === origin)
       return name !== null && known !== undefined ? { kind: 'songs', origin: known, name } : null
     }
+    case 'room': {
+      const code = text('code')
+      const name = text('name')
+      return code !== null && name !== null ? { kind: 'room', code, name } : null
+    }
     default:
       return null
   }
@@ -460,6 +474,9 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
         return null
       }
       return `songs:${source.origin}:${songIds.join(',')}`
+    case 'room':
+      // Recently played already shows the room as a tile of its own.
+      return null
   }
 }
 
@@ -631,6 +648,8 @@ export function recentKind(source: ListSource): string {
         case 'recent':
           return 'Recently played'
       }
+    case 'room':
+      return 'Together'
   }
 }
 

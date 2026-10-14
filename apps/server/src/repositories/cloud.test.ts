@@ -232,8 +232,61 @@ describe('the trash', () => {
     }
 
     expect(cloud.trashUnnamedCovers()).toBe(1)
-    // Audio and words no row names may be the only copy of a song whose row went.
+    // Audio and words wait a month, and the sync asks every snapshot first (`unnamedFiles`).
     expect(cloud.trashedKeys()).toEqual([key('covers', 'e')])
+  })
+
+  it('offers audio and words nothing names once known of long enough, and nothing else', () => {
+    const long = new Date('2026-08-01T00:00:00Z')
+    const lately = new Date('2026-09-10T00:00:00Z')
+    cloud.saveState(state(null, key('lyrics', 'c', 'txt')))
+    for (const named of [key('audio', 'a', 'm4a'), key('lyrics', 'c', 'txt')]) {
+      cloud.recordFile(named, 1, long)
+    }
+    cloud.recordFile(key('audio', 'f', 'm4a'), 7, long)
+    cloud.recordFile(key('lyrics', '9', 'json'), 1, long)
+    cloud.recordFile(key('covers', 'e'), 1, long)
+    cloud.recordFile(key('audio', '8', 'm4a'), 1, lately)
+    // Known before, listed again later: still known since the first time.
+    cloud.reconcileFiles(
+      new Map(
+        [key('audio', 'a', 'm4a'), key('lyrics', 'c', 'txt'), key('audio', 'f', 'm4a')]
+          .concat([key('lyrics', '9', 'json'), key('covers', 'e'), key('audio', '8', 'm4a')])
+          .map(listed => [listed, 1]),
+      ),
+      lately,
+    )
+    cloud.trashKeys([key('lyrics', '9', 'json')])
+
+    const before = new Date('2026-08-15T00:00:00Z')
+    expect(cloud.unnamedFiles(before).map(file => file.key)).toEqual([key('audio', 'f', 'm4a')])
+  })
+
+  it('knows the sizes of songs that name no file in the bucket', () => {
+    db.prepare('UPDATE songs SET size_bytes = 100 WHERE id = ?').run(songId)
+    expect([...cloud.unplacedSongSizes()]).toEqual([100])
+    cloud.saveState(state(null))
+    expect([...cloud.unplacedSongSizes()]).toEqual([])
+  })
+
+  it('keeps a song whose cover went from the bucket, forgetting only the cover', () => {
+    cloud.saveState(state(key('covers', 'b'), key('lyrics', 'c', 'txt')))
+    const present = new Map([
+      [key('audio', 'a', 'm4a'), 100],
+      [key('lyrics', 'c', 'txt'), 5],
+    ])
+
+    expect(cloud.reconcileFiles(present)).toBe(1)
+    expect(cloud.state(songId)).toMatchObject({
+      audioKey: key('audio', 'a', 'm4a'),
+      coverKey: null,
+      coverSig: '',
+      lyricsKey: key('lyrics', 'c', 'txt'),
+    })
+
+    // Its audio gone too: the song goes up again from a copy, or not at all.
+    expect(cloud.reconcileFiles(new Map())).toBe(1)
+    expect(cloud.state(songId)).toBeNull()
   })
 
   it('keeps an artist’s picture while it is named, and trashes it once replaced or gone', () => {

@@ -203,7 +203,8 @@ to its next look.
 
 The server held one thing no device could get back: the **play history**. A snapshot says how
 often a song was played, never when. The log a play arrives in is tidied away once a snapshot
-has folded it in.
+has folded it in — and now only once the play is in its month's file as well
+([SYNC.md](../SYNC.md), "Tidying up").
 
 Each workspace now keeps its plays in the bucket too (`services/playsArchive.ts`):
 

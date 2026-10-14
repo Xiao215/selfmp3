@@ -1,8 +1,6 @@
 import {
-  foldedLogKeys,
   applyChanges,
   inKeptOrder,
-  parseLogKey,
   livePlaylistSongs,
   snapshotOf,
   syncLibrary,
@@ -87,20 +85,6 @@ export function latestStamp(snapshot: CloudSnapshot | null): string | null {
     see(playlist.songStamps)
   }
   return latest
-}
-
-/**
- * This device's log files that a snapshot has folded in, and so are no longer
- * needed by anyone. A device deletes only its own; the server, which writes
- * the snapshots, tidies away what devices that stopped coming back left behind
- * (`#tidyLogs` in apps/server/src/services/cloudSync.ts).
- */
-export function foldedOwnLogs(
-  keys: readonly string[],
-  deviceId: string,
-  upTo: Readonly<Record<string, number>>,
-): string[] {
-  return foldedLogKeys(keys, upTo).filter(key => parseLogKey(key)?.deviceId === deviceId)
 }
 
 /** A repeatable stream of numbers in [0, 1) from a string: mulberry32 over its hash. */

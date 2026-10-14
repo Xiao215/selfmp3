@@ -41,7 +41,7 @@ import type { EditContext } from './edits.js'
 import { bucketHold } from './hold.js'
 import { upgradeKeptBase } from './keptBase.js'
 import { roomSongOf } from './roomSong.js'
-import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
+import { latestStamp, replay, replayedSnapshot } from './replay.js'
 import {
   NO_IDS,
   snapshotToLibrary,
@@ -99,12 +99,6 @@ const COUNTER_TRUSTED_MS = 30 * 60_000
 /** Edits made within this long of each other go up as one file. */
 const FLUSH_DELAY_MS = 1_500
 const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]
-/**
- * A device tidies away its own log files once a snapshot folded them in, and
- * that snapshot has been up for long enough that anyone still reading the
- * one before it has finished.
- */
-const PRUNE_AFTER_MS = 10 * 60_000
 const LOG_READS_AT_ONCE = 6
 
 /**
@@ -660,8 +654,12 @@ export function createCloudLibrary(
 
   /**
    * Look at the bucket: the newest snapshot, and every log file it has not
-   * folded in. The logs are listed first: a file tidied away after the listing
-   * means a newer snapshot has it, and one more look finds that snapshot.
+   * folded in — never one it has, so a device new to the library reads the
+   * snapshot and the last few changes, however long the library's history.
+   * The logs are listed first: a file tidied away after the listing (by the
+   * server, docs/SYNC.md "Tidying up") means a newer snapshot has it, and one
+   * more look finds that snapshot. A device never deletes a log file itself,
+   * its own included: only the server knows when nobody needs one any more.
    *
    * The change counter is asked before either listing. Where it stands as
    * this device left it, and the last listing is recent enough to trust it,
@@ -744,7 +742,6 @@ export function createCloudLibrary(
         changes: counter,
       }))
       unread = null
-      void tidyOwnLogs(r, session, logKeys)
       return changed
     }
     return false
@@ -801,26 +798,6 @@ export function createCloudLibrary(
     return localChanges(outbox)
       .map(change => change.hlc)
       .join(',')
-  }
-
-  /** Delete this device's log files a snapshot has had long enough. Best effort. */
-  async function tidyOwnLogs(
-    r: Replica,
-    session: CloudSession,
-    keys: readonly string[],
-  ): Promise<void> {
-    const snapshot = r.base.snapshot
-    if (!snapshot || Date.now() - Date.parse(snapshot.writtenAt) < PRUNE_AFTER_MS) return
-    for (const key of foldedOwnLogs(keys, r.outbox.device, snapshot.upTo).slice(0, 50)) {
-      try {
-        const response = await sessionApi.doormanFetch(session, DOORMAN_PATHS.file(key), {
-          method: 'DELETE',
-        })
-        if (replica === r) await followOwnChange(r, response)
-      } catch {
-        return
-      }
-    }
   }
 
   // --- The library, as the app asks for it ---------------------------------------------

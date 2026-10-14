@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { DoormanStorageSchema, newCloudDeviceId, type CloudLyrics } from '@selfmp3/shared'
+import {
+  DoormanStorageSchema,
+  newCloudDeviceId,
+  toSqliteTime,
+  type CloudLyrics,
+} from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
 
 /**
@@ -241,6 +246,8 @@ export class CloudRepository {
   readonly #trashSong
   readonly #trashKey
   readonly #trashUnnamedCovers
+  readonly #unnamedFiles
+  readonly #unplacedSizes
   readonly #artists
   readonly #artist
   readonly #saveArtist
@@ -301,8 +308,9 @@ export class CloudRepository {
     this.#hasFile = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM cloud_files WHERE key = ?',
     )
-    this.#recordFile = db.prepare(`
-      INSERT INTO cloud_files (key, size) VALUES (?, ?)
+    // `uploaded_at` is when this server first knew the file was there, and stays so.
+    this.#recordFile = db.prepare<[string, number, string]>(`
+      INSERT INTO cloud_files (key, size, uploaded_at) VALUES (?, ?, ?)
       ON CONFLICT (key) DO UPDATE SET size = excluded.size
     `)
 
@@ -333,6 +341,19 @@ export class CloudRepository {
       SELECT key, size FROM cloud_files
        WHERE key LIKE 'covers/%' AND key NOT IN (${NAMED_KEYS})
       ON CONFLICT (key) DO NOTHING
+    `)
+    this.#unnamedFiles = db.prepare<[string], { key: string; size: number }>(`
+      SELECT key, size FROM cloud_files
+       WHERE (key LIKE 'audio/%' OR key LIKE 'lyrics/%')
+         AND uploaded_at <= ?
+         AND key NOT IN (${NAMED_KEYS})
+         AND key NOT IN (SELECT key FROM cloud_trash)
+       ORDER BY key
+    `)
+    this.#unplacedSizes = db.prepare<[], { size: number }>(`
+      SELECT DISTINCT s.size_bytes AS size FROM songs s
+        LEFT JOIN cloud_songs c ON c.song_id = s.id
+       WHERE c.song_id IS NULL
     `)
     this.#trashedKeys = db.prepare<[], { key: string }>(`
       SELECT key FROM cloud_trash WHERE key NOT IN (${NAMED_KEYS}) ORDER BY key
@@ -673,6 +694,35 @@ export class CloudRepository {
     return this.#trashUnnamedCovers.run().changes
   }
 
+  /**
+   * Audio and words in the bucket that nothing here names and nothing has put
+   * in the trash, which this server has known of since `before` or longer:
+   * what an import that failed halfway leaves behind, or a server that lost
+   * its database. Asked of the listing, like `trashUnnamedCovers`, and only a
+   * candidate: the sync also asks every snapshot in the bucket before any of
+   * it goes in the trash (`#trashOrphans` in services/cloudSync.ts).
+   */
+  unnamedFiles(before: Date): { key: string; size: number }[] {
+    return this.#unnamedFiles.all(toSqliteTime(before.getTime()))
+  }
+
+  /**
+   * The sizes of the songs here that name no file in the bucket: one still
+   * uploading, one the bucket had no audio for when it was taken on, or one
+   * whose audio the bucket lost. Audio of one of these sizes may be the song's
+   * own, so the sync deletes no audio or words while such a file is unnamed.
+   */
+  unplacedSongSizes(): Set<number> {
+    return new Set(this.#unplacedSizes.all().map(row => row.size))
+  }
+
+  /** These files into the trash, to go once the next snapshot is up and if nothing names them then. */
+  trashKeys(keys: readonly string[]): void {
+    this.#db.transaction(() => {
+      for (const key of keys) this.#trashKey.run({ key })
+    })()
+  }
+
   /** Trashed files nothing names any more: what the pass may delete. */
   trashedKeys(): string[] {
     return this.#trashedKeys.all().map(row => row.key)
@@ -714,37 +764,53 @@ export class CloudRepository {
     return (this.#hasFile.get(key)?.n ?? 0) > 0
   }
 
-  recordFile(key: string, size: number): void {
-    this.#recordFile.run(key, size)
+  /** The bucket has this file, as of `at` if this server did not know of it before. */
+  recordFile(key: string, size: number, at: Date = new Date()): void {
+    this.#recordFile.run(key, size, toSqliteTime(at.getTime()))
   }
 
   /**
    * Line the bookkeeping up with what the bucket really holds, given every
    * file key it lists. A file this server thought it had uploaded but the bucket
-   * has lost is forgotten, and so is every song that pointed at one — so the
-   * next pass uploads them again instead of publishing snapshots that name
-   * files nobody can download. Files the bucket has that were not known are
-   * remembered, which saves asking about them one at a time later.
+   * has lost is forgotten. A song whose audio went is forgotten too, so the
+   * next pass uploads it again from a copy here; one that lost only its cover,
+   * words or motion curve keeps its place, with that part forgotten, so the
+   * pass sends it again from what this server keeps — or publishes the song
+   * without it. Forgetting the whole song there left it out of every snapshot
+   * once its copy here had been let go, with its audio in the bucket named by
+   * nothing. Files the bucket has that were not known are remembered, as of
+   * `at`, which saves asking about them one at a time later.
    *
-   * Returns how many songs will be uploaded again.
+   * Returns how many songs will be sent again.
    */
-  reconcileFiles(present: ReadonlyMap<string, number>): number {
+  reconcileFiles(present: ReadonlyMap<string, number>, at: Date = new Date()): number {
     return this.#db.transaction(() => {
       const known = this.#db.prepare<[], { key: string }>('SELECT key FROM cloud_files').all()
       const drop = this.#db.prepare('DELETE FROM cloud_files WHERE key = ?')
       for (const { key } of known) if (!present.has(key)) drop.run(key)
-      for (const [key, size] of present) this.#recordFile.run(key, size)
+      const seen = toSqliteTime(at.getTime())
+      for (const [key, size] of present) this.#recordFile.run(key, size, seen)
 
+      const gone = (column: string): string =>
+        `(${column} IS NOT NULL AND ${column} NOT IN (SELECT key FROM cloud_files))`
       const again = this.#db
         .prepare(
-          `DELETE FROM cloud_songs
-            WHERE audio_key NOT IN (SELECT key FROM cloud_files)
-               OR (cover_key IS NOT NULL AND cover_key NOT IN (SELECT key FROM cloud_files))
-               OR (lyrics_key IS NOT NULL AND lyrics_key NOT IN (SELECT key FROM cloud_files))
-               OR (romanized_key IS NOT NULL AND romanized_key NOT IN (SELECT key FROM cloud_files))
-               OR (motion_key IS NOT NULL AND motion_key NOT IN (SELECT key FROM cloud_files))`,
+          `SELECT COUNT(*) AS n FROM cloud_songs
+            WHERE ${gone('audio_key')} OR ${gone('cover_key')} OR ${gone('lyrics_key')}
+               OR ${gone('romanized_key')} OR ${gone('motion_key')}`,
         )
-        .run().changes
+        .get() as { n: number }
+      this.#db.exec(
+        `DELETE FROM cloud_songs WHERE ${gone('audio_key')};
+         UPDATE cloud_songs SET cover_key = NULL, cover_size = NULL, cover_sig = ''
+          WHERE ${gone('cover_key')};
+         UPDATE cloud_songs
+            SET lyrics_key = NULL, lyrics_size = NULL, lyrics_kind = NULL,
+                romanized_key = NULL, lyrics_sig = ''
+          WHERE ${gone('lyrics_key')};
+         UPDATE cloud_songs SET romanized_key = NULL, lyrics_sig = '' WHERE ${gone('romanized_key')};
+         UPDATE cloud_songs SET motion_key = NULL, motion_sig = '' WHERE ${gone('motion_key')}`,
+      )
       // An artist whose picture went is sent again too, and so are the sound
       // vectors and a month of plays; they are not counted as songs.
       this.#db.exec(
@@ -754,7 +820,7 @@ export class CloudRepository {
          DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )
-      return again
+      return again.n
     })()
   }
 

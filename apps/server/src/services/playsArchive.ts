@@ -8,8 +8,9 @@ import type { SyncRepository } from '../repositories/sync.js'
  * (docs/features/shared-server.md, `CloudPlaysFileSchema`).
  *
  * A snapshot carries how often each song was played, never when, and the log
- * a device's play arrives in is tidied away once a snapshot has folded it in.
- * So `play_events` was the only place a play's time survived, and a server's
+ * a device's play arrives in is tidied away once a snapshot has folded it in
+ * — and, since these files, once its month is in the bucket too. Before them
+ * `play_events` was the only place a play's time survived, and a server's
  * database held history no bucket did. These files are that history; a
  * database made again from the bucket reads them back, and Stats answers as
  * it did.

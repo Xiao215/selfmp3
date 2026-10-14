@@ -44,7 +44,9 @@ import { sha256 } from '../util/hash.js'
  * Adoption only ever *adds*. A song this server already has under the same uid
  * is left alone, field for field: the bucket's snapshot is not a change with a
  * stamp, so it cannot be allowed to win an edit. Anything genuinely later
- * arrives the way it always has, through the other device's log.
+ * arrives the way it always has, through the other device's log. A server that
+ * had nothing at all takes the snapshot's word for how far each log is folded
+ * in, too, and reads only what came after (`#readLogsFrom`).
  */
 
 export interface AdoptionResult {
@@ -58,9 +60,15 @@ export interface AdoptionResult {
    * file nobody can download, so they are not published.
    */
   readonly withoutAudio: number
+  /**
+   * Devices whose log this server now reads from where the snapshot left off
+   * (its `upTo`) rather than from the start: only when this server had
+   * nothing before, so the snapshot is everything it knows.
+   */
+  readonly logsFrom: number
 }
 
-const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio: 0 }
+const NOTHING: AdoptionResult = { songs: 0, tags: 0, playlists: 0, withoutAudio: 0, logsFrom: 0 }
 
 /** A song in the snapshot that is one this server already has, under another uid. */
 interface SameSong {
@@ -127,6 +135,7 @@ export class CloudAdopt {
    * library that published would be the original bug wearing a hat.
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
+    const empty = this.#nothingHere()
     const { prepared, same } = await this.#prepare(snapshot.songs)
     const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
     const newTags = snapshot.tags.filter(tag => !this.#sync.tag(tag.uid))
@@ -136,7 +145,7 @@ export class CloudAdopt {
       newPlaylists.length === 0 &&
       newTags.length === 0
     ) {
-      return NOTHING
+      return { ...NOTHING, logsFrom: empty ? this.#readLogsFrom(snapshot) : 0 }
     }
 
     return this.#db.transaction((): AdoptionResult => {
@@ -151,8 +160,40 @@ export class CloudAdopt {
         tags,
         playlists,
         withoutAudio: prepared.filter(item => !item.audioPresent).length,
+        logsFrom: empty ? this.#readLogsFrom(snapshot) : 0,
       }
     })()
+  }
+
+  /**
+   * Whether this server holds nothing of any library yet: no song, tag or
+   * playlist, and no device's log read. Then adoption takes the snapshot
+   * whole and declines nothing, so the snapshot is everything this server
+   * knows — and it can take the snapshot's word for which log files are in it.
+   */
+  #nothingHere(): boolean {
+    const row = this.#db
+      .prepare<[], { used: number }>(
+        `SELECT EXISTS (SELECT 1 FROM songs) OR EXISTS (SELECT 1 FROM tags)
+             OR EXISTS (SELECT 1 FROM playlists) OR EXISTS (SELECT 1 FROM cloud_log_cursors)
+             AS used`,
+      )
+      .get()
+    return row?.used === 0
+  }
+
+  /**
+   * Read each device's log from where the snapshot left off (docs/SYNC.md,
+   * "Tidying up"), as every device new to the library does: the files it
+   * folded in are in it already, and replaying them would bring back a link
+   * asked for long ago as a new import. Only for a server that had nothing
+   * (`#nothingHere`): a song kept here as it was, against the snapshot's,
+   * still needs the changes that made the snapshot's what it is.
+   */
+  #readLogsFrom(snapshot: CloudSnapshot): number {
+    const devices = Object.entries(snapshot.upTo)
+    for (const [device, seq] of devices) this.#sync.setCursor(device, seq)
+    return devices.length
   }
 
   /**
@@ -308,7 +349,7 @@ export class CloudAdopt {
     // Without the audio there is nothing to point at. The row stays — the tags,
     // the plays and the playlist places are worth keeping whatever happened to
     // the file — but it is left out of what this server publishes, exactly as
-    // `reconcileFiles` leaves out a song whose file the bucket has lost.
+    // `reconcileFiles` leaves out a song whose audio the bucket has lost.
     if (!audioPresent) return
 
     // What `cloud_songs` says about a song nobody on this device has read:

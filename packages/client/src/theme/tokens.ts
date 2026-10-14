@@ -7,6 +7,9 @@ import {
 } from '@selfmp3/shared'
 import { oklchToHex, oklchToHexAlpha } from './oklch.js'
 
+/** For the doorman's link previews, which take a cover's colour and nothing else of the client. */
+export { oklchToHex }
+
 /**
  * `tokens.reference.css`'s palette, resolved to hex.
  *

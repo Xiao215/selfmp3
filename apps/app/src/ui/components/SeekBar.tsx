@@ -20,20 +20,29 @@ import { Scrubber } from './Scrubber'
 export function SeekBar({
   inline = false,
   color,
+  waiting,
 }: {
   /** The player bar's: elapsed, a thin track, and the length on one line. */
   inline?: boolean
   /** The playing song's colour, for the played part. The accent when not given. */
   color?: string
+  /**
+   * The length of a song not loaded yet, held at its start and still: a share
+   * link's page keeps the bar's place before Play, so nothing moves when it starts.
+   */
+  waiting?: number
 }): ReactNode {
-  const { position, duration } = usePlayerProgress()
-  const onSeek = usePlayerCommands().seekTo
+  const progress = usePlayerProgress()
+  const seekTo = usePlayerCommands().seekTo
+  const position = waiting === undefined ? progress.position : 0
+  const duration = waiting ?? progress.duration
+  const onSeek = waiting === undefined ? seekTo : () => undefined
   return (
     <Scrubber
       value={position}
       max={duration}
       onCommit={onSeek}
-      hold
+      hold={waiting === undefined}
       label="Seek"
       step={SEEK_STEP_SECONDS}
       size={inline ? 'small' : 'large'}

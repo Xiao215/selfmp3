@@ -201,6 +201,21 @@ Wrangler may warn that `wrangler.toml` defines more than one environment. The
 other one, `dev`, is only for running the doorman on your own computer (see
 below); the plain command deploys the real doorman.
 
+### 5. Share links in chats
+
+A share link points at the doorman, not at the web app (`/l/<id>/<key>`,
+`src/linkPage.ts`). GitHub Pages has no file for a link's address, so it
+answers with a 404 and a chat app draws nothing. The doorman answers instead.
+A chat app gets a card with the song, who sent it and its cover, and a person
+is sent on to the same link in the app (`APP_URL` in `wrangler.toml`).
+
+The `workers.dev` address is long, and mainland China blocks it, as it does
+everything the doorman lends. A domain of your own on Cloudflare would fix
+both: add it to the Worker with
+`routes = [{ pattern = "listen.example.com", custom_domain = true }]` and make
+it the doorman's address everywhere (`DEFAULT_DOORMAN_URL`, and Google's
+redirect URI in step 2).
+
 ---
 
 ## Good to know

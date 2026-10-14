@@ -29,7 +29,24 @@ made in one tap, holds what you picked, and ends by itself.
 
 A link holds at most 100 songs (`SHARE_MAX_SONGS`). **Share link** opens the share sheet
 (`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it with
-its QR code, with **Share link** for the system's share sheet (a copy where there is none).
+its QR code, and two buttons:
+
+- **Share link**, for the system's share sheet (a copy where there is none);
+- **Share as picture**, a 1080 × 1920 poster for WeChat (`SharePoster.tsx`).
+
+**The words with the link** are `干杯 · 五月天` for a song and `五月天 精选 · 12 songs` for a
+list (`shareWords`). The link goes beside them, never inside them, so it is sent once: on
+iOS as the share's `url`, on Android after the words, which is the only place it has.
+
+**Why a picture.** WeChat draws a card for a pasted link only from a verified 公众号 on an
+ICP-registered domain, or a business-verified Open Platform app. So a song goes to WeChat
+the way 网易云 and QQ音乐 users send one: a picture whose QR code the friend presses and
+holds (识别图中二维码). The poster is the cover big (a 2×2 mosaic of the first four for a
+list) on a wash of its colour, the title and artist (or the song count), and at the foot
+the self.mp3 mark, *Xiao shared this · scan to listen* and the link's QR code. It is drawn
+off-screen at its own size and saved as the month's page is (`ports/sharePicture`): a phone
+hands it to its share sheet; a browser shares the file where it can and downloads it
+otherwise. Picked with Xiao on 2026-10-14 (link-preview proposal, E1 and D2).
 
 Only an account with a bucket can share, since the doorman lends from it. A song not in
 storage yet cannot be shared.
@@ -53,6 +70,51 @@ the doorman lends exactly those to anyone with the link's key:
 Nobody can list the sender's library. If you already have the same song (same audio file, or
 same source link), your own copy plays.
 
+## The page
+
+`/l/<id>/<key>` (`features/share/ShareLinkScreen.tsx`), laid out like Apple Music's share
+page. Agreed with Xiao on 2026-10-14, picks F1 and F2.
+
+- **The ground** is washed in the first cover's colour, the way the phone's Now Playing is:
+  the colour, the cover blurred over it, a veil of the ground on top. Grey once it ends.
+- **The top line** is the sender's face and *Xiao sent you a song · 6 days left*
+  (`shareHeadLine`). On your own link it says who opened it.
+- **One song:** the big cover, the title and *artist · album* under it, then Play with the
+  seek bar beside it. The bar is there before Play, so nothing moves when it starts.
+- **Its words while it plays (F2).** A song with words shrinks its cover into a row, and the
+  words scroll in time below, Now Playing's own (`StageLyrics`). They are read from what the
+  link lends (`useLentWords`), only once the song is loaded. A tap on the row brings the
+  cover back.
+- **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then
+  the songs.
+- **Signed out**, a quiet line at the foot says what self.mp3 is and opens it.
+
+## How a link looks in a chat
+
+A chat app (Discord, Messages, Slack, Telegram) draws a card for a link from tags in the
+page it fetches. It runs no JavaScript. Agreed with Xiao on 2026-10-14, picks A1, B1, C1 and G1.
+
+- **The card (A1)** leads with the song, as Apple Music's does: *干杯*, then *五月天 · Song
+  · Shared by Xiao*. A list says *12 songs · Shared by Xiao*. Once the link has ended the
+  line says *Link ended · ask Xiao for it again*, since a chat keeps its card long after.
+- **The picture (B1)** is the cover, as the link already lends it, so Discord shows it
+  beside the words and Messages shows it big. Discord's stripe is the cover's colour.
+- **Where it comes from (C1).** GitHub Pages cannot answer for a link: it has no file for
+  `/l/<id>/<key>`, so it sends the app with a 404, which no chat app reads. So a link points
+  at the doorman (`ports/linkAddress.ts`; apps/doorman/README.md, step 5). There
+  a chat app gets a page of tags (`apps/doorman/src/linkPage.ts`), and a person is sent on
+  to the same link in the app. Which is which goes by the visitor's name: every chat app
+  calls itself a bot or names itself, and no browser does. Reading a link for its card
+  counts as nobody opening it.
+- **The app's own address (G1)** has a fixed card in `apps/app/public/index.html`: the
+  name, the line from the manifest and the icon.
+
+Xiao chose the doorman's `workers.dev` address over buying a domain (2026-10-14). The
+link is longer, and mainland China cannot open it, but there the song could not play from
+a github.io link either: its audio comes from the doorman too. Links sent before then point
+at the app and keep working. Discord's play button on Apple Music and Spotify links is Discord's own player
+for those services, which no other site can have.
+
 ## How long it lasts (B2)
 
 A link ends **a week after its last play**, and **a month after it was shared** at the
@@ -68,8 +130,8 @@ from later in the song still moves the end on, at most once every ten minutes.
 
 ## Before it ends (D1)
 
-From its last day, the page says **Ends tonight** or **Ends tomorrow**, in amber, and **Get
-it** becomes the main button. There is no notification.
+From its last day, the page's top line says **ends tonight** or **ends tomorrow**, in amber,
+and **Get it** becomes the main button. There is no notification.
 
 **Get it** is a room's Get it (`features/room/useGetSongs.ts`). Your own server imports the
 song from its source link into your bucket. It needs you signed in and your server
@@ -137,8 +199,8 @@ You reach it from Settings › Account, and from the share sheet. Each link's �
 ## Not done
 
 - **The app opening a link instead of the browser.** That needs universal links (iOS) and app
-  links (Android), served from `xiao215.github.io/.well-known`, a different repository from
-  this one. Rooms' invite links have the same gap. Inside the app, From friends opens links
+  links (Android), served from the link domain's `/.well-known`, which the doorman could
+  answer. Universal links also need a paid Apple developer account. Rooms' invite links have the same gap. Inside the app, From friends opens links
   in the app.
 
 ## The doorman
@@ -164,6 +226,7 @@ GET  /v1/share                                   → ShareSummary[] the links yo
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
 GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics | romanized
+GET  /l/<id>/<key>                               a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
 ```

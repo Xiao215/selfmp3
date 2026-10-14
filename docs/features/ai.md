@@ -603,12 +603,15 @@ cover; 晴天 got MusicBrainz's 2003; 3.6 s for the call.
 
 **Copies.** "Do I have any song twice?" is `copies` (`ai/copies.ts`), an answer of its own
 (`kind: 'copies'`). Code finds the songs that might be one recording, among the songs the
-filters chose: the same title once what is in brackets is set aside, an artist in common and
-within 3 s; or, between songs the listening model has heard, within a second and sounding
-the same (0.97 or closer, [audio-intelligence.md](audio-intelligence.md)) whatever they are
-called. Either way only songs on one album or none: one recording kept on two albums — a
-theme on two soundtracks, a song and its best-of — is kept on purpose, and a model shown two
-of them that sound the same called them copies, so that is code. Songs with nothing between
+filters chose: the same title once a video's words ("(Official Music Video)") are set aside,
+an artist in common and within 3 s; or, between songs the listening model has heard, within a
+second and sounding the same (0.97 or closer, [audio-intelligence.md](audio-intelligence.md))
+whatever they are called. A title with words the other lacks ("(Live)", "(Bayan)", "(II)") is
+another version unless the sound says otherwise, and only songs on one album or none count:
+one recording kept on two albums — a theme on two soundtracks, a song and its best-of — is
+kept on purpose. Both are code because the model, judging, wandered: shown "Liyue" and
+"Liyue (Bayan)" on one album with nothing else, and two soundtracks' theme sounding the same,
+it called both copies. Songs with nothing between
 them (the same names, album and length to the second) are copies without a model. The rest go
 to the model, 30 groups a call: every song's title, artist, album, year, length, file, when
 added, plays, and how close it sounds to the group's first; it answers which songs in each
@@ -621,7 +624,8 @@ The device's review (`CopiesReview.tsx`, over `Review.tsx`) lists each song with
 length and plays; exact copies start ticked, the model's wait. Delete asks once more with the
 dialog every delete asks with (`RemoveSongs`), since deleting cannot be undone. Tried
 2026-10-14 through a local model: 夜に駆ける / Yoru ni Kakeru and アイドル / "アイドル (Official
-Music Video)" called copies; Dream Aria / "Dream Aria (II)" and Liyue / "Liyue (Bayan)" left.
+Music Video)" called copies; with every song's sound the same, Dream Aria / "Dream Aria (II)"
+and Liyue / "Liyue (Bayan)" left as versions.
 
 ## A9 · Clean names on import
 

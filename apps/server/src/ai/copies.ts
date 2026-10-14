@@ -10,15 +10,20 @@ import {
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { chunks, foldedBare as bare, pool } from './text.js'
+import { withoutVideoWords } from './tidy.js'
 
 /**
  * A4 · Copies (docs/features/ai.md): songs that are in the library more than
  * once, each extra copy offered for deleting. Nothing here writes.
  *
- * Code finds the songs that might be one recording: the same title once what
- * is in brackets is set aside, an artist in common and about the same
- * length; or, between songs the listening model has heard, the same length
- * and the same sound whatever they are called. Either way only songs on one
+ * Code finds the songs that might be one recording: the same title once a
+ * video's words ("(Official Music Video)") are set aside, an artist in
+ * common and about the same length; or, between songs the listening model
+ * has heard, the same length and the same sound whatever they are called. A
+ * title with words the other lacks — "(Live)", "(Bayan)", "(II)" — is
+ * another version until the sound says otherwise: shown "Liyue" and "Liyue
+ * (Bayan)" on one album and nothing else, the model called them copies
+ * (tried 2026-10-14). Either way only songs on one
  * album, or with none: one recording kept on two albums — a theme on two
  * soundtracks, a song and its best-of — is kept on purpose, and the model,
  * shown two that sound the same, called them copies (tried 2026-10-14), so
@@ -75,10 +80,9 @@ const COPIES_SYSTEM = `You find songs someone has in their own music library mor
 - A copy is extra only when deleting it loses nothing the person would miss: the same recording under names that differ at most in how they are written. Songs that are different recordings, versions or parts of a piece are songs in their own right however alike their names and lengths, and so is a song kept on purpose on more than one release. Judge each group from what the table says and what you know of the music.
 - Leave a group out when its songs are not copies, or when you are not sure. Never use a number that is not shown.`
 
-/** A title as it is compared: what is in brackets set aside, letters and digits only. */
+/** A title as it is compared: a video's words set aside, letters and digits only. */
 export function titleKey(title: string): string {
-  const plain = bare(title.replace(/\s*[([【（「『〈《][^)\]】）」』〉》]*[)\]】）」』〉》]/gu, ''))
-  return plain || bare(title)
+  return bare(withoutVideoWords(title))
 }
 
 /** Whether two credits have a name in common, or one of them names nobody. */
@@ -123,7 +127,8 @@ export function candidateGroups(
     if (x !== y) parent.set(Math.max(x, y), Math.min(x, y))
   }
 
-  // By name: one title, an artist in common, about one length.
+  // By name: one title, an artist in common, about one length. A title with a
+  // word more is another version, which only the sound can say is not.
   const byTitle = new Map<string, Song[]>()
   for (const song of songs) {
     const key = titleKey(song.title)

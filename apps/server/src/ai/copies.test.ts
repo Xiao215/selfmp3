@@ -12,7 +12,7 @@ const SONGS = [
   // An arrangement a minute longer: never looked at.
   song(5, { title: 'Liyue', artist: 'HOYO-MiX', duration: 200 }),
   song(6, { title: 'Liyue (Orchestral)', artist: 'HOYO-MiX', duration: 260 }),
-  // A live take as long as the studio one.
+  // A live take as long as the studio one, and sounding much like it.
   song(7, { title: 'Song (Live)', artist: 'Band', duration: 240 }),
   song(8, { title: 'Song', artist: 'Band', duration: 241 }),
   // Named two ways, sounding the same.
@@ -20,24 +20,27 @@ const SONGS = [
   song(10, { title: '夜に駆ける', artist: 'YOASOBI', duration: 261, sizeBytes: 4_000_000 }),
   // As long as each other, sounding different.
   song(11, { title: 'Rain', artist: 'A', duration: 261 }),
-  // Another take on its own single, as long as the album's one.
+  // Another take on its own single, as long as the album's one: never looked at.
   song(12, { title: 'Hello', artist: 'C', album: 'Album', duration: 190 }),
   song(13, { title: 'Hello (Single Version)', artist: 'C', duration: 190 }),
+  // A video's upload of a song: the same name once its words are set aside.
+  song(14, { title: 'Lemon', artist: '米津玄師', album: 'Lemon', duration: 255 }),
+  song(15, { title: 'Lemon (Official Video)', artist: '米津玄師', duration: 257 }),
 ]
 
-/** The listening model: 9 and 10 sound alike, and so do 3 and 4; everything else apart. */
+/** The listening model: 9 and 10 sound alike, and 3 and 4, and 7 and 8; the rest apart. */
 const sound = {
   closeTo(seed: number, ids: readonly number[]) {
     const alike = (a: number, b: number) =>
-      [new Set([9, 10]), new Set([3, 4])].some(pair => pair.has(a) && pair.has(b))
+      [new Set([9, 10]), new Set([3, 4]), new Set([7, 8])].some(pair => pair.has(a) && pair.has(b))
     return new Map(ids.map(id => [id, alike(seed, id) ? 0.99 : 0.6]))
   },
 }
 
 describe('songs you have twice', () => {
-  it('sets aside what is in brackets when comparing titles', () => {
-    expect(titleKey('Song (Live)')).toBe(titleKey('song'))
-    expect(titleKey('【MV】')).toBe('mv')
+  it('sets aside a video’s words when comparing titles, and nothing else', () => {
+    expect(titleKey('アイドル (Official Music Video)')).toBe(titleKey('アイドル'))
+    expect(titleKey('Song (Live)')).not.toBe(titleKey('Song'))
   })
 
   it('finds the songs that might be one recording, by name and length or by sound', () => {
@@ -47,7 +50,7 @@ describe('songs you have twice', () => {
       [1, 2],
       [7, 8],
       [9, 10],
-      [12, 13],
+      [14, 15],
     ])
     // Only groups with a song asked about.
     expect(candidateGroups(SONGS, new Set([7]), sound).groups).toHaveLength(1)
@@ -65,7 +68,7 @@ describe('songs you have twice', () => {
           groups: [
             { g: 1, same: [], why: 'Live and studio' },
             { g: 2, same: [[1, 2]], why: 'Same song, title romanised' },
-            { g: 3, same: [], why: 'Another take' },
+            { g: 3, same: [[1, 2]], why: 'The video’s upload' },
             // A group that was never shown.
             { g: 9, same: [[1, 2]], why: 'x' },
           ],
@@ -76,6 +79,7 @@ describe('songs you have twice', () => {
     expect(result.copies.map(c => `${c.keep}|${c.songIds.join(',')}|${c.why}|${c.by}`)).toEqual([
       '1|2|The same song, twice|rule',
       '9|10|Same song, title romanised|model',
+      '14|15|The video’s upload|model',
     ])
     expect(result).toMatchObject({ looked: SONGS.length, note: null })
     const [prompt] = llm.prompts['tidy-copies']!

@@ -3,6 +3,7 @@ import {
   CloudFormatSchema,
   type CloudFormat,
   type CloudSmartRules,
+  type CloudSnapshot,
 } from './schemas/cloud.js'
 import { HASH_FILE_NAME } from './doormanWire.js'
 import type { SmartRules } from './schemas/smart.js'
@@ -169,8 +170,12 @@ export const SNAPSHOTS_FOLDER = 'snapshots/'
  * joining for the first time needs to know.
  */
 export function snapshotKey(writtenAt: Date, deviceId: string): string {
-  const stamp = writtenAt.toISOString().replace(/[-:.]/g, '')
-  return `${SNAPSHOTS_FOLDER}${stamp}-${deviceId}.json`
+  return `${SNAPSHOTS_FOLDER}${snapshotStamp(writtenAt)}-${deviceId}.json`
+}
+
+/** A time as a snapshot's key carries it: `20260911T142205123Z`, which sorts as text. */
+function snapshotStamp(at: Date): string {
+  return at.toISOString().replace(/[-:.]/g, '')
 }
 
 const SNAPSHOT_KEY = /^snapshots\/(\d{8}T\d{9}Z)-([a-z0-9][a-z0-9-]{2,62})\.json$/
@@ -202,6 +207,55 @@ export function snapshotsToPrune(keys: readonly string[], deviceId: string, keep
     .filter(entry => entry.parsed?.deviceId === deviceId)
     .sort((a, b) => (a.parsed?.stamp ?? '').localeCompare(b.parsed?.stamp ?? ''))
   return mine.slice(0, Math.max(0, mine.length - keep)).map(entry => entry.key)
+}
+
+/**
+ * Other writers' snapshots written before `before`: the ones a server deletes
+ * as it prunes its own (docs/SYNC.md, "Tidying up"). Only the newest snapshot
+ * is ever read, so an old one of another server's — one that moved to another
+ * computer, or a copy that once published here — is read by nobody, and left
+ * alone it stays for good: nothing but its writer would ever delete it. The
+ * newest of them all is never one of these, whoever wrote it.
+ */
+export function othersSnapshotsToPrune(
+  keys: readonly string[],
+  deviceId: string,
+  before: Date,
+): string[] {
+  const newest = newestSnapshotKey(keys)
+  const cutoff = snapshotStamp(before)
+  return keys.filter(key => {
+    const parsed = parseSnapshotKey(key)
+    return (
+      parsed !== null && key !== newest && parsed.deviceId !== deviceId && parsed.stamp < cutoff
+    )
+  })
+}
+
+/**
+ * Every file a snapshot names: each song's audio, cover, words, romanized
+ * lines and motion curve, each artist's pictures, the sound vectors and the
+ * months of plays. What must not be deleted while that snapshot may be read.
+ */
+export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
+  const keys = new Set<string>()
+  const add = (key: string | null | undefined): void => {
+    if (key) keys.add(key)
+  }
+  for (const song of snapshot.songs) {
+    add(song.audio.key)
+    add(song.cover?.key)
+    add(song.lyrics?.key)
+    add(song.lyrics?.romanized)
+    add(song.motion)
+  }
+  for (const artist of snapshot.artists) {
+    add(artist.banner.key)
+    add(artist.portrait.key)
+  }
+  add(snapshot.sound?.key)
+  for (const month of snapshot.plays ?? []) add(month.key)
+  return keys
 }
 
 export const LOG_FOLDER = 'log/'

@@ -184,8 +184,9 @@ something it cannot read.
 gzip-compressed. They are how a new device gets the library in one download instead of
 replaying every change ever made. The key starts with a fixed-width UTC time, so the newest
 snapshot is simply the last one in a listing. A writer keeps its three newest and deletes
-the rest. A snapshot also carries, for each device, how far into that device's log it has
-been folded in (`upTo`), so a device replays only what comes after.
+the rest, and a server deletes another writer's once it is a month old and not the newest
+("Tidying up", below). A snapshot also carries, for each device, how far into that device's
+log it has been folded in (`upTo`), so a device replays only what comes after.
 
 **Artists' pictures** are pictures named by their hash like a cover, so they sit in `covers/`
 — a folder of their own would need every doorman redeployed first. The server finds one for
@@ -209,15 +210,16 @@ never when, and a device's log is tidied away once a snapshot has folded it in, 
 are where the history behind Stats is kept. The server writes them, since plays reach it
 through the devices' logs; the snapshot's `plays` names each month. This month goes up at most
 once an hour, a past month as soon as it changes, and a server starting from an empty
-database reads every month back as soon as it has taken on the bucket's library.
+database reads every month back as soon as it has taken on the bucket's library. A log file
+is not tidied away until the plays in it are in their month's file too.
 
 **Log files** are one batch of one device's changes: `log/<device>/000000000042.json`. A
 device numbers its files 1, 2, 3, … and never writes the same number twice with different
-contents, so a file, once written, never changes and a resend is harmless. A device tidies
-its own files away once a snapshot has folded them in, and the server tidies away what a
-device that stopped coming back left behind: other devices' files its own snapshot has folded
-in, ten minutes after, while that snapshot is still the newest. Every file in the folder is in
-every listing of it.
+contents, so a file, once written, never changes and a resend is harmless. Only the server
+deletes a log file: every device's files its own snapshot has folded in, ten minutes after,
+while that snapshot is still the newest, and once their plays are in the bucket ("Tidying up",
+below). Every file in the folder is in every listing of it, so keeping it short keeps a look
+cheap.
 
 **Identity.** Songs, tags and playlists each get a `uid`: 32 random hex characters, made by
 whichever device creates the thing. Each device's own database keeps its integer ids as
@@ -288,8 +290,12 @@ device signed in to the cloud shows them exactly as a device talking to the serv
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is
 checked against the bucket's own listing on the first pass after connecting or starting up,
-and whenever you press *Publish now*: a file the bucket has lost is forgotten, and its song
-goes up again.
+and whenever you press *Publish now*: a file the bucket has lost is forgotten, and so is the
+part of the song that named it. A song whose audio went goes up again from a copy here; one
+that lost only its cover, words or motion curve keeps its place in the library, and the pass
+sends that part again from what the server keeps, or publishes the song without it. (Before
+2026-10-14 the whole song was forgotten, and with its copy here already let go it could never
+be sent again: it fell out of every snapshot, its audio named by nothing.)
 
 After uploading, the server writes a snapshot. It lists only songs whose audio is in the bucket —
 a song still uploading is not in the library yet, as far as any other device is concerned.
@@ -342,9 +348,9 @@ back as new ones, picked up by the sweep that the next import set off.
 picture: the file the row named before is put in `cloud_trash` as the row is saved
 (`CloudRepository.saveState`, `saveArtist`), and deleted after the next snapshot like a removed
 song's. Once per bucket listing the pass also
-trashes every cover nothing names (`trashUnnamedCovers`): covers only, since a cover the server
-can always send again, where audio or words no row names may be the only copy of a song whose
-row was reconciled away.
+trashes every cover nothing names (`trashUnnamedCovers`) at once, since a cover the server can
+always send again; audio and words nothing names wait a month, and more besides ("Tidying up",
+below).
 
 **Devices keep only what the library names.** A phone and the desktop app keep every cover and
 artist's picture of the library as a file named by its hash (the phone in its document folder,
@@ -380,13 +386,15 @@ anything**, and takes on every song in it that it does not already have
 | **When it cannot read the bucket** | It stops, and publishes nothing. "I could not read the library" must never come out the far side as "there is no library": that is the reading that publishes over it. |
 | **`SELFMP3_PUBLISH_ANYWAY=1`** | Skips adoption as well as the guard that refuses to publish over a snapshot holding songs this server lacks (`#refuseToLoseLibrary` in `cloudSync.ts`). It is how you say *this server's library is the one I want everywhere*, and merging the bucket's in first would be the opposite of that. |
 
-**What is not adopted.** The snapshot's `upTo` cursors: this server reads every log file from the
-beginning on its first pass instead. Replaying is idempotent by design — plays are
-deduplicated by id, edits by stamp — and a device tidies its log away once a snapshot has folded
-it in, so there is usually nothing there to replay. Adopting a cursor would mean skipping a change
-on the strength of a snapshot whose songs this server may have *declined* to overwrite. Requests
-to import a link are not adopted either; they are the last week's, and the devices that made them
-say how they went.
+**The snapshot's `upTo`, only by a server that had nothing.** A server whose database held no
+song, tag, playlist or log position took the snapshot whole, so the snapshot is all it knows: it
+reads each device's log from where the snapshot left off, as a device new to the library does
+(`#readLogsFrom` in `cloudAdopt.ts`). It used to read every file still in the log from the
+start — harmless for edits and plays, which are idempotent, but a link asked for weeks ago and
+not yet tidied away came back as a new import. A server that already had a library reads every
+log file there is: adopting the cursor there would skip a change on the strength of a snapshot
+whose songs this server *declined* to overwrite. Requests to import a link are not adopted;
+they are the last week's, and the devices that made them say how they went.
 
 **What adoption cannot see.** A re-encode. A library restored from a disk backup with no database
 is scanned into fresh uids, and that much is fine: the files are the same files, their hashes match
@@ -464,6 +472,119 @@ on a phone, with the server away or not.
 An edit made with no connection at all is not lost either: the device's copy of the library
 applies it at once and keeps it in an outbox stored on the device
 (`packages/replica/src/library.ts`), and the outbox goes up to the device's log once the bucket answers again.
+
+### Tidying up
+
+The log and the bucket's files are tidied by the server, which is the only device that knows
+when nothing needs a file any more.
+
+**What a device new to the library reads.** The newest snapshot, and the log files after its
+`upTo` — never one the snapshot has folded in, so opening costs one download and the last few
+changes however long the library's history (`refresh` in `packages/replica/src/library.ts`). A
+server with an empty database reads the same (above). The log folder is listed whole, one
+counted call per thousand files, which is why it is kept short.
+
+**Only the server deletes a log file** (`#tidyLogs` in `cloudSync.ts`, a hundred a pass). It
+deletes every device's files its own snapshot has folded in, once:
+
+- that snapshot is still the bucket's newest — another server's might have folded in less;
+- it has been up ten minutes, so a device that listed the log folder just before it went up
+  has read what it listed;
+- every play in them is in the months of plays that snapshot names. This month's file goes up
+  at most once an hour, and a log deleted before then was the only copy, outside the server's
+  database, of when those songs were played. After a restart the server waits for its next
+  snapshot to know this.
+
+Devices used to delete their own folded files. They no longer do: the last condition is one
+only the server can see.
+
+**Why no change is lost.** The cases, each held by a test (`library.test.ts`,
+"a library with a long history"; `cloudSync.test.ts`, "tidying up"):
+
+- *A change not sent yet* is in the device's outbox, on the device. Nothing in the bucket's
+  tidying touches it. It goes up as the device's next log file, numbered after every file the
+  device has written (`nextSeq` is kept with the outbox), so after anything a snapshot can have
+  folded in, and the server reads it.
+- *A file sent again* after a lost answer has the number and the bytes it had. If the first
+  landed, was folded in and tidied away, the copy is at or below `upTo`: nobody reads it, and
+  the next tidy deletes it.
+- *A device away for months* — its kept base an old snapshot, its outbox full — fetches the
+  newest snapshot when it comes back, which has folded in everything it sent before, and reads
+  only the files after it; its outbox goes up as above. It never needs a file that went.
+- *A device that lost its storage* (a browser's evicted, an app reinstalled) or signed out has
+  a new name, and starts at 1 in a folder of its own: no number is ever used twice. Signing
+  out forgets an outbox not yet sent, as it forgets the rest of the account.
+- *A log file the server cannot read* (from a newer build) stops that device's log there:
+  nothing from it on is folded in, so nothing from it on is deleted, until the server is
+  updated.
+- *A device in the middle of a look* lists the log folder before the snapshots, so a file gone
+  between its listing and its read means a newer snapshot has it; the look starts again.
+
+**What this does not cover.** Two servers publishing for one library, each with a database of
+its own: one that falls behind the other's snapshot can find files it had not read deleted.
+A library is meant to have one server at a time, and two on one bucket also take turns
+being the newest snapshot, each publishing without what only the other has, so it is not a
+setup that works today anyway. A server whose database is restored from an old backup is the same case:
+it had something, so it reads the files that are left, and changes in files tidied away
+since the backup are only in the snapshot, which adoption does not take over its own rows.
+Give such a server an empty database instead, and it takes the bucket's library whole.
+
+**Other servers' snapshots.** A server keeps its own three newest; it also deletes another
+writer's once it is a month old and not the newest (`othersSnapshotsToPrune`). Only the newest
+is ever read, so those were read by nobody, and nothing else would delete them: a server that
+moved to another computer, or a copy that once published here, left its last three behind for
+good.
+
+**What still grows.** Each snapshot's `upTo`, and the server's `cloud_log_cursors`, keep a line
+for every device that ever wrote to the log — a new one per sign-in — a few dozen bytes each.
+Dropping one for a device with no files left would be safe (its next file would be read from
+the start), but it needs a way to know the device has stopped, and was not worth it yet.
+
+**Snapshots written by devices: decided against, for now.** In a library no server works for,
+nothing folds the log in: every device's files stay, and a device new to it replays them all.
+A device could write the snapshot itself, but the bucket cannot write a file only if it is
+still the newest (Backblaze ignores `If-None-Match`, above), so two writers of the whole library
+race and the newest by time wins. A phone writing from a snapshot a minute old would publish
+the library without the song the server had just imported, and every device would follow it;
+the server guards against that by taking the bucket's library on first and by refusing to
+publish a smaller one, which a device's copy cannot do half so well. And a library with no
+server gains no songs today (adding a file from a device is still to come), so its log is only
+edits and plays, and stays small. This is worth deciding again with that.
+
+**Audio and words nothing names.** An import that fails halfway can leave its audio or words
+in the bucket with no song naming them, and a server that lost its database leaves whatever
+it had not published. The pass that lists the bucket — the first after the server starts, and
+*Publish now* — leaves it to the first pass after it that reads every log (`#trashOrphans`),
+which puts in the trash each file in `audio/` and `lyrics/` (words, romanized lines, motion
+curves, sound vectors, months of plays) that:
+
+- no song, artist, sound vectors or month of plays here names, and nothing put in the trash
+  already (`unnamedFiles` in `repositories/cloud.ts`);
+- this server has known of for thirty days: `cloud_files.uploaded_at`, the first time it
+  listed or sent the file. The doorman's listing carries no upload time, so this is when the
+  server first saw it, which is never earlier; a server with a new database starts the month
+  again, which errs towards keeping;
+- no snapshot in the bucket names — every one is read, the one devices read and any other
+  server's — and one that cannot be read stops the sweep;
+
+and only while no song here that names no file in the bucket has the size of one of those
+audio files (`unplacedSongSizes`): that file may be its own, and its words with it, so
+nothing goes and the server says which. No log change names a file today, so no change waiting
+in a log can be what holds one; when one does (adding a file from a device), it belongs in
+this list. From the trash they go once the next snapshot is up, as a removed song's do.
+
+It costs no listing of its own: it reads the one the server makes at start anyway, and lists
+`snapshots/` and reads each snapshot only when something is old enough to go.
+
+**The first run on an existing bucket.** Nothing is migrated. `cloud_files` has always kept the
+time this server first listed or sent each file, so on a server whose database is a week old
+nothing can be a month old for three weeks yet, and then only at its next start or
+*Publish now*. Other servers' snapshots older than a month go with the first snapshot the
+server publishes after the update. Log files are tidied as before, except that the server first waits for a pass that
+finds every month of plays up (at most an hour), and devices on the new app leave their own
+files for it; one still on an older build goes on deleting its own folded files, which the
+old rule allowed. A server that already has its library goes on reading the log from its
+own place in it; only a new database takes the snapshot's `upTo`.
 
 ### Importing from anywhere
 
@@ -612,9 +733,6 @@ libraries that deliberately number different songs the same.
   [youtubedl-android](https://github.com/yausername/youtubedl-android) — the library the Seal
   app is built on. It comes after the native app has been built at all, and only once it is
   confirmed to handle YouTube's JavaScript challenge.
-- **Tidying up**: snapshots written from the log, so a new device replays only recent changes;
-  audio and words that no song points at and that nothing trashed — an upload whose import
-  failed halfway — deleted after 30 days. (Covers nothing names already go.)
 - **A Google Drive driver**, if it is ever wanted.
 
 ## What this gives up
@@ -716,6 +834,7 @@ given a grant to, with *Remove* on each.
 | Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
+| Tidying the log, old snapshots, and audio and words nothing names | `apps/server/src/services/cloudSync.ts` (`#tidyLogs`, `#trashOrphans`), `unnamedFiles` and `unplacedSongSizes` in `apps/server/src/repositories/cloud.ts`, `othersSnapshotsToPrune` and `snapshotFileKeys` in `packages/shared/src/cloud.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |

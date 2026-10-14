@@ -20,12 +20,15 @@ import {
   lyricsKey,
   motionKey,
   newestSnapshotKey,
+  othersSnapshotsToPrune,
   parseEndpoint,
   parseLogKey,
+  parseSnapshotKey,
   lyricTextLines,
   parseLyrics,
   readLogFile,
   romanizedKey,
+  snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
   soundVectorsKey,
@@ -142,14 +145,28 @@ const LOG_POLL_MS = 10 * 60_000
 const LOG_LISTING_TRUSTED_MS = 30 * 60_000
 
 /**
- * Other devices' log files a snapshot of this server's has folded in are
- * deleted once it has been up this long — the same wait a device gives its
- * own (`PRUNE_AFTER_MS` in packages/replica) — and this many at a time.
- * A device tidies its own files; these are what devices that stopped coming
- * back left behind, and each one is in every listing of the folder.
+ * Log files a snapshot of this server's has folded in are deleted once it has
+ * been up this long, so a device that listed the log folder just before it
+ * went up has read what it listed, and this many at a time. This server is
+ * the only one that deletes a log file (docs/SYNC.md, "Tidying up"): it alone
+ * knows when nothing needs one any more.
  */
 const LOGS_TIDIED_AFTER_MS = 10 * 60_000
-const LOGS_TIDIED_AT_ONCE = 50
+const LOGS_TIDIED_AT_ONCE = 100
+
+/**
+ * Another server's snapshots, read by nobody once any newer one is up, are
+ * deleted once they are this old: a server that moved to another computer
+ * left its last three behind for good.
+ */
+const OTHERS_SNAPSHOTS_KEPT_MS = 30 * 24 * 60 * 60_000
+
+/**
+ * Audio and words in the bucket that nothing names and nothing put in the
+ * trash go once this server has known of them this long: what an import that
+ * failed halfway uploaded, or a server that lost its database left behind.
+ */
+const ORPHANS_KEPT_MS = 30 * 24 * 60 * 60_000
 
 /**
  * A snapshot that changes nothing but what arrives after a song does — its
@@ -387,6 +404,18 @@ export class CloudSyncService {
   /** Whether covers nothing names have been put in the trash, once per bucket listing. */
   #coversSwept = false
   /**
+   * Audio and words nothing names are to be looked for, once per bucket
+   * listing, by the first pass that reads every log (`#trashOrphans`).
+   */
+  #orphansDue = false
+  /**
+   * How far into each device's log every play this server has read is in the
+   * bucket's months of plays (`#uploadPlays`), or null before that is known.
+   * A log file whose plays are only in this database is not deleted: a
+   * database lost before this month's file went up would lose them for good.
+   */
+  #playsCovered: Readonly<Record<string, number>> | null = null
+  /**
    * The sound vectors the bucket's newest snapshot named when its library was
    * taken on, until they have been read back (`#readBucketSound`); undefined
    * before that snapshot has been looked at.
@@ -441,8 +470,13 @@ export class CloudSyncService {
    * adoption, or just published — with what it folded in: what other
    * devices' logs are tidied by.
    */
-  #ownNewest: { key: string; writtenAt: number; upTo: Readonly<Record<string, number>> } | null =
-    null
+  #ownNewest: {
+    key: string
+    writtenAt: number
+    upTo: Readonly<Record<string, number>>
+    /** How far its months of plays reach into each log (`#playsCovered` when it went up). */
+    playsUpTo: Readonly<Record<string, number>> | null
+  } | null = null
   #retry: NodeJS.Timeout | null = null
   #retryIndex = 0
   #logPoll: NodeJS.Timeout | null = null
@@ -956,6 +990,14 @@ export class CloudSyncService {
       failed += logs.unreadable
       if (generation !== this.#generation || this.#stopped) return
 
+      // Only by a pass that read every log there is to read: what nothing
+      // names is decided against the whole library, never part of it.
+      if (this.#orphansDue && logs.complete) {
+        this.#orphansDue = false
+        await this.#trashOrphans(store)
+        if (generation !== this.#generation || this.#stopped) return
+      }
+
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const files = cloud.songFiles()
@@ -1029,7 +1071,7 @@ export class CloudSyncService {
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadSound(store)
       if (generation !== this.#generation || this.#stopped) return
-      await this.#uploadPlays(store)
+      if (await this.#uploadPlays(store)) this.#playsCovered = this.#deps.sync?.cursors() ?? {}
 
       if (generation !== this.#generation) return
       const outcome = await this.#publish(store)
@@ -1123,11 +1165,11 @@ export class CloudSyncService {
   async #readLogs(
     store: CloudStore,
     generation: number,
-  ): Promise<{ unreadable: number; keys: string[] | null }> {
+  ): Promise<{ unreadable: number; keys: string[] | null; complete: boolean }> {
     const { sync, ingest } = this.#deps
-    if (!sync || !ingest) return { unreadable: 0, keys: null }
+    if (!sync || !ingest) return { unreadable: 0, keys: null, complete: true }
     const listing = await this.#listLogs(store)
-    if (!listing) return { unreadable: 0, keys: null }
+    if (!listing) return { unreadable: 0, keys: null, complete: true }
     const { keys } = listing
     const own = this.#deviceId()
     const pending = unfoldedLogKeys(keys, sync.cursors()).filter(
@@ -1135,11 +1177,11 @@ export class CloudSyncService {
     )
     if (pending.length === 0) {
       this.#readAllLogs(listing)
-      return { unreadable: 0, keys }
+      return { unreadable: 0, keys, complete: true }
     }
 
     const read = await inBatches(pending, LOG_READS_AT_ONCE, key => this.#readLog(store, key))
-    if (generation !== this.#generation) return { unreadable: 0, keys: null }
+    if (generation !== this.#generation) return { unreadable: 0, keys: null, complete: false }
 
     const changes: Change[] = []
     const reached = new Map<string, number>()
@@ -1171,7 +1213,7 @@ export class CloudSyncService {
     }
     // A file gone since the listing means a newer snapshot has it: list again next time.
     if (stuck.size === 0) this.#readAllLogs(listing)
-    return { unreadable, keys }
+    return { unreadable, keys, complete: stuck.size === 0 }
   }
 
   /**
@@ -1215,16 +1257,23 @@ export class CloudSyncService {
   }
 
   /**
-   * Delete other devices' log files that this server's snapshot has folded
-   * in, once it has been up long enough. Only while that snapshot is still
-   * the bucket's newest — another server's could fold in less — so the
-   * snapshots folder is listed first, and only when there is something to do.
-   * Best effort: a file left behind costs a line in a listing.
+   * Delete the log files this server's snapshot has folded in, once it has
+   * been up long enough, and once every play in them is in the months of
+   * plays that snapshot names. Only while that snapshot is still the bucket's
+   * newest — another server's could fold in less — so the snapshots folder is
+   * listed first, and only when there is something to do. Best effort: a file
+   * left behind costs a line in a listing.
+   *
+   * A device's unsent changes are never in a file this deletes: they are in
+   * its outbox, on the device, and go up under numbers past anything a
+   * snapshot has folded in (docs/SYNC.md, "Tidying up").
    */
   async #tidyLogs(store: CloudStore, keys: string[] | null): Promise<void> {
     const own = this.#ownNewest
     if (!keys || !own || this.#now().getTime() - own.writtenAt < LOGS_TIDIED_AFTER_MS) return
-    const folded = foldedLogKeys(keys, own.upTo).slice(0, LOGS_TIDIED_AT_ONCE)
+    const covered = this.#deps.plays ? own.playsUpTo : own.upTo
+    if (!covered) return
+    const folded = foldedLogKeys(keys, lowest(own.upTo, covered)).slice(0, LOGS_TIDIED_AT_ONCE)
     if (folded.length === 0) return
     try {
       const newest = newestSnapshotKey(
@@ -1352,6 +1401,7 @@ export class CloudSyncService {
     if (!this.#verified) {
       await this.#verify(store)
       this.#verified = true
+      this.#orphansDue = true
     }
     await this.#adoptLibrary(store)
     if (!this.#coversSwept) {
@@ -1436,11 +1486,19 @@ export class CloudSyncService {
         key: newest.key,
         writtenAt: Date.parse(snapshot.writtenAt),
         upTo: snapshot.upTo,
+        // Not known from before this start: its logs wait for the next snapshot.
+        playsUpTo: null,
       }
     }
 
     const result: AdoptionResult = await adopt.adopt(snapshot)
     this.#adopted = true
+    if (result.logsFrom > 0) {
+      this.#logger.info('reads each device’s log from where the bucket’s snapshot left off', {
+        from: newest.key,
+        devices: result.logsFrom,
+      })
+    }
     if (result.songs === 0 && result.tags === 0 && result.playlists === 0) return
 
     this.#logger.info('took on the library already in the bucket', {
@@ -1468,7 +1526,7 @@ export class CloudSyncService {
     for (const folder of HASH_NAMED_FOLDERS) {
       for (const object of await store.list(`${folder}/`)) present.set(object.key, object.size)
     }
-    const again = this.#deps.cloud.reconcileFiles(present)
+    const again = this.#deps.cloud.reconcileFiles(present, this.#now())
     if (again > 0) {
       this.#logger.warn('files missing from the bucket, uploading those songs again', {
         songs: again,
@@ -1723,16 +1781,20 @@ export class CloudSyncService {
    * file of its own: this month at most once an hour, a past one at once.
    * Never before the bucket's own months have been read back, so plays this
    * server does not have are never replaced by a file without them.
+   *
+   * Says whether every play here is now in the bucket: false while this
+   * month's file waits for its hour.
    */
-  async #uploadPlays(store: CloudStore): Promise<void> {
+  async #uploadPlays(store: CloudStore): Promise<boolean> {
     const plays = this.#deps.plays
-    if (!plays) return
+    if (!plays) return true
     const { cloud } = this.#deps
     await this.#readBucketPlays(store, plays)
 
     const states = new Map(cloud.playsStates().map(state => [state.month, state]))
     const now = this.#now()
     const thisMonth = now.toISOString().slice(0, 7)
+    let allUp = true
     for (const { month, sig } of plays.months()) {
       const state = states.get(month)
       states.delete(month)
@@ -1741,6 +1803,7 @@ export class CloudSyncService {
         const wait = Date.parse(state.uploadedAt) + PLAYS_UPLOAD_EVERY_MS - now.getTime()
         if (wait > 0) {
           this.#playsLater(wait)
+          allUp = false
           continue
         }
       }
@@ -1760,6 +1823,7 @@ export class CloudSyncService {
     for (const [month, state] of states) {
       if (state.sig !== UNREADABLE_PLAYS) cloud.dropPlays(month)
     }
+    return allUp
   }
 
   /**
@@ -1956,6 +2020,70 @@ export class CloudSyncService {
   }
 
   /**
+   * Put in the trash the audio and words in the bucket that nothing names,
+   * that nothing put there, and that this server has known of for
+   * `ORPHANS_KEPT_MS` (docs/SYNC.md, "Tidying up"): an upload whose import
+   * failed halfway, or what a server that lost its database left. Once per
+   * bucket listing, like the covers (`trashUnnamedCovers`), and only from a
+   * pass that read every log; from the trash they go once the next snapshot
+   * is up, if nothing names them then.
+   *
+   * Every snapshot in the bucket is read first, and a file any of them names
+   * stays: so is the one every device is reading, and another server's. That
+   * is a listing and a read a snapshot, and only when there is something to
+   * delete. A snapshot that cannot be read leaves everything where it is.
+   * Words go no more than audio does while a song here names no audio of a
+   * size the bucket holds unnamed: that file may be its own.
+   */
+  async #trashOrphans(store: CloudStore): Promise<void> {
+    const { cloud } = this.#deps
+    const before = new Date(this.#now().getTime() - ORPHANS_KEPT_MS)
+    const candidates = cloud.unnamedFiles(before)
+    if (candidates.length === 0) return
+
+    const unplaced = cloud.unplacedSongSizes()
+    const maybeOwned = candidates.filter(
+      file => file.key.startsWith('audio/') && unplaced.has(file.size),
+    )
+    if (maybeOwned.length > 0) {
+      this.#logger.warn('leaving unnamed audio and words in the bucket: a song here may own them', {
+        files: maybeOwned.map(file => file.key),
+      })
+      return
+    }
+
+    let named: Set<string>
+    try {
+      named = await this.#namedBySnapshots(store)
+    } catch (error) {
+      this.#logger.warn('could not read every snapshot; nothing unnamed goes this time', {
+        message: messageOf(error),
+      })
+      return
+    }
+    const orphans = candidates.filter(file => !named.has(file.key)).map(file => file.key)
+    if (orphans.length === 0) return
+    cloud.trashKeys(orphans)
+    this.#logger.info('audio and words nothing has named for a month go once the snapshot is up', {
+      files: orphans.length,
+    })
+  }
+
+  /** Every file any snapshot in the bucket names. Throws when one cannot be read. */
+  async #namedBySnapshots(store: CloudStore): Promise<Set<string>> {
+    const named = new Set<string>()
+    const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+    for (const key of keys) {
+      if (!parseSnapshotKey(key)) continue
+      const kept = this.#newestRead?.newest
+      const body = kept?.key === key ? kept.body : await store.get(key)
+      if (!body) throw new Error(`${key} went while it was being read`)
+      for (const file of snapshotFileKeys(parseSnapshot(body))) named.add(file)
+    }
+    return named
+  }
+
+  /**
    * Put a file the bucket may already have. Files are named by their hash, so
    * one that is there is the right file: remembered once, never sent again.
    * Not asked about first: a put of the same bytes is free, where the asking
@@ -1969,7 +2097,7 @@ export class CloudSyncService {
     if (inflight) await inflight.catch(() => undefined)
     if (this.#deps.cloud.hasFile(key)) return
     await store.put(key, data, { contentType })
-    this.#deps.cloud.recordFile(key, data.length)
+    this.#deps.cloud.recordFile(key, data.length, this.#now())
   }
 
   // --- Snapshots -------------------------------------------------------------
@@ -2115,7 +2243,14 @@ export class CloudSyncService {
     })
 
     const hash = snapshotContentHash(snapshot)
-    if (hash === this.#lastSnapshotHash) return 'unchanged'
+    if (hash === this.#lastSnapshotHash) {
+      // The one up there says just this, months of plays and all: they now
+      // hold every play its logs brought, if this pass found them all up.
+      if (this.#ownNewest && this.#playsCovered) {
+        this.#ownNewest = { ...this.#ownNewest, playsUpTo: this.#playsCovered }
+      }
+      return 'unchanged'
+    }
     const coreHash = snapshotCoreHash(snapshot)
     if (
       this.#lastSnapshotHash !== null &&
@@ -2153,18 +2288,28 @@ export class CloudSyncService {
     this.#enrichmentDue = false
     if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
     this.#enrichmentTimer = null
-    this.#ownNewest = { key, writtenAt: writtenAt.getTime(), upTo: snapshot.upTo }
+    this.#ownNewest = {
+      key,
+      writtenAt: writtenAt.getTime(),
+      upTo: snapshot.upTo,
+      playsUpTo: this.#playsCovered,
+    }
 
     try {
       // The listing adoption made will do: what is pruned is this server's
-      // own, and nothing but this server adds to those.
+      // own, which nothing but this server adds to, or another's a month old,
+      // which a snapshot written since that listing cannot be.
       const keys =
         this.#snapshotKeys ??
         this.#newestRead?.keys.slice() ??
         (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
       if (!keys.includes(key)) keys.push(key)
       this.#snapshotKeys = keys
-      for (const old of snapshotsToPrune(keys, deviceId, SNAPSHOTS_KEPT)) {
+      const stale = new Date(writtenAt.getTime() - OTHERS_SNAPSHOTS_KEPT_MS)
+      for (const old of [
+        ...snapshotsToPrune(keys, deviceId, SNAPSHOTS_KEPT),
+        ...othersSnapshotsToPrune(keys, deviceId, stale),
+      ]) {
         await store.delete(old)
         keys.splice(keys.indexOf(old), 1)
       }
@@ -2347,4 +2492,14 @@ function parseJson(data: Buffer): unknown {
   } catch {
     return null
   }
+}
+
+/** For each device, the lower of how far two snapshots' worth of reading reaches. */
+function lowest(
+  a: Readonly<Record<string, number>>,
+  b: Readonly<Record<string, number>>,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [device, seq] of Object.entries(a)) out[device] = Math.min(seq, b[device] ?? 0)
+  return out
 }

@@ -11,7 +11,7 @@ import {
 import * as edits from './edits.js'
 import type { EditContext } from './edits.js'
 import { CloudRouteError } from './errors.js'
-import { foldedOwnLogs, latestStamp, replay, replayedSnapshot } from './replay.js'
+import { latestStamp, replay, replayedSnapshot } from './replay.js'
 import { NO_IDS, snapshotToLibrary, type CloudLibrary } from './snapshotLibrary.js'
 
 /**
@@ -416,17 +416,5 @@ describe('replaying', () => {
     }
     expect(latestStamp(stamped)).toBe('0000000b2.0000.mac-3f9a1c2e')
     expect(latestStamp(null)).toBeNull()
-  })
-
-  it('tidies away only this device’s own files a snapshot has folded in', () => {
-    const keys = [
-      'log/iphone-0b7d44a1/000000000001.json',
-      'log/iphone-0b7d44a1/000000000002.json',
-      'log/iphone-0b7d44a1/000000000003.json',
-      'log/web-3f9a2c1d/000000000001.json',
-    ]
-    expect(
-      foldedOwnLogs(keys, 'iphone-0b7d44a1', { 'iphone-0b7d44a1': 2, 'web-3f9a2c1d': 9 }),
-    ).toEqual(keys.slice(0, 2))
   })
 })

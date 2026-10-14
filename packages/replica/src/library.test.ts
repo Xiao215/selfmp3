@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CLOUD_FILES_KEY as FILES_KEY,
+  formatHlc,
   isCloudFileKey,
   isLookedAtCloudKey,
+  logFile,
+  logKey,
+  type Change,
   type CloudSnapshot,
 } from '@selfmp3/shared'
 import * as edits from './edits.js'
@@ -766,6 +770,103 @@ async function counterAsked(bucket: ReturnType<typeof fakeBucket>, times: number
   // And for whatever it found to be taken in.
   await new Promise(resolve => setTimeout(resolve, 0))
 }
+
+describe('a library with a long history', () => {
+  const PHONE = 'iphone-0b7d44a1'
+  const tagMade = (seconds: number, name: string): Change => ({
+    type: 'tagCreated',
+    hlc: formatHlc({
+      ms: Date.parse('2026-09-11T09:00:00Z') + seconds * 1000,
+      counter: 0,
+      device: PHONE,
+    }),
+    uid: String(seconds).padStart(32, 'c'),
+    name,
+    hue: 40,
+  })
+  const phoneLog = (bucket: ReturnType<typeof fakeBucket>, seq: number, change: Change): string => {
+    const key = logKey(PHONE, seq)
+    bucket.files.set(key, logFile(PHONE, seq, [change], new Date('2026-09-11T09:00:00Z')))
+    return key
+  }
+
+  /*
+   * The snapshot is the base: a device new to the library downloads it and
+   * the log files written since, and not one file it has folded in, however
+   * many are still in the bucket waiting for the server to tidy them away.
+   */
+  it('opens a new device with the newest snapshot and only the changes after it', async () => {
+    const made = build()
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, { ...SNAPSHOT, upTo: { [PHONE]: 2 } })
+    const folded = [
+      phoneLog(made.bucket, 1, tagMade(1, 'folded one')),
+      phoneLog(made.bucket, 2, tagMade(2, 'folded two')),
+    ]
+    const recent = phoneLog(made.bucket, 3, tagMade(3, 'recent'))
+
+    const view = await made.library.loadCloudLibrary(SESSION)
+
+    expect(made.bucket.reads).toEqual([SNAPSHOT_KEY, recent])
+    expect(view.library.songs).toHaveLength(1)
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['recent'])
+    // Left where they are: tidying the log is the server's, once nobody needs them.
+    for (const key of folded) expect(made.bucket.files.has(key)).toBe(true)
+  })
+
+  /*
+   * A phone that sat in a drawer for months, with an edit it never sent: the
+   * server has folded and tidied away everything it sent before, and written
+   * many snapshots since. What waited goes up under the next number of its
+   * own, and nothing it sent before is asked for again.
+   */
+  it('sends what waited on a device that was away for months, numbered on from its own', async () => {
+    const made = build()
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'before', undefined).changes,
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+    const [sent] = made.bucket.puts.map(put => put.key)
+    const device = sent?.split('/')[1] ?? ''
+    expect(sent).toBe(logKey(device, 1))
+
+    made.bucket.goOffline(true)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'while away', undefined).changes,
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+    expect(made.library.pendingCloudChanges()).toBeGreaterThan(0)
+
+    // Meanwhile the server folded the first file into a snapshot, and tidied it away.
+    const before = made.bucket.files.get(sent ?? '') as { changes: Change[] }
+    const tag = before.changes[0]
+    if (tag?.type !== 'tagCreated') throw new Error('expected the tag')
+    made.bucket.files.delete(sent ?? '')
+    made.bucket.files.set('snapshots/20270101T000000000Z-pi-3f9a1c2e.json', {
+      ...SNAPSHOT,
+      writtenAt: '2027-01-01T00:00:00.000Z',
+      writtenBy: 'pi-3f9a1c2e',
+      upTo: { [device]: 1 },
+      tags: [
+        { uid: tag.uid, name: 'before', hue: tag.hue, stamps: { name: tag.hlc, hue: tag.hlc } },
+      ],
+    })
+
+    made.bucket.goOffline(false)
+    await made.library.flushCloudChanges()
+    made.library.markCloudLibraryStale()
+    const view = await made.library.loadCloudLibrary(SESSION)
+
+    expect(made.bucket.puts.map(put => put.key)).toEqual([logKey(device, 1), logKey(device, 2)])
+    expect(made.bucket.reads).not.toContain(logKey(device, 1))
+    expect(view.library.tags.map(tag => tag.name).sort()).toEqual(['before', 'while away'])
+    expect(made.library.pendingCloudChanges()).toBe(0)
+  })
+})
 
 describe('what looking costs the bucket', () => {
   it('asks only the counter while nothing has been written', async () => {

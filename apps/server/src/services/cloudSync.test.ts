@@ -1214,13 +1214,23 @@ describe('CloudSyncService', () => {
       expect(live?.songUids).toEqual([uidOf(two)])
     })
 
-    it('keeps its three newest snapshots, and never touches another device’s', async () => {
+    it('keeps its three newest snapshots, and another server’s for a month', async () => {
       const id = addSong('A - One', 'one')
       // A real snapshot of an empty library, not `{}`. Before publishing, the
       // server both reads the newest snapshot to see how big the library is and
       // takes on what is in it — so a stand-in here has to be a whole snapshot,
       // not a placeholder.
-      const theirs = seedBucket(theirSnapshot({}))
+      const theirs = seedBucket(
+        theirSnapshot({ device: 'mac-2b8e44d1', at: new Date(clock - 86_400_000).toISOString() }),
+      )
+      // A server that moved to another computer long ago: read by nobody, and
+      // left for good unless somebody else deletes it.
+      const long = seedBucket(
+        theirSnapshot({
+          device: 'mac-0c0c0c0c',
+          at: new Date(clock - 31 * 86_400_000).toISOString(),
+        }),
+      )
       await connect()
 
       for (const loved of [true, false, true, false, true]) {
@@ -1230,6 +1240,7 @@ describe('CloudSyncService', () => {
 
       const keys = snapshotKeys()
       expect(keys).toContain(theirs)
+      expect(keys).not.toContain(long)
       expect(keys.filter(key => key !== theirs)).toHaveLength(3)
     })
 
@@ -2518,6 +2529,266 @@ describe('CloudSyncService', () => {
       clock += 11 * 60_000
       await pass()
       expect(bucket.keys('log/')).toEqual([logKey(PHONE, 1)])
+    })
+  })
+
+  describe('tidying up', () => {
+    const PHONE = 'iphone-0b7d44a1'
+    const DAY = 24 * 60 * 60_000
+    const stamp = (seconds: number): string =>
+      formatHlc({
+        ms: Date.parse('2026-09-11T09:00:00Z') + seconds * 1000,
+        counter: 0,
+        device: PHONE,
+      })
+    const writeLog = (seq: number, changes: Change[]): string => {
+      const key = logKey(PHONE, seq)
+      const file = { ...logFile(PHONE, seq, [], new Date('2026-09-11T09:00:00Z')), changes }
+      bucket.objects.set(key, {
+        body: Buffer.from(JSON.stringify(file)),
+        contentType: 'application/json',
+      })
+      return key
+    }
+    const tagMade = (seconds: number, name: string): Change => ({
+      type: 'tagCreated',
+      hlc: stamp(seconds),
+      uid: String(seconds).padStart(32, 'c'),
+      name,
+      hue: 40,
+    })
+    const tagNames = (): string[] => tags.all().map(tag => tag.name)
+
+    describe('the snapshot is the base', () => {
+      /*
+       * A server whose database was made again from nothing takes the bucket's
+       * library whole, and the snapshot already holds what its logs said: a
+       * link asked for a month ago, read again, would be imported again.
+       */
+      it('a server that had nothing reads each log from where the snapshot left off', async () => {
+        seedBucket({
+          ...theirSnapshot({ songs: [theirSong('A - One')], device: 'pi-3f9a1c2e' }),
+          upTo: { [PHONE]: 2 },
+        })
+        const folded = [
+          writeLog(1, [tagMade(1, 'folded one')]),
+          writeLog(2, [tagMade(2, 'folded two')]),
+        ]
+        writeLog(3, [tagMade(3, 'recent')])
+
+        await connect()
+
+        expect(tagNames()).toEqual(['recent'])
+        for (const key of folded) expect(bucket.gets).not.toContain(key)
+        expect(latest().upTo).toEqual({ [PHONE]: 3 })
+      })
+
+      /*
+       * A server that already had the song keeps its own row as it was, so the
+       * changes that made the snapshot's row what it is still have to be read.
+       */
+      it('a server that already had a library still reads every log there is', async () => {
+        const id = addSong('A - One', 'one')
+        seedBucket({ ...theirSnapshot({ device: 'pi-3f9a1c2e' }), upTo: { [PHONE]: 1 } })
+        db.prepare('UPDATE songs SET uid = ? WHERE id = ?').run(uid('A - One'), id)
+        writeLog(1, [
+          { type: 'songEdited', hlc: stamp(1), uid: uid('A - One'), fields: { loved: true } },
+        ])
+
+        await connect()
+
+        expect(songs.byId(id)).toMatchObject({ loved: true })
+      })
+    })
+
+    describe('pruning the log', () => {
+      it('never deletes a file the snapshot has not folded in', async () => {
+        const id = addSong('A - One', 'one')
+        await connect()
+        writeLog(1, [
+          { type: 'songEdited', hlc: stamp(1), uid: uidOf(id), fields: { loved: true } },
+        ])
+        // One this build cannot read: the phone's log stops there until it can.
+        writeLog(2, [{ type: 'songRated', hlc: stamp(2), uid: uidOf(id), stars: 5 } as never])
+        writeLog(3, [{ type: 'songEdited', hlc: stamp(3), uid: uidOf(id), fields: { year: 1999 } }])
+        await pass()
+        expect(latest().upTo).toEqual({ [PHONE]: 1 })
+
+        clock += 11 * 60_000
+        await pass()
+
+        expect(bucket.keys('log/')).toEqual([logKey(PHONE, 2), logKey(PHONE, 3)])
+      })
+
+      it('keeps a log whose plays are only in this database, until their month is up', async () => {
+        const stats = new StatsRepository(db)
+        const archive = new PlaysArchive({
+          stats,
+          sync: syncRepo,
+          deviceId: () => cloud.deviceId(),
+        })
+        sync = makeSync({ plays: archive })
+        const id = addSong('A - One', 'one')
+        const played = (seq: number, at: string): string =>
+          writeLog(seq, [
+            {
+              type: 'songPlayed',
+              hlc: stamp(seq),
+              uid: uidOf(id),
+              playId: `play-${seq}-from-the-phone`,
+              playedAt: at,
+              msPlayed: 1000,
+              completed: true,
+            },
+          ])
+        await connect()
+
+        // The month's first play: its file goes up at once.
+        played(1, '2026-09-11T09:30:00Z')
+        await pass()
+        clock += 11 * 60_000
+        await pass()
+        expect(bucket.keys('log/')).toEqual([])
+
+        // The next waits its hour, and so does the log it came in.
+        const second = played(2, '2026-09-11T09:40:00Z')
+        await pass()
+        expect(latest().songs[0]?.playCount).toBe(2)
+        clock += 11 * 60_000
+        await pass()
+        expect(bucket.keys('log/')).toEqual([second])
+
+        clock += 61 * 60_000
+        await pass()
+        await vi.waitFor(() => expect(latest().plays?.[0]?.count).toBe(2))
+        clock += 11 * 60_000
+        await pass()
+        expect(bucket.keys('log/')).toEqual([])
+      })
+    })
+
+    describe('audio and words nothing names', () => {
+      const stray = async (content: string, folder = 'audio', extension = '.m4a') => {
+        const key = `${folder}/${sha(content)}${extension}`
+        await bucket.put(key, Buffer.from(content), { contentType: 'x' })
+        return key
+      }
+      /** A month on, and the bucket listed again: "Publish now", or the next start. */
+      const aMonthLater = async (): Promise<void> => {
+        clock += 31 * DAY
+        await sync.syncNow({ verify: true })
+        await sync.whenIdle()
+      }
+
+      it('go a month after this server first knew of them, and nothing else does', async () => {
+        addSong('A - One', 'one', { lyrics: '[00:01.00]la' })
+        const audio = await stray('an upload whose import failed halfway')
+        const words = await stray('its words', 'lyrics', '.txt')
+        const motion = await stray('{"its":"curve"}', 'lyrics', '.json')
+        // Named by another server's snapshot, which still names it.
+        const theirs = theirSong('C - Three')
+        await bucket.put(theirs.audio.key, Buffer.from(`their audio of C - Three`), {
+          contentType: 'audio/mp4',
+        })
+        await connect()
+        seedBucket(
+          theirSnapshot({
+            songs: [theirs],
+            device: 'mac-2b8e44d1',
+            at: new Date(clock - 60 * 60_000).toISOString(),
+          }),
+        )
+        const named = latest().songs[0]
+
+        // Not a month yet: nothing goes, however often it is listed.
+        await sync.syncNow({ verify: true })
+        await sync.whenIdle()
+        expect(bucket.keys()).toEqual(expect.arrayContaining([audio, words, motion]))
+
+        const young = await stray('uploaded just now')
+        await aMonthLater()
+
+        const left = bucket.keys()
+        for (const key of [audio, words, motion]) expect(left).not.toContain(key)
+        expect(left).toEqual(
+          expect.arrayContaining([young, theirs.audio.key, named!.audio.key, named!.lyrics!.key]),
+        )
+      })
+
+      it('stay while a song here names no audio and one of them could be its own', async () => {
+        const audio = await stray('a song whose cloud row went')
+        const words = await stray('words of something', 'lyrics', '.txt')
+        songs.insert({
+          path: 'Gone - Away/Gone - Away.m4a',
+          title: 'Away',
+          artist: 'Gone',
+          album: '',
+          albumArtist: '',
+          trackNo: null,
+          year: null,
+          duration: 200,
+          sizeBytes: Buffer.byteLength('a song whose cloud row went'),
+          mime: 'audio/mp4',
+          mtimeMs: 0,
+          hasArt: false,
+          artExt: null,
+          lyricsKind: 'none',
+          sourceUrl: null,
+        })
+        await connect()
+        await aMonthLater()
+
+        expect(bucket.keys()).toEqual(expect.arrayContaining([audio, words]))
+      })
+
+      it('stay after a pass that could not read every log', async () => {
+        const id = addSong('A - One', 'one')
+        const audio = await stray('an upload whose import failed halfway')
+        await connect()
+        writeLog(1, [{ type: 'songRated', hlc: stamp(1), uid: uidOf(id), stars: 5 } as never])
+
+        await aMonthLater()
+
+        expect(bucket.keys('audio/')).toContain(audio)
+      })
+
+      it('stay while a snapshot in the bucket cannot be read', async () => {
+        addSong('A - One', 'one')
+        const audio = await stray('an upload whose import failed halfway')
+        await connect()
+        bucket.objects.set(snapshotKey(new Date(clock - 60_000), 'mac-2b8e44d1'), {
+          body: Buffer.from('not a snapshot'),
+          contentType: 'application/json',
+        })
+
+        await aMonthLater()
+
+        expect(bucket.keys('audio/')).toContain(audio)
+      })
+    })
+
+    /*
+     * A song that lost only its cover from the bucket used to be forgotten
+     * whole by the check against the listing: with its copy here let go, it
+     * could never be sent again, so it left every snapshot and its audio was
+     * named by nothing — which the sweep above would delete.
+     */
+    it('keeps a song in the library when the bucket lost only its cover', async () => {
+      const id = addSong('A - One', 'one')
+      await covers.save(id, Buffer.alloc(2048, 7), '.jpg')
+      sync = makeSync({ analysed: () => true })
+      await connect()
+      expect(fs.existsSync(path.join(root, 'A - One/A - One.m4a'))).toBe(false)
+      const cover = `covers/${sha(Buffer.alloc(2048, 7))}.jpg`
+      bucket.objects.delete(cover)
+
+      await sync.syncNow({ verify: true })
+      await sync.whenIdle()
+
+      expect(latest().songs.map(song => [song.audio.key, song.cover?.key])).toEqual([
+        [`audio/${sha('one')}.m4a`, cover],
+      ])
+      expect(bucket.keys('covers/')).toEqual([cover])
     })
   })
 

@@ -17,9 +17,11 @@ import {
   newCloudFormatText,
   newUid,
   newestSnapshotKey,
+  othersSnapshotsToPrune,
   parseEndpoint,
   parseLogKey,
   parseSnapshotKey,
+  snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
   toCloudRules,
@@ -111,6 +113,22 @@ describe('snapshots', () => {
     const shuffled = [mine[3], theirs, mine[0], mine[4], mine[1], mine[2]] as string[]
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 3)).toEqual([mine[0], mine[1]])
     expect(snapshotsToPrune(shuffled, 'mac-aaaaaaaa', 10)).toEqual([])
+  })
+
+  it('prune another writer’s only once it is old, and never the newest of all', () => {
+    const mine = snapshotKey(at('2026-09-20T00:00:00Z'), 'pi-aaaaaaaa')
+    const oldMac = snapshotKey(at('2026-08-01T00:00:00Z'), 'mac-bbbbbbbb')
+    const recentMac = snapshotKey(at('2026-09-15T00:00:00Z'), 'mac-bbbbbbbb')
+    const before = at('2026-08-21T00:00:00Z')
+    expect(othersSnapshotsToPrune([mine, oldMac, recentMac], 'pi-aaaaaaaa', before)).toEqual([
+      oldMac,
+    ])
+    // A writer that is still the newest keeps it, however old.
+    expect(othersSnapshotsToPrune([oldMac], 'pi-aaaaaaaa', before)).toEqual([])
+    // Its own are `snapshotsToPrune`'s business, not this.
+    expect(
+      othersSnapshotsToPrune([mine, oldMac], 'mac-bbbbbbbb', at('2026-10-01T00:00:00Z')),
+    ).toEqual([])
   })
 })
 
@@ -356,6 +374,47 @@ describe('snapshot schema', () => {
 
   it('accepts a well-formed song', () => {
     expect(CloudSongSchema.safeParse(song).success).toBe(true)
+  })
+
+  it('names every file it points at', () => {
+    const lyrics = `lyrics/${'1'.repeat(64)}.lrc`
+    const romanized = `lyrics/${'2'.repeat(64)}.json`
+    const motion = `lyrics/${'3'.repeat(64)}.json`
+    const sound = `lyrics/${'4'.repeat(64)}.vec`
+    const plays = `lyrics/${'5'.repeat(64)}.plays`
+    const banner = `covers/${'6'.repeat(64)}.jpg`
+    const portrait = `covers/${'7'.repeat(64)}.jpg`
+    const snapshot = CloudSnapshotSchema.parse({
+      format: 1,
+      writtenAt: '2026-09-11T10:00:00.000Z',
+      writtenBy: 'pi-aaaaaaaa',
+      upTo: {},
+      songs: [{ ...song, lyrics: { key: lyrics, size: 1, kind: 'synced', romanized }, motion }],
+      tags: [],
+      playlists: [],
+      artists: [
+        {
+          artist: 'yoasobi',
+          banner: { key: banner, size: 1 },
+          portrait: { key: portrait, size: 1 },
+        },
+      ],
+      sound: { model: 'clamp3', key: sound, size: 1 },
+      plays: [{ month: '2026-09', key: plays, size: 1, count: 1 }],
+    })
+    expect([...snapshotFileKeys(snapshot)].sort()).toEqual(
+      [
+        song.audio.key,
+        song.cover.key,
+        lyrics,
+        romanized,
+        motion,
+        banner,
+        portrait,
+        sound,
+        plays,
+      ].sort(),
+    )
   })
 
   it('takes a cover colour only with its palette, and no colour only as null', () => {

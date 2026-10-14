@@ -1,5 +1,5 @@
 import type { ThrottleState } from '@selfmp3/shared'
-import type { DeviceDownloader, DeviceFile } from '@/features/import/deviceImports.model'
+import type { DeviceDownloader } from '@/features/import/deviceImports.model'
 
 /**
  * Downloading a song on this device instead of on the server
@@ -26,4 +26,3 @@ export const deviceBudget = {
   },
 }
 
-export type { DeviceFile }

@@ -852,7 +852,7 @@ interface StagedFile {
 }
 
 /** What became of a device's file: taken, or refused with an HTTP status and why. */
-export type DeviceFileOutcome =
+type DeviceFileOutcome =
   | { readonly ok: true }
   | { readonly ok: false; readonly status: 400 | 409 | 413 | 422; readonly message: string }
 

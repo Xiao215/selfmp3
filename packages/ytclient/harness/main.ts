@@ -20,7 +20,7 @@ export interface RunOptions {
   readonly chunkBytes?: number
 }
 
-export interface Report {
+interface Report {
   readonly ok: boolean
   readonly poToken: boolean
   readonly visitorData: string | null

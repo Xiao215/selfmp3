@@ -58,7 +58,7 @@ export interface DeviceImportsApi {
   ): { url: string; headers: Record<string, string> } | null
 }
 
-export interface DeviceImportsDeps {
+interface DeviceImportsDeps {
   /** This device's downloader, or null when it has none (no extension, no browser). */
   readonly downloader: () => Promise<DeviceDownloader | null>
   /** Send a file to where the server said; the status it answered, and its words. */
@@ -76,7 +76,7 @@ export interface DeviceImportsDeps {
 }
 
 /** How often a lease is renewed: well inside the server's five minutes, even in a background tab. */
-export const RENEW_MS = 60_000
+const RENEW_MS = 60_000
 
 /** A device asks YouTube signed out: the extension carries no cookies. */
 const SIGNED_IN = false

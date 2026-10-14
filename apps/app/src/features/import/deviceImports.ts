@@ -7,7 +7,7 @@ import { DeviceImports } from './deviceImports.model'
  * The one `DeviceImports` this app runs (deviceImports.model.ts): songs this
  * device downloads for its server, wherever the import was started from.
  */
-export const deviceImports = new DeviceImports({
+const deviceImports = new DeviceImports({
   downloader: deviceDownloader,
   upload: uploadDeviceFile,
   budget: deviceBudget,

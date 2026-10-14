@@ -74,7 +74,7 @@ const TO_SERVER = `status = 'queued', step = 'waiting', progress = NULL, lease_i
 const UNTIL = `datetime('now', '+' || @seconds || ' seconds')`
 
 /** Whether a job goes to the device that asked (`ImportEnqueue.fetchOnDevice`). */
-export type FetcherFor = (item: ImportEnqueueItem) => 'server' | 'device'
+type FetcherFor = (item: ImportEnqueueItem) => 'server' | 'device'
 
 function toJob(row: ImportJobRow): ImportJob {
   let tagIds: number[] = []

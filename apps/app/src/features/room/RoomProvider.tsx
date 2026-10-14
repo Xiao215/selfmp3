@@ -32,12 +32,16 @@ import {
 import { roomTrack, setRoomTracks } from '../../player/roomTracks'
 import { holdPictures, keepLent } from '../../offline/covers'
 import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
+import { lightTap } from '../../ports/haptics'
+import { showToast } from '../../ui/toast'
 import {
+  arrivals,
   entryOfTrack,
   freshWant,
   hostPlan,
   isHost,
   keepGoingPicks,
+  namesOf,
   needsReport,
   pastRoomOf,
   positionNow,
@@ -51,6 +55,7 @@ import {
   onRoomEnded,
   roomAct,
   roomApi,
+  roomMayTakeOver,
   takeRoomStartHint,
   useRoom,
 } from './room.store'
@@ -122,6 +127,21 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     live.current = { playingId, playing, queueIndex: queue.index }
   }, [playingId, playing, queue.index])
 
+  // A friend coming in: a tap on the phone and their name, wherever you are (M2).
+  const seen = useRef<{ code: string; ids: Set<string> } | null>(null)
+  useEffect(() => {
+    if (!state) {
+      seen.current = null
+      return
+    }
+    const before = seen.current?.code === state.code ? seen.current.ids : null
+    const came = arrivals(before, state)
+    seen.current = { code: state.code, ids: new Set(state.members.map(member => member.id)) }
+    if (came.length === 0) return
+    lightTap()
+    showToast(`${namesOf(came.map(member => member.name))} joined`, 'info')
+  }, [state])
+
   // Back into the room this device was in when the app last closed.
   useEffect(() => {
     if (currentRoom().pass) connectRoom()
@@ -192,11 +212,20 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 
   useEffect(() => {
     if (!state || !host) return
-    const plan = hostPlan(state, { currentId: playingId, playing, ranOut })
+    const plan = hostPlan(state, {
+      currentId: playingId,
+      playing,
+      ranOut,
+      takeOver: roomMayTakeOver(),
+    })
     switch (plan.kind) {
       case 'start': {
         const hint = takeRoomStartHint()
-        commands.playFrom(plan.ids, 0, hint ?? {})
+        commands.playFrom(
+          plan.ids,
+          0,
+          hint ? { position: hint.position, autoplay: hint.autoplay } : {},
+        )
         return
       }
       case 'follow':

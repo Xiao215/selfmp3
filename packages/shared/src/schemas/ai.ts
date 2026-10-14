@@ -276,6 +276,12 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     lead: z.enum(['play', 'save', 'next']),
     describe: DescribeResultSchema,
   }),
+  /**
+   * Listening with friends: a room to open, or songs for the room the device
+   * is in — the device decides which, since only it knows. `describe` is the
+   * songs the words asked for, or null for just the room.
+   */
+  z.object({ kind: z.literal('together'), describe: DescribeResultSchema.nullable() }),
   /** A song you half remember: the few that fit what you said, each with why. */
   z.object({
     kind: z.literal('find'),

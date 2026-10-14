@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter, type Href } from 'expo-router'
 import {
@@ -14,12 +15,11 @@ import {
   type RoomState,
   type Song,
 } from '@selfmp3/shared'
-import { iconSize, radius, space, type, useLibrary } from '@selfmp3/client'
-import { useAccent } from '../../ui/accent'
+import { iconSize, radius, roomFace, space, type, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { appAddress, shareLink } from '../../ports/shareLink'
 import { library as cloudLibrary } from '../../replica'
-import { label, rowTitle, lineSub, textColumn } from '../../ui/surfaces'
+import { label, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
@@ -29,8 +29,8 @@ import { SongLine } from '../../ui/components/SongLine'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { Segmented } from '../../ui/components/Segmented'
 import { Sheet } from '../../ui/components/Sheet'
-import { ToggleRow } from '../../ui/components/Toggle'
-import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
+import { Chip } from '../../ui/components/Chip'
+import { Plus, ShareOut } from '../../ui/components/Icons'
 import { useCloudSession } from '../profile/useCloudSession'
 import { lookUpLink, playableLink } from './linkSong'
 import { RoomFace } from './RoomFace'
@@ -44,19 +44,25 @@ import {
   pastTitle,
   peopleHere,
   playedRows,
-  roomLine,
   roomTitle,
+  startingSongs,
   youMay,
 } from './room.model'
-import { closeRoomSheet, useRoomSheet } from './roomSheets.store'
+import { closeRoomSheet, useRoomSheet, useRoomStart } from './roomSheets.store'
+import { ArrivalRing, useRoomMoves, type RoomMoves } from './roomMotion'
+import { PlaylistCover } from '../playlists/PlaylistCover'
+import { devicePlace } from '../settings/settings.model'
+import { deviceKind } from '../../ports/device'
 import { sayRoomFailure } from './roomFailure'
 import {
   keptAsOf,
   leaveRoom,
   noteKeptAs,
+  noteRoomOpened,
   roomAct,
   setRoomStartHint,
   startRoom,
+  takeRoomOpened,
   useRoom,
 } from './room.store'
 import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
@@ -95,10 +101,13 @@ export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }
 // --- Together ----------------------------------------------------------------------
 
 /**
- * Together, from the player's People button: out of a room, where it plays or
- * a code to join; in one, the room itself (E1, Xiao 2026-10-13) — the invite,
- * who is here, what friends may do, and ending it or leaving at the foot, the
- * same sheet from Now Playing's pill, the player bar's faces and Up next's ⋯.
+ * Together, from the player's People button, Home or a list's ⋯: out of a
+ * room, Start — what it starts with, where it plays, or a code to join; in
+ * one, the room itself (E1, Xiao 2026-10-13) — the invite, who is here, what
+ * friends may do, and ending it or leaving at the foot, the same sheet from
+ * Now Playing's pill, the player bar's faces and Up next's ⋯.
+ *
+ * Starting it keeps the sheet up, and it grows into the room (M1).
  */
 function TogetherSheet({ open, state }: { open: boolean; state: RoomState | null }): ReactNode {
   const leave = useLeave()
@@ -110,8 +119,8 @@ function TogetherSheet({ open, state }: { open: boolean; state: RoomState | null
       <Sheet
         open={open}
         onClose={closeRoomSheet}
-        title={state ? roomTitle(state) : 'Listen together'}
-        subtitle={state ? roomLine(state) : 'Up next becomes a room friends add songs to.'}
+        // Start draws its own name, centred under the seats.
+        title={state ? roomTitle(state) : undefined}
         testID="room-together"
         width={420}
       >
@@ -174,33 +183,47 @@ function useLeave(): (state: RoomState) => Promise<void> {
   }
 }
 
+/** Empty seats beside yours: what a room is, without a sentence saying it. */
+const SEATS = 3
+const SEAT_FACE = 44
+
 function Start(): ReactNode {
   const { data: me } = useCloudSession()
   const player = usePlayer()
+  const start = useRoomStart()
+  const from = startingSongs(start, player.current)
   const [mode, setMode] = useState<'speaker' | 'everyone'>('speaker')
   const [busy, setBusy] = useState(false)
+  const [joining, setJoining] = useState(!me)
 
-  const start = async (): Promise<void> => {
+  const begin = async (): Promise<void> => {
     if (!me) return
     setBusy(true)
     try {
-      // What is here stays: the song playing and what comes after it go in
-      // first, as yours, and carry on from where the song was.
-      const from = Math.max(0, player.queue.index)
-      const keep = player.queue.items
-        .slice(from, from + 20)
-        .flatMap(id => (id > 0 ? [cloudLibrary.cloudRoomSongNow(id)] : []))
+      const songs = from.ids
+        .map(id => cloudLibrary.cloudRoomSongNow(id))
         .filter((song): song is RoomSong => song !== null)
       const position = player.getPosition()
       const wasPlaying = player.isPlaying
+      // Before the room exists: its sheet mounts the moment it does, and reads this.
+      noteRoomOpened()
       await startRoom({ name: firstName(me.name, me.email), mode })
-      if (keep.length > 0) {
-        setRoomStartHint({ position, autoplay: wasPlaying })
+      if (start.kind === 'playing' && songs.length > 0) {
+        // What is here stays: the song playing goes in first, as yours, and
+        // carries on from where it was.
+        setRoomStartHint({ position, autoplay: wasPlaying, takeOver: false })
         if (wasPlaying) player.toggle()
-        for (const song of keep) await roomAct({ type: 'add', song })
+      } else {
+        // A list's first song, or the first one added to an empty room, takes
+        // over from whatever of yours was playing: that is what it was opened for.
+        setRoomStartHint({ position: 0, autoplay: true, takeOver: true })
       }
-      showToast('Your room is open. Invite friends with its code.', 'good')
+      const [first, ...rest] = songs
+      if (first) await roomAct({ type: 'add', song: first })
+      // The rest go in behind it, in order, while the first already plays.
+      void addInOrder(rest)
     } catch (error) {
+      takeRoomOpened()
       sayRoomFailure(error)
     } finally {
       setBusy(false)
@@ -208,41 +231,101 @@ function Start(): ReactNode {
   }
 
   return (
-    <View style={styles.body}>
+    <View style={styles.together}>
+      <View style={styles.startHead}>
+        <View style={styles.seats}>
+          <RoomFace
+            name={me ? firstName(me.name, me.email) : 'You'}
+            colour={0}
+            picture={me?.picture ?? null}
+            size={SEAT_FACE}
+          />
+          {Array.from({ length: SEATS }, (_, seat) => (
+            <EmptySeat key={seat} />
+          ))}
+        </View>
+        <Text style={styles.startTitle} accessibilityRole="header">
+          Listen together
+        </Text>
+      </View>
       {me ? (
         <>
-          <Text style={styles.label}>Where it plays</Text>
-          <Choice
-            title="On this device"
-            sub="One speaker. Everyone else adds from theirs."
-            chosen={mode === 'speaker'}
-            onPress={() => setMode('speaker')}
-            testID="room-mode-speaker"
-          />
-          <Choice
-            title="On everyone’s"
-            sub="Each phone plays it, in step, wherever they are."
-            chosen={mode === 'everyone'}
-            onPress={() => setMode('everyone')}
-            testID="room-mode-everyone"
-          />
+          <View style={styles.fact}>
+            <Text style={styles.factKey}>Starts with</Text>
+            <View style={styles.factValue}>
+              {from.ids.length > 0 ? <PlaylistCover songIds={from.ids} size={24} /> : null}
+              <Text style={styles.factText} numberOfLines={1} testID="room-starts-with">
+                {from.title}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.fact}>
+            <Text style={styles.factKey}>Plays on</Text>
+            <Segmented
+              size="small"
+              value={mode}
+              options={[
+                { value: 'speaker', label: `This ${devicePlace(deviceKind())}` },
+                { value: 'everyone', label: 'Everyone’s' },
+              ]}
+              onChange={setMode}
+              label="Where it plays"
+              style={styles.factSegments}
+            />
+          </View>
           <Button
-            label="Open the room"
+            label="Start"
             variant="primary"
             busy={busy}
-            onPress={() => void start()}
+            onPress={() => void begin()}
             testID="room-start"
           />
         </>
       ) : (
-        <Text style={styles.text}>Sign in to open a room of your own.</Text>
+        <Text style={styles.centred}>Sign in to start a room of your own.</Text>
       )}
-      <JoinByCode />
+      {joining ? (
+        <JoinByCode autoFocus={me !== null && me !== undefined} />
+      ) : (
+        <Press
+          feedback="dim"
+          onPress={() => setJoining(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Have a code? Join a room"
+          testID="room-join-open"
+          style={styles.joinLink}
+        >
+          <Text style={styles.centred}>
+            Have a code? <Text style={styles.joinWord}>Join</Text>
+          </Text>
+        </Press>
+      )}
     </View>
   )
 }
 
-function JoinByCode(): ReactNode {
+/** Adds songs to the room one after another, so they keep their order; stops at the first refusal. */
+async function addInOrder(songs: readonly RoomSong[]): Promise<void> {
+  for (const song of songs) {
+    try {
+      await roomAct({ type: 'add', song })
+    } catch (error) {
+      sayRoomFailure(error)
+      return
+    }
+  }
+}
+
+function EmptySeat(): ReactNode {
+  const { theme } = useUnistyles()
+  return (
+    <View style={styles.seat}>
+      <Plus size={iconSize.small} color={theme.colors.textMuted} />
+    </View>
+  )
+}
+
+function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
   const go = useGo()
   const [code, setCode] = useState('')
   const valid = RoomCodeSchema.safeParse(code).success
@@ -252,83 +335,20 @@ function JoinByCode(): ReactNode {
     go({ pathname: '/join/[code]', params: { code: normalizeRoomCode(code) } })
   }
   return (
-    <View style={styles.join}>
-      <Text style={styles.label}>Or join one</Text>
-      <TextField
-        raised
-        value={code}
-        onChangeText={setCode}
-        onSubmitEditing={join}
-        placeholder="Room code"
-        autoCapitalize="characters"
-        // Six letters and digits, and the space or dash a code is written with.
-        maxLength={9}
-        testID="room-code-field"
-        action={<Button label="Join" disabled={!valid} onPress={join} testID="room-code-join" />}
-      />
-    </View>
-  )
-}
-
-function Invite({ state }: { state: RoomState }): ReactNode {
-  const link = inviteLink(appAddress(), state.code)
-  const share = async (): Promise<void> => {
-    const how = await shareLink(`Listen with me in ${roomTitle(state)}:`, link)
-    if (how === 'copied') showToast('Invite link copied', 'good')
-  }
-  return (
-    <View style={styles.codeCard}>
-      <RoomQr text={link} size={96} />
-      <View style={styles.codeText}>
-        <Text style={styles.label}>Room code</Text>
-        <Text style={styles.code} selectable testID="room-code">
-          {formatRoomCode(state.code)}
-        </Text>
-        <Text style={styles.link} selectable numberOfLines={2}>
-          {link}
-        </Text>
-        <View style={styles.shareRow}>
-          <Button
-            label="Share invite"
-            variant="primary"
-            onPress={() => void share()}
-            testID="room-share"
-          />
-        </View>
-      </View>
-    </View>
-  )
-}
-
-function Choice({
-  title,
-  sub,
-  chosen,
-  onPress,
-  testID,
-}: {
-  title: string
-  sub: string
-  chosen: boolean
-  onPress: () => void
-  testID: string
-}): ReactNode {
-  const accent = useAccent()
-  return (
-    <Press
-      depth="row"
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ checked: chosen }}
-      testID={testID}
-      style={[
-        styles.choice,
-        chosen && { borderColor: accent.accent, backgroundColor: accent.accentPill },
-      ]}
-    >
-      <Text style={styles.choiceTitle}>{title}</Text>
-      <Text style={styles.choiceSub}>{sub}</Text>
-    </Press>
+    <TextField
+      raised
+      autoFocus={autoFocus}
+      value={code}
+      onChangeText={setCode}
+      onSubmitEditing={join}
+      placeholder="Room code"
+      accessibilityLabel="Room code"
+      autoCapitalize="characters"
+      // Six letters and digits, and the space or dash a code is written with.
+      maxLength={9}
+      testID="room-code-field"
+      action={<Button label="Join" disabled={!valid} onPress={join} testID="room-code-join" />}
+    />
   )
 }
 
@@ -676,111 +696,222 @@ function SongPick({
 
 // --- The room ----------------------------------------------------------------------
 
-const RIGHTS: readonly { key: keyof RoomRights; label: string; hint?: string }[] = [
-  { key: 'add', label: 'Add songs' },
-  { key: 'skip', label: 'Skip' },
-  { key: 'pause', label: 'Pause and play' },
-  { key: 'links', label: 'Add links', hint: 'Plays straight from the link; nothing is kept' },
+const RIGHTS: readonly { key: keyof RoomRights; label: string; says: string }[] = [
+  { key: 'add', label: 'Add', says: 'Add songs' },
+  { key: 'skip', label: 'Skip', says: 'Skip' },
+  { key: 'pause', label: 'Pause', says: 'Pause and play' },
+  { key: 'links', label: 'Links', says: 'Add links, which play straight from the link' },
 ]
 
-/** The room's sheet, in a room: the invite, its people, and ending it or leaving. */
+/** A face in the room's sheet: big enough to tap, with the name under it. */
+const PERSON_FACE = 44
+
+/**
+ * The room's sheet, in a room (D1, Xiao 2026-10-14): the code with its QR and
+ * Share, who is here as faces, what friends may do as chips, and keeping it
+ * or ending it at the foot. Nothing that needs a sentence to explain it.
+ *
+ * Just opened, it arrives (M1): your face springs into its seat, the code rolls
+ * in and the rest rises after. A friend who joins later springs in with a ring
+ * of their colour (M2).
+ */
 function RoomOptions({ state, onLeave }: { state: RoomState; onLeave: () => void }): ReactNode {
-  const { theme } = useUnistyles()
   const host = isHost(state)
-  const [rightsOpen, setRightsOpen] = useState(false)
+  const moves = useRoomMoves()
+  // Read once: the room this sheet grew into, rather than one opened later.
+  const [arriving] = useState(takeRoomOpened)
+  const arrive = arriving ? moves : null
+  // The friend you asked to remove, while the question is up.
+  const [removing, setRemoving] = useState<RoomState['members'][number] | null>(null)
   const setRight = (key: keyof RoomRights, value: boolean): void => {
     void roomAct({ type: 'settings', rights: { ...state.rights, [key]: value } }).catch(
       sayRoomFailure,
     )
   }
-  const allowed = RIGHTS.filter(right => state.rights[right.key]).map(right => right.label)
   return (
-    <View style={styles.body}>
-      <Invite state={state} />
-      <View>
-        {peopleHere(state).map(member => {
-          const songs = state.entries.filter(entry => entry.addedBy === member.id).length
-          const kind =
-            member.kind === 'host'
-              ? 'Host'
-              : member.kind === 'guest'
-                ? 'In a browser'
-                : 'Brings their own songs'
-          return (
-            <View key={member.id} style={styles.person}>
-              <RoomFace
-                name={member.name}
-                colour={member.colour}
-                picture={member.picture}
-                size={36}
-              />
-              <View style={styles.pickText}>
-                <Text style={styles.pickTitle}>
-                  {nameOf(state, member)}
-                  {member.online ? '' : ' · away'}
-                </Text>
-                <Text style={styles.pickSub}>
-                  {kind} · added {songs}
-                </Text>
-              </View>
-              {host && member.kind !== 'host' ? (
-                <Button
-                  label="Remove"
-                  variant="text"
-                  onPress={() =>
-                    void roomAct({ type: 'kick', member: member.id }).catch(sayRoomFailure)
-                  }
+    // Faces already here are simply there when the sheet opens; one who joins
+    // while it is up springs in. The room just opened arrives whole.
+    <LayoutAnimationConfig skipEntering={!arriving}>
+      <View style={styles.together}>
+        <Invite state={state} moves={arrive} />
+        <People
+          state={state}
+          moves={moves}
+          onPick={host ? member => setRemoving(member) : undefined}
+        />
+        {host ? (
+          <Animated.View entering={arrive?.rise(1)} style={styles.rights}>
+            <Text style={styles.label}>Friends can</Text>
+            <View style={styles.chips} testID="room-rights">
+              {RIGHTS.map(right => (
+                <Chip
+                  key={right.key}
+                  label={right.label}
+                  accessibilityLabel={right.says}
+                  selected={state.rights[right.key]}
+                  compact
+                  onPress={() => setRight(right.key, !state.rights[right.key])}
+                  testID={`room-right-${right.key}`}
                 />
-              ) : null}
+              ))}
+            </View>
+          </Animated.View>
+        ) : null}
+        <Animated.View entering={arrive?.rise(2)} style={styles.foot}>
+          {host ? <KeepAsShared state={state} /> : null}
+          <Button
+            label={host ? 'End the room' : 'Leave the room'}
+            variant="danger"
+            onPress={onLeave}
+            grow
+            testID="room-leave"
+          />
+        </Animated.View>
+      </View>
+      <ConfirmDialog
+        open={removing !== null}
+        title={removing ? `Remove ${removing.name} from the room?` : ''}
+        body="Their songs that haven’t played come out with them."
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => {
+          if (removing) {
+            void roomAct({ type: 'kick', member: removing.id }).catch(sayRoomFailure)
+          }
+          setRemoving(null)
+        }}
+        onCancel={() => setRemoving(null)}
+      />
+    </LayoutAnimationConfig>
+  )
+}
+
+/** The code, its QR for a friend across the table, and Share. */
+function Invite({ state, moves }: { state: RoomState; moves: RoomMoves | null }): ReactNode {
+  const { theme } = useUnistyles()
+  const link = inviteLink(appAddress(), state.code)
+  const code = formatRoomCode(state.code)
+  const share = async (): Promise<void> => {
+    const how = await shareLink(`Listen with me in ${roomTitle(state)}:`, link)
+    if (how === 'copied') showToast('Invite link copied', 'good')
+  }
+  return (
+    <View style={styles.codeCard}>
+      <RoomQr text={link} size={88} />
+      <View style={styles.codeText}>
+        <View
+          style={styles.codeLetters}
+          accessible
+          accessibilityLabel={`Room code ${code}`}
+          testID="room-code"
+        >
+          {[...code].map((letter, order) => (
+            <Animated.Text key={order} entering={moves?.letter(order)} style={styles.code}>
+              {letter}
+            </Animated.Text>
+          ))}
+        </View>
+        <View style={styles.shareRow}>
+          <Button
+            label="Share"
+            variant="primary"
+            icon={<ShareOut color={theme.colors.onPrimary} />}
+            onPress={() => void share()}
+            testID="room-share"
+          />
+        </View>
+      </View>
+    </View>
+  )
+}
+
+/**
+ * Who is here, as faces with their names under them, and an empty seat that
+ * shares the invite. Someone away is drawn faded. The host taps a friend's
+ * face to remove them.
+ */
+function People({
+  state,
+  moves,
+  onPick,
+}: {
+  state: RoomState
+  moves: RoomMoves | null
+  onPick?: (member: RoomState['members'][number]) => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const link = inviteLink(appAddress(), state.code)
+  const people = peopleHere(state)
+  // Who was here as the sheet opened: anyone else came in while it was up.
+  const [here] = useState(() => new Set(people.map(member => member.id)))
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.people}>
+        {people.map((member, order) => {
+          const yours = member.id === state.you
+          const face = (
+            <>
+              <View style={[styles.personFace, !member.online && styles.away]}>
+                {!here.has(member.id) ? (
+                  <ArrivalRing
+                    style={[styles.ring, { borderColor: roomFace(member.colour).fill }]}
+                  />
+                ) : null}
+                <Animated.View entering={moves?.face(order)}>
+                  <RoomFace
+                    name={member.name}
+                    colour={member.colour}
+                    picture={member.picture}
+                    size={PERSON_FACE}
+                  />
+                </Animated.View>
+              </View>
+              <Text style={styles.personName} numberOfLines={1}>
+                {yours ? 'You' : member.name}
+              </Text>
+            </>
+          )
+          return onPick && member.kind !== 'host' ? (
+            <Press
+              key={member.id}
+              feedback="dim"
+              onPress={() => onPick(member)}
+              accessibilityRole="button"
+              accessibilityLabel={`${member.name}${member.online ? '' : ', away'}. Remove from the room`}
+              style={styles.person}
+            >
+              {face}
+            </Press>
+          ) : (
+            <View
+              key={member.id}
+              accessible
+              accessibilityLabel={`${yours ? 'You' : member.name}${member.online ? '' : ', away'}`}
+              style={styles.person}
+            >
+              {face}
             </View>
           )
         })}
+        <Press
+          feedback="dim"
+          onPress={() =>
+            void shareLink(`Listen with me in ${roomTitle(state)}:`, link).then(how => {
+              if (how === 'copied') showToast('Invite link copied', 'good')
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Invite someone"
+          style={styles.person}
+          testID="room-invite-seat"
+        >
+          <View style={[styles.seat, styles.personSeat]}>
+            <Plus size={iconSize.small} color={theme.colors.textMuted} />
+          </View>
+          <Text style={styles.personName}>Invite</Text>
+        </Press>
       </View>
-      {host ? (
-        <View style={styles.rights}>
-          <Press
-            onPress={() => setRightsOpen(was => !was)}
-            accessibilityRole="button"
-            accessibilityState={{ expanded: rightsOpen }}
-            testID="room-rights"
-            style={styles.rightsHead}
-          >
-            <Text style={styles.rightsTitle}>Friends can</Text>
-            <Text style={styles.rightsNow} numberOfLines={1}>
-              {allowed.length > 0 ? allowed.join(', ') : 'Only listen'}
-            </Text>
-            {rightsOpen ? (
-              <ChevronDown size={iconSize.small} color={theme.colors.textSecondary} />
-            ) : (
-              <ChevronRight size={iconSize.small} color={theme.colors.textSecondary} />
-            )}
-          </Press>
-          {rightsOpen
-            ? RIGHTS.map(right => (
-                <Right
-                  key={right.key}
-                  label={right.label}
-                  hint={right.hint}
-                  value={state.rights[right.key]}
-                  onChange={value => setRight(right.key, value)}
-                />
-              ))
-            : null}
-        </View>
-      ) : null}
-      {host ? <KeepAsShared state={state} /> : null}
-      <Button
-        label={host ? 'End the room' : 'Leave the room'}
-        variant="danger"
-        onPress={onLeave}
-        testID="room-leave"
-      />
-      <Text style={styles.text}>
-        {host
-          ? 'Ends it for everyone. It stays in your Recently played.'
-          : 'It stays in your Recently played.'}
-      </Text>
-    </View>
+    </ScrollView>
   )
 }
 
@@ -819,87 +950,99 @@ function KeepAsShared({ state }: { state: RoomState }): ReactNode {
     }
   }
   return (
-    <View style={styles.keep}>
-      <Button
-        label={kept ? 'Kept as a shared playlist' : 'Keep as a shared playlist'}
-        busy={busy}
-        disabled={kept !== null}
-        onPress={() => void keep()}
-        testID="room-keep"
-      />
-      <Text style={styles.text}>
-        Everyone here who signed in gets it in their Playlists, and can keep adding to it.
-      </Text>
-    </View>
+    <Button
+      label={kept ? 'Kept as a playlist' : 'Keep as a playlist'}
+      accessibilityLabel={
+        kept
+          ? 'Kept as a shared playlist'
+          : 'Keep as a shared playlist, for everyone here who signed in'
+      }
+      busy={busy}
+      disabled={kept !== null}
+      onPress={() => void keep()}
+      grow
+      testID="room-keep"
+    />
   )
-}
-
-/** One thing friends may do in the room, its switch at the end of the list's line. */
-function Right(props: {
-  label: string
-  hint?: string
-  value: boolean
-  onChange: (value: boolean) => void
-}): ReactNode {
-  return <ToggleRow {...props} at="end" />
 }
 
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.md, paddingBottom: space.sm },
+  // In line with the sheet's title, which the panel's own edge leaves short of it.
+  together: { gap: space.md, paddingBottom: space.sm, paddingHorizontal: space.md },
   tab: { gap: space.md },
   label: label(theme.colors),
   text: lineSub(theme.colors),
-  choice: {
-    gap: 2,
-    padding: space.md,
-    borderRadius: radius.mini,
+  centred: { ...lineSub(theme.colors), textAlign: 'center' },
+  // Start
+  startHead: { alignItems: 'center', gap: space.sm, paddingTop: space.sm, paddingBottom: space.xs },
+  seats: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  seat: {
+    width: SEAT_FACE,
+    height: SEAT_FACE,
+    borderRadius: radius.pill,
     borderWidth: 1.5,
-    borderColor: 'transparent',
-    backgroundColor: theme.colors.surface2,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  choiceTitle: rowTitle(theme.colors),
-  choiceSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  join: { gap: space.sm, paddingTop: space.md },
+  startTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '700' },
+  fact: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 40 },
+  factKey: { color: theme.colors.textSecondary, fontSize: type.sub },
+  factValue: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: space.sm,
+  },
+  factText: {
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontSize: type.sub,
+    fontWeight: '600',
+  },
+  factSegments: { flex: 1, marginLeft: space.lg },
+  joinLink: { alignSelf: 'center', paddingVertical: space.xs },
+  joinWord: { color: theme.colors.textPrimary, fontWeight: '700' },
+  // The room
   codeCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.lg,
-    padding: space.lg,
+    padding: space.md,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
-  codeText: { flex: 1, minWidth: 0, gap: space.xs },
+  codeText: { flex: 1, minWidth: 0, gap: space.sm },
+  codeLetters: { flexDirection: 'row' },
   code: {
     color: theme.colors.textPrimary,
     fontSize: type.page,
     fontWeight: '700',
     letterSpacing: 2,
   },
-  link: { color: theme.colors.textSecondary, fontSize: type.small },
+  shareRow: { flexDirection: 'row' },
+  people: { flexDirection: 'row', gap: space.md, paddingVertical: space.xs },
+  person: { width: PERSON_FACE + space.md, alignItems: 'center', gap: space.xs },
+  personFace: { width: PERSON_FACE, height: PERSON_FACE },
+  personSeat: { width: PERSON_FACE, height: PERSON_FACE },
+  personName: { maxWidth: '100%', color: theme.colors.textSecondary, fontSize: type.small },
+  away: { opacity: 0.45 },
+  ring: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+  },
+  rights: { gap: space.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
+  foot: { flexDirection: 'row', gap: space.sm, paddingTop: space.xs },
+  // Add songs
   scroll: { maxHeight: 380 },
   section: { gap: 2, paddingTop: space.sm },
   sectionHead: { paddingBottom: space.xs },
   shelfMine: { gap: space.sm, paddingBottom: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   found: { gap: space.sm },
-  pickText: textColumn,
-  pickTitle: rowTitle(theme.colors),
-  pickSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  person: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56 },
-  rights: {
-    gap: 2,
-    paddingHorizontal: space.md,
-    borderRadius: radius.mini,
-    backgroundColor: theme.colors.surface2,
-  },
-  rightsHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 48 },
-  rightsTitle: rowTitle(theme.colors),
-  rightsNow: {
-    flex: 1,
-    textAlign: 'right',
-    color: theme.colors.textSecondary,
-    fontSize: type.sub,
-  },
-  shareRow: { flexDirection: 'row', paddingTop: space.xs },
-  keep: { gap: space.xs },
 }))

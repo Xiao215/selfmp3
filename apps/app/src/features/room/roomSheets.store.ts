@@ -7,17 +7,36 @@ import { useSyncExternalStore } from 'react'
  */
 type RoomSheet = 'together' | 'add'
 
+/**
+ * What a room opened from here starts with (Xiao 2026-10-14): where you
+ * pressed decides it, so no song is ever in it that you did not see go in.
+ *
+ * - `playing`: the player's People button — the song playing, at its place.
+ * - `songs`: a tag's, a playlist's or an answer's ⋯, or Ask — all of them.
+ * - `empty`: Home — nothing yet; you add songs, or ask for them, after.
+ */
+export type RoomStart =
+  | { readonly kind: 'playing' }
+  | { readonly kind: 'songs'; readonly name: string; readonly songIds: readonly number[] }
+  | { readonly kind: 'empty' }
+
+const PLAYING: RoomStart = { kind: 'playing' }
+
 let open: RoomSheet | null = null
+// Kept while the sheet goes down, so what it says does not change on its way out.
+let start: RoomStart = PLAYING
 const listeners = new Set<() => void>()
 
-function set(next: RoomSheet | null): void {
-  if (open === next) return
+function set(next: RoomSheet | null, nextStart: RoomStart = start): void {
+  if (open === next && start === nextStart) return
   open = next
+  start = nextStart
   for (const listener of listeners) listener()
 }
 
-export function openRoomSheet(sheet: RoomSheet): void {
-  set(sheet)
+/** Opens a sheet; Together, out of a room, starts the room with `start`. */
+export function openRoomSheet(sheet: RoomSheet, startWith: RoomStart = PLAYING): void {
+  set(sheet, startWith)
 }
 
 export function closeRoomSheet(): void {
@@ -29,8 +48,14 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
-const snapshot = (): RoomSheet | null => open
+const sheetOf = (): RoomSheet | null => open
+const startOf = (): RoomStart => start
 
 export function useRoomSheet(): RoomSheet | null {
-  return useSyncExternalStore(subscribe, snapshot, snapshot)
+  return useSyncExternalStore(subscribe, sheetOf, sheetOf)
+}
+
+/** What the room Together would open starts with. */
+export function useRoomStart(): RoomStart {
+  return useSyncExternalStore(subscribe, startOf, startOf)
 }

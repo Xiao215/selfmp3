@@ -22,6 +22,7 @@ import { PlaylistSongsAnswer } from './PlaylistSongsAnswer'
 import { PlaylistsAnswer } from './PlaylistsAnswer'
 import { RememberAnswer } from './RememberAnswer'
 import { SongsAnswerCard } from './SongsAnswerCard'
+import { TogetherAnswer } from '../room/TogetherAnswer'
 import { TagsReview } from './TagsReview'
 import { TidyReview } from './TidyReview'
 import type { AnswerKeys } from './answerKeys'
@@ -272,6 +273,8 @@ function Drawn({
   switch (answer.kind) {
     case 'songs':
       return <SongsAnswerCard answer={answer} text={text} onPlayed={onDone} onOpen={onOpenPage} />
+    case 'together':
+      return <TogetherAnswer answer={answer} text={text} onDone={onDone} onOpen={onOpenPage} />
     case 'find':
       return <Found answer={answer} onDone={onDone} />
     case 'explore':

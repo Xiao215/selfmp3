@@ -588,6 +588,25 @@ was. Going back is the song before in the queue, never this song from its start 
 an answer comes back the song is past the three seconds after which the Previous button
 restarts it — and going back, like a song in Up next, plays the song it lands on.
 
+## Listening together
+
+"Start a room", "open a jam with some upbeat songs" and "songs for the room: something chill"
+make the router choose `together` (docs/features/listen-together.md). When the words say what
+music, it fills the filters and the songs are picked as Describe picks them. When they only
+ask for the room, there are no filters and no songs. The answer is `{ kind: 'together',
+describe }`, the same whether or not the device is in a room, because only the device knows
+that.
+
+The device (`TogetherAnswer.tsx`) draws the songs as a card that opens the answer's page,
+beside one button:
+
+- out of a room, **Start a room**. It opens Together starting with those songs, or empty, so
+  nothing starts until Start is pressed;
+- in a room, **Add to Xiao's room**, or **Open the room** when no songs were asked for.
+
+An empty room's **Ask for songs** opens Search with *Songs for the room:* typed in, and the
+rest is yours to say.
+
 ## A5 · The Report in words
 
 `Stats › Report`, under the page: "✦ In words", three to five sentences about the period,

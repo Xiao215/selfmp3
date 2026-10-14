@@ -303,6 +303,8 @@ function finish(): void {
 function forgetRoom(): void {
   closeSocket()
   samples = []
+  // A room left before its first song: the next one decides afresh.
+  startHint = null
   prefs.set(PASS_KEY, 'null')
   set({ pass: null, state: null, offset: 0, link: 'offline' })
 }
@@ -334,21 +336,49 @@ async function sayIfMobileData(state: RoomState): Promise<void> {
 // --- starting from what was playing ---------------------------------------------
 
 /**
- * Where the host's player should start the room's first song: Together keeps
- * what was playing, at the place it was, and the room's provider plays the
- * room from there once it has the room's songs as tracks.
+ * How the host's player should start the room's first song. Opened from the
+ * player, the room keeps what was playing at the place it was; opened from a
+ * list, or from Home, its first song takes over from whatever of your own was
+ * playing (`takeOver`), since that is what you opened it for.
  */
-let startHint: { readonly position: number; readonly autoplay: boolean } | null = null
+export interface RoomStartHint {
+  readonly position: number
+  readonly autoplay: boolean
+  readonly takeOver: boolean
+}
 
-export function setRoomStartHint(hint: { position: number; autoplay: boolean } | null): void {
+let startHint: RoomStartHint | null = null
+
+export function setRoomStartHint(hint: RoomStartHint | null): void {
   startHint = hint
 }
 
+/** Whether the room's first song may take over from your own music. */
+export function roomMayTakeOver(): boolean {
+  return startHint?.takeOver ?? false
+}
+
 /** The hint, once: a room's first start takes it, and later starts begin at the top. */
-export function takeRoomStartHint(): { position: number; autoplay: boolean } | null {
+export function takeRoomStartHint(): RoomStartHint | null {
   const hint = startHint
   startHint = null
   return hint
+}
+
+/**
+ * Whether the room's sheet is the one Start grew into, read once by the room's
+ * sheet so it arrives (M1) then, and is simply there every time after.
+ */
+let opened = false
+
+export function noteRoomOpened(): void {
+  opened = true
+}
+
+export function takeRoomOpened(): boolean {
+  const was = opened
+  opened = false
+  return was
 }
 
 // --- what a device does ------------------------------------------------------------

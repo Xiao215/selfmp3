@@ -6,9 +6,9 @@ const SONGS = [
   // Imported twice, nothing between them.
   song(1, { title: 'アイドル', artist: 'YOASOBI', album: 'アイドル', duration: 213, playCount: 5 }),
   song(2, { title: 'アイドル', artist: 'YOASOBI', album: 'アイドル', duration: 213.4 }),
-  // One theme kept on two soundtracks.
+  // One theme kept on two soundtracks: never looked at, though they sound the same.
   song(3, { title: 'Theme', artist: 'HOYO-MiX', album: 'OST A', duration: 180 }),
-  song(4, { title: 'Theme', artist: 'HOYO-MiX', album: 'OST B', duration: 181 }),
+  song(4, { title: 'Theme', artist: 'HOYO-MiX', album: 'OST B', duration: 180 }),
   // An arrangement a minute longer: never looked at.
   song(5, { title: 'Liyue', artist: 'HOYO-MiX', duration: 200 }),
   song(6, { title: 'Liyue (Orchestral)', artist: 'HOYO-MiX', duration: 260 }),
@@ -20,13 +20,17 @@ const SONGS = [
   song(10, { title: '夜に駆ける', artist: 'YOASOBI', duration: 261, sizeBytes: 4_000_000 }),
   // As long as each other, sounding different.
   song(11, { title: 'Rain', artist: 'A', duration: 261 }),
+  // Another take on its own single, as long as the album's one.
+  song(12, { title: 'Hello', artist: 'C', album: 'Album', duration: 190 }),
+  song(13, { title: 'Hello (Single Version)', artist: 'C', duration: 190 }),
 ]
 
-/** The listening model: songs 9 and 10 sound alike, everything else apart. */
+/** The listening model: 9 and 10 sound alike, and so do 3 and 4; everything else apart. */
 const sound = {
   closeTo(seed: number, ids: readonly number[]) {
-    const pair = new Set([9, 10])
-    return new Map(ids.map(id => [id, pair.has(seed) && pair.has(id) ? 0.99 : 0.6]))
+    const alike = (a: number, b: number) =>
+      [new Set([9, 10]), new Set([3, 4])].some(pair => pair.has(a) && pair.has(b))
+    return new Map(ids.map(id => [id, alike(seed, id) ? 0.99 : 0.6]))
   },
 }
 
@@ -41,12 +45,12 @@ describe('songs you have twice', () => {
     const { groups } = candidateGroups(SONGS, all, sound)
     expect(groups.map(group => group.map(each => each.id))).toEqual([
       [1, 2],
-      [3, 4],
       [7, 8],
       [9, 10],
+      [12, 13],
     ])
     // Only groups with a song asked about.
-    expect(candidateGroups(SONGS, new Set([3]), sound).groups).toHaveLength(1)
+    expect(candidateGroups(SONGS, new Set([7]), sound).groups).toHaveLength(1)
   })
 
   it('keeps the copy with the most plays, then the bigger file', () => {
@@ -59,9 +63,9 @@ describe('songs you have twice', () => {
       'tidy-copies': [
         {
           groups: [
-            { g: 1, same: [], why: 'Two releases' },
-            { g: 2, same: [], why: 'Live and studio' },
-            { g: 3, same: [[1, 2]], why: 'Same song, title romanised' },
+            { g: 1, same: [], why: 'Live and studio' },
+            { g: 2, same: [[1, 2]], why: 'Same song, title romanised' },
+            { g: 3, same: [], why: 'Another take' },
             // A group that was never shown.
             { g: 9, same: [[1, 2]], why: 'x' },
           ],
@@ -75,7 +79,9 @@ describe('songs you have twice', () => {
     ])
     expect(result).toMatchObject({ looked: SONGS.length, note: null })
     const [prompt] = llm.prompts['tidy-copies']!
-    expect(prompt).toContain('Group 1\n 1 | Theme | HOYO-MiX | OST A |')
+    expect(prompt).toContain('Group 1\n 1 | Song (Live) | Band | - |')
+    // The theme on two soundtracks never went to the model.
+    expect(prompt).not.toContain('OST A')
     expect(prompt).toContain(
       ' 2 | 夜に駆ける | YOASOBI | - | - | 4:21 | m4a 4.0 MB | added 2026-09-01 | 0 plays | sound 99',
     )

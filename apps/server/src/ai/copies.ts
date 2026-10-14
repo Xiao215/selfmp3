@@ -18,12 +18,15 @@ import { chunks, foldedBare as bare, pool } from './text.js'
  * Code finds the songs that might be one recording: the same title once what
  * is in brackets is set aside, an artist in common and about the same
  * length; or, between songs the listening model has heard, the same length
- * and the same sound whatever they are called. Many of those are not copies
- * at all — a live take, an orchestral arrangement, a second part, a theme
- * kept on two soundtracks — and code cannot tell those apart, so the model
- * is shown each group with everything known about its songs and says which
- * of them are one recording. Only songs with nothing between them — the same
- * names, album and length — are counted without it.
+ * and the same sound whatever they are called. Either way only songs on one
+ * album, or with none: one recording kept on two albums — a theme on two
+ * soundtracks, a song and its best-of — is kept on purpose, and the model,
+ * shown two that sound the same, called them copies (tried 2026-10-14), so
+ * that is a rule in code. Many of the rest are not copies either — a live
+ * take, an arrangement, a second part — and code cannot tell those apart, so
+ * the model is shown each group with everything known about its songs and
+ * says which of them are one recording. Only songs with nothing between them
+ * — the same names, album and length — are counted without it.
  *
  * Which copy stays is code's: the one with the most plays, then loved, then
  * the most tags, then the bigger file, then the first added, so deleting the
@@ -47,7 +50,7 @@ interface SoundCloseness {
   closeTo(seedId: number, songIds: readonly number[]): Map<number, number> | null
 }
 
-export interface CopiesDeps {
+interface CopiesDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly sound?: SoundCloseness
@@ -88,6 +91,13 @@ function artistsMeet(a: Song, b: Song): boolean {
 const closeLength = (a: Song, b: Song, seconds: number): boolean =>
   a.duration > 0 && b.duration > 0 && Math.abs(a.duration - b.duration) <= seconds
 
+/** The albums named among some songs, each once; a song with none names none. */
+const albumsOf = (songs: readonly Song[]): Set<string> =>
+  new Set(songs.map(song => bare(song.album)).filter(Boolean))
+
+/** Whether two songs could be one copy and another: on one album, or one of them on none. */
+const oneAlbum = (a: Song, b: Song): boolean => albumsOf([a, b]).size < 2
+
 /**
  * The songs that might be one recording, as groups: by name and length, and
  * by sound and length. A group has at least two songs and at least one of
@@ -125,7 +135,9 @@ export function candidateGroups(
       for (let j = i + 1; j < same.length; j++) {
         const a = same[i]!
         const b = same[j]!
-        if (artistsMeet(a, b) && closeLength(a, b, SAME_LENGTH_S)) join(a.id, b.id)
+        if (artistsMeet(a, b) && oneAlbum(a, b) && closeLength(a, b, SAME_LENGTH_S)) {
+          join(a.id, b.id)
+        }
       }
     }
   }
@@ -133,6 +145,7 @@ export function candidateGroups(
   // By sound: as long as each other to the second, and sounding the same.
   const closeness = new Map<string, number>()
   if (sound) {
+    const byId = new Map(songs.map(song => [song.id, song]))
     const sorted = songs.filter(song => song.duration > 0).sort((a, b) => a.duration - b.duration)
     for (let i = 0; i < sorted.length; i++) {
       const seed = sorted[i]!
@@ -145,7 +158,7 @@ export function candidateGroups(
       const close = sound.closeTo(seed.id, near)
       for (const [id, score] of close ?? []) {
         closeness.set(pairKey(seed.id, id), score)
-        if (score >= SOUND_SAME) join(seed.id, id)
+        if (score >= SOUND_SAME && oneAlbum(seed, byId.get(id)!)) join(seed.id, id)
       }
     }
   }
@@ -203,7 +216,7 @@ function copyOf(songs: readonly Song[], why: string, by: TidyCopy['by']): TidyCo
 }
 
 /** A group as the model reads it. */
-export function groupLines(
+function groupLines(
   group: readonly Song[],
   g: number,
   closeness: ReadonlyMap<string, number>,
@@ -313,7 +326,8 @@ function judged(batch: readonly Song[][], reply: z.infer<typeof CopiesOut>): Tid
         const song = group[n - 1]
         return song && !used.has(song.id) ? [song] : []
       })
-      if (songs.length < 2) continue
+      // Two albums met through a song on none: kept on purpose, whatever the model says.
+      if (songs.length < 2 || albumsOf(songs).size > 1) continue
       for (const song of songs) used.add(song.id)
       out.push(copyOf(songs, answer.why.trim() || 'One recording, twice', 'model'))
     }

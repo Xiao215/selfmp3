@@ -47,6 +47,11 @@ talking to a server by its address (development builds); otherwise start it with
 shown live and covers fill in as they land; **Stop looking** cancels. The pass is safe to
 re-run: it only ever looks at songs that still lack art.
 
+**What is missing, as a review.** Ask's "Fill in what's missing" (or Tidy up's checkup, which
+counts the songs lacking an album, a year or a cover) looks the songs up through these same
+lookups and 网易云, and offers each missing album, year and cover as a change to tick rather
+than storing anything: [ai.md](ai.md), "Filling in what's missing".
+
 ## API
 
 | Method | Path | Purpose |

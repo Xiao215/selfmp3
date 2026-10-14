@@ -25,7 +25,7 @@ import { grouped, missingFrom } from './tidy.js'
 const VERSION = 1
 
 /** The most songs looked up in one request: MusicBrainz answers one request a second. */
-export const MAX_FILL = 40
+const MAX_FILL = 40
 /** Lookups at once: 网易云 and iTunes answer quickly, and MusicBrainz waits its turn on its own. */
 const LOOKUPS_AT_ONCE = 3
 /** Songs per model call: each comes with its listings. */
@@ -33,7 +33,7 @@ const SONGS_PER_CALL = 25
 /** The most listings of one song the model is shown. */
 const LISTINGS_SHOWN = 8
 
-export interface FillDeps {
+interface FillDeps {
   readonly llm: Llm
   readonly remembered?: Remembered
   /** The catalogues' listings for a song's recording; absent where they cannot be reached. */
@@ -246,7 +246,7 @@ export async function fillGaps(
 }
 
 /** The songs and their listings as the model reads them. */
-export function fillPrompt(batch: readonly Looked[]): string {
+function fillPrompt(batch: readonly Looked[]): string {
   const or = (value: string | number | null): string =>
     value === null || value === '' ? '-' : String(value)
   return batch

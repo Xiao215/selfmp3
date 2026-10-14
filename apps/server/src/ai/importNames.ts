@@ -32,7 +32,7 @@ const VERSION = 1
 const ROWS_PER_CALL = 60
 const CALLS_AT_ONCE = 3
 
-export interface ImportNamesDeps {
+interface ImportNamesDeps {
   readonly llm: Llm
   readonly remembered?: Remembered
   readonly notes?: () => readonly string[]

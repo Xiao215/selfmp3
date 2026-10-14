@@ -7,8 +7,9 @@ the engineering under them.
 
 Most of it is reached through **S1, Ask in the Search box**. Besides Ask there are **L2, New
 playlist's Describe it**, the **Describe** pipeline (A1c) both use, **Tags** (the tag review
-Ask and Suggest tags share), **Tidy up** for names, the **Report in words** and **Fix song
-info's Suggested card**. The letters and numbers are the canvas's names for them.
+Ask and Suggest tags share), **Tidy up** for names (and what is missing, and songs held
+twice), the **Report in words**, **Fix song info's Suggested card** and **Names at import**.
+The letters and numbers are the canvas's names for them.
 
 ---
 
@@ -87,7 +88,8 @@ model's endpoint down, refusing the key, or over a limit.
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
 `Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
 Suggest tags, the Report's "In words", Fix song info's Suggest, a model's guesses in a
-review, and the Smart features and Model headings. An Ask answer kept in Home's recents or
+review, a model's names under an import row, Tidy up's "Fill them in", and the Smart
+features and Model headings. An Ask answer kept in Home's recents or
 named as Up next's source carries it too. A press with a sparkle asks a model; one without
 only searches, sorts or edits.
 
@@ -185,8 +187,15 @@ climbed when the one below cannot answer:
   test. `apps/server/src/ai/eval.ts` asks the real endpoint about a copy of a real
   library and prints what came back, for a person to read:
   `npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano"` (also
-  `ask`, `tags`, `tidy` and `written`). On a hub the database is a workspace's,
+  `ask`, `tags`, `tidy`, `written`, and `import <rows file> ["list name"]` for Names at
+  import, a row a line as `title | artist | album`; "fill in what's missing" and "which
+  songs do I have twice" go through `ask`). On a hub the database is a workspace's,
   `<data>/accounts/<id>/selfmp3.db`.
+- The task tests of the newer features (`fill.test.ts`, `copies.test.ts`,
+  `importNames.test.ts`) put their scripted replies behind a fake HTTP endpoint
+  (`endpointLlm` in `fixtures/library.ts`), so `llm.ts` parses and checks them as it would a
+  real one's; `routes/ai.test.ts` runs Names at import through the real server and a model
+  on a free port.
 
 ---
 
@@ -227,7 +236,7 @@ list as it is: what would change is the loop, not the actions.
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
 | `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
-| `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something") | the names pass, or one call per 60 songs |
+| `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too", "fill in what's missing", "do I have any song twice?" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something"); what is missing looked up (A4, "Filling in what's missing"); songs held twice (A4, "Copies") | the names pass, one call per 60 songs, or a call only where the catalogues or the copies need judging |
 | `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code | a pick only when the words go past the filters |
 | `remember` | "from now on, Chinese names only" | a card that saves the note (Remembered preferences, below) | none |
 | `playlists` | "delete the chill playlists", "rename hi to 华语慢歌" | the names matched to yours (Playlists from the box, below) | none |
@@ -528,6 +537,11 @@ cloud replica alike), so it syncs and undoes like an edit made by hand.
 Without a model the rules still answer, with a note saying what was left out. On the real
 library (1,342 songs) a pass takes about 7 s and finds about 40 changes.
 
+A checkup also counts the songs missing an album, a year or a cover (`gaps`), each and in
+all, and the review says so under its list ("3 songs have no album, 10 no year and 2 no
+cover.") with **✦ Fill them in**, which asks "Fill in what's missing" in the same box. The
+count is code and free; nothing is looked up until it is pressed.
+
 **Asked for something.** The router's `tidy` part says whether the words only ask for a
 checkup. When they say a change ("give the 原神音乐 songs their official Chinese names, albums
 too"), the steps above don't run: the filters choose the songs, which go to the model with
@@ -560,7 +574,56 @@ up names are kept a day per song. Tried on 2026-10-04 with the real model on six
 found, 10 changes (丹砂巍巍, 隙光浮影, 蔚蓝一梦, 璃月, 梦之咏叹 and their albums), the made-up one
 left alone.
 
-## A9 · Clean names on import (rules)
+**Filling in what's missing.** The router's `tidy` part says `what`: `checkup`, `change`,
+`fill` or `copies`. "Fill in what's missing" (and "the missing years of my YOASOBI songs",
+the filters choosing the songs) is `fill` (`ai/fill.ts`): the songs missing an album, a year
+or a cover, an album's songs together, the first 40 of them a request (MusicBrainz answers
+one request a second; the note says how many are left for asking again). Each is looked up
+in every catalogue at once (`listingFinder` in `names.ts`): 网易云's search for an album and
+its cover, iTunes and MusicBrainz (the metadata lookup, [metadata-polish.md](metadata-polish.md))
+for those and the year. Only listings that are the same recording count, by the rule names
+use (`sameRecording`: within 3 s, not a cover, a title or an artist in common).
+
+Where the listings agree on a field, that is the answer and no model is asked. Where they
+differ — the single, its album, a collection years later — one smart-tier call per 25 songs
+is shown each song and its listings, numbered, and answers which listing each missing field
+comes from, or none; it judges which release the recording belongs to from what it is shown
+and knows. It never writes a value: a number that is no listing, or a field the song has
+already, is dropped. A cover follows the album: the picture of a listing on the album the
+song has or is given, never a picture from another release. Each fill is a change like the
+names', from nothing (`from: ''`, the year as its digits and the cover as the picture's
+address, `tidyValue` in `packages/shared/src/tidy.ts`), "From iTunes" and so on as its
+reason; what the listings agreed on is `rule` and starts ticked, what the model chose
+waits with the sparkle. The device draws a fill as what it adds — the name, the year, or
+the cover itself — and applies the album and year as the ordinary edit (so Undo empties
+them again) and each cover through the server, which downloads it as Fix song info does
+(`useTakeCovers`). Without a model only what the catalogues agree on is offered, with a
+note. Tried 2026-10-14 through a local model: 夜に駆ける got iTunes' single, its year and
+cover; 晴天 got MusicBrainz's 2003; 3.6 s for the call.
+
+**Copies.** "Do I have any song twice?" is `copies` (`ai/copies.ts`), an answer of its own
+(`kind: 'copies'`). Code finds the songs that might be one recording, among the songs the
+filters chose: the same title once what is in brackets is set aside, an artist in common and
+within 3 s; or, between songs the listening model has heard, within a second and sounding
+the same (0.97 or closer, [audio-intelligence.md](audio-intelligence.md)) whatever they are
+called. Either way only songs on one album or none: one recording kept on two albums — a
+theme on two soundtracks, a song and its best-of — is kept on purpose, and a model shown two
+of them that sound the same called them copies, so that is code. Songs with nothing between
+them (the same names, album and length to the second) are copies without a model. The rest go
+to the model, 30 groups a call: every song's title, artist, album, year, length, file, when
+added, plays, and how close it sounds to the group's first; it answers which songs in each
+group are one recording held twice, and a live take, an arrangement or a second part ("(II)")
+stays. Which copy stays is code's: the most plays, then loved, then the most tags, then the
+bigger file, then the first added.
+
+The device's review (`CopiesReview.tsx`, over `Review.tsx`) lists each song with the copy kept
+("Keeps one · THE BOOK · 4:21 · 12 plays") and opens to the extra copies, each with its album,
+length and plays; exact copies start ticked, the model's wait. Delete asks once more with the
+dialog every delete asks with (`RemoveSongs`), since deleting cannot be undone. Tried
+2026-10-14 through a local model: 夜に駆ける / Yoru ni Kakeru and アイドル / "アイドル (Official
+Music Video)" called copies; Dream Aria / "Dream Aria (II)" and Liyue / "Liyue (Bayan)" left.
+
+## A9 · Clean names on import
 
 The two Tidy up rules that describe how mess arrives are applied where an import row is made
 (`toProbedTrack` for YouTube, the 网易云 listing): each name once in a credit, and the
@@ -568,6 +631,26 @@ original title without the English a channel writes after it. They live in
 `packages/shared/src/titles.ts` beside the video-title tidying, so import and Tidy up can
 never disagree about what a clean name is. The row is still shown in import review, where
 it can be edited before anything downloads.
+
+**The model's part.** What rules cannot see — a title and an artist the wrong way round, a
+channel's name standing in for the artist, words about the upload left in a title, an album
+the list's name gives — the model reads (`ai/importNames.ts`, `POST /api/ai/import/names`).
+When Import's review opens (`useImportNames`), every row coming in is sent once with the
+list's name: title, artist, album and length, 60 rows a fast-tier call, at most 300. It
+answers only the rows whose names look wrong, with the title, artist and album each should
+have and why in a few words. Every name is grounded as Fix song info's card is: each part of
+it must be in that row's own words or the list's name, or the field stays as it was; a title
+or an artist is never emptied, an album may be. So a suggestion moves and trims words and
+never makes a name up, and a translation is never offered.
+
+Under such a row (`ReviewRows.tsx`, a phone's row and its open card, a computer's grid row
+alike) a line says the names with the sparkle, why, and **Use**, which renames the row as
+typing would. The line is there only while the row's names are still the ones the model read,
+so one fixed by hand, or taken, has none. The rows asked about are the review as it first
+showed, never each letter typed; off in Settings, no model, or a failure all mean no lines,
+and the review is the review it always was. Tried 2026-10-14 through a local model on six
+rows: "【中日字幕】打上花火 - DAOKO × 米津玄師" by "Music Channel" → 打上花火 by DAOKO × 米津玄師;
+"Yorushika" by "ただ君に晴れ" swapped round; 夜に駆ける, Lemon and "Track 3" left; 9 s.
 
 ## A8 · Steer Up next
 
@@ -662,11 +745,13 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: a switch per feature
 
-Five switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags`,
-`smartWritten`, `smartMetadata`, all on by default): Ask in Search (which also covers New
-playlist's Describe it and Up next), Tidy up, Tags (Suggest tags, and Ask's tag changes),
-the Report in words and Fix song info's Suggested card. A sixth, Search the web
-(`smartWeb`), is off by default, and the remembered preferences are listed under them. Each
+Six switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags`,
+`smartWritten`, `smartMetadata`, `smartImport`, all on by default): Ask in Search (which
+also covers New playlist's Describe it and Up next), Tidy up (with filling in what's missing
+and copies), Tags (Suggest tags, and Ask's tag changes), the Report in words, Fix song info's
+Suggested card, and Names at import, which has a switch of its own because it runs by itself
+whenever a review opens. A seventh, Search the web (`smartWeb`), is off by default, and the
+remembered preferences are listed under them. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Settings reads and writes them
 on the server itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy

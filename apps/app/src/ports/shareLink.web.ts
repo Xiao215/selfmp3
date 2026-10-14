@@ -1,5 +1,6 @@
 import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import { appPath } from './appPath'
+import { copyText } from './clipboard'
 
 /**
  * Hand a link to someone, from a browser or the desktop app: the system's
@@ -19,7 +20,7 @@ export async function shareLink(
       if (error instanceof Error && error.name === 'AbortError') return 'failed'
     }
   }
-  return (await copyLink(url)) ? 'copied' : 'failed'
+  return (await copyText(url)) ? 'copied' : 'failed'
 }
 
 /**
@@ -28,16 +29,6 @@ export async function shareLink(
  */
 export function canShareLink(): boolean {
   return typeof navigator.share === 'function'
-}
-
-/** The link on the clipboard, for pasting. */
-export async function copyLink(url: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(url)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**

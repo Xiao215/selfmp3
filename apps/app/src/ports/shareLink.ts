@@ -1,6 +1,5 @@
 import { DEFAULT_APP_URL } from '@selfmp3/shared'
 import { Platform, Share } from 'react-native'
-import * as Clipboard from 'expo-clipboard'
 
 /**
  * Hand a link to someone: the phone's own share sheet (Messages, WeChat, a
@@ -28,15 +27,6 @@ export async function shareLink(
 /** Whether there is a share sheet to hand a link to: a phone always has one. */
 export function canShareLink(): boolean {
   return true
-}
-
-/** The link on the clipboard, for pasting: the share sheet's Copy without the share sheet. */
-export async function copyLink(url: string): Promise<boolean> {
-  try {
-    return await Clipboard.setStringAsync(url)
-  } catch {
-    return false
-  }
 }
 
 /** Where a link to the app opens for someone else: the web app, which a phone without self.mp3 can open. */

@@ -51,8 +51,10 @@ A token is asked for only if that server turns out to want one, so the page trie
 the address on its own first and the token field appears if the server refuses
 without it. Pointed at `localhost` on a server holding one library it will not:
 a server does not ask its own machine for a token. Anywhere else it will, and the
-token is your library's on that server — printed in the server's log when it
-starts holding a single library, and otherwise in its `data/hub.json`.
+token is your library's on that server. Copy it in the app from **Settings › Advanced
+› Importing › Copy token** on any signed-in device; the row shows the server's
+address beside it. Without a device, it is in the server's `data/hub.json`, and the
+server's log prints it when it starts holding a single library.
 
 The address is checked before it is kept: it has to answer, and the token, where
 there is one, has to be right. Every server needs a bucket, so a typed address

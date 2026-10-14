@@ -426,6 +426,7 @@ interface each implements where a package declares one:
 | `events` (`ServerEventStream`, packages/client) | the server's event stream | `EventSource` | the same stream over `XMLHttpRequest` |
 | `mediaSession` | what the operating system shows for the song | `navigator.mediaSession` (Now Playing and the media keys in the desktop app) | a no-op: track-player fills the lock screen |
 | `shareLink` | handing a link to someone | `navigator.share`, else the clipboard | React Native's `Share` |
+| `clipboard` | copying words: a share link, the server's token | `navigator.clipboard` | `expo-clipboard` |
 | `install` | whether this is an installed app, which keeps songs | true only in the desktop app | true |
 | `pointer`, `keyboard` | which inputs are present | from media queries | a finger |
 | `widget` | the iOS home-screen widget's snapshot | nothing | `widget.ios.ts`; nothing on Android |

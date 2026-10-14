@@ -4,6 +4,7 @@ import { ApiError } from '@selfmp3/client'
 import {
   accentName,
   activeSection,
+  addressForElsewhere,
   ALL_SECTIONS,
   crossfadeLabel,
   devicePlace,
@@ -16,6 +17,7 @@ import {
   analysisProgress,
   scanHint,
   sectionsFor,
+  serverTokenHint,
   settingsIndex,
   splitDevices,
 } from './settings.model'
@@ -258,5 +260,32 @@ describe('analysisProgress', () => {
         sound: { ...status.sound, pending: 0 },
       }),
     ).toBe('Analysing…')
+  })
+})
+
+describe('the server row for a Shortcut or the extension', () => {
+  const TOKEN = 'kq3x0Vb7_secret-of-forty-three-characters-Ab3x'
+
+  it('gives the address the internet reaches, over the home and tailnet ones', () => {
+    const addresses = [
+      'http://localhost:4600',
+      'http://192.168.1.20:4600',
+      'http://100.101.102.103:4600',
+      'https://pi.tail1234.ts.net',
+    ]
+    expect(addressForElsewhere(addresses)).toBe('https://pi.tail1234.ts.net')
+    expect(serverTokenHint(addresses, TOKEN)).toBe('https://pi.tail1234.ts.net · token ending Ab3x')
+  })
+
+  it('falls back to an address beyond this computer, and to none', () => {
+    expect(addressForElsewhere(['http://localhost:4600', 'http://192.168.1.20:4600'])).toBe(
+      'http://192.168.1.20:4600',
+    )
+    expect(addressForElsewhere(['http://localhost:4600'])).toBeNull()
+    expect(serverTokenHint([], TOKEN)).toBe('token ending Ab3x')
+  })
+
+  it('never shows the token whole', () => {
+    expect(serverTokenHint(['https://pi.tail1234.ts.net'], TOKEN)).not.toContain(TOKEN.slice(0, 8))
   })
 })

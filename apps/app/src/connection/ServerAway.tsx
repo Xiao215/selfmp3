@@ -42,11 +42,14 @@ export function ServerAway({
   reach,
   need,
   row = false,
+  last = true,
   testID,
 }: {
   reach: Reach & { readonly lookAgain: () => void }
   need: ServerNeed
   row?: boolean
+  /** As a row, whether it ends its panel: Importing has its token row under it. */
+  last?: boolean
   testID: string
 }): ReactNode {
   const accent = useAccent()
@@ -73,7 +76,7 @@ export function ServerAway({
       <Row
         label="Your library’s computer"
         hint={reach.state === 'looking' ? 'Looking for it…' : copy.title}
-        last
+        last={last}
       >
         {buttons}
       </Row>

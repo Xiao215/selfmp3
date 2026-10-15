@@ -45,7 +45,7 @@ export interface DeviceYouTube extends DeviceDownloader {
 }
 
 /** This device's budget at YouTube, wherever it is kept. */
-export interface BudgetStore {
+interface BudgetStore {
   get(): ThrottleState | null
   save(state: ThrottleState): void
 }

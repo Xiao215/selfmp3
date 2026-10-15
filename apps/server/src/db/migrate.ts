@@ -930,11 +930,54 @@ const MIGRATIONS: readonly Migration[] = [
     // asked — and a device holds its jobs by a lease (`lease_id`) that it
     // renews while it works on them. One left unrenewed past `lease_until`
     // goes to the server, as if the device had never asked.
+    //
+    // Made again rather than altered, as 39 made it, so the step can run
+    // twice: a test that winds `user_version` back runs every step after it
+    // again, and a column added once cannot be added a second time. What a
+    // lease said is lost that way; a job held on a second run is the server's.
     name: 'jobs a device downloads',
     sql: `
-      ALTER TABLE import_jobs ADD COLUMN fetcher TEXT NOT NULL DEFAULT 'server';
-      ALTER TABLE import_jobs ADD COLUMN lease_id TEXT;
-      ALTER TABLE import_jobs ADD COLUMN lease_until TEXT;
+      CREATE TABLE import_jobs_new (
+        id           TEXT    PRIMARY KEY,
+        url          TEXT    NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'queued'
+                     CHECK (status IN ('queued','running','done','error','cancelled')),
+        step         TEXT    NOT NULL DEFAULT 'waiting'
+                     CHECK (step IN ('waiting','resolving','downloading','converting','lyrics',
+                                     'saving','uploading','finished')),
+        progress     REAL,
+        title        TEXT    NOT NULL DEFAULT '',
+        artist       TEXT    NOT NULL DEFAULT '',
+        album        TEXT    NOT NULL DEFAULT '',
+        thumbnail    TEXT,
+        duration     REAL    NOT NULL DEFAULT 0,
+        error        TEXT,
+        song_id      INTEGER REFERENCES songs(id) ON DELETE SET NULL,
+        attempts     INTEGER NOT NULL DEFAULT 0,
+        tag_ids      TEXT    NOT NULL DEFAULT '[]',
+        playlist_id  INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
+        position     INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+        request_uid  TEXT,
+        fetcher      TEXT    NOT NULL DEFAULT 'server' CHECK (fetcher IN ('server','device')),
+        lease_id     TEXT,
+        lease_until  TEXT
+      );
+      INSERT INTO import_jobs_new (
+        id, url, status, step, progress, title, artist, album, thumbnail, duration,
+        error, song_id, attempts, tag_ids, playlist_id, position, created_at, updated_at,
+        request_uid
+      )
+      SELECT
+        id, url, status, step, progress, title, artist, album, thumbnail, duration,
+        error, song_id, attempts, tag_ids, playlist_id, position, created_at, updated_at,
+        request_uid
+      FROM import_jobs;
+      DROP TABLE import_jobs;
+      ALTER TABLE import_jobs_new RENAME TO import_jobs;
+      CREATE INDEX idx_import_jobs_status ON import_jobs(status, position);
+      CREATE INDEX idx_import_jobs_request ON import_jobs(request_uid) WHERE request_uid IS NOT NULL;
       CREATE INDEX idx_import_jobs_lease ON import_jobs(lease_id) WHERE lease_id IS NOT NULL;
     `,
   },

@@ -95,11 +95,6 @@ describe('migrate', () => {
       INSERT INTO playlists (name, kind, rules) VALUES ('Gone', 'live', '${tagRule(7)}');
       INSERT INTO playlists (name, kind, rules) VALUES ('Broken', 'live', 'not json');
       INSERT INTO import_jobs (id, url, tag_ids) VALUES ('j', 'u', '[1, 9]');
-      -- And the import queue as it was before 42 added what a device holds.
-      DROP INDEX idx_import_jobs_lease;
-      ALTER TABLE import_jobs DROP COLUMN fetcher;
-      ALTER TABLE import_jobs DROP COLUMN lease_id;
-      ALTER TABLE import_jobs DROP COLUMN lease_until;
     `)
     db.pragma('user_version = 40')
     migrate(db, createLogger('silent'))

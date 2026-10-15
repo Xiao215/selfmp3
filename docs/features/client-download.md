@@ -2,13 +2,16 @@
 
 When you import from the web app in Chrome with the self.mp3 extension
 installed, the YouTube songs are downloaded by your browser instead of by the
-server. The server still does everything after the download — tags, lyrics,
+server — and a single video is also looked up and listened to in the browser,
+so the server never asks YouTube about it at all. The server still does
+everything after the download — tags, lyrics,
 cover, library, bucket — exactly as for a song it downloaded itself. Nothing
 changes anywhere else: on a phone, in the Mac app, in a browser without the
 extension, or when no server answers, the server downloads as before.
 
 **Where:** the page's download code is `packages/ytclient`; the app runs it from
-`apps/app/src/features/import/deviceImports*.ts` and `src/ports/deviceDownloads*.ts`;
+`apps/app/src/features/import/deviceImports*.ts`, `devicePreview.model.ts` and
+`src/ports/deviceDownloads*.ts`;
 the extension forwards its requests in `apps/extension/src/background/ytProxy.ts`;
 the server's side is `apps/server/src/routes/importDevice.ts` and
 `receiveDeviceFile` in `services/importQueue.ts`.
@@ -52,6 +55,30 @@ which is redeployed whenever we like:
 
 The import screen shows these jobs like any other: waiting, downloading, adding,
 done.
+
+## Looking a video up, and listening to it
+
+Before you import, the review shows the song and lets you hear it. For a link to
+**one YouTube video** — not a playlist, a search, an album or a channel, which
+the server still reads — both happen in the browser too:
+
+- **Looking it up** (`previewImport`): one player request through the extension
+  gives the title, channel, length, cover and description. The song is named by
+  the same rules the server uses on yt-dlp's answer (`toProbedTrack`, now in
+  `packages/shared`), and a YouTube Music track's description gives its song,
+  artists and album, as yt-dlp reads them (`musicCredits`). Whether the library
+  has it already is asked of the server (`/import/already-have`), which answers
+  without asking YouTube.
+- **Listening** (`listenSource`): the browser downloads the whole song — about
+  a second — and plays it from memory. The last eight songs are kept, so
+  pressing Import afterwards uploads the song you heard without asking YouTube
+  for it again.
+
+Each takes a turn from the browser's budget (below) and does not wait for one:
+with no turn to spare, or if anything fails, the server looks the link up or
+plays the song as before. For a link the server reads, it is told not to look
+up where the first rows' audio is (`warmListen: false`), since the browser
+would be the one listening.
 
 ## When something goes wrong, the server takes over
 
@@ -100,6 +127,7 @@ YouTube changes these from month to month; check the date before relying on them
 | Speed | Under a second for a 3–6 MB song, after 1–2 seconds to start a session |
 | Metro and youtubei.js | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. Metro puts it in a separate 1 MB file loaded only when needed |
 | A static `regexFilter` rule stops the extension loading | Three `urlFilter` rules do the same job |
+| A whole review in the browser (2026-10-14) | Looked up in 2.6 s, playing 4.9 s after the press, imported with no second download — and the server's log shows no preview and no listen, only the library check, the queue and the file |
 
 ## Trying it
 
@@ -130,7 +158,9 @@ and open `http://localhost:4602`.
 - **The Mac app.** It runs the same page, but from `app://selfmp3`, which the
   extension does not talk to. Its own shell could forward the requests instead.
 - **Firefox and Safari.** Neither lets a web page talk to an extension directly.
-- **Looking links up.** The review's lookup still asks YouTube from the server.
+- **Playlists, searches, albums and channels** are still read by the server.
+  It asks YouTube Music's own API for them, which it does not pace, so moving
+  them would move code rather than load.
 - **SABR.** If `VISIONOS` stops giving plain links, the `googlevideo` package
   (by youtubei.js's author) is the way on.
 - **Chrome Web Store.** The extension is installed unpacked. An extension that

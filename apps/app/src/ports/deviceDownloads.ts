@@ -1,5 +1,5 @@
 import type { ThrottleState } from '@selfmp3/shared'
-import type { DeviceDownloader } from '@/features/import/deviceImports.model'
+import type { DeviceYouTube } from '@/features/import/devicePreview.model'
 
 /**
  * Downloading a song on this device instead of on the server
@@ -9,7 +9,12 @@ import type { DeviceDownloader } from '@/features/import/deviceImports.model'
  * app has no extension. Every song a phone imports is the server's to fetch,
  * as before.
  */
-export function deviceDownloader(): Promise<DeviceDownloader | null> {
+export function deviceDownloader(): Promise<DeviceYouTube | null> {
+  return Promise.resolve(null)
+}
+
+/** A review's listen goes through the server: there is nothing here to download it with. */
+export function deviceListenUrl(_url: string): Promise<string | null> {
   return Promise.resolve(null)
 }
 

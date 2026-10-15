@@ -99,6 +99,46 @@ export interface DownloadedAudio {
   readonly attempts: readonly Attempt[]
 }
 
+/** What the player says of a video, for a review to show before anything is downloaded. */
+export interface VideoFacts {
+  readonly title: string
+  readonly author: string
+  readonly durationSeconds: number
+  /** A YouTube Music track's says its song, artists, album and release (musicDescription.ts). */
+  readonly description: string
+  /** The largest still the player names, or null. */
+  readonly thumbnail: string | null
+}
+
+/**
+ * A video's facts, from one player request — the same request a download
+ * makes first. Throws, with YouTube's reason, for a video it will not play
+ * here: private, removed, or held back.
+ */
+export async function describeVideo(
+  session: YtSession,
+  videoId: string,
+  client: InnerTubeClient = DEFAULT_CLIENTS[0] ?? 'VISIONOS',
+): Promise<VideoFacts> {
+  const poToken = session.minter ? await session.minter.mint(videoId) : undefined
+  const info = await session.innertube.getBasicInfo(videoId, {
+    client,
+    ...(poToken ? { po_token: poToken } : {}),
+  })
+  const playability = info.playability_status
+  if (playability?.status !== 'OK') {
+    throw new Error(`${playability?.status ?? 'no status'}: ${playability?.reason ?? ''}`.trim())
+  }
+  const largest = [...(info.basic_info.thumbnail ?? [])].sort((a, b) => b.width - a.width)[0]
+  return {
+    title: info.basic_info.title ?? '',
+    author: info.basic_info.author ?? '',
+    durationSeconds: info.basic_info.duration ?? 0,
+    description: info.basic_info.short_description ?? '',
+    thumbnail: largest?.url ?? null,
+  }
+}
+
 export async function downloadAudio(
   session: YtSession,
   videoId: string,

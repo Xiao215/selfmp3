@@ -42,6 +42,8 @@ export interface DeviceDownloader {
     url: string,
     options: { onProgress: (percent: number) => void; signal: AbortSignal },
   ): Promise<DeviceFile>
+  /** Whether the song is downloaded already — heard in the review — and costs YouTube nothing. */
+  has(url: string): boolean
 }
 
 /** The calls on the server this needs: its API's, narrowed. */
@@ -147,7 +149,8 @@ export class DeviceImports {
       await this.#release(batch, id, 'this device can no longer download from YouTube')
       return
     }
-    await this.#pace()
+    // A song heard in the review is here already, and asks YouTube for nothing.
+    if (!downloader.has(job.url)) await this.#pace()
 
     try {
       await batch.api.importDeviceStart(batch.lease, id)

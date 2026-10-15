@@ -2,9 +2,11 @@ import {
   IMPORT_META_HEADER,
   IMPORT_SHA256_HEADER,
   ThrottleStateSchema,
+  youtubeVideoId,
   type ThrottleState,
 } from '@selfmp3/shared'
-import type { DeviceDownloader, DeviceFile } from '@/features/import/deviceImports.model'
+import type { DeviceFile } from '@/features/import/deviceImports.model'
+import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
 
 /**
  * Downloading a song in this tab (docs/features/client-download.md): the
@@ -18,9 +20,9 @@ import type { DeviceDownloader, DeviceFile } from '@/features/import/deviceImpor
  * the extension does not talk to: it finds no extension and goes through the
  * server too.
  */
-let downloader: Promise<DeviceDownloader | null> | null = null
+let downloader: Promise<DeviceYouTube | null> | null = null
 
-export function deviceDownloader(): Promise<DeviceDownloader | null> {
+export function deviceDownloader(): Promise<DeviceYouTube | null> {
   downloader ??= (async () => {
     // Said once, so a person wondering why the server downloads can find out.
     const without = (why: string): null => {
@@ -39,6 +41,54 @@ export function deviceDownloader(): Promise<DeviceDownloader | null> {
     }
   })()
   return downloader
+}
+
+/**
+ * The songs heard here, as addresses the page's audio can play: one per
+ * video, made once and let go when the downloader lets the song go, so a song
+ * played twice is downloaded once — and imported without being downloaded
+ * again (downloader.ts keeps the bytes).
+ */
+const listenUrls = new Map<string, string>()
+const KEPT_LISTENS = 8
+
+/**
+ * A review's song, to play from this tab's own download (docs/features/client-download.md),
+ * or null for the server's listen — no extension, no turn at YouTube to
+ * spare, or a download that failed.
+ */
+export async function deviceListenUrl(url: string): Promise<string | null> {
+  const videoId = youtubeVideoId(url)
+  const youtube = videoId ? await deviceDownloader() : null
+  if (!videoId || !youtube) return null
+  const kept = listenUrls.get(videoId)
+  if (kept && youtube.has(url)) return kept
+  // The downloader let the song go since: so does its address, and it comes again.
+  if (kept) {
+    listenUrls.delete(videoId)
+    URL.revokeObjectURL(kept)
+  }
+  if (!youtube.has(url) && !takeTurn(deviceBudget, Date.now())) return null
+  try {
+    // Nobody stops a listen's download: an import may be waiting on the same song.
+    const file = await youtube.download(url, {
+      onProgress: () => undefined,
+      signal: new AbortController().signal,
+    })
+    const made = URL.createObjectURL(new Blob([file.bytes], { type: 'audio/mp4' }))
+    listenUrls.set(videoId, made)
+    while (listenUrls.size > KEPT_LISTENS) {
+      const [oldest, address] = listenUrls.entries().next().value ?? []
+      if (oldest === undefined || address === undefined) break
+      listenUrls.delete(oldest)
+      URL.revokeObjectURL(address)
+    }
+    return made
+  } catch (error) {
+    noteRefusal(deviceBudget, Date.now(), error)
+    console.warn('[device import] the server plays this one instead:', error)
+    return null
+  }
 }
 
 /** The file, as the body itself, described in the two headers the server reads. */

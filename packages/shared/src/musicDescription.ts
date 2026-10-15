@@ -43,3 +43,28 @@ export function releaseOf(description: string): Release {
   const phonogram = PHONOGRAM_YEAR.exec(description)
   return { date: null, year: phonogram ? Number(phonogram[1]) : null }
 }
+
+/** The song a YouTube Music track's description credits, as yt-dlp reads it. */
+export interface MusicCredits {
+  readonly track: string
+  /** Every artist the credit names, joined as yt-dlp joins them: `A, B`. */
+  readonly artist: string
+  readonly album: string
+}
+
+/**
+ * The second and third paragraphs of an auto-generated description — `Track ·
+ * Artist · Artist`, then the album — which is what yt-dlp gives a Topic
+ * track as its `track`, `artist` and `album`. Null for anything YouTube did
+ * not write itself: a channel's own `·` means nothing.
+ */
+export function musicCredits(description: string): MusicCredits | null {
+  const text = description.replace(/\r\n/g, '\n').trim()
+  if (!AUTO_GENERATED.test(text)) return null
+  const match = /^Provided to YouTube by [^\n]*\n+([^\n]*·[^\n]*)\n+([^\n]+)\n/m.exec(text)
+  if (!match) return null
+  const [track = '', ...artists] = (match[1] ?? '').split('·').map(part => part.trim())
+  const album = (match[2] ?? '').trim()
+  if (!track || artists.length === 0 || album.startsWith('℗')) return null
+  return { track, artist: artists.filter(Boolean).join(', '), album }
+}

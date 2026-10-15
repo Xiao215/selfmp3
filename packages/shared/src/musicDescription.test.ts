@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { releaseOf } from './musicDescription.js'
+import { musicCredits, releaseOf } from './musicDescription.js'
 
 /** What YouTube wrote under 晴天 (SJKoWAd5ySo), 2026-10-14. */
 const QING_TIAN = `Provided to YouTube by JVR Music International Ltd.
@@ -32,5 +32,18 @@ describe('releaseOf', () => {
 
   it('reads nothing from nothing', () => {
     expect(releaseOf('')).toEqual({ date: null, year: null })
+  })
+})
+
+describe('musicCredits', () => {
+  it('reads the song, its artists and its album, as yt-dlp does', () => {
+    expect(musicCredits(QING_TIAN)).toEqual({ track: '晴天', artist: '周杰倫', album: '葉惠美' })
+    const duet = QING_TIAN.replace('晴天 · 周杰倫', '告白气球 · 周杰倫 · 費玉清')
+    expect(musicCredits(duet)?.artist).toBe('周杰倫, 費玉清')
+  })
+
+  it('reads nothing from a description someone wrote', () => {
+    expect(musicCredits(['Song · Artist', '', 'Album', '', 'My channel'].join('\n'))).toBeNull()
+    expect(musicCredits('')).toBeNull()
   })
 })

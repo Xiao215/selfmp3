@@ -221,6 +221,13 @@ export type ImportPreview = z.infer<typeof ImportPreviewSchema>
 export const ImportPreviewRequestSchema = z.object({
   /** One URL per line. Playlists expand into their tracks. */
   url: z.string().trim().min(1).max(20_000),
+  /**
+   * Look up where the first rows' audio is, so a listen starts at once —
+   * which asks YouTube once a row. False from a device that listens through
+   * its own downloads (docs/features/client-download.md): the server's
+   * looking would be turns spent on nothing.
+   */
+  warmListen: z.boolean().optional(),
 })
 export type ImportPreviewRequest = z.infer<typeof ImportPreviewRequestSchema>
 

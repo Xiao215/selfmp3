@@ -44,6 +44,8 @@ function harness(options: {
   uploadStatus?: number
   downloader?: boolean
   budget?: ThrottleState | null
+  /** Songs downloaded already, by id: heard in the review. */
+  cached?: string[]
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -69,6 +71,7 @@ function harness(options: {
     importDeviceFileTarget: id => ({ url: `https://server/${id}`, headers: {} }),
   }
   const downloader: DeviceDownloader = {
+    has: url => options.cached?.includes(url.slice(-11, -10)) ?? false,
     download: (url, { signal, onProgress }) => {
       calls.push(`download ${url.slice(-11, -10)}`)
       onProgress(50)
@@ -218,6 +221,24 @@ describe('DeviceImports', () => {
     h.take()
     await h.imports.settled()
     expect(h.slept.length).toBeGreaterThan(0)
+    expect(h.calls).toEqual(['start a', 'download a', 'upload a'])
+  })
+
+  it('does not wait for a turn at YouTube for a song it has already', async () => {
+    const h = harness({
+      ids: ['a'],
+      cached: ['a'],
+      budget: {
+        tokens: -5,
+        ratchet: 1,
+        updatedAt: 1_700_000_000_000,
+        pausedUntil: 0,
+        limitedAt: 0,
+      },
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.slept).toEqual([])
     expect(h.calls).toEqual(['start a', 'download a', 'upload a'])
   })
 })

@@ -162,13 +162,15 @@ export function importRoutes(container: Container): Router {
     route({ body: ImportPreviewRequestSchema }, async ({ body }): Promise<ImportPreview> => {
       const preview = await buildImportPreview(container, body.url)
       // The rows about to be shown, minus the ones already in the library,
-      // which say "In library" rather than offering a listen.
-      container.listen.warm(
-        preview.items
-          .filter(item => !item.alreadyHave && item.url !== '')
-          .slice(0, WARMED_ROWS)
-          .map(item => item.url),
-      )
+      // which say "In library" rather than offering a listen — unless the
+      // device listens through its own downloads, and would not use these.
+      if (body.warmListen !== false)
+        container.listen.warm(
+          preview.items
+            .filter(item => !item.alreadyHave && item.url !== '')
+            .slice(0, WARMED_ROWS)
+            .map(item => item.url),
+        )
       return preview
     }),
   )

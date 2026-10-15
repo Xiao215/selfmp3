@@ -488,8 +488,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     importTools: (refresh = false) =>
       request('GET', `/api/import/tools${refresh ? '?refresh=1' : ''}`, ToolStatusSchema),
 
-    importPreview: (url: string) =>
-      request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
+    importPreview: (url: string, options: { warmListen?: boolean } = {}) =>
+      request('POST', '/api/import/preview', ImportPreviewSchema, { url, ...options }),
 
     /** Words looked for on YouTube Music and 网易云 at once, as review rows (`/import/search`). */
     importSearch: (query: string) =>

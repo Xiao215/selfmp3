@@ -59,6 +59,7 @@ import { useFade } from '../../ui/motion'
 import { isComposing } from '../../shell/composing'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
+import { previewImport } from './deviceImports'
 import { QueueRing } from './QueueRing'
 import { TagItPill } from './ImportTags'
 import { draftFor, useImportDraft } from './importDraft'
@@ -140,7 +141,7 @@ export function ImportScreen({
   const tags = library?.tags ?? []
 
   const preview = useMutation({
-    mutationFn: (input: string) => api.importPreview(input),
+    mutationFn: (input: string) => previewImport(api, input),
     onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search

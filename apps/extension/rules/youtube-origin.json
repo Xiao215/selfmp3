@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "origin",
+          "operation": "set",
+          "value": "https://www.youtube.com"
+        },
+        {
+          "header": "referer",
+          "operation": "set",
+          "value": "https://www.youtube.com/"
+        }
+      ]
+    },
+    "condition": {
+      "initiatorDomains": ["ojgfoohmmkangonahnbdpelfgmkjkfpi"],
+      "urlFilter": "||youtube.com/youtubei/",
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "origin",
+          "operation": "set",
+          "value": "https://www.youtube.com"
+        },
+        {
+          "header": "referer",
+          "operation": "set",
+          "value": "https://www.youtube.com/"
+        }
+      ]
+    },
+    "condition": {
+      "initiatorDomains": ["ojgfoohmmkangonahnbdpelfgmkjkfpi"],
+      "urlFilter": "||youtubei.googleapis.com/",
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "origin",
+          "operation": "set",
+          "value": "https://www.youtube.com"
+        },
+        {
+          "header": "referer",
+          "operation": "set",
+          "value": "https://www.youtube.com/"
+        }
+      ]
+    },
+    "condition": {
+      "initiatorDomains": ["ojgfoohmmkangonahnbdpelfgmkjkfpi"],
+      "urlFilter": "||googlevideo.com/",
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  }
+]

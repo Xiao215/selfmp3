@@ -1,0 +1,29 @@
+{
+  "name": "@selfmp3/ytclient",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Downloading from YouTube in the page, with youtubei.js, through a carrier for its requests (the extension). A spike: see docs/features/client-download.md.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "harness": "node scripts/harness.mjs",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@selfmp3/shared": "*",
+    "bgutils-js": "^4.0.3",
+    "youtubei.js": "^18.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

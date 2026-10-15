@@ -1,5 +1,5 @@
 import { DEFAULT_ACCENT_HUE, darkPalette } from '@selfmp3/client/core'
-import { DEFAULT_APP_URL } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, YT_PROXY_ORIGINS } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
@@ -8,6 +8,7 @@ import { createPageHandler } from './pill.js'
 import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
 import { ALARM, ALARM_MINUTES, createWatcher } from './watcher.js'
+import { ytProxy } from './ytProxy.js'
 
 /**
  * The extension's background worker: the one part of it that talks to a server
@@ -121,6 +122,11 @@ async function quickImport(url: string): Promise<void> {
 }
 
 installMenus({ quickImport, openReview: openPopupWindow })
+
+// The app's requests to YouTube, carried past CORS for the page (ytProxy.ts).
+chrome.runtime.onConnectExternal.addListener(
+  ytProxy({ fetch: (input, init) => fetch(input, init), origins: YT_PROXY_ORIGINS }),
+)
 
 /** One read of the queue for the badge, from the alarm or a worker starting. */
 const tick = (): void => {

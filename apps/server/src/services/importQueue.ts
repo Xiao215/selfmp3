@@ -1,10 +1,15 @@
+import crypto from 'node:crypto'
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { pipeline } from 'node:stream/promises'
+import { Transform, type Readable } from 'node:stream'
 import {
   messageOf,
   isSquareCoverUrl,
+  releaseOf,
   sanitizeFilename,
+  type ImportDeviceFileMeta,
   type ImportJob,
   type Settings,
 } from '@selfmp3/shared'
@@ -20,7 +25,8 @@ import type { SettingsRepository } from '../repositories/settings.js'
 import type { ScannerService } from './scanner.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
-import { asksYouTube, type YtDlpService } from './ytdlp.js'
+import { asksYouTube, toProbedTrack, type YtDlpService } from './ytdlp.js'
+import type { FileTags, TagWriter } from './tagWriter.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
@@ -80,6 +86,7 @@ export class ImportQueueService {
   readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
+  readonly #tagWriter: Pick<TagWriter, 'write'>
   readonly #logger: Logger
 
   /** Abort controllers for in-flight jobs, so cancel can actually stop them. */
@@ -88,6 +95,8 @@ export class ImportQueueService {
   readonly #claimedFolders = new Set<string>()
   /** The wake-up set while the budget says wait; at most one at a time. */
   #paceTimer: NodeJS.Timeout | null = null
+  /** The wake-up set for when a device's lease runs out; at most one at a time. */
+  #leaseTimer: NodeJS.Timeout | null = null
   #activeCount = 0
   #draining = false
   #stopped = false
@@ -114,6 +123,7 @@ export class ImportQueueService {
     throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
+    tagWriter: Pick<TagWriter, 'write'>
     logger: Logger
   }) {
     this.#config = deps.config
@@ -130,6 +140,7 @@ export class ImportQueueService {
     this.#throttle = deps.throttle
     this.#cloud = deps.cloud
     this.#keepAwake = deps.keepAwake
+    this.#tagWriter = deps.tagWriter
     this.#logger = deps.logger.child('import')
   }
 
@@ -145,6 +156,8 @@ export class ImportQueueService {
     this.#stopped = true
     if (this.#paceTimer) clearTimeout(this.#paceTimer)
     this.#paceTimer = null
+    if (this.#leaseTimer) clearTimeout(this.#leaseTimer)
+    this.#leaseTimer = null
     for (const controller of this.#inFlight.values()) controller.abort()
     this.#inFlight.clear()
   }
@@ -228,6 +241,97 @@ export class ImportQueueService {
     return this.#imports.dismissFailed()
   }
 
+  // --- Jobs a device downloads (docs/features/client-download.md) -------------
+
+  /** Keep a device's lease, with how far its downloads have got; the jobs it still holds. */
+  deviceRenew(lease: string, progress: readonly { id: string; percent: number }[]): string[] {
+    return this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress)
+  }
+
+  /** The device has started downloading one of its jobs. */
+  deviceStart(lease: string, id: string): boolean {
+    return this.#imports.startOnDevice(lease, id, DEVICE_LEASE_SECONDS)
+  }
+
+  /** The device could not download it: the server does, as it would any other. */
+  deviceRelease(lease: string, id: string, reason: string): boolean {
+    const released = this.#imports.releaseFromDevice(lease, id)
+    if (released) {
+      this.#logger.info('a device let a job go to the server', { jobId: id, reason })
+      this.kick()
+    }
+    return released
+  }
+
+  /**
+   * A file a device downloaded for a job it holds: checked, then finished
+   * here exactly as a download of the server's own would be, from the step
+   * after the download — with the tags yt-dlp would have written, written
+   * here instead (tagWriter.ts).
+   *
+   * The checks are what make the file the song. Its bytes are the ones the
+   * device said (`sha256`), there are at most `maxBytes` of them, and ffprobe
+   * finds audio in them as long as the song the job is for; a file that fails
+   * one is refused and never reaches the library. Only once it passes does the
+   * job leave the device — so a refused file leaves the device holding the
+   * job, free to let it go to the server.
+   */
+  async receiveDeviceFile(input: {
+    jobId: string
+    lease: string
+    body: Readable
+    sha256: string
+    maxBytes: number
+    meta: ImportDeviceFileMeta
+  }): Promise<DeviceFileOutcome> {
+    const job = this.#imports.byId(input.jobId)
+    const held = this.#imports.fetcherOf(input.jobId)
+    if (!job || held?.lease !== input.lease) {
+      input.body.resume()
+      return { ok: false, status: 409, message: 'that job is not this device’s to download' }
+    }
+
+    const staging = stagingDir(this.#config)
+    await fsp.mkdir(staging, { recursive: true })
+    const stagedPath = path.join(staging, `device-${job.id}.m4a`)
+    let taken = false
+    try {
+      const received = await receive(input.body, stagedPath, input.maxBytes)
+      if (received.tooBig) {
+        return { ok: false, status: 413, message: 'that file is larger than any song' }
+      }
+      if (received.sha256 !== input.sha256.toLowerCase()) {
+        return { ok: false, status: 400, message: 'the file is not the one its hash names' }
+      }
+
+      const seconds = await this.#ytdlp.probeDuration(stagedPath)
+      if (!(seconds > 0)) {
+        return { ok: false, status: 422, message: 'there is no audio in that file' }
+      }
+      const expected = job.duration || input.meta.durationSeconds
+      if (expected > 0 && Math.abs(seconds - expected) > Math.max(3, expected * 0.03)) {
+        return {
+          ok: false,
+          status: 422,
+          message: `the file is ${Math.round(seconds)} seconds long, and the song ${Math.round(expected)}`,
+        }
+      }
+
+      const claimed = this.#imports.takeFromDevice(input.lease, input.jobId)
+      if (!claimed) {
+        return { ok: false, status: 409, message: 'that job is no longer this device’s' }
+      }
+      taken = true
+      this.#start(claimed, (signal, settings) =>
+        this.#fromDevice(claimed, settings, signal, stagedPath, input.meta, seconds),
+      )
+      return { ok: true }
+    } finally {
+      // Until the job is taken, the file is nobody's; after, it is the job's to remove.
+      if (!taken) await fsp.rm(stagedPath, { force: true }).catch(() => undefined)
+    }
+  }
+
   /**
    * The scheduler.
    *
@@ -240,6 +344,8 @@ export class ImportQueueService {
     this.#draining = true
 
     try {
+      // What a device stopped answering for goes back in the queue first.
+      this.#imports.expireLeases()
       const limit = this.#settings.get().importConcurrency
       while (this.#activeCount < limit && !this.#stopped) {
         const next = this.#imports.nextQueued()
@@ -275,32 +381,55 @@ export class ImportQueueService {
         const job = this.#imports.claimNext()
         if (!job) break
 
-        this.#activeCount++
-        // A download is the server doing real work for someone; do not let the
-        // machine idle out from under it halfway through.
-        const awake = this.#keepAwake.hold()
-        void this.#process(job, paced)
-          .catch(error => {
-            this.#logger.error('job crashed', {
-              jobId: job.id,
-              message: messageOf(error),
-            })
-          })
-          .finally(() => {
-            awake()
-            this.#activeCount--
-            this.#inFlight.delete(job.id)
-            // Look for more work once this slot frees up.
-            setTimeout(() => this.kick(), 0)
-          })
+        this.#start(job, (signal, settings) => this.#runJob(job, settings, signal, paced))
       }
+      this.#watchLeases()
     } finally {
       this.#draining = false
     }
   }
 
-  /** `paid`: the job's first request to YouTube was paid for as it was claimed. */
-  async #process(job: ImportJob, paid: boolean): Promise<void> {
+  /**
+   * One wake-up for when the soonest lease a device holds runs out, so a job
+   * it stopped answering for is taken without waiting for anything else to
+   * kick the queue. Capped at a minute, like the pacing's.
+   */
+  #watchLeases(): void {
+    if (this.#leaseTimer || this.#stopped) return
+    const end = this.#imports.nextLeaseEnd()
+    if (end === null) return
+    this.#leaseTimer = setTimeout(
+      () => {
+        this.#leaseTimer = null
+        this.kick()
+      },
+      Math.min(Math.max(end - Date.now() + 1000, 1000), 60_000),
+    )
+  }
+
+  /** Run a claimed job's `work` in the background, as one of the jobs in flight. */
+  #start(job: ImportJob, work: JobWork): void {
+    this.#activeCount++
+    // A download is the server doing real work for someone; do not let the
+    // machine idle out from under it halfway through.
+    const awake = this.#keepAwake.hold()
+    void this.#process(job, work)
+      .catch(error => {
+        this.#logger.error('job crashed', {
+          jobId: job.id,
+          message: messageOf(error),
+        })
+      })
+      .finally(() => {
+        awake()
+        this.#activeCount--
+        this.#inFlight.delete(job.id)
+        // Look for more work once this slot frees up.
+        setTimeout(() => this.kick(), 0)
+      })
+  }
+
+  async #process(job: ImportJob, work: JobWork): Promise<void> {
     const controller = new AbortController()
     this.#inFlight.set(job.id, controller)
     const settings = this.#settings.get()
@@ -308,7 +437,7 @@ export class ImportQueueService {
     this.#logger.info('importing', { title: job.title || job.url, attempt: job.attempts })
 
     try {
-      const songId = await this.#runJob(job, settings, controller.signal, paid)
+      const songId = await work(controller.signal, settings)
       this.#imports.update(job.id, {
         status: 'done',
         step: 'finished',
@@ -485,7 +614,79 @@ export class ImportQueueService {
     const downloaded = after.find(name => !before.has(name) && name.startsWith(baseName))
     if (!downloaded) throw new Error('the download finished but no file appeared')
 
-    const stagedPath = path.join(staging, downloaded)
+    return this.#addToLibrary(job, settings, signal, {
+      stagedPath: path.join(staging, downloaded),
+      name,
+      title,
+      artist,
+      album,
+      duration,
+      thumbnail,
+      tags: null,
+    })
+  }
+
+  /**
+   * A file a device downloaded, made a song: the job's title and artist where
+   * the review gave them, the player's where it did not, and the tags yt-dlp
+   * would have written, written here (tagWriter.ts). `seconds` is the file's
+   * own length, which `receiveDeviceFile` has already measured.
+   */
+  async #fromDevice(
+    job: ImportJob,
+    settings: Settings,
+    signal: AbortSignal,
+    stagedPath: string,
+    meta: ImportDeviceFileMeta,
+    seconds: number,
+  ): Promise<number> {
+    // The same tidying the server gives a video's own title and channel.
+    const probed = toProbedTrack(
+      { title: meta.title, uploader: meta.author, duration: meta.durationSeconds },
+      job.url,
+    )
+    const title = job.title.trim() || probed.title
+    const artist = job.artist.trim() || probed.artist
+    if (!title.trim()) throw new Error('could not work out a title for this track')
+    if (title !== job.title || artist !== job.artist) {
+      this.#imports.update(job.id, { title, artist })
+    }
+
+    const release = releaseOf(meta.description)
+    const tools = await this.#ytdlp.status()
+    return this.#addToLibrary(job, settings, signal, {
+      stagedPath,
+      name: sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled',
+      title,
+      artist,
+      album: job.album,
+      duration: job.duration || seconds,
+      thumbnail: job.thumbnail,
+      // Tagging needs ffmpeg, as yt-dlp's does; without it the file goes as it came.
+      tags: tools.ffmpeg
+        ? {
+            title: title.trim(),
+            artist: artist.trim(),
+            album: job.album.trim(),
+            date: release.date ?? (release.year ? String(release.year) : null),
+          }
+        : null,
+    })
+  }
+
+  /**
+   * Everything after the download, for a file from yt-dlp or from a device:
+   * into the library, lyrics, the song's row, its cover, tags and playlist,
+   * and up to the bucket. `tags`, when given, is written into the file first;
+   * yt-dlp's downloads come tagged already.
+   */
+  async #addToLibrary(
+    job: ImportJob,
+    settings: Settings,
+    signal: AbortSignal,
+    file: StagedFile,
+  ): Promise<number> {
+    const { stagedPath, name, title, artist, album, duration, thumbnail } = file
     let libraryKey: string | null = null
 
     try {
@@ -498,7 +699,9 @@ export class ImportQueueService {
       signal.throwIfAborted()
       this.#imports.update(job.id, { step: 'converting', progress: null })
 
-      libraryKey = await this.#claimLibraryKey(name, path.extname(downloaded))
+      if (file.tags) await this.#tagWriter.write(stagedPath, file.tags, thumbnail)
+
+      libraryKey = await this.#claimLibraryKey(name, path.extname(stagedPath))
 
       await this.#storage.write(libraryKey, fs.createReadStream(stagedPath))
 
@@ -629,6 +832,69 @@ export class ImportQueueService {
     }
     throw new Error('could not find a free name for this song in the library')
   }
+}
+
+/** What a job does once claimed, given its stop signal and the settings it started under. */
+type JobWork = (signal: AbortSignal, settings: Settings) => Promise<number>
+
+/** A downloaded file waiting in staging, and what the song it becomes is called. */
+interface StagedFile {
+  readonly stagedPath: string
+  /** The library folder's name for it: `Artist - Title`, made safe. */
+  readonly name: string
+  readonly title: string
+  readonly artist: string
+  readonly album: string
+  readonly duration: number
+  readonly thumbnail: string | null
+  /** Tags to write into the file before it goes in, or null when it has them already. */
+  readonly tags: FileTags | null
+}
+
+/** What became of a device's file: taken, or refused with an HTTP status and why. */
+type DeviceFileOutcome =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly status: 400 | 409 | 413 | 422; readonly message: string }
+
+/**
+ * How long a device's hold on its jobs lasts unrenewed. Five minutes, not
+ * one: a browser tab in the background has its timers slowed to once a
+ * minute, and a lease that ran out under a tab someone switched away from
+ * would hand its song to the server halfway through the device's download.
+ */
+export const DEVICE_LEASE_SECONDS = 300
+
+/**
+ * Write `body` to `file`, hashing it on the way: its SHA-256, hex — or `tooBig`
+ * once more than `maxBytes` have come, and the rest is not read.
+ */
+async function receive(
+  body: Readable,
+  file: string,
+  maxBytes: number,
+): Promise<{ tooBig: true } | { tooBig: false; sha256: string }> {
+  const hash = crypto.createHash('sha256')
+  let size = 0
+  let tooBig = false
+  const counted = new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      size += chunk.length
+      if (size > maxBytes) {
+        tooBig = true
+        done(new Error('too big'))
+        return
+      }
+      hash.update(chunk)
+      done(null, chunk)
+    },
+  })
+  try {
+    await pipeline(body, counted, fs.createWriteStream(file))
+  } catch (error) {
+    if (tooBig) return { tooBig: true }
+    throw error
+  }
+  return { tooBig: false, sha256: hash.digest('hex') }
 }
 
 /** Finished jobs older than this are cleared from the queue's history at boot. */

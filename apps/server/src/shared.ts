@@ -1,18 +1,13 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { messageOf } from '@selfmp3/shared'
+import { freshState, messageOf, type ThrottleState } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
 import { MetadataLookupService } from './services/lookup.js'
 import { RomanizationService } from './services/romanization.js'
-import {
-  freshState,
-  type YtThrottleService,
-  type ThrottleState,
-  type ThrottleStore,
-} from './services/ytThrottle.js'
+import type { YtThrottleService, ThrottleStore } from './services/ytThrottle.js'
 import { SoundModelHost } from './sound/sound.js'
 import { Gate } from './util/gate.js'
 

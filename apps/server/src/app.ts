@@ -19,6 +19,7 @@ import { mediaRoutes } from './routes/media.js'
 import { tagRoutes } from './routes/tags.js'
 import { playlistRoutes } from './routes/playlists.js'
 import { importRoutes } from './routes/imports.js'
+import { importDeviceRoutes } from './routes/importDevice.js'
 import { systemRoutes } from './routes/system.js'
 import { metadataRoutes } from './routes/metadata.js'
 import { aiRoutes } from './routes/ai.js'
@@ -106,6 +107,7 @@ export function libraryApi(container: Container): Router {
   api.use(tagRoutes(container))
   api.use(playlistRoutes(container))
   api.use(importRoutes(container))
+  api.use(importDeviceRoutes(container))
   api.use(systemRoutes(container))
   api.use(metadataRoutes(container))
   api.use(aiRoutes(container))

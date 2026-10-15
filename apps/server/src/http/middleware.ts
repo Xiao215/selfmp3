@@ -1,6 +1,12 @@
 import crypto from 'node:crypto'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import { DESKTOP_APP_ORIGIN, EXTENSION_ORIGIN, REFRESH_HEADER } from '@selfmp3/shared'
+import {
+  DESKTOP_APP_ORIGIN,
+  EXTENSION_ORIGIN,
+  IMPORT_META_HEADER,
+  IMPORT_SHA256_HEADER,
+  REFRESH_HEADER,
+} from '@selfmp3/shared'
 import type { Config, ServingConfig } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
@@ -253,7 +259,15 @@ export function cors(config: OriginConfig): RequestHandler {
        */
       res.setHeader(
         'Access-Control-Allow-Headers',
-        ['Content-Type', 'Authorization', REFRESH_HEADER].join(', '),
+        // A device's file for an import says what it is in two of its own
+        // (routes/importDevice.ts), and is refused the same way without them.
+        [
+          'Content-Type',
+          'Authorization',
+          REFRESH_HEADER,
+          IMPORT_SHA256_HEADER,
+          IMPORT_META_HEADER,
+        ].join(', '),
       )
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
       res.setHeader('Access-Control-Max-Age', '86400')

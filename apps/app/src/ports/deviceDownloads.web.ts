@@ -22,12 +22,29 @@ import { appPath } from './appPath'
  * server too.
  */
 let downloader: Promise<DeviceYouTube | null> | null = null
+/** When the last look found no way to YouTube, so the next look can wait a while. */
+let missedAt = 0
+/** Why the last look found none, said once until the reason changes. */
+let missedWhy = ''
+
+/**
+ * How long a look that found no way to YouTube is believed. A way found is
+ * kept for good; one missed is looked for again after this, so an extension
+ * that was asleep, turned off and on again, or slow to answer is found
+ * without a reload. One installed after this page was opened is not: Chrome
+ * gives a page its `chrome.runtime` as it loads, and only a reload brings it.
+ */
+const LOOK_AGAIN_MS = 30_000
 
 export function deviceDownloader(): Promise<DeviceYouTube | null> {
+  if (downloader && missedAt > 0 && Date.now() - missedAt > LOOK_AGAIN_MS) downloader = null
   downloader ??= (async () => {
-    // Said once, so a person wondering why the server downloads can find out.
     const without = (why: string): null => {
-      console.warn(`[device import] songs are downloaded by the server: ${why}`)
+      missedAt = Date.now()
+      // Said once, so a person wondering why the server downloads can find out.
+      if (why !== missedWhy)
+        console.warn(`[device import] songs are downloaded by the server: ${why}`)
+      missedWhy = why
       return null
     }
     try {
@@ -36,7 +53,10 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
       const fetch = extensionFetch()
       if (!fetch) return without('this browser has no self.mp3 extension to ask YouTube through')
       if (!(await carrierAnswers(fetch))) return without('the self.mp3 extension did not answer')
-      return withKeptSongs(await openSandbox({ src: appPath('yt-sandbox.html'), fetch }))
+      const found = withKeptSongs(await openSandbox({ src: appPath('yt-sandbox.html'), fetch }))
+      missedAt = 0
+      missedWhy = ''
+      return found
     } catch (error) {
       return without(error instanceof Error ? error.message : String(error))
     }

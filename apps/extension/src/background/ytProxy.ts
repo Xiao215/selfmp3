@@ -1,6 +1,7 @@
 import {
   base64ToBytes,
   bytesToBase64,
+  isYtProxyPage,
   isYtProxyUrl,
   sapisidHash,
   signsIn,
@@ -23,33 +24,23 @@ import {
 /** The part of a `chrome.runtime.Port` this uses, so a test can stand in for one. */
 export interface ProxyPort {
   readonly name: string
-  readonly sender?: { readonly origin?: string; readonly url?: string }
+  readonly sender?: { readonly url?: string }
   postMessage(message: YtProxyExtensionMessage): void
   disconnect(): void
   readonly onMessage: { addListener(listener: (message: unknown) => void): void }
   readonly onDisconnect: { addListener(listener: () => void): void }
 }
 
-/** Where a port was opened from, as an origin, or null when Chrome did not say. */
-function senderOrigin(sender: ProxyPort['sender']): string | null {
-  if (sender?.origin) return sender.origin
-  if (!sender?.url) return null
-  try {
-    return new URL(sender.url).origin
-  } catch {
-    return null
-  }
-}
-
 /**
  * The listener for `chrome.runtime.onConnectExternal`.
  *
- * `origins` is checked again here though the manifest already limits who may
+ * `pages` is checked again here though the manifest already limits who may
  * connect: the manifest is the lock, this is reading the name on the key.
  */
 export function ytProxy(deps: {
   fetch: typeof fetch
-  origins: readonly string[]
+  /** Where the pages that may connect start (`YT_PROXY_PAGES`). */
+  pages: readonly string[]
   /**
    * The `SAPISID` cookie of this browser's YouTube sign-in, when the person
    * has turned "use my YouTube sign-in" on in the options (options.ts), or
@@ -61,8 +52,9 @@ export function ytProxy(deps: {
 }): (port: ProxyPort) => void {
   return port => {
     if (port.name !== YT_PROXY_PORT) return
-    const origin = senderOrigin(port.sender)
-    if (origin === null || !deps.origins.includes(origin)) {
+    // The page's whole address, not its origin: the app's path, not the site it is on.
+    const page = port.sender?.url
+    if (!page || !isYtProxyPage(page, deps.pages)) {
       port.disconnect()
       return
     }

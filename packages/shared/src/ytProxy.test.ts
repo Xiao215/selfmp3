@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import {
   base64ToBytes,
   bytesToBase64,
+  isYtProxyPage,
   isYtProxyUrl,
   sapisidHash,
   signsIn,
@@ -88,5 +89,15 @@ describe('sapisidHash', () => {
       .update('1700000000 abc/DEF https://www.youtube.com')
       .digest('hex')
     expect(await sapisidHash('abc/DEF', 1_700_000_000)).toBe(`SAPISIDHASH 1700000000_${expected}`)
+  })
+})
+
+describe('isYtProxyPage', () => {
+  it('lets in the app’s own pages, not the rest of the site it is on', () => {
+    expect(isYtProxyPage('https://xiao215.github.io/selfmp3/import/review')).toBe(true)
+    expect(isYtProxyPage('http://localhost:4601/import')).toBe(true)
+    expect(isYtProxyPage('https://xiao215.github.io/other/')).toBe(false)
+    expect(isYtProxyPage('https://xiao215.github.io/selfmp3-evil/')).toBe(false)
+    expect(isYtProxyPage('http://localhost:4603/')).toBe(false)
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { toProbedTrack, type ThrottleState } from '@selfmp3/shared'
 import {
+  paceNote,
   previewOnDevice,
   refusing,
   singleVideo,
@@ -151,5 +152,26 @@ describe('refusing', () => {
     expect(refusing(at(2_000), 1_000)).toBe(true)
     expect(refusing(at(500), 1_000)).toBe(false)
     expect(refusing({ get: () => null, save: () => undefined }, 1_000)).toBe(false)
+  })
+})
+
+describe('paceNote', () => {
+  const state = (ratchet: number, pausedUntil: number) => ({
+    tokens: 0,
+    ratchet,
+    updatedAt: 0,
+    pausedUntil,
+    limitedAt: 0,
+  })
+
+  it('says nothing at full pace', () => {
+    expect(paceNote(null, 0)).toBeNull()
+    expect(paceNote(state(1, 0), 1_000)).toBeNull()
+  })
+
+  it('says how far it was slowed, and how long it is still waiting', () => {
+    expect(paceNote(state(0.5, 0), 1_000)).toMatch(/50%/)
+    expect(paceNote(state(0.5, 1_000 + 10 * 60_000), 1_000)).toMatch(/50%.*10 min/)
+    expect(paceNote(state(1, 1_000 + 30_000), 1_000)).toMatch(/1 min/)
   })
 })

@@ -29,21 +29,25 @@ export const YT_PROXY_PORT = 'yt-proxy'
 export const YT_PROXY_CHUNK_BYTES = 1024 * 1024
 
 /**
- * The pages that may open the port. The manifest's `externally_connectable`
- * says the same and is what Chrome enforces; this list is the extension
- * checking it again, and the manifest's test holds the two together.
+ * The pages that may open the port, by where their address starts: the app's
+ * own path, not all of the site it is published on — `xiao215.github.io` holds
+ * more than self.mp3. The manifest's `externally_connectable` says the same
+ * (each with `*` after it) and is what Chrome enforces; this list is the
+ * extension checking it again, and the manifest's test holds the two together.
  *
  * Port 4601 is `npm run dev:web`; 4602 is the client download harness
  * (packages/ytclient).
  */
-export const YT_PROXY_ORIGINS: readonly string[] = [
-  // Cut from the address rather than read with `URL`: this runs as the module
-  // loads, and in the app's jest `URL` is a lazy global whose first use needs
-  // a `TextEncoder` some test environments do not have.
-  DEFAULT_APP_URL.replace(/^(https?:\/\/[^/]+).*$/, '$1'),
-  'http://localhost:4601',
-  'http://localhost:4602',
+export const YT_PROXY_PAGES: readonly string[] = [
+  `${DEFAULT_APP_URL}/`,
+  'http://localhost:4601/',
+  'http://localhost:4602/',
 ]
+
+/** Whether the page at `url` may open the port (`YT_PROXY_PAGES`). */
+export function isYtProxyPage(url: string, pages: readonly string[] = YT_PROXY_PAGES): boolean {
+  return pages.some(page => url.startsWith(page))
+}
 
 /** Hosts the carrier will reach, whole. */
 const HOSTS = new Set([

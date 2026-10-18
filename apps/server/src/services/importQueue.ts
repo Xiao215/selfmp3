@@ -98,6 +98,13 @@ export class ImportQueueService {
   /** The wake-up set for when a device's lease runs out; at most one at a time. */
   #leaseTimer: NodeJS.Timeout | null = null
   #activeCount = 0
+  /**
+   * Files devices sent, checked and waiting for a turn among the jobs in
+   * flight: a device's song counts against `importConcurrency` as the
+   * server's own downloads do, so several devices sending at once cannot run
+   * more than the machine was told to (a Pi, often).
+   */
+  readonly #deviceFiles: { job: ImportJob; work: JobWork; file: string }[] = []
   #draining = false
   #stopped = false
 
@@ -160,6 +167,11 @@ export class ImportQueueService {
     this.#leaseTimer = null
     for (const controller of this.#inFlight.values()) controller.abort()
     this.#inFlight.clear()
+    // A device's file still waiting its turn: the song goes back in the queue, as one stopped mid-way does.
+    for (const { job, file } of this.#deviceFiles.splice(0)) {
+      this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
+      void fsp.rm(file, { force: true }).catch(() => undefined)
+    }
   }
 
   /** Downloads in flight right now; other background work yields to them. */
@@ -293,7 +305,8 @@ export class ImportQueueService {
 
     const staging = stagingDir(this.#config)
     await fsp.mkdir(staging, { recursive: true })
-    const stagedPath = path.join(staging, `device-${job.id}.m4a`)
+    // A name of its own per upload: two for one job must not write over each other.
+    const stagedPath = path.join(staging, `device-${job.id}-${crypto.randomUUID().slice(0, 8)}.m4a`)
     let taken = false
     try {
       const received = await receive(input.body, stagedPath, input.maxBytes)
@@ -322,9 +335,13 @@ export class ImportQueueService {
         return { ok: false, status: 409, message: 'that job is no longer this device’s' }
       }
       taken = true
-      this.#start(claimed, (signal, settings) =>
-        this.#fromDevice(claimed, settings, signal, stagedPath, input.meta, seconds),
-      )
+      this.#deviceFiles.push({
+        job: claimed,
+        file: stagedPath,
+        work: (signal, settings) =>
+          this.#fromDevice(claimed, settings, signal, stagedPath, input.meta, seconds),
+      })
+      this.kick()
       return { ok: true }
     } finally {
       // Until the job is taken, the file is nobody's; after, it is the job's to remove.
@@ -347,6 +364,12 @@ export class ImportQueueService {
       // What a device stopped answering for goes back in the queue first.
       this.#imports.expireLeases()
       const limit = this.#settings.get().importConcurrency
+      // A device's file first: it is downloaded already, and only needs its turn.
+      while (this.#activeCount < limit && !this.#stopped) {
+        const staged = this.#deviceFiles.shift()
+        if (!staged) break
+        this.#start(staged.job, staged.work)
+      }
       while (this.#activeCount < limit && !this.#stopped) {
         const next = this.#imports.nextQueued()
         if (!next) break

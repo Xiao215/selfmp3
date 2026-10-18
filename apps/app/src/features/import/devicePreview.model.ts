@@ -155,3 +155,23 @@ export async function previewOnDevice(
     from: 'youtube',
   }
 }
+
+/**
+ * What a refusal for rate has left of this browser's pace at YouTube, in
+ * words for Settings, or null when it is at full pace. Each refusal halves the
+ * budget for good (ytBudget.ts `penalize`), as a server's does, and only a
+ * person puts it back: whether anything has changed since is theirs to know.
+ */
+export function paceNote(state: ThrottleState | null, now: number): string | null {
+  if (!state) return null
+  const waiting = state.pausedUntil > now
+  const slowed = state.ratchet < 1
+  if (!waiting && !slowed) return null
+  const pace = slowed
+    ? `YouTube refused this browser before, so it asks at ${Math.round(state.ratchet * 100)}% of its pace.`
+    : ''
+  const pause = waiting
+    ? ` It is waiting out a pause for another ${Math.max(1, Math.ceil((state.pausedUntil - now) / 60_000))} min.`
+    : ''
+  return `${pace}${pause}`.trim()
+}

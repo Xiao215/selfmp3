@@ -115,8 +115,8 @@ export class TagWriter {
         await response.body?.cancel()
         return null
       }
-      const bytes = new Uint8Array(await response.arrayBuffer())
-      if (bytes.length === 0 || bytes.length > MAX_COVER_BYTES) return null
+      const bytes = await readCapped(response, MAX_COVER_BYTES)
+      if (!bytes || bytes.length === 0) return null
       // ffmpeg tells the picture's format by its bytes; the name only has to be one.
       const file = `${base}${path.extname(parsed.pathname) || '.jpg'}`
       await fsp.writeFile(file, bytes)
@@ -126,4 +126,38 @@ export class TagWriter {
       return null
     }
   }
+}
+
+/**
+ * A response's body, or null once it is past `max` bytes: by its
+ * `content-length` before anything is read, as covers.ts asks, and by what
+ * has come so far for one that does not say — the rest is not read.
+ */
+async function readCapped(response: Response, max: number): Promise<Uint8Array | null> {
+  const declared = Number(response.headers.get('content-length') ?? Number.NaN)
+  if (Number.isFinite(declared) && declared > max) {
+    await response.body?.cancel()
+    return null
+  }
+  const reader = response.body?.getReader() as ReadableStreamDefaultReader<Uint8Array> | undefined
+  if (!reader) return new Uint8Array(0)
+  const parts: Uint8Array[] = []
+  let length = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    length += value.length
+    if (length > max) {
+      await reader.cancel()
+      return null
+    }
+    parts.push(value)
+  }
+  const bytes = new Uint8Array(length)
+  let offset = 0
+  for (const part of parts) {
+    bytes.set(part, offset)
+    offset += part.length
+  }
+  return bytes
 }

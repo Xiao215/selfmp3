@@ -121,6 +121,22 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
     expect(picture).toBe(false)
   })
 
+  it('does not read a cover larger than any cover', async () => {
+    const big = new Response(new Uint8Array(16), {
+      headers: { 'content-length': String(64 * 1024 * 1024) },
+    })
+    let read = false
+    Object.defineProperty(big, 'arrayBuffer', {
+      value: () => ((read = true), Promise.reject(new Error('read'))),
+    })
+    const fetch = (() => Promise.resolve(big)) as typeof globalThis.fetch
+    const writer = new TagWriter({ fetch, logger: createLogger('silent') })
+
+    expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
+    expect(probe(song).picture).toBe(false)
+    expect(read).toBe(false)
+  })
+
   it('leaves a file it cannot read as it was, and says so', async () => {
     fs.writeFileSync(song, 'not audio')
     const writer = new TagWriter({ logger: createLogger('silent') })

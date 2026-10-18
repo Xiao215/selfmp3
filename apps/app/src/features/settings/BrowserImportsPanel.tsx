@@ -1,6 +1,10 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { View } from 'react-native'
+import { resetRatchet } from '@selfmp3/shared'
+import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
+import { deviceBudget } from '../../ports/deviceDownloads'
+import { paceNote } from '../import/devicePreview.model'
 import {
   setDeviceDownloads,
   setDeviceHandBack,
@@ -22,6 +26,13 @@ export function BrowserImportsPanel({
 }): ReactNode {
   const downloads = useDeviceDownloads()
   const handBack = useDeviceHandBack()
+  // Read as the panel draws: a refusal lands while downloading, not while Settings is open.
+  const [pace, setPace] = useState(() => paceNote(deviceBudget.get(), Date.now()))
+  const resetPace = (): void => {
+    const state = deviceBudget.get()
+    if (state) deviceBudget.save(resetRatchet(state, Date.now()))
+    setPace(paceNote(deviceBudget.get(), Date.now()))
+  }
   return (
     <Panel title="In this browser" hint="on this device" anchor={anchor}>
       <Row
@@ -33,7 +44,7 @@ export function BrowserImportsPanel({
       <Row
         label="Let the server take over when YouTube slows this browser down"
         hint="Off, this browser waits out YouTube's pause, up to 15 minutes, and finishes the songs itself."
-        last
+        last={pace === null}
       >
         <Toggle
           value={handBack}
@@ -42,6 +53,15 @@ export function BrowserImportsPanel({
           label="Let the server take over when YouTube slows this browser down"
         />
       </Row>
+      {pace !== null ? (
+        <Row
+          label="Pace at YouTube"
+          hint={`${pace} Back to full if nothing has changed since.`}
+          last
+        >
+          <Button label="Reset" onPress={resetPace} testID="settings-reset-youtube-pace" />
+        </Row>
+      ) : null}
     </Panel>
   )
 }

@@ -4,21 +4,21 @@ import {
   base64ToBytes,
   bytesToBase64,
   YT_PROXY_CHUNK_BYTES,
-  YT_PROXY_ORIGINS,
+  YT_PROXY_PAGES,
   YT_PROXY_PORT,
   type YtProxyExtensionMessage,
 } from '@selfmp3/shared'
 import { ytProxy, type ProxyPort } from './ytProxy.js'
 
-const APP = 'http://localhost:4602'
+const APP = 'http://localhost:4602/'
 
-function fakePort(options: { name?: string; origin?: string } = {}) {
+function fakePort(options: { name?: string; page?: string } = {}) {
   const sent: YtProxyExtensionMessage[] = []
   let onMessage: (message: unknown) => void = () => undefined
   let onDisconnect: () => void = () => undefined
   const port: ProxyPort & { disconnected: boolean } = {
     name: options.name ?? YT_PROXY_PORT,
-    sender: { origin: options.origin ?? APP },
+    sender: { url: options.page ?? `${APP}index.html` },
     disconnected: false,
     postMessage: message => sent.push(message),
     disconnect: () => {
@@ -61,7 +61,7 @@ describe('ytProxy', () => {
       ),
     )
     const { port, sent, send } = fakePort()
-    ytProxy({ fetch, origins: [APP] })(port)
+    ytProxy({ fetch, pages: [APP] })(port)
 
     send(
       request(1, 'https://www.youtube.com/youtubei/v1/player', {
@@ -92,7 +92,7 @@ describe('ytProxy', () => {
   it('refuses an address that is not YouTube without fetching it', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>()
     const { port, sent, send } = fakePort()
-    ytProxy({ fetch, origins: [APP] })(port)
+    ytProxy({ fetch, pages: [APP] })(port)
 
     send(request(2, 'https://accounts.google.com/'))
     await settled(sent, 2)
@@ -105,7 +105,7 @@ describe('ytProxy', () => {
     const answer = new Response('secret')
     Object.defineProperty(answer, 'url', { value: 'https://example.com/' })
     const { port, sent, send } = fakePort()
-    ytProxy({ fetch: () => Promise.resolve(answer), origins: [APP] })(port)
+    ytProxy({ fetch: () => Promise.resolve(answer), pages: [APP] })(port)
 
     send(request(3, 'https://www.youtube.com/redirect'))
     await settled(sent, 3)
@@ -114,14 +114,20 @@ describe('ytProxy', () => {
   })
 
   it('hangs up on a page it was not told to serve', () => {
-    const { port } = fakePort({ origin: 'https://example.com' })
-    ytProxy({ fetch: vi.fn(), origins: [APP] })(port)
+    const { port } = fakePort({ page: 'https://example.com/' })
+    ytProxy({ fetch: vi.fn(), pages: [APP] })(port)
+    expect(port.disconnected).toBe(true)
+  })
+
+  it('hangs up on another page of the same site', () => {
+    const { port } = fakePort({ page: 'https://xiao215.github.io/someone-else/' })
+    ytProxy({ fetch: vi.fn(), pages: ['https://xiao215.github.io/selfmp3/'] })(port)
     expect(port.disconnected).toBe(true)
   })
 
   it('leaves a port by another name alone', () => {
-    const { port } = fakePort({ name: 'something-else', origin: 'https://example.com' })
-    ytProxy({ fetch: vi.fn(), origins: [APP] })(port)
+    const { port } = fakePort({ name: 'something-else', page: 'https://example.com/' })
+    ytProxy({ fetch: vi.fn(), pages: [APP] })(port)
     expect(port.disconnected).toBe(false)
   })
 
@@ -132,7 +138,7 @@ describe('ytProxy', () => {
       return new Promise<Response>(() => undefined)
     })
     const { port, send, close } = fakePort()
-    ytProxy({ fetch, origins: [APP] })(port)
+    ytProxy({ fetch, pages: [APP] })(port)
 
     send(request(4, 'https://rr1---sn-x.googlevideo.com/videoplayback'))
     await vi.waitFor(() => expect(fetch).toHaveBeenCalled())
@@ -147,7 +153,7 @@ describe('ytProxy, signed in', () => {
   async function carried(signIn: () => Promise<string | null>, url: string) {
     const fetch = vi.fn(() => Promise.resolve(new Response('ok')))
     const { port, sent, send } = fakePort()
-    ytProxy({ fetch, origins: [APP], signIn, now: () => 1_700_000_000_000 })(port)
+    ytProxy({ fetch, pages: [APP], signIn, now: () => 1_700_000_000_000 })(port)
     send(request(1, url, { method: 'POST', headers: [['x-a', '1']] }))
     await settled(sent, 1)
     const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
@@ -185,8 +191,6 @@ describe('the manifest', () => {
     const manifest = JSON.parse(
       readFileSync(new URL('../../manifest.json', import.meta.url), 'utf8'),
     ) as { externally_connectable: { matches: string[] } }
-    expect(manifest.externally_connectable.matches).toEqual(
-      YT_PROXY_ORIGINS.map(origin => `${origin}/*`),
-    )
+    expect(manifest.externally_connectable.matches).toEqual(YT_PROXY_PAGES.map(page => `${page}*`))
   })
 })

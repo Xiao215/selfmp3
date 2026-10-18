@@ -46,7 +46,11 @@
     "https://www.google.com/js/th/*"
   ],
   "externally_connectable": {
-    "matches": ["https://xiao215.github.io/*", "http://localhost:4601/*", "http://localhost:4602/*"]
+    "matches": [
+      "https://xiao215.github.io/selfmp3/*",
+      "http://localhost:4601/*",
+      "http://localhost:4602/*"
+    ]
   },
   "content_scripts": [
     {

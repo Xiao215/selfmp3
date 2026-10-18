@@ -49,6 +49,9 @@ which is redeployed whenever we like:
 4. The server checks the file: the right hash, no bigger than any song, and
    ffprobe finds audio as long as the song. Only then does the job leave the
    device. A file that fails a check is refused and never reaches the library.
+   A file that passes waits for a free place among the downloads in flight
+   (Settings → Importing → Downloads at once), as the server's own do, so
+   several devices sending at once cannot run more than the machine allows.
 5. From there the server finishes the job as it finishes its own downloads,
    with one extra step: it writes the tags yt-dlp would have written —
    title, artist and album as you confirmed them in the review, the release
@@ -96,9 +99,22 @@ on the device (`devicePrefs.ts`) and shown only in a browser tab:
   kept alive meanwhile. Looking up and listening go to the server during a
   pause either way: a person is waiting for those.
 
+Below them, once YouTube has refused this browser, **Pace at YouTube** says how
+far its budget was cut and how long a pause has left, with **Reset**. Each
+refusal halves the browser's pace for good, as a server's does, and only a
+person puts it back.
+
 And one in the extension's own options page: **Use my YouTube sign-in** (off),
 under *Signed in* below. It lives in the extension because the extension is
 what would send the sign-in; no page can turn it on.
+
+## Finding the extension
+
+The app looks for the extension the first time it would use it. A way found is
+kept; a look that found none is believed for 30 seconds and then made again, so
+an extension that was asleep, turned off and on, or slow to answer is found
+without a reload. One installed after the page was opened is not: Chrome gives a
+page its way to an extension as the page loads, so that takes one reload.
 
 ## When something goes wrong, the server takes over
 
@@ -160,7 +176,9 @@ signed in, and whether `VISIONOS` still gives whole files signed in, is not.
 
 ## What the extension is allowed to do
 
-It forwards requests for self.mp3's own pages only, to YouTube's addresses only,
+It forwards requests for self.mp3's own pages only — the app's path, not the
+rest of the site it is published on (`YT_PROXY_PAGES`) — to YouTube's
+addresses only,
 and **without your YouTube cookies** unless you turned the sign-in on — and
 then only for the player request, as above. One rule rewrites the `Origin` header on the
 extension's requests to YouTube's API and video servers, because YouTube refuses

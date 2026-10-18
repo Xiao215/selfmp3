@@ -1,5 +1,5 @@
 import { DEFAULT_ACCENT_HUE, darkPalette } from '@selfmp3/client/core'
-import { DEFAULT_APP_URL, YT_PROXY_ORIGINS } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, YT_PROXY_PAGES } from '@selfmp3/shared'
 import type { Handlers } from '../bridge.js'
 import { serve, servePage } from '../bridge.js'
 import { createCloud } from './cloud.js'
@@ -128,7 +128,7 @@ installMenus({ quickImport, openReview: openPopupWindow })
 chrome.runtime.onConnectExternal.addListener(
   ytProxy({
     fetch: (input, init) => fetch(input, init),
-    origins: YT_PROXY_ORIGINS,
+    pages: YT_PROXY_PAGES,
     // Off unless the person turned it on in the options; then the cookie Chrome keeps for YouTube.
     signIn: async () => {
       if (!(await readOptions(store)).useYouTubeSignIn) return null

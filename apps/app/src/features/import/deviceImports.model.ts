@@ -75,6 +75,12 @@ interface DeviceImportsDeps {
   /** Renew every `ms` until the returned function is called. */
   readonly every: (ms: number, tick: () => void) => () => void
   readonly log: (message: string, details?: Record<string, unknown>) => void
+  /**
+   * Whether a refusal for rate hands what is left to the server (the device's
+   * setting, devicePrefs.ts). Off, the song goes back to the front of the line
+   * and waits the refusal out here, on a lease kept alive meanwhile.
+   */
+  readonly handBack: () => boolean
 }
 
 /** How often a lease is renewed: well inside the server's five minutes, even in a background tab. */
@@ -182,6 +188,13 @@ export class DeviceImports {
       const message = error instanceof Error ? error.message : String(error)
       if (isRateLimited(message)) {
         this.#deps.budget.save(penalize(this.#budget(), this.#deps.now()))
+        if (!this.#deps.handBack()) {
+          this.#deps.log('YouTube refused this device for rate; it waits, and goes on', {
+            message,
+          })
+          batch.waiting.unshift(id)
+          return
+        }
         this.#deps.log('YouTube refused this device for rate; the server takes the rest', {
           message,
         })

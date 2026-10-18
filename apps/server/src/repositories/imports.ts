@@ -292,11 +292,13 @@ export class ImportRepository {
         WHERE lease_id = ? AND ${DEVICE_OPEN} AND lease_until > datetime('now')
         ORDER BY position, created_at`,
     )
+    // Again on a song it is downloading already: it waited out a refusal for
+    // rate and starts over (the device's "hand back" switch, off).
     this.#startOnDevice = db.prepare(
       `UPDATE import_jobs
           SET status = 'running', step = 'downloading', progress = 0, error = NULL,
               attempts = attempts + 1, lease_until = ${UNTIL}, updated_at = datetime('now')
-        WHERE id = @id AND lease_id = @lease AND status = 'queued' AND lease_until > datetime('now')`,
+        WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`,
     )
     this.#progressOnDevice = db.prepare(
       `UPDATE import_jobs SET progress = @percent, updated_at = datetime('now')

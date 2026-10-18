@@ -75,8 +75,9 @@ describe('ImportRepository, jobs a device holds', () => {
       step: 'downloading',
       attempts: 1,
     })
-    // A start is once: the job is downloading now.
-    expect(imports.startOnDevice('lease-1', held, 300)).toBe(false)
+    // Started again after waiting out a refusal for rate: one more attempt, still the device's.
+    expect(imports.startOnDevice('lease-1', held, 300)).toBe(true)
+    expect(imports.byId(held)?.attempts).toBe(2)
 
     expect(imports.renewLease('lease-1', 300, [{ id: held, percent: 42.7 }])).toEqual([held])
     expect(imports.byId(held)?.progress).toBe(42)

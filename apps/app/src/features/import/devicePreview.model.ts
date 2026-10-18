@@ -83,6 +83,11 @@ export function takeTurn(budget: BudgetStore, now: number): boolean {
   return true
 }
 
+/** Whether YouTube's refusal for rate is still being waited out on this device. */
+export function refusing(budget: BudgetStore, now: number): boolean {
+  return (budget.get()?.pausedUntil ?? 0) > now
+}
+
 /** YouTube refused this device for rate: the bucket empties, and it keeps clear for a while. */
 export function noteRefusal(budget: BudgetStore, now: number, error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)

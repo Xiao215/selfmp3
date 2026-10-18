@@ -46,6 +46,8 @@ function harness(options: {
   budget?: ThrottleState | null
   /** Songs downloaded already, by id: heard in the review. */
   cached?: string[]
+  /** The device's setting: hand the rest to the server after a refusal for rate. */
+  handBack?: boolean
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -99,6 +101,7 @@ function harness(options: {
       }
     },
     log: () => undefined,
+    handBack: () => options.handBack ?? true,
   })
 
   return {
@@ -240,5 +243,24 @@ describe('DeviceImports', () => {
     await h.imports.settled()
     expect(h.slept).toEqual([])
     expect(h.calls).toEqual(['start a', 'download a', 'upload a'])
+  })
+
+  it('waits a refusal for rate out and downloads the song itself, when told not to hand back', async () => {
+    let refused = false
+    const h = harness({
+      ids: ['a', 'b'],
+      handBack: false,
+      download: () => {
+        if (refused) return Promise.resolve(FILE)
+        refused = true
+        return Promise.reject(new Error("Sign in to confirm you're not a bot"))
+      },
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls.filter(call => call.startsWith('release'))).toEqual([])
+    expect(h.calls.filter(call => call.startsWith('upload'))).toEqual(['upload a', 'upload b'])
+    // The pause was waited out, not skipped.
+    expect(h.slept.reduce((sum, ms) => sum + ms, 0)).toBeGreaterThanOrEqual(15 * 60 * 1000 - 1000)
   })
 })

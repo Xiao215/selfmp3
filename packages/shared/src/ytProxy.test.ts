@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { base64ToBytes, bytesToBase64, isYtProxyUrl, YtProxyPageMessageSchema } from './ytProxy.js'
+import { createHash } from 'node:crypto'
+import {
+  base64ToBytes,
+  bytesToBase64,
+  isYtProxyUrl,
+  sapisidHash,
+  signsIn,
+  YtProxyPageMessageSchema,
+} from './ytProxy.js'
 
 describe('isYtProxyUrl', () => {
   it.each([
@@ -54,5 +62,31 @@ describe('YtProxyPageMessageSchema', () => {
     expect(
       YtProxyPageMessageSchema.safeParse({ ...message, method: 'POST', body: null }).success,
     ).toBe(true)
+  })
+})
+
+describe('signsIn', () => {
+  it('signs in the player request and nothing else', () => {
+    expect(signsIn('https://www.youtube.com/youtubei/v1/player?prettyPrint=false')).toBe(true)
+    expect(signsIn('https://music.youtube.com/youtubei/v1/player')).toBe(true)
+    for (const url of [
+      'https://www.youtube.com/youtubei/v1/like/like',
+      'https://www.youtube.com/youtubei/v1/subscription/subscribe',
+      'https://www.youtube.com/youtubei/v1/next',
+      'https://www.youtube.com/youtubei/v1/player/heartbeat',
+      'https://rr1---sn-x.googlevideo.com/videoplayback?itag=140',
+      'https://www.youtube.com.evil.example/youtubei/v1/player',
+    ]) {
+      expect(signsIn(url)).toBe(false)
+    }
+  })
+})
+
+describe('sapisidHash', () => {
+  it('is the SHA-1 of the time, the cookie and YouTube’s origin, as YouTube makes it', async () => {
+    const expected = createHash('sha1')
+      .update('1700000000 abc/DEF https://www.youtube.com')
+      .digest('hex')
+    expect(await sapisidHash('abc/DEF', 1_700_000_000)).toBe(`SAPISIDHASH 1700000000_${expected}`)
   })
 })

@@ -142,6 +142,44 @@ describe('ytProxy', () => {
   })
 })
 
+describe('ytProxy, signed in', () => {
+  /** What the proxy asked `fetch` for, by request id. */
+  async function carried(signIn: () => Promise<string | null>, url: string) {
+    const fetch = vi.fn(() => Promise.resolve(new Response('ok')))
+    const { port, sent, send } = fakePort()
+    ytProxy({ fetch, origins: [APP], signIn, now: () => 1_700_000_000_000 })(port)
+    send(request(1, url, { method: 'POST', headers: [['x-a', '1']] }))
+    await settled(sent, 1)
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    return { init, headers: new Headers(init.headers) }
+  }
+
+  const PLAYER = 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false'
+
+  it('sends the player request with the sign-in, when the person turned it on', async () => {
+    const { init, headers } = await carried(() => Promise.resolve('abc'), PLAYER)
+    expect(init.credentials).toBe('include')
+    expect(headers.get('authorization')).toMatch(/^SAPISIDHASH 1700000000_[0-9a-f]{40}$/)
+    expect(headers.get('x-goog-authuser')).toBe('0')
+    expect(headers.get('x-a')).toBe('1')
+  })
+
+  it('sends nothing else signed in, whatever the option', async () => {
+    const signIn = vi.fn(() => Promise.resolve('abc'))
+    const { init, headers } = await carried(signIn, 'https://www.youtube.com/youtubei/v1/like/like')
+    expect(init.credentials).toBe('omit')
+    expect(headers.has('authorization')).toBe(false)
+    // Not even asked: the option is read only for what may go signed in.
+    expect(signIn).not.toHaveBeenCalled()
+  })
+
+  it('sends the player request with no sign-in while the option is off', async () => {
+    const { init, headers } = await carried(() => Promise.resolve(null), PLAYER)
+    expect(init.credentials).toBe('omit')
+    expect(headers.has('authorization')).toBe(false)
+  })
+})
+
 describe('the manifest', () => {
   it('lets in exactly the pages the proxy serves', () => {
     const manifest = JSON.parse(

@@ -7,7 +7,8 @@ import {
   uploadDeviceFile,
 } from '@/ports/deviceDownloads'
 import { DeviceImports } from './deviceImports.model'
-import { previewOnDevice, singleVideo } from './devicePreview.model'
+import { previewOnDevice, refusing, singleVideo } from './devicePreview.model'
+import { deviceDownloadsOn, deviceHandBackOn } from './devicePrefs'
 
 /**
  * The one `DeviceImports` this app runs (deviceImports.model.ts): songs this
@@ -23,6 +24,7 @@ const deviceImports = new DeviceImports({
     const timer = setInterval(tick, ms)
     return () => clearInterval(timer)
   },
+  handBack: deviceHandBackOn,
   log: (message, details) => console.warn(`[device import] ${message}`, details ?? ''),
 })
 
@@ -37,7 +39,10 @@ export async function enqueueImport(
   request: ImportEnqueue,
 ): Promise<ImportEnqueueResult> {
   // Whether this device can download at all first: on a phone it cannot, and nothing else is asked.
-  const onDevice = (await deviceDownloader()) !== null && !api.answersFromCloud()
+  const youtube = deviceDownloadsOn() ? await deviceDownloader() : null
+  // Refused for rate a moment ago, and told to hand back: the server has these.
+  const waiting = deviceHandBackOn() && refusing(deviceBudget, Date.now())
+  const onDevice = youtube !== null && !waiting && !api.answersFromCloud()
   const result = await api.importEnqueue(onDevice ? { ...request, fetchOnDevice: true } : request)
   if (result.device) deviceImports.take(api, result.device, result.jobs)
   return result
@@ -51,7 +56,7 @@ export async function enqueueImport(
  */
 export async function previewImport(api: Api, input: string): Promise<ImportPreview> {
   // Whether this device can ask YouTube at all first: on a phone it cannot, and nothing else is asked.
-  const youtube = await deviceDownloader()
+  const youtube = deviceDownloadsOn() ? await deviceDownloader() : null
   const onDevice = youtube !== null && !api.answersFromCloud()
   const video = onDevice ? singleVideo(input) : null
   if (youtube && video) {
@@ -77,5 +82,6 @@ export async function previewImport(api: Api, input: string): Promise<ImportPrev
  * make one, else `server` — the server's listen address for it.
  */
 export async function listenSource(url: string, server: () => string): Promise<string> {
+  if (!deviceDownloadsOn()) return server()
   return (await deviceListenUrl(url)) ?? server()
 }

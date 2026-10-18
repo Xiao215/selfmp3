@@ -9,6 +9,7 @@ import { installMenus, openPopupWindow } from './menus.js'
 import { idbStore } from './store.js'
 import { ALARM, ALARM_MINUTES, createWatcher } from './watcher.js'
 import { ytProxy } from './ytProxy.js'
+import { readOptions } from './options.js'
 
 /**
  * The extension's background worker: the one part of it that talks to a server
@@ -125,7 +126,16 @@ installMenus({ quickImport, openReview: openPopupWindow })
 
 // The app's requests to YouTube, carried past CORS for the page (ytProxy.ts).
 chrome.runtime.onConnectExternal.addListener(
-  ytProxy({ fetch: (input, init) => fetch(input, init), origins: YT_PROXY_ORIGINS }),
+  ytProxy({
+    fetch: (input, init) => fetch(input, init),
+    origins: YT_PROXY_ORIGINS,
+    // Off unless the person turned it on in the options; then the cookie Chrome keeps for YouTube.
+    signIn: async () => {
+      if (!(await readOptions(store)).useYouTubeSignIn) return null
+      const cookie = await chrome.cookies.get({ url: 'https://www.youtube.com', name: 'SAPISID' })
+      return cookie?.value ?? null
+    },
+  }),
 )
 
 /** One read of the queue for the badge, from the alarm or a worker starting. */

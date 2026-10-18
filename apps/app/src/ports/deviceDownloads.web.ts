@@ -7,14 +7,15 @@ import {
 } from '@selfmp3/shared'
 import type { DeviceFile } from '@/features/import/deviceImports.model'
 import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
+import { appPath } from './appPath'
 
 /**
  * Downloading a song in this tab (docs/features/client-download.md): the
- * self.mp3 extension carries the page's requests to YouTube, and
- * `@selfmp3/ytclient` does the rest. Loaded only when a song is to be
- * downloaded here — youtubei.js is megabytes nobody else needs — and asked
- * once whether the extension answers; a tab without it imports as it always
- * has, through the server.
+ * self.mp3 extension carries the requests to YouTube, and youtubei.js runs in
+ * the sandbox frame (`public/yt-sandbox.html`), never in this page — YouTube's
+ * player script and BotGuard are code YouTube sends, and this page holds the
+ * person's self.mp3 session. Asked once whether the extension answers; a tab
+ * without it imports as it always has, through the server.
  *
  * The installed Mac app draws this same page, but from `app://selfmp3`, which
  * the extension does not talk to: it finds no extension and goes through the
@@ -30,12 +31,12 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
       return null
     }
     try {
-      const { carrierAnswers, createDeviceDownloader, extensionFetch } =
-        await import('@selfmp3/ytclient')
+      const { carrierAnswers, extensionFetch, openSandbox, withKeptSongs } =
+        await import('@selfmp3/ytclient/host')
       const fetch = extensionFetch()
       if (!fetch) return without('this browser has no self.mp3 extension to ask YouTube through')
       if (!(await carrierAnswers(fetch))) return without('the self.mp3 extension did not answer')
-      return createDeviceDownloader(fetch)
+      return withKeptSongs(await openSandbox({ src: appPath('yt-sandbox.html'), fetch }))
     } catch (error) {
       return without(error instanceof Error ? error.message : String(error))
     }
@@ -96,7 +97,7 @@ export async function uploadDeviceFile(
   target: { url: string; headers: Record<string, string> },
   file: DeviceFile,
 ): Promise<{ status: number; message: string }> {
-  const { metaHeader } = await import('@selfmp3/ytclient')
+  const { metaHeader } = await import('@selfmp3/ytclient/host')
   const response = await fetch(target.url, {
     method: 'PUT',
     headers: {

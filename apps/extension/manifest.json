@@ -29,7 +29,8 @@
     "notifications",
     "alarms",
     "identity",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "cookies"
   ],
   "declarative_net_request": {
     "rule_resources": [

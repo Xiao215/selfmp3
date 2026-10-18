@@ -6,6 +6,7 @@
  */
 import { Innertube, Platform } from 'youtubei.js/web.bundle'
 import { createPoMinter, type PoMinter } from './poToken.js'
+import type { VideoFacts } from './keptSongs.js'
 import type { YtFetch } from './transport.js'
 
 /**
@@ -51,7 +52,7 @@ export interface YtSession {
   readonly fetch: YtFetch
   readonly visitorData: string
   /** Null for a session opened without one, to see what YouTube does then. */
-  readonly minter: PoMinter | null
+  readonly minter: Pick<PoMinter, 'mint'> | null
 }
 
 /**
@@ -63,7 +64,12 @@ export interface YtSession {
  */
 export async function createSession(
   fetch: YtFetch,
-  options: { poToken?: boolean } = {},
+  /**
+   * `minter`: where PO tokens come from, when not from BotGuard run here — the
+   * sandbox frame asks the page for them, since BotGuard does not attest a
+   * frame with no origin of its own (sandbox/frame.ts).
+   */
+  options: { poToken?: boolean; minter?: Pick<PoMinter, 'mint'> } = {},
 ): Promise<YtSession> {
   Platform.shim.eval = data => {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval -- running YouTube's player is the point.
@@ -75,7 +81,8 @@ export async function createSession(
   const visitorData = innertube.session.context.client.visitorData
   if (!visitorData) throw new Error('YouTube gave this session no visitor identity')
 
-  const minter = options.poToken === false ? null : await createPoMinter(fetch)
+  const minter =
+    options.poToken === false ? null : (options.minter ?? (await createPoMinter(fetch)))
   return { innertube, fetch, visitorData, minter }
 }
 
@@ -97,17 +104,6 @@ export interface DownloadedAudio {
   /** The video's description: a YouTube Music track's says when it came out (`releaseOf`). */
   readonly description: string
   readonly attempts: readonly Attempt[]
-}
-
-/** What the player says of a video, for a review to show before anything is downloaded. */
-export interface VideoFacts {
-  readonly title: string
-  readonly author: string
-  readonly durationSeconds: number
-  /** A YouTube Music track's says its song, artists, album and release (musicDescription.ts). */
-  readonly description: string
-  /** The largest still the player names, or null. */
-  readonly thumbnail: string | null
 }
 
 /**

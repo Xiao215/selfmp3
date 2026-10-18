@@ -2,6 +2,8 @@ import {
   base64ToBytes,
   bytesToBase64,
   isYtProxyUrl,
+  sapisidHash,
+  signsIn,
   YT_PROXY_CHUNK_BYTES,
   YT_PROXY_PORT,
   YtProxyPageMessageSchema,
@@ -48,6 +50,14 @@ function senderOrigin(sender: ProxyPort['sender']): string | null {
 export function ytProxy(deps: {
   fetch: typeof fetch
   origins: readonly string[]
+  /**
+   * The `SAPISID` cookie of this browser's YouTube sign-in, when the person
+   * has turned "use my YouTube sign-in" on in the options (options.ts), or
+   * null. Asked only for a request `signsIn` names.
+   */
+  signIn?: () => Promise<string | null>
+  /** Seconds since the epoch, for the sign-in's hash. */
+  now?: () => number
 }): (port: ProxyPort) => void {
   return port => {
     if (port.name !== YT_PROXY_PORT) return
@@ -82,12 +92,20 @@ export function ytProxy(deps: {
       const controller = new AbortController()
       inFlight.set(id, controller)
       try {
+        // Signed in only where the person said so, and only for the player
+        // request (`signsIn`); everything else goes with no session at all.
+        const sapisid = signsIn(request.url) ? ((await deps.signIn?.()) ?? null) : null
+        const headers = new Headers(request.headers)
+        if (sapisid) {
+          const seconds = Math.floor((deps.now?.() ?? Date.now()) / 1000)
+          headers.set('Authorization', await sapisidHash(sapisid, seconds))
+          headers.set('X-Goog-AuthUser', '0')
+        }
         const response = await deps.fetch(request.url, {
           method: request.method,
-          headers: request.headers,
+          headers,
           ...(request.body === null ? {} : { body: base64ToBytes(request.body) }),
-          // Never the person's YouTube session: see packages/shared's ytProxy.ts.
-          credentials: 'omit',
+          credentials: sapisid ? 'include' : 'omit',
           signal: controller.signal,
         })
         // A redirect is followed before anything here sees it; one that led

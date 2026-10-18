@@ -40,6 +40,9 @@ describe('settings', () => {
     expect(ids).not.toContain('cloud')
     expect(sectionsFor()).toHaveLength(11)
     expect(sectionsFor({ installed: false }).map(section => section.id)).not.toContain('offline')
+    // Downloading through the extension is a browser tab's; an app has no extension.
+    expect(sectionsFor({ installed: false }).map(section => section.id)).toContain('browserImports')
+    expect(sectionsFor().map(section => section.id)).not.toContain('browserImports')
   })
 
   it('leaves Playback out where the engine cannot crossfade, which is all it holds', () => {

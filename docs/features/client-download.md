@@ -7,11 +7,13 @@ so the server never asks YouTube about it at all. The server still does
 everything after the download — tags, lyrics,
 cover, library, bucket — exactly as for a song it downloaded itself. Nothing
 changes anywhere else: on a phone, in the Mac app, in a browser without the
-extension, or when no server answers, the server downloads as before.
+extension, or when no server answers, the server downloads as before. It can
+be turned off in Settings (below).
 
-**Where:** the page's download code is `packages/ytclient`; the app runs it from
-`apps/app/src/features/import/deviceImports*.ts`, `devicePreview.model.ts` and
-`src/ports/deviceDownloads*.ts`;
+**Where:** the download code is `packages/ytclient`, run in a sandbox frame
+(`src/sandbox/`, bundled into `apps/app/public/yt-sandbox.js`); the app drives it
+from `apps/app/src/features/import/deviceImports*.ts`, `devicePreview.model.ts`,
+`devicePrefs.ts` and `src/ports/deviceDownloads*.ts`;
 the extension forwards its requests in `apps/extension/src/background/ytProxy.ts`;
 the server's side is `apps/server/src/routes/importDevice.ts` and
 `receiveDeviceFile` in `services/importQueue.ts`.
@@ -80,6 +82,24 @@ plays the song as before. For a link the server reads, it is told not to look
 up where the first rows' audio is (`warmListen: false`), since the browser
 would be the one listening.
 
+## Settings
+
+Two switches in the app, under **Settings → Advanced → In this browser**, kept
+on the device (`devicePrefs.ts`) and shown only in a browser tab:
+
+- **Download songs here** (on): whether this browser looks up, plays and
+  downloads YouTube songs at all. Off, the server does all of it, as before.
+- **Let the server take over when YouTube slows this browser down** (on): when
+  YouTube refuses this browser for rate, the songs it has not downloaded go to
+  the server, and so does anything imported while the 15-minute pause lasts.
+  Off, the browser waits the pause out and downloads them itself, its lease
+  kept alive meanwhile. Looking up and listening go to the server during a
+  pause either way: a person is waiting for those.
+
+And one in the extension's own options page: **Use my YouTube sign-in** (off),
+under *Signed in* below. It lives in the extension because the extension is
+what would send the sign-in; no page can turn it on.
+
 ## When something goes wrong, the server takes over
 
 The device never fails a song. Whatever it cannot do, it hands back, and the
@@ -89,7 +109,7 @@ server downloads that song itself with yt-dlp:
 |---|---|
 | The download failed | Hands that song back (`/import/device/release`) and goes on to the next |
 | The server refused the file | The same |
-| YouTube refused this browser for rate ("not a bot", 429) | Hands back **every** song still waiting, and stays away from YouTube for 15 minutes |
+| YouTube refused this browser for rate ("not a bot", 429) | Hands back **every** song still waiting, and stays away from YouTube for 15 minutes — or, with the second switch off, waits the 15 minutes out and goes on |
 | You closed the tab, or the computer slept | Nothing: the lease runs out and the server takes the songs |
 | You cancelled or removed the song | The next renewal says the server no longer holds it, and the app stops |
 | The server restarted | A download in progress stays the device's; nothing is lost |
@@ -104,11 +124,45 @@ The browser keeps its own budget at YouTube, by the same rules as the server's
 first few songs go at once; after that, about one every 24 seconds, as on a
 server with no YouTube cookies.
 
+## The sandbox
+
+YouTube's player script, which youtubei.js has to run to read a video's links,
+is code YouTube sends, and the app's page holds your self.mp3 sign-in. So the
+page does not run it. youtubei.js and the player script run in a hidden iframe
+with `sandbox="allow-scripts"` and nothing else (`packages/ytclient/src/sandbox/`):
+an origin of its own, with no way to the page's storage, its cookies or its
+session. The frame can only ask the page to fetch, and the page fetches only
+YouTube's addresses, through the extension. The page asks the frame to describe
+or download a video and gets the facts or the file back. The app's own bundle
+no longer contains youtubei.js at all; it imports `@selfmp3/ytclient/host`.
+
+**BotGuard is the one exception, and still runs in the page.** Run in the frame,
+it gave an answer YouTube would not issue an integrity token for (2026-10-18):
+BotGuard reports the environment it runs in, and a frame with no origin is not
+one YouTube accepts. Making the frame look like something it is not would be
+working against Google's bot check, so the page runs BotGuard (bgutils-js) and
+hands the frame each anti-bot token it asks for.
+
+## Signed in
+
+With **Use my YouTube sign-in** on in the extension's options, the player
+request — the one YouTube counts against an account rather than an address —
+goes with this browser's YouTube sign-in: Chrome's own cookies, and the
+`SAPISIDHASH` header YouTube's pages send, made by the extension from the
+`SAPISID` cookie (`signsIn` and `sapisidHash` in `packages/shared/src/ytProxy.ts`).
+Nothing else goes signed in, whatever the option — not the media, and nothing
+that could like, subscribe or comment. The page never sees a cookie.
+
+The risk is the account's: YouTube may flag an account that downloads a lot,
+which is why it is off. **Not tried with a real account yet**: the switch, the
+cookies and the header are tested; whether YouTube then treats the request as
+signed in, and whether `VISIONOS` still gives whole files signed in, is not.
+
 ## What the extension is allowed to do
 
 It forwards requests for self.mp3's own pages only, to YouTube's addresses only,
-and **never with your YouTube cookies** — so nothing that got into the page can
-act as you on YouTube through it. One rule rewrites the `Origin` header on the
+and **without your YouTube cookies** unless you turned the sign-in on — and
+then only for the player request, as above. One rule rewrites the `Origin` header on the
 extension's requests to YouTube's API and video servers, because YouTube refuses
 any other origin. See *What it asks Chrome for* in
 [browser-extension.md](browser-extension.md).
@@ -125,8 +179,9 @@ YouTube changes these from month to month; check the date before relying on them
 | Only one YouTube client gives whole files | `VISIONOS` (Apple Vision Pro). `MWEB` and `YTMUSIC` stopped after 1 MB; `WEB` only offers SABR, a streaming format this does not speak |
 | An occasional 403 | 4 of the first 26 downloads. Asking for a fresh link and resuming at the same byte fixes it |
 | Speed | Under a second for a 3–6 MB song, after 1–2 seconds to start a session |
-| Metro and youtubei.js | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. Metro puts it in a separate 1 MB file loaded only when needed |
+| Metro and youtubei.js | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. It is bundled by esbuild into the sandbox frame now, and not in the app at all |
 | A static `regexFilter` rule stops the extension loading | Three `urlFilter` rules do the same job |
+| BotGuard in the sandbox frame (2026-10-18) | YouTube issued no integrity token for its answer, with or without storage the frame could use. It runs in the page instead |
 | A whole review in the browser (2026-10-14) | Looked up in 2.6 s, playing 4.9 s after the press, imported with no second download — and the server's log shows no preview and no listen, only the library check, the queue and the file |
 
 ## Trying it

@@ -130,3 +130,28 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return bytes
 }
+
+/**
+ * Whether the carrier sends `url` signed in, when the person has turned that
+ * on in the extension's options (docs/features/client-download.md, "Signed
+ * in"): the player request, and nothing else. It is the one that YouTube
+ * counts against the account rather than the address — what signing in is
+ * for — and it changes nothing on the account; the media itself needs no
+ * sign-in, and nothing that could like, subscribe or comment is ever sent
+ * with one.
+ */
+export function signsIn(url: string): boolean {
+  return /^https:\/\/(www|music)\.youtube\.com\/youtubei\/v1\/player(\?|$)/.test(url)
+}
+
+/**
+ * The `Authorization` a signed-in request to InnerTube carries, as YouTube's
+ * own pages and youtubei.js make it: `SAPISIDHASH <time>_<sha1>`, the SHA-1
+ * of the time, the `SAPISID` cookie and YouTube's origin.
+ */
+export async function sapisidHash(sapisid: string, seconds: number): Promise<string> {
+  const input = new TextEncoder().encode(`${seconds} ${sapisid} https://www.youtube.com`)
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', input))
+  const hex = [...digest].map(byte => byte.toString(16).padStart(2, '0')).join('')
+  return `SAPISIDHASH ${seconds}_${hex}`
+}

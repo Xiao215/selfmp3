@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { toProbedTrack, type ThrottleState } from '@selfmp3/shared'
-import { previewOnDevice, singleVideo, takeTurn, type VideoFacts } from './devicePreview.model'
+import {
+  previewOnDevice,
+  refusing,
+  singleVideo,
+  takeTurn,
+  type VideoFacts,
+} from './devicePreview.model'
 
 describe('singleVideo', () => {
   it.each([
@@ -133,5 +139,17 @@ describe('takeTurn', () => {
     const turns = Array.from({ length: 8 }, () => takeTurn(store, 1_700_000_000_000))
     expect(turns.filter(Boolean).length).toBeGreaterThan(0)
     expect(turns.at(-1)).toBe(false)
+  })
+})
+
+describe('refusing', () => {
+  it('is true only while a refusal for rate is still being waited out', () => {
+    const at = (pausedUntil: number) => ({
+      get: () => ({ tokens: 0, ratchet: 1, updatedAt: 0, pausedUntil, limitedAt: 0 }),
+      save: () => undefined,
+    })
+    expect(refusing(at(2_000), 1_000)).toBe(true)
+    expect(refusing(at(500), 1_000)).toBe(false)
+    expect(refusing({ get: () => null, save: () => undefined }, 1_000)).toBe(false)
   })
 })

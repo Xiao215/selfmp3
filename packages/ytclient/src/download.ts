@@ -38,7 +38,7 @@ export const DEFAULT_CLIENTS: readonly InnerTubeClient[] = ['VISIONOS', 'MWEB']
  * A megabyte, because a larger range was now and then refused outright where a
  * megabyte at a time went through.
  */
-export const DEFAULT_CHUNK_BYTES = 1024 * 1024
+const DEFAULT_CHUNK_BYTES = 1024 * 1024
 
 /**
  * How many times one client is asked again after its link was refused part

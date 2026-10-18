@@ -19,7 +19,7 @@ const OPTIONS_KEY = 'options'
 export const ExtensionOptionsSchema = z.object({
   useYouTubeSignIn: z.boolean(),
 })
-export type ExtensionOptions = z.infer<typeof ExtensionOptionsSchema>
+type ExtensionOptions = z.infer<typeof ExtensionOptionsSchema>
 
 const DEFAULTS: ExtensionOptions = { useYouTubeSignIn: false }
 

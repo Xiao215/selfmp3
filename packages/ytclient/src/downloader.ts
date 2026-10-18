@@ -1,12 +1,7 @@
 import { youtubeVideoId } from '@selfmp3/shared'
 import { createSession, describeVideo, downloadAudio, type YtSession } from './download.js'
 import type { PoMinter } from './poToken.js'
-import {
-  withKeptSongs,
-  type DeviceDownloader,
-  type DeviceFile,
-  type YouTubeCore,
-} from './keptSongs.js'
+import type { DeviceFile, YouTubeCore } from './keptSongs.js'
 import type { YtFetch } from './transport.js'
 
 /**
@@ -15,8 +10,8 @@ import type { YtFetch } from './transport.js'
  * is the slow part, and one does for every song after it.
  *
  * In the app this runs inside the sandbox frame (sandbox/frame.ts), never in
- * the page that holds the person's self.mp3 session; the harness, a page of
- * its own, runs it directly.
+ * the page that holds the person's self.mp3 session; the page keeps what it
+ * downloads (keptSongs.ts).
  */
 
 /** What a description is cut to, as the server's file route takes it. */
@@ -70,9 +65,4 @@ export function createYouTubeCore(
       }
     },
   }
-}
-
-/** youtubei.js with the songs it downloads kept: the harness's whole downloader. */
-export function createDeviceDownloader(fetch: YtFetch): DeviceDownloader {
-  return withKeptSongs(createYouTubeCore(fetch))
 }

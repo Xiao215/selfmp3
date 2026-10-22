@@ -490,6 +490,12 @@ const styles = StyleSheet.create(theme => ({
     // slide. Everything that has to escape the frame — a popover, a song
     // being dragged, a toast — is drawn by the overlay host above this.
     overflow: 'hidden',
+    // In a browser, clipped sideways only: Now Playing reaches down under the
+    // player bar (`stagePage`), and clipped at the bar's top edge too, Focus
+    // with a still mouse showed a flat 84 px strip of the frame where the bar
+    // had faded instead of the page's own light. `clip`, not `hidden`, so the
+    // other way stays visible rather than becoming a scroller.
+    _web: { overflow: 'visible', overflowX: 'clip' },
   },
   content: {
     flex: 1,

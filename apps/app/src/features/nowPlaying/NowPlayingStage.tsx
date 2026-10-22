@@ -163,6 +163,9 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
   )
 }
 
+/** A plain style, not a sheet's: an `Svg` in a browser does not take a sheet's class. */
+const UNCLIPPED = { overflow: 'visible' } as const
+
 /** One palette's three blooms. */
 function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
   const id = useSvgId('glow')
@@ -173,7 +176,9 @@ function GlowBlooms({ palette }: { palette: readonly Rgb[] }): ReactNode {
     { at: [0.93, 0.18], size: [0.28, 0.33], ink: ink(2), alpha: 0.5 },
   ] as const
   return (
-    <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1">
+    // Unclipped, so the blooms that reach past the page's edges carry on under
+    // the bar instead of stopping at a straight line where it starts.
+    <Svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 1 1" style={UNCLIPPED}>
       <Defs>
         {blooms.map((bloom, index) => (
           <RadialGradient key={index} id={`${id}${index}`} cx="0.5" cy="0.5" r="0.5">

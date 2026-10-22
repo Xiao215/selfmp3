@@ -425,7 +425,7 @@ function LeadCard({
           </Svg>
         </Animated.View>
       ) : null}
-      <View style={styles.leadWords}>
+      <View style={[styles.leadWords, art && styles.leadWordsBesideArt]}>
         <Text style={styles.leadRank}>{rank}</Text>
         <View style={styles.leadNames}>
           <Text style={styles.leadName} numberOfLines={1}>
@@ -620,6 +620,10 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.roomy,
     paddingBottom: space.md,
   },
+  // Beside a picture the words stop at 62% of the card, before the picture
+  // shows through the fade, so a long name ends in an ellipsis rather than
+  // being written over the art's own lettering (P8 A).
+  leadWordsBesideArt: { paddingRight: '38%' },
   // The serif's figures stand taller than their own size (bigNumber above).
   leadRank: { ...serif(theme.colors), color: theme.colors.accent },
   leadNames: { flex: 1, minWidth: 0, paddingBottom: space.xs },

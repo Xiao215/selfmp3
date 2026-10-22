@@ -65,9 +65,23 @@ import { COLUMN_WIDTH } from '../../shell/widths'
 const INDEX_WIDTH = 172
 const INDEX_GUTTER = space.gutterWide
 
-/** The page's top padding beside the index column, and on a narrow screen. */
+/** The page's top padding beside the index column, and on a phone. */
 const COLUMN_TOP = PAGE_TOP_WIDE
 const NARROW_TOP = PAGE_TOP_PHONE
+/** The panels' width cap (`panels`). */
+const PANELS_MAX = 780
+/**
+ * The panels' width a row needs to keep its words beside its control: Accent
+ * colour's swatches and hue strip leave its name a squeezed column below this.
+ */
+const ROWS_BESIDE = 620
+
+/** How wide the panels are in a page column of `page`: beside the index, or under the chips. */
+function panelsWidth(page: number): number {
+  const beside = page >= COLUMN_WIDTH.settingsIndex
+  const taken = beside ? INDEX_GUTTER * 3 + INDEX_WIDTH : space.gutterWide * 2
+  return Math.min(PANELS_MAX, page - taken)
+}
 /** The gap under the sticky chips, which a section chosen from them lands below. */
 const CHIPS_GAP = 14
 
@@ -120,6 +134,12 @@ export function SettingsScreen(): ReactNode {
   const shown = (id: SectionId): boolean => sections.some(section => section.id === id)
   // The index is a column beside the panels where the page has room; a row of chips below.
   const column = useContentWidthValue(page => page !== null && page >= COLUMN_WIDTH.settingsIndex)
+  // A row's words beside its control where the panels have the room for both;
+  // stacked on a phone, and in a computer's column the sidebar and Up next
+  // have narrowed, where they were crushed to a letter a line.
+  const rowsBeside = useContentWidthValue(page => page !== null && panelsWidth(page) >= ROWS_BESIDE)
+  // Under the chips on a computer, the page keeps a computer's frame.
+  const narrowTop = wide ? PAGE_TOP_WIDE : NARROW_TOP
   const scrollRef = useRef<ScrollView>(null)
   // Each shown panel's view, kept by `anchorAt`, and where it was last measured
   // in the scroll content.
@@ -199,7 +219,7 @@ export function SettingsScreen(): ReactNode {
     ])
     if (!origin) return
     chipBarHeight.current = bar?.height ?? 0
-    const pageTop = column ? COLUMN_TOP : NARROW_TOP
+    const pageTop = column ? COLUMN_TOP : narrowTop
     tops.current = new Map(
       placed.flatMap(({ id, place }) =>
         place ? [[id, pageTop + (place.y - origin.y)] as const] : [],
@@ -301,10 +321,7 @@ export function SettingsScreen(): ReactNode {
         onContentSizeChange={onContentSizeChange}
         onScrollBeginDrag={letGo}
         stickyHeaderIndices={column ? undefined : [1]}
-        contentContainerStyle={[
-          styles.content,
-          column ? styles.contentColumn : styles.contentNarrow,
-        ]}
+        contentContainerStyle={[styles.content, column ? styles.contentColumn : pageFrame(wide)]}
       >
         <View ref={headRef} style={styles.head}>
           <PageHeader
@@ -327,6 +344,7 @@ export function SettingsScreen(): ReactNode {
 
         {column ? null : (
           <ChipBar
+            wide={wide}
             barRef={chipBarRef}
             chipsRef={chipsRef}
             onWidth={barWidth => {
@@ -337,7 +355,7 @@ export function SettingsScreen(): ReactNode {
           </ChipBar>
         )}
 
-        <StackedRows value={!wide}>
+        <StackedRows value={!rowsBeside}>
           <View style={styles.panels}>
             <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
             {/* The doorman's owner only: it draws nothing for anyone else. */}
@@ -532,11 +550,13 @@ function CrossfadeRow(): ReactNode {
  * of panels it is pinned to.
  */
 function ChipBar({
+  wide,
   barRef,
   chipsRef,
   onWidth,
   children,
 }: {
+  wide: boolean
   barRef: RefObject<View | null>
   chipsRef: RefObject<ScrollView | null>
   onWidth: (width: number) => void
@@ -544,13 +564,20 @@ function ChipBar({
 }): ReactNode {
   const { theme } = useUnistyles()
   return (
-    <View ref={barRef} style={[styles.chipBar, { backgroundColor: theme.colors.surface0 }]}>
+    <View
+      ref={barRef}
+      style={[
+        styles.chipBar,
+        wide && styles.chipBarWide,
+        { backgroundColor: theme.colors.surface0 },
+      ]}
+    >
       <ScrollView
         ref={chipsRef}
         onLayout={event => onWidth(event.nativeEvent.layout.width)}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chips}
+        contentContainerStyle={[styles.chips, wide && styles.chipsWide]}
       >
         {children}
       </ScrollView>
@@ -567,11 +594,9 @@ const styles = StyleSheet.create(theme => ({
     paddingLeft: INDEX_GUTTER + INDEX_WIDTH + INDEX_GUTTER,
     paddingRight: INDEX_GUTTER,
   },
-  // `S2`'s phone gutter.
-  contentNarrow: pageFrame(false),
   head: { marginBottom: 20 },
   subCapped: { color: theme.colors.danger },
-  panels: { gap: 20, maxWidth: 780 },
+  panels: { gap: 20, maxWidth: PANELS_MAX },
   advanced: { gap: 20, paddingTop: space.md },
   indexColumn: {
     position: 'absolute',
@@ -596,11 +621,15 @@ const styles = StyleSheet.create(theme => ({
   indexItemOn: { backgroundColor: theme.colors.textPrimary },
   indexText: { color: theme.colors.textMuted, fontSize: type.sub },
   indexTextOn: { color: theme.colors.onPrimary, fontWeight: '600' },
+  // Out to the page's edges, then the gutter again inside: the chips scroll
+  // under the page's margin rather than stopping at it.
   chipBar: {
-    marginHorizontal: -20,
+    marginHorizontal: -space.gutter,
     paddingVertical: space.snug,
     marginBottom: CHIPS_GAP,
     backgroundColor: theme.colors.surface0,
   },
+  chipBarWide: { marginHorizontal: -space.gutterWide },
   chips: { gap: space.tight, paddingHorizontal: space.gutter },
+  chipsWide: { paddingHorizontal: space.gutterWide },
 }))

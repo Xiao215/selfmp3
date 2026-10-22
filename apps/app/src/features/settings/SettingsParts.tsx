@@ -221,13 +221,17 @@ const styles = StyleSheet.create(theme => ({
   rowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.snug },
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
-  label: { flex: 1, minWidth: 0, gap: 3 },
+  label: { flex: 1, minWidth: 120, gap: 3 },
   name: { color: theme.colors.textPrimary, fontSize: type.body },
   rowHint: {
     ...hint(theme.colors),
     maxWidth: 400,
   },
+  // Gives way before the words do, so a long value (a server's address) ends
+  // in an ellipsis instead of running out of the card.
   control: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',

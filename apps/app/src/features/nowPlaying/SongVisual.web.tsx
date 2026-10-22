@@ -373,7 +373,7 @@ function draw(
     const scale = ringScale(ring, tu)
     ctx.beginPath()
     ctx.arc(cx, cy, (disc / 2) * scale, 0, Math.PI * 2)
-    ctx.strokeStyle = rgba(c.inks[ringInk(ring.id)], ringAlpha(ring, tu))
+    ctx.strokeStyle = rgba(c.ring ?? c.inks[ringInk(ring.id)], ringAlpha(ring, tu))
     ctx.lineWidth = ringWidth(ring) * scale
     ctx.stroke()
   }

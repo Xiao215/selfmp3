@@ -355,7 +355,7 @@ function Ripples({
             key={slot}
             slot={slot}
             reach={disc}
-            ink={rgba(colors.inks[ringInk(slot)])}
+            ink={rgba(colors.ring ?? colors.inks[ringInk(slot)])}
             frame={frame}
             ringWidths={ringWidths}
           />

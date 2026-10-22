@@ -670,9 +670,16 @@ function BreathingCover({
   const { width } = useLayout()
   const window = useWindowDimensions()
   const [room, setRoom] = useState<CoverRoom | null>(null)
+  // Inside the room's own padding, and never more than the room: measured, the
+  // room includes `art`'s padding, so a cover sized to all of it touched the
+  // head and the title, and a 120 floor in a short window ran over both.
   const size = Math.max(
-    120,
-    Math.floor(room ? Math.min(room.width, room.height) : Math.min(width - space.lg * 2, 342)),
+    0,
+    Math.floor(
+      room
+        ? Math.min(room.width, room.height - ART_PADDING * 2)
+        : Math.min(width - space.lg * 2, 342),
+    ),
   )
 
   const [breath] = useState(() => new Animated.Value(playing ? 1 : PAUSED_COVER_SCALE))
@@ -857,6 +864,9 @@ class Flag {
   }
 }
 
+/** The space kept above and below the cover in its room. */
+const ART_PADDING = space.lg
+
 const styles = StyleSheet.create(theme => ({
   shell: { flex: 1 },
   screen: {
@@ -899,7 +909,7 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: space.lg,
+    paddingVertical: ART_PADDING,
   },
   artShadow: { borderRadius: radius.card, ...artShadow(theme.colors) },
   titleRow: {

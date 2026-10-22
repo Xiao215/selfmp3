@@ -690,7 +690,7 @@ function BreathingCover({
     0,
     Math.floor(
       room
-        ? Math.min(room.width, room.height - ART_PADDING * 2)
+        ? Math.min(room.width, room.height - ART_PADDING * 2, COVER_MOST)
         : Math.min(width - space.lg * 2, 342),
     ),
   )
@@ -879,6 +879,13 @@ class Flag {
 
 /** The space kept above and below the cover in its room. */
 const ART_PADDING = space.lg
+
+/**
+ * The cover's largest, centred in its room: a browser just under the computer
+ * width (744–819) gets this page, where the cover filled 674 of 819 (P7 A).
+ * A phone never reaches it.
+ */
+const COVER_MOST = 520
 
 const styles = StyleSheet.create(theme => ({
   shell: { flex: 1 },

@@ -56,7 +56,14 @@ import { SongTagsLine } from './SongTagsLine'
 import { lyricsStatusText } from './stageLyrics.model'
 import { useNowPlayingSong } from './useNowPlayingSong'
 import { NowPlayingStage } from './NowPlayingStage'
-import { parseView, PAUSED_COVER_SCALE, swipeOutcome, type PhoneView } from './nowPlaying.model'
+import {
+  backdropVeil,
+  parseView,
+  PAUSED_COVER_SCALE,
+  swipeOutcome,
+  type PhoneView,
+} from './nowPlaying.model'
+import { useShownScheme } from '../../ui/theme/unistyles'
 import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
@@ -151,6 +158,7 @@ function PhoneNowPlaying(): ReactNode {
  */
 function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => void }): ReactNode {
   const { theme } = useUnistyles()
+  const scheme = useShownScheme()
   const artFor = useArt()
   const backdropFor = useArt(ROW_COVER_SIZE)
   const router = useRouter()
@@ -359,7 +367,12 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         <View
           style={[
             styles.fill,
-            { backgroundColor: withAlpha(theme.colors.surface0, view === 'lyrics' ? 0.7 : 0.56) },
+            {
+              backgroundColor: withAlpha(
+                theme.colors.surface0,
+                backdropVeil(song.coverTone, scheme, view === 'lyrics' ? 0.7 : 0.56),
+              ),
+            },
           ]}
         />
       </View>

@@ -1,4 +1,4 @@
-import { clamp, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
+import { clamp, type CoverTone, type LyricsLanguage, type ParsedLyrics } from '@selfmp3/shared'
 
 /**
  * Now Playing's rules, with nothing drawn: where things sit on a computer's
@@ -217,3 +217,30 @@ export function upNextSeconds({
   if (remaining <= 0 || remaining > UP_NEXT_LEAD) return null
   return Math.ceil(remaining)
 }
+
+/**
+ * How strongly the phone page's ground veils the blurred cover under it.
+ *
+ * A fixed veil left a pale cover under a dark theme the same mid-grey as the
+ * page's quiet ink, and "Now playing" read at 1.3 : 1. The veil thickens as the
+ * cover comes closer to the theme's own text: a light cover under the dark
+ * theme, a dark one under the light. `base` is the veil a cover far from it gets.
+ */
+export function backdropVeil(
+  tone: CoverTone | null,
+  scheme: 'dark' | 'light',
+  base: number,
+): number {
+  if (!tone) return base
+  const total = tone.palette.reduce((sum, swatch) => sum + swatch.share, 0)
+  if (total <= 0) return base
+  const lightness = tone.palette.reduce((sum, swatch) => sum + swatch.l * swatch.share, 0) / total
+  const glare = scheme === 'dark' ? lightness : 1 - lightness
+  const closeness = clamp((glare - VEIL_FROM) / (VEIL_FULL - VEIL_FROM), 0, 1)
+  return base + (VEIL_MOST - base) * closeness
+}
+
+/** The cover lightness (toward the text) where the veil starts to thicken, and where it is thickest. */
+const VEIL_FROM = 0.55
+const VEIL_FULL = 0.9
+const VEIL_MOST = 0.86

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ParsedLyrics } from '@selfmp3/shared'
 
 import {
+  backdropVeil,
   contextLine,
   parseMode,
   parseTab,
@@ -162,5 +163,23 @@ describe('the phone page', () => {
     expect(letGo({ view: 'cover', dy: -60, vy: -1.2 })).toBe('lyrics')
     expect(letGo({ view: 'cover', dy: 60, vy: 0.3 })).toBeNull()
     expect(letGo({ view: 'cover', dy: 30, vy: 3 })).toBeNull()
+  })
+})
+
+describe("the veil over the phone page's cover", () => {
+  const tone = (l: number) => ({ hue: 0, chroma: 0, palette: [{ l, c: 0, h: 0, share: 1 }] })
+
+  it("leaves a cover far from the text at the page's own veil", () => {
+    expect(backdropVeil(tone(0.2), 'dark', 0.56)).toBe(0.56)
+    expect(backdropVeil(tone(0.9), 'light', 0.56)).toBe(0.56)
+    expect(backdropVeil(null, 'dark', 0.56)).toBe(0.56)
+  })
+
+  it('thickens it as the cover nears the text, a white cover under the dark theme most', () => {
+    expect(backdropVeil(tone(0.95), 'dark', 0.56)).toBeCloseTo(0.86)
+    expect(backdropVeil(tone(0.05), 'light', 0.56)).toBeCloseTo(0.86)
+    const middling = backdropVeil(tone(0.7), 'dark', 0.56)
+    expect(middling).toBeGreaterThan(0.56)
+    expect(middling).toBeLessThan(0.86)
   })
 })

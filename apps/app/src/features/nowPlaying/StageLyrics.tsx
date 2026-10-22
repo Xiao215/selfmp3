@@ -13,6 +13,7 @@ import { MOVE_MS } from '../../ui/motion.model'
 import { motionMs, useMotionReduced } from '../../ui/motion'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
+import { FadeEdges } from '../../ui/components/FadeEdges'
 
 interface LyricsProps {
   parsed: ParsedLyrics
@@ -192,7 +193,7 @@ const LyricsList = memo(function LyricsList({
   const reach = blurReach(boxHeight, fontSize)
 
   return (
-    <View style={styles.box}>
+    <FadeEdges style={styles.box}>
       <ScrollView
         ref={scrollRef}
         style={styles.box}
@@ -246,7 +247,7 @@ const LyricsList = memo(function LyricsList({
           })}
         </View>
       </ScrollView>
-    </View>
+    </FadeEdges>
   )
 })
 

@@ -287,7 +287,9 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     surface1: '#ffffff',
     surface2: '#ebe5d9',
     surface3: '#e3dccd',
-    surfaceSelected: '#ffffff',
+    // A switch's empty track sits on white cards (Settings, Up next), so it
+    // takes the raised control's tone rather than vanishing into them.
+    surfaceSelected: '#e3dccd',
     textPrimary: '#1b1a17',
     // Muted ink reads at 4.5 : 1 or better on every Paper surface a small
     // label sits on; secondary stays a step darker so the two still differ.

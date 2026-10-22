@@ -211,6 +211,7 @@ export function UpNextList({
   labelStyle,
   style,
   contentContainerStyle,
+  onHeights,
   testID,
 }: {
   next: readonly QueueRow[]
@@ -232,6 +233,8 @@ export function UpNextList({
   labelStyle?: StyleProp<ViewStyle>
   style?: StyleProp<ViewStyle>
   contentContainerStyle?: StyleProp<ViewStyle>
+  /** The list's own height and its content's, for a sheet sized to what it holds. */
+  onHeights?: (frame: number | null, content: number | null) => void
   testID?: string
 }): ReactNode {
   const step = SCROLL_STEP_ROWS * Math.max(1, rowHeight)
@@ -281,7 +284,11 @@ export function UpNextList({
       scrollEnabled={scrollEnabled}
       onScroll={onScroll}
       scrollEventThrottle={16}
-      onLayout={event => setViewport(event.nativeEvent.layout.height)}
+      onLayout={event => {
+        setViewport(event.nativeEvent.layout.height)
+        onHeights?.(event.nativeEvent.layout.height, null)
+      }}
+      onContentSizeChange={(_, content) => onHeights?.(null, content)}
     >
       <View onLayout={event => setHeadHeight(event.nativeEvent.layout.height)}>{head}</View>
       <Animated.View style={runsStyle}>

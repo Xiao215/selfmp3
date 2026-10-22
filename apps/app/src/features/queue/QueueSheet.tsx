@@ -147,6 +147,26 @@ function SheetPanel({
   )
   useEscape(shown, closeQueueSheet, { layer: true })
 
+  /*
+   * As tall as what it holds, between half the screen and all of it (P14 A):
+   * with one song queued the full sheet was mostly empty, and the page behind
+   * it may as well stay in view. The panel less the list's frame is the head
+   * and the playing card; the list's content is the rest.
+   */
+  const [sizes, setSizes] = useState({ panel: 0, frame: 0, content: 0 })
+  const tallest = height - insets.top - SHEET_TOP
+  const wanted = sizes.panel - sizes.frame + sizes.content
+  const sheetHeight =
+    inRoom || sizes.panel === 0 || sizes.content === 0
+      ? tallest
+      : Math.min(tallest, Math.max(Math.round(height / 2), Math.ceil(wanted)))
+  const listHeights = useCallback((frame: number | null, content: number | null) => {
+    setSizes(now => {
+      const next = { ...now, frame: frame ?? now.frame, content: content ?? now.content }
+      return next.frame === now.frame && next.content === now.content ? now : next
+    })
+  }, [])
+
   useEffect(() => {
     // Up from the foot with a small overshoot, 300 ms, and down in 220, as
     // every sheet does (docs/ui-mock `M2`, 3).
@@ -309,11 +329,15 @@ function SheetPanel({
         style={[
           styles.panel,
           {
-            top: insets.top + SHEET_TOP,
+            top: height - sheetHeight,
             paddingBottom: insets.bottom + space.md,
             transform: [{ translateY: rise }],
           },
         ]}
+        onLayout={event => {
+          const panel = event.nativeEvent.layout.height
+          setSizes(now => (now.panel === panel ? now : { ...now, panel }))
+        }}
       >
         <GestureDetector gesture={pullDown}>
           <View collapsable={false} style={styles.head}>
@@ -379,6 +403,7 @@ function SheetPanel({
             rowHeight={rowHeight}
             renderRow={row}
             raised={drag?.from ?? null}
+            onHeights={listHeights}
             labelStyle={styles.labelInset}
             head={
               ended && playing ? (

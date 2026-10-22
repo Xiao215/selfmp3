@@ -92,6 +92,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 jest.mock('expo-router', () => ({
   useRouter: () => ({ navigate: () => undefined, push: () => undefined }),
+  usePathname: () => '/library',
 }))
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),

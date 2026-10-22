@@ -2,13 +2,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useRouter } from 'expo-router'
+import { usePathname, useRouter } from 'expo-router'
 import { artistOr, formatDuration, type Song } from '@selfmp3/shared'
 import { radius, space, type, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useOverlay } from '../../shell/Overlay'
 import { useLayout } from '../../shell/useLayout'
+import { useEscape } from '../../shell/useEscape'
 import { ease, spring, timing } from '../../ui/motion'
 import { MOVE_MS, OPACITY, roomShift } from '../../ui/motion.model'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -382,6 +383,17 @@ function Rail({
    * that keeps its width rather than taking room of its own.
    */
   const over = width < WINDOW_WIDTH.railBeside
+  // Lying over the page it is in the page's way, so it goes as the phone's
+  // sheet does: on Escape, from its source link, and when another page opens
+  // (a tap on the page is the shell's, `Shell`). Beside the page it stays.
+  useEscape(shown && over, closeQueueSheet, { layer: true })
+  const pathname = usePathname()
+  const openedOn = useRef(pathname)
+  useEffect(() => {
+    if (pathname === openedOn.current) return
+    openedOn.current = pathname
+    if (over) closeQueueSheet()
+  }, [pathname, over])
 
   /*
    * The rail itself takes a drop, under the rows: let go anywhere in it — the
@@ -424,7 +436,7 @@ function Rail({
           </ScrollView>
         ) : (
           <>
-            <UpNextSource />
+            <UpNextSource onOpen={over ? closeQueueSheet : undefined} />
             <View style={styles.summaryRow}>
               <Text style={styles.summary} numberOfLines={1}>
                 {nextLabel(rows.next)}

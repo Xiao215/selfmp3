@@ -3,6 +3,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react'
@@ -37,6 +38,8 @@ import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
+import { closeQueueSheet } from '../features/queue/queueSheet.store'
+import { usePageTap } from './pageTap'
 import { RoomSheets } from '../features/room/RoomSheets'
 import { ShareSheet } from '../features/share/ShareSheet'
 import { QueueSheet } from '../features/queue/QueueSheet'
@@ -172,6 +175,10 @@ function Frame({
   const { width } = useLayout()
   const railRoom = useQueueRailRoom()
   const railCover = useQueueRailCover()
+  // Up next lying over the page goes when the page is tapped, as the phone's
+  // sheet does (P2 B): heard, not taken, so the tap still lands where it was.
+  const pageRef = useRef<View>(null)
+  const pageTap = usePageTap(pageRef, wide && railCover > 0, closeQueueSheet)
   const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
@@ -185,7 +192,7 @@ function Frame({
         {/* First, so a keyboard and a screen reader still come to it before the
             page; drawn over the page by its `zIndex`, not by coming after it. */}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
-        <View style={styles.content}>
+        <View ref={pageRef} style={styles.content} {...pageTap}>
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>

@@ -89,6 +89,9 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
 function Cards({ stats }: { stats: Stats }): ReactNode {
   const { wide } = useLayout()
   const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
+  // On a very wide page the line runs across the card from the words, rather
+  // than sitting at the card's far end 1000 px from its number (P1 C).
+  const fill = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.wideFill)
   const listened = useMemo(() => listenedCard(stats), [stats])
   const peak = useMemo(() => peakCard(stats.hourly), [stats])
   // Today is read once per answer: the dots move on when the numbers do.
@@ -96,14 +99,14 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
 
   const listenedView = (
     <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
-      <View style={styles.listenedWords}>
+      <View style={[styles.listenedWords, fill && styles.listenedWordsHug]}>
         <Text style={styles.cardLabel}>Listened</Text>
         <Text style={styles.bigNumber} numberOfLines={1}>
           {listened.value}
         </Text>
         <Text style={styles.cardLine}>{listened.line}</Text>
       </View>
-      <Spark values={listened.trend} />
+      <Spark values={listened.trend} fill={fill} />
     </View>
   )
 
@@ -184,22 +187,35 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
   )
 }
 
-/** Minutes per day as one accent stroke. Decoration beside the number, so unread. */
-function Spark({ values }: { values: readonly number[] }): ReactNode {
+/**
+ * Minutes per day as one accent stroke. Decoration beside the number, so
+ * unread. `fill` draws it across the room the words leave, as wide as that is.
+ */
+function Spark({ values, fill = false }: { values: readonly number[]; fill?: boolean }): ReactNode {
   const { theme } = useUnistyles()
+  const [room, setRoom] = useState(0)
   if (values.length < 2) return null
+  const width = fill ? room : SPARK.width
   return (
-    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Svg width={SPARK.width} height={SPARK.height} viewBox={`0 0 ${SPARK.width} ${SPARK.height}`}>
-        <Path
-          d={sparkPath(values, SPARK.width, SPARK.height)}
-          fill="none"
-          stroke={theme.colors.accent}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
+    <View
+      aria-hidden
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={fill ? styles.sparkFill : null}
+      onLayout={fill ? event => setRoom(Math.floor(event.nativeEvent.layout.width)) : undefined}
+    >
+      {width > 0 ? (
+        <Svg width={width} height={SPARK.height} viewBox={`0 0 ${width} ${SPARK.height}`}>
+          <Path
+            d={sparkPath(values, width, SPARK.height)}
+            fill="none"
+            stroke={theme.colors.accent}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      ) : null}
     </View>
   )
 }
@@ -566,6 +582,8 @@ const styles = StyleSheet.create(theme => ({
   // The words take the card's room before the spark does: squeezed, the number
   // was ellipsised to "2…", which is not a number.
   listenedWords: { gap: space.xs, flex: 1, minWidth: 0 },
+  listenedWordsHug: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
+  sparkFill: { flex: 1, height: SPARK.height, marginLeft: space.gutterWide },
   cardLabel: label(theme.colors),
   // Big numbers are the serif, which has one weight (`S2`), on the scale's
   // line height, which has room for its tall figures.

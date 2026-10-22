@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { space, iconSize } from '@selfmp3/client'
+import { setStageArriving } from '../../shell/stageArrival'
 import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue } from '../../shell/useLayout'
 import { EmptyState } from '../../ui/components/EmptyState'
@@ -23,6 +24,14 @@ export function EmptyNowPlaying({ onClose }: { onClose: () => void }): ReactNode
   const wide = useLayoutValue(layout => layout.wide)
   const insets = useSafeAreaInsets()
   useEscape(true, onClose)
+  // The sidebar goes for this page as it goes for the stage: its head puts the
+  // chevron where the sidebar would be, so with the sidebar still over it
+  // Close could not be pressed.
+  useEffect(() => {
+    if (!wide) return
+    setStageArriving(true)
+    return () => setStageArriving(false)
+  }, [wide])
   return (
     <View
       style={[styles.page, { paddingTop: insets.top, paddingBottom: insets.bottom }]}

@@ -101,6 +101,11 @@ export function PlayerBar(): ReactNode {
   // song's, so the transport sits in the middle of the window, not of what the
   // tools leave.
   const [toolsWidth, setToolsWidth] = useState(0)
+  // The song's floor, which the tools' column also keeps, so the two sides
+  // stay one width: under the compact width the volume folds and the tools
+  // need little, and a song held to 300 beside them pushed Play right of
+  // centre (+41 at 1000).
+  const songFloor = compact ? SONG_FLOOR_COMPACT : SONG_FLOOR
 
   return (
     <View
@@ -115,7 +120,7 @@ export function PlayerBar(): ReactNode {
     >
       {song ? <ProgressWash color={songColor.color} fade={40} line="top" /> : null}
 
-      <View style={[styles.left, tight && styles.leftTight]}>
+      <View style={[styles.left, { minWidth: songFloor }]}>
         {song ? (
           <>
             <Press
@@ -179,7 +184,7 @@ export function PlayerBar(): ReactNode {
         </View>
       </View>
 
-      <View style={[styles.right, { minWidth: toolsWidth }]}>
+      <View style={[styles.right, { minWidth: Math.max(toolsWidth, songFloor) }]}>
         <View
           style={styles.tools}
           onLayout={event => setToolsWidth(Math.ceil(event.nativeEvent.layout.width))}
@@ -391,6 +396,10 @@ function VolumeSlider({
   )
 }
 
+/** The song's room (docs/ui-mock `T09`): 300 in full, 220 once the volume has folded away. */
+const SONG_FLOOR = 300
+const SONG_FLOOR_COMPACT = 220
+
 const styles = StyleSheet.create(theme => ({
   /*
    * Open, the cover says the same button now closes the page: `onArt` on the
@@ -423,8 +432,6 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
-    // The song's room (docs/ui-mock `T09`): 300 in full, 220 under the tight width.
-    minWidth: 300,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -455,7 +462,6 @@ const styles = StyleSheet.create(theme => ({
   },
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },
-  leftTight: { minWidth: 220 },
   // Grows as the song's column does, so the two stay one width and the
   // transport between them is in the middle of the bar.
   right: {

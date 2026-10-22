@@ -26,8 +26,8 @@ import { PlayPauseIcon } from './PlayPauseIcon'
  * card's row of icons (the mini player).
  */
 export function PlayPauseButton({
-  size = 56,
-  glyph = playGlyph(size),
+  size: sizeProp,
+  glyph: glyphProp,
   bare = false,
   songId,
   playing: given,
@@ -36,7 +36,7 @@ export function PlayPauseButton({
   disabled = false,
   testID,
 }: {
-  /** The round button's side; a bare one takes `IconButton`'s. */
+  /** The round button's side (56); a bare one takes `IconButton`'s unless given. */
   size?: number
   /** The glyph's size. */
   glyph?: number
@@ -58,6 +58,8 @@ export function PlayPauseButton({
   testID?: string | ((playing: boolean) => string)
 }): ReactNode {
   const { theme } = useUnistyles()
+  const size = sizeProp ?? 56
+  const glyph = glyphProp ?? playGlyph(size)
   const player = usePlayerCommands()
   const playerPlaying = usePlayerPlaying()
   const loaded = usePlayingSongId()
@@ -72,7 +74,7 @@ export function PlayPauseButton({
 
   if (bare) {
     return (
-      <IconButton testID={id} onPress={press} label={label} disabled={disabled}>
+      <IconButton testID={id} onPress={press} label={label} disabled={disabled} size={sizeProp}>
         <PlayPauseIcon
           playing={playing}
           busy={busy}

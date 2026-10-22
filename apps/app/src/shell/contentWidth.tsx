@@ -1,4 +1,11 @@
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import {
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
 
 import { createValueStore, type ValueStore } from '../state/valueStore.model'
 
@@ -36,4 +43,30 @@ export function useContentWidthValue<T>(select: (width: number | null) => T): T 
   const store = useContext(ContentWidthContext)
   const read = (): T => select(store.get())
   return useSyncExternalStore(store.subscribe, read, read)
+}
+
+/**
+ * A part of the page that holds itself to a narrower column (Search's 760):
+ * the rows in it ask whether their album column fits of that column, not of the
+ * page around it, or they draw columns for a page they are not in and cut
+ * their own titles short.
+ */
+export function NarrowerContentWidth({
+  max,
+  children,
+}: {
+  max: number
+  children: ReactNode
+}): ReactNode {
+  const page = useContext(ContentWidthContext)
+  const [store] = useState(() => createValueStore(narrower(page.get(), max)))
+  useLayoutEffect(() => {
+    store.set(narrower(page.get(), max))
+    return page.subscribe(() => store.set(narrower(page.get(), max)))
+  }, [page, store, max])
+  return <ContentWidthContext.Provider value={store}>{children}</ContentWidthContext.Provider>
+}
+
+function narrower(width: number | null, max: number): number | null {
+  return width === null ? null : Math.min(width, max)
 }

@@ -18,6 +18,7 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { NarrowerContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
@@ -160,153 +161,155 @@ export function SearchScreen(): ReactNode {
 
   return (
     <AddingToRoom.Provider value={addingTo}>
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
-          <View style={styles.head}>
-            <SearchField
-              inputRef={field}
-              autoFocus
-              value={query}
-              // New words leave the question behind: the answer on its way is
-              // dropped with it, and the results for what is typed come back.
-              // A cleared field is a fresh search, back on All.
-              onChangeText={text => {
-                setQuery(text)
-                setAsking(null)
-                if (text.trim() === '') setSection(null)
-              }}
-              // Enter asks only when nothing matches (I1); with matches it puts
-              // the keyboard away and the results stay where they are.
-              onSubmitEditing={() => {
-                if (search.enterAsks()) setAsking(query.trim())
-                else field.current?.blur()
-              }}
-              placeholder={
-                adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
-              }
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              returnKeyType="search"
-              accessibilityLabel="Search"
-              testID="search-field"
-              style={styles.field}
-              trailing={
-                stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined
-              }
-            />
-            <Press
-              feedback="dim"
-              onPress={close}
-              accessibilityRole="button"
-              hitSlop={hitSlopFor(leading.body)}
-            >
-              <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
-            </Press>
-          </View>
-          {adding ? (
-            <View style={styles.adding} testID="search-adding">
-              <Text style={styles.addingText} numberOfLines={1}>
-                Adding to {roomTitle(adding)}
-              </Text>
+      <NarrowerContentWidth max={COLUMN}>
+        <SafeAreaView style={styles.screen} edges={['top']}>
+          <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
+            <View style={styles.head}>
+              <SearchField
+                inputRef={field}
+                autoFocus
+                value={query}
+                // New words leave the question behind: the answer on its way is
+                // dropped with it, and the results for what is typed come back.
+                // A cleared field is a fresh search, back on All.
+                onChangeText={text => {
+                  setQuery(text)
+                  setAsking(null)
+                  if (text.trim() === '') setSection(null)
+                }}
+                // Enter asks only when nothing matches (I1); with matches it puts
+                // the keyboard away and the results stay where they are.
+                onSubmitEditing={() => {
+                  if (search.enterAsks()) setAsking(query.trim())
+                  else field.current?.blur()
+                }}
+                placeholder={
+                  adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
+                }
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                returnKeyType="search"
+                accessibilityLabel="Search"
+                testID="search-field"
+                style={styles.field}
+                trailing={
+                  stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined
+                }
+              />
+              <Press
+                feedback="dim"
+                onPress={close}
+                accessibilityRole="button"
+                hitSlop={hitSlopFor(leading.body)}
+              >
+                <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
+              </Press>
             </View>
-          ) : null}
+            {adding ? (
+              <View style={styles.adding} testID="search-adding">
+                <Text style={styles.addingText} numberOfLines={1}>
+                  Adding to {roomTitle(adding)}
+                </Text>
+              </View>
+            ) : null}
 
-          {typed && section !== null ? (
-            <Press
-              feedback="wash"
-              onPress={() => setSection(null)}
-              accessibilityRole="button"
-              accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
-              style={styles.back}
-              hitSlop={hitSlopFor(leading.body + space.sm * 2)}
-              testID="search-back"
-            >
-              <ChevronLeft size={iconSize.medium} tone="textSecondary" />
-              <Text style={styles.backTitle} numberOfLines={1}>
-                {SECTION_TITLES[section]}
-              </Text>
-              <Text style={styles.backCount}>{counts[section]}</Text>
-            </Press>
-          ) : (
-            <View style={styles.headGap} />
-          )}
-
-          {bar.beforeList}
-
-          {!typed ? (
-            adding ? (
-              <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+            {typed && section !== null ? (
+              <Press
+                feedback="wash"
+                onPress={() => setSection(null)}
+                accessibilityRole="button"
+                accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
+                style={styles.back}
+                hitSlop={hitSlopFor(leading.body + space.sm * 2)}
+                testID="search-back"
+              >
+                <ChevronLeft size={iconSize.medium} tone="textSecondary" />
+                <Text style={styles.backTitle} numberOfLines={1}>
+                  {SECTION_TITLES[section]}
+                </Text>
+                <Text style={styles.backCount}>{counts[section]}</Text>
+              </Press>
             ) : (
-              <BeforeTyping
-                tags={empty.tags}
-                recent={empty.recent}
+              <View style={styles.headGap} />
+            )}
+
+            {bar.beforeList}
+
+            {!typed ? (
+              adding ? (
+                <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+              ) : (
+                <BeforeTyping
+                  tags={empty.tags}
+                  recent={empty.recent}
+                  selection={selection}
+                  listPadding={bar.listPadding}
+                />
+              )
+            ) : section === 'songs' ? (
+              <SongResults
+                songs={found.songs}
+                query={shown}
                 selection={selection}
                 listPadding={bar.listPadding}
+                adds={adding ? adds : null}
               />
-            )
-          ) : section === 'songs' ? (
-            <SongResults
-              songs={found.songs}
-              query={shown}
-              selection={selection}
-              listPadding={bar.listPadding}
-              adds={adding ? adds : null}
-            />
-          ) : (
-            <ScrollView
-              contentContainerStyle={[styles.results, bar.listPadding]}
-              // An answer's follow-up field is at its foot: the keyboard it
-              // opens pads the list by its height and scrolls the field above it.
-              automaticallyAdjustKeyboardInsets
-            >
-              {answering ? (
-                <AskAnswer
-                  text={asking}
-                  onDone={close}
-                  onOpenPage={() => undefined}
-                  onWorking={setStop}
-                  onDrop={() => setAsking(null)}
-                  onAsk={words => {
-                    setQuery(words)
-                    setAsking(words)
-                  }}
-                />
-              ) : null}
-              {!answering && !link && offerAsk && counts.all === 0 ? (
-                <AskCard words={words} first onAsk={() => setAsking(words)} />
-              ) : null}
-              {adding && link ? <LinkPick state={adding} url={link} /> : null}
-              {answering || link ? null : section === null ? (
-                <AllResults
-                  found={found}
-                  lyricHits={lyricHits}
-                  selection={selection}
-                  onSeeAll={setSection}
-                  onArtist={openArtist}
-                  adds={adding ? adds : null}
-                />
-              ) : section === 'places' ? (
-                <View style={styles.section}>
-                  <Places places={placesOf(found)} onArtist={openArtist} />
-                </View>
-              ) : (
-                <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
-              )}
-              {!answering && !link && offerAsk && counts.all > 0 ? (
-                <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
-              ) : null}
-              {!answering &&
-              !link &&
-              counts[section ?? 'all'] === 0 &&
-              !(section === 'lyrics' && lyricsAway) ? (
-                <NothingMatches words={shown.trim()} />
-              ) : null}
-              <ChromeSpacer />
-            </ScrollView>
-          )}
-        </View>
-      </SafeAreaView>
+            ) : (
+              <ScrollView
+                contentContainerStyle={[styles.results, bar.listPadding]}
+                // An answer's follow-up field is at its foot: the keyboard it
+                // opens pads the list by its height and scrolls the field above it.
+                automaticallyAdjustKeyboardInsets
+              >
+                {answering ? (
+                  <AskAnswer
+                    text={asking}
+                    onDone={close}
+                    onOpenPage={() => undefined}
+                    onWorking={setStop}
+                    onDrop={() => setAsking(null)}
+                    onAsk={words => {
+                      setQuery(words)
+                      setAsking(words)
+                    }}
+                  />
+                ) : null}
+                {!answering && !link && offerAsk && counts.all === 0 ? (
+                  <AskCard words={words} first onAsk={() => setAsking(words)} />
+                ) : null}
+                {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                {answering || link ? null : section === null ? (
+                  <AllResults
+                    found={found}
+                    lyricHits={lyricHits}
+                    selection={selection}
+                    onSeeAll={setSection}
+                    onArtist={openArtist}
+                    adds={adding ? adds : null}
+                  />
+                ) : section === 'places' ? (
+                  <View style={styles.section}>
+                    <Places places={placesOf(found)} onArtist={openArtist} />
+                  </View>
+                ) : (
+                  <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
+                )}
+                {!answering && !link && offerAsk && counts.all > 0 ? (
+                  <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
+                ) : null}
+                {!answering &&
+                !link &&
+                counts[section ?? 'all'] === 0 &&
+                !(section === 'lyrics' && lyricsAway) ? (
+                  <NothingMatches words={shown.trim()} />
+                ) : null}
+                <ChromeSpacer />
+              </ScrollView>
+            )}
+          </View>
+        </SafeAreaView>
+      </NarrowerContentWidth>
     </AddingToRoom.Provider>
   )
 }
@@ -674,13 +677,16 @@ function LyricResults({
   )
 }
 
+/** The column a computer's Search keeps to, whatever the page's width. */
+const COLUMN = 760
+
 const styles = StyleSheet.create(theme => ({
   askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
   // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
   pageWide: {
-    maxWidth: 760,
+    maxWidth: COLUMN,
     width: '100%',
     alignSelf: 'center',
     paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,

@@ -19,6 +19,8 @@ interface LyricsProps {
   roman: readonly string[] | null
   focus: boolean
   fontSize: number
+  /** Room kept clear at the right for what the page floats there (Romaji, expand). */
+  clearRight?: number
 }
 
 /**
@@ -54,6 +56,7 @@ const LyricsList = memo(function LyricsList({
   roman,
   focus,
   fontSize,
+  clearRight = 0,
   active,
 }: LyricsProps & { active: number }): ReactNode {
   const { theme } = useUnistyles()
@@ -196,7 +199,8 @@ const LyricsList = memo(function LyricsList({
         contentContainerStyle={{
           paddingTop: boxHeight * (synced ? LYRIC_ANCHOR : 0.14),
           paddingBottom: boxHeight * 0.55,
-          paddingHorizontal: space.tight,
+          paddingLeft: space.tight,
+          paddingRight: space.tight + clearRight,
         }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={64}

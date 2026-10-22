@@ -163,6 +163,9 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
   )
 }
 
+/** The Romaji pill's width and a gap: what the words keep clear beside the cover. */
+const TOOLS_CLEARANCE = 96
+
 /** A plain style, not a sheet's: an `Svg` in a browser does not take a sheet's class. */
 const UNCLIPPED = { overflow: 'visible' } as const
 
@@ -642,6 +645,9 @@ function Stage({
               roman={words.roman}
               focus={focus}
               fontSize={focus ? geometry.focusLyric : geometry.lyric}
+              // Beside the cover the Romaji pill and the expand button share
+              // the words' right edge: long lines ran under them.
+              clearRight={!focus && tabsRow === null ? TOOLS_CLEARANCE : 0}
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>

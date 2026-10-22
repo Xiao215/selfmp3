@@ -11,7 +11,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { useServerApi } from '../../connection/useServerApi'
 import { useServerSettings } from './useServerSettings'
 import { ServerAway } from '../../connection/ServerAway'
-import { Panel, Row } from './SettingsParts'
+import { Panel, Row, SettingsWaiting } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { type, textStyle, iconSize, space } from '@selfmp3/client'
 import { hint, textColumn } from '../../ui/surfaces'
@@ -84,7 +84,7 @@ const SWITCHES: readonly {
  */
 export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
-  const { settings, set } = useServerSettings(server.api)
+  const { settings, failed, retry, set } = useServerSettings(server.api)
   return (
     <Panel
       title="Smart features"
@@ -96,6 +96,7 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
         <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
         <>
+          {settings ? null : <SettingsWaiting failed={failed} onRetry={retry} />}
           {settings
             ? SWITCHES.map(each => (
                 <Row key={each.key} label={each.label} hint={each.sees}>

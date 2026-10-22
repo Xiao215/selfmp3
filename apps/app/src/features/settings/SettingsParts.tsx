@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
 import { card, label as labelText, serif, hint } from '../../ui/surfaces'
 import { Press } from '../../ui/components/Press'
+import { Button } from '../../ui/components/Button'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -77,6 +78,29 @@ export function Row({
         <View style={[styles.control, stacked && styles.controlStacked]}>{children}</View>
       ) : null}
     </View>
+  )
+}
+
+/**
+ * A panel's one row while the library's settings it shows have not come: on
+ * their way, or not answered. Without it the panel was an empty card under its
+ * label, which says nothing about why.
+ */
+export function SettingsWaiting({
+  failed,
+  onRetry,
+  last = true,
+}: {
+  failed: boolean
+  onRetry: () => void
+  last?: boolean
+}): ReactNode {
+  return failed ? (
+    <Row label="Can’t reach your library" last={last}>
+      <Button label="Look again" onPress={onRetry} />
+    </Row>
+  ) : (
+    <Row label="Loading…" last={last} />
   )
 }
 

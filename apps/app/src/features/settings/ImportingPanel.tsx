@@ -16,7 +16,7 @@ import { Copy } from '../../ui/components/Icons'
 import { Select } from '../../ui/components/Select'
 import { TagChooser } from '../../ui/components/TagChooser'
 import { Toggle } from '../../ui/components/Toggle'
-import { Panel, Row } from './SettingsParts'
+import { Panel, Row, SettingsWaiting } from './SettingsParts'
 import { addressForElsewhere, serverTokenHint } from './settings.model'
 import { useServerSettings } from './useServerSettings'
 
@@ -28,7 +28,7 @@ import { useServerSettings } from './useServerSettings'
  */
 export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
-  const { settings, set } = useServerSettings(server.api)
+  const { settings, failed, retry, set } = useServerSettings(server.api)
   const named = useNamedServer()
   return (
     <Panel title="Importing" hint="on your library’s computer" anchor={anchor}>
@@ -80,7 +80,9 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
             />
           </Row>
         </>
-      ) : null}
+      ) : (
+        <SettingsWaiting failed={failed} onRetry={retry} last={named === null} />
+      )}
       {named ? <TokenRow server={named} /> : null}
     </Panel>
   )

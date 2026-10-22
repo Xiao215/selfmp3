@@ -36,12 +36,19 @@ export function useTileGrid({
   minTile,
   gap,
   maxColumns = Infinity,
+  maxTile = Infinity,
   reserve = 0,
 }: {
   /** The narrowest a computer's tile gets before the grid drops a column. */
   minTile: number
   gap: number
   maxColumns?: number
+  /**
+   * The widest a tile gets: past it the grid takes another column, beyond
+   * `maxColumns`, so a very wide page fills with tiles rather than stretching
+   * three of them (P1 C).
+   */
+  maxTile?: number
   /** What stands beside the grid on a computer: Home's card column. */
   reserve?: number
 }): { columns: number; tileWidth: number } {
@@ -61,7 +68,10 @@ export function useTileGrid({
       ? Number.isFinite(maxColumns)
         ? maxColumns
         : PHONE_COLUMNS
-      : Math.min(maxColumns, Math.max(PHONE_COLUMNS, fit))
+      : Math.max(
+          Math.min(maxColumns, Math.max(PHONE_COLUMNS, fit)),
+          Math.min(fit, Math.ceil((rowWidth + gap) / (maxTile + gap))),
+        )
   const tileWidth = rowWidth > 0 ? Math.floor((rowWidth - gap * (columns - 1)) / columns) : 0
   return { columns, tileWidth }
 }

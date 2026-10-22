@@ -4,6 +4,8 @@ import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { hitSlopFor, leading, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
+import { useContentWidthValue } from '../../shell/contentWidth'
+import { COLUMN_WIDTH } from '../../shell/widths'
 import { label, sectionTitle } from '../surfaces'
 import { ChevronDown, ChevronRight } from './Icons'
 import { Press } from './Press'
@@ -52,6 +54,9 @@ export function SectionHead({
   style?: StyleProp<ViewStyle>
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
+  // On a very wide page the link sits beside the name rather than across the
+  // page from it: at 3200 Home's "All 1" stood 1678 px from its tiles.
+  const linkBeside = useContentWidthValue(page => page !== null && page >= COLUMN_WIDTH.wideFill)
   const name = (
     <Text
       style={look === 'label' ? styles.label : styles.title}
@@ -82,6 +87,7 @@ export function SectionHead({
         lead || collapsible || end ? styles.headCentred : null,
         // A phone has no room for words and buttons on one line: the buttons go under.
         !wide && aside && end ? styles.headStacked : null,
+        linkBeside && action && !end ? styles.headLinkBeside : null,
         style,
       ]}
     >
@@ -133,6 +139,7 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
   },
   headCentred: { alignItems: 'center' },
+  headLinkBeside: { justifyContent: 'flex-start', gap: space.lg },
   headStacked: { flexDirection: 'column', alignItems: 'stretch', gap: space.sm },
   start: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minWidth: 0, flexShrink: 1 },
   named: {

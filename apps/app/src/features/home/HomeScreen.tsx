@@ -31,7 +31,7 @@ import { useCloudSession } from '../profile/useCloudSession'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
-import { useContentWidth } from '../../shell/contentWidth'
+import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
@@ -149,9 +149,19 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   const recentLists = useRecentLists()
   // Rooms listened in together, for a few days after they end (features/room).
   const rooms = useRecentRooms()
+  // As many as the row holds on a very wide page, rather than twelve and an
+  // empty half of the row (P1 C); never fewer than the twelve it remembers.
+  const recentsShown = useContentWidthValue(page =>
+    page === null
+      ? undefined
+      : Math.max(
+          RECENTS_LEAST,
+          Math.floor((page - space.gutterWide * 2 + RECENT_GAP) / (RECENT_TILE + RECENT_GAP)),
+        ),
+  )
   const recents = useMemo(
-    () => (library ? homeRecents(recentLists, library.songs) : []),
-    [library, recentLists],
+    () => (library ? homeRecents(recentLists, library.songs, recentsShown) : []),
+    [library, recentLists, recentsShown],
   )
   const line = streakLine(stats?.streakDays)
   const sunday = sundayCard(now, stats)
@@ -393,7 +403,8 @@ function PhoneHeader(): ReactNode {
 /**
  * The tiles, two across on a phone; on a computer as many as fit a tile of
  * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
- * rather than cutting the names (M1). A tile opens its tag's page.
+ * rather than cutting the names (M1); more on a very wide page, where three
+ * would each grow past `WIDE_TILE_MAX`. A tile opens its tag's page.
  */
 function Tiles({
   tiles,
@@ -408,13 +419,15 @@ function Tiles({
   const openTag = useOpenTag()
   const art = useArt()
   // As many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws
-  // three), so a page narrowed by Up next drops a column rather than cutting
-  // the names (M1). The number is only for how many columns and the name's
-  // size, which may follow a frame behind.
+  // three), more once three would outgrow `WIDE_TILE_MAX`; a page narrowed
+  // by Up next drops a column rather than cutting the names (M1). The number
+  // is only for how many columns and the name's size, which may follow a
+  // frame behind.
   const { columns, tileWidth } = useTileGrid({
     minTile: WIDE_TILE_MIN,
     gap: TILE_GAP,
     maxColumns: 3,
+    maxTile: WIDE_TILE_MAX,
     reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
@@ -579,7 +592,7 @@ function Recents({
   const player = usePlayerCommands()
   const router = useRouter()
   const { data: library } = useLibrary()
-  const size = wide ? 132 : 92
+  const size = wide ? RECENT_TILE : 92
   const songIds = useMemo(
     () => recents.flatMap(recent => (recent.kind === 'song' ? [recent.song.id] : [])),
     [recents],
@@ -864,10 +877,16 @@ const READY_COVER = 52
 
 /** Between two tiles, across and down. */
 const TILE_GAP = 10
+/** A computer's Recently played tile, the gap after it, and the fewest the row asks for. */
+const RECENT_TILE = 132
+const RECENT_GAP = 10
+const RECENTS_LEAST = 12
 /** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
 const SMALL_TILE = 140
 /** The narrowest a computer's tile gets before the grid drops a column. */
 const WIDE_TILE_MIN = 190
+/** And the widest, past which a very wide page takes another column. */
+const WIDE_TILE_MAX = 360
 
 /** The card column beside the tiles. */
 const SIDE_COLUMN = 300

@@ -904,9 +904,13 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     paddingVertical: 3,
   },
+  // Held, with the album's column, to a reading width: on a very wide page
+  // the album and the length stay near the title rather than across the page
+  // from it (P1 C).
   mainWide: {
     flex: 1,
     minWidth: 0,
+    maxWidth: 720,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
@@ -1000,6 +1004,7 @@ const styles = StyleSheet.create(theme => ({
   /* A fixed column, so it lines up down the page; the title takes the slack. */
   albumColumn: {
     flexBasis: '20%',
+    maxWidth: 320,
     flexGrow: 0,
     flexShrink: 0,
     color: theme.colors.textMuted,

@@ -21,6 +21,11 @@ export const COLUMN_WIDTH = {
   statsCards: 700,
   /** The Report offers its landscape front page; below, the portrait looks a phone has. */
   reportFrontPage: 900,
+  /**
+   * A page this wide fills its width rather than stretching across it (P1 C):
+   * a section's link sits beside its name, Stats' line spans its card.
+   */
+  wideFill: 1600,
   /** Home's card column stands beside the tiles; below, under them. */
   homeCardsBeside: 880,
   /** The library's head keeps to one row (the rail beside a small window leaves less). */

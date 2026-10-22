@@ -1048,7 +1048,9 @@ function SwipeActions({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingBottom: 40 },
-  contentWide: pageFrame(true),
+  // As wide as Import through the server (`ImportViaServer`): unbounded, a
+  // queue row's Retry sat 2,700 px from its song on a 3200 px screen.
+  contentWide: { ...pageFrame(true), maxWidth: 820 },
   contentPhone: pageFrame(false),
   head: { marginBottom: 20 },
   stack: { gap: space.xl },

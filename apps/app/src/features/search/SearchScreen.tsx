@@ -370,7 +370,7 @@ function AskCard({
       role="button"
       accessibilityLabel={`Ask: ${words}`}
       onPress={onAsk}
-      style={first ? undefined : styles.askAfter}
+      style={[styles.ask, !first && styles.askAfter]}
       testID="search-ask"
     />
   )
@@ -681,6 +681,9 @@ function LyricResults({
 const COLUMN = 760
 
 const styles = StyleSheet.create(theme => ({
+  // In from the results' edge as far as the rows' own inset, so its sides
+  // meet the field's and the rows' rather than standing 8 px out past them.
+  ask: { marginHorizontal: space.sm },
   askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },

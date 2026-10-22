@@ -333,7 +333,9 @@ const LyricLine = memo(function LyricLine({
 
 const styles = StyleSheet.create({
   box: { flex: 1, minHeight: 0 },
-  line: { borderRadius: radius.cover },
+  // As wide as its words, not the column: on a wide window the empty space
+  // right of a line would otherwise light it up and jump to it.
+  line: { borderRadius: radius.cover, alignSelf: 'flex-start', maxWidth: '100%' },
   words: { fontWeight: '700' },
   roman: { fontWeight: '500', fontStyle: 'italic', opacity: 0.8, letterSpacing: 0.2 },
 })

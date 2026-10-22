@@ -170,10 +170,13 @@ export function landingOffset(top: number, clearance: number): number {
 /**
  * Which section the reader is looking at.
  *
- * Normally the last section whose top has passed a line near the top. The last
- * few sections are short and the page runs out before their tops reach that
- * line, so over the final screenful the line slides down to the bottom edge,
- * and each gets its turn on the way down.
+ * Normally the last section whose top has passed a line near the top. When the
+ * last few sections are short, the page runs out before their tops reach that
+ * line, so once the last section that can reach it has had its turn, the line
+ * slides down to the bottom edge over the rest of the page and each of the
+ * short ones gets its turn on the way down. Where every section reaches the
+ * line (a tall last section, as Advanced is) nothing slides: sliding anyway
+ * lit the section below the one just chosen at the first nudge of the page.
  */
 export function activeSection<T extends string>(
   sections: readonly { id: T; top: number }[],
@@ -183,9 +186,21 @@ export function activeSection<T extends string>(
 ): T | null {
   const first = sections[0]
   if (!first || viewHeight <= 0) return null
-  const remaining = contentHeight - viewHeight - scrollY
-  const approach = clamp01(1 - remaining / viewHeight)
-  const line = scrollY + READING_LINE + (viewHeight - READING_LINE) * approach
+  const maxScroll = Math.max(0, contentHeight - viewHeight)
+  const reaches = (section: { top: number }): boolean => section.top - READING_LINE <= maxScroll
+  let line = scrollY + READING_LINE
+  if (!sections.every(reaches)) {
+    // From where the last section that can reach the line reaches it.
+    const lastReaching = sections.filter(reaches).at(-1)
+    const from = Math.min(maxScroll, Math.max(0, (lastReaching?.top ?? 0) - READING_LINE))
+    const approach =
+      maxScroll > from
+        ? clamp01((scrollY - from) / (maxScroll - from))
+        : scrollY >= maxScroll
+          ? 1
+          : 0
+    line += (viewHeight - READING_LINE) * approach
+  }
   let current = first.id
   for (const section of sections) {
     if (section.top <= line) current = section.id

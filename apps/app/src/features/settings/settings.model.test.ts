@@ -156,6 +156,33 @@ describe('settings', () => {
     // At the very bottom the line is the bottom edge, so the last section wins.
     expect(activeSection(TOPS, 1600, 800, 2400)).toBe('d')
     expect(activeSection([], 0, 800, 2400)).toBeNull()
+    // Two short sections at the foot that never reach the line: each is lit
+    // on the way to the bottom, after the one above them has had its turn.
+    const short = [
+      { id: 'a', top: 0 },
+      { id: 'b', top: 600 },
+      { id: 'c', top: 2300 },
+      { id: 'd', top: 2350 },
+    ]
+    expect(activeSection(short, 1100, 800, 2400)).toBe('b')
+    expect(activeSection(short, 1560, 800, 2400)).toBe('c')
+    expect(activeSection(short, 1600, 800, 2400)).toBe('d')
+  })
+
+  it('keeps a chosen section lit when the last one is tall enough to reach the line', () => {
+    // Lyrics, About, then an Advanced taller than the screen: landing on
+    // Lyrics and nudging the page must not light the section after it.
+    const tall = [
+      { id: 'a', top: 0 },
+      { id: 'lyrics', top: 2000 },
+      { id: 'about', top: 2300 },
+      { id: 'advanced', top: 2500 },
+    ]
+    const landed = landingOffset(2000, 28)
+    expect(activeSection(tall, landed, 900, 3500)).toBe('lyrics')
+    expect(activeSection(tall, landed + 8, 900, 3500)).toBe('lyrics')
+    expect(activeSection(tall, landingOffset(2300, 28) + 8, 900, 3500)).toBe('about')
+    expect(activeSection(tall, 2600, 900, 3500)).toBe('advanced')
   })
 
   it('words the rows', () => {

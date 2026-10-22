@@ -17,6 +17,8 @@ export const COLUMN_WIDTH = {
   settingsIndex: 1080 - SIDEBAR_WIDTH,
   /** Stats' three lists stand side by side. */
   statsLists: 860,
+  /** Stats' three cards stand in one row; below, Listened above the other two. */
+  statsCards: 700,
   /** Home's card column stands beside the tiles; below, under them. */
   homeCardsBeside: 880,
   /** The library's head keeps to one row (the rail beside a small window leaves less). */

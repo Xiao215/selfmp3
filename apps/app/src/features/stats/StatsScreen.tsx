@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router'
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
 import type { Song, Stats, Tag } from '@selfmp3/shared'
 import { motion, radius, type, useLibrary, type ServerConnection, space } from '@selfmp3/client'
-import { useContentWidth } from '../../shell/contentWidth'
+import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
@@ -80,11 +80,15 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
 }
 
 /**
- * The three cards. A computer lays them in one row, Listened twice as wide; a
- * phone gives Listened the width and puts the other two side by side under it.
+ * The three cards. A page column with the room lays them in one row, Listened
+ * twice as wide; a phone, or a computer's column the sidebar and Up next have
+ * narrowed, gives Listened the width and puts the other two side by side under
+ * it. Measured on the column, not the window: at 820, or with the rail open
+ * at 1100, a row left Listened's number 64 px beside its line and cut it to "1 …".
  */
 function Cards({ stats }: { stats: Stats }): ReactNode {
   const { wide } = useLayout()
+  const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
   const listened = useMemo(() => listenedCard(stats), [stats])
   const peak = useMemo(() => peakCard(stats.hourly), [stats])
   // Today is read once per answer: the dots move on when the numbers do.
@@ -160,7 +164,7 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
     </View>
   )
 
-  if (wide) {
+  if (row) {
     return (
       <View style={styles.cardRow}>
         <View style={styles.twoCols}>{listenedView}</View>

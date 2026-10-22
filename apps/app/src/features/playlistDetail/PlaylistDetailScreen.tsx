@@ -262,18 +262,13 @@ export function PlaylistDetailScreen(): ReactNode {
         art={leadArt}
         heroRef={heroRef}
         topBar={
-          // A computer's ⋯ is with the actions; its ‹ only for a playlist
-          // opened from inside a page, not from the sidebar.
-          wide ? (
-            pageBackShown ? (
-              <BackButton to="/playlists" />
-            ) : null
-          ) : (
-            <>
-              <BackButton to="/playlists" />
-              {moreButton}
-            </>
-          )
+          // The ⋯ in the corner, as on a tag's, an artist's and a combined
+          // page (P11 A); a computer's ‹ only for a playlist opened from
+          // inside a page, not from the sidebar.
+          <>
+            {!wide || pageBackShown ? <BackButton to="/playlists" /> : <View />}
+            {moreButton}
+          </>
         }
         cover={
           <PlaylistCover
@@ -302,7 +297,6 @@ export function PlaylistDetailScreen(): ReactNode {
                 testID="playlist-add-songs"
               />
             ) : null}
-            {wide ? moreButton : null}
           </>
         }
         wideOverrides={WIDE}

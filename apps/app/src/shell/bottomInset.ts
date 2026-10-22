@@ -1,6 +1,6 @@
 import { useContext } from 'react'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
-import { MINI_PLAYER_HEIGHT, NAV_HEIGHT } from '@selfmp3/client'
+import { MINI_PLAYER_HEIGHT, NAV_HEIGHT, space } from '@selfmp3/client'
 import { useSongLoaded } from '../player/PlayerProvider'
 import { usePageChrome } from './pageChrome'
 import { useLayoutValue } from './useLayout'
@@ -15,6 +15,22 @@ import { useLayoutValue } from './useLayout'
 
 /** Space between the mini player and the bar under it. */
 export const MINI_PLAYER_GAP = 10
+
+/** The tab bar's width at most, on a phone layout wider than a phone. */
+const FLOATING_BARS_WIDTH = 560
+
+/**
+ * How far in from each side a floating bar sits, given its own edge on a
+ * phone. On a phone layout wider than a phone (an iPad mini or a 9th-gen iPad
+ * in portrait, 744–819) the tab bar keeps to 560, centred, rather than
+ * stretching to 736 (P4 B); the mini player keeps its few points past it on
+ * each side.
+ */
+export function useFloatingBarSide(edge: number): number {
+  return useLayoutValue(layout =>
+    Math.max(edge, Math.round((layout.width - FLOATING_BARS_WIDTH) / 2) + edge - space.lg),
+  )
+}
 
 /** Space kept under the last row, past the floating chrome. */
 const BREATHING_ROOM = 12

@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { NAV_HEIGHT, radius, space, type, iconSize } from '@selfmp3/client'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
-import { navBottom } from '../../shell/bottomInset'
+import { navBottom, useFloatingBarSide } from '../../shell/bottomInset'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { floating } from '../surfaces'
@@ -42,6 +42,7 @@ function BottomNavInner(): ReactNode {
   const pathname = usePathname()
   const insets = useSafeAreaInsets()
   const bottom = navBottom(insets.bottom)
+  const side = useFloatingBarSide(EDGE)
   // Search belongs to no tab, and the tab it was opened from stays lit over it
   // (docs/ui-mock `P18`, `P19`): the bar still says where you were.
   const [lastTab, setLastTab] = useState<TabHref>('/')
@@ -53,7 +54,7 @@ function BottomNavInner(): ReactNode {
   const pill = useSlidingHighlight(current, styles.pill)
 
   return (
-    <View style={[styles.bar, { bottom }]} accessibilityRole="tablist">
+    <View style={[styles.bar, { bottom, left: side, right: side }]} accessibilityRole="tablist">
       {/*
           The tabs share the bar's width, so each one's width changes when the
           bar's does and the pill is measured again (a position that moves

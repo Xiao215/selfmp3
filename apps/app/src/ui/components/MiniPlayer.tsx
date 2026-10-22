@@ -18,7 +18,7 @@ import {
   type,
   iconSize,
 } from '@selfmp3/client'
-import { MINI_PLAYER_GAP, navBottom } from '../../shell/bottomInset'
+import { MINI_PLAYER_GAP, navBottom, useFloatingBarSide } from '../../shell/bottomInset'
 import { useLayoutValue } from '../../shell/useLayout'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
@@ -50,6 +50,7 @@ function MiniPlayerInner(): ReactNode {
   // On a 320 pt phone three 44 pt buttons left the song's name 84 pt: drawn
   // at 36 there, each still answers a finger over 44 (P13 B).
   const button = useLayoutValue(layout => (layout.width < NARROW_PHONE ? NARROW_BUTTON : undefined))
+  const side = useFloatingBarSide(EDGE)
   const song = player.current
   const insets = useSafeAreaInsets()
 
@@ -147,7 +148,11 @@ function MiniPlayerInner(): ReactNode {
       testID="mini-player"
       style={[
         styles.bar,
-        { bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP },
+        {
+          bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP,
+          left: side,
+          right: side,
+        },
         arrival,
       ]}
       pointerEvents={song ? 'auto' : 'none'}

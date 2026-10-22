@@ -10,6 +10,8 @@ import {
   playlistRules,
   plural,
   type SmartRules,
+  type CoverSwatch,
+  type Song,
 } from '@selfmp3/shared'
 import { uniqueName, useLibrary } from '@selfmp3/client'
 
@@ -266,4 +268,64 @@ export function restoredOrder(before: readonly number[], now: readonly number[])
   const kept = before.filter(id => present.has(id))
   const placed = new Set(kept)
   return [...kept, ...now.filter(id => !placed.has(id))]
+}
+
+/**
+ * The songs whose covers make a mosaic (a playlist's, a place's): four with
+ * different pictures where the songs have them, else the first cover alone.
+ *
+ * Different pictures, not different songs: three discs of one soundtrack carry
+ * the same art and no album name, and a mosaic of the first four showed it
+ * three times (P10 B). A picture is told by the colours the server read from
+ * it: the same art, encoded again for another file, reads within a hair of
+ * the same. Songs of one named album count as one picture too, whose covers
+ * can be cropped a little differently. A cover not read yet counts as its own.
+ */
+export function mosaicCovers<T extends Pick<Song, 'id' | 'album' | 'coverTone'>>(
+  songs: readonly T[],
+  hasArt: (song: T) => boolean,
+): readonly T[] {
+  const withArt = songs.filter(hasArt)
+  const different: T[] = []
+  for (const song of withArt) {
+    if (!different.some(kept => samePicture(kept, song))) different.push(song)
+  }
+  if (different.length >= 4) return different.slice(0, 4)
+  return (withArt.length > 0 ? withArt : songs).slice(0, 1)
+}
+
+/** How far apart two palettes may be and still be one picture. */
+const SAME_PICTURE = 0.02
+
+function samePicture(
+  a: Pick<Song, 'album' | 'coverTone'>,
+  b: Pick<Song, 'album' | 'coverTone'>,
+): boolean {
+  const album = a.album.trim()
+  if (album !== '' && album === b.album.trim()) return true
+  const one = a.coverTone?.palette
+  const other = b.coverTone?.palette
+  if (!one || !other) return false
+  return Math.max(paletteReach(one, other), paletteReach(other, one)) < SAME_PICTURE
+}
+
+/** How far `from`'s colours are from their nearest in `to`, weighted by how much of the cover each is. */
+function paletteReach(from: readonly CoverSwatch[], to: readonly CoverSwatch[]): number {
+  const lab = (swatch: CoverSwatch): readonly [number, number, number] => {
+    const turn = (swatch.h * Math.PI) / 180
+    return [swatch.l, swatch.c * Math.cos(turn), swatch.c * Math.sin(turn)]
+  }
+  const total = from.reduce((sum, swatch) => sum + swatch.share, 0) || 1
+  return (
+    from.reduce((sum, swatch) => {
+      const [l, x, y] = lab(swatch)
+      const nearest = Math.min(
+        ...to.map(other => {
+          const [l2, x2, y2] = lab(other)
+          return Math.hypot(l - l2, x - x2, y - y2)
+        }),
+      )
+      return sum + nearest * swatch.share
+    }, 0) / total
+  )
 }

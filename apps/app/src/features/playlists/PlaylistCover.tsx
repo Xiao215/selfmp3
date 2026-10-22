@@ -9,13 +9,13 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongsById } from '../../ui/songsById'
 import { Cover } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
-import { isLive } from './playlists.model'
+import { isLive, mosaicCovers } from './playlists.model'
 
 /**
  * A playlist's cover: the covers of its first songs.
  *
  * Music is found by its artwork everywhere else in the app, so a playlist is
- * too — four covers in a square when four of its songs have art, the first
+ * too — four covers in a square when four of its songs have different art, the first
  * cover alone when fewer do, and the kind's icon when it has no songs yet.
  * Nothing to choose or keep up to date: it changes as the playlist does.
  *
@@ -46,9 +46,7 @@ export function PlaylistCover({
       const song = byId.get(id)
       return song ? [song] : []
     })
-    const withArt = songs.filter(song => artFor(song) !== null)
-    if (withArt.length >= 4) return withArt.slice(0, 4)
-    return (withArt.length > 0 ? withArt : songs).slice(0, 1)
+    return mosaicCovers(songs, song => artFor(song) !== null)
   }, [byId, songIds, artFor])
 
   // Held, not rebuilt: a tag list or a playlist grid draws one of these per

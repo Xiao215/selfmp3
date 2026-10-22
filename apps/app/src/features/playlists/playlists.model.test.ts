@@ -4,6 +4,7 @@ import { EMPTY_SMART_RULES, playlistRules, type Playlist, type SmartRules } from
 import {
   copyName,
   listedPlaylists,
+  mosaicCovers,
   newPlaylist,
   playlistHeadLine,
   playlistsSubline,
@@ -226,5 +227,78 @@ describe('restoredOrder', () => {
   it('keeps a song added since at the end, and one removed since out', () => {
     expect(restoredOrder([1, 2, 3], [2, 3, 9, 1])).toEqual([1, 2, 3, 9])
     expect(restoredOrder([1, 2, 3], [1, 2])).toEqual([1, 2])
+  })
+})
+
+describe('the covers a mosaic is made of', () => {
+  const tone = (l: number) => ({ hue: 0, chroma: 0.1, palette: [{ l, c: 0.1, h: 20, share: 1 }] })
+  const song = (id: number, l: number | null, album = '') => ({
+    id,
+    album,
+    coverTone: l === null ? null : tone(l),
+  })
+  const all = () => true
+
+  it('takes four different pictures, passing over the same art again', () => {
+    // Three discs with one picture, then three more songs.
+    const songs = [
+      song(1, 0.5),
+      song(2, 0.5),
+      song(3, 0.5),
+      song(4, 0.3),
+      song(5, 0.6),
+      song(6, 0.7),
+    ]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 4, 5, 6])
+  })
+
+  it('knows the same art encoded again for another file', () => {
+    // Two of the dev library's Genshin discs: the same cover, read a hair apart and in another order.
+    const disc = (id: number, swatches: [number, number, number, number][]) => ({
+      id,
+      album: '',
+      coverTone: {
+        hue: 23,
+        chroma: 0.1,
+        palette: swatches.map(([l, c, h, share]) => ({ l, c, h, share })),
+      },
+    })
+    const one = disc(1, [
+      [0.703, 0.105, 28.98, 0.28],
+      [0.627, 0.094, 13.97, 0.2],
+      [0.462, 0.027, 338.4, 0.15],
+      [0.532, 0.034, 0.4, 0.15],
+    ])
+    const two = disc(2, [
+      [0.702, 0.105, 28.87, 0.28],
+      [0.627, 0.094, 13.7, 0.2],
+      [0.532, 0.034, 359.99, 0.15],
+      [0.462, 0.027, 338.2, 0.15],
+    ])
+    const songs = [one, two, song(3, 0.3), song(4, 0.6), song(5, 0.8)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 3, 4, 5])
+  })
+
+  it('takes one cover from an album, whose covers can be cropped apart', () => {
+    const songs = [
+      song(1, 0.5, 'Magic Lantern'),
+      song(2, 0.55, 'Magic Lantern'),
+      song(3, 0.3),
+      song(4, 0.7),
+      song(5, 0.9),
+    ]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 3, 4, 5])
+  })
+
+  it('counts a cover not read yet as its own', () => {
+    const songs = [song(1, null), song(2, null), song(3, 0.5), song(4, 0.6)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 2, 3, 4])
+  })
+
+  it('shows the first cover alone when fewer than four pictures differ', () => {
+    const songs = [song(1, 0.5), song(2, 0.5), song(3, 0.5), song(4, 0.6)]
+    expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1])
+    expect(mosaicCovers(songs, s => s.id === 4).map(s => s.id)).toEqual([4])
+    expect(mosaicCovers(songs, () => false).map(s => s.id)).toEqual([1])
   })
 })

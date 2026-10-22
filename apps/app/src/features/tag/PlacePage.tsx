@@ -455,12 +455,12 @@ function PlaceSongs({
       if (!byAlbum || (previous && previous.album.trim() === item.album.trim())) return row
       return (
         <View>
-          <AlbumHeading song={item} artUri={artFor(item)} />
+          <AlbumHeading song={item} artUri={artFor(item)} wide={wide} />
           {row}
         </View>
       )
     },
-    [renderRow, artFor, byAlbum, songs],
+    [renderRow, artFor, byAlbum, songs, wide],
   )
 
   return (
@@ -484,13 +484,15 @@ function PlaceSongs({
 function AlbumHeading({
   song,
   artUri,
+  wide,
 }: {
   song: Song
   artUri: string | null | undefined
+  wide: boolean
 }): ReactNode {
   const album = song.album.trim()
   return (
-    <View style={styles.album}>
+    <View style={[styles.album, wide && styles.albumWide]}>
       <Cover uri={artUri} title={album || song.title} size={28} />
       <Text style={styles.albumName} numberOfLines={1}>
         {album || 'Other songs'}
@@ -514,6 +516,8 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.roomy,
     paddingBottom: space.tight,
   },
+  // A computer's page edge, where the title above starts.
+  albumWide: { paddingHorizontal: space.gutterWide },
   albumName: {
     ...rowTitle(theme.colors),
     flexShrink: 1,

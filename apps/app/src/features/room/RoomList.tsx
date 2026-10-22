@@ -168,7 +168,8 @@ function RoomPlaying({ state }: { state: RoomState }): ReactNode {
     <PlayingCard
       song={song}
       label={`${paused ? 'Paused' : 'Playing'} · ${whose}`}
-      line={<RoomClock state={state} artist={artistOr(song.artist)} duration={song.duration} />}
+      line={artistOr(song.artist)}
+      clock={<RoomClock state={state} duration={song.duration} />}
       playing={playing}
       badge={
         row.face ? (
@@ -260,16 +261,8 @@ function RoomEmpty({ state }: { state: RoomState }): ReactNode {
   )
 }
 
-/** "ヨルシカ · 1:52 of 4:23", on the room's clock, ticking on its own. */
-function RoomClock({
-  state,
-  artist,
-  duration,
-}: {
-  state: RoomState
-  artist: string
-  duration: number
-}): ReactNode {
+/** "1:52 of 4:23", on the room’s clock, ticking on its own. */
+function RoomClock({ state, duration }: { state: RoomState; duration: number }): ReactNode {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -279,7 +272,7 @@ function RoomClock({
     positionNow(state, currentRoom().offset, now),
     duration > 0 ? duration : Number.POSITIVE_INFINITY,
   )
-  return `${artist} · ${formatDuration(position)}${duration > 0 ? ` of ${formatDuration(duration)}` : ''}`
+  return `${formatDuration(position)}${duration > 0 ? ` of ${formatDuration(duration)}` : ''}`
 }
 
 function Upcoming({ state }: { state: RoomState }): ReactNode {

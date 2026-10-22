@@ -91,7 +91,8 @@ export function PlayingNow({
     <PlayingCard
       song={row.song}
       label={ended ? 'Played' : 'Playing'}
-      line={<PlayingLine artist={artistOr(row.song.artist)} />}
+      line={artistOr(row.song.artist)}
+      clock={<PlayingClock />}
       playing={playing}
       onOpen={onOpen}
       testID={`queue-row-${row.index}`}
@@ -101,10 +102,10 @@ export function PlayingNow({
   )
 }
 
-/** "Yorushika · 1:52 of 4:23", on its own so a tick redraws this line and not Up next. */
-function PlayingLine({ artist }: { artist: string }): ReactNode {
+/** "1:52 of 4:23", on its own so a tick redraws this and not Up next. */
+function PlayingClock(): ReactNode {
   const { position, duration } = usePlayerProgress()
-  return `${artist} · ${formatDuration(position)} of ${formatDuration(duration)}`
+  return `${formatDuration(position)} of ${formatDuration(duration)}`
 }
 
 /**

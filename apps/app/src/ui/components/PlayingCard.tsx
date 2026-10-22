@@ -30,6 +30,7 @@ export function PlayingCard({
   song,
   label,
   line,
+  clock,
   playing,
   onOpen,
   badge,
@@ -38,8 +39,14 @@ export function PlayingCard({
 }: {
   song: Song
   label: string
-  /** Under the title: where the song has got, on the player's clock or a room's. */
+  /** Under the title: who it is by. */
   line: ReactNode
+  /**
+   * After the line, kept whole: where the song has got, on the player's clock
+   * or a room's. Said in the same line, its ellipsis took the one part of it
+   * that moves ("Yorushika · 0:04 of …" in the rail).
+   */
+  clock?: ReactNode
   /** The equaliser moves while it plays and rests while it does not. */
   playing: boolean
   onOpen?: () => void
@@ -68,9 +75,18 @@ export function PlayingCard({
         <Text style={styles.title} numberOfLines={1}>
           {song.title}
         </Text>
-        <Text style={styles.line} numberOfLines={1}>
-          {line}
-        </Text>
+        <View style={styles.lineRow}>
+          <Text style={[styles.line, styles.lineShrinks]} numberOfLines={1}>
+            {line}
+          </Text>
+          {clock ? (
+            <Text style={[styles.line, styles.clock]} numberOfLines={1}>
+              {/* A no-break space: a text's leading space is dropped where it begins a box. */}
+              {'\u00a0· '}
+              {clock}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </>
   )
@@ -122,6 +138,9 @@ const styles = StyleSheet.create(theme => ({
   text: textColumn,
   label: labelText(theme.colors),
   title: rowTitle(theme.colors),
+  lineRow: { flexDirection: 'row' },
+  lineShrinks: { flexShrink: 1 },
+  clock: { flexShrink: 0 },
   line: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,

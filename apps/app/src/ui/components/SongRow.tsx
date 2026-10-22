@@ -489,25 +489,30 @@ export const SongRow = memo(function SongRow({
           </Text>
         ) : null}
 
-        <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
-          {/* Below the width for chips they go; the button stays. */}
-          {tagChips ? chips(chipBudget({ hasAddButton: onEditTags !== undefined })) : null}
-          {onEditTags ? (
-            <Reveal shown={revealed}>
-              <Pressable
-                ref={tagAddRef}
-                onPress={() => onEditTags(tagAddRef.current, song)}
-                accessibilityRole="button"
-                accessibilityLabel={`Edit tags for ${song.title}`}
-                {...tip('Edit tags')}
-                {...untabbed}
-                style={styles.tagAdd}
-              >
-                <Plus size={iconSize.sub} tone="textMuted" />
-              </Pressable>
-            </Reveal>
-          ) : null}
-        </View>
+        {/* Only where the list shows tags: inside a tag, an artist or a
+            playlist the slot would stand empty, 180 px of nothing in every
+            row while titles and albums beside it were cut short. */}
+        {allTags !== undefined || onEditTags ? (
+          <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
+            {/* Below the width for chips they go; the button stays. */}
+            {tagChips ? chips(chipBudget({ hasAddButton: onEditTags !== undefined })) : null}
+            {onEditTags ? (
+              <Reveal shown={revealed}>
+                <Pressable
+                  ref={tagAddRef}
+                  onPress={() => onEditTags(tagAddRef.current, song)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit tags for ${song.title}`}
+                  {...tip('Edit tags')}
+                  {...untabbed}
+                  style={styles.tagAdd}
+                >
+                  <Plus size={iconSize.sub} tone="textMuted" />
+                </Pressable>
+              </Reveal>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.actions}>
           <Text style={styles.durationWide}>{formatDuration(song.duration)}</Text>

@@ -181,11 +181,15 @@ export function stageGeometry(width: number, height: number, inset = 0): StageGe
     pad: clamp(width * 0.05, 28, 72),
     gutter: clamp(width * 0.05, 28, 72),
     right: clamp(width * 0.04, 20, 56),
+    // Past 2000 the cover, the title and the words keep growing with the
+    // page, so a very wide window fills with the song rather than leaving
+    // most of itself empty right of the words (P1 C); at 2000 and under
+    // nothing differs.
     cover: stacked
       ? clamp(width * 0.36, 200, 320)
-      : Math.max(180, Math.min(400, width * 0.34, height - 290)),
-    title: clamp(width * 0.022, 22, 30),
-    lyric: clamp(width * 0.023, 22, 32),
+      : Math.max(180, Math.min(clamp(width * 0.2, 400, 600), width * 0.34, height - 290)),
+    title: Math.min(40, Math.max(clamp(width * 0.022, 22, 30), width * 0.0125)),
+    lyric: Math.min(44, Math.max(clamp(width * 0.023, 22, 32), width * 0.0135)),
     focusLyric: clamp(width * 0.039, 30, 54),
   }
 }

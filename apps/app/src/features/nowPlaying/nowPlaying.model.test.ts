@@ -107,6 +107,17 @@ describe('now playing', () => {
     expect(geometry.lyric).toBeCloseTo(29.44)
   })
 
+  it('grows the cover, the title and the words on a very wide page, and only there', () => {
+    expect(stageGeometry(2000, 1100)).toMatchObject({ cover: 400, title: 30, lyric: 32 })
+    const wide = stageGeometry(2800, 1116)
+    expect(wide.cover).toBe(560)
+    expect(wide.title).toBe(35)
+    expect(wide.lyric).toBeCloseTo(37.8)
+    // A short window still keeps the cover clear of the bar.
+    expect(stageGeometry(2800, 700).cover).toBe(410)
+    expect(stageGeometry(3600, 1400)).toMatchObject({ cover: 600, title: 40, lyric: 44 })
+  })
+
   it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {
     const portrait = stageGeometry(834, 1110, 24)
     expect(portrait.stacked).toBe(true)

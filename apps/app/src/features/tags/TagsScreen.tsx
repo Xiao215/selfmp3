@@ -429,7 +429,7 @@ function UntaggedCard({
       </>
     )
   const words = (
-    <View style={styles.untaggedText}>
+    <View style={[styles.untaggedText, wide && styles.untaggedTextWide]}>
       <Text style={styles.untaggedTitle} numberOfLines={1}>
         {title}
       </Text>
@@ -451,16 +451,19 @@ function UntaggedCard({
 
   if (wide) {
     return (
-      <View style={styles.untagged} testID="tags-untagged">
+      <View style={[styles.untagged, styles.untaggedWide]} testID="tags-untagged">
         {covers}
         {words}
-        {suggest('secondary')}
-        <Button
-          label="Tag while they play"
-          icon={<TagIcon color={theme.colors.textPrimary} />}
-          onPress={onStart}
-          testID="tags-untagged-start"
-        />
+        {/* Under the words, at the right, where the card is too narrow for both. */}
+        <View style={styles.untaggedButtons}>
+          {suggest('secondary')}
+          <Button
+            label="Tag while they play"
+            icon={<TagIcon color={theme.colors.textPrimary} />}
+            onPress={onStart}
+            testID="tags-untagged-start"
+          />
+        </View>
       </View>
     )
   }
@@ -738,6 +741,11 @@ const styles = StyleSheet.create(theme => ({
   stackCover: { borderRadius: 11, borderWidth: 2, borderColor: theme.colors.surface1 },
   stackOverlap: { marginLeft: -16 },
   untaggedText: textColumn,
+  // Wraps rather than squeezing the words to nothing: under about 220 px for
+  // them, the buttons take a row of their own.
+  untaggedWide: { flexWrap: 'wrap' },
+  untaggedTextWide: { flexBasis: 220 },
+  untaggedButtons: { flexDirection: 'row', gap: space.md, marginLeft: 'auto' },
   untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
   untaggedTitle: rowTitle(theme.colors),
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },

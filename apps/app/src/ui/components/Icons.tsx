@@ -445,6 +445,8 @@ export const Grip = icon(color => (
 
 export const ChevronDown = icon(() => <Path d="m6 9 6 6 6-6" />)
 
+export const ChevronUp = icon(() => <Path d="m6 15 6-6 6 6" />)
+
 /** The way back: a stack's back edge, and a page's own back button. */
 export const ChevronLeft = icon(() => <Path d="m15 6-6 6 6 6" />)
 

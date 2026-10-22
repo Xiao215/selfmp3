@@ -3,11 +3,12 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { Tag } from '@selfmp3/shared'
-import { radius, type, space } from '@selfmp3/client'
+import { iconSize, radius, type, space } from '@selfmp3/client'
 import { TagChipRow } from '../../ui/components/TagChooser'
 import { Sheet } from '../../ui/components/Sheet'
 import { TagSearchList } from '../../ui/components/TagPicker'
 import { Press } from '../../ui/components/Press'
+import { ChevronDown } from '../../ui/components/Icons'
 import { smallTitle } from '../../ui/surfaces'
 
 /**
@@ -82,7 +83,7 @@ export function TagItPill({
         <Text style={styles.pillText} numberOfLines={1}>
           {shown}
         </Text>
-        <Text style={styles.caret}>▾</Text>
+        <ChevronDown size={iconSize.small} tone="textMuted" />
       </Press>
       <Text style={styles.words}>as it arrives</Text>
       <TagSheet
@@ -165,5 +166,4 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
     ...smallTitle(theme.colors),
   },
-  caret: { color: theme.colors.textMuted, fontSize: type.small },
 }))

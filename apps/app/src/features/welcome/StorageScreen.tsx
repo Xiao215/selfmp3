@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { radius, space, type, textStyle } from '@selfmp3/client'
+import { iconSize, radius, space, type, textStyle } from '@selfmp3/client'
 import { session as cloud } from '../../replica'
 import { deviceWord } from '../../ports/device'
 import { installedApp } from '../../ports/install'
@@ -31,6 +31,7 @@ import { OnboardingCard, OnboardingFootnote, OnboardingPage } from './Onboarding
 import { StatusLine } from '../../ui/components/StatusLine'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
+import { ChevronDown, ChevronUp } from '../../ui/components/Icons'
 import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
 
 /**
@@ -165,7 +166,11 @@ export function StorageScreen(): ReactNode {
             <Text style={styles.hint}>Three steps on Backblaze, about five minutes.</Text>
           )}
         </View>
-        <Text style={styles.caret}>{helperOpen ? '▴' : '▾'}</Text>
+        {helperOpen ? (
+          <ChevronUp size={iconSize.field} tone="textSecondary" />
+        ) : (
+          <ChevronDown size={iconSize.field} tone="textSecondary" />
+        )}
       </Press>
       {helperOpen ? (
         <>
@@ -256,7 +261,6 @@ const styles = StyleSheet.create(theme => ({
   helperHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   helperWords: { flex: 1, minWidth: 0, gap: 1 },
   helperTitle: rowTitle(theme.colors),
-  caret: { color: theme.colors.textSecondary, fontSize: type.sub },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
   stepNumber: {
     width: 24,

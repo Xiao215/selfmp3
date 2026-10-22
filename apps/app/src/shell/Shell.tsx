@@ -36,7 +36,7 @@ import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
-import { QueueRail, useQueueRailRoom } from '../features/queue/QueueRail'
+import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
 import { RoomSheets } from '../features/room/RoomSheets'
 import { ShareSheet } from '../features/share/ShareSheet'
 import { QueueSheet } from '../features/queue/QueueSheet'
@@ -171,6 +171,7 @@ function Frame({
    */
   const { width } = useLayout()
   const railRoom = useQueueRailRoom()
+  const railCover = useQueueRailCover()
   const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
@@ -188,7 +189,7 @@ function Frame({
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
-          {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
+          {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} right={railCover} /> : null}
         </View>
         {/* Up next, beside the page, across every page. */}
         {wide ? <QueueRail /> : null}
@@ -433,7 +434,7 @@ function PaletteHost(): ReactNode {
  * The toast row: at the foot of the content column, above the player bar or
  * the mini player, so a message never covers the transport.
  */
-function Toasts({ left = 0 }: { left?: number }): ReactNode {
+function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): ReactNode {
   // Above a phone's floating tab bar and mini player, and above its floating
   // selection bar rather than over its buttons: the row rides the bar's own
   // rise and sink (`selectionBarLift`), a transform because the value moves
@@ -451,8 +452,9 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
   }))
   return (
     <Animated.View
-      // Centred in the page, which starts where the sidebar over it ends.
-      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome }, lift]}
+      // Centred in the page that can be seen: it starts where the sidebar over
+      // it ends, and stops where Up next lying over it begins.
+      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />

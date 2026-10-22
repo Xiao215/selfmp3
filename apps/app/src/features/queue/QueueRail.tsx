@@ -96,6 +96,17 @@ export function useQueueRailRoom(): number {
   return shown && width >= WINDOW_WIDTH.railBeside ? RAIL_WIDTH : 0
 }
 
+/**
+ * How much of the page's right edge the rail covers: its width while it lies
+ * over the page (a window too narrow for it beside), none otherwise. What a
+ * part centred in the page, like the toast row, keeps clear of.
+ */
+export function useQueueRailCover(): number {
+  const shown = useUpNextShown(true)
+  const { width } = useLayout()
+  return shown && width < WINDOW_WIDTH.railBeside ? RAIL_WIDTH : 0
+}
+
 /** A drag under way: the row it started on, where it would land, and whether it is out. */
 interface Drag {
   readonly from: number

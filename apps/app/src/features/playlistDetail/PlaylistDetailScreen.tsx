@@ -408,12 +408,15 @@ export function PlaylistDetailScreen(): ReactNode {
 }
 
 /**
- * A playlist's head on a computer keeps the hero on one row, its buttons
- * straight after the words rather than pushed to the far end.
+ * A playlist's head on a computer keeps its buttons straight after the words
+ * rather than pushed to the far end. Where the row cannot hold the name at a
+ * readable width beside them (a narrow window, or Up next open on a laptop),
+ * the buttons go under it instead: held on one row, the name was squeezed to
+ * nothing and the ⋯ went past the window's edge.
  */
 const WIDE = {
-  hero: { flexWrap: 'nowrap', gap: space.xl },
-  titles: { flexBasis: 'auto' },
+  hero: { flexWrap: 'wrap', gap: space.xl },
+  titles: { flexBasis: 260 },
   actions: { marginLeft: 0 },
 } as const
 

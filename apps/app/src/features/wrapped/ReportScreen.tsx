@@ -21,6 +21,8 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { canSaveLook, saveLook } from '../../ports/saveLook'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
+import { useContentWidthValue } from '../../shell/contentWidth'
+import { COLUMN_WIDTH } from '../../shell/widths'
 import { useAccent } from '../../ui/accent'
 import { useBackTo } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
@@ -71,7 +73,7 @@ const FRONT_PAGE_MAX = 1120
  */
 export function ReportScreen(): ReactNode {
   const { fromCloud } = useConnection()
-  const { wide } = useLayout()
+  const frontPage = useFrontPageRoom()
   // The window it opens on: the address's, when it names one — Home's Sunday
   // card opens the week (`P06`) — and otherwise the month.
   const { range: asked } = useLocalSearchParams<{ range?: string }>()
@@ -81,10 +83,20 @@ export function ReportScreen(): ReactNode {
   const frame: FrameState = {
     range,
     onRange: setRange,
-    look: lookToDraw(chosen, wide),
+    look: lookToDraw(chosen, frontPage),
     onLook: setChosen,
   }
   return fromCloud ? <CloudReport {...frame} /> : <Report via={undefined} {...frame} />
+}
+
+/**
+ * Whether the page column has room for the landscape front page: a computer's
+ * column of 900 or more. Narrower — 820 to 1123, or Up next open on a laptop —
+ * it was drawn at half size, its small print about 6.5 px, so the portrait
+ * looks a phone has are offered instead (P9 A).
+ */
+function useFrontPageRoom(): boolean {
+  return useContentWidthValue(page => page !== null && page >= COLUMN_WIDTH.reportFrontPage)
 }
 
 interface FrameState {
@@ -249,10 +261,11 @@ function ReportFrame({
 }): ReactNode {
   const { theme } = useUnistyles()
   const { wide } = useLayout()
+  const frontPage = useFrontPageRoom()
   const accent = useAccent()
   const picker = (
     <LookPicker
-      looks={looksFor(wide)}
+      looks={looksFor(frontPage)}
       value={look}
       onChange={onLook}
       hue={accent.hue}

@@ -19,6 +19,8 @@ export const COLUMN_WIDTH = {
   statsLists: 860,
   /** Stats' three cards stand in one row; below, Listened above the other two. */
   statsCards: 700,
+  /** The Report offers its landscape front page; below, the portrait looks a phone has. */
+  reportFrontPage: 900,
   /** Home's card column stands beside the tiles; below, under them. */
   homeCardsBeside: 880,
   /** The library's head keeps to one row (the rail beside a small window leaves less). */

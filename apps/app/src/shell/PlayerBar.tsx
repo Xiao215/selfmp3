@@ -97,6 +97,10 @@ export function PlayerBar(): ReactNode {
   // Up next is the rail beside whatever page is open, Now Playing included
   // (docs/ui-mock `C11`), so the button toggles the rail and goes nowhere.
   const queueOpen = useQueueSheetOpen()
+  // The tools' own width, the least their column may be: it grows like the
+  // song's, so the transport sits in the middle of the window, not of what the
+  // tools leave.
+  const [toolsWidth, setToolsWidth] = useState(0)
 
   return (
     <View
@@ -175,34 +179,39 @@ export function PlayerBar(): ReactNode {
         </View>
       </View>
 
-      <View style={styles.right}>
-        <View style={styles.group} role="group" aria-label="Sleep">
-          <SleepButton tone={songColor} />
-        </View>
-        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
-          <VolumeControl compact={compact} tone={songColor} />
-        </View>
-        <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
-          <UpNextTarget>
-            <IconButton
-              testID="player-bar-queue"
-              onPress={toggleQueueSheet}
-              label="Up next"
-              active={queueOpen}
-            >
-              <UpNext
-                size={iconSize.medium}
-                color={queueOpen ? songColor.color : theme.colors.textSecondary}
-              />
-            </IconButton>
-          </UpNextTarget>
-          <View ref={devicesRef} collapsable={false}>
-            <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
-              <Devices size={iconSize.medium} color={theme.colors.textSecondary} />
-            </IconButton>
+      <View style={[styles.right, { minWidth: toolsWidth }]}>
+        <View
+          style={styles.tools}
+          onLayout={event => setToolsWidth(Math.ceil(event.nativeEvent.layout.width))}
+        >
+          <View style={styles.group} role="group" aria-label="Sleep">
+            <SleepButton tone={songColor} />
           </View>
-          {/* Listen together, or the room's faces while you are in one. */}
-          <TogetherButton iconSize={iconSize.medium} color={theme.colors.textSecondary} />
+          <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
+            <VolumeControl compact={compact} tone={songColor} />
+          </View>
+          <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
+            <UpNextTarget>
+              <IconButton
+                testID="player-bar-queue"
+                onPress={toggleQueueSheet}
+                label="Up next"
+                active={queueOpen}
+              >
+                <UpNext
+                  size={iconSize.medium}
+                  color={queueOpen ? songColor.color : theme.colors.textSecondary}
+                />
+              </IconButton>
+            </UpNextTarget>
+            <View ref={devicesRef} collapsable={false}>
+              <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
+                <Devices size={iconSize.medium} color={theme.colors.textSecondary} />
+              </IconButton>
+            </View>
+            {/* Listen together, or the room's faces while you are in one. */}
+            <TogetherButton iconSize={iconSize.medium} color={theme.colors.textSecondary} />
+          </View>
         </View>
       </View>
 
@@ -447,11 +456,20 @@ const styles = StyleSheet.create(theme => ({
   progress: { alignSelf: 'stretch' },
   centreTight: { minWidth: 250 },
   leftTight: { minWidth: 220 },
+  // Grows as the song's column does, so the two stay one width and the
+  // transport between them is in the middle of the bar.
   right: {
-    flexShrink: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  tools: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: space.tight,
   },
   group: { flexDirection: 'row', alignItems: 'center', gap: 2 },

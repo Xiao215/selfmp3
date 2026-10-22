@@ -121,44 +121,50 @@ function SidebarInner(): ReactNode {
           style={[styles.titleBarDrag, { height: titleBarInset }]}
         />
       ) : null}
-      <View style={styles.brand}>
-        <BrandMark size={20} />
-        <Text style={styles.wordmark}>self.mp3</Text>
-      </View>
+      {/*
+        Everything above the foot scrolls, so on a short window (a 720 p laptop's
+        browser) the foot stays in reach rather than going under the player bar.
+      */}
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
+        <View style={styles.brand}>
+          <BrandMark size={20} />
+          <Text style={styles.wordmark}>self.mp3</Text>
+        </View>
 
-      <SearchRow />
+        <SearchRow />
 
-      <View accessibilityRole="tablist" style={styles.nav}>
-        {slide.highlight}
-        {ROWS.map(row => {
-          const active = row.href === lit
-          const Icon = NAV_ICON[row.id]
-          return (
-            <Press
-              key={row.href}
-              feedback="wash"
-              onLayout={slide.measure(row.href)}
-              style={[styles.item, active && !slide.placed && styles.itemOn]}
-              onPress={() => {
-                if (!navGoes(pathname, row.href)) return
-                enterFromSidebar()
-                router.navigate(row.href)
-              }}
-              accessibilityLabel={row.label}
-              {...navItemProps(active)}
-              testID={`nav-${row.id}`}
-            >
-              <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
-              <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
-                {row.label}
-              </Text>
-            </Press>
-          )
-        })}
-      </View>
+        <View accessibilityRole="tablist" style={styles.nav}>
+          {slide.highlight}
+          {ROWS.map(row => {
+            const active = row.href === lit
+            const Icon = NAV_ICON[row.id]
+            return (
+              <Press
+                key={row.href}
+                feedback="wash"
+                onLayout={slide.measure(row.href)}
+                style={[styles.item, active && !slide.placed && styles.itemOn]}
+                onPress={() => {
+                  if (!navGoes(pathname, row.href)) return
+                  enterFromSidebar()
+                  router.navigate(row.href)
+                }}
+                accessibilityLabel={row.label}
+                {...navItemProps(active)}
+                testID={`nav-${row.id}`}
+              >
+                <Icon size={iconSize.medium} tone={active ? 'textPrimary' : 'textMuted'} />
+                <Text style={[styles.label, active && styles.labelOn]} numberOfLines={1}>
+                  {row.label}
+                </Text>
+              </Press>
+            )
+          })}
+        </View>
 
-      <Playlists />
-      <Tags />
+        <Playlists />
+        <Tags />
+      </ScrollView>
       <Foot />
     </View>
   )
@@ -675,6 +681,10 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.md,
     gap: space.xl,
   },
+  // Out to the rail's edges, so a focus ring or a dragged-over row's edge is
+  // not clipped by the scroller; the rail's own margin is put back inside.
+  body: { flex: 1, minHeight: 0, marginHorizontal: -space.md },
+  bodyContent: { flexGrow: 1, gap: space.xl, paddingHorizontal: space.md },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -760,8 +770,8 @@ const styles = StyleSheet.create(theme => ({
   itemOn: { backgroundColor: theme.colors.surface3, borderRadius: radius.item },
   labelOn: { color: theme.colors.textPrimary, fontWeight: '600' },
   dropHint: { fontSize: type.tiny, paddingHorizontal: space.snug, paddingBottom: 2 },
-  /* `.nav-group-grow`: the tag list takes what is left, and scrolls in it. */
-  group: { flex: 1, minHeight: 0, gap: 1 },
+  /* `.nav-group-grow`: the tag list takes what is left; short of room, the rail scrolls. */
+  group: { flexGrow: 1, gap: 1 },
   groupTitle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -800,7 +810,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.sm,
   },
   suggestionText: { color: theme.colors.textSecondary, fontSize: type.tiny },
-  tagList: { flex: 1 },
+  tagList: { flexGrow: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.item },
   tagMain: {

@@ -212,10 +212,16 @@ function DevicesList({
               <Text style={styles.deviceText} numberOfLines={1}>
                 {device.name}
               </Text>
-              {device.id === deviceId ? <Text style={styles.deviceTag}>this device</Text> : null}
-              {ids.length > 1 ? <Text style={styles.deviceTag}>{`×${ids.length}`}</Text> : null}
+              {device.id === deviceId ? (
+                <Text style={styles.deviceTag} numberOfLines={1}>
+                  this device
+                </Text>
+              ) : null}
+              {ids.length > 1 ? (
+                <Text style={styles.deviceTag} numberOfLines={1}>{`×${ids.length}`}</Text>
+              ) : null}
             </View>
-            <Text style={styles.deviceWhen}>
+            <Text style={styles.deviceWhen} numberOfLines={1}>
               {!live
                 ? `offline · last seen ${formatRelative(device.lastSeenAt)}`
                 : device.online
@@ -274,9 +280,12 @@ const styles = StyleSheet.create(theme => ({
   devicesNote: { paddingTop: space.snug },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   dotOnline: { backgroundColor: theme.colors.good },
-  deviceName: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  // On a narrow phone the name keeps a readable width and "last seen …" gives
+  // way first; the tags never break, where they read "× / 3 / 2" a glyph a line.
+  deviceName: { flex: 1, minWidth: 120, flexDirection: 'row', alignItems: 'center', gap: 7 },
   deviceText: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
   deviceTag: {
+    flexShrink: 0,
     color: theme.colors.textMuted,
     fontSize: type.tiny,
     paddingHorizontal: space.tight,
@@ -285,5 +294,5 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface3,
     overflow: 'hidden',
   },
-  deviceWhen: { color: theme.colors.textMuted, fontSize: type.small },
+  deviceWhen: { flexShrink: 1, color: theme.colors.textMuted, fontSize: type.small },
 }))

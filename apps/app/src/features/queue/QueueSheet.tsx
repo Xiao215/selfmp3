@@ -331,7 +331,7 @@ function SheetPanel({
             </Press>
             {inRoom ? null : (
               <View style={styles.titleRow}>
-                <Text style={styles.title} accessibilityRole="header">
+                <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
                   Up next
                 </Text>
                 <View style={styles.pills}>
@@ -679,7 +679,15 @@ const styles = StyleSheet.create(theme => ({
   },
   head: { gap: space.md, paddingHorizontal: 18 },
   grabberHit: { alignSelf: 'center', paddingVertical: 2, paddingHorizontal: 20 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  // On a 320 pt phone the pills take a row of their own rather than breaking
+  // the title over two lines.
+  titleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+  },
   title: {
     color: theme.colors.textPrimary,
     fontFamily: fonts.display,

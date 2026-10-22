@@ -65,6 +65,7 @@ export function useSongRows({
   testPrefix = 'song-row',
   withTags = false,
   hideTagIds,
+  withAlbum = true,
   playlist,
 }: {
   /** The rows, in the list's order. */
@@ -78,6 +79,8 @@ export function useSongRows({
   withTags?: boolean
   /** Tags every row already shares, whose chips would only repeat the page. */
   hideTagIds?: readonly number[]
+  /** Each row's album: off where the list is grouped under album headings. */
+  withAlbum?: boolean
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   playlist?: { readonly id: number; readonly name: string }
 }): SongRows {
@@ -152,6 +155,7 @@ export function useSongRows({
       onToggleSelect,
       dragSongs,
       listKey,
+      showAlbum: withAlbum,
       ...(withTags ? { tags: tagsOf(song), hideTagIds, onOpenTag, onEditTags } : null),
     }),
     [
@@ -166,6 +170,7 @@ export function useSongRows({
       onToggleSelect,
       dragSongs,
       listKey,
+      withAlbum,
       withTags,
       tagsOf,
       hideTagIds,

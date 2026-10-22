@@ -445,6 +445,8 @@ function PlaceSongs({
     selection,
     onPlay: index => player.playFrom(ids, index, { source }),
     testPrefix: 'place-song',
+    // Under an album's heading a row's album would only repeat it (P12 A).
+    withAlbum: !byAlbum,
   })
   const { renderSong: renderRow } = rows
 

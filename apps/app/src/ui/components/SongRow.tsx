@@ -88,6 +88,7 @@ export const SongRow = memo(function SongRow({
   index,
   tags: allTags,
   hideTagIds,
+  showAlbum = true,
   onOpenTag,
   onEditTags,
   onLongPress,
@@ -141,6 +142,11 @@ export const SongRow = memo(function SongRow({
    * left off.
    */
   tags?: readonly Tag[]
+  /**
+   * Whether the album shows at desktop width, in its column or after the
+   * artist. Off under an album's own heading, where it would only repeat it.
+   */
+  showAlbum?: boolean
   /**
    * Tags the list is already about, whose chips would only repeat the page:
    * the tags Library is filtered by, the tag Up next is playing from. Keep
@@ -414,7 +420,7 @@ export const SongRow = memo(function SongRow({
 
   // With a mouse these wait for the pointer; a tablet at this width shows them.
   const revealed = !dense || hovered || menuOpen || keyed
-  const albumColumn = (room & ROOM_FOR_ALBUM) !== 0
+  const albumColumn = showAlbum && (room & ROOM_FOR_ALBUM) !== 0
   const tagChips = (room & ROOM_FOR_CHIPS) !== 0
   const controlSize = dense ? 34 : HIT_TARGET
 
@@ -472,7 +478,7 @@ export const SongRow = memo(function SongRow({
                   {artistOr(song.artist)}
                 </Text>
                 {/* With a finger the second line is the artist alone (`T03`). */}
-                {song.album && !albumColumn && dense ? (
+                {showAlbum && song.album && !albumColumn && dense ? (
                   <Text style={styles.albumInline} numberOfLines={1}>
                     {' · '}
                     {song.album}

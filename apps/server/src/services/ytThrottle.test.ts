@@ -12,7 +12,7 @@ import {
   PERSON_MAY_BORROW,
   PAUSE_MS,
   type ThrottleState,
-} from './ytThrottle.js'
+} from '@selfmp3/shared'
 
 const T0 = 1_700_000_000_000
 const HOUR = 3_600_000

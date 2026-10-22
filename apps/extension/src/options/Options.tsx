@@ -39,6 +39,13 @@ export function Options(): ReactNode {
     queryClient.setQueryData(['status'], next)
   }
 
+  // The extension's own options (background/options.ts): kept by the worker, not by any page.
+  const options = useQuery({ queryKey: ['options'], queryFn: () => ask({ type: 'options' }) })
+  const setSignIn = useMutation({
+    mutationFn: (useYouTubeSignIn: boolean) => ask({ type: 'setOptions', useYouTubeSignIn }),
+    onSuccess: next => queryClient.setQueryData(['options'], next),
+  })
+
   /*
    * Three steps, all here: the worker writes the attempt down and hands back
    * where to go, Chrome runs the window, and the code that comes back in the
@@ -153,6 +160,25 @@ export function Options(): ReactNode {
       </div>
 
       <div className="options-side">
+        <section className="group">
+          <h2 className="label">Downloading in the web app</h2>
+          <label className="card setting">
+            <span>Use my YouTube sign-in</span>
+            <input
+              type="checkbox"
+              checked={options.data?.useYouTubeSignIn ?? false}
+              disabled={!options.data || setSignIn.isPending}
+              onChange={event => setSignIn.mutate(event.target.checked)}
+            />
+          </label>
+          <p className="hint">
+            When the web app downloads a song in this browser, YouTube counts it against your
+            account instead of your network, which lets many more through. Only the request that
+            asks for a song goes signed in, never one that could like, subscribe or comment — but
+            YouTube may flag an account that downloads a lot.
+          </p>
+        </section>
+
         {defaults.length > 0 && (
           <section className="group">
             <h2 className="label">When you import</h2>

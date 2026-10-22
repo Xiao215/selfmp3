@@ -26,6 +26,7 @@ import {
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
+  ImportDeviceRenewResultSchema,
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
   ImportFindResultSchema,
@@ -487,8 +488,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     importTools: (refresh = false) =>
       request('GET', `/api/import/tools${refresh ? '?refresh=1' : ''}`, ToolStatusSchema),
 
-    importPreview: (url: string) =>
-      request('POST', '/api/import/preview', ImportPreviewSchema, { url }),
+    importPreview: (url: string, options: { warmListen?: boolean } = {}) =>
+      request('POST', '/api/import/preview', ImportPreviewSchema, { url, ...options }),
 
     /** Words looked for on YouTube Music and 网易云 at once, as review rows (`/import/search`). */
     importSearch: (query: string) =>
@@ -518,6 +519,46 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     importEnqueue: (input: ImportEnqueue) =>
       request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
+
+    // --- songs this device downloads itself (docs/features/client-download.md)
+
+    /** Keep the lease on the jobs this device holds, with how far each download has got. */
+    importDeviceRenew: (lease: string, progress: readonly { id: string; percent: number }[]) =>
+      request('POST', '/api/import/device/renew', ImportDeviceRenewResultSchema, {
+        lease,
+        progress,
+      }),
+
+    importDeviceStart: (lease: string, id: string) =>
+      request('POST', '/api/import/device/start', OkSchema, { lease, id }),
+
+    /** This device cannot download it: the server does. */
+    importDeviceRelease: (lease: string, id: string, reason: string) =>
+      request('POST', '/api/import/device/release', OkSchema, {
+        lease,
+        id,
+        reason: reason.slice(0, 500),
+      }),
+
+    /**
+     * Where to send a job's file, and the credentials to send it with — or
+     * null with no server to send it to. The file is the platform's to send:
+     * a song is megabytes of bytes, which `ClientFetch` does not carry, and it
+     * takes longer than the platform's request timeout allows an answer.
+     */
+    importDeviceFileTarget: (
+      id: string,
+      lease: string,
+    ): { url: string; headers: Record<string, string> } | null => {
+      const { transport, fromCloud } = context()
+      if (fromCloud || !transport) return null
+      return {
+        url: transport.url(
+          `/api/import/device/jobs/${encodeURIComponent(id)}/file?lease=${encodeURIComponent(lease)}`,
+        ),
+        headers: { ...transport.headers?.() },
+      }
+    },
 
     /** The queue, with the newest `finished` done jobs (the server's default when unsaid). */
     importQueue: (finished?: number) =>

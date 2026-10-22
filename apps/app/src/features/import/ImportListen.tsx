@@ -24,6 +24,7 @@ import {
 } from './listen.model'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
+import { listenSource } from './deviceImports'
 
 /** The colour of each cover the server has read this session, by the cover's address. */
 const tonesByCover = new Map<string, CoverTone | null>()
@@ -60,6 +61,8 @@ export function useListen(
   const [position] = useState(() => createValueStore(0))
   /** Something was playing when previewing began; it carries on when the preview closes. */
   const resume = useRef(false)
+  /** The song last asked to play: where its audio comes from may take a moment to know. */
+  const wanted = useRef<string | null>(null)
 
   /** Ask the server what colour the track's cover is, and colour the preview in once it says. */
   const colourIn = (track: ListenTrack): void => {
@@ -120,7 +123,13 @@ export function useListen(
     makeRoom()
     position.set(0)
     setListening(startListening(track, tonesByCover.get(track.thumbnail ?? '') ?? null))
-    audio.play(mediaUrlFor(connection).importListen(track.url))
+    // From this device's own download where it can make one (deviceImports.ts),
+    // so the song heard is the song imported without asking YouTube again.
+    wanted.current = track.url
+    const server = mediaUrlFor(connection)
+    void listenSource(track.url, () => server.importListen(track.url)).then(source => {
+      if (wanted.current === track.url) audio.play(source)
+    })
     colourIn(track)
   }
 
@@ -136,6 +145,7 @@ export function useListen(
    * new link fetched — since then nothing asked for music.
    */
   const close = (options: { resume?: boolean } = {}): void => {
+    wanted.current = null
     audio?.stop()
     setListening(null)
     position.set(0)

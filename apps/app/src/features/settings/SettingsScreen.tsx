@@ -39,6 +39,7 @@ import { DesktopPanel } from './DesktopPanel'
 import { DevicesPanel } from './DevicesPanel'
 import { GetAppPanel } from './GetAppPanel'
 import { ImportingPanel } from './ImportingPanel'
+import { BrowserImportsPanel } from './BrowserImportsPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
 import { ShortcutsPanel } from './ShortcutsPanel'
@@ -407,6 +408,9 @@ export function SettingsScreen(): ReactNode {
                 <SectionHead title="Advanced" />
                 <LibraryPanel anchor={anchorAt('library')} onConfirm={setConfirming} />
                 <ImportingPanel anchor={anchorAt('importing')} />
+                {shown('browserImports') ? (
+                  <BrowserImportsPanel anchor={anchorAt('browserImports')} />
+                ) : null}
                 <SmartModelPanel anchor={anchorAt('model')} />
                 {shown('desktop') ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
                 {shown('getApp') ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}

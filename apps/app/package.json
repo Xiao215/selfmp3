@@ -13,11 +13,12 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.sw.json",
     "lint": "eslint .",
     "clean": "rm -rf .expo ios android dist public/sw.js public/privacy.html",
-    "web": "npm run build:privacy && expo start --web",
+    "web": "npm run build:privacy && npm run build:ytsandbox && expo start --web",
     "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
     "build:privacy": "node scripts/privacy.mjs",
-    "export:web": "npm run build:sw && npm run build:privacy && expo export -p web",
-    "test": "jest"
+    "export:web": "npm run build:sw && npm run build:privacy && npm run build:ytsandbox && expo export -p web",
+    "test": "jest",
+    "build:ytsandbox": "esbuild ../../packages/ytclient/src/sandbox/frame.ts --bundle --format=iife --target=es2022 --minify --conditions=source --outfile=public/yt-sandbox.js"
   },
   "expo": {
     "doctor": {
@@ -45,6 +46,7 @@
     "@selfmp3/desktop-bridge": "*",
     "@selfmp3/replica": "*",
     "@selfmp3/shared": "*",
+    "@selfmp3/ytclient": "*",
     "@tanstack/react-query": "^5.62.11",
     "expo": "~57.0.21",
     "expo-audio": "~57.0.5",

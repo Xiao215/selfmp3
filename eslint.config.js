@@ -48,11 +48,20 @@ export default tseslint.config(
       'apps/desktop/scripts/**/*.mjs',
       // The extension's esbuild build, likewise.
       'apps/extension/scripts/**/*.mjs',
+      // The client download harness and the plain-browser run of it.
+      'packages/ytclient/scripts/**/*.mjs',
+      'packages/ytclient/verify/**/*.mjs',
     ],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       // Plain node scripts: no tsconfig to read globals from, so name them.
-      globals: { console: 'readonly', process: 'readonly', fetch: 'readonly', URL: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+      },
     },
     rules: { 'no-console': 'off' },
   },

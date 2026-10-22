@@ -15,6 +15,7 @@ export type SectionId =
   | 'playback'
   | 'offline'
   | 'importing'
+  | 'browserImports'
   | 'library'
   | 'account'
   | 'lyrics'
@@ -57,6 +58,8 @@ export const ALL_SECTIONS: readonly {
   { id: 'about', label: 'About' },
   { id: 'library', label: 'Library', advanced: true },
   { id: 'importing', label: 'Importing', advanced: true },
+  // This browser's own downloading (docs/features/client-download.md): a tab's, never an app's.
+  { id: 'browserImports', label: 'In this browser', advanced: true },
   // Where the server asks a model, and the Test: Smart features' switches stay above.
   { id: 'model', label: 'Model', advanced: true },
   { id: 'desktop', label: 'Desktop app', advanced: true },
@@ -138,6 +141,7 @@ export function sectionsFor({
     section =>
       (crossfade || section.id !== 'playback') &&
       (installed || section.id !== 'offline') &&
+      (!installed || section.id !== 'browserImports') &&
       (keyboard || section.id !== 'shortcuts') &&
       (shell || section.id !== 'desktop') &&
       (offered || section.id !== 'getApp'),

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import {
+  fromSqliteTime,
   ImportStatusSchema,
   ImportStepSchema,
   sameLink,
@@ -37,6 +38,9 @@ interface ImportJobRow {
   position: number
   created_at: string
   updated_at: string
+  fetcher: string
+  lease_id: string | null
+  lease_until: string | null
 }
 
 /**
@@ -52,6 +56,25 @@ export const CANCELLED = `status = 'cancelled', step = 'finished', updated_at = 
 
 /** What putting a job back in the queue writes: from the top, with no reason left on it. */
 const REQUEUED = `status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now')`
+
+/**
+ * A job a device holds (docs/features/client-download.md): one it said it
+ * would download, while its lease lasts. The server leaves it alone until then.
+ */
+const HELD = `(lease_id IS NOT NULL AND lease_until > datetime('now'))`
+
+/** What a device may still do something with: waiting for it, or downloading on it. */
+const DEVICE_OPEN = `(status = 'queued' OR (status = 'running' AND step = 'downloading'))`
+
+/** What handing a job to the server writes: back in the queue, the server's for good. */
+const TO_SERVER = `status = 'queued', step = 'waiting', progress = NULL, lease_id = NULL,
+                   lease_until = NULL, fetcher = 'server', updated_at = datetime('now')`
+
+/** How a job's lease end is written: so many seconds from now, as SQLite tells time. */
+const UNTIL = `datetime('now', '+' || @seconds || ' seconds')`
+
+/** Whether a job goes to the device that asked (`ImportEnqueue.fetchOnDevice`). */
+type FetcherFor = (item: ImportEnqueueItem) => 'server' | 'device'
 
 function toJob(row: ImportJobRow): ImportJob {
   let tagIds: number[] = []
@@ -111,13 +134,24 @@ export class ImportRepository {
   readonly #dismiss
   readonly #finishUploaded
   readonly #pendingUrls
+  readonly #renew
+  readonly #held
+  readonly #startOnDevice
+  readonly #progressOnDevice
+  readonly #release
+  readonly #takeFromDevice
+  readonly #expire
+  readonly #leaseEnd
 
   constructor(db: Db) {
     this.#db = db
 
     this.#insert = db.prepare(`
-      INSERT INTO import_jobs (id, url, title, artist, album, thumbnail, duration, tag_ids, playlist_id, position)
-      VALUES (@id, @url, @title, @artist, @album, @thumbnail, @duration, @tagIds, @playlistId, @position)
+      INSERT INTO import_jobs (id, url, title, artist, album, thumbnail, duration, tag_ids, playlist_id,
+                               position, fetcher, lease_id, lease_until)
+      VALUES (@id, @url, @title, @artist, @album, @thumbnail, @duration, @tagIds, @playlistId,
+              @position, @fetcher, @leaseId,
+              CASE WHEN @leaseId IS NULL THEN NULL ELSE ${UNTIL} END)
     `)
 
     this.#byId = db.prepare<[string], ImportJobRow>('SELECT * FROM import_jobs WHERE id = ?')
@@ -149,9 +183,10 @@ export class ImportRepository {
        LIMIT ?
     `)
 
+    // A job a device holds is the device's until its lease runs out.
     this.#nextQueued = db.prepare<[], ImportJobRow>(`
       SELECT * FROM import_jobs
-       WHERE status = 'queued'
+       WHERE status = 'queued' AND NOT ${HELD}
        ORDER BY position, created_at
        LIMIT 1
     `)
@@ -176,9 +211,11 @@ export class ImportRepository {
        WHERE id = @id
     `)
 
-    // A job left 'running' by a crash is requeued rather than lost.
+    // A job left 'running' by a crash is requeued rather than lost. One a
+    // device is downloading is not this server's to have lost: it stays the
+    // device's, and goes back to the queue only if its lease runs out.
     this.#resetRunning = db.prepare(
-      "UPDATE import_jobs SET status = 'queued', step = 'waiting', progress = NULL WHERE status = 'running'",
+      "UPDATE import_jobs SET status = 'queued', step = 'waiting', progress = NULL WHERE status = 'running' AND lease_id IS NULL",
     )
 
     this.#deleteFinished = db.prepare(
@@ -188,8 +225,12 @@ export class ImportRepository {
     this.#maxPosition = db.prepare<[], { max: number | null }>(
       'SELECT MAX(position) AS max FROM import_jobs',
     )
+    // Claimed by this server, it is this server's: a lease that ran out on it goes.
     this.#claim = db.prepare(
-      "UPDATE import_jobs SET status = 'running', step = 'resolving', attempts = attempts + 1, updated_at = datetime('now') WHERE id = ?",
+      `UPDATE import_jobs
+          SET status = 'running', step = 'resolving', attempts = attempts + 1,
+              fetcher = 'server', lease_id = NULL, lease_until = NULL, updated_at = datetime('now')
+        WHERE id = ?`,
     )
     this.#openFacts = db.prepare<
       [],
@@ -241,12 +282,59 @@ export class ImportRepository {
     this.#pendingUrls = db.prepare<[], { url: string }>(
       "SELECT url FROM import_jobs WHERE status IN ('queued','running')",
     )
+
+    this.#renew = db.prepare(
+      `UPDATE import_jobs SET lease_until = ${UNTIL}
+        WHERE lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`,
+    )
+    this.#held = db.prepare<[string], { id: string }>(
+      `SELECT id FROM import_jobs
+        WHERE lease_id = ? AND ${DEVICE_OPEN} AND lease_until > datetime('now')
+        ORDER BY position, created_at`,
+    )
+    // Again on a song it is downloading already: it waited out a refusal for
+    // rate and starts over (the device's "hand back" switch, off).
+    this.#startOnDevice = db.prepare(
+      `UPDATE import_jobs
+          SET status = 'running', step = 'downloading', progress = 0, error = NULL,
+              attempts = attempts + 1, lease_until = ${UNTIL}, updated_at = datetime('now')
+        WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')`,
+    )
+    this.#progressOnDevice = db.prepare(
+      `UPDATE import_jobs SET progress = @percent, updated_at = datetime('now')
+        WHERE id = @id AND lease_id = @lease AND status = 'running' AND step = 'downloading'`,
+    )
+    this.#release = db.prepare(
+      `UPDATE import_jobs SET ${TO_SERVER} WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN}`,
+    )
+    this.#takeFromDevice = db.prepare<{ id: string; lease: string }, ImportJobRow>(
+      `UPDATE import_jobs
+          SET status = 'running', step = 'converting', progress = NULL, error = NULL,
+              attempts = attempts + CASE WHEN status = 'queued' THEN 1 ELSE 0 END,
+              lease_id = NULL, lease_until = NULL, updated_at = datetime('now')
+        WHERE id = @id AND lease_id = @lease AND ${DEVICE_OPEN} AND lease_until > datetime('now')
+       RETURNING *`,
+    )
+    this.#expire = db.prepare(
+      `UPDATE import_jobs SET ${TO_SERVER}
+        WHERE status = 'running' AND lease_id IS NOT NULL AND lease_until <= datetime('now')`,
+    )
+    this.#leaseEnd = db.prepare<[], { until: string | null }>(
+      `SELECT MIN(lease_until) AS until FROM import_jobs
+        WHERE lease_id IS NOT NULL AND status IN ('queued','running')`,
+    )
   }
 
+  /**
+   * Queue the items. With `device`, the ones `fetcherFor` gives a device are
+   * held for it under `device.lease` for `device.seconds`, and the server
+   * leaves them alone until then.
+   */
   enqueue(
     items: readonly ImportEnqueueItem[],
     tagIds: readonly number[],
     playlistId: number | null,
+    device?: { lease: string; seconds: number; fetcherFor: FetcherFor },
   ): ImportJob[] {
     const tagJson = JSON.stringify([...tagIds])
     const run = this.#db.transaction(() => {
@@ -254,7 +342,11 @@ export class ImportRepository {
       const created: ImportJob[] = []
       for (const item of items) {
         const id = crypto.randomUUID()
+        const fetcher = device?.fetcherFor(item) ?? 'server'
         this.#insert.run({
+          fetcher,
+          leaseId: fetcher === 'device' ? (device?.lease ?? null) : null,
+          seconds: device?.seconds ?? 0,
           id,
           url: item.url,
           title: item.title,
@@ -470,6 +562,68 @@ export class ImportRepository {
    */
   finishUploaded(): number {
     return this.#finishUploaded.run().changes
+  }
+
+  /** Who fetches this job's song, and the lease a device holds it by, if one does. */
+  fetcherOf(id: string): { fetcher: 'server' | 'device'; lease: string | null } | null {
+    const row = this.#byId.get(id)
+    if (!row) return null
+    return { fetcher: row.fetcher === 'device' ? 'device' : 'server', lease: row.lease_id }
+  }
+
+  /**
+   * Keep a device's lease for `seconds` more, write how far its downloads
+   * have got, and name the jobs it still holds. A job cancelled, removed or
+   * taken back since is not among them, and an expired lease holds nothing.
+   */
+  renewLease(
+    lease: string,
+    seconds: number,
+    progress: readonly { id: string; percent: number }[],
+  ): string[] {
+    const run = this.#db.transaction(() => {
+      for (const { id, percent } of progress) {
+        this.#progressOnDevice.run({ id, lease, percent: Math.floor(percent) })
+      }
+      this.#renew.run({ lease, seconds })
+      return this.#held.all(lease).map(row => row.id)
+    })
+    return run()
+  }
+
+  /** The device has started downloading one of its jobs. */
+  startOnDevice(lease: string, id: string, seconds: number): boolean {
+    return this.#startOnDevice.run({ id, lease, seconds }).changes > 0
+  }
+
+  /** The device lets a job go: the server downloads it, as it would any other. */
+  releaseFromDevice(lease: string, id: string): boolean {
+    return this.#release.run({ id, lease }).changes > 0
+  }
+
+  /**
+   * The device's file has come: the job is the server's to finish from here,
+   * at the step after the download. Null when the lease no longer holds it —
+   * it ran out and the server took the job, or it was cancelled.
+   */
+  takeFromDevice(lease: string, id: string): ImportJob | null {
+    const row = this.#takeFromDevice.get({ id, lease })
+    return row ? toJob(row) : null
+  }
+
+  /**
+   * A device stopped answering for what it was downloading: those jobs go
+   * back in the queue as the server's. A waiting job whose lease ran out
+   * needs nothing done — `nextQueued` takes it as it is.
+   */
+  expireLeases(): number {
+    return this.#expire.run().changes
+  }
+
+  /** When the soonest lease on an open job runs out (epoch ms), or null when nothing is held. */
+  nextLeaseEnd(): number | null {
+    const until = this.#leaseEnd.get()?.until
+    return until ? fromSqliteTime(until) : null
   }
 
   /** The links of every job queued or running, for a preview to say which songs are already coming. */

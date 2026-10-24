@@ -1,5 +1,6 @@
 /**
- * Multi-select for a list of songs, as rules rather than a hook.
+ * Multi-select for a list of songs (or of links: the rules are the same for any
+ * id), as rules rather than a hook.
  *
  * Held as plain rules rather than inside React state, so the library and a
  * playlist share them on every platform, and so the parts that decide which
@@ -23,12 +24,12 @@
  * state setter given the result does not re-render for a no-op.
  */
 
-export interface SelectionState {
-  readonly ids: ReadonlySet<number>
+export interface SelectionState<Id = number> {
+  readonly ids: ReadonlySet<Id>
   /** True while a plain tap toggles rather than plays. */
   readonly mode: boolean
   /** The row a shift-click range extends from: the last one clicked. */
-  readonly anchor: number | null
+  readonly anchor: Id | null
 }
 
 /** The bits of a mouse or keyboard event a selection gesture cares about. */
@@ -38,17 +39,17 @@ export interface SelectionModifiers {
   readonly shiftKey: boolean
 }
 
-const NO_IDS: ReadonlySet<number> = new Set()
+const NO_IDS: ReadonlySet<never> = new Set()
 
-export const EMPTY_SELECTION: SelectionState = { ids: NO_IDS, mode: false, anchor: null }
+export const EMPTY_SELECTION: SelectionState<never> = { ids: NO_IDS, mode: false, anchor: null }
 
 /** Checkboxes showing: something selected, or selection mode on. */
-export function selectionActive(state: SelectionState): boolean {
+export function selectionActive<Id>(state: SelectionState<Id>): boolean {
   return state.mode || state.ids.size > 0
 }
 
 /** Every visible row is selected. */
-export function allSelected(state: SelectionState, visibleIds: readonly number[]): boolean {
+export function allSelected<Id>(state: SelectionState<Id>, visibleIds: readonly Id[]): boolean {
   return visibleIds.length > 0 && state.ids.size === visibleIds.length
 }
 
@@ -61,7 +62,7 @@ export function allSelected(state: SelectionState, visibleIds: readonly number[]
  * bar's own checkbox (`clearSelection`) leaves it for the same reason: a bar
  * over a list with nothing chosen reads as something left behind.
  */
-export function toggleSelected(state: SelectionState, id: number): SelectionState {
+export function toggleSelected<Id>(state: SelectionState<Id>, id: Id): SelectionState<Id> {
   const ids = new Set(state.ids)
   if (ids.has(id)) ids.delete(id)
   else ids.add(id)
@@ -70,7 +71,7 @@ export function toggleSelected(state: SelectionState, id: number): SelectionStat
 }
 
 /** Everything between the anchor and `id`, in the order now on screen. */
-function rangeTo(state: SelectionState, id: number, visibleIds: readonly number[]): number[] {
+function rangeTo<Id>(state: SelectionState<Id>, id: Id, visibleIds: readonly Id[]): Id[] {
   if (state.anchor === null) return [id]
   const start = visibleIds.indexOf(state.anchor)
   const end = visibleIds.indexOf(id)
@@ -79,8 +80,8 @@ function rangeTo(state: SelectionState, id: number, visibleIds: readonly number[
   return visibleIds.slice(low, high + 1)
 }
 
-interface ClickResult {
-  readonly state: SelectionState
+interface ClickResult<Id> {
+  readonly state: SelectionState<Id>
   /**
    * True when the click was a selection gesture, and the row should not also
    * do its ordinary thing (play, open).
@@ -89,12 +90,12 @@ interface ClickResult {
 }
 
 /** A click or tap on a row. */
-export function clickSelected(
-  state: SelectionState,
-  id: number,
+export function clickSelected<Id>(
+  state: SelectionState<Id>,
+  id: Id,
   modifiers: SelectionModifiers,
-  visibleIds: readonly number[],
-): ClickResult {
+  visibleIds: readonly Id[],
+): ClickResult<Id> {
   if (modifiers.shiftKey) {
     // The anchor stays put, so moving a shift-click up and down the list grows
     // and shrinks one range instead of leaving a trail behind it. With none to
@@ -120,15 +121,15 @@ export function clickSelected(
 }
 
 /** Turn the checkboxes on, optionally selecting one row to start from. */
-export function enterSelection(state: SelectionState, id?: number): SelectionState {
+export function enterSelection<Id>(state: SelectionState<Id>, id?: Id): SelectionState<Id> {
   const on = state.mode ? state : { ...state, mode: true }
   return id === undefined ? on : toggleSelected(on, id)
 }
 
-export function selectAllVisible(
-  state: SelectionState,
-  visibleIds: readonly number[],
-): SelectionState {
+export function selectAllVisible<Id>(
+  state: SelectionState<Id>,
+  visibleIds: readonly Id[],
+): SelectionState<Id> {
   return { ...state, mode: true, ids: new Set(visibleIds) }
 }
 
@@ -138,7 +139,7 @@ export function selectAllVisible(
  * The bar's own deselect-all is this too: with nothing chosen there is nothing
  * for a bar to act on, and the bar goes with the ticks.
  */
-export function clearSelection(state: SelectionState): SelectionState {
+export function clearSelection<Id>(state: SelectionState<Id>): SelectionState<Id> {
   return state.ids.size === 0 && !state.mode ? state : { ...state, ids: NO_IDS, mode: false }
 }
 
@@ -146,14 +147,14 @@ export function clearSelection(state: SelectionState): SelectionState {
  * Rule 1: drop whatever is no longer visible. Allocates nothing unless
  * something actually dropped out, so re-sorting costs a lookup per selected row.
  */
-export function pruneSelection(
-  state: SelectionState,
-  visibleIds: readonly number[],
-): SelectionState {
+export function pruneSelection<Id>(
+  state: SelectionState<Id>,
+  visibleIds: readonly Id[],
+): SelectionState<Id> {
   if (state.ids.size === 0) return state
   const visible = new Set(visibleIds)
   let dropped = false
-  const ids = new Set<number>()
+  const ids = new Set<Id>()
   for (const id of state.ids) {
     if (visible.has(id)) ids.add(id)
     else dropped = true

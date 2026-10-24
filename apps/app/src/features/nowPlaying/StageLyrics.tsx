@@ -22,6 +22,11 @@ interface LyricsProps {
   fontSize: number
   /** Room kept clear at the right for what the page floats there (Romaji, expand). */
   clearRight?: number
+  /**
+   * Shown before its song plays (a share link's page): no line is lit and a
+   * click seeks nothing, since the player has another song or none.
+   */
+  still?: boolean
 }
 
 /**
@@ -47,7 +52,7 @@ interface LyricsProps {
  */
 export function StageLyrics(props: LyricsProps): ReactNode {
   const { position } = usePlayerProgress()
-  const synced = props.parsed.synced ? props.parsed.lines : null
+  const synced = props.parsed.synced && !props.still ? props.parsed.lines : null
   const active = synced ? activeLineIndex(synced, position, LYRIC_LEAD) : -1
   return <LyricsList {...props} active={active} />
 }
@@ -58,6 +63,7 @@ const LyricsList = memo(function LyricsList({
   focus,
   fontSize,
   clearRight = 0,
+  still = false,
   active,
 }: LyricsProps & { active: number }): ReactNode {
   const { theme } = useUnistyles()
@@ -172,10 +178,14 @@ const LyricsList = memo(function LyricsList({
   const register = useCallback((index: number, node: View | null) => {
     lineRefs.current[index] = node
   }, [])
-  const seek = useCallback((time: number) => {
-    lastManual.current = 0
-    seekTo.current(time)
-  }, [])
+  const seek = useCallback(
+    (time: number) => {
+      if (still) return
+      lastManual.current = 0
+      seekTo.current(time)
+    },
+    [still],
+  )
   const hoverIn = useCallback((index: number) => setHovered(index), [])
   const hoverOut = useCallback(
     (index: number) => setHovered(current => (current === index ? null : current)),

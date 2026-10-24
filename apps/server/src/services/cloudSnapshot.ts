@@ -20,6 +20,7 @@ import type {
   CloudSoundState,
 } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
+import type { ArtistNamesRow } from '../repositories/names.js'
 import type { StampRow } from '../repositories/sync.js'
 import { sha256 } from '../util/hash.js'
 
@@ -37,6 +38,10 @@ interface SnapshotInput {
   readonly states: ReadonlyMap<number, CloudSongState>
   /** Each artist's picture in the bucket. */
   readonly artists: readonly CloudArtistState[]
+  /** The names artists also go by, by `artistKey`. */
+  readonly artistNames?: ReadonlyMap<string, ArtistNamesRow>
+  /** The library's Chinese and Japanese names, spelt in Latin letters. */
+  readonly spellings?: Readonly<Record<string, readonly string[]>>
   /** The covers and artists' pictures, packed a few megabytes to a file. */
   readonly coverPacks?: readonly CloudCoverPack[]
   /** Every song's sound vector, as one file in the bucket; null before there is one. */
@@ -192,6 +197,14 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       banner: { key: artist.bannerKey, size: artist.bannerSize },
       portrait: { key: artist.portraitKey, size: artist.portraitSize },
     })),
+    artistNames: [...(input.artistNames ?? [])].map(([artist, row]) => ({
+      artist,
+      names: [...row.names],
+      stamps: { names: row.hlc },
+    })),
+    spellings: Object.fromEntries(
+      Object.entries(input.spellings ?? {}).map(([name, spelt]) => [name, [...spelt]]),
+    ),
     coverPacks: (input.coverPacks ?? []).map(pack => ({
       key: pack.key,
       size: pack.size,

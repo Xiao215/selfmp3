@@ -44,6 +44,8 @@ const serverLibrary: Library = {
   // The server's numbering: tag 7 there is "night drive", whatever it is here.
   tags: [{ id: 7, name: 'night drive', hue: 200, songCount: 0 }],
   playlists: [],
+  artistNames: {},
+  spellings: {},
   version: 1,
   generatedAt: '2026-10-14T00:00:00.000Z',
 }

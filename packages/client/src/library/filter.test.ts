@@ -1,4 +1,4 @@
-import { fuzzyRank, type Song } from '@selfmp3/shared'
+import { NO_NAMES, fuzzyRankNames, songSearchNames, type Song } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -104,7 +104,7 @@ describe('tag filtering', () => {
     expect(filterHeading(filter, TAGS)).toBe('chinese · chill')
   })
 
-  it('searches with prepared text in the order the plain ranking gives', () => {
+  it('searches with prepared names in the order the plain ranking gives', () => {
     const library = [
       song(1, 'Midnight Drive', []),
       song(2, 'Drive', []),
@@ -112,9 +112,8 @@ describe('tag filtering', () => {
       song(4, 'drive', []),
       song(5, 'Dr. Ive', []),
     ]
-    const text = (item: Song) => `${item.title} ${item.artist} ${item.album}`
     for (const query of ['', 'drive', 'dri', 'night', 'md', 'drvie', 'nothing']) {
-      const plain = fuzzyRank(query, library, text)
+      const plain = fuzzyRankNames(query, library, item => songSearchNames(item, NO_NAMES))
       expect(searchSongs(query, library), query).toEqual(plain)
     }
   })

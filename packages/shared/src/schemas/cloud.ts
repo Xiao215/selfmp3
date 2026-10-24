@@ -5,6 +5,7 @@ import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
 import { DoormanStorageSchema, SignInAttemptSchema, SignInCodeSchema } from './doorman.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
+import { ArtistNamesSchema } from './artist.js'
 import {
   BoolRuleSchema,
   DateRuleSchema,
@@ -91,6 +92,20 @@ export const CloudArtistSchema = z.object({
   portrait: CloudCoverSchema,
 })
 export type CloudArtist = z.infer<typeof CloudArtistSchema>
+
+/**
+ * The names an artist also goes by (`ArtistNamesSchema`), for search. Filled
+ * in by the server from MusicBrainz, changed by anyone (`artistNamed`); the
+ * latest change wins.
+ */
+export const CloudArtistNamesSchema = z.object({
+  /** The artist as `artistKey` writes them. */
+  artist: z.string().min(1),
+  names: ArtistNamesSchema,
+  /** `names`: the stamp of the change that set them. */
+  stamps: StampsSchema.optional(),
+})
+export type CloudArtistNames = z.infer<typeof CloudArtistNamesSchema>
 
 /**
  * Many pictures in one file (the server's services/coverPacks.ts), so a
@@ -366,6 +381,16 @@ export const CloudSnapshotSchema = z.object({
   playlists: z.array(CloudPlaylistSchema),
   /** Every artist of the library's songs the server has a picture for. */
   artists: z.array(CloudArtistSchema),
+  /** The names artists also go by, for search. */
+  artistNames: z.array(CloudArtistNamesSchema).default([]),
+  /**
+   * The library's Chinese and Japanese titles, artists and albums, each as it
+   * is written and in Latin letters — pinyin, romaji, or both for a name in
+   * characters alone, which could be either — so search finds 周杰伦 typed as
+   * "zhou jie lun". Made on the server, which has the dictionaries; a name it
+   * has not spelt yet is simply not in it.
+   */
+  spellings: z.record(z.string(), z.array(z.string())).default({}),
   /**
    * The covers and artists' pictures, packed a few megabytes to a file, for a
    * device filling its covers from nothing. None before the server first packs.

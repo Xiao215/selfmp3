@@ -20,6 +20,8 @@ import { LyricsService } from './services/lyrics.js'
 import { YouTubeMusicLyrics } from './services/youtubeMusic.js'
 import { YouTubeMusicArtists } from './services/youtubeMusicArtist.js'
 import { ArtistBackdropService } from './services/artistBackdrops.js'
+import { ArtistNameLookup } from './services/artistNames.js'
+import { SpellingService } from './services/spellings.js'
 import { YouTubeMusicLists } from './services/youtubeMusicLists.js'
 import { NeteaseMusic } from './services/netease.js'
 import { SpotifyLists } from './services/spotify.js'
@@ -53,6 +55,7 @@ import { EventHub } from './services/events.js'
 import { DeviceService } from './services/devices.js'
 import { CloudRepository } from './repositories/cloud.js'
 import { SyncRepository } from './repositories/sync.js'
+import { NamesRepository } from './repositories/names.js'
 import { CloudSyncService } from './services/cloudSync.js'
 import { KeptCloudFiles } from './bucket/kept.js'
 import { CloudAdopt } from './services/cloudAdopt.js'
@@ -137,6 +140,10 @@ export interface Container {
   readonly sound: SoundService
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
+  /** The names artists also go by, and names spelt in Latin letters: what search finds things by. */
+  readonly names: NamesRepository
+  /** Chinese and Japanese names spelt in Latin letters (services/spellings.ts). */
+  readonly spellings: SpellingService
   /** Stamps edits made here, so they combine with other devices' (docs/SYNC.md). */
   readonly edits: LocalEdits
   /** Links other devices asked this server to import. */
@@ -220,6 +227,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
+  const names = new NamesRepository(db)
   const importRequests = new ImportRequestRepository(db)
 
   const metadata = new MetadataService(storage, logger)
@@ -239,7 +247,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   // One clock for everything this server stamps, named as it is in the bucket.
   const clock = new SyncClock({
     deviceId: () => cloudRepo.deviceId(),
-    latest: () => syncRepo.latestStamp(),
+    // An artist's names keep their stamp beside them, not among the others.
+    latest: () => latestStamp(syncRepo.latestStamp(), names.latestStamp()),
   })
   const edits = new LocalEdits({ db, sync: syncRepo, clock })
   const ingest = new CloudIngest({
@@ -251,6 +260,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     sync: syncRepo,
     cloud: cloudRepo,
     requests: importRequests,
+    names,
     clock,
     logger,
     copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
@@ -272,6 +282,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     features: audioFeatures,
     cloud: cloudRepo,
     sync: syncRepo,
+    names,
     storage,
     clock,
     logger,
@@ -285,6 +296,15 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   // Before the sync, which puts every artist's picture in the bucket.
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
   const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
+  // Before the sync too: what search finds things by goes in every snapshot.
+  const spellings = new SpellingService({ names, songs, romanization, logger })
+  const artistNames = new ArtistNameLookup({
+    names,
+    songs,
+    deviceId: () => cloudRepo.deviceId(),
+    pace: shared.musicBrainzPace,
+    logger,
+  })
 
   const cloudSync = new CloudSyncService({
     cloud: cloudRepo,
@@ -317,6 +337,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // Each song's motion curve goes up beside its words, once analysis has made one.
     motion,
     artists: artistBackdrops,
+    names: { repo: names, spellings, lookup: artistNames },
     // Every song's sound vector goes up as one file, and comes back to a new server.
     sound,
     // Every play goes up too, a month a file, and comes back to a new server.
@@ -551,6 +572,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     ytdlp,
     youtubeMusicArtists,
     artistBackdrops,
+    names,
+    spellings,
     youtubeMusicLists,
     netease,
     spotify,
@@ -606,4 +629,11 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   }
 
   return container
+}
+
+/** The later of two stamps, either of which may be missing. */
+function latestStamp(a: string | null, b: string | null): string | null {
+  if (a === null) return b
+  if (b === null) return a
+  return a > b ? a : b
 }

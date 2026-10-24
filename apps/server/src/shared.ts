@@ -5,7 +5,8 @@ import { messageOf } from '@selfmp3/shared'
 import type { Config } from './config.js'
 import type { Logger } from './logger.js'
 import { createKeepAwake, type KeepAwakeService } from './services/keepAwake.js'
-import { MetadataLookupService } from './services/lookup.js'
+import { MUSICBRAINZ_PACE_MS, MetadataLookupService } from './services/lookup.js'
+import { RateLimiter } from './services/rateLimiter.js'
 import { RomanizationService } from './services/romanization.js'
 import {
   freshState,
@@ -27,7 +28,8 @@ import { Gate } from './util/gate.js'
  *
  * - the listening model, which is 600 MB loaded;
  * - the Japanese dictionary, loaded once and kept;
- * - metadata lookup, whose MusicBrainz pace is per address;
+ * - MusicBrainz's pace, which is per address: the metadata lookup and the
+ *   names artists also go by both ask it;
  * - YouTube's pace, which is per address too: two libraries each keeping
  *   within the budget would together be twice over it, and the block that
  *   follows is the machine's;
@@ -44,6 +46,8 @@ export interface SharedServices {
   readonly soundModel: SoundModelHost
   readonly romanization: RomanizationService
   readonly lookup: MetadataLookupService
+  /** One request a second to MusicBrainz, from everything on the machine that asks it. */
+  readonly musicBrainzPace: RateLimiter
   /** Null: each library keeps its own pace, in its own database. */
   readonly throttle: YtThrottleService | null
   readonly keepAwake: KeepAwakeService
@@ -64,10 +68,12 @@ export function createShared(
   const soundModel = new SoundModelHost({ config, logger })
   const keepAwake = createKeepAwake(logger)
   const metrics = new ServerMetrics(config.dataDir)
+  const musicBrainzPace = new RateLimiter(MUSICBRAINZ_PACE_MS)
   return {
     soundModel,
     romanization: new RomanizationService(logger),
-    lookup: new MetadataLookupService(logger),
+    lookup: new MetadataLookupService(logger, undefined, undefined, musicBrainzPace),
+    musicBrainzPace,
     throttle,
     keepAwake,
     analysisGate: new Gate(1),

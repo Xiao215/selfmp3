@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fuzzyRank } from '@selfmp3/shared'
+import { NO_NAMES, fuzzyRankNames, songSearchNames } from '@selfmp3/shared'
 
 import {
   paletteCommands,
@@ -16,6 +16,8 @@ const library = {
   songs: [song(1, 'アイドル'), song(2, 'Racing into the Night'), song(3, 'Monster')],
   playlists: [{ id: 1, name: 'Reference — evening' }] as never,
   tags: [{ id: 7, name: 'yoasobi' }] as never,
+  artistNames: {},
+  spellings: {},
 }
 
 describe('the command palette', () => {
@@ -109,10 +111,10 @@ describe('the command palette', () => {
         ),
       ),
     }
-    const ranked = fuzzyRank(
+    const ranked = fuzzyRankNames(
       'night',
       many.songs as { title: string; artist: string; album: string }[],
-      s => `${s.title} ${s.artist} ${s.album}`,
+      s => songSearchNames(s, NO_NAMES),
     )
     expect(paletteResults('night', many).songs).toEqual(ranked.slice(0, 8).map(match => match.item))
   })

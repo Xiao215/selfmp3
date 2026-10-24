@@ -37,6 +37,7 @@ import type {
   PlaylistSongs,
   SyncManifest,
   CreateTag,
+  SetArtistNames,
 } from '@selfmp3/shared'
 import { API_ERROR } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
@@ -608,6 +609,12 @@ export const useRenameTag = () =>
     ({ id, name }: { id: number; name: string }) => clientApi().renameTag(id, name),
     { members: false },
   )
+
+export const useSetArtistNames = () =>
+  useLibraryMutation((input: SetArtistNames) => clientApi().setArtistNames(input), {
+    members: false,
+    failure: 'Couldn’t save the names',
+  })
 
 /**
  * Recolour a tag, applied optimistically — a swatch that waits a round trip

@@ -16,6 +16,7 @@ import type { CloudRepository } from '../repositories/cloud.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { StampKind, SyncRepository } from '../repositories/sync.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
@@ -91,6 +92,7 @@ export class CloudAdopt {
   readonly #features: AudioFeaturesRepository
   readonly #cloud: CloudRepository
   readonly #sync: SyncRepository
+  readonly #names: NamesRepository
   readonly #storage: StorageDriver
   readonly #clock: SyncClock
   readonly #logger: Logger
@@ -103,6 +105,7 @@ export class CloudAdopt {
     features: AudioFeaturesRepository
     cloud: CloudRepository
     sync: SyncRepository
+    names: NamesRepository
     storage: StorageDriver
     clock: SyncClock
     logger: Logger
@@ -114,6 +117,7 @@ export class CloudAdopt {
     this.#features = deps.features
     this.#cloud = deps.cloud
     this.#sync = deps.sync
+    this.#names = deps.names
     this.#storage = deps.storage
     this.#clock = deps.clock
     this.#logger = deps.logger.child('adopt')
@@ -135,6 +139,7 @@ export class CloudAdopt {
    * library that published would be the original bug wearing a hat.
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
+    this.#adoptArtistNames(snapshot)
     const empty = this.#nothingHere()
     const { prepared, same } = await this.#prepare(snapshot.songs)
     const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
@@ -314,6 +319,20 @@ export class CloudAdopt {
       if (tag) this.#sync.addAlias(uid, tag.id)
     }
     return made
+  }
+
+  /**
+   * The names artists go by in the bucket, each list as the later of the two
+   * says: exactly what `artistNamed` does when it arrives in a log. Whatever
+   * else this server already has, a name set elsewhere is not left behind.
+   */
+  #adoptArtistNames(snapshot: CloudSnapshot): void {
+    this.#db.transaction(() => {
+      for (const { artist, names, stamps } of snapshot.artistNames) {
+        const hlc = stamps?.['names']
+        if (hlc) this.#names.takeArtistNames(artist, names, hlc)
+      }
+    })()
   }
 
   #adoptSong({ song, path: key, audioPresent }: Prepared): void {

@@ -18,6 +18,8 @@ const library: Library = {
   songs: [{ id: 1, rev: 'r1', hasArt: true } as Song],
   tags: [],
   playlists: [],
+  artistNames: {},
+  spellings: {},
   version: 1,
   generatedAt: '2026-10-07T00:00:00Z',
 }

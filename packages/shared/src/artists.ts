@@ -1,5 +1,6 @@
 import type { Song } from './schemas/song.js'
 import { CJK } from './titles.js'
+import { ARTIST_NAMES_MAX } from './schemas/artist.js'
 
 /**
  * Artists, from the songs' own artist strings (docs/UI-MIGRATION.md, Phase 4
@@ -151,4 +152,23 @@ export function libraryArtists(songs: readonly Song[]): readonly Artist[] {
 export function findArtist(songs: readonly Song[], name: string): Artist | undefined {
   const key = artistKey(name)
   return libraryArtists(songs).find(artist => artist.key === key)
+}
+
+/**
+ * An artist's other names as they are kept: each once, compared as
+ * `artistKey` compares, without the artist's own name, in the order given and
+ * no more than are kept. The same on the server and on every device, so a list
+ * saved anywhere is the same list everywhere.
+ */
+export function tidyArtistNames(artist: string, names: readonly string[]): string[] {
+  const seen = new Set([artistKey(artist)])
+  const kept: string[] = []
+  for (const name of names) {
+    const tidy = name.replace(/\s+/g, ' ').trim()
+    const key = artistKey(tidy)
+    if (key === '' || seen.has(key)) continue
+    seen.add(key)
+    kept.push(tidy)
+  }
+  return kept.slice(0, ARTIST_NAMES_MAX)
 }

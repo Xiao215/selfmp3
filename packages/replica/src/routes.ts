@@ -16,6 +16,7 @@ import {
   PlayEventSchema,
   RemoveFromPlaylistSchema,
   RenameTagSchema,
+  SetArtistNamesSchema,
   ReorderPlaylistSchema,
   SetSongTagsSchema,
   SimilarQuerySchema,
@@ -397,6 +398,20 @@ export function createCloudRoutes(
         return recordChanges(session, ctx => {
           const changes = edits.mergeSongs(ctx, input.keep, input.songIds)
           return { changes, answer: (): MergeSongsResult => ({ merged: changes.length }) }
+        })
+      },
+    ],
+
+    // --- Artists ---------------------------------------------------------------------
+
+    [
+      'PUT',
+      '/api/artists/names',
+      ({ session, body }) => {
+        const input = parseInput(SetArtistNamesSchema, body)
+        return recordChanges(session, ctx => {
+          const { changes, named } = edits.nameArtist(ctx, input.artist, input.names)
+          return { changes, answer: () => named }
         })
       },
     ],

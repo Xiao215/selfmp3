@@ -91,6 +91,8 @@ const BASE: CloudSnapshot = {
     },
   ],
   artists: [],
+  artistNames: [],
+  spellings: {},
   sound: null,
 }
 
@@ -184,6 +186,28 @@ describe('editing songs', () => {
   it('refuses a song this device does not have', () => {
     const d = device()
     expect(() => edits.editSong(d.ctx(), 424242, { loved: true })).toThrow(CloudRouteError)
+  })
+})
+
+describe('naming an artist', () => {
+  it('keeps the names an artist also goes by, tidied, under the artist as the songs write them', () => {
+    const d = device()
+    const { changes, named } = edits.nameArtist(d.ctx(), 'AURORA LANE', [
+      ' Aurora ',
+      'aurora',
+      'Aurora Lane',
+      'オーロラ',
+    ])
+    expect(named).toEqual({ artist: 'aurora lane', names: ['Aurora', 'オーロラ'] })
+    expect(changes).toEqual([{ type: 'artistNamed', hlc: expect.any(String), ...named }])
+    expect(d.apply(changes).library.artistNames).toEqual({ 'aurora lane': ['Aurora', 'オーロラ'] })
+  })
+
+  it('refuses an artist no song names', () => {
+    const d = device()
+    expect(() => edits.nameArtist(d.ctx(), 'Nobody', ['x'])).toThrow(
+      expect.objectContaining({ status: 404 }),
+    )
   })
 })
 

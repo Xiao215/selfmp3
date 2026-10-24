@@ -82,6 +82,8 @@ export async function signInFromCopy(
     tags: [],
     playlists: [],
     artists: [],
+    artistNames: [],
+    spellings: {},
     coverPacks: [],
     sound: null,
     server,

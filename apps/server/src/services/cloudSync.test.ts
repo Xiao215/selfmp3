@@ -39,6 +39,7 @@ import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { SyncRepository } from '../repositories/sync.js'
+import { NamesRepository } from '../repositories/names.js'
 import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
 import { CloudAdopt } from './cloudAdopt.js'
@@ -123,6 +124,7 @@ describe('CloudSyncService', () => {
       playlists,
       stats: new StatsRepository(db),
       sync: syncRepo,
+      names: new NamesRepository(db),
       cloud,
       clock: new SyncClock({
         deviceId: () => cloud.deviceId(),
@@ -141,6 +143,7 @@ describe('CloudSyncService', () => {
       features: new AudioFeaturesRepository(db),
       cloud,
       sync: syncRepo,
+      names: new NamesRepository(db),
       storage,
       clock: new SyncClock({
         deviceId: () => cloud.deviceId(),
@@ -341,6 +344,8 @@ describe('CloudSyncService', () => {
       tags: input.tags ?? [],
       playlists: input.playlists ?? [],
       artists: [],
+      artistNames: [],
+      spellings: {},
       sound: null,
     })
 

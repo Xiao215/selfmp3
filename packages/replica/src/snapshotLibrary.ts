@@ -184,6 +184,10 @@ export function snapshotToLibrary(
       songs: librarySongs,
       tags: libraryTags,
       playlists: libraryPlaylists,
+      artistNames: Object.fromEntries(
+        snapshot.artistNames.map(entry => [entry.artist, entry.names]),
+      ),
+      spellings: snapshot.spellings,
       version,
       generatedAt: snapshot.writtenAt,
     },

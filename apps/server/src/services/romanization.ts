@@ -1,6 +1,7 @@
 import {
   messageOf,
   detectLyricsLanguage,
+  detectScript,
   parseLyrics,
   planRomanization,
   type LyricLine,
@@ -118,6 +119,28 @@ export class RomanizationService {
   }
 
   /**
+   * A name — a title, an artist, an album — in Latin letters, the way someone
+   * would type it to find it: no tone marks, no macrons, lowercase. Kana make
+   * it Japanese; characters alone could be Chinese or Japanese, so they are
+   * spelt both ways, pinyin first. A name's reading is the dictionary's
+   * guess, and wrong as often as a person's name is unusual. Null
+   * when the dictionary a name needs could not be loaded, so it is spelt again
+   * next time rather than kept without.
+   */
+  async spell(name: string): Promise<string[] | null> {
+    const script = detectScript(name)
+    if (script !== 'han' && script !== 'kana' && script !== 'mixed') return []
+    const romaji = await this.#loadKuroshiro().catch((error: unknown) => {
+      this.#logger.warn('japanese romanization unavailable', { message: messageOf(error) })
+      return null
+    })
+    if (!romaji) return null
+    const spelt = [plainLetters(await romaji(name))]
+    if (script === 'han') spelt.unshift(plainLetters((await this.#loadPinyin())(name)))
+    return [...new Set(spelt.filter(Boolean))]
+  }
+
+  /**
    * Romanize a whole lyrics text. Output lines are 1:1 with the input lines:
    * same order, same timestamps; lines that need nothing get an empty string.
    */
@@ -153,4 +176,18 @@ export class RomanizationService {
     const complete = romaji !== null || !plan.includes('romaji')
     return { lyrics: { language, synced, lines: romanized }, complete }
   }
+}
+
+/**
+ * "zhōu jié lún" → "zhou jie lun": what a keyboard types, lowercase, one space
+ * apart, and without the punctuation a name carries ("。" comes out as ".").
+ */
+function plainLetters(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
 }

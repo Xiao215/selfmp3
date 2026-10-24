@@ -77,6 +77,8 @@ export function fakeLibrary(songs: Song[]): FakeLibrary {
             songs: net.songs,
             tags: [],
             playlists: [],
+            artistNames: {},
+            spellings: {},
             version: 1,
             generatedAt: '2026-10-14T10:00:00.000Z',
           }

@@ -91,6 +91,8 @@ function snapshot(overrides: Partial<CloudSnapshot> = {}): CloudSnapshot {
       }),
     ],
     artists: [],
+    artistNames: [],
+    spellings: {},
     sound: null,
     ...overrides,
   }

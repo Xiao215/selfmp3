@@ -978,6 +978,32 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX idx_cloud_songs_audio ON cloud_songs(audio_key);
     `,
   },
+  {
+    // 46. What search finds things by besides their own names
+    // (packages/shared/src/searchNames.ts). The names an artist also goes by,
+    // by `artistKey`, as a JSON array, with the stamp of the change that set
+    // them: an artist has no uid, so the stamp is kept here rather than in
+    // sync_stamps. When each artist was last looked up on MusicBrainz
+    // (services/artistNames.ts). And each Chinese or Japanese name spelt in
+    // Latin letters (services/spellings.ts), as a JSON array, since a name in
+    // characters alone is spelt both as pinyin and as romaji.
+    name: 'names search finds things by',
+    sql: `
+      CREATE TABLE IF NOT EXISTS artist_names (
+        artist TEXT PRIMARY KEY,
+        names  TEXT NOT NULL,
+        hlc    TEXT NOT NULL
+      ) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS artist_name_lookups (
+        artist    TEXT PRIMARY KEY,
+        looked_at TEXT NOT NULL
+      ) WITHOUT ROWID;
+      CREATE TABLE IF NOT EXISTS spellings (
+        name  TEXT PRIMARY KEY,
+        spelt TEXT NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

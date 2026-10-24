@@ -533,6 +533,8 @@ export function createCloudLibrary(
       tags: [],
       playlists: [],
       artists: [],
+      artistNames: [],
+      spellings: {},
       coverPacks: [],
       sound: null,
     }

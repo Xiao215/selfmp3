@@ -69,6 +69,27 @@ export function newShareDoc(input: {
   }
 }
 
+/** What makes a song the same one when it is shared again: its audio file, else its id, link or name. */
+export function shareSongKey(song: RoomSong): string {
+  return song.audio?.key ?? song.uid ?? song.link ?? song.title
+}
+
+/**
+ * Shared again: each song as its sender's library has it now, so a file
+ * renamed since — its words rewritten, its cover kept another way — is lent
+ * by its new name. Every entry keeps its id, and one gone stays gone.
+ */
+export function shareSongsAgain(doc: ShareDoc, songs: readonly RoomSong[]): ShareDoc {
+  const latest = new Map(songs.map(song => [shareSongKey(song), song]))
+  return {
+    ...doc,
+    entries: doc.entries.map(entry => {
+      const song = entry.gone ? undefined : latest.get(shareSongKey(entry.song))
+      return song ? { ...entry, song } : entry
+    }),
+  }
+}
+
 /** When it ends, as things stand: a week from the last play, the month at most. */
 export function shareEndsAt(doc: ShareDoc): number {
   if (doc.stopped) return doc.stopped.at

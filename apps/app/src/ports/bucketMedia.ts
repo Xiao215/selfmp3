@@ -1,6 +1,7 @@
 import type { MediaRoutes } from '../api/mediaAddress.model'
 import type { BucketMediaSetup } from './bucketMedia.types'
 import { doormanAuth, doormanFileUrl } from '../replica'
+import { streamOnce } from './recentCopies'
 
 /**
  * Addresses this platform can have answered from the bucket, for a library
@@ -14,6 +15,14 @@ import { doormanAuth, doormanFileUrl } from '../replica'
  * (`ports/engine.ts`, `#trackFor`). So a cloud song that is not on the disk
  * streams, rather than waiting to be downloaded — which on a phone short of
  * room would mean not at all.
+ *
+ * Not straight from the doorman, though, where the app's loopback server is
+ * built in (`songStream.ts`): every range the player asks for would be a read
+ * of the bucket, against a daily allowance. The address is the server's, which
+ * downloads the song once into the played-songs folder and answers every range
+ * from that (`recentCopies.ts`, `streamOnce`). The bearer still goes with the
+ * track; the server ignores it, and `askWhyRefused` sends it on asking why a
+ * song would not play, which the server answers with the doorman's words.
  *
  * The key is the song's `path`: a library read from the bucket names each file
  * by where it is there. Nothing here can know a song by its id alone, or hold a
@@ -50,8 +59,11 @@ export function bucketPictureAddress(_key: string): string | null {
 
 export const bucketMedia: MediaRoutes | null = {
   stream: songId => {
-    const key = setup.bearer === null ? null : setup.pathOf(songId)
-    return key === null ? '' : doormanFileUrl(key)
+    const { bearer } = setup
+    const key = bearer === null ? null : setup.pathOf(songId)
+    if (bearer === null || key === null) return ''
+    const url = doormanFileUrl(key)
+    return streamOnce({ id: songId, path: key }, url, doormanAuth(bearer)) ?? url
   },
   art: () => null,
   headers: () => (setup.bearer === null ? null : doormanAuth(setup.bearer)),

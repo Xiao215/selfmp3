@@ -147,7 +147,11 @@ stream through it without it holding them.
    asks the shell's own `app://selfmp3/_stream/<key>`, which the main process answers as
    the worker does: one download of the whole song per play, every range read from it as it
    arrives, and the last ten kept in a `played` folder (`apps/desktop/src/main/stream.ts`).
-   A phone's player asks the doorman for each range itself.
+   An iPhone does the same through a loopback server of the app's own
+   (`apps/app/modules/song-stream`): its player is pointed at `127.0.0.1`, the first range
+   starts one download of the whole song into the played-songs cache, and the copy is kept,
+   under the phone's budget, the moment it is all here (`apps/app/src/ports/recentCopies.ts`).
+   Android has no such module yet, and its player asks the doorman for each range itself.
 6. **Devices do what they are able to.** No device has a fixed role. Each does what it can —
    fetch YouTube links, analyse audio, look up lyrics — and work it cannot do waits in the
    bucket until a device that can do it picks it up. The server is special only because it can

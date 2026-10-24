@@ -82,8 +82,9 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
 - **One song, on a computer (A1)**, is Now Playing's stage at its measurements
   (`stageGeometry`, `features/share/ShareSong.tsx`): the cover at the top of the left column,
   the title and *artist · album* under it, then the seek bar and Play, all the cover's width.
-  The words take the column on the right and scroll in time (`StageLyrics`). A song lent
-  without words keeps the left column alone, in the middle of the window.
+  The words take the column on the right and scroll in time (`StageLyrics`). A song without
+  words, or whose words would not read, has its visual there instead, as Now Playing's does
+  (`SongVisual`, following the sound it plays), so the page is laid out the same either way.
 - **One song, on a phone (B1)**, is the phone's Now Playing: the cover, the title, the bar,
   and a big Play low under it. The words are the page's other view, opened as Now Playing's
   are, by a tap on the cover or a pull up, and put back by a pull down or the chevron. There

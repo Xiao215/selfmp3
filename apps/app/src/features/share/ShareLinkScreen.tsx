@@ -217,9 +217,10 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
     <View style={styles.screen}>
       <Backdrop color={wash} art={ended ? null : cover} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        {link.kind === 'song' && first && !ended ? (
+        {link.kind === 'song' && first && lead && !ended ? (
           <ShareSong
             song={first.song}
+            track={lead}
             songId={firstId}
             cover={cover}
             lyrics={lyrics}

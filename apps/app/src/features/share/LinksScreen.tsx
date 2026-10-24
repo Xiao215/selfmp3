@@ -46,6 +46,8 @@ import { shareApi, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
 
 const LINK_NOUN = { one: 'link', many: 'links' } as const
+// Where a row's own edge falls on a computer: its margin and its padding.
+const ROW_EDGE_WIDE = space.sm + space.snug
 
 /**
  * `/links`, Links you shared (docs/features/share-links.md, F1 + F2), drawn
@@ -487,17 +489,18 @@ export function AskCard({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   head: pageFrame(false),
-  headWide: pageFrame(true),
+  // In line with the rows below rather than the page's usual 40: the way
+  // back, the title and the section heads share one edge.
+  headWide: { ...pageFrame(true), paddingHorizontal: ROW_EDGE_WIDE },
   /* A box over which the selection bar is laid; the list fills it. */
   listArea: { flex: 1, minHeight: 0 },
   page: { paddingTop: space.xs, paddingBottom: 140 },
   text: lineSub(theme.colors),
   empty: { paddingHorizontal: space.gutter, paddingTop: space.sm },
   asks: { gap: space.md, paddingHorizontal: space.gutter, paddingBottom: space.sm },
-  asksWide: { paddingHorizontal: space.gutterWide },
-  // In line with the rows' own edge: the row's margin and its own padding.
+  asksWide: { paddingHorizontal: ROW_EDGE_WIDE },
   sectionWide: {
-    paddingHorizontal: space.sm + space.snug,
+    paddingHorizontal: ROW_EDGE_WIDE,
     paddingTop: space.lg,
     paddingBottom: space.xs,
   },

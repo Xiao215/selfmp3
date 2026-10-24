@@ -14,10 +14,10 @@ import { SongVisual } from '../nowPlaying/SongVisual'
 import { StageLyrics } from '../nowPlaying/StageLyrics'
 import { lyricsStatusText } from '../nowPlaying/stageLyrics.model'
 import { useMotionSampler } from '../nowPlaying/useMotionSampler'
+import { useViewPresence, VIEW_TRAVEL } from '../nowPlaying/useViewPresence'
 import type { SongLyrics } from '../nowPlaying/useSongWords'
 import { useLayout, useWindowValue } from '../../shell/useLayout'
-import { usePresence } from '../../ui/motion'
-import { MOVE_MS, PULL } from '../../ui/motion.model'
+import { PULL } from '../../ui/motion.model'
 import { artShadow, heroTitle, rowTitle, textColumn } from '../../ui/surfaces'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -46,9 +46,6 @@ const PHONE_ROOM = 400
 const IN_APP_ROOM = 120
 const PHONE_COVER_LEAST = 160
 const PHONE_COVER_MOST = 420
-
-/** How far a phone view starts from and leaves to: the cover above, the words below. */
-const VIEW_TRAVEL = 48
 
 interface SongProps {
   song: RoomSong
@@ -253,6 +250,9 @@ function SongStage(props: SongProps): ReactNode {
  * are the page's other view, opened as Now Playing's are, by a tap on the
  * cover or a pull up, and put back by a pull down or the chevron. Nothing on
  * the cover says so but the guide Now Playing shows, once.
+ *
+ * The bar, Play and what is under them are drawn once, below both views, so
+ * only the cover and the words pass each other and the controls never move.
  */
 function SongPhone(props: SongProps): ReactNode {
   const { song, cover, lyrics, lent, loaded, back, from, ways, foot, inApp } = props
@@ -272,35 +272,9 @@ function SongPhone(props: SongProps): ReactNode {
     ),
   )
 
-  const coverView = usePresence(!wordsOpen, MOVE_MS.shareWords, MOVE_MS.shareWords)
-  const wordsView = usePresence(wordsOpen, MOVE_MS.shareWords, MOVE_MS.shareWords)
-  const moves = useMemo(
-    () => ({
-      cover: {
-        opacity: coverView.progress,
-        transform: [
-          {
-            translateY: coverView.progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [-VIEW_TRAVEL, 0],
-            }),
-          },
-        ],
-      },
-      words: {
-        opacity: wordsView.progress,
-        transform: [
-          {
-            translateY: wordsView.progress.interpolate({
-              inputRange: [0, 1],
-              outputRange: [VIEW_TRAVEL, 0],
-            }),
-          },
-        ],
-      },
-    }),
-    [coverView.progress, wordsView.progress],
-  )
+  // Now Playing's own move between them: the one arriving springs in as the other goes.
+  const coverView = useViewPresence(!wordsOpen, -VIEW_TRAVEL)
+  const wordsView = useViewPresence(wordsOpen, VIEW_TRAVEL)
 
   // A pull up on the cover opens the words; a pull down goes back, except on
   // the words themselves, where dragging down is reading back up the song.
@@ -335,14 +309,14 @@ function SongPhone(props: SongProps): ReactNode {
   )
 
   return (
-    <View style={styles.phone} {...pan.panHandlers}>
-      {coverView.mounted ? (
-        <Animated.View
-          pointerEvents={wordsOpen ? 'none' : 'auto'}
-          aria-hidden={wordsOpen}
-          style={[styles.layer, moves.cover]}
-        >
-          <View style={[styles.phonePage, inApp && styles.phoneInApp]}>
+    <View style={[styles.phone, inApp && styles.phoneInApp]} {...pan.panHandlers}>
+      <View style={styles.phoneViews}>
+        {coverView.mounted ? (
+          <Animated.View
+            pointerEvents={wordsOpen ? 'none' : 'auto'}
+            aria-hidden={wordsOpen}
+            style={[styles.layer, styles.phonePage, coverView.style]}
+          >
             {back}
             <View style={[styles.phoneColumn, { width: side }]}>
               {from}
@@ -363,25 +337,17 @@ function SongPhone(props: SongProps): ReactNode {
                   {bylineOf(song)}
                 </Text>
               </View>
-              <Seek song={song} loaded={loaded} />
-              <View style={styles.phonePlay}>
-                <Play {...props} size={64} />
-              </View>
-              {ways}
             </View>
-            <View style={styles.phoneFoot}>{foot}</View>
-          </View>
-        </Animated.View>
-      ) : null}
+          </Animated.View>
+        ) : null}
 
-      {wordsView.mounted ? (
-        <Animated.View
-          pointerEvents={wordsOpen ? 'auto' : 'none'}
-          aria-hidden={!wordsOpen}
-          style={[styles.layer, moves.words]}
-          testID="share-words"
-        >
-          <View style={[styles.phonePage, styles.wordsPage, inApp && styles.phoneInApp]}>
+        {wordsView.mounted ? (
+          <Animated.View
+            pointerEvents={wordsOpen ? 'auto' : 'none'}
+            aria-hidden={!wordsOpen}
+            style={[styles.layer, styles.phonePage, styles.wordsPage, wordsView.style]}
+            testID="share-words"
+          >
             <View style={styles.wordsHead}>
               <IconButton onPress={() => onWords(false)} label="Back to the cover" filled>
                 <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
@@ -411,18 +377,24 @@ function SongPhone(props: SongProps): ReactNode {
                   roman={words.roman}
                   focus={false}
                   fontSize={Math.min(28, Math.max(22, width * 0.064))}
+                  still={!loaded}
                 />
               ) : (
                 <Text style={styles.wordsStatus}>{lyricsStatusText(words)}</Text>
               )}
             </View>
-            <Seek song={song} loaded={loaded} />
-            <View style={styles.phonePlay}>
-              <Play {...props} size={56} />
-            </View>
-          </View>
-        </Animated.View>
-      ) : null}
+          </Animated.View>
+        ) : null}
+      </View>
+
+      <View style={[styles.phoneControls, { width: side }]}>
+        <Seek song={song} loaded={loaded} />
+        <View style={styles.phonePlay}>
+          <Play {...props} size={64} />
+        </View>
+        {ways}
+      </View>
+      <View style={styles.phoneFoot}>{foot}</View>
 
       <Guide
         guide={guide}
@@ -502,21 +474,19 @@ const styles = StyleSheet.create(theme => ({
   },
   tools: { position: 'absolute', top: 0, right: 0 },
 
-  phone: { flex: 1 },
+  phone: { flex: 1, paddingBottom: space.xl },
+  // The cover and the words, one over the other, above the controls they share.
+  phoneViews: { flex: 1, minHeight: 0 },
+  phoneControls: { alignSelf: 'center', gap: space.lg, paddingTop: space.lg },
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  phonePage: {
-    flex: 1,
-    paddingHorizontal: space.gutter,
-    paddingTop: space.gutter,
-    paddingBottom: space.xl,
-  },
+  phonePage: { paddingHorizontal: space.gutter, paddingTop: space.gutter },
   phoneInApp: { paddingBottom: IN_APP_ROOM },
   phoneColumn: { alignSelf: 'center', gap: space.lg },
   phoneNames: { gap: space.xs },
   phoneTitle: heroTitle(theme.colors, 'page'),
   phoneByline: { color: theme.colors.textSecondary, fontSize: type.body },
   phonePlay: { alignItems: 'center' },
-  phoneFoot: { marginTop: 'auto', alignItems: 'center' },
+  phoneFoot: { alignItems: 'center', paddingTop: space.lg },
   wordsPage: { paddingTop: space.sm },
   wordsHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   wordsTitle: rowTitle(theme.colors),

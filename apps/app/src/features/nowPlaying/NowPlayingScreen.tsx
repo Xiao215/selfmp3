@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
 import { Guide, riseWith } from '../guide/Guide'
@@ -8,16 +8,7 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import {
-  HIT_TARGET,
-  motion,
-  radius,
-  space,
-  type,
-  withAlpha,
-  iconSize,
-  coverSize,
-} from '@selfmp3/client'
+import { HIT_TARGET, radius, space, type, withAlpha, iconSize, coverSize } from '@selfmp3/client'
 import { useRoom } from '../room/room.store'
 import { RoomSheets } from '../room/RoomSheets'
 import { ShareSheet } from '../share/ShareSheet'
@@ -70,6 +61,7 @@ import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
 import { countUse } from '../usage/usage'
+import { useViewPresence, VIEW_TRAVEL } from './useViewPresence'
 import { TouchFlag } from '../../ui/touchFlag'
 
 /**
@@ -459,50 +451,8 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   )
 }
 
-/** How far a view starts from and leaves to: the cover above, the words below. */
-const VIEW_TRAVEL = 48
 /** How far the page gives under a pull, however far the finger goes on. */
 const PULL_GIVE = 150
-
-interface ViewPresence {
-  readonly mounted: boolean
-  readonly style: {
-    readonly opacity: Animated.Value
-    readonly transform: readonly { translateY: Animated.AnimatedInterpolation<number> }[]
-  }
-}
-
-/**
- * One of the page's two views: springing in from `from` points away, leaving
- * back to it over `motion.base` on `ease.in`, and mounted until it has gone.
- *
- * `usePresence` is the app's answer for everything that arrives and leaves, and
- * both of its ways are timed. This is a thing moving in space, which the boards
- * put on the spring, so only the leaving is timed; the rest is `usePresence`,
- * including asking to be mounted in the render so an arriving view never has a
- * frame in which it is wanted and not there.
- *
- * Nothing is ever set back to 0 and played again: turning round part-way
- * retargets whichever of the two is running from where the view has got to.
- */
-function useViewPresence(shown: boolean, from: number): ViewPresence {
-  const [value] = useState(() => new Animated.Value(shown ? 1 : 0))
-  const [mounted, setMounted] = useState(shown)
-  if (shown && !mounted) setMounted(true)
-  const sent = useRef(shown)
-  useEffect(() => {
-    if (sent.current === shown) return
-    sent.current = shown
-    if (shown) spring(value, 1)
-    else timing(value, 0, motion.base, () => setMounted(false), { easing: ease.in })
-  }, [shown, value])
-  // Built once: `from` is the view's own side and never changes.
-  const [style] = useState(() => ({
-    opacity: value,
-    transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }],
-  }))
-  return { mounted, style }
-}
 
 /** The cover view (`P21`). */
 function CoverView({

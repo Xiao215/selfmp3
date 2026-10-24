@@ -61,8 +61,6 @@ export const MOVE_MS = {
   stageVisual: 240,
   /** The cover and the words gliding between Stage and Focus. */
   stageMove: 520,
-  /** A share link's big cover shrinking into the words' row as its song plays, and back. */
-  shareWords: 420,
   /** The sidebar fading out as Now Playing arrives over it, and back. */
   sidebar: 160,
   /** How long the sidebar waits before coming back where the stack slides Now Playing away itself. */

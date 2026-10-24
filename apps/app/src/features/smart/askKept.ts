@@ -1,5 +1,6 @@
 import { ApiError, type Api } from '@selfmp3/client'
 import type { AskAnswer } from '@selfmp3/shared'
+import { countUse } from '../usage/usage'
 
 /** One Ask, as `askKept` sends it. */
 export interface AskSent {
@@ -54,6 +55,7 @@ export async function askKept(
       /** What the response failed with when its connection went, not the server's work. */
       let lost: ApiError | null = null
 
+      countUse('ask')
       api.ask(sent.text, sent.playing, ticket, sent.before, posting.signal).then(
         answer => settle(() => resolve(answer)),
         (caught: unknown) => {

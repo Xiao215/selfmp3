@@ -16,13 +16,14 @@ server runs on an always-on computer (see [INSTALL.md](INSTALL.md)).
 
 **State of play.** The iOS app runs on simulators as a development build and on
 a real iPhone as a release build; streaming a song from the bucket was first
-confirmed on a real iPhone on 2026-09-17. **No Android binary has ever been
-built, and nothing has ever run on an Android device.** Every Android claim in
-this file is read out of the generated project and the packages on disk, or
-reasoned about — never seen working. `expo prebuild --platform android` has been
-run and its output inspected, but no Gradle task has, because no machine this was
-prepared on has had an Android SDK. Treat the first `expo run:android` as the
-real test. What to check on a phone before calling a build good is in
+confirmed on a real iPhone on 2026-09-17. **Android has run only on an
+emulator.** On 2026-10-24 a debug build (`assembleDebug`, arm64-v8a, the SDK
+from Homebrew's `android-commandlinetools` cask) compiled — the track-player
+alpha included — and on an API 36 emulator it signed in to a fake doorman,
+showed the library and streamed and played a bucket song through the loopback
+server. Nothing has run on an Android phone, and the rest of the Android claims
+in this file are still read out of the generated project or reasoned about.
+Treat the first build on a phone as the real test. What to check on a phone before calling a build good is in
 [PREPROD.md](PREPROD.md).
 
 ---
@@ -75,7 +76,7 @@ What only the phone build adds:
 |---|---|
 | **Background audio** | react-native-track-player: lock screen, notification, headphone buttons, audio focus. |
 | **Downloads** | Real files in the app's document directory, with a persisted index. Automatic on Wi-Fi if that is on, asking first on mobile data and over 500 MB, or by hand from a song or playlist. A downloaded song plays from disk. |
-| **Streaming from the bucket** | A song that is not downloaded streams from the doorman's `/v1/files/<key>` with the session's bearer (`src/ports/bucketMedia.ts`). On iOS the player is handed the app's own loopback server instead (`modules/song-stream`, `src/ports/songStream.ts`), which downloads the song once into the played-songs cache and answers every range from it: one read of the bucket per first play, and the copy kept, on Wi-Fi or mobile data. On Android the player sends the bearer as a track header and asks the doorman for each range. It obeys "Play songs that aren't downloaded" and the ask before using mobile data. |
+| **Streaming from the bucket** | A song that is not downloaded streams from the doorman's `/v1/files/<key>` with the session's bearer (`src/ports/bucketMedia.ts`). The player is handed the app's own loopback server instead (`modules/song-stream`, Swift on iOS and Kotlin on Android; `src/ports/songStream.ts`), which downloads the song once into the played-songs cache and answers every range from it: one read of the bucket per first play, and the copy kept, on Wi-Fi or mobile data. Only a dev client built before the module asks the doorman for each range itself. It obeys "Play songs that aren't downloaded" and the ask before using mobile data. |
 | **Played songs kept** | With automatic downloads off, a song that counts as a play is also kept as a file, so it is not fetched again tomorrow (`src/ports/recentCopies.ts`). These copies are a cache, not downloads: they live in the system's cache folder, never show as on the device, take at most a quarter of the free space up to 2 GB, and the least recently played go first. Downloading one by hand moves it rather than fetching it again. |
 | **Home-screen widgets** | iOS only; see [widget.md](features/widget.md). |
 | **Android Auto** | See [Android Auto](#android-auto). Less than was hoped, and never tested in a car. |
@@ -353,8 +354,9 @@ own and useless for the Play Store.
 
 Ranked by likelihood:
 
-1. **react-native-track-player 5.0.0-alpha0 compiling at all.** Nothing static
-   can settle it; see [Why the track-player alpha](#why-the-track-player-alpha).
+1. **react-native-track-player 5.0.0-alpha0 compiling at all.** It did, in a
+   debug build on 2026-10-24, and played on an emulator; a release build has
+   not been tried. See [Why the track-player alpha](#why-the-track-player-alpha).
 2. **Expo packages a patch behind** what the SDK now expects. Run
    `npx expo install --check` first and accept the patches: patch releases
    during an SDK's life are mostly build and prebuild fixes.
@@ -368,9 +370,10 @@ Ranked by likelihood:
    `PermissionsAndroid`. Expect the lock-screen and notification controls to
    need work here.
 
-Still completely unknown, because it needs the SDK, a device or both: every
-Gradle task, the C++ builds, whether the app launches, audio and audio focus,
-lock-screen controls, downloads, and everything in [Android Auto](#android-auto).
+Settled on an emulator (2026-10-24): the debug Gradle build and its C++, the
+app launching, and a streamed song playing. Still unknown, because it needs a
+phone: a release build, audio focus, lock-screen controls, downloads, and
+everything in [Android Auto](#android-auto).
 
 ### expo-doctor
 
@@ -560,8 +563,8 @@ not what applies); it applies `com.facebook.react` with
 `TrackPlayerPackage` reports `isTurboModule = true`; autolinking finds it; and
 its manifest's deprecated `package=` attribute sits beside a `namespace`, as
 `react-native-safe-area-context` does, so it is a warning rather than an error.
-What no amount of reading settles is whether its Kotlin compiles against React
-Native 0.86 and media3. That is still the single largest Android risk.
+Its Kotlin does compile against React Native 0.86 and media3: a debug build
+on 2026-10-24 built and played on an emulator.
 
 ---
 

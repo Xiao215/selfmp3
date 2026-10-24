@@ -5,6 +5,7 @@ import { PlaylistKindSchema } from './playlist.js'
 import { SongFieldsSchema } from './song.js'
 import { DAY_MS } from '../math.js'
 import { TagNameSchema } from './tag.js'
+import { ArtistNamesSchema } from './artist.js'
 
 /**
  * The change log (docs/SYNC.md): what a device did, as it travels.
@@ -162,6 +163,17 @@ export const ImportRequestedSchema = z.object({
   playlistUid: UidSchema.nullable().default(null),
 })
 
+/**
+ * The names an artist also goes by, all of them as they are now. An artist
+ * has no uid — it is what the songs say — so it is named by `artistKey`.
+ */
+export const ArtistNamedSchema = z.object({
+  type: z.literal('artistNamed'),
+  hlc: HlcSchema,
+  artist: z.string().min(1).max(500),
+  names: ArtistNamesSchema,
+})
+
 /** Asked for, then thought better of, before the server got to it. */
 export const ImportCancelledSchema = z.object({ type: z.literal('importCancelled'), ...at })
 
@@ -182,6 +194,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   PlaylistUnfollowedSchema,
   ImportRequestedSchema,
   ImportCancelledSchema,
+  ArtistNamedSchema,
 ])
 export type Change = z.infer<typeof ChangeSchema>
 

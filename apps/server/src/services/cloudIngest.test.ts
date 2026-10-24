@@ -19,6 +19,7 @@ import { PlaylistRepository } from '../repositories/playlists.js'
 import { SongRepository } from '../repositories/songs.js'
 import { StatsRepository } from '../repositories/stats.js'
 import { SyncRepository } from '../repositories/sync.js'
+import { NamesRepository } from '../repositories/names.js'
 import { TagRepository } from '../repositories/tags.js'
 import { CloudIngest } from './cloudIngest.js'
 import { buildSnapshot } from './cloudSnapshot.js'
@@ -47,6 +48,7 @@ describe('CloudIngest', () => {
   let stats: StatsRepository
   let sync: SyncRepository
   let cloud: CloudRepository
+  let names: NamesRepository
   let edits: LocalEdits
   let ingest: CloudIngest
   let now: number
@@ -62,6 +64,7 @@ describe('CloudIngest', () => {
     stats = new StatsRepository(db)
     sync = new SyncRepository(db)
     cloud = new CloudRepository(db)
+    names = new NamesRepository(db)
     now = BASE
     const clock = new SyncClock({
       deviceId: () => 'mac-aaaa1111',
@@ -77,6 +80,7 @@ describe('CloudIngest', () => {
       stats,
       sync,
       cloud: new CloudRepository(db),
+      names,
       clock,
       logger,
     })
@@ -140,6 +144,7 @@ describe('CloudIngest', () => {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [],
+      artistNames: names.artistNames(),
       tags: tags.all(),
       tagUids: cloud.tagUids(),
       playlists: playlists.all(),
@@ -175,6 +180,7 @@ describe('CloudIngest', () => {
             }
           : playlist,
       ),
+      artistNames: [...library.artistNames.values()],
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
       merged: library.merged.size > 0 ? Object.fromEntries(library.merged) : undefined,
     }
@@ -188,6 +194,7 @@ describe('CloudIngest', () => {
       songs: byUid(snapshot.songs).map(song => ({ ...song, tagUids: [...song.tagUids].sort() })),
       tags: byUid(snapshot.tags),
       playlists: byUid(snapshot.playlists),
+      artistNames: [...snapshot.artistNames].sort((a, b) => a.artist.localeCompare(b.artist)),
       aliases: snapshot.aliases ?? {},
       merged: snapshot.merged ?? {},
     }
@@ -232,6 +239,8 @@ describe('CloudIngest', () => {
     now = BASE + 50_000
     songs.patch(a, { title: 'Alpha (Server)' })
     edits.songs([a], ['title'])
+    // Named here later than the phone names them below.
+    names.takeArtistNames('server', ['The Server'], at(40, 'mac-aaaa1111'))
 
     const before = serverSnapshot()
     const [A, B, C] = [a, b, c].map(id => uidOf('songs', id)) as [string, string, string]
@@ -305,6 +314,11 @@ describe('CloudIngest', () => {
       { type: 'playlistOrdered', hlc: at(29), uid: LOVED, songUids: [C, B] },
       // For something that is not here, nothing happens.
       { type: 'songEdited', hlc: at(30), uid: '9'.repeat(32), fields: { title: 'Ghost' } },
+      // An artist is named by how the songs write them, whatever the case.
+      { type: 'artistNamed', hlc: at(31), artist: 'Phone', names: ['Fone', '电话'] },
+      { type: 'artistNamed', hlc: at(32), artist: 'Server', names: ['Too early'] },
+      // Cleared later on another device: cleared, and kept that way.
+      { type: 'artistNamed', hlc: at(33, 'web-cccc2222'), artist: 'phone', names: [] },
     ]
 
     const result = ingest.apply(changes)
@@ -312,7 +326,7 @@ describe('CloudIngest', () => {
     const phone = replayed(before, changes)
 
     expect(comparable(after)).toEqual(comparable(phone))
-    expect(result.applied).toBe(19)
+    expect(result.applied).toBe(21)
     // And it is the library it should be, not just the same wrong one twice.
     const song = (uid: string) => after.songs.find(s => s.uid === uid)
     expect(song(A)).toMatchObject({ title: 'Alpha (Server)', artist: 'Phone', tagUids: [] })
@@ -327,6 +341,9 @@ describe('CloudIngest', () => {
     expect(playlist(RAINY)?.rules?.rules).toEqual([
       { field: 'tag', op: 'has', tagUid: MISSING_TAG_UID },
     ])
+    expect(Object.fromEntries(after.artistNames.map(entry => [entry.artist, entry.names]))).toEqual(
+      { phone: [], server: ['The Server'] },
+    )
   })
 
   it('removes a song everywhere, and says whose files are to go', () => {

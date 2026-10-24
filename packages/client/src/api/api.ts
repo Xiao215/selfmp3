@@ -19,6 +19,7 @@ import {
   AffectedSchema,
   AnalysisStatusSchema,
   ArtistBackdropSchema,
+  SetArtistNamesSchema,
   DeviceCommandResultSchema,
   DeviceListSchema,
   DoormanGrantsSchema,
@@ -75,6 +76,7 @@ import {
   TagSchema,
   ToolStatusSchema,
   type CreateTag,
+  type SetArtistNames,
   BulkDeleteResultSchema,
   MergeSongsResultSchema,
   type MergeSongs,
@@ -628,6 +630,10 @@ export function createApi({ context, fetch }: ApiOptions) {
         `/api/artists/backdrop?name=${encodeURIComponent(name)}`,
         ArtistBackdropSchema,
       ),
+
+    /** The names an artist also goes by, all of them as they should be now: search finds them by these. */
+    setArtistNames: (input: SetArtistNames) =>
+      request('PUT', '/api/artists/names', SetArtistNamesSchema, input),
 
     wrapped: (range: WrappedRange) =>
       request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),

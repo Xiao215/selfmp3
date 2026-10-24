@@ -3,6 +3,7 @@ import { IdSchema } from './common.js'
 import { SongSchema } from './song.js'
 import { TagSchema } from './tag.js'
 import { PlaylistSchema } from './playlist.js'
+import { ArtistNamesSchema } from './artist.js'
 
 /**
  * The whole library in one response.
@@ -16,6 +17,10 @@ export const LibrarySchema = z.object({
   songs: z.array(SongSchema),
   tags: z.array(TagSchema),
   playlists: z.array(PlaylistSchema),
+  /** The names each artist also goes by, by `artistKey`: what search finds them by besides their own. */
+  artistNames: z.record(z.string(), ArtistNamesSchema),
+  /** Chinese and Japanese titles, artists and albums in Latin letters: as written → each way it is spelt. */
+  spellings: z.record(z.string(), z.array(z.string())),
   /** Bumped whenever anything changes, so clients can skip redundant work. */
   version: z.number().int().nonnegative(),
   generatedAt: z.string(),

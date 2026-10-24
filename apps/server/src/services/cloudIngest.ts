@@ -1,6 +1,7 @@
 import {
   messageOf,
   SONG_FIELDS,
+  artistKey,
   compareChanges,
   fromCloudRules,
   playlistPatchProblem,
@@ -18,6 +19,7 @@ import type { Db } from '../db/index.js'
 import type { Logger } from '../logger.js'
 import type { CloudRepository } from '../repositories/cloud.js'
 import type { ImportRequestRepository } from '../repositories/importRequests.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SongRepository } from '../repositories/songs.js'
 import type { StatsRepository } from '../repositories/stats.js'
@@ -60,6 +62,7 @@ export class CloudIngest {
   readonly #sync: SyncRepository
   readonly #cloud: Pick<CloudRepository, 'trashSong'>
   readonly #requests: ImportRequestRepository | null
+  readonly #names: NamesRepository
   readonly #clock: SyncClock
   readonly #logger: Logger
   readonly #merge: SongMerge
@@ -75,6 +78,8 @@ export class CloudIngest {
     cloud: Pick<CloudRepository, 'trashSong'>
     /** Where link requests go; without it they are left for a server that has one. */
     requests?: ImportRequestRepository
+    /** Where the names artists also go by are kept. */
+    names: NamesRepository
     clock: SyncClock
     logger: Logger
     /** Keeps a folded copy's cover file for the song kept (`CoverService.copy`). */
@@ -88,6 +93,7 @@ export class CloudIngest {
     this.#sync = deps.sync
     this.#cloud = deps.cloud
     this.#requests = deps.requests ?? null
+    this.#names = deps.names
     this.#clock = deps.clock
     this.#logger = deps.logger.child('ingest')
     this.#merge = new SongMerge({ db: deps.db, sync: deps.sync, copyCover: deps.copyCover })
@@ -118,7 +124,7 @@ export class CloudIngest {
           }
         } catch (error) {
           this.#logger.warn(`could not apply a ${change.type} change from another device`, {
-            uid: change.uid,
+            about: change.type === 'artistNamed' ? change.artist : change.uid,
             error: messageOf(error),
           })
         }
@@ -312,6 +318,9 @@ export class CloudIngest {
           requestedAt: toSqliteTime(hlcTime(change.hlc)),
         })
       }
+
+      case 'artistNamed':
+        return this.#names.takeArtistNames(artistKey(change.artist), change.names, change.hlc)
 
       case 'importCancelled':
         return this.#requests?.cancel(change.uid, toSqliteTime(hlcTime(change.hlc))) ?? false

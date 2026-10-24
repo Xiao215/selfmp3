@@ -1,9 +1,11 @@
 import { MISSING_TAG_UID } from './cloud.js'
 import { hlcTime, hlcWins, parseHlc } from './hlc.js'
 import { CLOUD_FORMAT } from './schemas/cloud.js'
+import { artistKey } from './artists.js'
 import type {
   CloudSmartRules,
   CloudArtist,
+  CloudArtistNames,
   CloudCoverPack,
   CloudSound,
   CloudImport,
@@ -52,6 +54,10 @@ export interface SyncLibrary {
   readonly imports: Map<string, CloudImport>
   /** Artists' pictures, as the snapshot had them: no change touches them. */
   readonly artists: readonly CloudArtist[]
+  /** The names artists also go by, by `artistKey`. */
+  readonly artistNames: Map<string, CloudArtistNames>
+  /** Names in Latin letters, as the snapshot had them: the server's, like the pictures. */
+  readonly spellings: Readonly<Record<string, string[]>>
   /** The packs of covers, as the snapshot had them: the server's, like the pictures. */
   readonly coverPacks: readonly CloudCoverPack[]
   /** The server's sound vectors, as the snapshot had them: no change touches them either. */
@@ -70,6 +76,8 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     artists: snapshot?.artists ?? [],
+    artistNames: new Map(snapshot?.artistNames.map(entry => [entry.artist, entry])),
+    spellings: snapshot?.spellings ?? {},
     coverPacks: snapshot?.coverPacks ?? [],
     sound: snapshot?.sound ?? null,
     counted: new Set(),
@@ -90,6 +98,8 @@ export function snapshotOf(
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
     artists: [...library.artists],
+    artistNames: [...library.artistNames.values()],
+    spellings: library.spellings,
     coverPacks: [...library.coverPacks],
     sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
@@ -415,6 +425,20 @@ export function applyChange(library: SyncLibrary, change: Change): boolean {
         songUids: [...new Set(change.songUids)].filter(uid => library.songs.has(uid)),
         stamps: { ...playlist.stamps, rules: change.hlc, order: change.hlc },
         updatedAt: laterTime(playlist.updatedAt, change.hlc),
+      })
+      return true
+    }
+
+    case 'artistNamed': {
+      // Kept when empty too: names someone cleared stay cleared, and the
+      // server fills in only an artist nobody has named yet.
+      const artist = artistKey(change.artist)
+      const named = library.artistNames.get(artist)
+      if (!hlcWins(change.hlc, named?.stamps?.['names'])) return false
+      library.artistNames.set(artist, {
+        artist,
+        names: [...change.names],
+        stamps: { names: change.hlc },
       })
       return true
     }

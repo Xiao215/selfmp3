@@ -73,6 +73,9 @@ import type { ImportRequestRepository } from '../repositories/importRequests.js'
 import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { ArtistBackdropService } from './artistBackdrops.js'
+import type { ArtistNameLookup } from './artistNames.js'
+import type { SpellingService } from './spellings.js'
+import type { NamesRepository } from '../repositories/names.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
 import { planCoverPacks } from './coverPacks.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
@@ -283,6 +286,18 @@ interface CloudSyncDeps {
    * being tested, which then publishes none.
    */
   readonly artists?: Pick<ArtistBackdropService, 'artists' | 'keptPair' | 'fill'>
+  /**
+   * What search finds things by (packages/shared/src/searchNames.ts): the names
+   * artists also go by, looked up after each pass as pictures are, and every
+   * Chinese and Japanese name spelt in Latin letters before each snapshot, so
+   * a new song goes up spelt. Absent where names are not what is being tested,
+   * which then publishes none.
+   */
+  readonly names?: {
+    readonly repo: Pick<NamesRepository, 'artistNames'>
+    readonly spellings: Pick<SpellingService, 'fill' | 'current'>
+    readonly lookup: Pick<ArtistNameLookup, 'fill'>
+  }
   /**
    * Every song's sound vector (sound/sound.ts), as one file in the bucket
    * beside the words, so the vectors outlive this server's database. Absent
@@ -1111,6 +1126,16 @@ export class CloudSyncService {
       if (changed.length > 0) {
         this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
       }
+      // The names artists also go by, for any nobody has named: found ones go
+      // up with the pass this starts.
+      void this.#deps.names?.lookup
+        .fill()
+        .then(found => {
+          if (found > 0 && !this.#stopped) this.kick()
+        })
+        .catch((error: unknown) => {
+          this.#logger.warn('could not look up artists’ names', { message: messageOf(error) })
+        })
       // Pictures for artists that have none yet, in the background: one found
       // is put in the bucket by the pass this starts.
       void this.#deps.artists
@@ -2324,6 +2349,12 @@ export class CloudSyncService {
 
     const server = this.#deps.server?.()
     this.#publishedServer = this.#serverKey(server)
+    // New names go up spelt. A dictionary that will not load costs only the
+    // spellings, which the next snapshot brings.
+    const names = this.#deps.names
+    await names?.spellings.fill().catch((error: unknown) => {
+      this.#logger.warn('could not spell names', { message: messageOf(error) })
+    })
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
@@ -2335,6 +2366,8 @@ export class CloudSyncService {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
+      artistNames: names?.repo.artistNames() ?? new Map(),
+      spellings: names?.spellings.current() ?? {},
       coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.

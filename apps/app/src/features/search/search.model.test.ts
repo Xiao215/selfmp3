@@ -23,6 +23,8 @@ const library = {
     song(4, 'ノーチラス', 'Yorushika'),
   ],
   playlists: [] as never,
+  artistNames: {},
+  spellings: {},
   tags: [
     { id: 7, name: 'yoasobi', hue: 1, songCount: 3 },
     { id: 8, name: 'yorushika', hue: 2, songCount: 1 },
@@ -56,6 +58,19 @@ describe('searchLibrary', () => {
     expect(found.tags.map(tag => tag.name)).toEqual(['yorushika'])
     expect(found.artists.map(artist => artist.name)).toEqual(['Yorushika'])
     expect(found.artists[0]?.songIds).toEqual([4])
+  })
+
+  it('finds an artist, and their songs, by the names they also go by and by spelling', () => {
+    const named = {
+      ...library,
+      songs: [...library.songs, song(5, 'ロマンスの約束', '幾田りら')],
+      artistNames: { 幾田りら: ['ikura', 'Lilas Ikuta'] },
+      spellings: { 幾田りら: ['iku ta ri ra'] },
+    }
+    const byStageName = searchLibrary('ikura', named)
+    expect(byStageName.artists[0]?.name).toBe('幾田りら')
+    expect(byStageName.songs.map(found => found.id)).toEqual([5])
+    expect(searchLibrary('ikuta', named).artists.map(artist => artist.name)).toEqual(['幾田りら'])
   })
 
   it('finds nothing for nothing typed', () => {

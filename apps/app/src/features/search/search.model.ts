@@ -1,6 +1,8 @@
 import {
+  artistSearchNames,
   fromSqliteTime,
   fuzzyRank,
+  fuzzyRankNames,
   isCjkQuery,
   type Library,
   type LyricsSearchHit,
@@ -36,7 +38,7 @@ export const SECTION_TITLES: Readonly<Record<SearchSection, string>> = {
   lyrics: 'Lyrics',
 }
 
-type SearchLibrary = Pick<Library, 'songs' | 'tags'>
+type SearchLibrary = Pick<Library, 'songs' | 'tags' | 'artistNames' | 'spellings'>
 
 interface SearchFound {
   /** Every song that matches, best first. */
@@ -55,11 +57,11 @@ export function searchLibrary(query: string, library: SearchLibrary | undefined)
   const trimmed = query.trim()
   if (!trimmed || !library) return NOTHING
   return {
-    songs: searchSongs(trimmed, library.songs).map(match => match.item),
+    songs: searchSongs(trimmed, library.songs, library).map(match => match.item),
     tags: fuzzyRank(trimmed, library.tags, tag => tag.name).map(match => match.item),
-    artists: fuzzyRank(trimmed, libraryArtists(library.songs), artist => artist.name).map(
-      match => match.item,
-    ),
+    artists: fuzzyRankNames(trimmed, libraryArtists(library.songs), artist =>
+      artistSearchNames(artist.name, library),
+    ).map(match => match.item),
   }
 }
 

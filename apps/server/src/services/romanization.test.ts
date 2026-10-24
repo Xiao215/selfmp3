@@ -95,3 +95,31 @@ describe('exportedClass', () => {
     expect(exportedClass({ default: Engine })).toBe(Engine)
   })
 })
+
+describe('spelling a name', () => {
+  const marked = new RomanizationService(createLogger('silent'), {
+    pinyin: () => 'Zhōu  Jié Lún',
+    romaji: () => Promise.resolve('Shū Ketsu Ron'),
+  })
+
+  it('spells characters alone both ways, pinyin first, as a keyboard types them', async () => {
+    expect(await marked.spell('周杰伦')).toEqual(['zhou jie lun', 'shu ketsu ron'])
+  })
+
+  it('spells a name with kana in romaji alone', async () => {
+    expect(await marked.spell('幾田りら')).toEqual(['shu ketsu ron'])
+  })
+
+  it('leaves out the punctuation a name carries', async () => {
+    const dotted = new RomanizationService(createLogger('silent'), {
+      pinyin: text => text,
+      romaji: () => Promise.resolve('zutto mayonaka de ii noni .'),
+    })
+    expect(await dotted.spell('ずっと真夜中でいいのに。')).toEqual(['zutto mayonaka de ii noni'])
+  })
+
+  it('leaves Latin and Korean names alone', async () => {
+    expect(await marked.spell('Jay Chou')).toEqual([])
+    expect(await marked.spell('아이유')).toEqual([])
+  })
+})

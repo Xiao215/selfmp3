@@ -53,6 +53,8 @@ const library = (playlists: Playlist[]): Library =>
       { id: 11, name: 'tag 11', hue: 200, songCount: 0 },
     ],
     playlists,
+    artistNames: {},
+    spellings: {},
     version: 3,
     generatedAt: '2026-09-14T10:00:00.000Z',
   }) as Library

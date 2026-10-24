@@ -1,7 +1,10 @@
 import {
+  NO_NAMES,
   fuzzyRankPrepared,
-  preparedTextFor,
+  preparedNamesFor,
+  songSearchNames,
   sortSongs,
+  type LibraryNames,
   type FuzzyMatch,
   type Song,
   type SongSortField,
@@ -107,24 +110,36 @@ export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
   { field: 'lastPlayedAt', label: 'Recently played' },
 ]
 
-function searchText(song: Song): string {
-  return `${song.title} ${song.artist} ${song.album}`
+/**
+ * Each song's names, lowercased once per song object rather than once per
+ * keystroke, and once per set of the library's other names
+ * (`songSearchNames`). The library query hands back the same objects until it
+ * is refetched, so typing reuses them; a refetch brings new objects and the
+ * old names go with the old songs.
+ */
+const preparedByNames = new WeakMap<LibraryNames, ReturnType<typeof preparedNamesFor<Song>>>()
+
+function preparedNames(names: LibraryNames): ReturnType<typeof preparedNamesFor<Song>> {
+  let prepared = preparedByNames.get(names)
+  if (!prepared) {
+    prepared = preparedNamesFor<Song>(song => songSearchNames(song, names))
+    preparedByNames.set(names, prepared)
+  }
+  return prepared
 }
 
 /**
- * Each song's search text, lowercased once per song object rather than once
- * per keystroke. The library query hands back the same objects until it is
- * refetched, so typing reuses them; a refetch brings new objects and the old
- * text goes with the old songs.
- */
-const preparedSearchText = preparedTextFor<Song>(searchText)
-
-/**
  * Songs best-first for a query: the library's search, and the palette's.
- * One matcher and one prepared text for both, so they cannot disagree.
+ * One matcher and one set of names for both, so they cannot disagree. A song
+ * is found by its title, artist and album, by each spelt in Latin letters,
+ * and by the names its artists also go by (`names`).
  */
-export function searchSongs<S extends Song>(query: string, songs: readonly S[]): FuzzyMatch<S>[] {
-  return fuzzyRankPrepared(query, songs, preparedSearchText)
+export function searchSongs<S extends Song>(
+  query: string,
+  songs: readonly S[],
+  names: LibraryNames = NO_NAMES,
+): FuzzyMatch<S>[] {
+  return fuzzyRankPrepared(query, songs, preparedNames(names))
 }
 
 export function filterSongs(

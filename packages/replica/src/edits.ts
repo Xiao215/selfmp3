@@ -1,4 +1,5 @@
 import {
+  findArtist,
   insertedAt,
   newTagHue,
   newUid,
@@ -9,11 +10,13 @@ import {
   tagNamed,
   tagRenameProblem,
   tagsEmptiedBy,
+  tidyArtistNames,
   toCloudRules,
   type Change,
   type CreatePlaylist,
   type Playlist,
   type PlayEvent,
+  type SetArtistNames,
   type Song,
   type SongPatch,
   type UpdatePlaylist,
@@ -239,6 +242,20 @@ export function editTag(
 
 export function removeTag(ctx: EditContext, id: number): Change[] {
   return [{ type: 'tagRemoved', hlc: ctx.stamp(), uid: tagUid(ctx, id) }]
+}
+
+// --- Artists ---------------------------------------------------------------------
+
+/** The names an artist also goes by, all of them as they should be now. */
+export function nameArtist(
+  ctx: EditContext,
+  artist: string,
+  names: readonly string[],
+): { changes: Change[]; named: SetArtistNames } {
+  const found = findArtist(ctx.view.library.songs, artist)
+  if (!found) throw notFound('artist')
+  const named = { artist: found.key, names: tidyArtistNames(found.name, names) }
+  return { changes: [{ type: 'artistNamed', hlc: ctx.stamp(), ...named }], named }
 }
 
 // --- Playlists -------------------------------------------------------------------

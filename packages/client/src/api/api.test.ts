@@ -13,6 +13,8 @@ const library = (version: number): Library => ({
   songs: [],
   tags: [],
   playlists: [],
+  artistNames: {},
+  spellings: {},
   version,
   generatedAt: '2026-09-14T10:00:00.000Z',
 })

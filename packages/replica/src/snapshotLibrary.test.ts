@@ -46,6 +46,8 @@ const snapshot = (overrides: Partial<CloudSnapshot> = {}): CloudSnapshot => ({
   tags: [],
   playlists: [],
   artists: [],
+  artistNames: [],
+  spellings: {},
   sound: null,
   ...overrides,
 })

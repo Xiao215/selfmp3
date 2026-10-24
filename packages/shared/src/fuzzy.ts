@@ -155,23 +155,47 @@ function bestFirst<T>(a: Scored<T>, b: Scored<T>): number {
   return b.match.score - a.match.score || a.text.localeCompare(b.text) || a.index - b.index
 }
 
+/**
+ * The best a query does against any of a candidate's names, and whether one
+ * of them is the query exactly. A song is known by its title, its artist and
+ * its album together, and by each of those alone and in Latin letters; one
+ * name matching is the song matching.
+ */
+function scoreNames(
+  query: CompiledQuery,
+  names: FuzzyText | readonly FuzzyText[],
+): { score: number; exact: boolean } | null {
+  if (!Array.isArray(names)) {
+    const one = names as FuzzyText
+    const score = scoreCompiled(query, one)
+    return score === null ? null : { score, exact: one.lower === query.q }
+  }
+  let best: number | null = null
+  let exact = false
+  for (const name of names as readonly FuzzyText[]) {
+    const score = scoreCompiled(query, name)
+    if (score === null) continue
+    if (best === null || score > best) best = score
+    if (name.lower === query.q) exact = true
+  }
+  return best === null ? null : { score: best, exact }
+}
+
 function scoreAll<T>(
   query: string,
   items: readonly T[],
-  prepared: (item: T) => FuzzyText,
+  prepared: (item: T) => FuzzyText | readonly FuzzyText[],
   keep: (scored: Scored<T>) => void,
 ): void {
   const compiled = compileQuery(query)
   for (let index = 0; index < items.length; index++) {
     const item = items[index] as T
-    const candidate = prepared(item)
-    const score = scoreCompiled(compiled, candidate)
-    if (score === null) continue
-    keep({
-      match: { item, score, exact: candidate.lower === compiled.q },
-      text: candidate.text,
-      index,
-    })
+    const names = prepared(item)
+    const scored = scoreNames(compiled, names)
+    if (scored === null) continue
+    // Ties go by the first name, which is the one the candidate is shown by.
+    const first = Array.isArray(names) ? (names as readonly FuzzyText[])[0] : (names as FuzzyText)
+    keep({ match: { item, ...scored }, text: first?.text ?? '', index })
   }
 }
 
@@ -182,7 +206,7 @@ function scoreAll<T>(
 export function fuzzyRankPrepared<T>(
   query: string,
   items: readonly T[],
-  prepared: (item: T) => FuzzyText,
+  prepared: (item: T) => FuzzyText | readonly FuzzyText[],
 ): FuzzyMatch<T>[] {
   if (query.trim().length === 0) {
     return items.map(item => ({ item, score: 0, exact: false }))
@@ -209,6 +233,33 @@ export function preparedTextFor<T extends object>(
     }
     return prepared
   }
+}
+
+/**
+ * Prepared names for objects known by several, remembered per object as
+ * `preparedTextFor` remembers one. The first name is the one ties are ordered by.
+ */
+export function preparedNamesFor<T extends object>(
+  toNames: (item: T) => readonly string[],
+): (item: T) => readonly FuzzyText[] {
+  const cache = new WeakMap<T, readonly FuzzyText[]>()
+  return item => {
+    let prepared = cache.get(item)
+    if (!prepared) {
+      prepared = toNames(item).map(name => new FuzzyText(name))
+      cache.set(item, prepared)
+    }
+    return prepared
+  }
+}
+
+/** `fuzzyRank` for things known by several names: each is ranked by its best. */
+export function fuzzyRankNames<T>(
+  query: string,
+  items: readonly T[],
+  toNames: (item: T) => readonly string[],
+): FuzzyMatch<T>[] {
+  return fuzzyRankPrepared(query, items, item => toNames(item).map(name => new FuzzyText(name)))
 }
 
 /**

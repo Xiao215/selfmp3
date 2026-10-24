@@ -459,7 +459,11 @@ function SuggestionGridRow({
   )
 }
 
-/** A name the model would give, or what leaving it empty would mean ("No album"), quieter. */
+/**
+ * A name the model would give, in the sparkle's accent so the sparkle, the
+ * names and Use read as one thing; what leaving it empty would mean ("No
+ * album") stays quiet.
+ */
 function SuggestedName({ change }: { change: NameChange }): ReactNode {
   return (
     <Text style={[styles.suggestionName, change.empty && styles.suggestionEmpty]} numberOfLines={1}>
@@ -468,7 +472,7 @@ function SuggestedName({ change }: { change: NameChange }): ReactNode {
   )
 }
 
-/** Use: all three of the model's names at once, as one rename. */
+/** Use, the sparkle on a small accent pill: all three of the model's names at once, as one rename. */
 function UseSuggestion({
   suggestion,
   changes,
@@ -484,7 +488,9 @@ function UseSuggestion({
   return (
     <Button
       label="Use"
-      variant="text"
+      icon={<Sparkle tone="onAccent" />}
+      variant="primary"
+      size="small"
       onPress={() => onUse(index, { title, artist, album })}
       accessibilityLabel={`Use the suggested ${changesWords(changes)}`}
       testID={`import-suggestion-use-${index}`}
@@ -1247,7 +1253,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.tiny,
     letterSpacing: 0.7,
   },
-  suggestionName: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
+  suggestionName: { flexShrink: 1, color: theme.colors.accentStrong, fontSize: type.sub },
   suggestionEmpty: { color: theme.colors.textMuted },
   // On a computer: the sparkle where the cover is, and the names on the row's own columns.
   suggestionMark: { alignItems: 'center' },

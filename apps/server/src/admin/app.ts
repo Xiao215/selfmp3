@@ -4,29 +4,32 @@ import express, { type Express, type NextFunction, type Request, type Response }
 import { z } from 'zod'
 import {
   DOORMAN_PATHS,
-  SignInAttemptSchema,
-  signInStartUrl,
+  DoormanAccessSchema,
+  DoormanAccessUpdateSchema,
+  DoormanStatsSchema,
+  messageOf,
   type AdminData,
-  type AdminServer,
-  type AdminSignIn,
+  type DoormanAccess,
+  type DoormanStats,
 } from '@selfmp3/shared'
-import { APP_VERSION } from '../config.js'
+import type { Config } from '../config.js'
 import { errorHandler, HttpError } from '../http/errors.js'
 import { route } from '../http/route.js'
 import type { Hub } from '../hub/hub.js'
 import { utcDay } from '../services/metrics.js'
-import { diskOf, memoryOf, SmartProbe } from './status.js'
+import { SmartProbe } from './status.js'
 
 /**
  * The owner's admin page (docs/features/admin.md): its own listener, on this
  * machine only, which `tailscale serve` puts on the owner's tailnet.
  *
- * Nothing on it names a person or a library: the Data tab is totals, and the
- * Access tab talks to the doorman straight from the browser, signed in as the
- * owner, so this server is not asked to hold anyone's session.
+ * Reaching it is the proof that it is the owner, so nothing on it signs in.
+ * What the doorman keeps — who can sign in, and what it counted — this server
+ * asks for with the doorman's admin key (SELFMP3_DOORMAN_ADMIN_TOKEN), and the
+ * page asks this server. Nothing on it names a library: the Data tab is totals.
  *
- * The page is plain files with no build step, as the old server page was,
- * read from `apps/server/admin` beside `src` and `dist` alike.
+ * The page is plain files with no build step, read from `apps/server/admin`
+ * beside `src` and `dist` alike.
  */
 export const ADMIN_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -36,76 +39,26 @@ export const ADMIN_DIR = path.join(
 )
 
 /** The tabs, each its own address so a bookmark opens it. */
-const TABS = ['/', '/data', '/access', '/server']
+const TABS = ['/', '/data', '/people']
 
 const DaysSchema = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) })
+
+/** How long the page waits on the doorman before saying it did not answer. */
+const DOORMAN_TIMEOUT_MS = 8_000
 
 export function createAdminApp(hub: Hub): Express {
   const app = express()
   app.disable('x-powered-by')
   app.use(onlyOwnNames(hub.config.adminUrl))
-  app.use(adminHeaders(hub.config.doormanUrl))
+  app.use(adminHeaders())
+  app.use(express.json({ limit: '64kb' }))
 
   const smart = new SmartProbe(hub.config.ai.baseUrl)
-
-  app.get(
-    '/api/admin/server',
-    route({}, async (): Promise<AdminServer> => {
-      const throttle = hub.shared.throttle
-      const pausedUntil = throttle?.status().pausedUntil ?? null
-      const lastLimited = throttle?.lastLimitedAt() ?? null
-      return {
-        version: APP_VERSION,
-        uptimeSeconds: Math.round(process.uptime()),
-        libraries: hub.workspaces().length,
-        disk: diskOf(hub.config.dataDir),
-        memory: memoryOf(),
-        smart: await smart.state(),
-        youtube: {
-          heldUntil: pausedUntil === null ? null : new Date(pausedUntil).toISOString(),
-          lastHeldAt: lastLimited === null ? null : new Date(lastLimited).toISOString(),
-        },
-        doorman: hub.config.doormanUrl
-          ? {
-              url: hub.config.doormanUrl,
-              paths: {
-                claim: DOORMAN_PATHS.claim,
-                me: DOORMAN_PATHS.me,
-                access: DOORMAN_PATHS.access,
-                accessRequests: DOORMAN_PATHS.accessRequests,
-                stats: DOORMAN_PATHS.stats,
-              },
-            }
-          : null,
-      }
-    }),
-  )
-
-  /*
-   * Where to send the browser to sign in, brought back to the tab it left.
-   * Only to this page's own address: the doorman sends the code there, and it
-   * is the one the doorman's APP_ORIGINS lists.
-   */
-  app.get(
-    '/api/admin/signin',
-    route(
-      {
-        query: z.object({
-          attempt: SignInAttemptSchema,
-          tab: z.enum(['data', 'access', 'server']),
-        }),
-      },
-      ({ query, req }): AdminSignIn => {
-        if (!hub.config.doormanUrl) throw HttpError.notFound('this server has no doorman')
-        const own = hub.config.adminUrl ?? `http://${req.headers.host ?? 'localhost'}`
-        return { url: signInStartUrl(hub.config.doormanUrl, query.attempt, `${own}/${query.tab}`) }
-      },
-    ),
-  )
+  const doorman = doormanFor(hub.config)
 
   app.get(
     '/api/admin/data',
-    route({ query: DaysSchema }, ({ query }): AdminData => {
+    route({ query: DaysSchema }, async ({ query }): Promise<AdminData> => {
       const from = utcDay(Date.now() - (query.days - 1) * 24 * 60 * 60 * 1000)
       // Every library's plays, added up: the one thing here the libraries keep.
       const plays = new Map<string, number>()
@@ -114,8 +67,38 @@ export function createAdminApp(hub: Hub): Express {
           plays.set(day, (plays.get(day) ?? 0) + count)
         }
       }
-      return hub.shared.metrics.summary(query.days, plays)
+      const [counted, smartState] = await Promise.all([
+        doorman.stats(query.days).then(
+          stats => ({ stats, problem: null }),
+          (error: unknown) => ({ stats: null, problem: messageOf(error) }),
+        ),
+        smart.state(),
+      ])
+      const pausedUntil = hub.shared.throttle?.status().pausedUntil ?? null
+      return {
+        ...hub.shared.metrics.summary(query.days, plays),
+        doorman: counted.stats,
+        doormanProblem: counted.problem,
+        status: {
+          smart: smartState,
+          youtubeHeldUntil: pausedUntil === null ? null : new Date(pausedUntil).toISOString(),
+        },
+      }
     }),
+  )
+
+  app.get(
+    '/api/admin/people',
+    route({}, (): Promise<DoormanAccess> => doorman.people()),
+  )
+
+  // Only a JSON body is read here, which a page elsewhere cannot send
+  // without asking first, and this listener answers no such asking (no CORS).
+  app.put(
+    '/api/admin/people',
+    route({ body: DoormanAccessUpdateSchema }, ({ body }): Promise<DoormanAccess> =>
+      doorman.setPeople(body),
+    ),
   )
 
   app.use('/api', (_req: Request, _res: Response, next: NextFunction) => {
@@ -130,13 +113,60 @@ export function createAdminApp(hub: Hub): Express {
   )
   app.get(TABS, (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-cache')
-    // `root` plus a relative name, as the old page did: an absolute path
-    // under a dot-folder (a worktree) would trip `send`'s dotfile rule.
+    // `root` plus a relative name: an absolute path under a dot-folder (a
+    // worktree) would trip `send`'s dotfile rule.
     res.sendFile('index.html', { root: ADMIN_DIR })
   })
 
   app.use(errorHandler(hub.logger))
   return app
+}
+
+interface AdminDoorman {
+  stats(days: number): Promise<DoormanStats>
+  people(): Promise<DoormanAccess>
+  setPeople(update: z.infer<typeof DoormanAccessUpdateSchema>): Promise<DoormanAccess>
+}
+
+/** The doorman, asked with its admin key; each refusal in words the page can show. */
+function doormanFor(config: Pick<Config, 'doormanUrl' | 'doormanAdminToken'>): AdminDoorman {
+  const ask = async <T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> => {
+    if (!config.doormanUrl) throw HttpError.failedDependency('This server has no doorman.')
+    if (!config.doormanAdminToken) {
+      throw HttpError.failedDependency(
+        'Set SELFMP3_DOORMAN_ADMIN_TOKEN to the doorman’s ADMIN_TOKEN to see this.',
+      )
+    }
+    let response: globalThis.Response
+    try {
+      response = await fetch(`${config.doormanUrl}${path}`, {
+        ...init,
+        headers: {
+          authorization: `Bearer ${config.doormanAdminToken}`,
+          ...(init.body ? { 'content-type': 'application/json' } : {}),
+        },
+        signal: AbortSignal.timeout(DOORMAN_TIMEOUT_MS),
+      })
+    } catch {
+      throw HttpError.failedDependency('The doorman did not answer.')
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw HttpError.failedDependency(
+        'The doorman did not take the admin key: check that SELFMP3_DOORMAN_ADMIN_TOKEN matches its ADMIN_TOKEN.',
+      )
+    }
+    if (!response.ok) throw HttpError.failedDependency(`The doorman answered ${response.status}.`)
+    return schema.parse(await response.json())
+  }
+  return {
+    stats: days => ask(`${DOORMAN_PATHS.stats}?days=${days}`, DoormanStatsSchema),
+    people: () => ask(DOORMAN_PATHS.access, DoormanAccessSchema),
+    setPeople: update =>
+      ask(DOORMAN_PATHS.access, DoormanAccessSchema, {
+        method: 'PUT',
+        body: JSON.stringify(update),
+      }),
+  }
 }
 
 /**
@@ -158,19 +188,17 @@ function onlyOwnNames(adminUrl: string | null) {
 }
 
 /**
- * The page's own policy: its own scripts only, its styles, the app's display
- * face from Google Fonts, and the doorman, which the Access tab and the
- * doorman's counts are read from.
+ * The page's own policy: its own scripts and requests only, its styles (a
+ * bar's width is set on the element), and the app's two faces from Google Fonts.
  */
-function adminHeaders(doormanUrl: string) {
+function adminHeaders() {
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
-    // Inline styles: a bar's width and a swatch's colour are set on the element.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     'font-src https://fonts.gstatic.com',
     "img-src 'self' data:",
-    `connect-src 'self'${doormanUrl ? ` ${doormanUrl}` : ''}`,
+    "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
     "form-action 'self'",

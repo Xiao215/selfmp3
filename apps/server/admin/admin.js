@@ -1,33 +1,38 @@
 /*
- * The owner's admin page (docs/features/admin.md): Data, Access and Server.
+ * The owner's admin page (docs/features/admin.md): Data and People.
  *
- * Plain browser JavaScript with no build step. What the server knows it asks
- * of this page's own address (`/api/admin/*`); what the doorman knows — who
- * may sign in, and what it counted — it asks of the doorman straight from the
- * browser, signed in as the owner. The doorman's address and paths come from
- * the server, so nothing here spells one.
+ * Plain browser JavaScript with no build step. Everything is asked of this
+ * page's own address (`/api/admin/*`); the server asks the doorman for what
+ * it keeps, with its admin key, so nothing here signs in.
+ *
+ * The frame is the app's; the charts are working charts in its colours: one
+ * axis each, drawn at the size they are shown, a tooltip on every mark and a
+ * table behind every chart.
  */
 
-const SESSION_KEY = 'selfmp3-admin-session'
-const ATTEMPT_KEY = 'selfmp3-admin-attempt'
 const RANGE_KEY = 'selfmp3-admin-range'
-const CODE_FRAGMENT = 'signin-code'
-const TABS = ['data', 'access', 'server']
-const RANGES = [7, 30, 90]
+const TABS = ['data', 'people']
+const RANGES = [
+  [7, 'Week'],
+  [30, 'Month'],
+  [90, '3 months'],
+]
 const REFRESH_MS = 60_000
 
 const state = {
   tab: tabOf(location.pathname),
   days: readRange(),
-  server: null,
   data: null,
-  doormanStats: null,
-  access: null,
-  requests: null,
-  /** Why the doorman would not answer the owner, in words, or null. */
-  doormanProblem: null,
+  dataError: null,
+  people: null,
+  peopleError: null,
+  search: '',
+  adding: false,
+  addProblem: null,
   busy: false,
-  error: null,
+  confirm: null,
+  /** Charts shown as their table, by id. */
+  tables: new Set(),
 }
 
 // ---------- Small helpers ----------
@@ -40,7 +45,7 @@ function tabOf(pathname) {
 function readRange() {
   try {
     const saved = Number(localStorage.getItem(RANGE_KEY))
-    return RANGES.includes(saved) ? saved : 30
+    return RANGES.some(([days]) => days === saved) ? saved : 30
   } catch {
     return 30
   }
@@ -54,8 +59,14 @@ function escape(value) {
     .replace(/"/g, '&quot;')
 }
 
-const fmt = n => Math.round(n).toLocaleString('en-US')
 const sum = list => list.reduce((total, n) => total + n, 0)
+const fmt = n => Math.round(n).toLocaleString('en-US')
+
+function compact(n) {
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`
+  return Number.isInteger(n) ? fmt(n) : n.toFixed(1)
+}
 
 function plural(count, one, many) {
   return `${fmt(count)} ${count === 1 ? one : many}`
@@ -69,341 +80,444 @@ function duration(ms) {
   return `${minutes} m ${String(seconds % 60).padStart(2, '0')} s`
 }
 
-function bytes(n) {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let value = n
-  let unit = 0
-  while (value >= 1000 && unit < units.length - 1) {
-    value /= 1000
-    unit += 1
-  }
-  return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`
+function percent(part, whole) {
+  return whole ? `${((100 * part) / whole).toFixed(part === whole ? 0 : 1)}%` : '—'
 }
 
-function shortDay(day) {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', {
+function day(dayText, long = false) {
+  return new Date(`${dayText}T00:00:00Z`).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
+    ...(long ? { weekday: 'short' } : {}),
     timeZone: 'UTC',
   })
 }
 
-function relative(iso) {
-  const ms = Date.now() - Date.parse(iso)
-  const minutes = Math.round(ms / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} h ago`
-  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+function niceMax(v) {
+  if (v <= 0) return 1
+  const magnitude = 10 ** Math.floor(Math.log10(v))
+  for (const step of [1, 2, 2.5, 5, 10]) if (v <= step * magnitude) return step * magnitude
+  return 10 * magnitude
 }
 
-// ---------- Talking to the server and the doorman ----------
+// ---------- Talking to the server ----------
 
-async function ask(path) {
-  const response = await fetch(path, { headers: { accept: 'application/json' } })
-  if (!response.ok) throw new Error(await problemOf(response))
-  return response.json()
-}
-
-async function problemOf(response) {
-  try {
-    const body = await response.json()
-    if (body && typeof body.error === 'string') return body.error
-  } catch {
-    // Not JSON: the status will do.
-  }
-  return `the server answered ${response.status}`
-}
-
-function session() {
-  try {
-    return localStorage.getItem(SESSION_KEY)
-  } catch {
-    return null
-  }
-}
-
-function keepSession(token) {
-  try {
-    if (token) localStorage.setItem(SESSION_KEY, token)
-    else localStorage.removeItem(SESSION_KEY)
-  } catch {
-    // A private window: signed in until the tab closes.
-  }
-}
-
-/** Ask the doorman as the owner. Null when signed out; throws on any other refusal. */
-async function doorman(pathOrUrl, init = {}) {
-  const door = state.server?.doorman
-  const token = session()
-  if (!door || !token) return null
-  const response = await fetch(`${door.url}${pathOrUrl}`, {
+async function ask(path, init) {
+  const response = await fetch(path, {
     ...init,
     headers: {
-      authorization: `Bearer ${token}`,
-      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      accept: 'application/json',
+      ...(init?.body ? { 'content-type': 'application/json' } : {}),
     },
   })
-  if (response.status === 401) {
-    keepSession(null)
-    state.doormanProblem = null
-    return null
-  }
-  if (response.status === 403) {
-    state.doormanProblem =
-      'This Google account is not the owner of this self.mp3. Sign in with the owner’s.'
-    return null
-  }
-  if (!response.ok) throw new Error(await problemOf(response))
-  return response.status === 204 ? {} : response.json()
-}
-
-async function signIn() {
-  const random = crypto.getRandomValues(new Uint8Array(16))
-  const attempt = [...random].map(b => b.toString(16).padStart(2, '0')).join('')
-  try {
-    sessionStorage.setItem(ATTEMPT_KEY, attempt)
-  } catch {
-    // Without it the code cannot be claimed here; the doorman shows it instead.
-  }
-  const { url } = await ask(`/api/admin/signin?attempt=${attempt}&tab=${state.tab}`)
-  location.assign(url)
-}
-
-/** Back from Google with a code in the address: claim it for a session. */
-async function claimSignIn() {
-  const match = new RegExp(`${CODE_FRAGMENT}=([0-9A-Z]{8})`).exec(location.hash)
-  if (!match) return
-  history.replaceState(null, '', location.pathname)
-  let attempt = null
-  try {
-    attempt = sessionStorage.getItem(ATTEMPT_KEY)
-    sessionStorage.removeItem(ATTEMPT_KEY)
-  } catch {
-    // No attempt to claim with.
-  }
-  const door = state.server?.doorman
-  if (!attempt || !door) return
-  const response = await fetch(`${door.url}${door.paths.claim}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ attempt, code: match[1] }),
-  })
   const body = await response.json().catch(() => null)
-  if (response.ok && body?.status === 'signed-in') keepSession(body.token)
-  else state.error = body?.error ?? 'That sign-in did not go through. Try again.'
+  if (!response.ok) throw new Error(body?.error ?? `The server answered ${response.status}.`)
+  return body
 }
 
-async function signOut() {
-  keepSession(null)
-  state.access = null
-  state.requests = null
-  state.doormanStats = null
-  state.doormanProblem = null
-  render()
-}
-
-// ---------- Loading ----------
-
-async function load() {
-  state.error = null
+async function loadData() {
   try {
-    if (state.tab === 'data') {
-      const paths = state.server?.doorman?.paths
-      const [data, stats] = await Promise.all([
-        ask(`/api/admin/data?days=${state.days}`),
-        paths ? doorman(`${paths.stats}?days=${state.days}`).catch(() => null) : null,
-      ])
-      state.data = data
-      state.doormanStats = stats
-    } else if (state.tab === 'access') {
-      await loadAccess()
-    } else {
-      state.server = await ask('/api/admin/server')
-    }
+    state.data = await ask(`/api/admin/data?days=${state.days}`)
+    state.dataError = null
   } catch (error) {
-    state.error = error instanceof Error ? error.message : String(error)
+    state.dataError = error.message
   }
 }
 
-async function loadAccess() {
-  const paths = state.server?.doorman?.paths
-  if (!paths) return
-  const [access, requests] = await Promise.all([
-    doorman(paths.access),
-    doorman(paths.accessRequests),
-  ])
-  state.access = access
-  state.requests = requests?.requests ?? null
-}
-
-// ---------- Charts, one scale each ----------
-
-function niceMax(v) {
-  for (const step of [
-    5, 10, 20, 25, 40, 50, 60, 80, 100, 150, 200, 250, 300, 400, 500, 600, 800, 1000,
-  ]) {
-    if (v <= step) return step
+async function loadPeople() {
+  try {
+    state.people = await ask('/api/admin/people')
+    state.peopleError = null
+  } catch (error) {
+    state.peopleError = error.message
   }
-  const magnitude = 10 ** Math.floor(Math.log10(v))
-  return Math.ceil(v / magnitude) * magnitude
 }
 
-function every(n) {
-  return n <= 7 ? 1 : n <= 31 ? 7 : 21
-}
+// ---------- Tooltip ----------
 
-/** Stacked bars by day, with an optional line on its own 0–`lineMax` scale. */
-function bars(days, series, colors, options = {}) {
-  const {
-    h = 150,
-    W = 640,
-    line = null,
-    lineMax = 100,
-    lineColor = 'var(--text-primary)',
-    lineUnit = '%',
-  } = options
-  const n = days.length
-  const padL = 34
-  const padR = line ? 36 : 6
-  const padB = 18
-  const padT = 8
-  const totals = days.map((_, i) => sum(series.map(s => s[i])))
-  const max = niceMax(Math.max(...totals, 1))
-  const plotH = h - padB - padT
-  const bw = (W - padL - padR) / n
-  const y = v => padT + plotH - (v / max) * plotH
-  const gap = n <= 7 ? 0.3 : 0.18
-  let svg = `<svg class="chart anim" viewBox="0 0 ${W} ${h}" role="img" aria-label="${escape(options.label ?? 'Chart')}">`
-  for (const t of [0, max / 2, max]) {
-    svg += `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${y(t)}" y2="${y(t)}"/><text x="${padL - 6}" y="${y(t) + 3}" text-anchor="end">${fmt(t)}</text>`
-  }
-  days.forEach((day, i) => {
-    let base = 0
-    series.forEach((s, si) => {
-      if (s[i] <= 0) return
-      const top = y(base + s[i])
-      const bottom = y(base)
-      svg += `<rect class="bar" style="--i:${i}" x="${padL + i * bw + bw * gap}" y="${top}" width="${bw * (1 - 2 * gap)}" height="${Math.max(bottom - top, 0.5)}" rx="${Math.min(3, bw * 0.2)}" fill="${colors[si]}"/>`
-      base += s[i]
-    })
-    if ((n - 1 - i) % every(n) === 0) {
-      svg += `<text x="${padL + i * bw + bw / 2}" y="${h - 4}" text-anchor="middle">${shortDay(day)}</text>`
+const tooltip = document.getElementById('tooltip')
+
+/** `rows`: [{ color, value, label }], built with textContent: names come from data. */
+function showTip(event, title, rows) {
+  tooltip.replaceChildren()
+  const when = document.createElement('div')
+  when.className = 'when'
+  when.textContent = title
+  tooltip.append(when)
+  for (const row of rows) {
+    const line = document.createElement('div')
+    line.className = 'tr'
+    if (row.color) {
+      const key = document.createElement('i')
+      key.style.background = row.color
+      line.append(key)
     }
-  })
-  if (line) {
-    const ly = v => padT + plotH - (Math.min(v, lineMax) / lineMax) * plotH
-    const points = line.map((v, i) => `${padL + i * bw + bw / 2},${ly(v)}`).join(' ')
-    svg += `<polyline class="line" points="${points}" fill="none" stroke="${lineColor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-    for (const t of [0, lineMax / 2, lineMax]) {
-      svg += `<text x="${W - padR + 6}" y="${ly(t) + 3}">${fmt(t)}${lineUnit}</text>`
-    }
+    const value = document.createElement('b')
+    value.textContent = row.value
+    const label = document.createElement('span')
+    label.textContent = row.label
+    line.append(value, label)
+    tooltip.append(line)
   }
-  return `${svg}</svg>`
+  tooltip.hidden = false
+  const box = tooltip.getBoundingClientRect()
+  const anchor = event.target?.getBoundingClientRect?.()
+  const x = event.clientX ?? anchor?.left ?? 0
+  const y = event.clientY ?? anchor?.top ?? 0
+  const left = Math.min(window.innerWidth - box.width - 8, Math.max(8, x + 14))
+  const top = y - box.height - 12 < 8 ? y + 16 : y - box.height - 12
+  tooltip.style.left = `${left}px`
+  tooltip.style.top = `${top}px`
 }
 
-/** A share by day, 0–100 %, with a red mark on the days in `marks`. */
-function shareLine(days, values, marks) {
-  const n = days.length
-  const W = 420
-  const h = 150
-  const padL = 36
-  const padB = 18
-  const padT = 14
-  const min = 0
-  const plotH = h - padB - padT
-  const step = (W - padL - 6) / Math.max(n - 1, 1)
-  const y = v => padT + plotH - ((v - min) / (100 - min)) * plotH
-  let svg = `<svg class="chart anim" viewBox="0 0 ${W} ${h}" role="img" aria-label="YouTube downloads that worked, by day">`
-  for (const t of [0, 50, 100]) {
-    svg += `<line class="grid" x1="${padL}" x2="${W - 6}" y1="${y(t)}" y2="${y(t)}"/><text x="${padL - 6}" y="${y(t) + 3}" text-anchor="end">${t}%</text>`
-  }
-  const points = values.map((v, i) => (v === null ? null : [padL + i * step, y(v)]))
-  const drawn = points.filter(Boolean)
-  if (drawn.length > 1) {
-    svg += `<polyline class="line" points="${drawn.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`
-  }
-  for (const p of drawn)
-    svg += `<circle cx="${p[0]}" cy="${p[1]}" r="${n <= 31 ? 2.5 : 1.5}" fill="var(--accent)"/>`
-  marks.forEach((held, i) => {
-    if (!held) return
-    const x = padL + i * step
-    svg += `<line x1="${x}" x2="${x}" y1="${padT - 6}" y2="${y(min)}" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="${x}" cy="${padT - 6}" r="3.5" fill="var(--danger)"/>`
-  })
-  const each = n <= 7 ? 2 : n <= 31 ? 10 : 30
-  days.forEach((day, i) => {
-    if ((n - 1 - i) % each === 0)
-      svg += `<text x="${padL + i * step}" y="${h - 4}" text-anchor="middle">${shortDay(day)}</text>`
-  })
-  return `${svg}</svg>`
+function hideTip() {
+  tooltip.hidden = true
 }
 
-const BAND_LABELS = ['< 30 s', '30 s–1 m', '1–2 m', '2–3 m', '3–5 m', '5–10 m', '10 m +']
-const BAND_LIMITS = [30_000, 60_000, 120_000, 180_000, 300_000, 600_000]
+// ---------- Charts ----------
 
-/** Imports that worked, by how long they took, with the median and 90 % marked. */
-function histogram(bands, medianMs, p90Ms) {
-  const n = bands.length
-  const W = 420
-  const h = 190
-  const padL = 30
-  const padB = 22
-  const padT = 34
-  const max = niceMax(Math.max(...bands, 1))
-  const plotH = h - padB - padT
-  const bw = (W - padL - 6) / n
-  const y = v => padT + plotH - (v / max) * plotH
-  let svg = `<svg class="chart anim" viewBox="0 0 ${W} ${h}" role="img" aria-label="Songs by how long they took to import">`
-  for (const t of [0, max / 2, max]) {
-    svg += `<line class="grid" x1="${padL}" x2="${W - 6}" y1="${y(t)}" y2="${y(t)}"/><text x="${padL - 6}" y="${y(t) + 3}" text-anchor="end">${fmt(t)}</text>`
-  }
-  bands.forEach((count, i) => {
-    const x = padL + i * bw + bw * 0.12
-    const w = bw * 0.76
-    const slow = i >= 4
-    svg += `<rect class="bar" style="--i:${i * 4}" x="${x}" y="${y(count)}" width="${w}" height="${Math.max(y(0) - y(count), 0.5)}" rx="6" fill="${slow ? 'color-mix(in oklab, var(--warning) 75%, var(--surface1))' : 'var(--accent)'}"/>`
-    if (count > 0)
-      svg += `<text class="value" x="${x + w / 2}" y="${y(count) - 5}" text-anchor="middle">${fmt(count)}</text>`
-    svg += `<text x="${x + w / 2}" y="${h - 6}" text-anchor="middle">${BAND_LABELS[i]}</text>`
-  })
-  const at = ms => {
-    const band = BAND_LIMITS.findIndex(limit => ms < limit)
-    const i = band === -1 ? BAND_LIMITS.length : band
-    const low = i === 0 ? 0 : BAND_LIMITS[i - 1]
-    const high = BAND_LIMITS[i] ?? low * 2
-    return padL + (i + Math.min(1, (ms - low) / (high - low))) * bw
-  }
-  for (const [ms, label] of [
-    [medianMs, 'median'],
-    [p90Ms, '9 in 10 done'],
-  ]) {
-    if (ms === null) continue
-    const x = at(ms)
-    svg += `<line class="marker" x1="${x}" x2="${x}" y1="4" y2="${y(0)}"/><text class="marker-text" x="${x + 4}" y="12">${label}</text>`
-  }
-  return `${svg}</svg>`
-}
+const SVG = 'http://www.w3.org/2000/svg'
+const charts = new Map()
 
-function hbars(rows, options = {}) {
-  const max = options.max ?? Math.max(...rows.map(r => r.value), 1)
-  const cols = options.labelWidth
-    ? ` style="grid-template-columns:minmax(90px,${options.labelWidth}) minmax(0,1fr) 56px"`
+/** One chart's card: a title, a legend, the plot drawn at its own width, and a table view. */
+function chartCard({ id, title, subtitle = '', legend = [], height = 180, draw, table }) {
+  charts.set(id, { draw, height })
+  const showingTable = state.tables.has(id)
+  const legendHtml = legend.length
+    ? `<div class="legend">${legend
+        .map(
+          ([color, name, line]) =>
+            `<span><i class="${line ? 'line' : ''}" style="background:${color}"></i>${escape(name)}</span>`,
+        )
+        .join('')}</div>`
     : ''
-  return `<div class="hbars anim">${rows
+  const tableHtml = table
+    ? `<div class="table-scroll"><table class="data"><thead><tr>${table.columns
+        .map((c, i) => `<th class="${i > 0 ? 'num' : ''}">${escape(c)}</th>`)
+        .join('')}</tr></thead><tbody>${table.rows
+        .map(
+          r =>
+            `<tr>${r.map((cell, i) => `<td class="${i > 0 ? 'num' : ''}">${escape(cell)}</td>`).join('')}</tr>`,
+        )
+        .join('')}</tbody></table></div>`
+    : ''
+  const toggle = table
+    ? `<button class="btn small" type="button" data-table="${id}" aria-pressed="${showingTable}">${showingTable ? 'Chart' : 'Table'}</button>`
+    : ''
+  const titles = `<div class="titles"><h3>${escape(title)}</h3>${subtitle ? `<span class="hint">${escape(subtitle)}</span>` : ''}</div>`
+  const body = showingTable
+    ? tableHtml
+    : `${legendHtml}<div class="plot" data-chart="${id}" style="height:${height}px"></div>`
+  return `<div class="card"><div class="card-head">${titles}${toggle}</div>${body}</div>`
+}
+
+function drawCharts() {
+  for (const plot of document.querySelectorAll('.plot[data-chart]')) {
+    const chart = charts.get(plot.dataset.chart)
+    const width = Math.floor(plot.clientWidth)
+    if (!chart || width < 40) continue
+    if (plot.dataset.width === String(width)) continue
+    plot.dataset.width = String(width)
+    plot.replaceChildren()
+    chart.draw(plot, width, chart.height)
+  }
+}
+
+function el(name, attrs = {}, parent) {
+  const node = document.createElementNS(SVG, name)
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value))
+  if (parent) parent.append(node)
+  return node
+}
+
+function svgFor(plot, width, height) {
+  return el('svg', { width, height, viewBox: `0 0 ${width} ${height}`, role: 'img' }, plot)
+}
+
+/** A column with a 4px rounded top and a square base. */
+function columnPath(x, y, w, h, roundTop) {
+  if (h <= 0) return ''
+  const r = roundTop ? Math.min(4, w / 2, h) : 0
+  const topLeft = r ? `Q${x},${y} ${x + r},${y}` : ''
+  const topRight = r ? `Q${x + w},${y} ${x + w},${y + r}` : ''
+  return `M${x},${y + h}V${y + r}${topLeft}H${x + w - r}${topRight}V${y + h}Z`
+}
+
+/** Y ticks: 0, the middle and the top, on clean numbers. */
+function yAxis(svg, { left, right, y, max, format = compact }) {
+  for (const t of [0, max / 2, max]) {
+    el('line', { class: 'tick-line', x1: left, x2: right, y1: y(t), y2: y(t) }, svg)
+    el('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end' }, svg).textContent = format(t)
+  }
+}
+
+/** Day labels under a time axis, as many as fit without touching. */
+function dayLabels(svg, days, xOf, bottom) {
+  const room = days.length > 1 ? Math.abs(xOf(1) - xOf(0)) : 999
+  const every = Math.max(1, Math.ceil(48 / room))
+  days.forEach((d, i) => {
+    if ((days.length - 1 - i) % every !== 0) return
+    el('text', { x: xOf(i), y: bottom, 'text-anchor': 'middle' }, svg).textContent = day(d)
+  })
+}
+
+/**
+ * Columns, stacked when there is more than one series, one per day (or per
+ * band). Each column is its own hover target, with every series in its tooltip.
+ */
+function columns({
+  labels,
+  series,
+  tipTitle,
+  tipExtra = () => [],
+  labelsAre = 'days',
+  markers = [],
+}) {
+  return (plot, width, height) => {
+    const svg = svgFor(plot, width, height)
+    const left = 40
+    const bottom = height - 22
+    const top = markers.length ? 22 : 6
+    const totals = labels.map((_, i) => sum(series.map(s => s.values[i] ?? 0)))
+    // Counts: at least 0, 2, 4 on the axis, so a quiet week is not drawn as 0, 0.5, 1.
+    const max = niceMax(Math.max(...totals, 4))
+    const y = v => top + (bottom - top) * (1 - v / max)
+    const band = (width - left) / labels.length
+    const barW = Math.min(24, Math.max(2, band * 0.7))
+    const xOf = i => left + band * i + band / 2
+    yAxis(svg, { left, right: width, y, max })
+    const groups = []
+    labels.forEach((_, i) => {
+      const g = el('g', { class: 'bar' }, svg)
+      let base = 0
+      series.forEach((s, si) => {
+        const v = s.values[i] ?? 0
+        if (v <= 0) return
+        const y0 = y(base + v)
+        // The 2px surface gap between stacked segments.
+        const h = y(base) - y0 - (base > 0 ? 2 : 0)
+        const isTop = series.slice(si + 1).every(next => (next.values[i] ?? 0) <= 0)
+        el(
+          'path',
+          { d: columnPath(xOf(i) - barW / 2, y0, barW, Math.max(h, 1), isTop), fill: s.color },
+          g,
+        )
+        base += v
+      })
+      groups.push(g)
+      const hit = el(
+        'rect',
+        {
+          class: 'hit',
+          x: left + band * i,
+          y: top,
+          width: band,
+          height: bottom - top,
+          tabindex: 0,
+        },
+        svg,
+      )
+      const tip = event => {
+        plot.classList.add('hovering')
+        groups.forEach((other, j) => other.classList.toggle('dim', j !== i))
+        showTip(event, tipTitle(i), [
+          ...series.map(s => ({
+            color: s.color,
+            value: s.format ? s.format(s.values[i] ?? 0) : fmt(s.values[i] ?? 0),
+            label: s.name,
+          })),
+          ...tipExtra(i),
+        ])
+      }
+      const untip = () => {
+        plot.classList.remove('hovering')
+        groups.forEach(other => other.classList.remove('dim'))
+        hideTip()
+      }
+      hit.addEventListener('pointermove', tip)
+      hit.addEventListener('focus', tip)
+      hit.addEventListener('pointerleave', untip)
+      hit.addEventListener('blur', untip)
+    })
+    if (labelsAre === 'days') dayLabels(svg, labels, xOf, height - 4)
+    else {
+      labels.forEach((label, i) => {
+        el('text', { x: xOf(i), y: height - 4, 'text-anchor': 'middle' }, svg).textContent = label
+      })
+    }
+    for (const marker of markers) {
+      const x = left + band * marker.at
+      el('line', { class: 'marker', x1: x, x2: x, y1: 4, y2: bottom }, svg)
+      el('text', { class: 'marker-label', x: x + 4, y: 14 }, svg).textContent = marker.label
+    }
+  }
+}
+
+/**
+ * One series over days, with a crosshair that snaps to the nearest day and a
+ * tooltip. Days with no value leave a gap. `marks` puts a warning line on days.
+ */
+function line({ days, values, color, name, format, max: fixedMax, marks = [], markName = '' }) {
+  return (plot, width, height) => {
+    const svg = svgFor(plot, width, height)
+    const left = 44
+    const right = width - 6
+    const bottom = height - 22
+    const top = 10
+    const present = values.filter(v => v !== null)
+    const max = fixedMax ?? niceMax(Math.max(...present, 1))
+    const y = v => top + (bottom - top) * (1 - v / max)
+    const xOf = i =>
+      days.length > 1 ? left + ((right - left) * i) / (days.length - 1) : (left + right) / 2
+    yAxis(svg, { left, right, y, max, format: format.axis })
+    // Runs of days with a value, each one stroke, with a faint wash under.
+    let run = []
+    const runs = []
+    values.forEach((v, i) => {
+      if (v === null) {
+        if (run.length) runs.push(run)
+        run = []
+      } else run.push([xOf(i), y(v)])
+    })
+    if (run.length) runs.push(run)
+    for (const points of runs) {
+      if (points.length > 1) {
+        const path = points.map(([x, py], i) => `${i ? 'L' : 'M'}${x},${py}`).join('')
+        const wash = `${path}L${points.at(-1)[0]},${bottom}L${points[0][0]},${bottom}Z`
+        el('path', { d: wash, fill: color, 'fill-opacity': 0.1 }, svg)
+        el(
+          'path',
+          {
+            d: path,
+            fill: 'none',
+            stroke: color,
+            'stroke-width': 2,
+            'stroke-linejoin': 'round',
+            'stroke-linecap': 'round',
+          },
+          svg,
+        )
+      } else {
+        el('circle', { cx: points[0][0], cy: points[0][1], r: 3, fill: color }, svg)
+      }
+    }
+    marks.forEach((on, i) => {
+      if (!on) return
+      el(
+        'line',
+        {
+          x1: xOf(i),
+          x2: xOf(i),
+          y1: top,
+          y2: bottom,
+          stroke: 'var(--warning)',
+          'stroke-width': 1.5,
+          'stroke-dasharray': '3 3',
+        },
+        svg,
+      )
+    })
+    const lastIndex = values.findLastIndex(v => v !== null)
+    if (lastIndex >= 0) {
+      el(
+        'circle',
+        {
+          cx: xOf(lastIndex),
+          cy: y(values[lastIndex]),
+          r: 4,
+          fill: color,
+          stroke: 'var(--surface1)',
+          'stroke-width': 2,
+        },
+        svg,
+      )
+    }
+    dayLabels(svg, days, xOf, height - 4)
+    const cross = el(
+      'line',
+      { class: 'crosshair', x1: 0, x2: 0, y1: top, y2: bottom, visibility: 'hidden' },
+      svg,
+    )
+    const dot = el(
+      'circle',
+      { r: 4, fill: color, stroke: 'var(--surface1)', 'stroke-width': 2, visibility: 'hidden' },
+      svg,
+    )
+    const hit = el(
+      'rect',
+      { class: 'hit', x: left, y: top, width: right - left, height: bottom - top, tabindex: 0 },
+      svg,
+    )
+    let focused = lastIndex >= 0 ? lastIndex : 0
+    const at = (i, event) => {
+      focused = i
+      const x = xOf(i)
+      cross.setAttribute('x1', x)
+      cross.setAttribute('x2', x)
+      cross.setAttribute('visibility', 'visible')
+      const v = values[i]
+      if (v !== null) {
+        dot.setAttribute('cx', x)
+        dot.setAttribute('cy', y(v))
+        dot.setAttribute('visibility', 'visible')
+      } else dot.setAttribute('visibility', 'hidden')
+      showTip(event, day(days[i], true), [
+        {
+          color,
+          value: v === null ? 'none that day' : format.value(v),
+          label: v === null ? '' : name,
+        },
+        ...(marks[i] ? [{ color: 'var(--warning)', value: 'held', label: markName }] : []),
+      ])
+    }
+    const pointAt = i => {
+      const box = hit.getBoundingClientRect()
+      return {
+        clientX: box.left + ((xOf(i) - left) / (right - left)) * box.width,
+        clientY: box.top,
+      }
+    }
+    hit.addEventListener('pointermove', event => {
+      const box = hit.getBoundingClientRect()
+      const ratio = (event.clientX - box.left) / box.width
+      at(Math.round(ratio * (days.length - 1)), event)
+    })
+    hit.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+      event.preventDefault()
+      const step = event.key === 'ArrowRight' ? 1 : -1
+      const next = Math.min(days.length - 1, Math.max(0, focused + step))
+      at(next, pointAt(next))
+    })
+    hit.addEventListener('focus', () => at(focused, pointAt(focused)))
+    const leave = () => {
+      cross.setAttribute('visibility', 'hidden')
+      dot.setAttribute('visibility', 'hidden')
+      hideTip()
+    }
+    hit.addEventListener('pointerleave', leave)
+    hit.addEventListener('blur', leave)
+  }
+}
+
+/** Horizontal bars for ranked categories: names left, the value at the bar's tip. */
+function hbars(rows, { color = 'var(--accent)', format = fmt } = {}) {
+  if (!rows.length) return '<p class="empty">Nothing yet.</p>'
+  const max = Math.max(...rows.map(r => r.value), 1)
+  return `<div class="hbars">${rows
     .map(
       r =>
-        `<div class="hbar"${cols}><span class="t">${escape(r.label)}</span><span class="b"><i class="${r.tone ?? options.tone ?? ''}" style="width:${(r.value / max) * 100}%"></i></span><span class="n">${escape(r.shown ?? fmt(r.value))}</span></div>`,
+        `<div class="hbar-row"><span class="hbar-name">${escape(r.label)}</span><span class="hbar-track"><i style="width:${Math.max(1, (100 * r.value) / max)}%;background:${color}"></i></span><span class="hbar-value">${escape(format(r.value))}</span></div>`,
     )
     .join('')}</div>`
 }
 
-// ---------- Words for what the server and doorman say ----------
+// ---------- Words ----------
 
 const FAILURES = {
   'youtube-blocked': 'YouTube asked the server to slow down',
   unavailable: 'Video unavailable, private or age-restricted',
-  'no-match': 'No match found for the song',
+  'no-match': 'No match found',
   bucket: 'The bucket refused the upload',
   timeout: 'Timed out',
   other: 'Something else',
@@ -416,16 +530,13 @@ const SOURCES = {
   other: 'Other links',
 }
 const STEPS = {
-  waiting: ['Waiting in line', 'var(--surface3)'],
-  resolving: ['Finding the song', 'var(--accent-dim)'],
-  downloading: ['Downloading', 'var(--accent)'],
-  converting: ['Converting', 'color-mix(in oklab, var(--accent) 60%, var(--surface1))'],
-  lyrics: ['Lyrics', 'color-mix(in oklab, var(--good) 70%, var(--surface1))'],
-  saving: ['Saving', 'var(--text-muted)'],
-  uploading: [
-    'Uploading to the bucket',
-    'color-mix(in oklab, var(--warning) 70%, var(--surface1))',
-  ],
+  waiting: 'Waiting in line',
+  resolving: 'Finding the song',
+  downloading: 'Downloading',
+  converting: 'Converting',
+  lyrics: 'Lyrics',
+  saving: 'Saving',
+  uploading: 'Uploading to the bucket',
 }
 const FEATURES = {
   'now-playing': 'Now Playing',
@@ -449,9 +560,9 @@ const SMART = {
   check: 'Settings check',
 }
 const APP_ERRORS = {
-  'cloud-unreachable': 'App showed “Can’t reach the cloud”',
-  'server-away': 'App showed the server as away',
-  'bucket-full': 'App showed the bucket as full for the day',
+  'cloud-unreachable': 'Showed “Can’t reach your library”',
+  'server-away': 'Showed the server as away',
+  'bucket-full': 'Showed the bucket as full for the day',
 }
 const READ_APPS = {
   web: 'Web',
@@ -461,322 +572,472 @@ const READ_APPS = {
   server: 'Server',
   lent: 'Lent to rooms and links',
 }
+const BANDS = ['< 30 s', '30 s–1 m', '1–2 m', '2–3 m', '3–5 m', '5–10 m', '10 m +']
+const BAND_LIMITS = [30_000, 60_000, 120_000, 180_000, 300_000, 600_000]
 
 // ---------- Views ----------
 
 function head(title, sub, end = '') {
-  return `<div class="page-head"><div><h1 class="page-title">${escape(title)}</h1><div class="sub">${escape(sub)}</div></div>${end ? `<div class="end">${end}</div>` : ''}</div>`
+  const tail = end ? `<div class="end">${end}</div>` : ''
+  return `<div class="page-head"><div><h1 class="page-title">${escape(title)}</h1><div class="sub">${sub}</div></div>${tail}</div>`
 }
 
 function rangeControl() {
-  return `<div class="seg" role="group" aria-label="Range"><span class="hl"></span>${RANGES.map(
-    r =>
-      `<button type="button" data-range="${r}" aria-pressed="${r === state.days}">${r} days</button>`,
-  ).join('')}</div>`
+  const buttons = RANGES.map(
+    ([days, name]) =>
+      `<button type="button" data-range="${days}" aria-pressed="${days === state.days}">${name}</button>`,
+  )
+  return `<div class="seg" role="group" aria-label="Range">${buttons.join('')}</div>`
 }
 
-function card(title, aside, body) {
-  return `<div class="card"><div class="card-head"><h3>${escape(title)}</h3>${aside}</div>${body}</div>`
+function statTile(name, value, delta = '', tone = '') {
+  return `<div class="stat"><span class="k">${escape(name)}</span><span class="v">${escape(value)}</span><span class="d ${tone}">${escape(delta)}</span></div>`
 }
 
-function empty(words) {
-  return `<p class="empty">${escape(words)}</p>`
+function deltaOf(now, before) {
+  if (!before) return ['', '']
+  const change = Math.round((100 * (now - before)) / before)
+  return [
+    `${change >= 0 ? '+' : ''}${change}% on the ${state.days} days before`,
+    change >= 0 ? 'up' : 'down',
+  ]
 }
 
-function legend(entries) {
-  return `<span class="legend">${entries.map(([color, label, line]) => `<span><i class="${line ? 'line' : ''}" style="background:${color}"></i>${escape(label)}</span>`).join('')}</span>`
+/** Where a time falls on the band axis, in bands from the left. */
+function bandPosition(ms) {
+  const band = BAND_LIMITS.findIndex(limit => ms < limit)
+  const i = band === -1 ? BAND_LIMITS.length : band
+  const low = i === 0 ? 0 : BAND_LIMITS[i - 1]
+  const high = BAND_LIMITS[i] ?? low * 2
+  return i + Math.min(1, (ms - low) / (high - low))
 }
 
-/** Inside a card: a line and the button, where a whole panel would crowd it. */
-function signInPrompt(words) {
-  if (!state.server?.doorman) return empty('This server has no doorman to ask.')
-  return `<div class="prompt"><p class="aside">${escape(words)}</p><button class="btn primary" type="button" data-action="sign-in">Sign in with Google</button></div>`
+function listCard(title, hint, body) {
+  return `<div class="card"><div class="card-head"><div class="titles"><h3>${escape(title)}</h3><span class="hint">${escape(hint)}</span></div></div>${body}</div>`
 }
 
-function signInCard(why) {
-  if (!state.server?.doorman)
-    return `<p class="notice">This server has no doorman, so there is nothing to sign in to.</p>`
-  return `<div class="panel"><div class="row"><div class="lbl"><span class="name">${escape(why)}</span><span class="hint">Use the owner’s Google account. This browser remembers it.</span></div><div class="end"><button class="btn primary" type="button" data-action="sign-in">Sign in with Google</button></div></div></div>`
-}
-
-/** The doorman's counts, summed over the window, by name. */
-function doormanTotals() {
-  const totals = new Map()
-  for (const { counts } of state.doormanStats?.days ?? []) {
-    for (const [name, count] of Object.entries(counts))
-      totals.set(name, (totals.get(name) ?? 0) + count)
-  }
-  return totals
+function statusLine(status) {
+  if (!status) return 'Totals across everyone'
+  const smart =
+    status.smart === 'answering'
+      ? '<span class="ok">answering</span>'
+      : status.smart === 'off'
+        ? 'off'
+        : '<span class="bad">not answering</span>'
+  const youtube = status.youtubeHeldUntil
+    ? `<span class="warn">held until ${new Date(status.youtubeHeldUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
+    : '<span class="ok">open</span>'
+  return `Totals across everyone · Smart features ${smart} · YouTube ${youtube}`
 }
 
 function dataView() {
+  charts.clear()
   const data = state.data
-  if (!data)
-    return (
-      head('Data', 'Totals across everyone on this server', rangeControl()) +
-      empty(state.error ?? 'Loading…')
-    )
+  const header = head('Data', statusLine(data?.status), rangeControl())
+  if (!data) return header + `<p class="empty">${escape(state.dataError ?? 'Loading…')}</p>`
+
   const imports = data.imports
   const days = imports.byDay.map(d => d.day)
   const done = sum(imports.byDay.map(d => d.done))
   const failed = sum(imports.byDay.map(d => d.failed))
   const total = done + failed
-  const before = imports.before.done + imports.before.failed
-  const change = before > 0 ? Math.round(((total - before) / before) * 100) : null
-  const doorTotals = doormanTotals()
-  const signedIn = state.doormanStats !== null
-  const audioReads = doorTotals.get('reads.audio') ?? 0
+  const [importDelta, importTone] = deltaOf(total, imports.before.done + imports.before.failed)
   const plays = sum(data.plays.map(p => p.count))
+  const doorDays = days.map(d => data.doorman?.days.find(x => x.day === d)?.counts ?? {})
+  const doorTotal = name => sum(doorDays.map(c => c[name] ?? 0))
+  const songReads = doorTotal('reads.audio')
 
   const stats = `<div class="stats">
-    <div class="stat"><span class="label">Imports</span><span class="v">${fmt(total)}</span><span class="d ${change === null ? '' : change >= 0 ? 'up' : 'down'}">${change === null ? `in ${state.days} days` : `${change >= 0 ? '+' : ''}${change}% on the ${state.days} days before`}</span></div>
-    <div class="stat"><span class="label">Worked</span><span class="v">${total ? `${((done / total) * 100).toFixed(1)}%` : '—'}</span><span class="d">${plural(failed, 'import', 'imports')} couldn’t import</span></div>
-    <div class="stat"><span class="label">Typical time</span><span class="v">${duration(imports.medianMs)}</span><span class="d">median, start to finish</span></div>
-    <div class="stat"><span class="label">Songs downloaded</span><span class="v">${signedIn ? fmt(audioReads) : '—'}</span><span class="d">${signedIn ? 'from buckets, everyone' : 'sign in to see the doorman’s counts'}</span></div>
+    ${statTile('Imports', fmt(total), importDelta, importTone)}
+    ${statTile('Worked', percent(done, total), `${plural(failed, 'import', 'imports')} failed`)}
+    ${statTile('Median import time', duration(imports.medianMs), imports.p90Ms === null ? '' : `9 in 10 under ${duration(imports.p90Ms)}`)}
+    ${statTile('Plays', fmt(plays), 'every library')}
+    ${statTile(
+      'Songs read from buckets',
+      data.doorman ? fmt(songReads) : '—',
+      data.doorman
+        ? plays
+          ? `${(songReads / plays).toFixed(1)} per play`
+          : ''
+        : 'the doorman’s count',
+    )}
   </div>`
 
-  const perDay = card(
-    'Imports a day',
-    legend([
-      ['var(--accent)', 'worked'],
-      ['var(--danger)', 'failed'],
-      ['var(--text-primary)', 'error rate', true],
-    ]),
-    total
-      ? bars(
-          days,
-          [imports.byDay.map(d => d.done), imports.byDay.map(d => d.failed)],
-          ['var(--accent)', 'var(--danger)'],
-          {
-            label: 'Imports a day',
-            line: imports.byDay.map(d =>
-              d.done + d.failed ? (100 * d.failed) / (d.done + d.failed) : 0,
-            ),
-            lineMax: Math.max(
-              20,
-              niceMax(
-                Math.max(
-                  ...imports.byDay.map(d =>
-                    d.done + d.failed ? (100 * d.failed) / (d.done + d.failed) : 0,
-                  ),
-                ),
-              ),
-            ),
-          },
-        )
-      : empty(`No imports in these ${state.days} days.`),
+  const perDay = chartCard({
+    id: 'imports',
+    title: 'Imports a day',
+    subtitle: `${plural(total, 'import', 'imports')} · ${percent(failed, total)} failed`,
+    legend: [
+      ['var(--accent)', 'Worked'],
+      ['var(--danger)', 'Failed'],
+    ],
+    height: 200,
+    draw: columns({
+      labels: days,
+      series: [
+        { name: 'worked', color: 'var(--accent)', values: imports.byDay.map(d => d.done) },
+        { name: 'failed', color: 'var(--danger)', values: imports.byDay.map(d => d.failed) },
+      ],
+      tipTitle: i => day(days[i], true),
+      tipExtra: i => {
+        const d = imports.byDay[i]
+        return d.done + d.failed
+          ? [{ value: percent(d.failed, d.done + d.failed), label: 'failed' }]
+          : []
+      },
+    }),
+    table: {
+      columns: ['Day', 'Worked', 'Failed'],
+      rows: imports.byDay.map(d => [day(d.day, true), fmt(d.done), fmt(d.failed)]),
+    },
+  })
+
+  const errorRate = imports.byDay.map(d =>
+    d.done + d.failed ? (100 * d.failed) / (d.done + d.failed) : null,
   )
-  const time = card(
-    'How long a song takes to import',
-    `<span class="aside">${plural(done, 'song', 'songs')} · past 3 minutes in amber</span>`,
-    done
-      ? histogram(imports.bands, imports.medianMs, imports.p90Ms)
-      : empty('Nothing imported yet to time.'),
-  )
-  const stepTotal = sum(imports.steps.map(s => s.medianMs))
-  const steps = card(
+  const errorCard = chartCard({
+    id: 'error-rate',
+    title: 'Share that failed',
+    subtitle: 'per day, of that day’s imports',
+    draw: line({
+      days,
+      values: errorRate,
+      color: 'var(--danger)',
+      name: 'failed',
+      max: Math.max(10, niceMax(Math.max(...errorRate.filter(v => v !== null), 0))),
+      format: { axis: v => `${Math.round(v)}%`, value: v => `${v.toFixed(1)}%` },
+    }),
+    table: {
+      columns: ['Day', 'Failed'],
+      rows: imports.byDay.map((d, i) => [
+        day(d.day, true),
+        errorRate[i] === null ? '—' : `${errorRate[i].toFixed(1)}%`,
+      ]),
+    },
+  })
+
+  const medians = imports.medianByDay.map(d => (d.medianMs === null ? null : d.medianMs / 1000))
+  const medianCard = chartCard({
+    id: 'median-time',
+    title: 'Median import time',
+    subtitle: 'per day, start to finish',
+    draw: line({
+      days,
+      values: medians,
+      color: 'var(--accent)',
+      name: 'median',
+      format: {
+        axis: v => (v >= 60 ? `${Math.round(v / 60)}m` : `${Math.round(v)}s`),
+        value: v => duration(v * 1000),
+      },
+    }),
+    table: {
+      columns: ['Day', 'Median'],
+      rows: imports.medianByDay.map(d => [day(d.day, true), duration(d.medianMs)]),
+    },
+  })
+
+  const markers = [
+    ...(imports.medianMs === null
+      ? []
+      : [{ at: bandPosition(imports.medianMs), label: `median ${duration(imports.medianMs)}` }]),
+    ...(imports.p90Ms === null
+      ? []
+      : [{ at: bandPosition(imports.p90Ms), label: `90% ${duration(imports.p90Ms)}` }]),
+  ]
+  const histogram = chartCard({
+    id: 'bands',
+    title: 'How long imports take',
+    subtitle: `${plural(done, 'import', 'imports')} that worked`,
+    draw: columns({
+      labels: BANDS,
+      labelsAre: 'bands',
+      series: [{ name: 'imports', color: 'var(--accent)', values: imports.bands }],
+      tipTitle: i => `Took ${BANDS[i]}`,
+      tipExtra: i => [{ value: percent(imports.bands[i], done), label: 'of those that worked' }],
+      markers,
+    }),
+    table: {
+      columns: ['Took', 'Imports'],
+      rows: BANDS.map((b, i) => [b, fmt(imports.bands[i] ?? 0)]),
+    },
+  })
+
+  const steps = listCard(
     'Where the time goes',
-    '<span class="aside">median per step</span>',
-    imports.steps.length
-      ? `<div class="steps anim">${imports.steps.map(s => `<i style="flex:${Math.max(s.medianMs, stepTotal * 0.01)};background:${STEPS[s.step][1]}"></i>`).join('')}</div>
-         <div class="step-list">${imports.steps.map(s => `<span><i style="background:${STEPS[s.step][1]}"></i>${STEPS[s.step][0]}<b>${duration(s.medianMs)}</b></span>`).join('')}</div>`
-      : empty('Nothing imported yet to time.'),
+    'median per step, imports that worked',
+    hbars(
+      [...imports.steps]
+        .sort((a, b) => b.medianMs - a.medianMs)
+        .map(s => ({ label: STEPS[s.step] ?? s.step, value: s.medianMs })),
+      { format: duration },
+    ),
   )
-  const yt = imports.youtube
-  const ytTotal = sum(yt.map(d => d.done + d.failed))
-  const held = sum(imports.held.map(d => d.count))
-  const youtube = card(
-    'YouTube downloads',
-    legend([
-      ['var(--accent)', 'worked, % a day', true],
-      ['var(--danger)', 'YouTube held the server'],
-    ]),
-    ytTotal || held
-      ? `${shareLine(
-          days,
-          yt.map(d => (d.done + d.failed ? (100 * d.done) / (d.done + d.failed) : null)),
-          imports.held.map(d => d.count > 0),
-        )}<div class="aside">${plural(held, 'hold', 'holds')} in ${state.days} days · ${plural(imports.retried, 'import', 'imports')} worked on a retry</div>`
-      : empty(`No YouTube imports in these ${state.days} days.`),
+
+  const ytWorked = imports.youtube.map(d =>
+    d.done + d.failed ? (100 * d.done) / (d.done + d.failed) : null,
   )
-  const failures = card(
+  const heldCount = sum(imports.held.map(d => d.count))
+  const youtubeCard = chartCard({
+    id: 'youtube',
+    title: 'YouTube downloads that worked',
+    subtitle: `${plural(heldCount, 'hold', 'holds')} · ${plural(imports.retried, 'import', 'imports')} worked on a retry`,
+    legend: [
+      ['var(--accent)', 'Worked, % of the day', true],
+      ['var(--warning)', 'YouTube held the server', true],
+    ],
+    draw: line({
+      days,
+      values: ytWorked,
+      color: 'var(--accent)',
+      name: 'worked',
+      max: 100,
+      marks: imports.held.map(d => d.count > 0),
+      markName: 'YouTube held the server',
+      format: { axis: v => `${Math.round(v)}%`, value: v => `${v.toFixed(1)}%` },
+    }),
+    table: {
+      columns: ['Day', 'Worked', 'Failed', 'Holds'],
+      rows: imports.youtube.map((d, i) => [
+        day(d.day, true),
+        fmt(d.done),
+        fmt(d.failed),
+        fmt(imports.held[i].count),
+      ]),
+    },
+  })
+
+  const failures = listCard(
     'Why imports fail',
-    `<span class="aside">${plural(failed, 'failure', 'failures')}</span>`,
-    imports.failures.length
-      ? hbars(
-          imports.failures.map(f => ({
-            label: FAILURES[f.kind] ?? f.kind,
-            value: f.count,
-            shown: `${Math.round((100 * f.count) / failed)}%`,
-          })),
-          { tone: 'bad', labelWidth: '58%' },
-        )
-      : empty('Nothing failed.'),
+    plural(failed, 'failure', 'failures'),
+    hbars(imports.failures.map(f => ({ label: FAILURES[f.kind] ?? f.kind, value: f.count }))),
   )
-  const sources = card(
+
+  const sourceRows = imports.sources
+    .map(s => {
+      const all = s.done + s.failed
+      return `<tr><td>${escape(SOURCES[s.source] ?? s.source)}</td><td class="num">${fmt(all)}</td><td class="num">${percent(all, total)}</td><td class="num">${percent(s.done, all)}</td><td class="num">${duration(s.medianMs)}</td></tr>`
+    })
+    .join('')
+  const sources = listCard(
     'By source',
-    '<span class="aside">share · worked · median</span>',
+    'where the address came from',
     imports.sources.length
-      ? `<div class="table"><div class="tr head"><span>Source</span><span class="num">Share</span><span>Worked</span><span class="num">Median</span></div>${imports.sources
-          .map(s => {
-            const all = s.done + s.failed
-            const ok = all ? (100 * s.done) / all : 0
-            return `<div class="tr"><span>${escape(SOURCES[s.source] ?? s.source)}</span><span class="num">${Math.round((100 * all) / total)}%</span><span class="hbar" style="grid-template-columns:minmax(0,1fr) 52px"><span class="b"><i class="${ok < 95 ? 'warn' : ''}" style="width:${ok}%"></i></span><span class="n">${ok.toFixed(1)}%</span></span><span class="num">${duration(s.medianMs)}</span></div>`
-          })
-          .join('')}</div>`
-      : empty(`No imports in these ${state.days} days.`),
+      ? `<table class="data"><thead><tr><th>Source</th><th class="num">Imports</th><th class="num">Share</th><th class="num">Worked</th><th class="num">Median time</th></tr></thead><tbody>${sourceRows}</tbody></table>`
+      : '<p class="empty">No imports in these days.</p>',
   )
 
-  const readDays = days.map(day => state.doormanStats?.days.find(d => d.day === day)?.counts ?? {})
-  const downloads = card(
-    'Downloads from buckets',
-    signedIn
-      ? legend([
-          ['var(--accent)', 'songs'],
-          ['var(--accent-dim)', 'covers'],
-          ['var(--text-muted)', 'lyrics'],
-        ])
-      : '',
-    signedIn
-      ? bars(
-          days,
-          [
-            readDays.map(c => c['reads.audio'] ?? 0),
-            readDays.map(c => c['reads.covers'] ?? 0),
-            readDays.map(c => c['reads.lyrics'] ?? 0),
+  const doormanNote = data.doorman
+    ? ''
+    : `<p class="notice">${escape(data.doormanProblem ?? 'The doorman’s counts are not here.')}</p>`
+  const reads = data.doorman
+    ? chartCard({
+        id: 'reads',
+        title: 'Reads from buckets',
+        subtitle: 'every file a device read, through the doorman',
+        legend: [
+          ['var(--series-1)', 'Songs'],
+          ['var(--series-2)', 'Covers'],
+          ['var(--series-3)', 'Lyrics'],
+        ],
+        height: 200,
+        draw: columns({
+          labels: days,
+          series: [
+            {
+              name: 'songs',
+              color: 'var(--series-1)',
+              values: doorDays.map(c => c['reads.audio'] ?? 0),
+            },
+            {
+              name: 'covers',
+              color: 'var(--series-2)',
+              values: doorDays.map(c => c['reads.covers'] ?? 0),
+            },
+            {
+              name: 'lyrics',
+              color: 'var(--series-3)',
+              values: doorDays.map(c => c['reads.lyrics'] ?? 0),
+            },
           ],
-          ['var(--accent)', 'var(--accent-dim)', 'var(--text-muted)'],
-          { label: 'Reads from buckets a day' },
-        )
-      : signInPrompt(
-          'The doorman counts every read from a bucket. Sign in as the owner to see them.',
-        ),
-  )
-  const byApp = Object.entries(READ_APPS)
-    .map(([key, label]) => ({ label, value: doorTotals.get(`reads.by.${key}`) ?? 0 }))
-    .filter(r => r.value > 0)
-  const readsByApp = signedIn
-    ? card(
-        'Reads by app',
-        `<span class="aside">${plays ? `${(audioReads / plays).toFixed(1)} song reads per play` : 'no plays to compare'}</span>`,
-        byApp.length ? hbars(byApp) : empty('Nothing read in these days.'),
-      )
+          tipTitle: i => day(days[i], true),
+        }),
+        table: {
+          columns: ['Day', 'Songs', 'Covers', 'Lyrics'],
+          rows: days.map((d, i) => [
+            day(d, true),
+            fmt(doorDays[i]['reads.audio'] ?? 0),
+            fmt(doorDays[i]['reads.covers'] ?? 0),
+            fmt(doorDays[i]['reads.lyrics'] ?? 0),
+          ]),
+        },
+      })
     : ''
-  const playsCard = card(
-    'Plays',
-    `<span class="aside">${plural(plays, 'play', 'plays')}, every library</span>`,
-    plays
-      ? bars(days, [data.plays.map(p => p.count)], ['var(--accent)'], {
-          label: 'Plays a day',
-          W: 420,
-        })
-      : empty('No plays yet.'),
-  )
+  const appReads = Object.entries(READ_APPS)
+    .map(([key, label]) => ({ label, value: doorTotal(`reads.by.${key}`) }))
+    .filter(r => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+  const byApp = data.doorman
+    ? listCard('Reads by app', `${fmt(sum(appReads.map(r => r.value)))} reads`, hbars(appReads))
+    : ''
+  const playsCard = !plays
+    ? listCard('Plays a day', 'every library', '<p class="empty">No plays in these days.</p>')
+    : chartCard({
+        id: 'plays',
+        title: 'Plays a day',
+        subtitle: `${plural(plays, 'play', 'plays')}, every library`,
+        draw: columns({
+          labels: days,
+          series: [{ name: 'plays', color: 'var(--accent)', values: data.plays.map(p => p.count) }],
+          tipTitle: i => day(days[i], true),
+        }),
+        table: {
+          columns: ['Day', 'Plays'],
+          rows: data.plays.map(p => [day(p.day, true), fmt(p.count)]),
+        },
+      })
 
-  const usage = card(
+  const smartCount = sum(data.smart.byFeature.map(f => f.count))
+  const usage = listCard(
     'Features used',
-    `<span class="aside">times, everyone, ${state.days} days</span>`,
+    'times, from apps that count them',
     data.usage.length
       ? hbars(
           data.usage
             .map(u => ({ label: FEATURES[u.feature] ?? u.feature, value: u.count }))
             .sort((a, b) => b.value - a.value),
         )
-      : empty('No app has reported yet. Apps send their counts once a day.'),
+      : '<p class="empty">No app has reported yet. Apps send each day’s counts the next day.</p>',
   )
-  const smartCount = sum(data.smart.byFeature.map(f => f.count))
-  const smart = card(
+  const smartCard = listCard(
     'Smart features',
-    '<span class="aside">requests</span>',
     smartCount
-      ? `${hbars(data.smart.byFeature.map(f => ({ label: SMART[f.feature] ?? f.feature, value: f.count })))}<div class="aside">${smartCount ? ((100 * data.smart.failed) / smartCount).toFixed(1) : 0}% failed · ${duration(data.smart.averageMs)} on average</div>`
-      : empty('No Smart requests in these days.'),
+      ? `${plural(smartCount, 'request', 'requests')} · ${percent(data.smart.failed, smartCount)} failed · ${duration(data.smart.averageMs)} on average`
+      : 'requests',
+    smartCount
+      ? hbars(
+          data.smart.byFeature.map(f => ({ label: SMART[f.feature] ?? f.feature, value: f.count })),
+        )
+      : '<p class="empty">No Smart requests in these days.</p>',
   )
-  const errorCount = sum(data.errors.map(e => e.count))
-  const errors = card(
+  const errorRows = data.errors
+    .map(
+      e =>
+        `<tr><td>${e.from === 'server' ? 'Server' : 'App'}</td><td>${escape(e.from === 'server' ? e.name : (APP_ERRORS[e.name] ?? e.name))}</td><td class="num">${fmt(e.count)}</td><td class="num">${day(e.lastDay)}</td></tr>`,
+    )
+    .join('')
+  const errors = listCard(
     'Errors',
-    `<span class="pill ${errorCount ? 'bad' : 'good'}">${errorCount ? `${fmt(errorCount)} in ${state.days} days` : 'none'}</span>`,
+    'server 500s, and problems apps showed people',
     data.errors.length
-      ? `<div class="panel" style="box-shadow:none;padding:0">${data.errors
-          .map(
-            e =>
-              `<div class="row" style="min-height:0;padding:8px 0"><div class="lbl"><span class="name ${e.from === 'server' ? 'mono' : ''}">${escape(e.from === 'server' ? e.name : (APP_ERRORS[e.name] ?? e.name))}</span></div><span class="aside">${fmt(e.count)} · last ${shortDay(e.lastDay)}</span></div>`,
-          )
-          .join('')}</div>`
-      : empty('Nothing went wrong.'),
+      ? `<table class="data"><thead><tr><th>Where</th><th>What</th><th class="num">Times</th><th class="num">Last</th></tr></thead><tbody>${errorRows}</tbody></table>`
+      : '<p class="empty">Nothing went wrong.</p>',
   )
 
-  return `${head('Data', 'Totals across everyone on this server', rangeControl())}
-    ${state.error ? `<p class="notice bad">${escape(state.error)}</p>` : ''}
+  return `${header}
+    ${state.dataError ? `<p class="notice bad">${escape(state.dataError)}</p>` : ''}
     ${stats}
-    <section class="section"><div class="section-head"><h2 class="section-title">Music import</h2><span class="aside">${shortDay(data.from)} – ${shortDay(data.to)}</span></div>
+    <section class="section"><h2 class="section-title">Music import</h2>
       ${perDay}
-      <div class="grid2">${time}${steps}</div>
-      <div class="grid2">${youtube}${failures}</div>
+      <div class="grid2">${errorCard}${medianCard}</div>
+      <div class="grid2">${histogram}${steps}</div>
+      <div class="grid2">${youtubeCard}${failures}</div>
       ${sources}
     </section>
-    <section class="section"><div class="section-head"><h2 class="section-title">Listening</h2></div>${downloads}<div class="grid2">${readsByApp}${playsCard}</div></section>
-    <section class="section"><div class="section-head"><h2 class="section-title">The app</h2></div><div class="grid2">${usage}${smart}</div>${errors}</section>`
-}
-
-function accessView() {
-  const header = head('Access', 'Who can sign in to self.mp3')
-  if (!state.server) return header + empty(state.error ?? 'Loading…')
-  if (state.doormanProblem)
-    return `${header}<p class="notice bad">${escape(state.doormanProblem)}</p>${signInCard('Sign in again')}`
-  if (!session() || !state.access) return header + signInCard('Sign in to change who can sign in')
-  const access = state.access
-  const requests = state.requests ?? []
-  const asking = requests.length
-    ? `<div class="panel">${requests
-        .map(
-          r =>
-            `<div class="row"><div class="lbl"><span class="name">${escape(r.email)}</span><span class="hint">Tried ${plural(r.tries, 'time', 'times')} · last ${escape(relative(r.lastAt))} · not on the list</span></div><div class="end"><button class="btn primary" type="button" data-action="let-in" data-email="${escape(r.email)}">Let in</button><button class="btn" type="button" data-action="dismiss" data-email="${escape(r.email)}">Dismiss</button></div></div>`,
-        )
-        .join('')}</div>`
-    : empty('Nobody has been turned away this week.')
-  return `${header}
-    ${state.error ? `<p class="notice bad">${escape(state.error)}</p>` : ''}
-    <section class="section"><div class="section-head"><span class="label">Asked to get in</span><span class="aside">kept 7 days</span></div>${asking}</section>
-    <section class="section"><div class="section-head"><span class="label">Who can sign in</span></div>
-      <div class="panel">
-        <div class="row"><div class="lbl"><span class="name">Anyone with a Google account</span><span class="hint">${access.anyone ? 'On: anyone who signs in with Google gets in.' : 'Off: only you and the people below.'}</span></div><input class="switch" type="checkbox" role="switch" aria-label="Anyone with a Google account" data-action="anyone" ${access.anyone ? 'checked' : ''} ${state.busy ? 'disabled' : ''} /></div>
-        ${access.owners.map(owner => `<div class="row"><div class="lbl"><span class="name">${escape(owner)}</span><span class="hint">Owner · always let in</span></div></div>`).join('')}
-        ${access.emails.map(email => `<div class="row"><div class="lbl"><span class="name">${escape(email)}</span></div><div class="end"><button class="btn danger" type="button" data-action="remove" data-email="${escape(email)}" ${state.busy ? 'disabled' : ''}>Remove</button></div></div>`).join('')}
-        <form class="row" data-action="add"><div class="lbl"><span class="name">Add someone</span><span class="hint">Their Google address. While Google sign-in is in Testing, add them as a test user there too.</span></div><div class="end"><input class="field" type="email" name="email" placeholder="name@gmail.com" autocomplete="off" aria-label="Google address to let in" required /><button class="btn primary" type="submit" ${state.busy ? 'disabled' : ''}>Add</button></div></form>
-      </div>
+    <section class="section"><h2 class="section-title">Listening</h2>
+      ${doormanNote}${reads}
+      <div class="grid2">${playsCard}${byApp}</div>
+    </section>
+    <section class="section"><h2 class="section-title">The app</h2>
+      <div class="grid2">${usage}${smartCard}</div>
+      ${errors}
     </section>`
 }
 
-function serverView() {
-  const s = state.server
-  const header = head('Server', 'This self.mp3 server')
-  if (!s) return header + empty(state.error ?? 'Loading…')
-  const uptime =
-    s.uptimeSeconds < 3600
-      ? `${Math.round(s.uptimeSeconds / 60)} min`
-      : s.uptimeSeconds < 172_800
-        ? `${Math.round(s.uptimeSeconds / 3600)} h`
-        : `${Math.round(s.uptimeSeconds / 86_400)} days`
-  const smartWords = {
-    answering: ['answering', 'good'],
-    'not-answering': ['not answering', 'bad'],
-    off: ['off', ''],
-  }[s.smart]
-  const youtubeHeld = s.youtube.heldUntil !== null
+const AVATAR_HUES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--good)']
+
+function avatarOf(email) {
+  let hash = 0
+  for (const ch of email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  const hue = AVATAR_HUES[hash % AVATAR_HUES.length]
+  const letter = escape(email[0]?.toUpperCase() ?? '?')
+  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${letter}</span>`
+}
+
+const ICON_TRASH =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
+const ICON_SEARCH =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+
+function personRow(person) {
+  const chip = person.owner ? '<span class="chip">owner</span>' : ''
+  const end = person.owner
+    ? '<span class="hint">always let in</span>'
+    : `<button class="icon-btn" type="button" data-action="remove" data-email="${escape(person.email)}" aria-label="Remove ${escape(person.email)}" title="Remove" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
+  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span></div>${end}</div>`
+}
+
+function peopleView() {
+  const people = state.people
+  const count = people ? people.owners.length + people.emails.length : 0
+  const add = people
+    ? `<button class="btn primary" type="button" data-action="add-open">${ICON_PLUS}Add people</button>`
+    : ''
+  const header = head(
+    'People',
+    people ? escape(`${plural(count, 'person', 'people')} can sign in`) : 'Who can sign in',
+    add,
+  )
+  if (!people) {
+    const why = state.peopleError
+      ? `<p class="notice bad">${escape(state.peopleError)}</p>`
+      : '<p class="empty">Loading…</p>'
+    return header + why
+  }
+  const query = state.search.trim().toLowerCase()
+  const everyone = [
+    ...people.owners.map(email => ({ email, owner: true })),
+    ...people.emails.map(email => ({ email, owner: false })),
+  ].sort((a, b) => a.email.localeCompare(b.email))
+  const shown = query ? everyone.filter(p => p.email.includes(query)) : everyone
+  const adding = state.adding
+    ? `<div class="card">
+        <div class="card-head"><div class="titles"><h3>Add people</h3><span class="hint">Their Google addresses: one, or many pasted at once, separated by spaces, commas or new lines. While Google sign-in is in Testing, Google wants them as test users too.</span></div></div>
+        <textarea class="field" id="add-emails" placeholder="name@gmail.com, another@gmail.com" aria-label="Google addresses to add"></textarea>
+        ${state.addProblem ? `<p class="notice bad">${escape(state.addProblem)}</p>` : ''}
+        <div class="actions"><button class="btn" type="button" data-action="add-cancel">Cancel</button><button class="btn primary" type="button" data-action="add-save" ${state.busy ? 'disabled' : ''}>Add</button></div>
+      </div>`
+    : ''
+  const rows = shown.length
+    ? shown.map(personRow).join('')
+    : `<p class="empty">No one matches “${escape(state.search)}”.</p>`
+  const counted = query ? `${shown.length} of ${count}` : String(count)
+  const anyoneHint = people.anyone
+    ? 'On: anyone who signs in with Google gets in, whoever they are.'
+    : 'Off: only the people above.'
   return `${header}
-    ${state.error ? `<p class="notice bad">${escape(state.error)}</p>` : ''}
-    <div class="stats">
-      <div class="stat"><span class="label">Up for</span><span class="v">${uptime}</span><span class="d">version ${escape(s.version)}</span></div>
-      <div class="stat"><span class="label">Libraries</span><span class="v">${fmt(s.libraries)}</span><span class="d">a count only</span></div>
-      <div class="stat"><span class="label">Disk free</span><span class="v">${s.disk ? bytes(s.disk.freeBytes) : '—'}</span><span class="d">${s.disk ? `of ${bytes(s.disk.totalBytes)}` : 'not known here'}</span></div>
-      <div class="stat"><span class="label">Memory</span><span class="v">${bytes(s.memory.usedBytes)}</span><span class="d">used of ${bytes(s.memory.totalBytes)}</span></div>
-    </div>
-    <div class="panel">
-      <div class="row"><div class="lbl"><span class="name">Smart features</span><span class="hint">The model the server asks for Ask, tidy and picks.</span></div><span class="pill ${smartWords[1]}">${smartWords[0]}</span></div>
-      <div class="row"><div class="lbl"><span class="name">YouTube</span><span class="hint">${youtubeHeld ? `Holding off until ${new Date(s.youtube.heldUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : s.youtube.lastHeldAt ? `Last asked to slow down ${relative(s.youtube.lastHeldAt)}` : 'Never asked to slow down'}</span></div><span class="pill ${youtubeHeld ? 'warn' : 'good'}">${youtubeHeld ? 'held' : 'open'}</span></div>
-      <div class="row"><div class="lbl"><span class="name">Doorman</span><span class="hint">${s.doorman ? escape(s.doorman.url) : 'None: this server is not signed in through one.'}</span></div>${session() ? '<button class="btn" type="button" data-action="sign-out">Sign out of the doorman</button>' : ''}</div>
-    </div>`
+    ${state.peopleError ? `<p class="notice bad">${escape(state.peopleError)}</p>` : ''}
+    ${adding}
+    <section class="section">
+      <div class="group-head list-head"><span><span class="label">Who can sign in</span> <span class="hint">${escape(counted)}</span></span>
+        <label class="search">${ICON_SEARCH}<input id="people-search" type="search" placeholder="Search addresses" value="${escape(state.search)}" aria-label="Search addresses" autocomplete="off" /></label>
+      </div>
+      <div class="panel"><div class="people-list">${rows}</div></div>
+    </section>
+    <section class="section">
+      <div class="group-head"><span class="label">Sign-in</span></div>
+      <div class="panel"><div class="row"><div class="lbl"><span class="name">Anyone with a Google account</span><span class="hint">${anyoneHint}</span></div><input class="switch" type="checkbox" role="switch" aria-label="Anyone with a Google account" data-action="anyone" ${people.anyone ? 'checked' : ''} ${state.busy ? 'disabled' : ''} /></div></div>
+    </section>`
+}
+
+function dialogView() {
+  const c = state.confirm
+  if (!c) return ''
+  return `<div class="scrim" data-action="confirm-cancel"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title" aria-describedby="dialog-text">
+    <h2 id="dialog-title">${escape(c.title)}</h2><p id="dialog-text">${escape(c.text)}</p>
+    <div class="btns"><button class="btn" type="button" data-action="confirm-cancel">Cancel</button><button class="btn ${c.danger ? 'danger' : 'primary'}" type="button" data-action="confirm-ok">${escape(c.ok)}</button></div>
+  </div></div>`
 }
 
 // ---------- Drawing ----------
@@ -786,78 +1047,115 @@ function render({ entering = false } = {}) {
     if (link.dataset.tab === state.tab) link.setAttribute('aria-current', 'page')
     else link.removeAttribute('aria-current')
   }
-  const waiting = state.requests?.length ?? 0
-  document.getElementById('access-count').textContent = waiting > 0 ? String(waiting) : ''
-  const who = document.getElementById('who')
-  who.innerHTML = session()
-    ? `<span>Signed in to the doorman</span>`
-    : state.server?.doorman
-      ? `<button class="btn text" type="button" data-action="sign-in">Sign in to the doorman</button>`
-      : ''
-
+  const searching = document.activeElement?.id === 'people-search'
+  const caret = searching ? document.activeElement.selectionStart : null
+  const typed = document.getElementById('add-emails')?.value
   const page = document.getElementById('page')
-  const view =
-    state.tab === 'data' ? dataView() : state.tab === 'access' ? accessView() : serverView()
-  page.innerHTML = `<div class="view${entering ? ' entering' : ''}">${view}</div>`
-  placeHighlight()
-  document.title = `${state.tab[0].toUpperCase()}${state.tab.slice(1)} · self.mp3 admin`
-}
-
-/** The segmented control's pill under the range picked: it slides when a range is picked, and is simply there after a redraw. */
-function placeHighlight({ slide = false } = {}) {
-  const seg = document.querySelector('.seg')
-  if (!seg) return
-  const on = seg.querySelector('button[aria-pressed="true"]')
-  const hl = seg.querySelector('.hl')
-  if (!on || !hl) return
-  if (!slide) hl.style.transition = 'none'
-  hl.style.width = `${on.offsetWidth}px`
-  hl.style.transform = `translateX(${on.offsetLeft}px)`
-  if (!slide) {
-    void hl.offsetWidth
-    hl.style.transition = ''
+  const view = state.tab === 'data' ? dataView() : peopleView()
+  page.innerHTML = `<div class="view${entering ? ' entering' : ''}">${view}</div>${dialogView()}`
+  document.title = `${state.tab === 'data' ? 'Data' : 'People'} · self.mp3 admin`
+  hideTip()
+  drawCharts()
+  const addBox = document.getElementById('add-emails')
+  if (addBox && typed !== undefined) addBox.value = typed
+  if (searching) {
+    const input = document.getElementById('people-search')
+    input?.focus()
+    if (caret !== null) input?.setSelectionRange(caret, caret)
+  } else if (state.confirm) {
+    document.querySelector('.dialog [data-action="confirm-ok"]')?.focus()
+  } else if (addBox && typed === undefined) {
+    addBox.focus()
   }
 }
 
+let toastTimer = null
+function toast(words) {
+  const box = document.getElementById('toast')
+  box.textContent = words
+  box.hidden = false
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => (box.hidden = true), 3200)
+}
+
+new ResizeObserver(() => drawCharts()).observe(document.getElementById('page'))
+
 // ---------- Acting ----------
 
-async function changeAccess(change) {
-  const paths = state.server?.doorman?.paths
-  if (!paths || !state.access || state.busy) return
-  const next = change({ anyone: state.access.anyone, emails: [...state.access.emails] })
+async function savePeople(change, done) {
+  if (!state.people || state.busy) return
+  const next = change({ anyone: state.people.anyone, emails: [...state.people.emails] })
   state.busy = true
-  state.error = null
   render()
   try {
-    const saved = await doorman(paths.access, { method: 'PUT', body: JSON.stringify(next) })
-    if (saved) state.access = saved
-    const requests = await doorman(paths.accessRequests)
-    state.requests = requests?.requests ?? state.requests
+    state.people = await ask('/api/admin/people', { method: 'PUT', body: JSON.stringify(next) })
+    state.peopleError = null
+    if (done) toast(done)
   } catch (error) {
-    state.error = error instanceof Error ? error.message : String(error)
+    state.peopleError = error.message
   } finally {
     state.busy = false
     render()
   }
 }
 
+const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/
+
+function addPeople() {
+  const text = document.getElementById('add-emails')?.value ?? ''
+  const typed = [
+    ...new Set(
+      text
+        .split(/[\s,;]+/)
+        .map(e => e.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ]
+  if (!typed.length) {
+    state.addProblem = 'Type or paste at least one address.'
+    render()
+    return
+  }
+  const wrong = typed.filter(e => !EMAIL.test(e))
+  if (wrong.length) {
+    state.addProblem = `${wrong.length === 1 ? 'This is' : 'These are'} not an address: ${wrong.join(', ')}`
+    render()
+    return
+  }
+  const known = new Set([...state.people.emails, ...state.people.owners])
+  const fresh = typed.filter(e => !known.has(e))
+  state.addProblem = null
+  state.adding = false
+  if (!fresh.length) {
+    toast(typed.length === 1 ? 'They can sign in already.' : 'All of them can sign in already.')
+    render()
+    return
+  }
+  void savePeople(
+    list => ({ ...list, emails: [...list.emails, ...fresh] }),
+    `Added ${plural(fresh.length, 'person', 'people')}`,
+  )
+}
+
 async function go(tab, { push = true } = {}) {
   state.tab = tab
   if (push) history.pushState(null, '', `/${tab}`)
   render({ entering: true })
-  await load()
+  if (tab === 'data') await loadData()
+  else await loadPeople()
   render()
 }
 
 document.addEventListener('click', event => {
   const target = event.target instanceof Element ? event.target : null
-  const link = target?.closest('.nav a')
+  if (!target) return
+  const link = target.closest('a[data-tab], a.brand')
   if (link && !event.metaKey && !event.ctrlKey) {
     event.preventDefault()
-    void go(link.dataset.tab)
+    void go(link.dataset.tab ?? 'data')
     return
   }
-  const range = target?.closest('button[data-range]')
+  const range = target.closest('button[data-range]')
   if (range) {
     state.days = Number(range.dataset.range)
     try {
@@ -865,43 +1163,62 @@ document.addEventListener('click', event => {
     } catch {
       // Remembered for this visit only.
     }
-    for (const button of range.parentElement.querySelectorAll('button')) {
-      button.setAttribute('aria-pressed', String(button === range))
-    }
-    placeHighlight({ slide: true })
-    // Drawn again once the slide is over, so the new numbers do not cut it short.
-    void Promise.all([load(), new Promise(resolve => setTimeout(resolve, 220))]).then(() =>
-      render(),
-    )
+    render()
+    void loadData().then(() => render())
     return
   }
-  const action = target?.closest('[data-action]')
-  if (!action || action.tagName === 'FORM' || action.tagName === 'INPUT') return
-  const email = action.getAttribute('data-email')
-  switch (action.getAttribute('data-action')) {
-    case 'sign-in':
-      void signIn().catch(error => {
-        state.error = error.message
-        render()
-      })
+  const tableToggle = target.closest('button[data-table]')
+  if (tableToggle) {
+    const id = tableToggle.dataset.table
+    if (state.tables.has(id)) state.tables.delete(id)
+    else state.tables.add(id)
+    render()
+    return
+  }
+  const action = target.closest('[data-action]')
+  if (!action) return
+  const kind = action.getAttribute('data-action')
+  // A press inside the dialog is not a press on the scrim behind it.
+  if (kind === 'confirm-cancel' && action.classList.contains('scrim') && target !== action) return
+  switch (kind) {
+    case 'add-open':
+      state.adding = true
+      state.addProblem = null
+      render()
       break
-    case 'sign-out':
-      void signOut()
+    case 'add-cancel':
+      state.adding = false
+      state.addProblem = null
+      render()
       break
-    case 'let-in':
-      void changeAccess(list => ({ ...list, emails: [...list.emails, email] }))
+    case 'add-save':
+      addPeople()
       break
-    case 'remove':
-      void changeAccess(list => ({ ...list, emails: list.emails.filter(e => e !== email) }))
+    case 'remove': {
+      const email = action.getAttribute('data-email')
+      state.confirm = {
+        title: `Remove ${email}?`,
+        text: 'They are signed out of every device within a minute, and this server lets go of their library. Their songs stay in their own bucket, and adding them again brings everything back.',
+        ok: 'Remove',
+        danger: true,
+        run: () =>
+          savePeople(
+            list => ({ ...list, emails: list.emails.filter(e => e !== email) }),
+            `Removed ${email}`,
+          ),
+      }
+      render()
       break
-    case 'dismiss': {
-      const paths = state.server?.doorman?.paths
-      if (!paths) break
-      void doorman(`${paths.accessRequests}?email=${encodeURIComponent(email)}`, {
-        method: 'DELETE',
-      })
-        .then(() => loadAccess())
-        .then(() => render())
+    }
+    case 'confirm-cancel':
+      state.confirm = null
+      render()
+      break
+    case 'confirm-ok': {
+      const run = state.confirm?.run
+      state.confirm = null
+      render()
+      void run?.()
       break
     }
   }
@@ -909,44 +1226,47 @@ document.addEventListener('click', event => {
 
 document.addEventListener('change', event => {
   const input = event.target
-  if (input instanceof HTMLInputElement && input.dataset.action === 'anyone') {
-    void changeAccess(list => ({ ...list, anyone: input.checked }))
+  if (!(input instanceof HTMLInputElement) || input.dataset.action !== 'anyone') return
+  const on = input.checked
+  input.checked = !on
+  if (!on) {
+    void savePeople(list => ({ ...list, anyone: false }), 'Only the people on the list can sign in')
+    return
+  }
+  state.confirm = {
+    title: 'Let anyone with a Google account in?',
+    text: 'Anyone who signs in with Google can then use this server: imports from its address and Smart features on its model. The list stays, for when you turn this off.',
+    ok: 'Let anyone in',
+    danger: false,
+    run: () =>
+      savePeople(list => ({ ...list, anyone: true }), 'Anyone with a Google account can sign in'),
+  }
+  render()
+})
+
+document.addEventListener('input', event => {
+  const input = event.target
+  if (input instanceof HTMLInputElement && input.id === 'people-search') {
+    state.search = input.value
+    render()
   }
 })
 
-document.addEventListener('submit', event => {
-  const form = event.target
-  if (!(form instanceof HTMLFormElement) || form.dataset.action !== 'add') return
-  event.preventDefault()
-  const email = String(new FormData(form).get('email') ?? '')
-    .trim()
-    .toLowerCase()
-  if (!email) return
-  void changeAccess(list => ({ ...list, emails: [...list.emails, email] }))
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && state.confirm) {
+    state.confirm = null
+    render()
+  }
 })
 
 window.addEventListener('popstate', () => void go(tabOf(location.pathname), { push: false }))
-window.addEventListener('resize', () => placeHighlight())
 
-// A page left open keeps itself current, while it is being looked at.
+// A page left open keeps its numbers current while it is being looked at.
 setInterval(() => {
-  if (document.visibilityState === 'visible' && !state.busy) void load().then(() => render())
+  if (document.visibilityState !== 'visible' || state.busy || state.confirm || state.tab !== 'data')
+    return
+  void loadData().then(() => render())
 }, REFRESH_MS)
 
-async function start() {
-  if (location.pathname === '/') history.replaceState(null, '', '/data')
-  render()
-  try {
-    state.server = await ask('/api/admin/server')
-    await claimSignIn()
-  } catch (error) {
-    state.error = error instanceof Error ? error.message : String(error)
-  }
-  render()
-  await load()
-  // The Access count in the sidebar, whichever tab is open.
-  if (state.tab !== 'access' && session()) await loadAccess().catch(() => undefined)
-  render()
-}
-
-void start()
+if (location.pathname === '/') history.replaceState(null, '', '/data')
+void go(state.tab, { push: false })

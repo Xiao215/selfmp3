@@ -155,7 +155,10 @@ export class ServerMetrics {
    * The admin page's numbers for the last `days` days, today included.
    * `plays` is every library's plays by day, which the libraries keep.
    */
-  summary(days: number, plays: ReadonlyMap<string, number>): AdminData {
+  summary(
+    days: number,
+    plays: ReadonlyMap<string, number>,
+  ): Omit<AdminData, 'doorman' | 'doormanProblem' | 'status'> {
     const to = utcDay(this.#now())
     const from = utcDay(this.#now() - (days - 1) * DAY_MS)
     const beforeFrom = utcDay(this.#now() - (2 * days - 1) * DAY_MS)
@@ -276,6 +279,16 @@ export class ServerMetrics {
           count: totals.find(row => row.day === day && row.name === METRIC.youtubeHeld)?.count ?? 0,
         })),
         retried: worked.filter(row => row.attempts > 1).length,
+        medianByDay: window.map(day => ({
+          day,
+          medianMs: quantile(
+            worked
+              .filter(row => row.day === day)
+              .map(row => row.total_ms)
+              .sort((a, b) => a - b),
+            0.5,
+          ),
+        })),
       },
       plays: window.map(day => ({ day, count: plays.get(day) ?? 0 })),
       smart: {

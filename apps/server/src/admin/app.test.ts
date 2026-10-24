@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { darkPalette, lightPalette } from '@selfmp3/client/tokens'
-import { AdminDataSchema, AdminServerSchema, AdminSignInSchema } from '@selfmp3/shared'
+import { AdminDataSchema, DoormanAccessSchema, ErrorBodySchema } from '@selfmp3/shared'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadConfig } from '../config.js'
 import { createHubApp } from '../hub/app.js'
@@ -26,7 +26,44 @@ describe('the admin page', () => {
     'SELFMP3_CLOUD_DIR',
     'SELFMP3_ADMIN_URL',
     'SELFMP3_AI_BASE_URL',
+    'SELFMP3_DOORMAN_URL',
+    'SELFMP3_DOORMAN_ADMIN_TOKEN',
   ] as const
+  const KEY = 'k'.repeat(64)
+  /** The doorman, stood in for at its HTTP edge: it takes the admin key and nothing else. */
+  let list = { anyone: false, emails: ['friend@example.com'], owners: ['me@example.com'] }
+  const doormanSeen: Array<{ method: string; path: string; auth: string }> = []
+  const fakeDoorman = http.createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://doorman')
+    doormanSeen.push({
+      method: req.method ?? '',
+      path: url.pathname,
+      auth: req.headers.authorization ?? '',
+    })
+    const json = (status: number, body: unknown) => {
+      res.writeHead(status, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(body))
+    }
+    if (req.headers.authorization !== `Bearer ${KEY}`)
+      return json(401, { error: 'no', code: 'unauthorized' })
+    if (url.pathname === '/v1/stats') {
+      return json(200, {
+        days: [{ day: new Date().toISOString().slice(0, 10), counts: { 'reads.audio': 5 } }],
+      })
+    }
+    if (url.pathname === '/v1/access' && req.method === 'PUT') {
+      let body = ''
+      req.on('data', chunk => (body += String(chunk)))
+      req.on('end', () => {
+        list = { ...list, ...(JSON.parse(body) as { anyone: boolean; emails: string[] }) }
+        json(200, list)
+      })
+      return
+    }
+    if (url.pathname === '/v1/access') return json(200, list)
+    json(404, { error: 'no', code: 'not_found' })
+  })
+  let doormanOrigin = ''
   const saved = new Map<string, string | undefined>()
   let root = ''
   let hub: Hub
@@ -50,6 +87,9 @@ describe('the admin page', () => {
     process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
     process.env['SELFMP3_ADMIN_URL'] = 'https://pi.example.ts.net:4443'
     delete process.env['SELFMP3_AI_BASE_URL']
+    doormanOrigin = await listen(fakeDoorman)
+    process.env['SELFMP3_DOORMAN_URL'] = doormanOrigin
+    process.env['SELFMP3_DOORMAN_ADMIN_TOKEN'] = KEY
 
     const config = loadConfig()
     hub = new Hub(config, createLogger('silent'), null)
@@ -63,6 +103,7 @@ describe('the admin page', () => {
   afterAll(async () => {
     await new Promise<void>(resolve => admin.close(() => resolve()))
     await new Promise<void>(resolve => api.close(() => resolve()))
+    await new Promise<void>(resolve => fakeDoorman.close(() => resolve()))
     hub.stop()
     hub.close()
     fs.rmSync(root, { recursive: true, force: true })
@@ -73,7 +114,7 @@ describe('the admin page', () => {
   })
 
   it('serves the page at each tab’s own address', async () => {
-    for (const tab of ['/', '/data', '/access', '/server']) {
+    for (const tab of ['/', '/data', '/people']) {
       const response = await fetch(`${adminOrigin}${tab}`)
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toContain('text/html')
@@ -134,34 +175,54 @@ describe('the admin page', () => {
     expect(await asked('evil.example.com')).toBe(421)
   })
 
-  it('lets the page talk to the doorman and nowhere else', async () => {
+  it('asks nothing of anywhere but itself', async () => {
     const response = await fetch(`${adminOrigin}/data`)
     const csp = response.headers.get('content-security-policy') ?? ''
-    expect(csp).toMatch(/connect-src 'self' https:\/\/selfmp3-doorman/)
+    expect(csp).toContain("connect-src 'self';")
     expect(csp).toContain("frame-ancestors 'none'")
   })
 
-  it('says how the server is', async () => {
-    const response = await fetch(`${adminOrigin}/api/admin/server`)
-    expect(response.status).toBe(200)
-    const server = AdminServerSchema.parse(await response.json())
-    expect(server.libraries).toBe(1)
-    expect(server.smart).toBe('off')
-    expect(server.memory.totalBytes).toBeGreaterThan(0)
-    expect(server.doorman?.paths.access).toBe('/v1/access')
+  it('shows and changes who can sign in, through the doorman with its admin key', async () => {
+    const read = await fetch(`${adminOrigin}/api/admin/people`)
+    expect(read.status).toBe(200)
+    expect(DoormanAccessSchema.parse(await read.json()).emails).toEqual(['friend@example.com'])
+
+    const put = await fetch(`${adminOrigin}/api/admin/people`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ anyone: false, emails: ['friend@example.com', 'new@example.com'] }),
+    })
+    expect(put.status).toBe(200)
+    expect(DoormanAccessSchema.parse(await put.json()).emails).toContain('new@example.com')
+    expect(doormanSeen.at(-1)).toEqual({ method: 'PUT', path: '/v1/access', auth: `Bearer ${KEY}` })
+
+    // A form posted from a page elsewhere is not JSON, so it changes nothing.
+    const form = await fetch(`${adminOrigin}/api/admin/people`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'anyone=true',
+    })
+    expect(form.status).toBe(400)
+    expect(list.anyone).toBe(false)
   })
 
-  it('sends a sign-in back to the tab it came from, at the page’s own address', async () => {
-    const attempt = 'a'.repeat(32)
-    const response = await fetch(`${adminOrigin}/api/admin/signin?attempt=${attempt}&tab=access`)
-    const { url } = AdminSignInSchema.parse(await response.json())
-    const start = new URL(url)
-    expect(start.pathname).toBe('/v1/auth/start')
-    expect(start.searchParams.get('attempt')).toBe(attempt)
-    expect(start.searchParams.get('return')).toBe('https://pi.example.ts.net:4443/access')
-    expect((await fetch(`${adminOrigin}/api/admin/signin?attempt=nope&tab=access`)).status).toBe(
-      400,
-    )
+  it('says plainly when the doorman will not take the key', async () => {
+    process.env['SELFMP3_DOORMAN_ADMIN_TOKEN'] = 'w'.repeat(64)
+    const wrongHub = new Hub(loadConfig(), createLogger('silent'), null)
+    const wrong = http.createServer(createAdminApp(wrongHub))
+    const origin = await listen(wrong)
+    try {
+      const response = await fetch(`${origin}/api/admin/people`)
+      expect(response.status).toBe(424)
+      expect(ErrorBodySchema.parse(await response.json()).error).toMatch(/admin key/)
+      const data = AdminDataSchema.parse(await (await fetch(`${origin}/api/admin/data`)).json())
+      expect(data.doorman).toBeNull()
+      expect(data.doormanProblem).toMatch(/admin key/)
+    } finally {
+      process.env['SELFMP3_DOORMAN_ADMIN_TOKEN'] = KEY
+      await new Promise<void>(resolve => wrong.close(() => resolve()))
+      wrongHub.close()
+    }
   })
 
   it('adds what a device reports to the day’s totals, and keeps nothing else', async () => {
@@ -182,7 +243,10 @@ describe('the admin page', () => {
     ])
     expect(data.errors).toEqual([{ from: 'app', name: 'server-away', count: 2, lastDay: day }])
     expect(data.imports.byDay).toHaveLength(7)
+    expect(data.imports.medianByDay).toHaveLength(7)
     expect(data.plays).toHaveLength(7)
+    expect(data.doorman?.days[0]?.counts['reads.audio']).toBe(5)
+    expect(data.status.smart).toBe('off')
   })
 
   it('leaves the public port with the API alone: no page at all', async () => {

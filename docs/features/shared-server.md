@@ -235,17 +235,17 @@ device acts on, such as crossfade, stays on the device.
 
 The doorman decides, and the server takes its word. Its owners — the `OWNER_EMAILS` secret,
 set where the doorman is deployed — are always let in. Everyone else is on a list the owner
-keeps on the admin page's **Access** tab (`/v1/access`, `apps/doorman/src/access.ts`,
+keeps on the admin page's **People** tab (`/v1/access`, `apps/doorman/src/access.ts`,
 kept in KV; [admin.md](admin.md)), or the owner turns on **Anyone with a Google account**.
-Someone turned away is listed there for a week, with **Let in**. Taking someone off refuses their next request within a minute, and with it any
-server's grant for them: the server can no longer reach their bucket.
+Taking someone off refuses their next request within a minute, and with it any server's
+grant for them: the server can no longer reach their bucket.
 
 ## Cost and risk
 
 - **Anyone signed in may join.** Every import goes out from the server's address to YouTube,
   and every Smart feature runs on the server's model (`SELFMP3_AI_BASE_URL`,
   [ai.md](ai.md)). YouTube has blocked this home's IPv6 range before (yt-dlp now pins
-  IPv4). The doorman's allow list (the admin page's Access tab, owner only) and the Google
+  IPv4). The doorman's allow list (the admin page's People tab, owner only) and the Google
   OAuth app's publishing state are what decide who can sign in at all.
 - **The model is the owner's.** With cli-bridge as the endpoint, as on Xiao's Pi, every
   account's Smart features run on the Claude subscription signed in on the server.

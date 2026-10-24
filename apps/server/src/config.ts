@@ -163,6 +163,13 @@ const ConfigSchema = z.object({
     .default(null),
 
   /**
+   * The doorman's admin key (its ADMIN_TOKEN secret, the same value): what the
+   * admin page changes who can sign in and reads the doorman's counts with,
+   * through this server. Unset, the page shows only what the server counts.
+   */
+  doormanAdminToken: z.string().trim().min(32).nullable().default(null),
+
+  /**
    * Where the app you listen in is published: the server's page links there,
    * and a public address lets that site's origin call this server. The
    * project's own Pages site unless you publish your own build.
@@ -311,6 +318,7 @@ function readEnv(): unknown {
     appUrl: env['SELFMP3_APP_URL'] || undefined,
     adminPort: env['SELFMP3_ADMIN_PORT'] || undefined,
     adminUrl: env['SELFMP3_ADMIN_URL'] || undefined,
+    doormanAdminToken: env['SELFMP3_DOORMAN_ADMIN_TOKEN'] || undefined,
     // Resolved here rather than as schema defaults so a profile set by `.env`
     // (read just before this) chooses the folders too, not only one exported.
     ...resolveDirs(env),

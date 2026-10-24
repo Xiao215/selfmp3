@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DoormanStatsSchema } from './doorman.js'
 import type { ImportStep } from './import.js'
 
 /**
@@ -109,6 +110,8 @@ export const AdminDataSchema = z.object({
     held: z.array(DayCountSchema),
     /** Imports that worked only after a retry. */
     retried: z.number().int(),
+    /** The median time of the imports that worked, day by day; null on a day none did. */
+    medianByDay: z.array(z.object({ day: DaySchema, medianMs: z.number().int().nullable() })),
   }),
   /** Plays across every library here, by day. */
   plays: z.array(DayCountSchema),
@@ -127,43 +130,13 @@ export const AdminDataSchema = z.object({
       lastDay: DaySchema,
     }),
   ),
+  /** What the doorman counted over the same days; null when it could not be asked (`doormanProblem`). */
+  doorman: DoormanStatsSchema.nullable(),
+  doormanProblem: z.string().nullable(),
+  status: z.object({
+    smart: z.enum(['answering', 'not-answering', 'off']),
+    /** When the server may ask YouTube again, if it is holding off now. */
+    youtubeHeldUntil: z.string().nullable(),
+  }),
 })
 export type AdminData = z.infer<typeof AdminDataSchema>
-
-/** `GET /api/admin/server`, on the admin listener only. */
-export const AdminServerSchema = z.object({
-  version: z.string(),
-  uptimeSeconds: z.number().int(),
-  libraries: z.number().int(),
-  disk: z.object({ freeBytes: z.number(), totalBytes: z.number() }).nullable(),
-  memory: z.object({ usedBytes: z.number(), totalBytes: z.number() }),
-  smart: z.enum(['answering', 'not-answering', 'off']),
-  youtube: z.object({
-    /** When the server may ask YouTube again, if it is holding off now. */
-    heldUntil: z.string().nullable(),
-    /** When YouTube last asked it to slow down. */
-    lastHeldAt: z.string().nullable(),
-  }),
-  /**
-   * Where the page signs in and asks the doorman, with the paths it asks by
-   * (packages/shared's `DOORMAN_PATHS`, so the page never spells one itself).
-   * Null: this server has no doorman.
-   */
-  doorman: z
-    .object({
-      url: z.string(),
-      paths: z.object({
-        claim: z.string(),
-        me: z.string(),
-        access: z.string(),
-        accessRequests: z.string(),
-        stats: z.string(),
-      }),
-    })
-    .nullable(),
-})
-export type AdminServer = z.infer<typeof AdminServerSchema>
-
-/** `GET /api/admin/signin?attempt=…`: where to send the browser to sign in to the doorman. */
-export const AdminSignInSchema = z.object({ url: z.string() })
-export type AdminSignIn = z.infer<typeof AdminSignInSchema>

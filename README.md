@@ -315,6 +315,7 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
 | `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
 | `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |
+| `SELFMP3_DOORMAN_ADMIN_TOKEN` | none | The doorman's `ADMIN_TOKEN`, the same value: what the admin page changes who can sign in and reads the doorman's counts with |
 | `SELFMP3_LIBRARY_DIR` | `/app/library` in Docker; `~/Music/selfmp3` otherwise | The inbox: where an import lands until it is in the bucket. Each workspace has a folder of its own inside it |
 | `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
 | `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
@@ -331,7 +332,7 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_PUBLISH_ANYWAY` | `false` | Publish this server's library to the bucket as it stands, without taking on the bucket's first or refusing to replace a bigger one. An escape hatch ([SYNC.md](docs/SYNC.md)) |
 
 The bucket each account syncs with is connected in the app's Settings, and who may sign in
-at all is kept by the doorman's owner on the admin page's Access tab.
+at all is kept by the doorman's owner on the admin page's People tab.
 
 Day-to-day behaviour — crossfade, the watched folder, romanization, the smart features —
 lives in the app's Settings rather than in the environment.

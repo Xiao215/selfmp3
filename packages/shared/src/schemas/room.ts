@@ -339,7 +339,7 @@ export const ROOM_MAX_VECTORS = 2000
 export const ROOM_VECTORS_AT_ONCE = 300
 
 /** The parts of a song the doorman lends. */
-export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics', 'romanized'])
+export const RoomFilePartSchema = z.enum(['audio', 'cover', 'lyrics'])
 export type RoomFilePart = z.infer<typeof RoomFilePartSchema>
 
 export const RoomClientMessageSchema = z.object({ type: z.literal('ping'), id: z.number().int() })

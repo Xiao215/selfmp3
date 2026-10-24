@@ -137,18 +137,25 @@ export const CloudPlaysFileSchema = z.object({
 export type CloudPlaysFile = z.infer<typeof CloudPlaysFileSchema>
 
 export const CloudLyricsSchema = z.object({
+  /** The words file (`wordsKey`): the text and its romanized lines, as one read. */
   key: fileKey('lyrics'),
   size: z.number().int().nonnegative(),
   kind: z.enum(['plain', 'synced']),
-  /**
-   * The words' romanized lines — romaji or pinyin, one per line of the text,
-   * empty where a line needs none — as a JSON array beside them. Made on the
-   * server, which has the dictionaries, so every device shows what the server's own
-   * lyrics answer carries. Null when the words are not Chinese or Japanese.
-   */
-  romanized: fileKey('lyrics').nullable(),
 })
 export type CloudLyrics = z.infer<typeof CloudLyricsSchema>
+
+/**
+ * What a words file holds (`wordsKey`): the lyric text, as a sidecar holds it,
+ * and its romanized lines — romaji or pinyin, one per line of the text, empty
+ * where a line needs none. Made on the server, which has the dictionaries, so
+ * every device shows what the server's own lyrics answer carries. `romanized`
+ * is null when the words are not Chinese or Japanese.
+ */
+export const CloudWordsSchema = z.object({
+  text: z.string(),
+  romanized: z.array(z.string()).nullable(),
+})
+export type CloudWords = z.infer<typeof CloudWordsSchema>
 
 export const CloudSongSchema = z.object({
   uid: UidSchema,

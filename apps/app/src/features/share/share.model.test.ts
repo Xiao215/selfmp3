@@ -4,7 +4,6 @@ import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
   gettable,
   receivedLine,
-  romanizedLines,
   sentLine,
   sentLinksHint,
   shareFromLine,
@@ -181,16 +180,6 @@ describe('a share link’s songs', () => {
     ]
     const library = libraryIndex([{ id: 9, path: song(3).audio?.key ?? '' } as Song])
     expect(gettable(link({ entries }), library).map(entry => entry.id)).toEqual(['aaaaaaaaaaaa'])
-  })
-})
-
-describe('a lent song’s romanized lines', () => {
-  it('are a list of lines, or nothing', () => {
-    expect(romanizedLines('["ni hao", ""]')).toEqual(['ni hao', ''])
-    expect(romanizedLines(null)).toBeNull()
-    expect(romanizedLines('{"a":1}')).toBeNull()
-    expect(romanizedLines('[1]')).toBeNull()
-    expect(romanizedLines('not json')).toBeNull()
   })
 })
 

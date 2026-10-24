@@ -45,7 +45,6 @@ interface CloudRow {
   readonly lyrics_key: string | null
   readonly lyrics_size: number | null
   readonly lyrics_kind: string | null
-  readonly romanized_key: string | null
   readonly lyrics_sig: string
 }
 
@@ -133,12 +132,11 @@ export class SongMerge {
       if (keptCloud.lyrics_key === null && extraCloud.lyrics_key !== null) {
         db.prepare(
           `UPDATE cloud_songs SET lyrics_key = ?, lyrics_size = ?, lyrics_kind = ?,
-                  romanized_key = ?, lyrics_sig = ? WHERE song_id = ?`,
+                  lyrics_sig = ? WHERE song_id = ?`,
         ).run(
           extraCloud.lyrics_key,
           extraCloud.lyrics_size,
           extraCloud.lyrics_kind,
-          extraCloud.romanized_key,
           extraCloud.lyrics_sig,
           keptId,
         )
@@ -220,7 +218,7 @@ export class SongMerge {
     return (
       this.#db
         .prepare<[number], CloudRow>(
-          `SELECT cover_key, cover_size, lyrics_key, lyrics_size, lyrics_kind, romanized_key, lyrics_sig
+          `SELECT cover_key, cover_size, lyrics_key, lyrics_size, lyrics_kind, lyrics_sig
              FROM cloud_songs WHERE song_id = ?`,
         )
         .get(songId) ?? null

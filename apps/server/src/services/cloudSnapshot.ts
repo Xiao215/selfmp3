@@ -114,12 +114,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       coverTone: state.coverKey !== null ? song.coverTone : null,
       lyrics:
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? {
-              key: state.lyricsKey,
-              size: state.lyricsSize ?? 0,
-              kind: state.lyricsKind,
-              romanized: state.romanizedKey,
-            }
+          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
           : null,
       // The curve, once analysis has made one and it is up. Null before.
       motion: state.motionKey,

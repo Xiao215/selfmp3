@@ -377,7 +377,6 @@ export class CloudAdopt {
       lyricsKey: song.lyrics?.key ?? null,
       lyricsSize: song.lyrics?.size ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
-      romanizedKey: song.lyrics?.romanized ?? null,
       lyricsSig: song.lyrics ? tagsLyricsSignature(audioSig) : NO_FILE_SIGNATURE,
       motionKey: song.motion,
       motionSig: NO_FILE_SIGNATURE,

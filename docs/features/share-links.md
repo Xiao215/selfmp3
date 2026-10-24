@@ -221,7 +221,7 @@ POST /v1/share                       ShareCreate → ShareLink       signed in, 
 GET  /v1/share                                   → ShareSummary[] the links you sent
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
-GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics | romanized
+GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
 GET  /l/<id>/<key>                               a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget

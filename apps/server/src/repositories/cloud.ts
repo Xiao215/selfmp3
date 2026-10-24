@@ -42,8 +42,6 @@ export interface CloudSongState {
   readonly lyricsKey: string | null
   readonly lyricsSize: number | null
   readonly lyricsKind: CloudLyrics['kind'] | null
-  /** The words' romanized lines, uploaded beside them; null when they need none. */
-  readonly romanizedKey: string | null
   readonly lyricsSig: string
   /** The song's motion curve (`lyrics/<sha256>.json`), or null before analysis has made one. */
   readonly motionKey: string | null
@@ -127,7 +125,6 @@ const NAMED_KEYS = `
   SELECT audio_key AS key FROM cloud_songs
   UNION SELECT cover_key FROM cloud_songs WHERE cover_key IS NOT NULL
   UNION SELECT lyrics_key FROM cloud_songs WHERE lyrics_key IS NOT NULL
-  UNION SELECT romanized_key FROM cloud_songs WHERE romanized_key IS NOT NULL
   UNION SELECT motion_key FROM cloud_songs WHERE motion_key IS NOT NULL
   UNION SELECT banner_key FROM cloud_artists
   UNION SELECT portrait_key FROM cloud_artists
@@ -224,7 +221,6 @@ interface CloudSongRow {
   lyrics_key: string | null
   lyrics_size: number | null
   lyrics_kind: string | null
-  romanized_key: string | null
   lyrics_sig: string
   motion_key: string | null
   motion_sig: string
@@ -241,6 +237,8 @@ export class CloudRepository {
   readonly #states
   readonly #state
   readonly #saveState
+  readonly #oldWords
+  readonly #saveWords
   readonly #hasFile
   readonly #recordFile
   readonly #trashSong
@@ -289,11 +287,11 @@ export class CloudRepository {
     this.#saveState = db.prepare(`
       INSERT INTO cloud_songs (
         song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
-        lyrics_key, lyrics_size, lyrics_kind, romanized_key, lyrics_sig,
+        lyrics_key, lyrics_size, lyrics_kind, lyrics_sig,
         motion_key, motion_sig, uploaded_at
       ) VALUES (
         @songId, @audioKey, @audioSize, @audioSig, @coverKey, @coverSize, @coverSig,
-        @lyricsKey, @lyricsSize, @lyricsKind, @romanizedKey, @lyricsSig,
+        @lyricsKey, @lyricsSize, @lyricsKind, @lyricsSig,
         @motionKey, @motionSig, datetime('now')
       )
       ON CONFLICT (song_id) DO UPDATE SET
@@ -301,9 +299,19 @@ export class CloudRepository {
         audio_sig = excluded.audio_sig, cover_key = excluded.cover_key,
         cover_size = excluded.cover_size, cover_sig = excluded.cover_sig,
         lyrics_key = excluded.lyrics_key, lyrics_size = excluded.lyrics_size,
-        lyrics_kind = excluded.lyrics_kind, romanized_key = excluded.romanized_key,
-        lyrics_sig = excluded.lyrics_sig, motion_key = excluded.motion_key,
+        lyrics_kind = excluded.lyrics_kind, lyrics_sig = excluded.lyrics_sig,
+        motion_key = excluded.motion_key,
         motion_sig = excluded.motion_sig, uploaded_at = excluded.uploaded_at
+    `)
+    this.#oldWords = db.prepare<[], { song_id: number }>(`
+      SELECT song_id FROM cloud_songs
+       WHERE lyrics_key IS NOT NULL AND lyrics_key NOT LIKE 'lyrics/%.words'
+       ORDER BY song_id
+    `)
+    this.#saveWords = db.prepare(`
+      UPDATE cloud_songs
+         SET lyrics_key = @key, lyrics_size = @size, lyrics_kind = @kind, lyrics_sig = @sig
+       WHERE song_id = @songId
     `)
     this.#hasFile = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM cloud_files WHERE key = ?',
@@ -322,7 +330,6 @@ export class CloudRepository {
           SELECT audio_key AS key FROM cloud_songs WHERE song_id = @songId
           UNION SELECT cover_key FROM cloud_songs WHERE song_id = @songId
           UNION SELECT lyrics_key FROM cloud_songs WHERE song_id = @songId
-          UNION SELECT romanized_key FROM cloud_songs WHERE song_id = @songId
           UNION SELECT motion_key FROM cloud_songs WHERE song_id = @songId
         ) k
         LEFT JOIN cloud_files f ON f.key = k.key
@@ -535,15 +542,40 @@ export class CloudRepository {
       this.#saveState.run(state)
       if (!before) return
       this.#trashReplaced(
-        [
-          before.audio_key,
-          before.cover_key,
-          before.lyrics_key,
-          before.romanized_key,
-          before.motion_key,
-        ],
-        [state.audioKey, state.coverKey, state.lyricsKey, state.romanizedKey, state.motionKey],
+        [before.audio_key, before.cover_key, before.lyrics_key, before.motion_key],
+        [state.audioKey, state.coverKey, state.lyricsKey, state.motionKey],
       )
+    })()
+  }
+
+  /**
+   * Migration 44's songs: those whose words are still the text file sent
+   * before a song's words and romanized lines were one file (`wordsKey`).
+   */
+  songsWithOldWords(): number[] {
+    return this.#oldWords.all().map(row => row.song_id)
+  }
+
+  /**
+   * Record a song's words file, or that it has none, and the signature of
+   * what it was sent from; the file it named before goes in the trash.
+   */
+  saveWords(
+    songId: number,
+    words: { key: string; size: number; kind: CloudLyrics['kind'] } | null,
+    lyricsSig: string,
+  ): void {
+    this.#db.transaction(() => {
+      const before = this.#state.get(songId)
+      if (!before) return
+      this.#saveWords.run({
+        songId,
+        key: words?.key ?? null,
+        size: words?.size ?? null,
+        kind: words?.kind ?? null,
+        sig: lyricsSig,
+      })
+      this.#trashReplaced([before.lyrics_key], [words?.key ?? null])
     })()
   }
 
@@ -797,7 +829,7 @@ export class CloudRepository {
         .prepare(
           `SELECT COUNT(*) AS n FROM cloud_songs
             WHERE ${gone('audio_key')} OR ${gone('cover_key')} OR ${gone('lyrics_key')}
-               OR ${gone('romanized_key')} OR ${gone('motion_key')}`,
+               OR ${gone('motion_key')}`,
         )
         .get() as { n: number }
       this.#db.exec(
@@ -805,10 +837,8 @@ export class CloudRepository {
          UPDATE cloud_songs SET cover_key = NULL, cover_size = NULL, cover_sig = ''
           WHERE ${gone('cover_key')};
          UPDATE cloud_songs
-            SET lyrics_key = NULL, lyrics_size = NULL, lyrics_kind = NULL,
-                romanized_key = NULL, lyrics_sig = ''
+            SET lyrics_key = NULL, lyrics_size = NULL, lyrics_kind = NULL, lyrics_sig = ''
           WHERE ${gone('lyrics_key')};
-         UPDATE cloud_songs SET romanized_key = NULL, lyrics_sig = '' WHERE ${gone('romanized_key')};
          UPDATE cloud_songs SET motion_key = NULL, motion_sig = '' WHERE ${gone('motion_key')}`,
       )
       // An artist whose picture went is sent again too, and so are the sound
@@ -866,7 +896,6 @@ function toState(row: CloudSongRow): CloudSongState {
     lyricsSize: row.lyrics_size,
     lyricsKind:
       row.lyrics_kind === 'plain' || row.lyrics_kind === 'synced' ? row.lyrics_kind : null,
-    romanizedKey: row.romanized_key,
     lyricsSig: row.lyrics_sig,
     motionKey: row.motion_key,
     motionSig: row.motion_sig,

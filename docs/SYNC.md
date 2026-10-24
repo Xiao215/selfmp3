@@ -165,8 +165,7 @@ selfmp3/
   format.json                        which version of this layout the bucket uses
   audio/<sha256>.<ext>               the music. Never changes.
   covers/<sha256>.<ext>              cover art, and each artist's picture (banner and portrait). Never changes.
-  lyrics/<sha256>.lrc | .txt         lyrics, timed (.lrc) or plain (.txt). Never changes.
-  lyrics/<sha256>.json               the romanized lines (romaji, pinyin) of one lyric text. Never changes.
+  lyrics/<sha256>.words              one song's words and their romanized lines (romaji, pinyin), as JSON. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
   lyrics/<sha256>.plays              one month of plays: which song, when, for how long. Never changes.
@@ -285,10 +284,14 @@ nothing (an SSH tunnel to port 4600 is the way in on a server with no screen).
 The cloud sync service (`apps/server/src/services/cloudSync.ts`) goes through every song whose
 file is present and uploads what the bucket does not have: the audio, hashed as it is read and
 uploaded under its hash — skipped if the bucket already has that file — the cover, and the
-lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. Beside Chinese or
-Japanese lyrics go their romanized lines, a JSON list with one line per line of the words, made
-here (romaji needs a dictionary only the server has) and named in the snapshot's lyrics entry, so a
-device signed in to the cloud shows them exactly as a device talking to the server does.
+lyrics from the song's `.lrc`/`.txt` sidecar or else the audio file's own tags. The words go up
+as one JSON file, `{ text, romanized }` (`CloudWordsSchema`): the text as the sidecar holds it, and
+for Chinese or Japanese words their romanized lines, one per line of the text, made here (romaji
+needs a dictionary only the server has). One file, so a device reads a song's words with one call
+to the bucket rather than two, and shows them exactly as a device talking to the server does.
+Words sent before this were a `.lrc`/`.txt` file with the romanized lines in a `.json` beside it;
+migration 44 drops the second from `cloud_songs`, and the next pass puts each such song's words up
+again as one file (`#rewriteOldWords`), from the copy kept here or else the bucket.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is
@@ -560,8 +563,8 @@ edits and plays, and stays small. This is worth deciding again with that.
 in the bucket with no song naming them, and a server that lost its database leaves whatever
 it had not published. The pass that lists the bucket — the first after the server starts, and
 *Publish now* — leaves it to the first pass after it that reads every log (`#trashOrphans`),
-which puts in the trash each file in `audio/` and `lyrics/` (words, romanized lines, motion
-curves, sound vectors, months of plays) that:
+which puts in the trash each file in `audio/` and `lyrics/` (words, motion curves, sound
+vectors, months of plays) that:
 
 - no song, artist, sound vectors or month of plays here names, and nothing put in the trash
   already (`unnamedFiles` in `repositories/cloud.ts`);

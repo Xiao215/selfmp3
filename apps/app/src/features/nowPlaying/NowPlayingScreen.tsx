@@ -8,7 +8,7 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { HIT_TARGET, radius, space, type, withAlpha, iconSize, coverSize } from '@selfmp3/client'
+import { radius, space, type, withAlpha, iconSize } from '@selfmp3/client'
 import { useRoom } from '../room/room.store'
 import { RoomSheets } from '../room/RoomSheets'
 import { ShareSheet } from '../share/ShareSheet'
@@ -22,13 +22,14 @@ import { setStageExit } from '../../shell/stageExit'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, Info, Moon, More, UpNext } from '../../ui/components/Icons'
+import { HeadPill } from '../../ui/components/HeadPill'
 import { LikeButton } from '../../ui/components/LikeButton'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, label, rowTitle, heroTitle } from '../../ui/surfaces'
+import { artShadow, label, heroTitle } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
@@ -44,24 +45,24 @@ import { leaveTo, putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
 import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
 import { SongTagsLine } from './SongTagsLine'
-import { lyricsStatusText } from './stageLyrics.model'
 import { useNowPlayingSong } from './useNowPlayingSong'
 import { NowPlayingStage } from './NowPlayingStage'
 import {
   backdropVeil,
+  isVerticalPull,
   parseView,
   PAUSED_COVER_SCALE,
   swipeOutcome,
   type PhoneView,
 } from './nowPlaying.model'
 import { useShownScheme } from '../../ui/theme/unistyles'
-import { StageLyrics } from './StageLyrics'
 import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
 import { countUse } from '../usage/usage'
 import { useViewPresence, VIEW_TRAVEL } from './useViewPresence'
+import { LYRICS_GUIDE_STEPS, PhoneWordsBody, PhoneWordsHead } from './PhoneWords'
 import { TouchFlag } from '../../ui/touchFlag'
 
 /**
@@ -302,8 +303,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_event, gesture) =>
-        Math.abs(gesture.dy) > 12 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx) * 2 &&
+        isVerticalPull(gesture.dx, gesture.dy) &&
         (view === 'cover' || (gesture.dy > 0 && !fingerOnWords.on())),
       onPanResponderMove: (_event, gesture) =>
         pull.setValue(view === 'cover' ? gesture.dy : Math.max(0, gesture.dy)),
@@ -379,7 +379,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       {coverPresence.mounted ? (
         <Animated.View
           pointerEvents={view === 'cover' ? 'auto' : 'none'}
-          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, coverPresence.style]}
+          style={[styles.screen, styles.viewLayer, edges, coverPresence.style]}
         >
           <CoverView
             song={song}
@@ -402,7 +402,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
       {wordsPresence.mounted ? (
         <Animated.View
           pointerEvents={view === 'lyrics' ? 'auto' : 'none'}
-          style={[styles.screen, styles.viewLayer, styles.overBackdrop, edges, wordsPresence.style]}
+          style={[styles.screen, styles.viewLayer, edges, wordsPresence.style]}
         >
           <WordsView
             song={song}
@@ -438,14 +438,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         guide={lyricsGuide}
         at={{ x: 0.5, y: 0.72 }}
         radius={18}
-        steps={[
-          {
-            gesture: 'swipe-up',
-            text: 'Swipe up for lyrics',
-            sub: 'Or tap the cover',
-            distance: 90,
-          },
-        ]}
+        steps={LYRICS_GUIDE_STEPS}
       />
     </Animated.View>
   )
@@ -511,18 +504,13 @@ function CoverView({
           <TaggingLine line={tagging.line} onStop={tagging.stop} center />
         ) : sleep.line !== null ? (
           <View style={styles.headMiddle}>
-            <Press
+            <HeadPill
+              lead={<Moon size={iconSize.field} color={theme.colors.accent} />}
+              text={sleep.line}
+              label={`Sleep timer: ${sleep.line}`}
               onPress={onSleep}
-              accessibilityRole="button"
-              accessibilityLabel={`Sleep timer: ${sleep.line}`}
               testID="now-playing-sleep"
-              style={({ pressed }) => [styles.sleepPill, pressed && styles.sleepPillPressed]}
-            >
-              <Moon size={iconSize.field} color={theme.colors.accent} />
-              <Text style={styles.sleepText} numberOfLines={1}>
-                {sleep.line}
-              </Text>
-            </Press>
+            />
           </View>
         ) : inRoom ? (
           <View style={styles.headMiddle}>
@@ -760,52 +748,24 @@ function WordsView({
   fingerOnWords: TouchFlag
 }): ReactNode {
   const { theme } = useUnistyles()
-  // The app's own width, not the window's (`shell/rootWidth.ts`).
-  const { width } = useLayout()
-  const words = lyrics.words
-  const fontSize = Math.min(28, Math.max(22, width * 0.064))
 
   return (
     <View style={styles.wordsView} testID="now-playing-lyrics-view">
-      <View style={styles.wordsHead}>
-        <IconButton onPress={onBack} label="Back to the cover" filled>
-          <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
-        </IconButton>
-        <Cover uri={uri} title={song.album || song.title} size={coverSize.rowDense} />
-        <View style={styles.wordsTitles}>
-          <Text style={styles.wordsTitle} numberOfLines={1}>
-            {song.title}
-          </Text>
-          <Text style={styles.wordsArtist} numberOfLines={1}>
-            {artistOr(song.artist)}
-          </Text>
-        </View>
-        {canRomanize(lyrics) ? (
-          <RomanizeButton lyrics={lyrics} />
-        ) : noLyrics ? (
-          <FindLyricsButton onPress={lyrics.lookAgain} />
-        ) : null}
-      </View>
-
-      <View
-        style={styles.words}
-        // Raw touches reach the view they landed in whoever holds the
-        // gesture, so this is told of the lift even after the list has it.
-        onTouchStart={() => fingerOnWords.set(true)}
-        onTouchEnd={() => fingerOnWords.set(false)}
-        onTouchCancel={() => fingerOnWords.set(false)}
-      >
-        {words.status === 'lyrics' ? (
-          <StageLyrics
-            parsed={words.parsed}
-            roman={words.roman}
-            focus={false}
-            fontSize={fontSize}
-          />
-        ) : (
-          <Text style={styles.wordsStatus}>{lyricsStatusText(words)}</Text>
-        )}
-      </View>
+      <PhoneWordsHead
+        title={song.title}
+        artist={artistOr(song.artist)}
+        cover={uri}
+        coverTitle={song.album || song.title}
+        onBack={onBack}
+        tool={
+          canRomanize(lyrics) ? (
+            <RomanizeButton lyrics={lyrics} />
+          ) : noLyrics ? (
+            <FindLyricsButton onPress={lyrics.lookAgain} />
+          ) : null
+        }
+      />
+      <PhoneWordsBody words={lyrics.words} fingerOnWords={fingerOnWords} style={styles.words} />
 
       <View style={styles.progress}>
         <SeekBar color={theme.colors.textPrimary} />
@@ -831,12 +791,7 @@ const COVER_MOST = 520
 
 const styles = StyleSheet.create(theme => ({
   shell: { flex: 1 },
-  screen: {
-    flex: 1,
-    backgroundColor: theme.colors.surface0,
-    paddingHorizontal: space.lg,
-  },
-  overBackdrop: { backgroundColor: 'transparent' },
+  screen: { flex: 1 },
   // The page's two views are laid one over the other while they pass, so neither
   // takes its place in a column with the other.
   viewLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -885,22 +840,6 @@ const styles = StyleSheet.create(theme => ({
   // Two of the head's round buttons and the gap between them.
   headSide: { width: 40 * 2 + space.sm, flexDirection: 'row', gap: space.sm },
   headSideEnd: { justifyContent: 'flex-end' },
-  sleepPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.tight,
-    minHeight: 32,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-    // The round buttons' own fill either side of it, so it reads on any song's colour.
-    backgroundColor: theme.colors.surface2,
-  },
-  sleepPillPressed: { backgroundColor: theme.colors.surface3 },
-  sleepText: {
-    color: theme.colors.textPrimary,
-    fontSize: type.small,
-    fontWeight: '600',
-  },
   // The song's name is the display face, which carries its own weight.
   title: heroTitle(theme.colors, 'large'),
   artist: {
@@ -921,31 +860,10 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.xl,
   },
   wordsView: { flex: 1, minHeight: 0 },
-  wordsHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    paddingTop: space.sm,
-    minHeight: HIT_TARGET + space.sm,
-  },
-  wordsTitles: { flex: 1, minWidth: 0, gap: 1 },
-  wordsTitle: rowTitle(theme.colors),
-  wordsArtist: {
-    color: theme.colors.textSecondary,
-    fontSize: type.small,
-  },
   words: {
-    flex: 1,
-    minHeight: 0,
     marginTop: space.md,
     marginHorizontal: -space.lg,
     paddingHorizontal: space.lg - 6,
-  },
-  wordsStatus: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    textAlign: 'center',
-    marginTop: 40,
   },
   // The shell's toast row, at the foot of the page, which has no chrome to sit above.
   toasts: {

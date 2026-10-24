@@ -6,20 +6,19 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   DoormanError,
   plural,
+  type CoverTone,
   RoomMemberNameSchema,
   ShareIdSchema,
   ShareKeySchema,
   type ShareLink,
 } from '@selfmp3/shared'
 import {
-  libraryIndex,
   neutralWash,
   radius,
   roomTrackId,
   roomTrackSong,
   space,
   type,
-  useLibrary,
   withAlpha,
   yoursOf,
 } from '@selfmp3/client'
@@ -27,10 +26,13 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
 import { setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { artShadow, heroTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
+import { useShownScheme } from '../../ui/theme/unistyles'
+import { backdropVeil } from '../nowPlaying/nowPlaying.model'
 import { BackButton } from '../../ui/components/BackButton'
 import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
@@ -40,8 +42,10 @@ import { Press } from '../../ui/components/Press'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TextField } from '../../ui/components/TextField'
+import { useLibraryIndex } from '../../ui/songsById'
 import { RoomEntryLine } from '../room/RoomEntryLine'
 import { FacesCover, RoomFace } from '../room/RoomFace'
+import { GUEST_NAME_KEY } from '../room/room.model'
 import { sayRoomFailure } from '../room/roomFailure'
 import { useGetSongs } from '../room/useGetSongs'
 import { GoneLink } from './GoneLink'
@@ -50,9 +54,6 @@ import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
-
-/** The name a guest last gave, offered again: the one a room's guest gave. */
-const GUEST_NAME_KEY = 'room.name'
 
 /** The links this device asked for again while signed out: a guest's ask is remembered here. */
 const ASKED_KEY = 'share.asked'
@@ -112,22 +113,24 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const signedIn = status === 'ready'
   const player = usePlayerCommands()
   const playing = usePlayingSongId()
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   // The clock moves on while the page is open: the last day, and the end, arrive by themselves.
   const now = useMinute()
   const stage = shareStage(link, now)
+  const ended = stage === 'ended'
   const getSongs = useGetSongs({ enabled: signedIn && !link.yours })
   const { wide, width } = useLayout()
 
   // Its songs as tracks, for their covers now and for playing them; kept
-  // while anything plays them, so they are not taken from under the player.
+  // while anything plays them, so they are not taken from under the player,
+  // as a shared playlist's are. Built again when the link ends, not with
+  // every minute the clock moves on.
   useEffect(() => {
     setTrackSource(
       `share:${link.id}`,
-      shareTracks(link, (entryId, part) => shareApi.fileUrl(link, entryId, part), index, now),
+      shareTracks(link, (entryId, part) => shareApi.fileUrl(link, entryId, part), index, !ended),
     )
-  }, [link, index, now])
+  }, [link, index, ended])
 
   const entries = link.entries.filter(entry => !entry.gone)
   const ids = entries.map(entry => roomTrackId(entry.id))
@@ -138,7 +141,6 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
     entry.song.cover ? shareApi.fileUrl(link, entry.id, 'cover') : null
   const cover = first ? coverOf(first) : null
   const toGet = gettable(link, index)
-  const ended = stage === 'ended'
   const source = first?.song.sourceUrl ?? null
   const head = shareHeadLine(link, now)
   const loaded = link.kind === 'song' && playing === firstId
@@ -210,7 +212,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
 
   return (
     <View style={styles.screen}>
-      <Backdrop color={wash} art={ended ? null : cover} />
+      <Backdrop color={wash} art={ended ? null : cover} tone={tone} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         {link.kind === 'song' && first && lead && !ended ? (
           <ShareSong
@@ -226,17 +228,12 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             from={from}
             ways={ways}
             foot={foot}
-            inApp={signedIn}
             wordsOpen={wordsOpen}
             onWords={setWordsOpen}
           />
         ) : (
           <ScrollView
-            contentContainerStyle={[
-              styles.page,
-              wide && styles.pageWide,
-              signedIn && styles.pageInApp,
-            ]}
+            contentContainerStyle={[styles.page, wide && styles.pageWide]}
             testID="share-link"
           >
             {back}
@@ -310,6 +307,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             ) : null}
 
             {foot}
+            <ChromeSpacer />
           </ScrollView>
         )}
       </SafeAreaView>
@@ -321,14 +319,28 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
  * The page's ground, as the phone's Now Playing draws its own: the cover's
  * colour, the cover itself blurred over it, and the ground laid over both so
  * the words read. Without a cover, or once the link has ended, the colour alone.
+ * The veil is Now Playing's (`backdropVeil`): thicker over a cover close to
+ * the theme's own text, so a pale cover under the dark theme still reads.
  */
-function Backdrop({ color, art }: { color: string; art: string | null }): ReactNode {
+function Backdrop({
+  color,
+  art,
+  tone,
+}: {
+  color: string
+  art: string | null
+  tone: CoverTone | null
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const scheme = useShownScheme()
+  // Over the colour alone there is no cover to read past: the veil a far cover gets.
+  const veil = backdropVeil(art ? tone : null, scheme, 0.56)
   return (
     <View pointerEvents="none" style={[styles.fill, { backgroundColor: color }]}>
       {art ? (
         <Image source={{ uri: art }} blurRadius={60} resizeMode="cover" style={styles.fill} />
       ) : null}
-      <View style={[styles.fill, styles.veil]} />
+      <View style={[styles.fill, { backgroundColor: withAlpha(theme.colors.surface0, veil) }]} />
     </View>
   )
 }
@@ -477,8 +489,6 @@ const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   safe: { flex: 1 },
   fill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
-  // Now Playing's veil on a phone, so the page reads the same under its words.
-  veil: { backgroundColor: withAlpha(theme.colors.surface0, 0.56) },
   page: {
     width: '100%',
     maxWidth: PAGE_WIDTH,
@@ -489,8 +499,6 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 1,
   },
   pageWide: { paddingTop: space.gutterWide },
-  // Signed in, the app's mini player sits over the page's foot.
-  pageInApp: { paddingBottom: 120 },
   from: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   fromText: { ...lineSub(theme.colors), flex: 1, minWidth: 0 },
   warn: { color: theme.colors.warning },

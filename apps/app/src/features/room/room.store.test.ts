@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   kind: 'wifi' as 'wifi' | 'cellular',
   mode: 'everyone' as 'everyone' | 'speaker',
   toasts: [] as string[],
+  /** What the doorman answers each action with, in turn; anything past them is refused. */
+  answers: [] as Promise<unknown>[],
 }))
 
 vi.mock('../../ports/prefs', () => ({
@@ -35,6 +37,7 @@ vi.mock('@selfmp3/client', async importActual => ({
       state: { code: PASS.code, you: PASS.member, mode: mocks.mode, members: [] },
     }),
     state: () => new Promise(() => undefined),
+    act: () => mocks.answers.shift() ?? Promise.reject(new Error('no answer')),
   }),
 }))
 
@@ -62,6 +65,9 @@ class FakeSocket {
     this.readyState = FakeSocket.OPEN
     this.onopen?.()
   }
+  gone(): void {
+    this.onmessage?.({ data: JSON.stringify({ type: 'gone', reason: 'ended' }) })
+  }
   pong(): void {
     const ping = this.sent.at(-1)
     if (ping)
@@ -87,6 +93,7 @@ describe('the room’s line', () => {
     mocks.kind = 'wifi'
     mocks.mode = 'everyone'
     mocks.toasts.length = 0
+    mocks.answers.length = 0
   })
   afterEach(async () => {
     await store.leaveRoom()
@@ -134,6 +141,28 @@ describe('the room’s line', () => {
     expect(mocks.toasts).toEqual([
       'You’re on mobile data. A room streams every song, about 5 MB each.',
     ])
+  })
+
+  it('keeps a newer room over the answer to an older action', async () => {
+    await inRoom()
+    const older = Promise.withResolvers<unknown>()
+    mocks.answers.push(older.promise, Promise.resolve({ code: PASS.code, serverTime: 200 }))
+    const first = store.roomAct({ type: 'skip' })
+    await store.roomAct({ type: 'skip' })
+    expect(store.currentRoom().state?.serverTime).toBe(200)
+    // The first action's answer lands last, from before the second.
+    older.resolve({ code: PASS.code, serverTime: 100 })
+    await first
+    expect(store.currentRoom().state?.serverTime).toBe(200)
+  })
+
+  it('does not finish the room joined after the one that said it was gone', async () => {
+    const socket = await inRoom()
+    socket.gone()
+    await store.leaveRoom()
+    await inRoom()
+    vi.advanceTimersByTime(300)
+    expect(store.currentRoom().pass).not.toBeNull()
   })
 
   it('says nothing to a remote, in a room that plays on one speaker', async () => {

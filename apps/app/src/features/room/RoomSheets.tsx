@@ -37,7 +37,7 @@ import {
   roomTitle,
   startingSongs,
 } from './room.model'
-import { closeRoomSheet, useRoomSheet, useRoomStart } from './roomSheets.store'
+import { closeRoomSheet, useRoomSheetOpen, useRoomStart } from './roomSheets.store'
 import { ArrivalRing, useRoomMoves, type RoomMoves } from './roomMotion'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { devicePlace } from '../settings/settings.model'
@@ -55,6 +55,7 @@ import {
   useRoom,
 } from './room.store'
 import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
+import { nameToJoinWith } from '../shared/shared.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 
@@ -78,11 +79,11 @@ function useGo(): (href: Href) => void {
  * again inside the phone's Now Playing (with `go`), which covers the shell.
  */
 export function RoomSheets({ go = null }: { go?: ((href: Href) => void) | null }): ReactNode {
-  const open = useRoomSheet()
+  const open = useRoomSheetOpen()
   const { state } = useRoom()
   return (
     <RoomGo.Provider value={go}>
-      <TogetherSheet open={open === 'together'} state={state} />
+      <TogetherSheet open={open} state={state} />
     </RoomGo.Provider>
   )
 }
@@ -196,7 +197,7 @@ function Start(): ReactNode {
       noteRoomOpened()
       // It plays here to begin with (P1): where it plays is the room's to
       // change once it is open, as Devices changes it.
-      await startRoom({ name: firstName(me.name, me.email), mode: 'speaker' })
+      await startRoom({ name: nameToJoinWith(me), mode: 'speaker' })
       if (start.kind === 'playing' && songs.length > 0) {
         // What is here stays: the song playing goes in first, as yours, and
         // carries on from where it was.
@@ -224,7 +225,7 @@ function Start(): ReactNode {
       {/* Your face and what a room is (S1): nothing here looks pressable that is not. */}
       <View style={styles.startHead}>
         <RoomFace
-          name={me ? firstName(me.name, me.email) : 'You'}
+          name={me ? nameToJoinWith(me) : 'You'}
           colour={0}
           picture={me?.picture ?? null}
           size={START_FACE}
@@ -327,11 +328,6 @@ function JoinByCode({ autoFocus = false }: { autoFocus?: boolean }): ReactNode {
       action={<Button label="Join" disabled={!valid} onPress={join} testID="room-code-join" />}
     />
   )
-}
-
-function firstName(name: string | null, email: string): string {
-  const given = name?.trim().split(/\s+/)[0]
-  return (given || email.split('@')[0] || 'Me').slice(0, 40)
 }
 
 // --- The room ----------------------------------------------------------------------
@@ -463,15 +459,23 @@ function PlaysOn({ state }: { state: RoomState }): ReactNode {
   )
 }
 
+/**
+ * Hand the room's invite to the share sheet, or copy it where there is none
+ * and say so: the code card's Share and the Invite seat both.
+ */
+async function shareInvite(state: RoomState): Promise<void> {
+  const how = await shareLink(
+    `Listen with me in ${roomTitle(state)}`,
+    inviteLink(appAddress(), state.code),
+  )
+  if (how === 'copied') showToast('Invite link copied', 'good')
+}
+
 /** The code, its QR for a friend across the table, and Share. */
 function Invite({ state, moves }: { state: RoomState; moves: RoomMoves | null }): ReactNode {
   const { theme } = useUnistyles()
   const link = inviteLink(appAddress(), state.code)
   const code = formatRoomCode(state.code)
-  const share = async (): Promise<void> => {
-    const how = await shareLink(`Listen with me in ${roomTitle(state)}`, link)
-    if (how === 'copied') showToast('Invite link copied', 'good')
-  }
   return (
     <View style={styles.codeCard}>
       <RoomQr text={link} size={88} />
@@ -493,7 +497,7 @@ function Invite({ state, moves }: { state: RoomState; moves: RoomMoves | null })
             label="Share"
             variant="primary"
             icon={<ShareOut color={theme.colors.onPrimary} />}
-            onPress={() => void share()}
+            onPress={() => void shareInvite(state)}
             testID="room-share"
           />
         </View>
@@ -517,7 +521,6 @@ function People({
   onPick?: (member: RoomState['members'][number]) => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const link = inviteLink(appAddress(), state.code)
   const people = peopleHere(state)
   // Who was here as the sheet opened: anyone else came in while it was up.
   const [here] = useState(() => new Set(people.map(member => member.id)))
@@ -572,17 +575,13 @@ function People({
         })}
         <Press
           feedback="dim"
-          onPress={() =>
-            void shareLink(`Listen with me in ${roomTitle(state)}`, link).then(how => {
-              if (how === 'copied') showToast('Invite link copied', 'good')
-            })
-          }
+          onPress={() => void shareInvite(state)}
           accessibilityRole="button"
           accessibilityLabel="Invite someone"
           style={styles.person}
           testID="room-invite-seat"
         >
-          <View style={[styles.seat, styles.personSeat]}>
+          <View style={styles.seat}>
             <Plus size={iconSize.small} color={theme.colors.textMuted} />
           </View>
           <Text style={styles.personName}>Invite</Text>
@@ -701,7 +700,6 @@ const styles = StyleSheet.create(theme => ({
   people: { flexDirection: 'row', gap: space.md, paddingVertical: space.xs },
   person: { width: PERSON_FACE + space.md, alignItems: 'center', gap: space.xs },
   personFace: { width: PERSON_FACE, height: PERSON_FACE },
-  personSeat: { width: PERSON_FACE, height: PERSON_FACE },
   personName: { maxWidth: '100%', color: theme.colors.textSecondary, fontSize: type.small },
   away: { opacity: 0.45 },
   ring: {

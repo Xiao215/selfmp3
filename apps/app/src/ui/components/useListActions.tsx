@@ -151,8 +151,7 @@ export function useListActions(
               icon: <People tone="textSecondary" />,
               disabled: nothing,
               testID: 'list-together',
-              onPress: () =>
-                openRoomSheet('together', { kind: 'songs', name: togetherAs, songIds }),
+              onPress: () => openRoomSheet({ kind: 'songs', name: togetherAs, songIds }),
             },
           ]
       : []),

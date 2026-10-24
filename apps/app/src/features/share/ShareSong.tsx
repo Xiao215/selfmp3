@@ -5,23 +5,28 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { artistOr, type RoomSong, type Song } from '@selfmp3/shared'
-import { coverSize, fonts, iconSize, radius, space, type } from '@selfmp3/client'
+import { fonts, radius, space, type } from '@selfmp3/client'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 import { canRomanize, RomanizeButton } from '../nowPlaying/LyricsTools'
-import { stageGeometry, swipeOutcome } from '../nowPlaying/nowPlaying.model'
+import {
+  isVerticalPull,
+  stageGeometry,
+  swipeOutcome,
+  TOOLS_CLEARANCE,
+} from '../nowPlaying/nowPlaying.model'
+import { LYRICS_GUIDE_STEPS, PhoneWordsBody, PhoneWordsHead } from '../nowPlaying/PhoneWords'
 import { SongVisual } from '../nowPlaying/SongVisual'
 import { StageLyrics } from '../nowPlaying/StageLyrics'
 import { lyricsStatusText } from '../nowPlaying/stageLyrics.model'
 import { useMotionSampler } from '../nowPlaying/useMotionSampler'
 import { useViewPresence, VIEW_TRAVEL } from '../nowPlaying/useViewPresence'
 import type { SongLyrics } from '../nowPlaying/useSongWords'
+import { useBottomInset } from '../../shell/bottomInset'
 import { useLayout, useWindowValue } from '../../shell/useLayout'
 import { PULL } from '../../ui/motion.model'
-import { artShadow, heroTitle, rowTitle, textColumn } from '../../ui/surfaces'
+import { artShadow, heroTitle } from '../../ui/surfaces'
 import { Cover } from '../../ui/components/Cover'
-import { IconButton } from '../../ui/components/IconButton'
-import { ChevronDown } from '../../ui/components/Icons'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { Press } from '../../ui/components/Press'
 import { SeekBar } from '../../ui/components/SeekBar'
@@ -37,13 +42,9 @@ const TRANSPORT_ROOM = 120
 const STAGE_HEAD = 60
 /** From the head to the cover, as Now Playing's `COVER_TOP` is past its head. */
 const STAGE_COVER_GAP = 24
-/** Room at the words' right edge for the Romaji pill, as Now Playing keeps. */
-const TOOLS_CLEARANCE = 96
 
 /** Everything on the phone's cover view but the cover, for the cover to fit the screen beside. */
 const PHONE_ROOM = 320
-/** Signed in, the app's mini player sits over the page's foot. */
-const IN_APP_ROOM = 120
 const PHONE_COVER_LEAST = 160
 const PHONE_COVER_MOST = 420
 
@@ -68,8 +69,6 @@ interface SongProps {
   ways: ReactNode
   /** What self.mp3 is, signed out. */
   foot: ReactNode
-  /** Signed in: the app's bar sits over the page's foot. */
-  inApp: boolean
   /** The phone's words over its cover. */
   wordsOpen: boolean
   onWords: (open: boolean) => void
@@ -87,16 +86,19 @@ export function ShareSong(props: SongProps): ReactNode {
 }
 
 /**
- * The bar, held at the start and still until the song is loaded, so nothing
- * moves when it plays.
+ * Whether a link's song is laid out as the stage: a computer's width, not a
+ * page taller than it is wide (an iPad in portrait), which is a phone's.
  */
-/** Whether a link's song is laid out as the stage: a computer's width, not a page taller than it is wide (an iPad in portrait), which is a phone's. */
 export function useShareStage(): boolean {
   const { wide, width } = useLayout()
   const height = useWindowValue(window => window.height)
   return wide && !stageGeometry(width, height).stacked
 }
 
+/**
+ * The bar, held at the start and still until the song is loaded, so nothing
+ * moves when it plays.
+ */
 function Seek({ song, loaded }: { song: RoomSong; loaded: boolean }): ReactNode {
   const { theme } = useUnistyles()
   return (
@@ -130,7 +132,7 @@ function bylineOf(song: RoomSong): string {
  * Playing's does (`C10`), so the page is laid out the same either way.
  */
 function SongStage(props: SongProps): ReactNode {
-  const { song, track, cover, lyrics, lent, loaded, back, from, ways, foot, inApp } = props
+  const { song, track, cover, lyrics, lent, loaded, back, from, ways, foot } = props
   const { theme } = useUnistyles()
   const layout = useLayout()
   const windowHeight = useWindowValue(window => window.height)
@@ -174,13 +176,7 @@ function SongStage(props: SongProps): ReactNode {
         {from}
       </View>
 
-      <View
-        style={[
-          styles.stageBody,
-          sides,
-          { gap: geometry.gutter, paddingBottom: inApp ? IN_APP_ROOM : space.xl },
-        ]}
-      >
+      <View style={[styles.stageBody, sides, { gap: geometry.gutter }]}>
         <View style={[styles.side, { width: geometry.cover }]}>
           <View style={styles.art}>
             <Cover uri={cover} title={song.title} size={geometry.cover} />
@@ -255,12 +251,14 @@ function SongStage(props: SongProps): ReactNode {
  * only the cover and the words pass each other and the controls never move.
  */
 function SongPhone(props: SongProps): ReactNode {
-  const { song, cover, lyrics, lent, loaded, back, from, ways, foot, inApp } = props
+  const { song, cover, lyrics, lent, loaded, back, from, ways, foot } = props
   const { wordsOpen, onWords } = props
-  const { theme } = useUnistyles()
   const { width } = useLayout()
   const height = useWindowValue(window => window.height)
   const insets = useSafeAreaInsets()
+  // Whatever of the app floats over the page's foot: nothing while the link's
+  // page owns the display, as it does now (`pageChrome.ts`).
+  const chrome = useBottomInset()
   const words = lyrics.words
   // As big as the screen allows with Play still on it.
   const side = Math.max(
@@ -268,7 +266,7 @@ function SongPhone(props: SongProps): ReactNode {
     Math.min(
       width - space.gutter * 2,
       PHONE_COVER_MOST,
-      height - insets.top - insets.bottom - PHONE_ROOM - (inApp ? IN_APP_ROOM : 0),
+      height - insets.top - insets.bottom - PHONE_ROOM - chrome,
     ),
   )
 
@@ -284,8 +282,7 @@ function SongPhone(props: SongProps): ReactNode {
       PanResponder.create({
         onMoveShouldSetPanResponder: (_event, gesture) =>
           lent &&
-          Math.abs(gesture.dy) > 12 &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx) * 2 &&
+          isVerticalPull(gesture.dx, gesture.dy) &&
           (wordsOpen ? gesture.dy > 0 && !fingerOnWords.on() : gesture.dy < 0),
         onPanResponderRelease: (_event, gesture) => {
           const outcome = swipeOutcome({
@@ -309,7 +306,7 @@ function SongPhone(props: SongProps): ReactNode {
   )
 
   return (
-    <View style={[styles.phone, inApp && styles.phoneInApp]} {...pan.panHandlers}>
+    <View style={[styles.phone, chrome > 0 && { paddingBottom: chrome }]} {...pan.panHandlers}>
       <View style={styles.phoneViews}>
         {coverView.mounted ? (
           <Animated.View
@@ -348,41 +345,20 @@ function SongPhone(props: SongProps): ReactNode {
             style={[styles.layer, styles.phonePage, styles.wordsPage, wordsView.style]}
             testID="share-words"
           >
-            <View style={styles.wordsHead}>
-              <IconButton onPress={() => onWords(false)} label="Back to the cover" filled>
-                <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
-              </IconButton>
-              <Cover uri={cover} title={song.title} size={coverSize.rowDense} />
-              <View style={textColumn}>
-                <Text style={styles.wordsTitle} numberOfLines={1}>
-                  {song.title}
-                </Text>
-                <Text style={styles.wordsArtist} numberOfLines={1}>
-                  {artistOr(song.artist)}
-                </Text>
-              </View>
-              {canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
-            </View>
-            <View
+            <PhoneWordsHead
+              title={song.title}
+              artist={artistOr(song.artist)}
+              cover={cover}
+              coverTitle={song.title}
+              onBack={() => onWords(false)}
+              tool={canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
+            />
+            <PhoneWordsBody
+              words={words}
+              fingerOnWords={fingerOnWords}
+              still={!loaded}
               style={styles.words}
-              // Raw touches reach the view they landed in whoever holds the
-              // gesture, so this hears the lift even after the list has it.
-              onTouchStart={() => fingerOnWords.set(true)}
-              onTouchEnd={() => fingerOnWords.set(false)}
-              onTouchCancel={() => fingerOnWords.set(false)}
-            >
-              {words.status === 'lyrics' ? (
-                <StageLyrics
-                  parsed={words.parsed}
-                  roman={words.roman}
-                  focus={false}
-                  fontSize={Math.min(28, Math.max(22, width * 0.064))}
-                  still={!loaded}
-                />
-              ) : (
-                <Text style={styles.wordsStatus}>{lyricsStatusText(words)}</Text>
-              )}
-            </View>
+            />
           </Animated.View>
         ) : null}
       </View>
@@ -396,19 +372,7 @@ function SongPhone(props: SongProps): ReactNode {
       </View>
       <View style={styles.phoneFoot}>{foot}</View>
 
-      <Guide
-        guide={guide}
-        at={{ x: 0.5, y: 0.72 }}
-        radius={18}
-        steps={[
-          {
-            gesture: 'swipe-up',
-            text: 'Swipe up for lyrics',
-            sub: 'Or tap the cover',
-            distance: 90,
-          },
-        ]}
-      />
+      <Guide guide={guide} at={{ x: 0.5, y: 0.72 }} radius={18} steps={LYRICS_GUIDE_STEPS} />
     </View>
   )
 }
@@ -454,7 +418,13 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.md,
   },
-  stageBody: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch' },
+  stageBody: {
+    flex: 1,
+    minHeight: 0,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingBottom: space.xl,
+  },
   side: { paddingTop: STAGE_COVER_GAP, gap: space.lg },
   stageNames: { gap: space.xs, marginTop: space.sm },
   // The display face, which carries its own weight: never bold it.
@@ -480,24 +450,15 @@ const styles = StyleSheet.create(theme => ({
   phoneControls: { alignSelf: 'center', gap: space.sm, paddingTop: space.md },
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   phonePage: { paddingHorizontal: space.gutter, paddingTop: space.gutter },
-  phoneInApp: { paddingBottom: IN_APP_ROOM },
   phoneColumn: { alignSelf: 'center', gap: space.lg },
   phoneNames: { gap: space.xs },
   phoneTitle: heroTitle(theme.colors, 'page'),
   phoneByline: { color: theme.colors.textSecondary, fontSize: type.body },
   phonePlay: { alignItems: 'center' },
   phoneFoot: { alignItems: 'center', paddingTop: space.md },
-  wordsPage: { paddingTop: space.md },
-  wordsHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  wordsTitle: rowTitle(theme.colors),
-  wordsArtist: { color: theme.colors.textSecondary, fontSize: type.small },
+  // With the head's own top, the page's: the cover view's is the gutter.
+  wordsPage: { paddingTop: space.xs },
   // Past the page's sides, as Now Playing's words are, so a line's press wash has room.
-  words: { flex: 1, minHeight: 0, marginTop: space.lg, marginHorizontal: -space.gutter },
-  wordsStatus: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    textAlign: 'center',
-    marginTop: 40,
-  },
+  words: { marginTop: space.lg, marginHorizontal: -space.gutter },
   still: { gap: space.lg },
 }))

@@ -24,6 +24,12 @@ import type { RoomStart } from './roomSheets.store'
  * packages/shared's room.ts; this is the device's side of them.
  */
 
+/**
+ * The name a guest last gave, offered again: by a room's Join, and by a
+ * share link's page, which asks for the same name.
+ */
+export const GUEST_NAME_KEY = 'room.name'
+
 // --- people ---------------------------------------------------------------------
 
 export function memberOf(state: RoomState, id: string | null): RoomMember | undefined {

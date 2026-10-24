@@ -218,13 +218,14 @@ describe('a share link’s songs', () => {
 
   it('play from the lent file, or your own copy, and only while the link lasts', () => {
     const library = libraryIndex([{ id: 7, path: song(1).audio?.key ?? '' } as Song])
-    const tracks = shareTracks(link(), file, library, NOW)
+    const tracks = shareTracks(link(), file, library, shareStage(link(), NOW) !== 'ended')
     const track = tracks.get(roomTrackId('aaaaaaaaaaaa'))
     expect(track?.stream?.url).toBe('https://doorman/aaaaaaaaaaaa/audio')
     expect(track?.cover).toBe('https://doorman/aaaaaaaaaaaa/cover')
     expect(track?.yours).toBe(7)
 
-    const ended = shareTracks(link({ ended: { at: NOW, why: 'idle' } }), file, library, NOW)
+    const over = link({ ended: { at: NOW, why: 'idle' } })
+    const ended = shareTracks(over, file, library, shareStage(over, NOW) !== 'ended')
     expect(ended.get(roomTrackId('aaaaaaaaaaaa'))?.stream).toBeNull()
     // The card keeps its cover.
     expect(ended.get(roomTrackId('aaaaaaaaaaaa'))?.cover).toBe('https://doorman/aaaaaaaaaaaa/cover')

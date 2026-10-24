@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useSyncExternalStore } from 'react'
-import { libraryIndex, useLibrary, yoursOf } from '@selfmp3/client'
+import { useEffect, useSyncExternalStore } from 'react'
+import { yoursOf } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { keepLent, pictureFor, picturesVersion, subscribePictures } from '../../offline/covers'
 import { useArt } from '../../offline/useArt'
+import { useLibraryIndex, useSongsById } from '../../ui/songsById'
 import { lentCoverKey } from './pastRooms.store'
 import type { PastRoom } from './room.model'
 
@@ -18,12 +19,8 @@ import type { PastRoom } from './room.model'
 export function usePastRoomCovers(
   past: PastRoom | undefined,
 ): readonly (string | null | undefined)[] {
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
-  const byId = useMemo(
-    () => new Map((library?.songs ?? []).map(song => [song.id, song])),
-    [library?.songs],
-  )
+  const index = useLibraryIndex()
+  const byId = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
   // Read so that a friend's kept cover, found on the disk, draws again.
   useSyncExternalStore(subscribePictures, picturesVersion)

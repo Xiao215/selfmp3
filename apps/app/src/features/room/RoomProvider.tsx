@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   clientApi,
-  libraryIndex,
   publicServerBase,
   queryKeys,
   roomTrackId,
   shouldResync,
-  useLibrary,
   yoursOf,
 } from '@selfmp3/client'
 import {
@@ -34,6 +32,7 @@ import { holdPictures, keepLent } from '../../offline/covers'
 import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
 import { lightTap } from '../../ports/haptics'
 import { showToast } from '../../ui/toast'
+import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
   entryOfTrack,
@@ -87,8 +86,7 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const { ranOut, queue } = usePlayer()
   const playingId = usePlayingSongId()
   const playing = usePlayerPlaying()
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   const host = state ? isHost(state) : false
 
   // A link plays through the host's server: looked for only by a host with a link to play.

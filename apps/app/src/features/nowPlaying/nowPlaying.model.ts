@@ -47,6 +47,15 @@ export const PAUSED_COVER_SCALE = 0.84
 const SWIPE_FLICK_DISTANCE = 48
 
 /**
+ * Whether a drag on the phone page is a pull up or down, to be taken from
+ * whatever is under it: past 12 points, and mostly up or down rather than
+ * across, so a sideways swipe stays the row's or the bar's.
+ */
+export function isVerticalPull(dx: number, dy: number): boolean {
+  return Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) * 2
+}
+
+/**
  * What a vertical pull on the phone page does once it is let go.
  *
  * On the cover a pull down puts the page away and a pull up opens the words;
@@ -171,6 +180,12 @@ export interface StageGeometry {
 
 /** Past this width a page keeps its cover and its words side by side, however tall. */
 const STACK_MAX_WIDTH = 1000
+
+/**
+ * The Romaji pill's width and a gap: what the words keep clear at their right
+ * edge beside the cover, on Now Playing's stage and a link's.
+ */
+export const TOOLS_CLEARANCE = 96
 
 /** The page's measurements, from its own size. */
 export function stageGeometry(width: number, height: number, inset = 0): StageGeometry {

@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react'
+import { createValueStore } from '../../state/valueStore.model'
+import { useValueStore } from '../../state/useValueStore'
 
 /**
  * What the share sheet is sharing (`ShareSheet`): one song, a tag or
@@ -12,29 +13,16 @@ export interface ShareRequest {
   readonly kind: 'song' | 'list'
 }
 
-let open: ShareRequest | null = null
-const listeners = new Set<() => void>()
-
-function set(next: ShareRequest | null): void {
-  open = next
-  for (const listener of listeners) listener()
-}
+const open = createValueStore<ShareRequest | null>(null)
 
 export function openShareSheet(request: ShareRequest): void {
-  set(request)
+  open.set(request)
 }
 
 export function closeShareSheet(): void {
-  set(null)
+  open.set(null)
 }
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-const snapshot = (): ShareRequest | null => open
 
 export function useShareRequest(): ShareRequest | null {
-  return useSyncExternalStore(subscribe, snapshot, snapshot)
+  return useValueStore(open)
 }

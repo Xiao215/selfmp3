@@ -77,6 +77,30 @@ function set(next: Partial<RoomView>): void {
   for (const listener of listeners) listener()
 }
 
+/**
+ * Take a state the doorman sent for the room `pass` let this device into, if
+ * this device is still in that room and the state is not older than the one
+ * already held. An action's answer and the socket race each other: a change
+ * someone else made can come down the socket before the answer to an earlier
+ * one, and the answer must not put the room back as it was. Every state is
+ * stamped with the doorman's clock as it was sent (`serverTime`), which only
+ * moves forward from one change to the next.
+ */
+function takeState(pass: RoomPass, state: RoomState): void {
+  if (view.pass !== pass) return
+  if (view.state && state.serverTime < view.state.serverTime) return
+  set({ state })
+}
+
+/**
+ * The room is over, if it is still the one `pass` let this device into: an
+ * answer or a timer that started for one room never finishes the next one,
+ * nor a room already left.
+ */
+function finishIfStill(pass: RoomPass): void {
+  if (view.pass === pass) finish()
+}
+
 function readPass(): RoomPass | null {
   try {
     const stored: unknown = JSON.parse(prefs.get(PASS_KEY) ?? 'null')
@@ -227,7 +251,7 @@ export function connectRoom(): void {
     if (!message.success) return
     switch (message.data.type) {
       case 'state':
-        set({ state: message.data.state })
+        takeState(pass, message.data.state)
         return
       case 'pong': {
         const sentAt = pingsSent.get(message.data.id)
@@ -247,7 +271,7 @@ export function connectRoom(): void {
       case 'gone':
         // The final state follows the word, when the room ended; wait a beat
         // for it so the room is remembered as it finished.
-        setTimeout(() => finish(), 300)
+        setTimeout(() => finishIfStill(pass), 300)
         return
     }
   }
@@ -279,10 +303,12 @@ export function connectRoom(): void {
       if (!current) return
       roomApi.state(current).then(
         state => {
-          set({ state })
+          if (view.pass !== current) return
+          takeState(current, state)
           connectRoom()
         },
         (error: unknown) => {
+          if (view.pass !== current) return
           if (error instanceof DoormanError && error.gone) finish()
           else connectRoom()
         },
@@ -417,10 +443,10 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
       action,
       action.type === 'add' ? await sessionToken() : null,
     )
-    if (view.pass === pass) set({ state })
+    takeState(pass, state)
     return state
   } catch (error) {
-    if (error instanceof DoormanError && error.gone) finish()
+    if (error instanceof DoormanError && error.gone) finishIfStill(pass)
     throw error
   }
 }

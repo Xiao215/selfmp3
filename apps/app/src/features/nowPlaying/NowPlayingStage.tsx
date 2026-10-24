@@ -43,6 +43,7 @@ import {
   parseMode,
   parseTab,
   stageGeometry,
+  TOOLS_CLEARANCE,
   upNextSeconds,
   type PageMode,
   type StageTab,
@@ -163,9 +164,6 @@ function CoverGlow({ palette }: { palette: readonly Rgb[] }): ReactNode {
     </>
   )
 }
-
-/** The Romaji pill's width and a gap: what the words keep clear beside the cover. */
-const TOOLS_CLEARANCE = 96
 
 /** A plain style, not a sheet's: an `Svg` in a browser does not take a sheet's class. */
 const UNCLIPPED = { overflow: 'visible' } as const

@@ -51,7 +51,7 @@ export function useUsageCounting(): boolean {
 }
 
 /** Today, as the server counts days: in UTC. */
-export function usageDay(now = Date.now()): string {
+function usageDay(now = Date.now()): string {
   return new Date(now).toISOString().slice(0, 10)
 }
 

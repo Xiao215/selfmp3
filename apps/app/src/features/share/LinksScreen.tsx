@@ -12,6 +12,7 @@ import { linkAddress } from '../../ports/linkAddress'
 import { openInNewTab } from '../../ports/newTab'
 import { shareLink } from '../../ports/shareLink'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayoutValue } from '../../shell/useLayout'
 import { lineSub, pageFrame } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
@@ -173,7 +174,7 @@ export function LinksScreen(): ReactNode {
       <View style={[styles.head, wide && styles.headWide]}>
         <PageHeader
           title="Links you shared"
-          back={{ to: '/settings' }}
+          back={{ to: '/profile' }}
           subtitle={links && links.length > 0 ? sentCountLine(links, now) : undefined}
           subtitleTestID="links-count"
         />
@@ -237,10 +238,7 @@ export function LinksScreen(): ReactNode {
         />
 
         <ScrollView
-          contentContainerStyle={[
-            styles.page,
-            selection.active && !wide ? { paddingBottom: SELECTION_BAR_SPACE + 140 } : null,
-          ]}
+          contentContainerStyle={[styles.page, selection.active && !wide && styles.pageUnderBar]}
           testID="links"
         >
           {isLoading ? <PageLoading /> : null}
@@ -303,6 +301,7 @@ export function LinksScreen(): ReactNode {
               </Press>
             ) : null}
           </LinkSection>
+          <ChromeSpacer />
         </ScrollView>
       </View>
 
@@ -494,7 +493,9 @@ const styles = StyleSheet.create(theme => ({
   headWide: { ...pageFrame(true), paddingHorizontal: ROW_EDGE_WIDE },
   /* A box over which the selection bar is laid; the list fills it. */
   listArea: { flex: 1, minHeight: 0 },
-  page: { paddingTop: space.xs, paddingBottom: 140 },
+  page: { paddingTop: space.xs, paddingBottom: space.xl },
+  // Room under the last row for a phone's selection bar, which floats over the foot.
+  pageUnderBar: { paddingBottom: SELECTION_BAR_SPACE },
   text: lineSub(theme.colors),
   empty: { paddingHorizontal: space.gutter, paddingTop: space.sm },
   asks: { gap: space.md, paddingHorizontal: space.gutter, paddingBottom: space.sm },

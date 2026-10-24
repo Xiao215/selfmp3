@@ -209,14 +209,17 @@ export function receivedLine(link: ShareSummary, now: number): string {
   return `${link.from.name} · ${plural(daysLeft(link.endsAt, now), 'day', 'days')}`
 }
 
-/** Its songs as tracks the player can play here, from your own copy when you have one. */
+/**
+ * Its songs as tracks the player can play here, from your own copy when you
+ * have one. `playing` is whether the link still plays (`shareStage`): an
+ * ended one keeps its covers and streams nothing.
+ */
 export function shareTracks(
   link: ShareLink,
   file: (entryId: string, part: 'audio' | 'cover') => string,
   library: LibraryIndex,
-  now: number,
+  playing: boolean,
 ): Map<number, RoomTrack> {
-  const playing = shareStage(link, now) !== 'ended'
   const tracks = new Map<number, RoomTrack>()
   for (const entry of link.entries) {
     if (entry.gone) continue

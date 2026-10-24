@@ -6,6 +6,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { Button } from '../../ui/components/Button'
+import { HeadPill } from '../../ui/components/HeadPill'
 import { IconButton } from '../../ui/components/IconButton'
 import { Press } from '../../ui/components/Press'
 import { People } from '../../ui/components/Icons'
@@ -59,7 +60,7 @@ export function TogetherButton({
       <IconButton
         label="Listen together"
         filled={filled}
-        onPress={() => openRoomSheet('together', start)}
+        onPress={() => openRoomSheet(start)}
         testID="together"
       >
         <People size={size} color={color ?? theme.colors.textPrimary} />
@@ -74,7 +75,7 @@ export function TogetherButton({
     <Press
       depth="control"
       wrap={{ width: round, height: round }}
-      onPress={() => openRoomSheet('together')}
+      onPress={() => openRoomSheet()}
       accessibilityRole="button"
       accessibilityLabel={`${roomTitle(state)}, ${people.length} here. Invite, people, end it`}
       {...tip('The room')}
@@ -105,18 +106,14 @@ export function RoomPill(): ReactNode {
   const people = peopleHere(state)
   const title = roomTitle(state)
   return (
-    <Press
-      onPress={() => openRoomSheet('together')}
-      accessibilityRole="button"
-      accessibilityLabel={`${title}, ${people.length} here. Invite, people, end it`}
+    <HeadPill
+      lead={<RoomFaces people={people.slice(0, FACES)} size={22} />}
+      faces
+      text={link === 'live' ? title : 'Reconnecting…'}
+      label={`${title}, ${people.length} here. Invite, people, end it`}
+      onPress={() => openRoomSheet()}
       testID="together"
-      style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-    >
-      <RoomFaces people={people.slice(0, FACES)} size={22} />
-      <Text style={styles.pillText} numberOfLines={1}>
-        {link === 'live' ? title : 'Reconnecting…'}
-      </Text>
-    </Press>
+    />
   )
 }
 
@@ -152,7 +149,7 @@ export function TogetherCard(): ReactNode {
           <Button
             label="Start a room"
             variant="primary"
-            onPress={() => openRoomSheet('together', EMPTY)}
+            onPress={() => openRoomSheet(EMPTY)}
             testID="home-together-start"
           />
           <Button
@@ -204,24 +201,5 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     borderWidth: 2,
     borderColor: theme.colors.accent,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    minHeight: 32,
-    maxWidth: '100%',
-    paddingLeft: 5,
-    paddingRight: space.md,
-    borderRadius: radius.pill,
-    // The sleep pill's fill, which reads on any song's colour.
-    backgroundColor: theme.colors.surface2,
-  },
-  pillPressed: { backgroundColor: theme.colors.surface3 },
-  pillText: {
-    flexShrink: 1,
-    color: theme.colors.textPrimary,
-    fontSize: type.small,
-    fontWeight: '600',
   },
 }))

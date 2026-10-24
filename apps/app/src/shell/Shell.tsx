@@ -209,9 +209,8 @@ function Frame({
           page (Now Playing, the import review) has nowhere else to land, and
           the row already drops to the foot when there is no chrome to sit on. */}
       {wide ? null : <Toasts />}
-      {/* A listening room's sheets: Together, Add songs, People; and the
-          share sheet. Drawn by the phone's Now Playing instead while it
-          covers the shell. */}
+      {/* A listening room's sheet, Together, and the share sheet. Drawn by
+          the phone's Now Playing instead while it covers the shell. */}
       {covered ? null : <RoomSheets />}
       {covered ? null : <ShareSheet />}
     </View>

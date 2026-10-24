@@ -15,16 +15,14 @@ import {
 import {
   failureText,
   iconSize,
-  libraryIndex,
   queryKeys,
   space,
   useCreatePlaylist,
-  useLibrary,
   yoursOf,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { prefs } from '../../ports/prefs'
-import { label, pageTitle, lineSub } from '../../ui/surfaces'
+import { label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
@@ -32,6 +30,7 @@ import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
+import { nameToJoinWith } from '../shared/shared.model'
 import { newPlaylist } from '../playlists/playlists.model'
 import { forgetPastRoom, pastRoomFaces, usePastRooms, withYourPicture } from './pastRooms.store'
 import { usePastRoomCovers } from './usePastRoomCovers'
@@ -42,22 +41,22 @@ import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
 import { useGetSongs } from './useGetSongs'
 import { joinRoom, leaveRoom, useRoom } from './room.store'
+import { GUEST_NAME_KEY } from './room.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
+import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { useFootInset } from '../../shell/bottomInset'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { Download, ListMusic, People, Trash } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
-import { useSongsById } from '../../ui/songsById'
+import { useLibraryIndex, useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-
-/** The name a guest last joined with, offered again. */
-const GUEST_NAME_KEY = 'room.name'
 
 // --- Join -------------------------------------------------------------------------
 
@@ -76,8 +75,7 @@ export function JoinScreen(): ReactNode {
   const signedIn = status === 'ready' && me !== null && me !== undefined
   // What you typed, or else the name you joined with last, or your own.
   const [typed, setName] = useState<string | null>(null)
-  const suggested =
-    prefs.get(GUEST_NAME_KEY) ?? (me ? ((me.name ?? me.email).trim().split(/\s+/)[0] ?? '') : '')
+  const suggested = prefs.get(GUEST_NAME_KEY) ?? (me ? nameToJoinWith(me) : '')
   const name = typed ?? suggested
   const [busy, setBusy] = useState(false)
 
@@ -173,6 +171,9 @@ export function RoomScreen(): ReactNode {
   const router = useRouter()
   const { state, link } = useRoom()
   const { status } = useConnection()
+  const { wide } = useLayout()
+  // The room owns the display, so this is the home indicator's room on a phone.
+  const foot = useFootInset()
   if (!state) {
     return (
       <MissingPage
@@ -187,7 +188,10 @@ export function RoomScreen(): ReactNode {
   }
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.page} testID="room-screen">
+      <ScrollView
+        contentContainerStyle={[styles.page, pageFrame(wide), { paddingBottom: space.xl + foot }]}
+        testID="room-screen"
+      >
         {status === 'ready' ? <BackButton to="/" /> : null}
         <RoomHead state={state} link={link} />
         <RoomList head={false} />
@@ -219,8 +223,7 @@ export function PastRoomScreen(): ReactNode {
   const { wide } = useLayout()
   const { code } = useLocalSearchParams<{ code: string }>()
   const past = usePastRooms().find(room => room.code === code)
-  const { data: library } = useLibrary()
-  const index = useMemo(() => libraryIndex(library?.songs ?? []), [library?.songs])
+  const index = useLibraryIndex()
   const byId = useSongsById()
   const covers = usePastRoomCovers(past)
   const artFor = useArt()
@@ -438,6 +441,7 @@ export function PastRoomScreen(): ReactNode {
             )
           })}
         </View>
+        <ChromeSpacer />
       </ScrollView>
     </View>
   )
@@ -454,19 +458,12 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
     padding: space.xl,
   },
-  page: {
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-    gap: space.lg,
-    padding: space.gutter,
-    paddingBottom: 120,
-  },
+  page: { width: '100%', maxWidth: 640, alignSelf: 'center', gap: space.lg },
   big: pageTitle(theme.colors),
   label: label(theme.colors),
   text: lineSub(theme.colors),
   link: { color: theme.colors.textPrimary, fontWeight: '600', textDecorationLine: 'underline' },
-  pastList: { paddingBottom: 120 },
+  pastList: { paddingBottom: space.xl },
   rows: { paddingHorizontal: space.gutter, gap: space.sm },
   rowsWide: { paddingHorizontal: space.gutterWide },
 }))

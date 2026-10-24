@@ -29,7 +29,7 @@ const stats: Stats = {
 }
 
 describe('the Profile page', () => {
-  it('lists Import, Report and Settings, and nothing else', () => {
+  it('lists Import, Report and Settings, and nothing else, with no links to show', () => {
     const rows = profileRows({ place: 'phone', linksHint: null })
     expect(rows.map(row => [row.id, row.label, row.href])).toEqual([
       ['import', 'Import', '/import'],

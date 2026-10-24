@@ -60,9 +60,9 @@ export function TogetherAnswer({
     onDone()
     if (state) {
       if (ids.length > 0) void addSongsToRoom(ids, roomTitle(state))
-      else openRoomSheet('together')
-    } else if (ids.length > 0) openRoomSheet('together', { kind: 'songs', name, songIds: ids })
-    else openRoomSheet('together', { kind: 'empty' })
+      else openRoomSheet()
+    } else if (ids.length > 0) openRoomSheet({ kind: 'songs', name, songIds: ids })
+    else openRoomSheet({ kind: 'empty' })
   }
   const label = state
     ? ids.length > 0

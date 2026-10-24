@@ -34,7 +34,6 @@ import { useSongColor } from '../../ui/useSongColor'
 import { BackButton } from '../../ui/components/BackButton'
 import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
-import { MissingPage } from '../../ui/components/MissingPage'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { Press } from '../../ui/components/Press'
@@ -45,6 +44,7 @@ import { RoomEntryLine } from '../room/RoomEntryLine'
 import { FacesCover, RoomFace } from '../room/RoomFace'
 import { sayRoomFailure } from '../room/roomFailure'
 import { useGetSongs } from '../room/useGetSongs'
+import { GoneLink } from './GoneLink'
 import { gettable, shareHeadLine, shareStage, shareTracks, sourceName } from './share.model'
 import { ShareSong, SongStill } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
@@ -93,18 +93,7 @@ export function ShareLinkScreen(): ReactNode {
       )
     }
     const wrongKey = !key || (error instanceof DoormanError && error.status === 403)
-    return (
-      <MissingPage
-        title={id && !wrongKey ? 'This link is gone' : 'That link isn’t all there'}
-        line={
-          id && !wrongKey
-            ? 'A link is forgotten ninety days after it ends.'
-            : 'Check it was copied whole, or ask for it again.'
-        }
-        back={status === 'ready' ? '/' : undefined}
-        testID="share-missing"
-      />
-    )
+    return <GoneLink torn={!id || wrongKey} signedIn={status === 'ready'} />
   }
   return <LinkPage link={link} />
 }

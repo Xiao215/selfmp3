@@ -155,7 +155,12 @@ The page stays, with three ways on:
 
 The cover stays, faded, and the names stay. The doorman keeps this card for **ninety days**
 after the link ends (`SHARE_KEPT_MS`), then forgets the link entirely. A forgotten link's
-page says *This link is gone*.
+page says *This link is gone* and asks the reader to have it shared again. Nothing of the link
+is left to draw, so the page shows an empty sleeve, its record half out, in the middle of the
+page (`GoneLink`). A link cut short when it was copied gets the same page with a torn sleeve.
+Agreed with Xiao on 2026-10-24
+([proposal](https://claude.ai/artifact/6nN1BsomzspYT3CWTUuhW9), picks A1 B1 D, no extra
+way on).
 
 On Home, an ended link's tile in **From friends** goes grey and says **Ended**. Press and hold
 it, or right-click on a computer, for **Take it off Home**. The ended page has the same

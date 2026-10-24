@@ -40,6 +40,9 @@ const STAGE_COVER_GAP = 24
 /** Room at the words' right edge for the Romaji pill, as Now Playing keeps. */
 const TOOLS_CLEARANCE = 96
 
+/** How far a lyric line's words sit inside its press wash (`StageLyrics`). */
+const LINE_INSET = space.tight
+
 /** Everything on the phone's cover view but the cover, for the cover to fit the screen beside. */
 const PHONE_ROOM = 320
 /** Signed in, the app's mini player sits over the page's foot. */
@@ -262,14 +265,13 @@ function SongPhone(props: SongProps): ReactNode {
   const height = useWindowValue(window => window.height)
   const insets = useSafeAreaInsets()
   const words = lyrics.words
-  // As big as the screen allows with Play still on it.
+  // The page's one column: the head, the names, the bar and the words.
+  const column = Math.min(width - space.gutter * 2, PHONE_COVER_MOST)
+  // The cover as big as the column, short of pushing Play off a short screen,
+  // where it is smaller and in the column's middle, as Now Playing's is.
   const side = Math.max(
     PHONE_COVER_LEAST,
-    Math.min(
-      width - space.gutter * 2,
-      PHONE_COVER_MOST,
-      height - insets.top - insets.bottom - PHONE_ROOM - (inApp ? IN_APP_ROOM : 0),
-    ),
+    Math.min(column, height - insets.top - insets.bottom - PHONE_ROOM - (inApp ? IN_APP_ROOM : 0)),
   )
 
   // Now Playing's own move between them: the one arriving springs in as the other goes.
@@ -318,9 +320,9 @@ function SongPhone(props: SongProps): ReactNode {
             style={[styles.layer, styles.phonePage, coverView.style]}
           >
             {back}
-            <View style={[styles.phoneColumn, { width: side }]}>
+            <View style={[styles.phoneColumn, { width: column }]}>
               {from}
-              <View ref={coverTarget} collapsable={false} style={styles.art}>
+              <View ref={coverTarget} collapsable={false} style={[styles.art, styles.phoneArt]}>
                 <Press
                   disabled={!lent}
                   onPress={() => onWords(true)}
@@ -348,7 +350,7 @@ function SongPhone(props: SongProps): ReactNode {
             style={[styles.layer, styles.phonePage, styles.wordsPage, wordsView.style]}
             testID="share-words"
           >
-            <View style={styles.wordsHead}>
+            <View style={[styles.wordsHead, { width: column }]}>
               <IconButton onPress={() => onWords(false)} label="Back to the cover" filled>
                 <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
               </IconButton>
@@ -364,7 +366,8 @@ function SongPhone(props: SongProps): ReactNode {
               {canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
             </View>
             <View
-              style={styles.words}
+              // The lines' own inset past the bar's ends, so their words start and end where it does.
+              style={[styles.words, { width: column + LINE_INSET * 2 }]}
               // Raw touches reach the view they landed in whoever holds the
               // gesture, so this hears the lift even after the list has it.
               onTouchStart={() => fingerOnWords.set(true)}
@@ -387,7 +390,7 @@ function SongPhone(props: SongProps): ReactNode {
         ) : null}
       </View>
 
-      <View style={[styles.phoneControls, { width: side }]}>
+      <View style={[styles.phoneControls, { width: column }]}>
         <Seek song={song} loaded={loaded} />
         <View style={styles.phonePlay}>
           <Play {...props} size={64} />
@@ -481,6 +484,7 @@ const styles = StyleSheet.create(theme => ({
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   phonePage: { paddingHorizontal: space.gutter, paddingTop: space.gutter },
   phoneInApp: { paddingBottom: IN_APP_ROOM },
+  phoneArt: { alignSelf: 'center' },
   phoneColumn: { alignSelf: 'center', gap: space.lg },
   phoneNames: { gap: space.xs },
   phoneTitle: heroTitle(theme.colors, 'page'),
@@ -488,11 +492,11 @@ const styles = StyleSheet.create(theme => ({
   phonePlay: { alignItems: 'center' },
   phoneFoot: { alignItems: 'center', paddingTop: space.md },
   wordsPage: { paddingTop: space.md },
-  wordsHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  wordsHead: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: space.md },
   wordsTitle: rowTitle(theme.colors),
   wordsArtist: { color: theme.colors.textSecondary, fontSize: type.small },
-  // Past the page's sides, as Now Playing's words are, so a line's press wash has room.
-  words: { flex: 1, minHeight: 0, marginTop: space.lg, marginHorizontal: -space.gutter },
+  // In the bar's column, as the cover is: the page's one width.
+  words: { flex: 1, minHeight: 0, marginTop: space.lg, alignSelf: 'center' },
   wordsStatus: {
     color: theme.colors.textMuted,
     fontSize: type.sub,

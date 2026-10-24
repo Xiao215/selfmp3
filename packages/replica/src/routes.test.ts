@@ -218,12 +218,7 @@ describe('/api/cloud/uids', () => {
           playCount: 2,
           lastPlayedAt: '2026-09-05 10:00:00',
           tagUids: [tag.uid],
-          lyrics: {
-            key: `lyrics/${'b'.repeat(64)}.lrc`,
-            size: 10,
-            kind: 'synced',
-            romanized: null,
-          },
+          lyrics: { key: `lyrics/${'b'.repeat(64)}.words`, size: 10, kind: 'synced' },
         },
       ],
       tags: [tag],

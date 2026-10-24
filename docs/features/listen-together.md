@@ -329,7 +329,7 @@ POST /v1/rooms/<code>/join           RoomJoin    → RoomJoined    a session mak
 GET  /v1/rooms/<code>?t=<token>                  → RoomState
 POST /v1/rooms/<code>/act?t=<token>  RoomAction  → RoomState     add needs the session too
 GET  /v1/rooms/<code>/socket?t=<token>           WebSocket: state down, ping up
-GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
+GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics
 GET | POST /v1/rooms/<code>/vectors?t=<token>    how the room's songs sound
 PUT  /v1/rooms/<code>/link-server?t=<token>      the host's server, for links
 POST /v1/rooms/<code>/keep?t=<token>             kept as a shared playlist   signed in

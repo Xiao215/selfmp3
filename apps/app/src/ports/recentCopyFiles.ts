@@ -83,6 +83,11 @@ export interface RecentCopies<Destination> {
   clearRecent(): void
   keepRecentlyPlayed(song: SongFile): Promise<void>
   /**
+   * A copy the player's own stream brought whole (a phone's `songStream.ts`):
+   * the play already paid for the bytes, so it is kept as if fetched for it.
+   */
+  arrived(song: SongFile, bytes: number): Promise<void>
+  /**
    * A kept copy, moved to where a download belongs, and its size — or null
    * when there is none to move. Asking for a song by hand turns its copy into
    * a download: the same bytes, so not a second trip to the bucket.
@@ -201,10 +206,13 @@ export function createRecentCopies<Destination>(
 
     /**
      * Called as the play is counted, not at the end, so the copy is usually
-     * there before the track is — and the next play is from the disk. The song
-     * is streaming while this runs, which makes it the second request for the
-     * same file; that is the price of a player that cannot hand over what it
-     * buffered, and it is paid once per song rather than once per play.
+     * there before the track is — and the next play is from the disk. Where
+     * the song streams from one download into this folder (a phone's
+     * `songStream.ts`), the fetch joins that download or finds it done, and
+     * the bucket is asked once. Where it does not — the desktop's shell
+     * hands over its own, and a phone without the module streams range by
+     * range — this is the second request for the same file, paid once per
+     * song rather than once per play.
      */
     async keepRecentlyPlayed(song) {
       if (arriving.has(song.id)) return
@@ -237,6 +245,20 @@ export function createRecentCopies<Destination>(
         // and the next play tries again.
       } finally {
         arriving.delete(song.id)
+      }
+    },
+
+    async arrived(song, bytes) {
+      const kept = load()
+      const fileName = fileNameFor(song)
+      // Of audio the song no longer has: not this copy, and not to be kept beside it.
+      if (kept.get(song.id)?.fileName !== fileName) drop(kept, song.id)
+      kept.set(song.id, { playedAt: Date.now(), fileName, bytes })
+      try {
+        await trim(kept)
+      } catch {
+        // The folder would not say; the note stands, and the next copy trims.
+        save(kept)
       }
     },
 

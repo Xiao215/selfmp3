@@ -67,6 +67,10 @@ import { SOUND_DIMENSIONS, toBlob } from '../sound/vectors.js'
 
 const sha = (content: string | Buffer): string => createHash('sha256').update(content).digest('hex')
 
+/** Where a song's words go: one file, the text and its romanized lines (`wordsKey`). */
+const wordsKeyOf = (text: string, romanized: string[] | null = null): string =>
+  `lyrics/${sha(JSON.stringify({ text, romanized }))}.words`
+
 const CONNECT: CloudConnect = {
   endpoint: 's3.us-west-004.backblazeb2.com',
   bucket: 'my-music',
@@ -488,12 +492,17 @@ describe('CloudSyncService', () => {
 
       const audio = `audio/${sha('audio-gunjou')}.m4a`
       const cover = `covers/${sha(Buffer.alloc(2048, 7))}.jpg`
-      const lyrics = `lyrics/${sha(words)}.lrc`
+      const lyrics = wordsKeyOf(words)
       expect(bucket.keys('audio/')).toEqual([audio])
       expect(bucket.keys('covers/')).toEqual([cover])
       expect(bucket.keys('lyrics/')).toEqual([lyrics])
       expect(bucket.objects.get(audio)?.contentType).toBe('audio/mp4')
       expect(bucket.objects.get(cover)?.contentType).toBe('image/jpeg')
+      expect(bucket.objects.get(lyrics)?.contentType).toBe('application/json')
+      expect(JSON.parse(bucket.objects.get(lyrics)?.body.toString() ?? 'null')).toEqual({
+        text: words,
+        romanized: null,
+      })
 
       const [song] = latest().songs
       expect(song).toMatchObject({
@@ -571,15 +580,15 @@ describe('CloudSyncService', () => {
       await pass()
 
       expect(latest().songs[0]?.lyrics).toMatchObject({
-        key: `lyrics/${sha('just the words')}.txt`,
+        key: wordsKeyOf('just the words'),
         kind: 'plain',
       })
     })
 
     /*
-     * Romaji is made on the server, which has the dictionaries, and goes up beside
-     * the words, so a device signed in to the cloud gets the same lyrics answer
-     * the server itself gives.
+     * Romaji is made on the server, which has the dictionaries, and goes up in
+     * the words' own file, so a device signed in to the cloud gets the same
+     * lyrics answer the server itself gives, with one read of the bucket.
      */
     describe('romaji', () => {
       const JAPANESE = '[00:01.00]夜に駆ける\n[00:05.00]沈むように溶けてゆくように'
@@ -613,20 +622,22 @@ describe('CloudSyncService', () => {
         return { asked, run }
       }
 
-      it('puts the romanized lines up beside the words, and the snapshot names them', async () => {
+      it('puts the romanized lines up in one file with the words, and the snapshot names it', async () => {
         const lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
         addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
         const { run } = withRomanizer(() => lines)
         await run()
 
-        const romanized = `lyrics/${sha(JSON.stringify(lines))}.json`
-        expect(bucket.keys('lyrics/')).toEqual([`lyrics/${sha(JAPANESE)}.lrc`, romanized].sort())
-        expect(bucket.objects.get(romanized)?.contentType).toBe('application/json')
-        expect(JSON.parse(bucket.objects.get(romanized)?.body.toString() ?? 'null')).toEqual(lines)
-        expect(latest().songs[0]?.lyrics).toMatchObject({
-          key: `lyrics/${sha(JAPANESE)}.lrc`,
+        const key = wordsKeyOf(JAPANESE, lines)
+        expect(bucket.keys('lyrics/')).toEqual([key])
+        expect(JSON.parse(bucket.objects.get(key)?.body.toString() ?? 'null')).toEqual({
+          text: JAPANESE,
+          romanized: lines,
+        })
+        expect(latest().songs[0]?.lyrics).toEqual({
+          key,
+          size: bucket.objects.get(key)?.body.length,
           kind: 'synced',
-          romanized,
         })
       })
 
@@ -635,16 +646,14 @@ describe('CloudSyncService', () => {
         addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
         const { asked, run } = withRomanizer(() => lines)
         await run()
-        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf(JAPANESE))
         const before = asked.count
 
         lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
         await run()
 
         expect(asked.count).toBeGreaterThan(before)
-        expect(latest().songs[0]?.lyrics?.romanized).toBe(
-          `lyrics/${sha(JSON.stringify(lines))}.json`,
-        )
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf(JAPANESE, lines))
       })
 
       it('does not ask again for words that need no romaji', async () => {
@@ -655,7 +664,7 @@ describe('CloudSyncService', () => {
         await run()
 
         expect(asked.count).toBe(once)
-        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf('[00:01.00] just the words'))
       })
     })
 
@@ -1486,9 +1495,12 @@ describe('CloudSyncService', () => {
         duration: 245.5,
         cover: theirFile('covers', 'their cover of Gunjou', '.jpg'),
         lyrics: {
-          ...theirFile('lyrics', '[00:01.00] their words', '.lrc'),
+          ...theirFile(
+            'lyrics',
+            JSON.stringify({ text: '[00:01.00] their words', romanized: null }),
+            '.words',
+          ),
           kind: 'synced',
-          romanized: null,
         },
         audioFeatures: {
           bpm: 128,

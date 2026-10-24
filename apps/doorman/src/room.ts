@@ -603,8 +603,6 @@ export function keyOf(song: RoomDoc['entries'][number]['song'], part: RoomFilePa
       return song.cover?.key ?? null
     case 'lyrics':
       return song.lyrics?.key ?? null
-    case 'romanized':
-      return song.lyrics?.romanized ?? null
   }
 }
 

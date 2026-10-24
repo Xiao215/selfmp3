@@ -939,6 +939,45 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 45. A song's words and their romanized lines are one file in the bucket
+    // (`wordsKey`), so a device reads them with one call rather than two, and
+    // `romanized_key` goes. Made again without it, so the table is the same
+    // however it is reached. The romanized lines' own files are then named by
+    // nothing, and go as any such file does (`#trashOrphans`). The words' old
+    // text files were put up again as words files by a one-off step of the
+    // cloud pass, removed once the Pi had run it (2026-10-24).
+    name: 'words and romanized lines in one file',
+    sql: `
+      CREATE TABLE cloud_songs_new (
+        song_id     INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE,
+        audio_key   TEXT    NOT NULL,
+        audio_size  INTEGER NOT NULL,
+        audio_sig   TEXT    NOT NULL,
+        cover_key   TEXT,
+        cover_size  INTEGER,
+        cover_sig   TEXT    NOT NULL,
+        lyrics_key  TEXT,
+        lyrics_size INTEGER,
+        lyrics_kind TEXT,
+        lyrics_sig  TEXT    NOT NULL,
+        uploaded_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        motion_key  TEXT,
+        motion_sig  TEXT    NOT NULL DEFAULT ''
+      );
+      INSERT INTO cloud_songs_new (
+        song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
+        lyrics_key, lyrics_size, lyrics_kind, lyrics_sig, uploaded_at, motion_key, motion_sig
+      )
+      SELECT
+        song_id, audio_key, audio_size, audio_sig, cover_key, cover_size, cover_sig,
+        lyrics_key, lyrics_size, lyrics_kind, lyrics_sig, uploaded_at, motion_key, motion_sig
+      FROM cloud_songs;
+      DROP TABLE cloud_songs;
+      ALTER TABLE cloud_songs_new RENAME TO cloud_songs;
+      CREATE INDEX idx_cloud_songs_audio ON cloud_songs(audio_key);
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

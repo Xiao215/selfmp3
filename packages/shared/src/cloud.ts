@@ -1,10 +1,12 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
+  CloudWordsSchema,
   type CloudCoverPack,
   type CloudFormat,
   type CloudSmartRules,
   type CloudSnapshot,
+  type CloudWords,
 } from './schemas/cloud.js'
 import { HASH_FILE_NAME } from './doormanWire.js'
 import type { SmartRules } from './schemas/smart.js'
@@ -104,21 +106,30 @@ export function coverPackMembers(
   })
 }
 
-/** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the server. */
-export function lyricsKey(sha256: string, synced: boolean): string {
-  return `lyrics/${sha256}.${synced ? 'lrc' : 'txt'}`
+/**
+ * A song's words and their romanized lines, together in one JSON file
+ * (`CloudWordsSchema`), so a device reads both with one call to the bucket.
+ * In `lyrics/`, named by the hash of its bytes like everything there.
+ */
+export function wordsKey(sha256: string): string {
+  return `lyrics/${sha256}.words`
 }
 
-/** A lyric text's romanized lines, as a JSON array, beside the words in `lyrics/`. */
-export function romanizedKey(sha256: string): string {
-  return `lyrics/${sha256}.json`
+/** A words file's JSON (`wordsKey`), or null when it is not one. */
+export function parseCloudWords(json: string): CloudWords | null {
+  try {
+    const parsed = CloudWordsSchema.safeParse(JSON.parse(json))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
 }
 
 /**
  * A song's motion curve (schemas/motion.ts), as JSON, also in `lyrics/`: the
  * doorman's key rule already allows the folder, and a new folder would need
  * every doorman redeployed before a device could read it. Named by the hash of
- * its bytes, so it can never be mistaken for a lyric's romanized lines.
+ * its bytes, so it can never be mistaken for a song's words.
  */
 export function motionKey(sha256: string): string {
   return `lyrics/${sha256}.json`
@@ -255,8 +266,8 @@ export function othersSnapshotsToPrune(
 }
 
 /**
- * Every file a snapshot names: each song's audio, cover, words, romanized
- * lines and motion curve, each artist's pictures, the sound vectors and the
+ * Every file a snapshot names: each song's audio, cover, words and motion
+ * curve, each artist's pictures, the sound vectors and the
  * months of plays. What must not be deleted while that snapshot may be read.
  */
 export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
@@ -268,7 +279,6 @@ export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
     add(song.audio.key)
     add(song.cover?.key)
     add(song.lyrics?.key)
-    add(song.lyrics?.romanized)
     add(song.motion)
   }
   for (const artist of snapshot.artists) {
@@ -333,7 +343,7 @@ export function foldedLogKeys(
 
 /**
  * The folders whose files are named by the hash of their bytes (`audioKey`,
- * `coverKey`, `lyricsKey` and the rest above): the same key is the same bytes,
+ * `coverKey`, `wordsKey` and the rest above): the same key is the same bytes,
  * forever, so such a file is never replaced and may be cached for good.
  */
 export const HASH_NAMED_FOLDERS = ['audio', 'covers', 'lyrics'] as const

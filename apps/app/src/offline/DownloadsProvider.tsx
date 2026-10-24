@@ -483,7 +483,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       if (!installedApp) return null
       if (now.prefs.autoOnWifi) return null
       // A copy is a fetch of its own, so it answers to the rule every other
-      // download does: not over mobile data nobody agreed to.
+      // download does: not over mobile data nobody agreed to. A phone's stream
+      // keeps the song it brought whatever the network (`recentCopies.ts`,
+      // `streamOnce`); what this stops is the song after it fetched ahead.
       if (now.network === 'cellular' && !now.dataAllowed) return null
       return now.songsById.get(songId) ?? null
     },

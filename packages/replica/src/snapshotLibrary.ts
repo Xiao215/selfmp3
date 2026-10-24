@@ -35,10 +35,9 @@ export const NO_IDS: LocalIds = { songs: {}, tags: {}, playlists: {}, next: 1 }
 export interface SongFiles {
   readonly audio: string
   readonly cover: string | null
+  /** The words and their romanized lines, one file (`lyrics/<sha256>.words`), or null. */
   readonly lyrics: string | null
   readonly lyricsKind: 'plain' | 'synced' | null
-  /** The words' romanized lines (`lyrics/<sha256>.json`), or null when they need none. */
-  readonly romanized: string | null
   /** The song's motion curve (`lyrics/<sha256>.json`), or null before the server analysed it. */
   readonly motion: string | null
 }
@@ -112,7 +111,6 @@ export function snapshotToLibrary(
       cover: song.cover?.key ?? null,
       lyrics: song.lyrics?.key ?? null,
       lyricsKind: song.lyrics?.kind ?? null,
-      romanized: song.lyrics?.romanized ?? null,
       motion: song.motion,
     }
 

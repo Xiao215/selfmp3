@@ -37,6 +37,8 @@ vi.mock('../ports/coverFiles', () => ({
   },
 }))
 vi.mock('../replica', () => replica)
+// The phone's twin is what resolves here, and it reaches the player's native modules.
+vi.mock('../ports/bucketMedia', () => ({ bucketPictureAddress: () => null }))
 
 async function covers() {
   return import('./covers.web')

@@ -1,16 +1,27 @@
 import { Directory, File, Paths } from 'expo-file-system'
+import { fileNameFor } from '@selfmp3/client'
+import type { Song } from '@selfmp3/shared'
 
 import { createRecentCopies } from './recentCopyFiles'
+import { songStream, streamsOnce } from './songStream'
 
 /**
  * Songs kept because they were played, on a phone: files in the cache folder.
  *
  * A phone streams a cloud song it has not downloaded (`ports/bucketMedia.ts`),
  * which is the point of a phone short of room — and would mean fetching the
- * same twenty songs from the bucket every day. So a song that counts as a play
- * is kept, up to a budget, and the least recently played copies are let go to
- * make room. The rules are the desktop's too (`recentCopyFiles.ts`); this is
- * only where the files are.
+ * same twenty songs from the bucket every day. So a played song is kept, up to
+ * a budget, and the least recently played copies are let go to make room. The
+ * rules are the desktop's too (`recentCopyFiles.ts`); this is only where the
+ * files are.
+ *
+ * The stream is what fills this folder (`streamOnce`): the player is pointed at
+ * the app's own loopback server (`songStream.ts`), which downloads the song
+ * once, whole, into here and answers every range from it. The copy is kept the
+ * moment it is all here, whether or not the play goes on to count — the bytes
+ * came anyway, over Wi-Fi or mobile data alike — and a fetch of the song, for
+ * the play counting or for the next song ahead of time, joins that one
+ * download rather than starting another.
  *
  * These are a cache, not downloads, and live apart from them on purpose:
  *
@@ -68,6 +79,10 @@ const copies = createRecentCopies<File>({
   /** The whole file, or nothing: fetched beside its name and renamed once complete. */
   async fetch(fileName, url, headers) {
     directory().create({ intermediates: true, idempotent: true })
+    // The song streaming now, or about to: the same download, not a second.
+    if (songStream && streamsOnce(fileName)) {
+      return songStream.fetch(fileName, url, headers ?? {}, directory().uri)
+    }
     const file = new File(directory(), fileName)
     const partial = new File(directory(), `${fileName}${PARTIAL_SUFFIX}`)
     if (partial.exists) partial.delete()
@@ -98,6 +113,8 @@ const copies = createRecentCopies<File>({
   delete: fileName => remove(new File(directory(), fileName)),
 
   clear() {
+    // A download still arriving would put its song back in the emptied folder.
+    songStream?.stopAll()
     try {
       const dir = directory()
       if (dir.exists) dir.delete()
@@ -114,6 +131,31 @@ const copies = createRecentCopies<File>({
     }
   },
 })
+
+/** The songs the loopback server has been asked for, by file name: what it says arrived is told by name. */
+const streaming = new Map<string, Pick<Song, 'id' | 'path'>>()
+
+songStream?.addListener('onArrived', ({ name, bytes }) => {
+  const song = streaming.get(name)
+  if (song) void copies.arrived(song, bytes)
+})
+
+/**
+ * Where the player is to ask for a bucket song that is not here: the loopback
+ * server's address, which brings it into this folder in one download — or
+ * null where there is no such server, or the song's file is not named by its
+ * hash, and the player is to ask the doorman itself.
+ */
+export function streamOnce(
+  song: Pick<Song, 'id' | 'path'>,
+  url: string,
+  headers: Readonly<Record<string, string>>,
+): string | null {
+  const fileName = fileNameFor(song)
+  if (!songStream || !streamsOnce(fileName)) return null
+  streaming.set(fileName, song)
+  return songStream.address(fileName, url, headers, directory().uri)
+}
 
 export const {
   recentIds,

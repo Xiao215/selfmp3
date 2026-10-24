@@ -504,10 +504,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
 
   /*
    * A song that counts as played is kept, where songs stream from the bucket,
-   * and so is the one after it, ahead of time: it then plays from the disk
-   * rather than streaming a range at a time and being fetched again for its
-   * copy once it counts — two trips to the bucket for one song, and more for
-   * a player's probes and seeks. Lent to the player again once it is here.
+   * and so is the one after it, ahead of time: it then plays from the disk,
+   * joined gaplessly, and is never asked of the bucket a second time. A
+   * phone's stream is already that one download (`recentCopies.ts`,
+   * `streamOnce`), which keeping it joins. Lent to the player again once it
+   * is here.
    */
   const keepPlayedAndNext = useCallback(
     (songId: number) => {

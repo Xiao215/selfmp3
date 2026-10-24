@@ -6,9 +6,11 @@ gates cannot see. Feature work that has not been built is in [FEATURE_TODO.md](F
 Four passes produced the numbered items so far: whole-repo audits on 2026-09-22 (T-001 to
 T-245), 2026-09-23 (T-300 to T-375) and 2026-10-07, and the "one copy of each thing" pass of
 2026-10-13 (T-376 to T-431, on `main` as 70d5be61). Every numbered item is done, and the
-commit messages say what each fix was, and what they left open has been done since. What is
-left here is the choices that look like leftovers but were made on purpose, so that the next
-pass does not report them again.
+commit messages say what each fix was, and what they left open has been done since. A fifth
+pass on 2026-10-24 went over what landed after 70d5be61 (rooms, share links, cover packs, one
+read for words, the hub, the admin page) without numbering, one commit per area. What is left
+here is what that pass left for the owner, and the choices that look like leftovers but were
+made on purpose, so that the next pass does not report them again.
 
 ## Rules the passes worked to
 
@@ -50,7 +52,25 @@ Severity: **H** = fix soon, user-visible or corrupting; **M** = worth a focused 
 
 ## Still open
 
-Nothing.
+Left by the 2026-10-24 pass because each one drops or rewrites data people already hold, or
+is the owner's wording:
+
+- **`picture` defaults "from before faces had pictures"** — `packages/shared/src/schemas/room.ts`
+  (a member's and `fromPicture`), `schemas/shared.ts` (a shared playlist's members and its
+  summary) and the past-rooms store (`features/room/pastRooms.store.ts`, with its optional
+  `shared`). Dropping them loses the shared playlists and remembered rooms kept before; doing
+  it properly is a one-off rewrite of those Durable Objects and of the device store. `DEAD` L.
+- **`DoormanMeSchema.account` is optional** for sessions devices cached before the doorman
+  sent it, which keeps a "doorman too old" branch in `apps/server/src/hub/hub.ts` `join`.
+  Required, a cached session fails to read and the device signs in again. `DEAD` L.
+- **The privacy policy** (`packages/shared/src/privacy.ts`, the Google sign-in policy page)
+  says the bucket key is used only for the owner's own devices; share links, rooms and shared
+  playlists read the sender's bucket for others, a link keeps the names of signed-in people
+  who opened it, and the doorman keeps daily counts. The words are the owner's. `HYGIENE` M.
+- **Sign-in counts** (`DOORMAN_COUNT.signedIn`, `.refused`) are counted by the doorman and
+  read by nothing: draw them on the admin page's Data tab, or stop counting them. `DEAD` L.
+- **`verify/flows/selection.spec.ts`'s two long-list flows skip below 90 songs**, so they
+  never run on a 36-song development library: size the list to the window instead. `ROBUST` L.
 
 ## Looked at and kept on purpose
 
@@ -75,5 +95,11 @@ Nothing.
   (`coverStore.ts`) (T-414).
 - **`QueueSheet` stays out of the overlay host**, so song menus and the Undo toast land
   above it (T-417).
+- **A share link's `visitors` stays optional** (`apps/doorman/src/share.ts`): links made
+  before guests were counted have none, and they live 90 days.
+- **The unnamed-file sweep skips a round when an old snapshot does not read**
+  (`#namedBySnapshots`, `apps/server/src/services/cloudSync.ts`): an old device's snapshot
+  from before the snapshot's fields were settled ages out within 30 days, and nothing is
+  deleted meanwhile, which is the safe side.
 - **Settings keeps `Row` + `Toggle`** rather than `ToggleRow`: its rows put every kind of
   control at the end (T-428).

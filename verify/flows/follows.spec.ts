@@ -43,13 +43,12 @@ async function songIdsOf(request: APIRequestContext, id: number): Promise<number
 /** A tag with songs, and a second one that would add more. */
 async function twoTags(page: Page): Promise<readonly [LibraryTag, LibraryTag] | null> {
   const { songs, tags } = await libraryData(page)
-  const present = songs.filter(song => !song.missing)
-  const has = (id: number) => present.filter(song => song.tagIds.includes(id)).length
+  const has = (id: number) => songs.filter(song => song.tagIds.includes(id)).length
   const first = tags.find(tag => has(tag.id) > 0)
   const second = tags.find(
     tag =>
       tag.id !== first?.id &&
-      present.some(song => song.tagIds.includes(tag.id) && !song.tagIds.includes(first?.id ?? -1)),
+      songs.some(song => song.tagIds.includes(tag.id) && !song.tagIds.includes(first?.id ?? -1)),
   )
   return first && second ? [first, second] : null
 }

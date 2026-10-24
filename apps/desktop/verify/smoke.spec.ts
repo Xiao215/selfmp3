@@ -1135,9 +1135,11 @@ test.describe('streams from the bucket', () => {
 })
 
 /**
- * The window once the app has drawn: it tells the shell it is signed out as
- * it mounts (`bucket.use(null)`), and a session a test hands over before that
- * would be taken back from under it.
+ * The window once the app has drawn, so the bridge a test calls is there and the
+ * page has started. The page tells the shell about a session only when its own
+ * changes (`apps/app/src/ports/desktop/bucketMedia.desktop.ts`), and signed out
+ * from the start it has none to change, so it sends nothing that would take a
+ * test's session back.
  */
 async function settledPage(app: Awaited<ReturnType<typeof launchApp>>) {
   const page = await app.firstWindow()

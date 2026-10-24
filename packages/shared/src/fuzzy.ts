@@ -218,26 +218,9 @@ export function fuzzyRankPrepared<T>(
 }
 
 /**
- * Prepared text for objects, remembered per object. Weakly, so a library that
- * is refetched lets its old songs, and their text, go.
- */
-export function preparedTextFor<T extends object>(
-  toText: (item: T) => string,
-): (item: T) => FuzzyText {
-  const cache = new WeakMap<T, FuzzyText>()
-  return item => {
-    let prepared = cache.get(item)
-    if (!prepared) {
-      prepared = new FuzzyText(toText(item))
-      cache.set(item, prepared)
-    }
-    return prepared
-  }
-}
-
-/**
- * Prepared names for objects known by several, remembered per object as
- * `preparedTextFor` remembers one. The first name is the one ties are ordered by.
+ * Prepared names for objects known by several, remembered per object. Weakly,
+ * so a library that is refetched lets its old songs, and their names, go. The
+ * first name is the one ties are ordered by.
  */
 export function preparedNamesFor<T extends object>(
   toNames: (item: T) => readonly string[],

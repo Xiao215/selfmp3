@@ -147,11 +147,6 @@ export function guideParts(text: string): { readonly text: string; readonly labe
     .filter(piece => piece.text !== '')
 }
 
-/** The words as plain text, for where nothing can be marked. */
-export function guideText(text: string): string {
-  return text.replaceAll('**', '')
-}
-
 const inline = (text: string): string =>
   guideParts(text)
     .map(piece =>

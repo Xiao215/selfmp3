@@ -1,7 +1,5 @@
-import { createReadStream, type Stats } from 'node:fs'
 import { mkdir, open, readdir, rename, rm, stat, utimes, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
-import { Readable } from 'node:stream'
 
 import {
   BUCKET_CAP_CODE,
@@ -11,8 +9,6 @@ import {
   PLAYED_KEPT,
   STREAM_RELAYED_HEADERS,
   WAIT_AHEAD_BYTES,
-  answerRange,
-  fileEtag,
   isCloudFileKey,
   isHashNamedCloudKey,
   parseDoormanRefusal,
@@ -21,6 +17,7 @@ import {
 } from '@selfmp3/shared'
 import type { StreamSession } from '@selfmp3/desktop-bridge'
 
+import { answerFromDisk, fileStats } from './disk.js'
 import { contentTypeFor } from './paths.js'
 
 /**
@@ -240,7 +237,7 @@ export function createStreamProxy({
     const stats = songs.has(name) ? await fileStats(path) : null
     if (stats !== null) {
       void touch(name)
-      return fromFile(request, path, stats)
+      return answerFromDisk(request, path, stats)
     }
     // Gone from under the note: the page cleared the folder, at sign-out or "Remove all".
     songs.delete(name)
@@ -478,36 +475,6 @@ class Arriving {
     const reader = this.#reader
     this.#reader = null
     void reader?.close().catch(() => {})
-  }
-}
-
-/** A kept song, with `Range:` answered from the disk as a downloaded one is (`protocol.ts`). */
-function fromFile(request: Request, path: string, stats: Stats): Response {
-  const answer = answerRange({
-    rangeHeader: request.headers.get('Range') ?? undefined,
-    sizeBytes: stats.size,
-    mime: contentTypeFor(path),
-    etag: fileEtag(stats.size, stats.mtimeMs),
-    lastModified: stats.mtime,
-  })
-  const headers = new Headers(answer.headers)
-  if (request.method === 'HEAD' || answer.status === 416 || answer.length === 0) {
-    return new Response(null, { status: answer.status, headers })
-  }
-  return new Response(
-    Readable.toWeb(
-      createReadStream(path, { start: answer.start, end: answer.end }),
-    ) as ReadableStream,
-    { status: answer.status, headers },
-  )
-}
-
-async function fileStats(path: string): Promise<Stats | null> {
-  try {
-    const stats = await stat(path)
-    return stats.isFile() ? stats : null
-  } catch {
-    return null
   }
 }
 

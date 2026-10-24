@@ -30,9 +30,8 @@ import {
  * the biggest, then by name — `tagsMostPlayed` in `features/tag/tag.model.ts`.
  */
 function mostPlayed(tags: LibraryTag[], songs: LibrarySong[]): LibraryTag[] {
-  const present = songs.filter(song => !song.missing)
   const standing = (tag: LibraryTag) => {
-    const carrying = present.filter(song => song.tagIds.includes(tag.id))
+    const carrying = songs.filter(song => song.tagIds.includes(tag.id))
     return {
       tag,
       plays: carrying.reduce((sum, song) => sum + song.playCount, 0),
@@ -82,9 +81,8 @@ test.describe('tags as places', () => {
    */
   test('Combine with… opens the tags together over the tag’s page', async ({ page }) => {
     const { songs, tags } = await libraryData(page)
-    const present = songs.filter(song => !song.missing)
     const used = mostPlayed(tags, songs).filter(tag =>
-      present.some(song => song.tagIds.includes(tag.id)),
+      songs.some(song => song.tagIds.includes(tag.id)),
     )
     const [first, second] = used
     test.skip(!first || !second, 'needs two tags with songs')
@@ -128,7 +126,7 @@ test.describe('tags as places', () => {
   }, info) => {
     await openAllTags(page)
     const { songs } = await libraryData(page)
-    const untagged = songs.filter(song => !song.missing && song.tagIds.length === 0).length
+    const untagged = songs.filter(song => song.tagIds.length === 0).length
 
     if (untagged === 0) {
       await expect(page.getByTestId('tags-untagged')).toHaveCount(0)
@@ -182,26 +180,25 @@ test.describe('the library’s tag strip, still a filter', () => {
     await skipIfNoLibrary(page)
 
     const { songs, tags } = await libraryData(page)
-    const present = songs.filter(song => !song.missing)
-    const count = (id: number) => present.filter(song => song.tagIds.includes(id)).length
+    const count = (id: number) => songs.filter(song => song.tagIds.includes(id)).length
 
     // Two tags that overlap without being the same set: then "both" is a real
     // subset of the union, and the note under the head has something to say.
     const pair = tags
       .flatMap(a => tags.filter(b => b.id !== a.id).map(b => [a, b] as const))
       .find(([a, b]) => {
-        const both = present.filter(s => s.tagIds.includes(a.id) && s.tagIds.includes(b.id)).length
-        const union = present.filter(s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id)).length
+        const both = songs.filter(s => s.tagIds.includes(a.id) && s.tagIds.includes(b.id)).length
+        const union = songs.filter(s => s.tagIds.includes(a.id) || s.tagIds.includes(b.id)).length
         return both > 0 && both < union && count(a.id) > 0 && count(b.id) > 0
       })
     test.skip(!pair, 'needs two overlapping tags')
     if (!pair) return
 
     const [first, second] = pair
-    const union = present.filter(
+    const union = songs.filter(
       s => s.tagIds.includes(first.id) || s.tagIds.includes(second.id),
     ).length
-    const both = present.filter(
+    const both = songs.filter(
       s => s.tagIds.includes(first.id) && s.tagIds.includes(second.id),
     ).length
 
@@ -242,7 +239,7 @@ test.describe('the library’s tag strip, still a filter', () => {
     await skipIfNoLibrary(page)
 
     const { songs, tags } = await libraryData(page)
-    const used = tags.find(tag => songs.some(song => !song.missing && song.tagIds.includes(tag.id)))
+    const used = tags.find(tag => songs.some(song => song.tagIds.includes(tag.id)))
     test.skip(!used, 'needs a tag with songs')
     if (!used) return
 

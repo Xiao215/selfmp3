@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
-import { appApi } from '../env.js'
 import {
   escaped,
+  libraryData,
   libraryReady,
   openLibrary,
   skipIfNoLibrary,
@@ -86,10 +86,8 @@ test.describe('command palette', () => {
     await expect(box).toBeVisible()
 
     // An artist the library holds, asked of the server, is found as an artist.
-    const library = (await (await page.request.get(`${appApi}/api/library`)).json()) as {
-      songs: { artist: string; missing: boolean }[]
-    }
-    const artist = library.songs.find(song => !song.missing && /^[\w ]+$/.test(song.artist))?.artist
+    const { songs } = await libraryData(page)
+    const artist = songs.find(song => /^[\w ]+$/.test(song.artist))?.artist
     test.skip(!artist, 'no song with a plain artist name to look for')
     await box.fill(artist!)
     await expect(page.getByText('Artists and tags', { exact: false }).first()).toBeVisible()

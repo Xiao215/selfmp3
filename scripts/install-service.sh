@@ -110,7 +110,8 @@ launchctl kickstart -k "gui/$(id -u)/$SERVICE_LABEL"
 echo
 echo "self.mp3 is now running in the background."
 echo
-echo "  Local:   http://localhost:$PORT"
+echo "  API:     http://localhost:$PORT"
+echo "  Admin:   http://localhost:$ADMIN_PORT   (this computer only)"
 echo "  Logs:    tail -f $SERVICE_LOG"
 echo "  Restart: launchctl kickstart -k gui/$(id -u)/$SERVICE_LABEL"
 echo "  Stop:    launchctl bootout gui/$(id -u)/$SERVICE_LABEL"

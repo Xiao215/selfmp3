@@ -69,13 +69,21 @@ await build({
  * The renderer, copied in beside the shell rather than built here. It is
  * `apps/app`'s own export, byte for byte the build the server serves and Pages
  * serves — the plan's first ground rule.
+ *
+ * `--no-web` leaves it out, for `scripts/dev.mjs`: a development window loads
+ * the page from Metro (`SELFMP3_DESKTOP_DEV_URL`) and never looks at a copy, so
+ * asking for an export there only stopped a fresh checkout from opening one.
  */
-const webExport = join(appRoot, 'dist')
-if (!existsSync(join(webExport, 'index.html'))) {
-  console.error(
-    '\nNo web export at apps/app/dist.\n' + 'Run: npm run export:web --workspace @selfmp3/app\n',
-  )
-  process.exit(1)
+if (process.argv.includes('--no-web')) {
+  console.log(`\nShell in ${out} (no renderer: the window loads it from Metro)\n`)
+} else {
+  const webExport = join(appRoot, 'dist')
+  if (!existsSync(join(webExport, 'index.html'))) {
+    console.error(
+      '\nNo web export at apps/app/dist.\n' + 'Run: npm run export:web --workspace @selfmp3/app\n',
+    )
+    process.exit(1)
+  }
+  cpSync(webExport, join(out, 'web'), { recursive: true })
+  console.log(`\nShell and renderer in ${out}\n`)
 }
-cpSync(webExport, join(out, 'web'), { recursive: true })
-console.log(`\nShell and renderer in ${out}\n`)

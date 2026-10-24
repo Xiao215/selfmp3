@@ -46,11 +46,13 @@ libraries. This is how a real library reached three rows a song on 2026-09-17.
 
 A test server is a throwaway one: an empty data folder, its own library folder, a folder
 standing in for the bucket, and a port of its own. `npm run dev` is exactly that (the `dev`
-profile with `SELFMP3_CLOUD_DIR=bucket`; [verify/README.md](../verify/README.md)). By hand:
+profile with `SELFMP3_CLOUD_DIR=bucket`; [verify/README.md](../verify/README.md)). By hand,
+with its admin page off, since every server opens one on `127.0.0.1:4610`:
 
 ```bash
-SELFMP3_PORT=4610 SELFMP3_DATA_DIR=/tmp/scratch/data SELFMP3_LIBRARY_DIR=/tmp/scratch/library \
-  SELFMP3_CLOUD_DIR=bucket npm run dev --workspace @selfmp3/server
+SELFMP3_PORT=4620 SELFMP3_ADMIN_PORT=0 SELFMP3_DATA_DIR=/tmp/scratch/data \
+  SELFMP3_LIBRARY_DIR=/tmp/scratch/library SELFMP3_CLOUD_DIR=bucket \
+  npm run dev --workspace @selfmp3/server
 ```
 
 If a test really needs a copy of a workspace's database, take the cloud session out of the

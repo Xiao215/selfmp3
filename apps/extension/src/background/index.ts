@@ -88,17 +88,26 @@ servePage(
  * With the server awake this reads the link first, so a song already in the
  * library is not fetched twice. With it asleep there is nothing to read the
  * link with, so the link itself goes in the bucket and the notice says so —
- * the same trade the popup makes (I3).
+ * the same trade the popup makes (I3). With no server at all there is nothing
+ * to wait for, so the notice says what will take it instead: a computer,
+ * connected in self.mp3.
  */
 async function quickImport(url: string): Promise<void> {
   try {
-    const { mode } = await handlers.status({ type: 'status' })
+    const { mode, noServer } = await handlers.status({ type: 'status' })
     if (mode === 'bucket') {
       await handlers.requestImport({ type: 'requestImport', url, tagIds: [] })
-      notify({
-        title: 'Waiting for your server',
-        message: 'Your server downloads it the next time it is awake.',
-      })
+      notify(
+        noServer
+          ? {
+              title: 'Kept for later',
+              message: 'Connect a computer in self.mp3 and it imports from there.',
+            }
+          : {
+              title: 'Waiting for your server',
+              message: 'Your server downloads it the next time it is awake.',
+            },
+      )
       return
     }
     const preview = await handlers.preview({ type: 'preview', url })

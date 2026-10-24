@@ -20,9 +20,11 @@ const root = join(here, '..')
 
 const devUrl = process.env.SELFMP3_DESKTOP_DEV_URL ?? DEFAULT_LOCAL_WEB_URL
 
-// The build wants a web export to copy even in development, where the window
-// will not look at it; an export that is merely stale is fine here.
-const built = spawn(process.execPath, [join(here, 'build.mjs')], { stdio: 'inherit' })
+// The shell alone: the window loads the page from Metro, so there is no web
+// export to copy in, and none needs to exist.
+const built = spawn(process.execPath, [join(here, 'build.mjs'), '--no-web'], {
+  stdio: 'inherit',
+})
 built.on('exit', code => {
   if (code !== 0) process.exit(code ?? 1)
 

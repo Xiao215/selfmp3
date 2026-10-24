@@ -130,7 +130,9 @@ What that costs is the *looking*, not the importing. Only your server can read a
 link at all, so through the bucket there is no title tidied out of the video's,
 no track list to go through, and no playing a song before it is added: the popup
 says *Your server is asleep*, takes the link as it is with your tags (**Keep it
-for later**), and says *Waiting for your server* until it has been taken.
+for later**), and says *Waiting for your server* until it has been taken — or
+*Kept for later* when no computer works for the library yet, since then there is
+no server to wait for until one is connected in self.mp3.
 *Don't bother* calls one off. A playlist goes in whole — your server skips what
 you already have.
 
@@ -232,12 +234,12 @@ or the doorman.**
 ```
  youtube.com tab                 extension origin (chrome-extension://<id>)
 ┌───────────────────────┐       ┌──────────────────────────────────────────────┐
-│ content/youtube.ts    │ msg   │ background.ts (service worker)               │
+│ content/youtube.ts    │ msg   │ background/index.ts (service worker)         │
 │  page kind, the pill  ├──────►│  connection: server direct, else bucket (I3) │
 │  no network, no token │◄──────┤  api (createApi) · replica (bucket)          │
 └───────────────────────┘       │  job watcher → badge, notifications (F1)     │
                                 │  context menus (B2) · library link index     │
- popup.html / review.html       │                                              │
+ popup.html (?url= for a link)  │                                              │
 ┌───────────────────────┐ msg   │  secrets in IndexedDB, never storage.local   │
 │ React DOM: A and C    ├──────►│                                              │
 └───────────────────────┘       └──────────────────────────────────────────────┘
@@ -408,8 +410,8 @@ which the Import page understands from the share target.
   tags…", on links on any page and on the page itself on YouTube. `E4` draws the
   second as "With tags and a playlist…"; the popup it opens has no playlist, so
   the words say only what it does.
-  The second opens `review.html?url=` in a small window, the popup's UI with a
-  link given instead of a tab, because a context-menu click cannot open the
+  The second opens `popup.html?url=` in a small window (`openPopupWindow` in
+  `background/menus.ts`), the popup with a link given instead of a tab, because a context-menu click cannot open the
   action popup reliably.
 
 ## The watcher (F1)

@@ -66,17 +66,19 @@ served from somewhere else or a server on another port (which then needs that
 web address in its `SELFMP3_CORS_ORIGINS`):
 
 ```
-SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4610 npm run verify:flows
+SELFMP3_WEB_URL=http://localhost:8090 SELFMP3_APP_API=http://localhost:4620 npm run verify:flows
 ```
 
 A second server for a parallel run, beside one already on 4600, is the
 server's own dev script with its own port and folders. Give it its own
-`SELFMP3_CLOUD_DIR` as well, or it will not be a sandbox:
+`SELFMP3_CLOUD_DIR` as well, or it will not be a sandbox, and turn its admin page
+off: the first server's already holds `127.0.0.1:4610`, so a second one would fail
+to listen there:
 
 ```
-SELFMP3_PORT=4610 SELFMP3_LIBRARY_DIR=/tmp/lane/library SELFMP3_DATA_DIR=/tmp/lane/data \
-  SELFMP3_CLOUD_DIR=bucket SELFMP3_CORS_ORIGINS=http://localhost:4601 \
-  npm run dev --workspace @selfmp3/server
+SELFMP3_PORT=4620 SELFMP3_ADMIN_PORT=0 SELFMP3_LIBRARY_DIR=/tmp/lane/library \
+  SELFMP3_DATA_DIR=/tmp/lane/data SELFMP3_CLOUD_DIR=bucket \
+  SELFMP3_CORS_ORIGINS=http://localhost:4601 npm run dev --workspace @selfmp3/server
 ```
 
 A server started from an empty data folder has no tags and no plays, and scans

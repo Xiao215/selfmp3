@@ -860,23 +860,36 @@ export function RequestForm({
   )
 }
 
-/** Left in the bucket and not taken yet, and a way out of it. */
+/**
+ * Left in the bucket and not taken yet, and a way out of it.
+ *
+ * With no server at all (`noServer`, as `RequestForm` has it) there is no
+ * server to wait for, and saying so would promise a download nothing is going
+ * to make: the link waits for a computer to be connected instead.
+ */
 export function Waiting({
   request,
   title,
+  noServer,
   cancelling,
   onCancel,
 }: {
   request: ImportRequestView
   title: string | null
+  noServer: boolean
   cancelling: boolean
   onCancel: () => void
 }): ReactNode {
+  const unclaimed = noServer && request.state !== 'working'
   return (
     <State
       line={<SongLine cover={null} title={request.title ?? title ?? request.url} artist="" />}
       title={
-        request.state === 'working' ? 'Your server is fetching it now' : 'Waiting for your server'
+        request.state === 'working'
+          ? 'Your server is fetching it now'
+          : unclaimed
+            ? 'Kept for later'
+            : 'Waiting for your server'
       }
       actions={
         <button type="button" className="tonal" disabled={cancelling} onClick={onCancel}>
@@ -885,7 +898,9 @@ export function Waiting({
       }
     >
       <p aria-live="polite">
-        It downloads it the next time it is awake, and it arrives after the sync that follows.
+        {unclaimed
+          ? 'No computer works for your library yet. Connect one in self.mp3 and it imports from there.'
+          : 'It downloads it the next time it is awake, and it arrives after the sync that follows.'}
       </p>
     </State>
   )

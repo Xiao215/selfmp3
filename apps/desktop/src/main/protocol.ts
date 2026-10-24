@@ -4,7 +4,6 @@ import { join } from 'node:path'
 import { Readable } from 'node:stream'
 
 import { protocol } from 'electron'
-import { fileEtag, answerRange } from '@selfmp3/shared'
 import {
   APP_ORIGIN,
   APP_SCHEME,
@@ -13,6 +12,7 @@ import {
   fileKindSchema,
 } from '@selfmp3/desktop-bridge'
 
+import { answerFromDisk, fileStats } from './disk.js'
 import { directoryFor } from './files.js'
 import { contentTypeFor, isRoute, resolveWithinRoot } from './paths.js'
 import type { StreamProxy } from './stream.js'
@@ -123,7 +123,7 @@ function notFound(): Response {
  * The **206**: `net.fetch('file://…')` ignores a `Range:` header and answers
  * 200 with the whole body, so the answer is built by hand from
  * `packages/shared`'s rule — the same one the server has been seeking with for
- * a year.
+ * a year (`disk.ts`).
  *
  * The **CORS pair**: the engine sets `crossOrigin = 'use-credentials'` so the
  * analyser may read the samples, and that mode rejects `*`. So an origin has to
@@ -146,29 +146,10 @@ async function serveMedia(
   const stats = file === null ? null : await fileStats(file)
   if (file === null || stats === null) return new Response('not found', { status: 404 })
 
-  const answer = answerRange({
-    rangeHeader: request.headers.get('Range') ?? undefined,
-    sizeBytes: stats.size,
-    mime: contentTypeFor(file),
-    // The file never changes once written — the name carries the song's rev —
-    // so size and mtime are an honest strong validator, as the server's are.
-    etag: fileEtag(stats.size, stats.mtimeMs),
-    lastModified: stats.mtime,
-  })
-
-  const headers = new Headers(answer.headers)
-  headers.set('Access-Control-Allow-Origin', allowedOrigin(request, devOrigin))
-  headers.set('Access-Control-Allow-Credentials', 'true')
-
-  if (answer.status === 416 || answer.length === 0) {
-    return new Response(null, { status: answer.status, headers })
-  }
-  return new Response(
-    Readable.toWeb(
-      createReadStream(file, { start: answer.start, end: answer.end }),
-    ) as ReadableStream,
-    { status: answer.status, headers },
-  )
+  const answer = answerFromDisk(request, file, stats)
+  answer.headers.set('Access-Control-Allow-Origin', allowedOrigin(request, devOrigin))
+  answer.headers.set('Access-Control-Allow-Credentials', 'true')
+  return answer
 }
 
 /**
@@ -185,16 +166,6 @@ function allowedOrigin(request: Request, devOrigin: string | null): string {
 function bucketKey(encoded: string): string | null {
   try {
     return encoded.split('/').map(decodeURIComponent).join('/')
-  } catch {
-    return null
-  }
-}
-
-/** A file's stats, or null when there is no file there — nothing, or a directory. */
-async function fileStats(path: string): Promise<Stats | null> {
-  try {
-    const stats = await stat(path)
-    return stats.isFile() ? stats : null
   } catch {
     return null
   }

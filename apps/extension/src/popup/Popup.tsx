@@ -348,6 +348,7 @@ export function Popup(): ReactNode {
           <Waiting
             request={view.request}
             title={tabTitle}
+            noServer={status.data?.noServer ?? false}
             cancelling={callOff.isPending}
             onCancel={() => callOff.mutate(view.request.uid)}
           />

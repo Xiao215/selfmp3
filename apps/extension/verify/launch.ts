@@ -11,7 +11,7 @@ import {
   type CloudSnapshot,
 } from '@selfmp3/shared'
 
-export const extensionDist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
+const extensionDist = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist')
 
 export interface LaunchedExtension {
   readonly context: BrowserContext

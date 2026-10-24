@@ -295,8 +295,9 @@ works, [SYNC.md](docs/SYNC.md).
 
 The server also runs without Docker, on a Mac or a Linux machine with Node 22 or newer:
 `./scripts/setup-mac.sh` installs yt-dlp and ffmpeg, builds, and offers to start the server
-at login (`scripts/install-service.sh`, launchd or systemd), and `./scripts/doctor.sh`
-checks the setup and tells you the command that fixes whatever is wrong.
+at login (`scripts/install-service.sh`, with launchd; on Linux, the systemd unit in
+[INSTALL.md](docs/INSTALL.md#on-linux)), and `./scripts/doctor.sh` checks the setup and tells
+you the command that fixes whatever is wrong.
 
 ---
 
@@ -344,9 +345,8 @@ stays off unless it is set with `PATCH /api/settings`
 **About the token.** Each library on the server has a token of its own, kept in
 `<data>/hub.json`. You never type it: it goes into that account's bucket with the server's
 addresses, and every device signed in to the account is handed it with the sync. A request
-with no token from the server's own machine (its own page at `http://localhost:4600`, the
-`selfmp3` command) goes to the only library when there is just one, because anyone at that
-keyboard could read the token anyway.
+with no token from the server's own machine (the `selfmp3` command, say) goes to the only
+library when there is just one, because anyone at that keyboard could read the token anyway.
 
 ---
 

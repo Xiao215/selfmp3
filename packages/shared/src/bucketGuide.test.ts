@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  BUCKET_GUIDE,
-  BUCKET_GUIDE_URL,
-  guideParts,
-  guideText,
-  renderBucketGuidePage,
-} from './bucketGuide.js'
+import { BUCKET_GUIDE, BUCKET_GUIDE_URL, guideParts, renderBucketGuidePage } from './bucketGuide.js'
 
 describe('the bucket guide', () => {
   it('is published beside the web app', () => {
@@ -41,7 +35,6 @@ describe('the bucket guide', () => {
       { text: 'Create a Bucket', label: true },
       { text: '.', label: false },
     ])
-    expect(guideText('Press **Buckets**.')).toBe('Press Buckets.')
   })
 
   it('renders one page with every step, and no script', () => {

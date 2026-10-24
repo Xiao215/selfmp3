@@ -4,7 +4,7 @@ import {
   fuzzyRank,
   fuzzyRankPrepared,
   isSubsequence,
-  preparedTextFor,
+  preparedNamesFor,
 } from './fuzzy.js'
 
 describe('editDistance', () => {
@@ -121,7 +121,7 @@ describe('the prepared paths', () => {
     ['Same', 'Same', 'Same'],
   ].map(([title, artist, album], id) => ({ id, title, artist, album }) as Song)
   const text = (song: Song) => `${song.title} ${song.artist} ${song.album}`
-  const prepared = preparedTextFor(text)
+  const prepared = preparedNamesFor((song: Song) => [text(song)])
   const queries = [
     '',
     '  ',
@@ -159,7 +159,7 @@ describe('the prepared paths', () => {
   it('remembers prepared text per object, so a second keystroke reuses it', () => {
     const first = songs[0] as Song
     expect(prepared(first)).toBe(prepared(first))
-    expect(prepared(first).lower).toBe('midnight drive kavinsky outrun')
-    expect(prepared(first).initials).toBe('mdko')
+    expect(prepared(first)[0]?.lower).toBe('midnight drive kavinsky outrun')
+    expect(prepared(first)[0]?.initials).toBe('mdko')
   })
 })

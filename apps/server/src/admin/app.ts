@@ -197,8 +197,7 @@ function adminHeaders() {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     'font-src https://fonts.gstatic.com',
-    // Google's profile pictures, on the People tab.
-    "img-src 'self' data: https://*.googleusercontent.com",
+    "img-src 'self' data:",
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",

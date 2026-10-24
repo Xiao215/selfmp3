@@ -27,8 +27,6 @@ const state = {
   people: null,
   peopleError: null,
   search: '',
-  adding: false,
-  addProblem: null,
   busy: false,
   confirm: null,
   /** Charts shown as their table, by id. */
@@ -641,33 +639,41 @@ function indexOf(entries) {
   return `<nav class="index" aria-label="On this page"><span class="label">On this page</span>${items}</nav>`
 }
 
-/** Lights the index entry for whatever is at the top of the page now. */
-let spy = null
-function watchIndex() {
-  spy?.disconnect()
-  const links = new Map([...document.querySelectorAll('.index a')].map(a => [a.dataset.index, a]))
-  if (!links.size) return
-  const seen = new Set()
-  spy = new IntersectionObserver(
-    entries => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) seen.add(entry.target.id)
-        else seen.delete(entry.target.id)
+/**
+ * Lights the index entry for what is being read: the last card or section
+ * whose top has passed a line a quarter down the window. Two cards side by
+ * side pass it together, and the first of them is lit; an entry clicked stays
+ * lit, whatever sits beside it or below it, until the reader scrolls themself.
+ */
+let pinned = null
+function lightIndex() {
+  const links = [...document.querySelectorAll('.index a')]
+  if (!links.length) return
+  let current = pinned
+  if (!current) {
+    const line = window.innerHeight / 4
+    let passed = -Infinity
+    for (const link of links) {
+      const top = document.getElementById(link.dataset.index)?.getBoundingClientRect().top
+      if (top !== undefined && top <= line && top > passed + 1) {
+        passed = top
+        current = link.dataset.index
       }
-      // The deepest entry in view: a card over the section it sits in.
-      const first = [...links.keys()].findLast(id => seen.has(id))
-      if (!first) return
-      for (const [id, link] of links) {
-        if (id === first) link.setAttribute('aria-current', 'location')
-        else link.removeAttribute('aria-current')
-      }
-    },
-    { rootMargin: '0px 0px -70% 0px' },
-  )
-  for (const id of links.keys()) {
-    const target = document.getElementById(id)
-    if (target) spy.observe(target)
+    }
+    current ??= links[0].dataset.index
   }
+  for (const link of links) {
+    if (link.dataset.index === current) link.setAttribute('aria-current', 'location')
+    else link.removeAttribute('aria-current')
+  }
+}
+
+let indexFrame = 0
+function lightIndexSoon() {
+  indexFrame ||= requestAnimationFrame(() => {
+    indexFrame = 0
+    lightIndex()
+  })
 }
 
 function dataView() {
@@ -1034,29 +1040,20 @@ function dataView() {
 
 const AVATAR_HUES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--good)']
 
-/** Google's picture when the doorman has one, else the address's first letter on a tint of its own. */
-function avatarOf(person) {
-  if (person.picture) {
-    return `<img class="avatar" src="${escape(person.picture)}" alt="" referrerpolicy="no-referrer" data-initial="${escape(initialOf(person))}" />`
-  }
-  return letterAvatar(person)
-}
-
-function initialOf(person) {
-  return (person.name || person.email)[0]?.toUpperCase() ?? '?'
-}
-
-function letterAvatar(person) {
+/** The address's first letter, on a tint of its own. */
+function avatarOf(email) {
   let hash = 0
-  for (const ch of person.email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  for (const ch of email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
   const hue = AVATAR_HUES[hash % AVATAR_HUES.length]
-  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${escape(initialOf(person))}</span>`
+  const letter = escape(email[0]?.toUpperCase() ?? '?')
+  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${letter}</span>`
 }
 
 const ICON_TRASH =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
 const ICON_SEARCH =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>'
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
 
 function personRow(person) {
@@ -1064,10 +1061,7 @@ function personRow(person) {
   const end = person.owner
     ? '<span class="hint">always let in</span>'
     : `<button class="icon-btn" type="button" data-action="remove" data-email="${escape(person.email)}" aria-label="Remove ${escape(person.email)}" title="Remove" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
-  const who = person.name
-    ? `<span class="name">${escape(person.name)}${chip}</span><span class="hint">${escape(person.email)}</span>`
-    : `<span class="name">${escape(person.email)}${chip}</span>`
-  return `<div class="row">${avatarOf(person)}<div class="lbl">${who}</div>${end}</div>`
+  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span></div>${end}</div>`
 }
 
 function peopleView() {
@@ -1083,37 +1077,35 @@ function peopleView() {
       : '<p class="empty">Loading…</p>'
     return header + why
   }
-  const query = state.search.trim().toLowerCase()
-  const person = (email, owner) => ({ email, owner, ...(people.profiles?.[email] ?? {}) })
   const everyone = [
-    ...people.owners.map(email => person(email, true)),
-    ...people.emails.map(email => person(email, false)),
-  ].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
-  const shown = query
-    ? everyone.filter(p => p.email.includes(query) || (p.name ?? '').toLowerCase().includes(query))
-    : everyone
-  const adding = state.adding
-    ? `<div class="card">
-        <div class="card-head"><div class="titles"><h3>Add people</h3><span class="hint">Their Google addresses: one, or many pasted at once, separated by spaces, commas or new lines. While Google sign-in is in Testing, Google wants them as test users too.</span></div></div>
-        <textarea class="field" id="add-emails" placeholder="name@gmail.com, another@gmail.com" aria-label="Google addresses to add"></textarea>
-        ${state.addProblem ? `<p class="notice bad">${escape(state.addProblem)}</p>` : ''}
-        <div class="actions"><button class="btn" type="button" data-action="add-cancel">Cancel</button><button class="btn primary" type="button" data-action="add-save" ${state.busy ? 'disabled' : ''}>Add</button></div>
-      </div>`
-    : ''
-  const rows = shown.length
-    ? shown.map(personRow).join('')
-    : `<p class="empty">No one matches “${escape(state.search)}”.</p>`
-  const counted = query ? `${shown.length} of ${count}` : String(count)
+    ...people.owners.map(email => ({ email, owner: true })),
+    ...people.emails.map(email => ({ email, owner: false })),
+  ].sort((a, b) => a.email.localeCompare(b.email))
+  // One field searches and adds: words narrow the list, and whole addresses
+  // not on it, typed or pasted many at once, can be added from the top of it.
+  const typed = typedOf(state.search)
+  const shown =
+    typed.words.length > 1
+      ? everyone.filter(p => typed.words.includes(p.email))
+      : everyone.filter(p => p.email.includes(typed.words[0] ?? ''))
+  const rows =
+    addRow(typed) +
+    (shown.length
+      ? shown.map(personRow).join('')
+      : typed.fresh.length
+        ? ''
+        : `<p class="empty">No one matches “${escape(state.search.trim())}”. Type their whole address to add them.</p>`)
   const anyoneHint = people.anyone
     ? 'On: anyone who signs in with Google gets in, whoever they are.'
     : 'Off: only the people above.'
+  // The app's search field (SearchField.tsx): a count and a × once there are words.
+  const clear = state.search
+    ? `<span class="hint">${escape(`${shown.length} of ${count}`)}</span><button class="clear" type="button" data-action="search-clear" aria-label="Clear" title="Clear">${ICON_X}</button>`
+    : ''
   return `${header}
     ${state.peopleError ? `<p class="notice bad">${escape(state.peopleError)}</p>` : ''}
-    ${adding}
-    <section class="section">
-      <div class="group-head list-head"><span><span class="label">Who can sign in</span> <span class="hint">${escape(counted)}</span></span>
-        <span class="list-tools"><label class="search">${ICON_SEARCH}<input id="people-search" type="search" placeholder="Search people" value="${escape(state.search)}" aria-label="Search people" autocomplete="off" /></label><button class="icon-btn add" type="button" data-action="add-open" aria-label="Add people" title="Add people" aria-expanded="${state.adding}">${ICON_PLUS}</button></span>
-      </div>
+    <section class="people">
+      <label class="search">${ICON_SEARCH}<input id="people-search" type="text" inputmode="email" placeholder="Search, or type an address to add" value="${escape(state.search)}" aria-label="Search people, or type an address to add" autocomplete="off" spellcheck="false" />${clear}</label>
       <div class="panel"><div class="people-list">${rows}</div></div>
     </section>
     <section class="section">
@@ -1140,38 +1132,19 @@ function render({ entering = false } = {}) {
   }
   const searching = document.activeElement?.id === 'people-search'
   const caret = searching ? document.activeElement.selectionStart : null
-  const typed = document.getElementById('add-emails')?.value
   const page = document.getElementById('page')
   const view = state.tab === 'data' ? dataView() : peopleView()
   page.innerHTML = `<div class="view${entering ? ' entering' : ''}">${view}</div>${dialogView()}`
   document.title = `${state.tab === 'data' ? 'Data' : 'People'} · self.mp3 admin`
   hideTip()
   drawCharts()
-  watchIndex()
-  for (const img of document.querySelectorAll('img.avatar')) {
-    img.addEventListener(
-      'error',
-      () => {
-        const letter = document.createElement('span')
-        letter.className = 'avatar'
-        letter.setAttribute('aria-hidden', 'true')
-        letter.style.background = 'var(--surface3)'
-        letter.textContent = img.dataset.initial ?? '?'
-        img.replaceWith(letter)
-      },
-      { once: true },
-    )
-  }
-  const addBox = document.getElementById('add-emails')
-  if (addBox && typed !== undefined) addBox.value = typed
+  lightIndex()
   if (searching) {
     const input = document.getElementById('people-search')
     input?.focus()
     if (caret !== null) input?.setSelectionRange(caret, caret)
   } else if (state.confirm) {
     document.querySelector('.dialog [data-action="confirm-ok"]')?.focus()
-  } else if (addBox && typed === undefined) {
-    addBox.focus()
   }
 }
 
@@ -1207,39 +1180,46 @@ async function savePeople(change, done) {
 
 const EMAIL = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/
 
-function addPeople() {
-  const text = document.getElementById('add-emails')?.value ?? ''
-  const typed = [
+/** What is typed in People's field: its words, and which are addresses to add. */
+function typedOf(text) {
+  const words = [
     ...new Set(
       text
         .split(/[\s,;]+/)
-        .map(e => e.trim().toLowerCase())
+        .map(w => w.trim().toLowerCase())
         .filter(Boolean),
     ),
   ]
-  if (!typed.length) {
-    state.addProblem = 'Type or paste at least one address.'
-    render()
-    return
+  const known = new Set([...(state.people?.emails ?? []), ...(state.people?.owners ?? [])])
+  const addresses = words.filter(w => EMAIL.test(w))
+  return {
+    words,
+    fresh: addresses.filter(w => !known.has(w)),
+    // Only pasted lists say what isn't an address: one word is a search.
+    wrong: words.length > 1 ? words.filter(w => !EMAIL.test(w)) : [],
   }
-  const wrong = typed.filter(e => !EMAIL.test(e))
-  if (wrong.length) {
-    state.addProblem = `${wrong.length === 1 ? 'This is' : 'These are'} not an address: ${wrong.join(', ')}`
-    render()
-    return
-  }
-  const known = new Set([...state.people.emails, ...state.people.owners])
-  const fresh = typed.filter(e => !known.has(e))
-  state.addProblem = null
-  state.adding = false
-  if (!fresh.length) {
-    toast(typed.length === 1 ? 'They can sign in already.' : 'All of them can sign in already.')
-    render()
-    return
-  }
+}
+
+/** The top of the list while what is typed holds addresses not on it. */
+function addRow({ fresh, wrong }) {
+  if (!fresh.length) return ''
+  const name =
+    fresh.length === 1 ? `Add ${fresh[0]}` : `Add ${plural(fresh.length, 'person', 'people')}`
+  const notes = [
+    fresh.length > 1 ? fresh.join(', ') : null,
+    wrong.length ? `Not an address, left out: ${wrong.join(', ')}` : null,
+    'While Google sign-in is in Testing, add them as test users there too.',
+  ].filter(Boolean)
+  return `<div class="row add-row"><span class="avatar add" aria-hidden="true">${ICON_PLUS}</span><div class="lbl"><span class="name">${escape(name)}</span>${notes.map(n => `<span class="hint">${escape(n)}</span>`).join('')}</div><button class="btn primary small" type="button" data-action="add-typed" ${state.busy ? 'disabled' : ''}>Add</button></div>`
+}
+
+function addTyped() {
+  const { fresh } = typedOf(state.search)
+  if (!fresh.length || state.busy) return
+  state.search = ''
   void savePeople(
     list => ({ ...list, emails: [...list.emails, ...fresh] }),
-    `Added ${plural(fresh.length, 'person', 'people')}`,
+    fresh.length === 1 ? `Added ${fresh[0]}` : `Added ${plural(fresh.length, 'person', 'people')}`,
   )
 }
 
@@ -1259,6 +1239,16 @@ document.addEventListener('click', event => {
   if (link && !event.metaKey && !event.ctrlKey) {
     event.preventDefault()
     void go(link.dataset.tab ?? 'data')
+    return
+  }
+  const entry = target.closest('.index a')
+  if (entry) {
+    // Scrolled to here rather than followed: following `#id` is a step in the
+    // history, which would draw the page again.
+    event.preventDefault()
+    pinned = entry.dataset.index
+    lightIndex()
+    document.getElementById(pinned)?.scrollIntoView({ block: 'start' })
     return
   }
   const range = target.closest('button[data-range]')
@@ -1287,18 +1277,13 @@ document.addEventListener('click', event => {
   // A press inside the dialog is not a press on the scrim behind it.
   if (kind === 'confirm-cancel' && action.classList.contains('scrim') && target !== action) return
   switch (kind) {
-    case 'add-open':
-      state.adding = !state.adding
-      state.addProblem = null
+    case 'search-clear':
+      state.search = ''
       render()
+      document.getElementById('people-search')?.focus()
       break
-    case 'add-cancel':
-      state.adding = false
-      state.addProblem = null
-      render()
-      break
-    case 'add-save':
-      addPeople()
+    case 'add-typed':
+      addTyped()
       break
     case 'remove': {
       const email = action.getAttribute('data-email')
@@ -1362,10 +1347,32 @@ document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && state.confirm) {
     state.confirm = null
     render()
+    return
+  }
+  if (event.target instanceof HTMLInputElement && event.target.id === 'people-search') {
+    if (event.key === 'Enter') addTyped()
+    else if (event.key === 'Escape' && state.search) {
+      state.search = ''
+      render()
+    }
   }
 })
 
-window.addEventListener('popstate', () => void go(tabOf(location.pathname), { push: false }))
+document.addEventListener('scroll', lightIndexSoon, { capture: true, passive: true })
+window.addEventListener('resize', lightIndexSoon)
+for (const type of ['wheel', 'touchstart', 'keydown']) {
+  window.addEventListener(
+    type,
+    () => {
+      pinned = null
+    },
+    { passive: true },
+  )
+}
+window.addEventListener('popstate', () => {
+  const tab = tabOf(location.pathname)
+  if (tab !== state.tab) void go(tab, { push: false })
+})
 
 // A page left open keeps its numbers current while it is being looked at.
 setInterval(() => {

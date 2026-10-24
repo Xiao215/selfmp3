@@ -8,7 +8,7 @@ like any other there.
 Decided on 2026-10-23 and reworked on 2026-10-24 (proposal artifact
 `JdZ4o2nCHbXMJmV3mu7i8z`, version 5 and Xiao's notes on it):
 
-- The page is framed the way the app is: its logo, sidebar, icons, page titles, cards,
+- The page is framed the way the app is: its icon, logo, sidebar, icons, page titles, cards,
   Settings' panels and rows, buttons, segmented control and dialog.
 - The charts are working charts in the app's colours, not Stats' decoration.
 - There is no sign-in, no Server tab, and no list of turned-away addresses.
@@ -57,14 +57,13 @@ says to set the key, and the doorman's counts stay off the Data tab.
 
 Who can sign in, built for a hundred people or more:
 
-- One list, A–Z by name, with a search box over it (names or addresses). The list scrolls
-  inside its panel.
-- Each person shows the name and picture Google last gave the doorman when they signed in, or
-  their initial before they ever have. The doorman keeps these in its `TALLY` Durable Object
-  (`profile:<email>`, written only when Google gives something new), never in KV.
+- One list of addresses, A–Z. The list scrolls inside its panel.
+- Over it, one field that searches and adds: the app's search field, with a count and a × once
+  there are words. A whole address that isn't on the list, typed or pasted many at once, shows
+  an **Add** row at the top of the list, and Enter adds it. A pasted list says which words
+  aren't addresses.
 - The owners (`OWNER_EMAILS`) are marked and can't be removed.
-- The **+** beside the search box opens Add people: one address or many pasted at once, and it
-  says which ones aren't addresses.
+- The page shows addresses only. The doorman keeps no names or pictures for it.
 - Remove asks first, in the app's confirmation dialog.
 - **Anyone with a Google account** is a setting of its own. Turning it on asks first.
 
@@ -84,8 +83,8 @@ counts live in three places:
 | The doorman's `TALLY` Durable Object (`apps/doorman/src/tally.ts`) | reads by bucket folder (`audio`, `covers`, `lyrics`) and by app (web, computer, phone, extension, server, lent), new sessions, refused sign-ins (the count, not the address) | a year |
 
 A range switch (week, month, 3 months) scopes everything on the tab. On a wide window an
-**On this page** index sits on the right, with every section and chart, and marks the one
-being read. The title line says
+**On this page** index sits on the right, with every section and chart. It marks the one being
+read, and keeps an entry that was clicked marked until the reader scrolls. The title line says
 whether Smart features answer and whether YouTube is holding the server back. Then:
 
 - **Headline numbers**: imports with the change on the period before, the share that worked,

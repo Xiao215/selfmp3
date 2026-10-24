@@ -31,12 +31,7 @@ describe('the admin page', () => {
   ] as const
   const KEY = 'k'.repeat(64)
   /** The doorman, stood in for at its HTTP edge: it takes the admin key and nothing else. */
-  let list = {
-    anyone: false,
-    emails: ['friend@example.com'],
-    owners: ['me@example.com'],
-    profiles: {},
-  }
+  let list = { anyone: false, emails: ['friend@example.com'], owners: ['me@example.com'] }
   const doormanSeen: Array<{ method: string; path: string; auth: string }> = []
   const fakeDoorman = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://doorman')
@@ -127,6 +122,17 @@ describe('the admin page', () => {
     }
     for (const name of ['index.html', 'admin.css', 'admin.js']) {
       expect(fs.existsSync(path.join(ADMIN_DIR, name))).toBe(true)
+    }
+  })
+
+  it('wears the app’s own icon', async () => {
+    const appIcons = path.join(ADMIN_DIR, '..', '..', 'app', 'public', 'icons')
+    for (const name of ['icon.svg', 'icon-180.png']) {
+      const served = await fetch(`${adminOrigin}/${name}`)
+      expect(served.status).toBe(200)
+      expect(Buffer.from(await served.arrayBuffer())).toEqual(
+        fs.readFileSync(path.join(appIcons, name)),
+      )
     }
   })
 

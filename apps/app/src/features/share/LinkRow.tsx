@@ -229,9 +229,11 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
   },
-  // Where a song's length is.
+  // Where a song's length is: at the row's far end, with the ⋯, however
+  // wide the page — the words before it are held to a reading width.
   time: {
     width: 116,
+    marginLeft: 'auto',
     textAlign: 'right',
     color: theme.colors.textSecondary,
     fontSize: type.small,

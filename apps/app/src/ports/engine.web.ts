@@ -37,6 +37,8 @@ export const engineCapabilities: EngineCapabilities = {
 const PRELOAD_LEAD = 20
 /** How often the crossfade ramp updates. 50 ms is smooth and cheap. */
 const FADE_TICK_MS = 50
+/** `HTMLMediaElement.HAVE_METADATA`: the element knows the duration and can seek. */
+const HAVE_METADATA = 1
 
 /**
  * A single `<audio>` element cannot do gapless or crossfade — by the time the
@@ -401,10 +403,16 @@ class AudioEngine implements PlaybackEngine {
    * from the top that a seek after the fact costs. Where it is ignored
    * instead, the seek is made once the metadata is in — unless a newer load
    * has the element by then.
+   *
+   * A browser that fetched the metadata anyway, `preload="none"` or not
+   * (Chrome does), has taken the seek already, and its `loadedmetadata` has
+   * been and gone. Waiting for it ran out five seconds later and put the song
+   * back to where it was restored, however far it had played since.
    */
   async #startFrom(startAt: number): Promise<void> {
     const generation = this.#loadGeneration
     this.#primary.currentTime = startAt
+    if (this.#primary.readyState >= HAVE_METADATA) return
     await once(this.#primary, 'loadedmetadata', 5_000)
     if (generation !== this.#loadGeneration) return
     if (Math.abs(this.#primary.currentTime - startAt) > 1) this.#primary.currentTime = startAt

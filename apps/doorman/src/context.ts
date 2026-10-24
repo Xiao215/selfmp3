@@ -44,6 +44,8 @@ export interface Env {
    * and the only ones who may change who else is (access.ts).
    */
   readonly OWNER_EMAILS?: string
+  /** The admin key the owner's server holds for its admin page (access.ts `requireOwner`). */
+  readonly ADMIN_TOKEN?: string
   /** Comma-separated origins of the web app, for CORS and for going back after sign-in. */
   readonly APP_ORIGINS?: string
   /**

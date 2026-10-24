@@ -229,23 +229,6 @@ export const DoormanAccessSchema = DoormanAccessUpdateSchema.extend({
 export type DoormanAccess = z.infer<typeof DoormanAccessSchema>
 
 /**
- * Someone Google signed in who was not on the list (`GET /v1/access/requests`),
- * kept a week so the owner can let them in from the admin page.
- */
-export const DoormanAccessRequestSchema = z.object({
-  email: z.string(),
-  tries: z.number().int().positive(),
-  firstAt: z.string(),
-  lastAt: z.string(),
-})
-export type DoormanAccessRequest = z.infer<typeof DoormanAccessRequestSchema>
-
-export const DoormanAccessRequestsSchema = z.object({
-  requests: z.array(DoormanAccessRequestSchema),
-})
-export type DoormanAccessRequests = z.infer<typeof DoormanAccessRequestsSchema>
-
-/**
  * What the doorman counted, a day at a time (`GET /v1/stats?days=N`), for its
  * owner's admin page: totals across everyone, never anyone's own. Days are
  * UTC dates, oldest first; a day nothing happened on is left out.

@@ -28,12 +28,10 @@ watch_dir = ["src", "../../packages/shared/src", "../../packages/client/src/them
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
 # The addresses the web app is served from. Browsers may call the doorman only
 # from these, and a sign-in may send you back here (or to this computer, for the
-# server's settings). The second is the owner's admin page on the Pi, which is
-# reachable only on the owner's tailnet (docs/features/admin.md). The desktop
-# app's and the browser extension's own origins
+# server's settings). The desktop app's and the browser extension's own origins
 # are always allowed: they are the same on every install, and the doorman takes
 # them from packages/shared/src/origins.ts.
-APP_ORIGINS = "https://xiao215.github.io,https://pi.tail3d8516.ts.net:4443"
+APP_ORIGINS = "https://xiao215.github.io"
 # Where the web app is, path and all. A share link's own address on the doorman
 # (`/l/<id>/<key>`) shows a chat app the song's card and sends a person on to
 # the same address here (src/linkPage.ts).
@@ -105,7 +103,10 @@ new_sqlite_classes = ["Tally"]
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
 #   SEAL_KEY              `openssl rand -base64 32`; every key the doorman uses comes from it
 #   OWNER_EMAILS          your Google address (comma-separated for more): always let in, and the
-#                         only ones who may change who else is, in self.mp3's Settings
+#                         only ones who may change who else is
+#   ADMIN_TOKEN           `openssl rand -hex 32`, the same value as SELFMP3_DOORMAN_ADMIN_TOKEN in
+#                         your server's .env: the key its admin page changes the list and reads
+#                         the counts with (docs/features/admin.md)
 
 # `npx wrangler dev --env dev`, on your own computer only: never deployed. The
 # web app's local addresses may call it, and DEV lets it use a bucket on this
@@ -114,7 +115,7 @@ new_sqlite_classes = ["Tally"]
 # named again here.
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-APP_ORIGINS = "http://localhost:4600,http://localhost:4601,http://localhost:4610"
+APP_ORIGINS = "http://localhost:4600,http://localhost:4601"
 APP_URL = "http://localhost:4601"
 DEV = "true"
 

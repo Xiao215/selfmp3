@@ -130,7 +130,7 @@ The doorman signs people in with an OAuth client that you own, in the
    instead, so the app is **In production**. Google then wants the home page
    and privacy policy from step 3 before it will show the app to strangers,
    and the home page verified as yours in Search Console. Then turn on
-   **Anyone with a Google account** on the admin page's Access tab;
+   **Anyone with a Google account** on the admin page's People tab;
    Testing's list and the doorman's are two doors, and both have to be open.
 5. **Clients**: **Create client**, application type **Web application**,
    any name ("self.mp3 doorman"). Under **Authorised redirect URIs** add
@@ -152,9 +152,7 @@ The doorman signs people in with an OAuth client that you own, in the
 2. Check `APP_ORIGINS` in `wrangler.toml`: the address the web app is served
    from, `https://xiao215.github.io`. Browsers may call the doorman only from
    there, and a sign-in only sends you back there — or to this computer
-   (`http://localhost` or `http://127.0.0.1`). The second address is the
-   owner's admin page on the Pi, reachable only on the owner's tailnet
-   (docs/features/admin.md). The desktop app's and the browser
+   (`http://localhost` or `http://127.0.0.1`). The desktop app's and the browser
    extension's own origins are always allowed and are not listed: the doorman
    takes them from `packages/shared/src/origins.ts`. `APP_URL` beside it is the web app's
    full address, path and all (`https://xiao215.github.io/selfmp3`): where a share link's
@@ -243,19 +241,19 @@ redirect URI in step 2).
   "Telling the server"). Nothing new is kept for it: every grant has always
   stored that address.
 - **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep on
-  the admin page's Access tab (`/v1/access`, kept in KV as `access`). Only an
-  owner on a device of their own may read or change it: a server's grant is
-  refused, though it is a session in the owner's name. Someone Google signed
-  in who was not on the list is remembered for a week, for the owner to let in
-  (`/v1/access/requests`).
-- **What it counts** for the admin page (`/v1/stats`, owner only) is reads by
-  bucket folder and by app, and sign-ins, a day at a time, in the `TALLY`
-  Durable Object (src/tally.ts). Totals only: nothing names an account. Letter case does not matter. With no
+  the admin page's People tab (`/v1/access`, kept in KV as `access`). It is
+  read and changed with the admin key (`ADMIN_TOKEN`, which the owner's server
+  holds for its admin page) or by an owner on a device of their own; a
+  server's grant is refused, though it is a session in the owner's name.
+  Letter case does not matter. With no
   owner and nobody on the list, nobody can sign in. Taking an address off the
   list refuses its sessions, and any server's grant for it, within a minute,
   but does not end them: putting the address back revives them. To be rid of
   someone's sessions for good, have them sign out everywhere, or keep them off
   the list. An owner is always let in, so the list can never lock one out.
+- **What it counts** for the admin page (`/v1/stats`, the same key) is reads
+  by bucket folder and by app, and sign-ins, a day at a time, in the `TALLY`
+  Durable Object (src/tally.ts). Totals only: nothing names an account.
 - **Anyone with a Google account**, the switch above the list, lets any
   Google account sign in. Each account still gets a bucket of its own and sees
   nothing of anyone else's, so what an open doorman gives away is your quota:

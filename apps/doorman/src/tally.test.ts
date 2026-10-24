@@ -1,6 +1,5 @@
 import {
   DOORMAN_PATHS,
-  DoormanAccessRequestsSchema,
   DoormanAccessSchema,
   DoormanGrantMadeSchema,
   DoormanStatsSchema,
@@ -19,7 +18,6 @@ const SHA = 'a'.repeat(64)
 const SONG = `audio/${SHA}.m4a`
 const COVER = `covers/${SHA}.jpg`
 const TODAY = '2026-09-11'
-const DAY_MS = 24 * 60 * 60 * 1000
 
 async function serverGrant(h: Harness, token: string): Promise<string> {
   const response = await h.call('/v1/grants', {
@@ -37,12 +35,6 @@ async function stats(h: Harness, token: string, days = 7) {
   return DoormanStatsSchema.parse(await response.json()).days
 }
 
-async function requests(h: Harness, token: string) {
-  const response = await h.call(DOORMAN_PATHS.accessRequests, { token })
-  expect(response.status).toBe(200)
-  return DoormanAccessRequestsSchema.parse(await response.json()).requests
-}
-
 describe('who may see and change the owner’s things', () => {
   it('refuses a server’s grant, even though it is in the owner’s name', async () => {
     const h = harness()
@@ -57,7 +49,6 @@ describe('who may see and change the owner’s things', () => {
     })
     expect(put.status).toBe(403)
     expect((await h.call(DOORMAN_PATHS.stats, { token: grant })).status).toBe(403)
-    expect((await h.call(DOORMAN_PATHS.accessRequests, { token: grant })).status).toBe(403)
 
     // The owner's own device still may.
     expect((await h.call(DOORMAN_PATHS.access, { token: owner })).status).toBe(200)
@@ -67,7 +58,27 @@ describe('who may see and change the owner’s things', () => {
     const h = harness()
     const friend = await h.signIn({ sub: '2', email: 'friend@example.com' })
     expect((await h.call(DOORMAN_PATHS.stats, { token: friend })).status).toBe(403)
-    expect((await h.call(DOORMAN_PATHS.accessRequests, { token: friend })).status).toBe(403)
+  })
+
+  it('takes the admin key the owner’s server holds, and nothing like it', async () => {
+    const h = harness()
+    const key = 'k'.repeat(64)
+    h.env.ADMIN_TOKEN = key
+    const read = await h.call(DOORMAN_PATHS.access, { token: key })
+    expect(read.status).toBe(200)
+    expect(DoormanAccessSchema.parse(await read.json()).emails).toEqual(['friend@example.com'])
+    const put = await h.call(DOORMAN_PATHS.access, {
+      method: 'PUT',
+      token: key,
+      json: { anyone: false, emails: ['friend@example.com', 'new@example.com'] },
+    })
+    expect(put.status).toBe(200)
+    expect((await h.call(DOORMAN_PATHS.stats, { token: key })).status).toBe(200)
+
+    expect((await h.call(DOORMAN_PATHS.access, { token: 'k'.repeat(63) })).status).toBe(401)
+    // A key too short to be one is no key at all, even typed back exactly.
+    h.env.ADMIN_TOKEN = 'short'
+    expect((await h.call(DOORMAN_PATHS.access, { token: 'short' })).status).toBe(401)
   })
 })
 
@@ -114,53 +125,12 @@ describe('counting reads', () => {
   })
 })
 
-describe('people asking to be let in', () => {
-  it('remembers an address Google signed in that was not on the list, for the owner', async () => {
+describe('refused sign-ins', () => {
+  it('are counted, and the address is not kept', async () => {
     const h = harness()
-    const owner = await h.signIn()
-    await expect(h.signIn({ sub: '9', email: 'Stranger@Example.org' })).rejects.toThrow(/403/)
-    h.clock.now += 60_000
     await expect(h.signIn({ sub: '9', email: 'stranger@example.org' })).rejects.toThrow(/403/)
     await h.settle()
-
-    expect(await requests(h, owner)).toEqual([
-      {
-        email: 'stranger@example.org',
-        tries: 2,
-        firstAt: '2026-09-11T12:00:00.000Z',
-        lastAt: '2026-09-11T12:01:00.000Z',
-      },
-    ])
-    expect(h.tally.day(TODAY)['signins.refused']).toBe(2)
-  })
-
-  it('forgets them once let in, or dismissed, or after a week', async () => {
-    const h = harness()
-    const owner = await h.signIn()
-    for (const [sub, email] of [
-      ['7', 'one@example.org'],
-      ['8', 'two@example.org'],
-      ['9', 'three@example.org'],
-    ] as const) {
-      await expect(h.signIn({ sub, email })).rejects.toThrow(/403/)
-    }
-    await h.settle()
-
-    const put = await h.call(DOORMAN_PATHS.access, {
-      method: 'PUT',
-      token: owner,
-      json: { anyone: false, emails: ['friend@example.com', 'one@example.org'] },
-    })
-    expect(DoormanAccessSchema.parse(await put.json()).emails).toContain('one@example.org')
-    const dismissed = await h.call(`${DOORMAN_PATHS.accessRequests}?email=two%40example.org`, {
-      method: 'DELETE',
-      token: owner,
-    })
-    expect(dismissed.status).toBe(204)
-    expect((await requests(h, owner)).map(r => r.email)).toEqual(['three@example.org'])
-
-    h.clock.now += 8 * DAY_MS
-    expect(await requests(h, owner)).toEqual([])
-    expect(h.tally.values.has('asked:three@example.org')).toBe(false)
+    expect(h.tally.day(TODAY)['signins.refused']).toBe(1)
+    expect(JSON.stringify([...h.tally.values])).not.toContain('stranger')
   })
 })

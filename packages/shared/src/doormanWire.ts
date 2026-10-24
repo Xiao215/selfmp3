@@ -200,7 +200,6 @@ export const DOORMAN_PATHS = {
   signOutEverywhere: '/v1/auth/signout-everywhere',
   me: '/v1/me',
   access: '/v1/access',
-  accessRequests: '/v1/access/requests',
   stats: '/v1/stats',
   storage: '/v1/storage',
   backblaze: '/v1/storage/backblaze',

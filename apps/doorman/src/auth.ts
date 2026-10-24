@@ -184,10 +184,8 @@ export async function callback(ctx: Context): Promise<Response> {
 
   if (await ctx.access.nobody()) return nobodyAllowedPage()
   if (!(await ctx.access.allows(identity.email))) {
-    // Remembered for the owner's admin page, where they can let this address in.
-    const tally = tallyOf(ctx)
-    tally.asked(identity.email)
-    tally.count(DOORMAN_COUNT.refused)
+    // Counted for the owner's admin page; the address itself is not kept.
+    tallyOf(ctx).count(DOORMAN_COUNT.refused)
     return notAllowedPage(identity.email)
   }
 

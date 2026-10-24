@@ -169,8 +169,11 @@ export async function relayRead(
   method: 'GET' | 'HEAD',
   app: DoormanReadApp,
 ): Promise<Response> {
-  // Counted before the bucket answers: it counts a read whatever it says.
-  tallyOf(ctx).count(DOORMAN_COUNT.read(key.slice(0, key.indexOf('/'))), DOORMAN_COUNT.readBy(app))
+  // Counted before the bucket answers: it counts a read whatever it says. A
+  // file at the top, `format.json`, is its own folder.
+  const slash = key.indexOf('/')
+  const folder = slash === -1 ? key : key.slice(0, slash)
+  tallyOf(ctx).count(DOORMAN_COUNT.read(folder), DOORMAN_COUNT.readBy(app))
   const forward = new Headers()
   const range = relayedRange(ctx.request.headers.get('range'))
   if (range !== null) forward.set('range', range)

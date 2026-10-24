@@ -111,13 +111,6 @@ export class TallyObject {
         else if (day >= from) days.push({ day, counts })
       }
       days.sort((a, b) => a.day.localeCompare(b.day))
-      // Earlier versions also kept turned-away addresses (`asked:`) and Google's
-      // names and pictures (`profile:`); neither is kept now.
-      for (const prefix of ['asked:', 'profile:']) {
-        for (const key of (await this.#storage.list<unknown>({ prefix })).keys()) {
-          await this.#storage.delete(key)
-        }
-      }
       return Response.json({ days })
     }
     return new Response(null, { status: 404 })

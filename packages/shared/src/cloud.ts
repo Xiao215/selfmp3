@@ -266,9 +266,12 @@ export function othersSnapshotsToPrune(
 }
 
 /**
- * Every file a snapshot names: each song's audio, cover, words and motion
- * curve, each artist's pictures, the sound vectors and the
- * months of plays. What must not be deleted while that snapshot may be read.
+ * The files a snapshot names for its songs, artists, sound and plays: each
+ * song's audio, cover, words and motion curve, each artist's pictures, the
+ * sound vectors and the months of plays. What the server's sweep of unnamed
+ * files (`#trashOrphans` in apps/server's cloudSync.ts) must not take while
+ * that snapshot may be read. Its cover packs are not among them: the sweep
+ * never looks at packs, which the server writes and lets go of itself.
  */
 export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
   const keys = new Set<string>()

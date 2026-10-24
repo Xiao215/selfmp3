@@ -29,6 +29,10 @@ export const ShareKeySchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a share li
 /** The most songs one link holds. */
 export const SHARE_MAX_SONGS = 100
 
+/** The most asks one link keeps (the oldest go first), and names of people who opened it. */
+export const SHARE_MAX_ASKS = 20
+export const SHARE_MAX_OPENED = 50
+
 /** The name of what was shared: a song's title, or the tag's or playlist's. */
 export const ShareNameSchema = z.string().trim().min(1).max(300)
 
@@ -83,11 +87,11 @@ export const ShareDocSchema = z.object({
     .nullable(),
   plays: z.number().int().nonnegative(),
   /** The names of the signed-in people who opened it, first opening first. */
-  opened: z.array(RoomMemberNameSchema).max(50),
+  opened: z.array(RoomMemberNameSchema).max(SHARE_MAX_OPENED),
   /** How many times it was opened by someone not signed in. */
   guests: z.number().int().nonnegative(),
   /** Asks to hear it again, since it was last shared. */
-  asks: z.array(ShareAskSchema).max(20),
+  asks: z.array(ShareAskSchema).max(SHARE_MAX_ASKS),
 })
 export type ShareDoc = z.infer<typeof ShareDocSchema>
 

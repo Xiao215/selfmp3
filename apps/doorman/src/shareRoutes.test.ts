@@ -4,6 +4,7 @@ import {
   SHARE_IDLE_MS,
   SHARE_KEPT_MS,
   SHARE_LIMIT_MS,
+  type RoomFilePart,
   type RoomSong,
   type ShareLink,
 } from '@selfmp3/shared'
@@ -85,10 +86,15 @@ async function make(
 const open = (s: Setup, made: ShareLink, token?: string, key = made.key) =>
   s.h.call(`/v1/share/${made.id}?k=${key}`, { token })
 
-const file = (s: Setup, made: ShareLink, part: 'audio' | 'cover' | 'lyrics', headers = {}) =>
-  s.h.call(`/v1/share/${made.id}/files/${made.entries[0]?.id ?? ''}/${part}?k=${made.key}`, {
-    headers,
-  })
+/** A song's file, and the play it writes down after the answer (`waitUntil`) written. */
+async function file(s: Setup, made: ShareLink, part: RoomFilePart, headers = {}) {
+  const answer = await s.h.call(
+    `/v1/share/${made.id}/files/${made.entries[0]?.id ?? ''}/${part}?k=${made.key}`,
+    { headers },
+  )
+  await s.h.settle()
+  return answer
+}
 
 describe('a share link', () => {
   it('is made signed in, with a bucket, and opens for anyone with its key', async () => {
@@ -193,6 +199,21 @@ describe('a share link', () => {
     expect((await make(s)).id).toBe(fresh.id)
     await s.h.call(`/v1/share/${fresh.id}/act`, { token: s.me, json: { type: 'forget' } })
     expect((await make(s)).id).not.toBe(fresh.id)
+  })
+
+  it('is still the same link after its sender shared it again from its card', async () => {
+    const s = await setup()
+    const made = await make(s)
+    // Ran out after a week; shared again from its card near the end of its ninety days.
+    s.h.clock.now += SHARE_IDLE_MS + SHARE_KEPT_MS - DAY
+    const renewed = await s.h.call(`/v1/share/${made.id}/act`, {
+      token: s.me,
+      json: { type: 'renew' },
+    })
+    expect(renewed.status).toBe(200)
+    // Past when the way back to it, put when it was made, would have run out.
+    s.h.clock.now += SHARE_LIMIT_MS
+    expect((await make(s)).id).toBe(made.id)
   })
 
   it('lasts a week from the last play, and a month at most', async () => {

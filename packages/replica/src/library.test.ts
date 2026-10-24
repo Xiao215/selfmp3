@@ -494,15 +494,28 @@ describe('opening', () => {
 
   it('brings a copy kept before the snapshot’s shape settled up to it, without the bucket', async () => {
     // A copy kept before every song named its motion curve and every snapshot
-    // its artists and sound. Thrown away, it had to be read again — and on a
+    // its artists, sound, artists' other names, spellings and cover packs, and
+    // its server's id. Thrown away, it had to be read again — and on a
     // day the bucket refuses reads that left a phone with no library at all,
     // its downloads on the disk (2026-10-08). It is upgraded and kept instead.
     const store = memoryStore()
-    const { artists: _artists, sound: _sound, upTo: _upTo, ...older } = SNAPSHOT
+    const {
+      artists: _artists,
+      sound: _sound,
+      upTo: _upTo,
+      artistNames: _names,
+      spellings: _spellings,
+      coverPacks: _packs,
+      ...older
+    } = SNAPSHOT
+    const unnamed = { addresses: ['http://music.example.com'], token: 'library-token' }
     const songs = older.songs.map(
       ({ motion: _motion, audioFeatures: _features, coverTone: _tone, ...song }) => song,
     )
-    store.data.set('cloud-base', { key: SNAPSHOT_KEY, snapshot: { ...older, songs } })
+    store.data.set('cloud-base', {
+      key: SNAPSHOT_KEY,
+      snapshot: { ...older, songs, server: unnamed },
+    })
     const made = build(store)
     await signedIn(made)
     made.bucket.refuseReads(true)
@@ -660,6 +673,7 @@ const SNAPSHOT: CloudSnapshot = {
   artists: [],
   artistNames: [],
   spellings: {},
+  coverPacks: [],
   sound: null,
 }
 

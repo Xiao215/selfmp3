@@ -1,7 +1,9 @@
 import { assertNever } from './exhaustive.js'
 import type { RoomRefusal } from './room.js'
-import type { RoomSong } from './schemas/room.js'
+import type { RoomFilePart, RoomSong } from './schemas/room.js'
 import {
+  SHARE_MAX_ASKS,
+  SHARE_MAX_OPENED,
   SHARE_MAX_SONGS,
   type ShareAction,
   type ShareDoc,
@@ -33,10 +35,6 @@ export const SHARE_LIMIT_MS = 30 * DAY_MS
 export const SHARE_KEPT_MS = 90 * DAY_MS
 /** The last day of a link, when it says it is ending (D1). */
 export const SHARE_LAST_DAY_MS = DAY_MS
-
-/** The most asks one link keeps, and names of people who opened it. */
-const MAX_ASKS = 20
-const MAX_OPENED = 50
 
 function refuse(refused: RoomRefusal['refused'], message: string): RoomRefusal {
   return { refused, message }
@@ -124,7 +122,7 @@ export function sharePlayed(doc: ShareDoc, now: number, fromStart: boolean): Sha
 export function shareOpened(doc: ShareDoc, name: string | null): ShareDoc {
   if (name === null) return { ...doc, guests: doc.guests + 1 }
   if (doc.opened.includes(name)) return doc
-  return { ...doc, opened: [...doc.opened, name].slice(0, MAX_OPENED) }
+  return { ...doc, opened: [...doc.opened, name].slice(0, SHARE_MAX_OPENED) }
 }
 
 /** A song's file is no longer in the bucket. With none of them left, the link has ended. */
@@ -159,7 +157,7 @@ export function shareAsked(
   const kept = doc.asks.find(other => same(other.name))
   return {
     ...doc,
-    asks: [...others, { id: kept?.id ?? ask.id, name: ask.name, at: now }].slice(-MAX_ASKS),
+    asks: [...others, { id: kept?.id ?? ask.id, name: ask.name, at: now }].slice(-SHARE_MAX_ASKS),
   }
 }
 
@@ -190,7 +188,7 @@ export function applyShareAction(
 export function shareLends(
   doc: ShareDoc,
   entryId: string,
-  part: 'audio' | 'cover' | 'lyrics',
+  part: RoomFilePart,
   now: number,
 ): boolean {
   const entry = doc.entries.find(candidate => candidate.id === entryId)

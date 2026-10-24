@@ -6,8 +6,21 @@
  * `apps/app/scripts/pages.mjs`.
  */
 
-export const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const ESCAPES: Readonly<Record<string, string>> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}
+
+/**
+ * Text made safe in a page: in its body, and in an attribute quoted either
+ * way. These pages and the doorman's (apps/doorman's html.ts) escape with it.
+ */
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, char => ESCAPES[char] ?? char)
+}
 
 /** A page around `body`, which the caller has already escaped. */
 export function renderPublicPage(title: string, body: string): string {

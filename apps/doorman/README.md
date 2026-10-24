@@ -33,7 +33,7 @@ allows about 100,000 reads and 1,000 writes a day. Nothing is written until
 Google has vouched for an address on your list; a whole sign-in costs three
 writes, and using the library afterwards costs none.
 
-Four kinds of Durable Object keep the rest (the free plan allows 100,000
+Five kinds of Durable Object keep the rest (the free plan allows 100,000
 requests a day across them, with their storage in SQLite):
 
 | Binding | Class | One per | Kept |
@@ -42,6 +42,7 @@ requests a day across them, with their storage in SQLite):
 | `ROOMS` | `Room` (`src/room.ts`) | listening room | until two hours pass with nothing done; forgotten ten minutes after it ends |
 | `SHARED` | `SharedPlaylist` (`src/shared.ts`) | shared playlist | until its last person leaves |
 | `SHARES` | `ShareLink` (`src/share.ts`) | share link | until ninety days after it ends |
+| `TALLY` | `Tally` (`src/tally.ts`) | doorman (one, named `all`) | each day's counts for 400 days |
 
 The change counter moves whenever a snapshot or a log file is written or
 deleted, and devices ask it before they list the bucket, so a device whose

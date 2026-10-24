@@ -103,6 +103,7 @@ describe('/api/cloud/uids', () => {
     artists: [],
     artistNames: [],
     spellings: {},
+    coverPacks: [],
     sound: null,
   }
 

@@ -8,10 +8,17 @@ import {
   RoomIdSchema,
   type SharedSummary,
 } from '@selfmp3/shared'
-import { z } from 'zod'
-import { Bucket } from './bucket.js'
 import { requireSession, type Context } from './context.js'
-import { relayRead } from './files.js'
+import {
+  BucketFileSchema,
+  idIndex,
+  lentAnswer,
+  post,
+  readLent,
+  relayed,
+  summariesOf,
+  type IdIndex,
+} from './doRelay.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
 import { secureHex } from './encoding.js'
 import { facePicture, type Session } from './sessions.js'
@@ -22,42 +29,20 @@ import { facePicture, type Session } from './sessions.js'
  * named by its id (shared.ts); these routes check the session, keep each
  * account's list of the playlists it is in, and lend songs' files.
  *
- * The list is a KV value per account: it changes only when someone makes,
- * joins or leaves a playlist, a few times a day at most, which KV's free
- * writes cover; and every entry in it is checked with the playlist itself
- * before it is shown.
+ * The list is a KV value per account (doRelay.ts's `idIndex`): it changes
+ * only when someone makes, joins or leaves a playlist, and every entry in it
+ * is checked with the playlist itself before it is shown.
  */
 
 const SHARED = DOORMAN_PATHS.shared
 
 /** The playlists an account is in, as KV keeps them. */
-const IndexSchema = z.array(SharedIdSchema)
-
-function indexKey(sub: string): string {
-  return `shared:${sub}`
+function sharedIndex(ctx: Context, sub: string): IdIndex {
+  return idIndex(ctx, `shared:${sub}`, SharedIdSchema)
 }
 
-async function sharedIds(ctx: Context, sub: string): Promise<string[]> {
-  const stored = await ctx.env.KV.get(indexKey(sub))
-  if (!stored) return []
-  try {
-    const parsed = IndexSchema.safeParse(JSON.parse(stored))
-    return parsed.success ? parsed.data : []
-  } catch {
-    return []
-  }
-}
-
-export async function rememberShared(ctx: Context, sub: string, id: string): Promise<void> {
-  const ids = await sharedIds(ctx, sub)
-  if (ids.includes(id)) return
-  await ctx.env.KV.put(indexKey(sub), JSON.stringify([id, ...ids].slice(0, 200)))
-}
-
-async function forgetShared(ctx: Context, sub: string, id: string): Promise<void> {
-  const ids = await sharedIds(ctx, sub)
-  if (!ids.includes(id)) return
-  await ctx.env.KV.put(indexKey(sub), JSON.stringify(ids.filter(other => other !== id)))
+export function rememberShared(ctx: Context, sub: string, id: string): Promise<void> {
+  return sharedIndex(ctx, sub).remember(id)
 }
 
 export function sharedObject(ctx: Context, id: string): DurableObjectStub {
@@ -68,20 +53,6 @@ export function sharedObject(ctx: Context, id: string): DurableObjectStub {
 
 export function newSharedId(): string {
   return secureHex(8)
-}
-
-export function post(body: unknown): RequestInit {
-  return {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  }
-}
-
-/** The object's answer, the doorman's way: JSON, never cached, its headers changeable. */
-async function relayed(response: Response): Promise<Response> {
-  if (response.status === 204) return new Response(null, { status: 204 })
-  return json(await response.json(), response.status)
 }
 
 export async function shared(ctx: Context): Promise<Response> {
@@ -116,19 +87,10 @@ export async function shared(ctx: Context): Promise<Response> {
     const query = new URLSearchParams({ t: ctx.url.searchParams.get('t') ?? '', entry, part })
     const lent = await object.fetch(`https://shared/file?${query.toString()}`)
     if (!lent.ok) return relayed(lent)
-    const file = z.object({ sub: z.string(), key: z.string() }).parse(await lent.json())
-    const target = await ctx.accounts.bucket(file.sub)
-    if (!target) throw notFound('that song’s owner has no bucket connected any more')
-    const response = await relayRead(
-      ctx,
-      new Bucket(target, ctx.bucketDeps),
-      file.key,
-      method,
-      'lent',
+    const file = BucketFileSchema.parse(await lent.json())
+    return lentAnswer(
+      await readLent(ctx, file, method, 'that song’s owner has no bucket connected any more'),
     )
-    // As a room's files are (rooms.ts): the web app's audio element asks with credentials.
-    response.headers.set('access-control-allow-credentials', 'true')
-    return response
   }
 
   const session = await requireSession(ctx)
@@ -138,8 +100,9 @@ export async function shared(ctx: Context): Promise<Response> {
     const picture = facePicture(session)
     if (picture !== null) query.set('picture', picture)
     const viewed = await object.fetch(`https://shared/view?${query.toString()}`)
-    if (viewed.status === 403 || viewed.status === 404)
-      await forgetShared(ctx, session.sub, id.data)
+    if (viewed.status === 403 || viewed.status === 404) {
+      await sharedIndex(ctx, session.sub).forget(id.data)
+    }
     return relayed(viewed)
   }
   if (action === 'join' && entry === undefined) {
@@ -156,26 +119,20 @@ export async function shared(ctx: Context): Promise<Response> {
     if (method !== 'POST') return methodNotAllowed(['POST'])
     const body = await readJson(ctx.request, SharedActionSchema)
     const done = await object.fetch('https://shared/act', post({ sub: session.sub, action: body }))
-    if (body.type === 'leave' && done.ok) await forgetShared(ctx, session.sub, id.data)
+    if (body.type === 'leave' && done.ok) await sharedIndex(ctx, session.sub).forget(id.data)
     return relayed(done)
   }
   throw notFound()
 }
 
-/** `GET /v1/shared`: the playlists you are in, newest change first. */
+/**
+ * `GET /v1/shared`: the playlists you are in, newest change first. Left, or
+ * gone: off the list.
+ */
 async function list(ctx: Context, session: Session): Promise<Response> {
-  const summaries: SharedSummary[] = []
-  for (const id of await sharedIds(ctx, session.sub)) {
-    const answer = await sharedObject(ctx, id).fetch(
-      `https://shared/summary?sub=${encodeURIComponent(session.sub)}`,
-    )
-    if (answer.ok) summaries.push(await answer.json())
-    else {
-      await answer.body?.cancel()
-      // Left, or gone: off the list.
-      if (answer.status === 403 || answer.status === 404) await forgetShared(ctx, session.sub, id)
-    }
-  }
+  const summaries = await summariesOf<SharedSummary>(sharedIndex(ctx, session.sub), id =>
+    sharedObject(ctx, id).fetch(`https://shared/summary?sub=${encodeURIComponent(session.sub)}`),
+  )
   summaries.sort((a, b) => b.updatedAt - a.updatedAt)
   return json(summaries)
 }

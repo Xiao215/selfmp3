@@ -73,8 +73,8 @@ name = "SHARES"
 class_name = "ShareLink"
 
 # What the doorman counts for its owner's admin page (src/tally.ts): reads and
-# sign-ins a day at a time, totals only, and who was turned away this week.
-# One Durable Object for the whole doorman.
+# sign-ins a day at a time, totals only. One Durable Object for the whole
+# doorman.
 [[durable_objects.bindings]]
 name = "TALLY"
 class_name = "Tally"

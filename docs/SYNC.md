@@ -660,9 +660,7 @@ run. So the snapshot names the server as well (`id`), `/api/health` answers with
 `serverId` without a token, and a device keeps only an address whose answer matches
 (`answersAs` in `packages/client/src/connection/reach.ts`). The token goes nowhere until one
 has. Before this (2026-10-14) the real app on the Mac took the development server on 4600,
-which answered first, and every request after was refused. The `id` is optional in the
-schema: a bucket has to stay readable whatever wrote its newest snapshot, and a snapshot that
-names no server is held only to an answer, as before.
+which answered first, and every request after was refused.
 
 **The name has to outlive the data folder** (`serverIdOf` in `apps/server/src/shared.ts`). A
 server with a public address (`SELFMP3_PUBLIC_URL`) is named by that address. Any other —

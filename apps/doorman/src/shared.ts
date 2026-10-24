@@ -20,6 +20,7 @@ import {
   type SharedPlaylist,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { answer, refusalAnswer } from './doRelay.js'
 import { secureHex } from './encoding.js'
 import { keyOf } from './room.js'
 
@@ -111,18 +112,6 @@ const SHARED_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>>
   full: DOORMAN_ERROR.sharedFull,
   ended: DOORMAN_ERROR.sharedEnded,
   invalid: DOORMAN_ERROR.sharedInvalid,
-}
-
-const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
-  forbidden: 403,
-  missing: 404,
-  full: 409,
-  ended: 410,
-  invalid: 400,
-}
-
-function answer(status: number, code: DoormanErrorCode, error: string): Response {
-  return Response.json({ error, code }, { status })
 }
 
 export class Shared {
@@ -369,7 +358,7 @@ export class Shared {
   }
 
   #refusal(refused: RoomRefusal): Response {
-    return answer(STATUS[refused.refused], SHARED_REFUSED[refused.refused], refused.message)
+    return refusalAnswer(refused, SHARED_REFUSED)
   }
 
   async #doc(): Promise<SharedDoc | null> {

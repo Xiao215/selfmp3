@@ -7,11 +7,13 @@ import {
   type,
   type ThemePalette,
 } from '@selfmp3/client/tokens'
+import { escapeHtml } from '@selfmp3/shared'
 import { sha256Base64 } from './encoding.js'
 
 /**
- * The few pages a person sees in their browser: the sign-in code, and the
- * ways signing in can go wrong.
+ * The few pages a person sees in their browser: the sign-in code and the ways
+ * signing in can go wrong (`page`), and the card a chat app draws for a share
+ * link (`previewPage`).
  *
  * Each page is one self-contained document with no script at all. The
  * stylesheet is inline and named in the Content-Security-Policy by its hash,
@@ -85,6 +87,25 @@ a { color: var(--accent); }
 
 let styleHash: Promise<string> | null = null
 
+/**
+ * What every page here is sent with: its stylesheet the only thing it may
+ * load, never framed, never cached, and no Referer passed on.
+ */
+async function pageHeaders(): Promise<Record<string, string>> {
+  styleHash ??= sha256Base64(STYLE)
+  const hash = await styleHash
+  return {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy':
+      `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
+      "form-action 'none'; frame-ancestors 'none'",
+    'referrer-policy': 'no-referrer',
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'cache-control': 'no-store',
+  }
+}
+
 interface PageOptions {
   readonly status: number
   readonly title: string
@@ -95,8 +116,6 @@ interface PageOptions {
 }
 
 export async function page(options: PageOptions): Promise<Response> {
-  styleHash ??= sha256Base64(STYLE)
-  const hash = await styleHash
   const paragraphs = (lines: readonly string[] = []) =>
     lines.map(line => `<p>${escapeHtml(line)}</p>`)
 
@@ -124,19 +143,7 @@ export async function page(options: PageOptions): Promise<Response> {
     .filter(Boolean)
     .join('\n')
 
-  return new Response(html, {
-    status: options.status,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-      'content-security-policy':
-        `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
-        "form-action 'none'; frame-ancestors 'none'",
-      'referrer-policy': 'no-referrer',
-      'x-content-type-options': 'nosniff',
-      'x-frame-options': 'DENY',
-      'cache-control': 'no-store',
-    },
-  })
+  return new Response(html, { status: options.status, headers: await pageHeaders() })
 }
 
 /** What a chat app draws for a link (linkPage.ts): its card's words, picture and colour. */
@@ -165,8 +172,6 @@ export interface PreviewOptions {
  * that comes across it.
  */
 export async function previewPage(options: PreviewOptions): Promise<Response> {
-  styleHash ??= sha256Base64(STYLE)
-  const hash = await styleHash
   const meta = (attribute: 'property' | 'name', name: string, content: string) =>
     `<meta ${attribute}="${name}" content="${escapeHtml(content)}">`
 
@@ -208,29 +213,6 @@ export async function previewPage(options: PreviewOptions): Promise<Response> {
 
   return new Response(html, {
     status: 200,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-      'content-security-policy':
-        `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
-        "form-action 'none'; frame-ancestors 'none'",
-      'referrer-policy': 'no-referrer',
-      'x-content-type-options': 'nosniff',
-      'x-frame-options': 'DENY',
-      'x-robots-tag': 'noindex',
-      'cache-control': 'no-store',
-    },
+    headers: { ...(await pageHeaders()), 'x-robots-tag': 'noindex' },
   })
-}
-
-const ESCAPES: Readonly<Record<string, string>> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-}
-
-/** Safe in text and in a quoted attribute. */
-function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, char => ESCAPES[char] ?? char)
 }

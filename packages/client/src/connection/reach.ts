@@ -69,7 +69,9 @@ export type Reach =
 export interface Candidate extends ServerConnection {
   /**
    * The id the snapshot named (`CloudServerSchema.id`), which `/api/health`
-   * must answer with; undefined when the snapshot named none.
+   * must answer with. Undefined only for an address someone typed (the
+   * extension's own server), which is the server they meant whatever it calls
+   * itself, so it is held only to answering.
    */
   readonly serverId: string | undefined
 }
@@ -95,7 +97,7 @@ export function candidates(server: CloudServer | null): Candidate[] {
 export function answersAs(health: unknown, candidate: Candidate): boolean {
   const parsed = HealthSchema.safeParse(health)
   if (!parsed.success) return false
-  // A snapshot that named no server id can only be held to an answer.
+  // A typed address names no id, so it can only be held to an answer.
   return candidate.serverId === undefined || parsed.data.serverId === candidate.serverId
 }
 

@@ -32,6 +32,7 @@ import {
   type RoomServerMessage,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { answer, BucketFileSchema, refusalAnswer } from './doRelay.js'
 import { secureHex, sha256Hex } from './encoding.js'
 
 /**
@@ -150,15 +151,11 @@ export const KeepableSchema = z.object({
 type Keepable = z.infer<typeof KeepableSchema>
 type LinkServerRequest = z.infer<typeof LinkServerRequestSchema>
 
-/** Whose bucket a lent file comes from, and its key there. */
 /**
  * Where a lent file comes from: a key in its owner's bucket, or — for a link —
  * the host's server's stream of it, token and all, which only the Worker sees.
  */
-export const LentFileSchema = z.union([
-  z.object({ sub: z.string(), key: z.string() }),
-  z.object({ listen: z.string().url() }),
-])
+export const LentFileSchema = z.union([BucketFileSchema, z.object({ listen: z.string().url() })])
 type LentFile = z.infer<typeof LentFileSchema>
 
 /** A refusal's code, by what was refused. */
@@ -170,20 +167,8 @@ const ROOM_REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> =
   invalid: DOORMAN_ERROR.roomInvalid,
 }
 
-const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
-  forbidden: 403,
-  missing: 404,
-  full: 409,
-  ended: 410,
-  invalid: 400,
-}
-
-function answer(status: number, code: DoormanErrorCode, error: string): Response {
-  return Response.json({ error, code }, { status })
-}
-
 function refusal(refused: RoomRefusal): Response {
-  return answer(STATUS[refused.refused], ROOM_REFUSED[refused.refused], refused.message)
+  return refusalAnswer(refused, ROOM_REFUSED)
 }
 
 export class Room {

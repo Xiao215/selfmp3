@@ -26,6 +26,7 @@ import {
   type ShareDoc,
 } from '@selfmp3/shared'
 import { z } from 'zod'
+import { answer, refusalAnswer } from './doRelay.js'
 import { secureHex } from './encoding.js'
 import { keyOf } from './room.js'
 
@@ -112,27 +113,12 @@ const SongsSchema = z.object({
   songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
 })
 
-/** Which bucket, and which key in it: what the Worker reads a lent file by. */
-export const ShareFileSchema = z.object({ sub: z.string(), key: z.string() })
-
 const REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
   forbidden: DOORMAN_ERROR.shareForbidden,
   missing: DOORMAN_ERROR.shareMissing,
   full: DOORMAN_ERROR.shareInvalid,
   ended: DOORMAN_ERROR.shareEnded,
   invalid: DOORMAN_ERROR.shareInvalid,
-}
-
-const STATUS: Readonly<Record<RoomRefusal['refused'], number>> = {
-  forbidden: 403,
-  missing: 404,
-  full: 409,
-  ended: 410,
-  invalid: 400,
-}
-
-function answer(status: number, code: DoormanErrorCode, error: string): Response {
-  return Response.json({ error, code }, { status })
 }
 
 const MISSING = (): Response =>
@@ -203,7 +189,13 @@ export class Share {
       songs: input.songs.map(song => ({ id: this.#newId(), song })),
       now,
     })
-    const secrets: Secrets = { key: secureHex(8), owner: input.sub, openers: [], askSubs: {} }
+    const secrets: Secrets = {
+      key: secureHex(8),
+      owner: input.sub,
+      openers: [],
+      askSubs: {},
+      visitors: [],
+    }
     await this.#save(doc, secrets)
     await this.#runtime.storage.setAlarm(shareKeptUntil(doc))
     return Response.json(this.#viewOf(doc, secrets, input.sub))
@@ -217,6 +209,7 @@ export class Share {
     if (input.key !== secrets.key) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) return Response.json(this.#viewOf(doc, secrets, sub))
+    // Links made before guests were counted keep none: none seen yet.
     const visitors = secrets.visitors ?? []
     const seen = !sub && input.visitor !== null && visitors.includes(input.visitor)
     const opened = seen ? doc : shareOpened(doc, sub ? input.name : null)
@@ -400,7 +393,7 @@ export class Share {
   }
 
   #refusal(refused: RoomRefusal): Response {
-    return answer(STATUS[refused.refused], REFUSED[refused.refused], refused.message)
+    return refusalAnswer(refused, REFUSED)
   }
 
   async #found(): Promise<{ doc: ShareDoc; secrets: Secrets } | null> {

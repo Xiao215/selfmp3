@@ -349,13 +349,8 @@ export const CloudServerSchema = z.object({
    * server, not this one, and a Wi-Fi address on someone else's Wi-Fi is
    * someone else's. A device takes an address only when what answers there
    * says this id (`packages/client/src/connection/reach.ts`).
-   *
-   * Optional because a bucket has to stay readable whatever wrote its newest
-   * snapshot: one from a server that did not name itself yet, or from a server
-   * that is gone, is still the library. Without an id a device takes any
-   * address that answers, as it always has.
    */
-  id: z.string().min(1).optional(),
+  id: z.string().min(1),
   addresses: z.array(z.string().url()).max(16),
   token: z.string().nullable(),
 })
@@ -382,7 +377,7 @@ export const CloudSnapshotSchema = z.object({
   /** Every artist of the library's songs the server has a picture for. */
   artists: z.array(CloudArtistSchema),
   /** The names artists also go by, for search. */
-  artistNames: z.array(CloudArtistNamesSchema).default([]),
+  artistNames: z.array(CloudArtistNamesSchema),
   /**
    * The library's Chinese and Japanese titles, artists and albums, each as it
    * is written and in Latin letters — pinyin, romaji, or both for a name in
@@ -390,12 +385,12 @@ export const CloudSnapshotSchema = z.object({
    * "zhou jie lun". Made on the server, which has the dictionaries; a name it
    * has not spelt yet is simply not in it.
    */
-  spellings: z.record(z.string(), z.array(z.string())).default({}),
+  spellings: z.record(z.string(), z.array(z.string())),
   /**
    * The covers and artists' pictures, packed a few megabytes to a file, for a
-   * device filling its covers from nothing. None before the server first packs.
+   * device filling its covers from nothing. Empty before the server first packs.
    */
-  coverPacks: z.array(CloudCoverPackSchema).default([]),
+  coverPacks: z.array(CloudCoverPackSchema),
   /** How every song sounds, as the server heard it; null before it has heard any. */
   sound: CloudSoundSchema.nullable(),
   /** When each song was played, a file a month; absent before a server first sent any. */

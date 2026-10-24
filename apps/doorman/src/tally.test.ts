@@ -4,6 +4,7 @@ import {
   DoormanGrantMadeSchema,
   DoormanStatsSchema,
   DESKTOP_APP_ORIGIN,
+  FORMAT_KEY,
 } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 import { harness, type Harness } from './fakes.js'
@@ -98,12 +99,15 @@ describe('counting reads', () => {
     expect((await read(COVER, { token: await serverGrant(h, owner) })).status).toBe(200)
     // A file the bucket does not have still cost the bucket a read.
     expect((await read(`covers/${'b'.repeat(64)}.jpg`)).status).toBe(404)
+    // A file at the top is its own folder, whole.
+    expect((await read(FORMAT_KEY)).status).toBe(200)
     await h.settle()
 
     expect(h.tally.day(TODAY)).toMatchObject({
       'reads.audio': 2,
       'reads.covers': 3,
-      'reads.by.phone': 2,
+      [`reads.${FORMAT_KEY}`]: 1,
+      'reads.by.phone': 3,
       'reads.by.web': 1,
       'reads.by.computer': 1,
       'reads.by.server': 1,

@@ -250,18 +250,3 @@ export function sourceName(url: string): string {
   if (host.endsWith('bilibili.com') || host === 'b23.tv') return 'bilibili'
   return host || 'the web'
 }
-
-/**
- * A lent song's romanized lines, from the JSON file the doorman lends beside
- * its words; null when the file is not a list of lines, as a cloud library
- * reads it.
- */
-export function romanizedLines(json: string | null): string[] | null {
-  if (json === null) return null
-  try {
-    const value: unknown = JSON.parse(json)
-    return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
-  } catch {
-    return null
-  }
-}

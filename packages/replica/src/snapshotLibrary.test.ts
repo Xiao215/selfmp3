@@ -57,7 +57,7 @@ describe('snapshotToLibrary', () => {
         songs: [
           song('a', {
             cover: { key: `covers/${hash('c')}.jpg`, size: 100 },
-            lyrics: { key: `lyrics/${hash('d')}.lrc`, size: 50, kind: 'synced', romanized: null },
+            lyrics: { key: `lyrics/${hash('d')}.words`, size: 50, kind: 'synced' },
             tagUids: [uid('t')],
           }),
         ],
@@ -108,12 +108,7 @@ describe('snapshotToLibrary', () => {
       snapshot({
         songs: [
           song('a', {
-            lyrics: {
-              key: `lyrics/${hash('d')}.txt`,
-              size: 5,
-              kind: 'plain',
-              romanized: `lyrics/${hash('r')}.json`,
-            },
+            lyrics: { key: `lyrics/${hash('d')}.words`, size: 5, kind: 'plain' },
           }),
         ],
       }),
@@ -124,9 +119,8 @@ describe('snapshotToLibrary', () => {
     expect(files[id]).toEqual({
       audio: `audio/${hash('a')}.m4a`,
       cover: null,
-      lyrics: `lyrics/${hash('d')}.txt`,
+      lyrics: `lyrics/${hash('d')}.words`,
       lyricsKind: 'plain',
-      romanized: `lyrics/${hash('r')}.json`,
       motion: null,
     })
   })

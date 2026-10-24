@@ -160,4 +160,41 @@ describe('migrate', () => {
     const keys = db.prepare('SELECT key FROM settings ORDER BY key').pluck().all()
     expect(keys).toEqual(['smartWeb', 'watchLibrary'])
   })
+
+  it('keeps every song’s bucket files but the romanized lines’ own, now in the words file', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    // The table as 44 left it.
+    db.exec(`
+      ALTER TABLE cloud_songs ADD COLUMN romanized_key TEXT;
+      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
+      INSERT INTO cloud_songs (
+        song_id, audio_key, audio_size, audio_sig, cover_sig, lyrics_key, lyrics_size,
+        lyrics_kind, lyrics_sig, romanized_key, motion_key, motion_sig
+      ) VALUES (
+        1, 'audio/a.m4a', 10, 'a-10', '', 'lyrics/l.lrc', 5, 'synced', 'sidecar-5',
+        'lyrics/r.json', 'lyrics/m.json', 'motion-1'
+      );
+    `)
+    db.pragma('user_version = 44')
+    migrate(db, createLogger('silent'))
+
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
+    const columns = db.prepare("SELECT name FROM pragma_table_info('cloud_songs')").pluck().all()
+    expect(columns).not.toContain('romanized_key')
+    expect(db.prepare('SELECT * FROM cloud_songs').get()).toMatchObject({
+      song_id: 1,
+      audio_key: 'audio/a.m4a',
+      lyrics_key: 'lyrics/l.lrc',
+      lyrics_kind: 'synced',
+      lyrics_sig: 'sidecar-5',
+      motion_key: 'lyrics/m.json',
+    })
+    const indexes = db.prepare("SELECT name FROM pragma_index_list('cloud_songs')").pluck().all()
+    expect(indexes).toContain('idx_cloud_songs_audio')
+    // A song goes with its bucket row, as before.
+    db.prepare('DELETE FROM songs WHERE id = 1').run()
+    expect(count(db, 'cloud_songs')).toBe(0)
+  })
 })

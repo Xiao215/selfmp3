@@ -21,9 +21,8 @@ const SONG = {
 const FILES = {
   audio: `audio/${SHA}.m4a`,
   cover: `covers/${SHA}.jpg`,
-  lyrics: `lyrics/${SHA}.lrc`,
+  lyrics: `lyrics/${SHA}.words`,
   lyricsKind: 'synced' as const,
-  romanized: `lyrics/${'cd'.repeat(32)}.json`,
   motion: null,
 }
 
@@ -34,7 +33,7 @@ describe('a song of yours in a room', () => {
       title: 'ヒッチコック',
       audio: { key: FILES.audio, size: 4000, mime: 'audio/mp4' },
       cover: { key: FILES.cover },
-      lyrics: { key: FILES.lyrics, kind: 'synced', romanized: FILES.romanized },
+      lyrics: { key: FILES.lyrics, kind: 'synced' },
       sourceUrl: SONG.sourceUrl,
       link: null,
     })

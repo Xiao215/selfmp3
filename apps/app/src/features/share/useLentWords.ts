@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   detectLyricsLanguage,
   lyricTextLines,
+  parseCloudWords,
   parseLyrics,
   type LyricsLanguage,
   type ShareEntry,
@@ -11,7 +12,6 @@ import {
 import { resolveSongWords } from '../nowPlaying/nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import type { SongLyrics } from '../nowPlaying/useSongWords'
-import { romanizedLines } from './share.model'
 import { shareApi } from './shareLinks'
 
 async function lentText(url: string): Promise<string> {
@@ -22,8 +22,8 @@ async function lentText(url: string): Promise<string> {
 
 /**
  * A link's song's words, as Now Playing's words take them (`useSongWords`):
- * read from what the link lends — the words, and their romanized lines beside
- * them — rather than asked of a library, which a friend opening the link may
+ * read from what the link lends — the words file, with their romanized lines
+ * in it — rather than asked of a library, which a friend opening the link may
  * not have. Asked for only once `asked` (the song is loaded), so a link that
  * is only looked at costs its sender no reads. The files are named by their
  * hash, so the answer never goes stale.
@@ -40,13 +40,11 @@ export function useLentWords(
     staleTime: Infinity,
     retry: false,
     queryFn: async () => {
-      const id = entry?.id ?? ''
-      const text = await lentText(shareApi.fileUrl(link, id, 'lyrics'))
-      // Words without their romanized lines are still the words.
-      const romanized = lent?.romanized
-        ? await lentText(shareApi.fileUrl(link, id, 'romanized')).catch(() => null)
-        : null
-      return { text, romanized: romanizedLines(romanized) }
+      const words = parseCloudWords(
+        await lentText(shareApi.fileUrl(link, entry?.id ?? '', 'lyrics')),
+      )
+      if (!words) throw new Error('the words file would not read')
+      return words
     },
   })
 

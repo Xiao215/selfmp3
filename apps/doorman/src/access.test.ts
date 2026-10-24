@@ -25,6 +25,10 @@ describe('the allow list', () => {
       anyone: false,
       emails: ['friend@example.com'],
       owners: ['me@example.com'],
+      // Google's name and picture, noted as the owner's session was used.
+      profiles: {
+        'me@example.com': { name: 'Xiao', picture: 'https://lh3.googleusercontent.com/a/me' },
+      },
     })
 
     const friend = await h.signIn({ sub: '2', email: 'friend@example.com' })

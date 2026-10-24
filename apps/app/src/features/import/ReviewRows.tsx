@@ -44,7 +44,13 @@ import {
   type Listening,
 } from './listen.model'
 import { chosenState, rowState, sourceWords, type Rename, type RowState } from './review.model'
-import { suggestionFor, suggestionWords, type NameSuggestion } from './importNames.model'
+import {
+  changesWords,
+  suggestionChanges,
+  suggestionFor,
+  type NameChange,
+  type NameSuggestion,
+} from './importNames.model'
 import { TapAway } from '../../ui/components/TapAway'
 
 /**
@@ -362,9 +368,11 @@ interface RowProps {
 }
 
 /**
- * The model's names for a row (A9), under it: the sparkle, the names it would
- * have, why, and Use, which renames the row as typing would. Only a row
- * coming in has one; a song the library has is not offered it.
+ * The model's names for a row (A9), under it where it has no columns — a
+ * phone's row, or its open card: the sparkle, each name it would change with
+ * what it is (Title, Artist, Album), why, and Use, which renames the row as
+ * typing would. The names it keeps are left out. Only a row coming in has
+ * one; a song the library has is not offered it.
  */
 function SuggestionLine({
   suggestion,
@@ -375,10 +383,10 @@ function SuggestionLine({
   suggestion: NameSuggestion
   index: number
   onUse: (index: number, names: Rename) => void
-  /** Under a computer's names, or in a phone's open card: no room kept for the box. */
+  /** In a phone's open card: no room kept for the box. */
   wide: boolean
 }): ReactNode {
-  const { title, artist, album } = suggestion
+  const changes = suggestionChanges(suggestion)
   return (
     <View
       style={[styles.suggestion, wide && styles.suggestionWide]}
@@ -386,21 +394,101 @@ function SuggestionLine({
     >
       <Sparkle size={iconSize.sub} />
       <View style={styles.suggestionWords}>
-        <Text style={styles.suggestionNames} numberOfLines={1}>
-          {suggestionWords(suggestion)}
-        </Text>
+        {changes.map(change => (
+          <View key={change.name} style={styles.suggestionChange}>
+            <Text style={styles.suggestionLabel} numberOfLines={1}>
+              {change.label}
+            </Text>
+            <SuggestedName change={change} />
+          </View>
+        ))}
         <Text style={styles.suggestionWhy} numberOfLines={1}>
           {suggestion.why}
         </Text>
       </View>
-      <Button
-        label="Use"
-        variant="text"
-        onPress={() => onUse(index, { title, artist, album })}
-        accessibilityLabel={`Use the suggested names: ${suggestionWords(suggestion)}`}
-        testID={`import-suggestion-use-${index}`}
-      />
+      <UseSuggestion suggestion={suggestion} changes={changes} index={index} onUse={onUse} />
     </View>
+  )
+}
+
+/**
+ * The model's names for a row on a computer's grid, each under the column it
+ * would replace — a new title under the title, a new artist under Artist —
+ * with the columns it keeps left empty, why under them, and Use under the
+ * time.
+ */
+function SuggestionGridRow({
+  suggestion,
+  index,
+  onUse,
+  showFrom,
+}: {
+  suggestion: NameSuggestion
+  index: number
+  onUse: (index: number, names: Rename) => void
+  showFrom: boolean
+}): ReactNode {
+  const changes = suggestionChanges(suggestion)
+  const under = (name: NameChange['name'], column: StyleProp<ViewStyle>): ReactNode => {
+    const change = changes.find(each => each.name === name)
+    return <View style={column}>{change ? <SuggestedName change={change} /> : null}</View>
+  }
+  return (
+    <View style={[styles.grid, styles.suggestionRow]} testID={`import-suggestion-${index}`}>
+      <View style={styles.selectWide} />
+      <View style={styles.cells}>
+        <View style={[styles.colCover, styles.suggestionMark]}>
+          <Sparkle size={iconSize.sub} />
+        </View>
+        <View style={styles.colSpan}>
+          <View style={styles.suggestionColumns}>
+            {under('title', styles.colTitle)}
+            {under('artist', styles.colArtist)}
+            {under('album', styles.colAlbum)}
+          </View>
+          <Text style={styles.suggestionWhy} numberOfLines={1}>
+            {suggestion.why}
+          </Text>
+        </View>
+        {showFrom ? <View style={styles.colFrom} /> : null}
+        <View style={styles.colEnd}>
+          <UseSuggestion suggestion={suggestion} changes={changes} index={index} onUse={onUse} />
+        </View>
+      </View>
+    </View>
+  )
+}
+
+/** A name the model would give, or what leaving it empty would mean ("No album"), quieter. */
+function SuggestedName({ change }: { change: NameChange }): ReactNode {
+  return (
+    <Text style={[styles.suggestionName, change.empty && styles.suggestionEmpty]} numberOfLines={1}>
+      {change.words}
+    </Text>
+  )
+}
+
+/** Use: all three of the model's names at once, as one rename. */
+function UseSuggestion({
+  suggestion,
+  changes,
+  index,
+  onUse,
+}: {
+  suggestion: NameSuggestion
+  changes: readonly NameChange[]
+  index: number
+  onUse: (index: number, names: Rename) => void
+}): ReactNode {
+  const { title, artist, album } = suggestion
+  return (
+    <Button
+      label="Use"
+      variant="text"
+      onPress={() => onUse(index, { title, artist, album })}
+      accessibilityLabel={`Use the suggested ${changesWords(changes)}`}
+      testID={`import-suggestion-use-${index}`}
+    />
   )
 }
 
@@ -1051,17 +1139,12 @@ const GridRow = memo(function GridRow({
         </AtPosition>
       ) : null}
       {suggestion && state !== 'yours' ? (
-        <View style={[styles.grid, styles.suggestionRow]}>
-          <View style={styles.selectWide} />
-          <View style={styles.cells}>
-            <View style={styles.colCover} />
-            <View style={styles.colSpan}>
-              <SuggestionLine suggestion={suggestion} index={index} onUse={onUseSuggestion} wide />
-            </View>
-            {showFrom ? <View style={styles.colFrom} /> : null}
-            <View style={styles.colEnd} />
-          </View>
-        </View>
+        <SuggestionGridRow
+          suggestion={suggestion}
+          index={index}
+          onUse={onUseSuggestion}
+          showFrom={showFrom}
+        />
       ) : null}
       {open && (item.netease || item.youtube) ? (
         <View style={[styles.grid, styles.barRow]}>
@@ -1146,7 +1229,7 @@ const styles = StyleSheet.create(theme => ({
   lit: { backgroundColor: theme.colors.surface1 },
   barRow: { paddingTop: space.xs, paddingBottom: space.roomy },
   suggestionRow: { paddingBottom: space.sm, marginTop: -space.xs },
-  // The model's names for a row: the sparkle, the names and why, and Use.
+  // The model's names for a row: the sparkle, the names it changes and why, and Use.
   suggestion: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1156,7 +1239,19 @@ const styles = StyleSheet.create(theme => ({
   },
   suggestionWide: { paddingLeft: 0, paddingBottom: 0 },
   suggestionWords: { flex: 1, minWidth: 0, gap: 1 },
-  suggestionNames: { color: theme.colors.textPrimary, fontSize: type.sub },
+  suggestionChange: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
+  // Wide enough for ARTIST, as the open card's field labels are.
+  suggestionLabel: {
+    ...groupLabel(theme.colors),
+    width: 52,
+    fontSize: type.tiny,
+    letterSpacing: 0.7,
+  },
+  suggestionName: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
+  suggestionEmpty: { color: theme.colors.textMuted },
+  // On a computer: the sparkle where the cover is, and the names on the row's own columns.
+  suggestionMark: { alignItems: 'center' },
+  suggestionColumns: { flexDirection: 'row', alignItems: 'center', gap: GAP },
   suggestionWhy: { color: theme.colors.textMuted, fontSize: type.tiny },
   dim: { opacity: OPACITY.disabled },
   // The boxes, sized as the library's rows size theirs (`SongRow`).

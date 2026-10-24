@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { configureClient, reviewFrom, type Api } from '@selfmp3/client'
@@ -192,7 +192,9 @@ describe('Import review, on a phone', () => {
     // The row that said so: the second in the list, the first asked about.
     expect(await screen.findByTestId('import-suggestion-1')).toBeTruthy()
     expect(screen.getByText('Album from the list')).toBeTruthy()
-    expect(screen.getByText('群青 · YOASOBI · THE BOOK')).toBeTruthy()
+    // Only the name it changes, the album: the title and artist it keeps are left out.
+    expect(within(screen.getByTestId('import-suggestion-1')).getByText('THE BOOK')).toBeTruthy()
+    expect(screen.getByLabelText('Use the suggested album THE BOOK')).toBeTruthy()
     await act(async () => {
       await fireEvent.press(screen.getByTestId('import-suggestion-use-1'))
     })

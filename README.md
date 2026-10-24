@@ -114,8 +114,9 @@ the platform.
 
 **Every device gets in the same way: sign in with Google, and the library is your
 bucket's.** There is no server address to type anywhere; the app knows the shared server's
-address as it knows the doorman's. The server's own page, on `:4600`, is not where you
-listen: it is an admin page for the server.
+address as it knows the doorman's. The server serves no page on its public port: its
+owner's admin page (Data, Access, Server) listens on the server's own machine and is opened
+through Tailscale ([docs/features/admin.md](docs/features/admin.md)).
 
 | | Server | Browser tab | iPhone and Android app | Desktop app |
 |---|---|---|---|---|
@@ -311,7 +312,9 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_PORT` | `4600` | Port to listen on |
 | `SELFMP3_HOST` | `0.0.0.0` | Bind address. The addresses the server finds on its network interfaces are how a device at home reaches it; `127.0.0.1` keeps it to this machine |
 | `SELFMP3_PUBLIC_URL` | none | One more address to publish: the `https://` address of whatever stands in front of the server, such as a Tailscale Funnel. It also lets the web app's origin call the server |
-| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: the server's page links there, and with a public address its origin may call the server |
+| `SELFMP3_APP_URL` | `https://xiao215.github.io/selfmp3` | Where the app you listen in is published: with a public address its origin may call the server |
+| `SELFMP3_ADMIN_PORT` | `4610` | The owner's admin page, on `127.0.0.1` only whatever `SELFMP3_HOST` says; `0` turns it off |
+| `SELFMP3_ADMIN_URL` | none | The address `tailscale serve` gives the admin page, such as `https://pi.tail3d8516.ts.net:4443`: the page answers only to it and to this machine |
 | `SELFMP3_LIBRARY_DIR` | `/app/library` in Docker; `~/Music/selfmp3` otherwise | The inbox: where an import lands until it is in the bucket. Each workspace has a folder of its own inside it |
 | `SELFMP3_DATA_DIR` | `/app/data` in Docker; `~/Library/Application Support/selfmp3` on macOS, `~/.local/share/selfmp3` elsewhere | `hub.json`, each workspace's database and caches, and the listening model's files |
 | `SELFMP3_PROFILE` | none | A separate installation outside Docker: `dev` uses `~/Music/selfmp3-dev` and a `selfmp3-dev` data folder. `npm run dev` sets it |
@@ -328,7 +331,7 @@ They are read in `apps/server/src/config.ts`.
 | `SELFMP3_PUBLISH_ANYWAY` | `false` | Publish this server's library to the bucket as it stands, without taking on the bucket's first or refusing to replace a bigger one. An escape hatch ([SYNC.md](docs/SYNC.md)) |
 
 The bucket each account syncs with is connected in the app's Settings, and who may sign in
-at all is kept by the doorman's owner in Settings › Who can sign in.
+at all is kept by the doorman's owner on the admin page's Access tab.
 
 Day-to-day behaviour — crossfade, the watched folder, romanization, the smart features —
 lives in the app's Settings rather than in the environment.
@@ -416,7 +419,7 @@ packages/client          what every client shares: API client, React Query hooks
 packages/replica         a device's own copy of the bucket's library, and its outbox
 packages/desktop-bridge  the contract between the desktop shell and the page
 apps/server              Express 5 and better-sqlite3: the hub, then routes → services →
-                         repositories per workspace; public/ is its admin page on :4600
+                         repositories per workspace; admin/ is the owner's admin page
 apps/app                 Expo / React Native: one app for iOS, Android and the web
 apps/desktop             the Electron shell around apps/app's web export
 apps/doorman             Cloudflare Worker: Google sign-in, bucket access, grants, rooms,

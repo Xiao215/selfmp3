@@ -53,17 +53,17 @@ The log should show `listening on http://…:4600` for each of the computer's ad
 `working for 0 libraries`. `docker compose ps` says `healthy` once the image's health check
 has had an answer from `/api/health`.
 
-The server's own page is `http://localhost:4600`, opened on the server itself: whom it works
-for, how each library's publishing is going, and **Publish now**. On a computer with no
-screen, such as a Pi, open it through SSH from your own computer:
+The owner's admin page listens on the server's own machine only (`127.0.0.1:4610`): how the
+server is used, who may sign in, and how the machine is doing. Put it on your tailnet, never
+on Funnel, and tell the server the address it answers to:
 
 ```bash
-ssh -L 4600:localhost:4600 pi
+tailscale serve --bg --https=4443 http://127.0.0.1:4610
 ```
 
-then `http://localhost:4600` in your browser. The page also opens at the server's other
-addresses with a library's token, but there it only shows: the server takes signing in, a
-bucket and Publish now from its own machine alone (`apps/server/src/routes/cloud.ts`).
+with `SELFMP3_ADMIN_URL=https://<machine>.<tailnet>.ts.net:4443` in `.env`. The doorman must
+list that address in `APP_ORIGINS` for the page to sign in
+([features/admin.md](features/admin.md)).
 
 What `docker-compose.yml` sets, and why:
 
@@ -261,7 +261,7 @@ account from the doorman, and works for it from then on in a workspace of its ow
 Two settings decide this, and neither of them is on the server.
 
 - **Who may sign in** is the doorman's decision. Its owners (the `OWNER_EMAILS` secret) are
-  always let in. Everyone else is on the list an owner keeps in Settings › Who can sign in,
+  always let in. Everyone else is on the list an owner keeps on the admin page's Access tab,
   unless the owner turns on **Anyone with a Google account**. Taking someone off also cuts
   off the server's grant for them.
 - **Which server the app offers** is `DEFAULT_SERVER_URL` in

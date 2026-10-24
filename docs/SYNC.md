@@ -273,8 +273,7 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. The server's own page (port 4600, opened on the server itself) lists the
-workspaces, each with how its publishing is going and **Publish now**. Everything that
+workspace. Everything that
 changes a library's way into its bucket — signing in, connecting a bucket by its key when
 there is no doorman, disconnecting, publishing now — is taken from that machine alone. A
 library's token is on every one of its account's devices, and none of them should be able to
@@ -858,7 +857,8 @@ given a grant to, with *Remove* on each.
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |
-| The server's cloud API and its own page | `apps/server/src/routes/cloud.ts`, `apps/server/public/admin.js` |
+| The server's cloud API | `apps/server/src/routes/cloud.ts` |
+| The owner's admin page | `apps/server/src/admin/`, `apps/server/admin/`, [features/admin.md](features/admin.md) |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/welcome/WelcomeScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Finding the server from a cloud library, and what each screen says when it is away | `packages/client/src/connection/reach.ts`; `apps/app/src/connection/useServerDirect.ts`, `ServerAway.tsx`; `apps/server/src/services/addresses.ts` |

@@ -13,8 +13,8 @@
 # load at all. Everything else here is happy on either.
 #
 # There used to be a third stage that built the app's web export, because the
-# server served it. It serves its own setup page now (apps/server/src/http/admin.ts),
-# and that page is three plain files with no build step — so the whole Expo
+# server served it. It serves only its owner's admin page now (apps/server/admin,
+# on its own listener), and that page is three plain files with no build step — so the whole Expo
 # toolchain, and the megabytes it produced, have left the image. The app is on
 # GitHub Pages, in the desktop app and on your phone.
 
@@ -124,7 +124,7 @@ COPY --from=server --chown=node:node /app/apps/server/package.json ./apps/server
 COPY --from=server --chown=node:node /app/apps/server/node_modules ./apps/server/node_modules
 COPY --from=server --chown=node:node /app/apps/server/dist ./apps/server/dist
 # The server's own page, read from beside `dist` at runtime.
-COPY --from=server --chown=node:node /app/apps/server/public ./apps/server/public
+COPY --from=server --chown=node:node /app/apps/server/admin ./apps/server/admin
 
 # Every package the server declares is imported from the server's own folder,
 # in this stage, on the image's own platform, and the native SQLite binding is

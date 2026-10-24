@@ -276,6 +276,12 @@ export class YtThrottleService {
     }
   }
 
+  /** When YouTube last refused this server for rate, for the admin page; null if never. */
+  lastLimitedAt(): number | null {
+    const { limitedAt } = this.#store.get(this.#now())
+    return limitedAt > 0 ? limitedAt : null
+  }
+
   /** Take one request's worth if one is there, or may be borrowed. Does not wait. */
   tryTake(borrow = 0): boolean {
     const now = this.#now()

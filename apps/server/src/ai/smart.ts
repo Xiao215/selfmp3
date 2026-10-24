@@ -55,6 +55,7 @@ import {
 import { tidy } from './tidy.js'
 import { written } from './written.js'
 import { tagReview } from './tagReview.js'
+import { METRIC, type ServerMetrics } from '../services/metrics.js'
 
 type SmartDeps = AskDeps & {
   remembered: Remembered
@@ -234,12 +235,16 @@ export function smartFeaturesFor(sources: {
   readonly settings: Pick<SettingsRepository, 'get'>
   readonly netease: Pick<NeteaseMusic, 'search' | 'searchAlbums' | 'albumTracks'>
   readonly lookup: Pick<MetadataLookupService, 'lookup'>
+  /** Where each request is counted for the owner's admin page; left out by `eval.ts`. */
+  readonly metrics?: Pick<ServerMetrics, 'count'>
 }): SmartFeatures {
   const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease } = sources
   const lookup: MetadataLookup = query => sources.lookup.lookup(query)
   const catalogue = (words: string) => netease.search(words)
   return new SmartFeatures({
-    llm: llmFor(config, logger),
+    llm: sources.metrics
+      ? counted(llmFor(config, logger), sources.metrics)
+      : llmFor(config, logger),
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
@@ -266,6 +271,29 @@ export function smartFeaturesFor(sources: {
     findListings: listingFinder({ netease: catalogue, lookup }),
     lookup,
   })
+}
+
+/**
+ * The model, with every request counted for the admin page: by feature (a
+ * task's first word: `ask-route` is Ask), how long it took, and whether it
+ * failed. Counted, not logged: nothing of what was asked is kept.
+ */
+function counted(llm: Llm, metrics: Pick<ServerMetrics, 'count'>): Llm {
+  return {
+    generate: async request => {
+      const feature = request.task.split('-')[0] ?? request.task
+      metrics.count(METRIC.smart(feature))
+      const started = Date.now()
+      try {
+        return await llm.generate(request)
+      } catch (error) {
+        metrics.count(METRIC.smartFailed)
+        throw error
+      } finally {
+        metrics.count(METRIC.smartMs, Date.now() - started)
+      }
+    },
+  }
 }
 
 /** The configured model, or the stand-in that says smart features are off. */

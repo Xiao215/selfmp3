@@ -4,14 +4,16 @@ import { Animated, PanResponder, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { artistOr, type RoomSong } from '@selfmp3/shared'
+import { artistOr, type RoomSong, type Song } from '@selfmp3/shared'
 import { coverSize, fonts, iconSize, radius, space, type } from '@selfmp3/client'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 import { canRomanize, RomanizeButton } from '../nowPlaying/LyricsTools'
 import { stageGeometry, swipeOutcome } from '../nowPlaying/nowPlaying.model'
+import { SongVisual } from '../nowPlaying/SongVisual'
 import { StageLyrics } from '../nowPlaying/StageLyrics'
 import { lyricsStatusText } from '../nowPlaying/stageLyrics.model'
+import { useMotionSampler } from '../nowPlaying/useMotionSampler'
 import type { SongLyrics } from '../nowPlaying/useSongWords'
 import { useLayout, useWindowValue } from '../../shell/useLayout'
 import { usePresence } from '../../ui/motion'
@@ -53,6 +55,8 @@ const WORDS_LATER = 'The lyrics come up here when it plays.'
 
 interface SongProps {
   song: RoomSong
+  /** The same song as the player has it, for its visual. */
+  track: Song
   /** The player's id for it. */
   songId: number
   cover: string | null
@@ -128,11 +132,11 @@ function bylineOf(song: RoomSong): string {
  * The computer's: Now Playing's stage (`stageGeometry`), its cover at the top
  * of the left column with the title under it, then the link's bar and Play.
  * The words take the column to the right and scroll in time, read once the
- * song is loaded. A song lent without words keeps the left column alone, in
- * the middle of the window.
+ * song is loaded. A song without words has its visual there instead, as Now
+ * Playing's does (`C10`), so the page is laid out the same either way.
  */
 function SongStage(props: SongProps): ReactNode {
-  const { song, cover, lyrics, lent, loaded, back, from, ways, foot, inApp } = props
+  const { song, track, cover, lyrics, lent, loaded, back, from, ways, foot, inApp } = props
   const { theme } = useUnistyles()
   const layout = useLayout()
   const windowHeight = useWindowValue(window => window.height)
@@ -144,6 +148,9 @@ function SongStage(props: SongProps): ReactNode {
   )
   const words = lyrics.words
   const sides = { paddingLeft: geometry.pad, paddingRight: geometry.right }
+  // Lent without words, or with words that would not read.
+  const showVisual = !lent || (loaded && words.status === 'missing')
+  const sampler = useMotionSampler(track, showVisual)
 
   return (
     <View
@@ -155,20 +162,18 @@ function SongStage(props: SongProps): ReactNode {
       testID="share-stage"
     >
       {/* Darker toward the words, as the stage is, so they sit on something calm. */}
-      {lent ? (
-        <View pointerEvents="none" style={styles.fill}>
-          <Svg width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="share-shade" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0} />
-                <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.45} />
-                <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.45} />
-              </LinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#share-shade)" />
-          </Svg>
-        </View>
-      ) : null}
+      <View pointerEvents="none" style={styles.fill}>
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="share-shade" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0} />
+              <Stop offset="0.55" stopColor={theme.colors.surface0} stopOpacity={0.45} />
+              <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={0.45} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#share-shade)" />
+        </Svg>
+      </View>
 
       <View style={[styles.stageHead, sides]}>
         {back}
@@ -180,7 +185,6 @@ function SongStage(props: SongProps): ReactNode {
           styles.stageBody,
           sides,
           { gap: geometry.gutter, paddingBottom: inApp ? IN_APP_ROOM : space.xl },
-          !lent && styles.stageAlone,
         ]}
       >
         <View style={[styles.side, { width: geometry.cover }]}>
@@ -211,10 +215,14 @@ function SongStage(props: SongProps): ReactNode {
             <Play {...props} />
             <View style={styles.stageWays}>{ways}</View>
           </View>
-          {lent ? <View style={styles.stageFoot}>{foot}</View> : null}
+          <View style={styles.stageFoot}>{foot}</View>
         </View>
 
-        {lent ? (
+        {showVisual ? (
+          <View style={styles.stageVisual} testID="share-visual">
+            <SongVisual song={track} sampler={sampler} cover={cover} />
+          </View>
+        ) : (
           <View style={styles.stageWords} testID="share-words">
             {words.status === 'lyrics' ? (
               <StageLyrics
@@ -237,9 +245,8 @@ function SongStage(props: SongProps): ReactNode {
               </View>
             ) : null}
           </View>
-        ) : null}
+        )}
       </View>
-      {lent ? null : <View style={styles.stageAloneFoot}>{foot}</View>}
     </View>
   )
 }
@@ -480,8 +487,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.md,
   },
   stageBody: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch' },
-  // No words: the left column alone, in the middle of the window.
-  stageAlone: { justifyContent: 'center', alignItems: 'center' },
   side: { paddingTop: STAGE_COVER_GAP, gap: space.lg },
   stageNames: { gap: space.xs, marginTop: space.sm },
   // The display face, which carries its own weight: never bold it.
@@ -490,8 +495,15 @@ const styles = StyleSheet.create(theme => ({
   stageTransport: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
   stageWays: { flex: 1, minWidth: 0 },
   stageFoot: { marginTop: 'auto', alignItems: 'flex-start' },
-  stageAloneFoot: { alignItems: 'center', paddingBottom: space.xl },
   stageWords: { flex: 1, minWidth: 0, position: 'relative' },
+  // Where the words would be, rounded as Now Playing's visual is.
+  stageVisual: {
+    flex: 1,
+    minWidth: 0,
+    marginTop: STAGE_COVER_GAP,
+    borderRadius: radius.cardLg,
+    overflow: 'hidden',
+  },
   tools: { position: 'absolute', top: 0, right: 0 },
 
   phone: { flex: 1 },

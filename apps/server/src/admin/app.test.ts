@@ -125,6 +125,17 @@ describe('the admin page', () => {
     }
   })
 
+  it('wears the app’s own icon', async () => {
+    const appIcons = path.join(ADMIN_DIR, '..', '..', 'app', 'public', 'icons')
+    for (const name of ['icon.svg', 'icon-180.png']) {
+      const served = await fetch(`${adminOrigin}/${name}`)
+      expect(served.status).toBe(200)
+      expect(Buffer.from(await served.arrayBuffer())).toEqual(
+        fs.readFileSync(path.join(appIcons, name)),
+      )
+    }
+  })
+
   it('wears the app’s own colours, light and dark', () => {
     const css = fs.readFileSync(path.join(ADMIN_DIR, 'admin.css'), 'utf8')
     const dark = css.indexOf('@media (prefers-color-scheme: dark)')

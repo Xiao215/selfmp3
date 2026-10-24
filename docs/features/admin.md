@@ -8,7 +8,7 @@ like any other there.
 Decided on 2026-10-23 and reworked on 2026-10-24 (proposal artifact
 `JdZ4o2nCHbXMJmV3mu7i8z`, version 5 and Xiao's notes on it):
 
-- The page is framed the way the app is: its logo, sidebar, icons, page titles, cards,
+- The page is framed the way the app is: its icon, logo, sidebar, icons, page titles, cards,
   Settings' panels and rows, buttons, segmented control and dialog.
 - The charts are working charts in the app's colours, not Stats' decoration.
 - There is no sign-in, no Server tab, and no list of turned-away addresses.
@@ -58,9 +58,10 @@ says to set the key, and the doorman's counts stay off the Data tab.
 Who can sign in, built for a hundred people or more:
 
 - One list of addresses, A–Z. The list scrolls inside its panel.
-- Over it, one row: the app's search field (with a count and a × once there are words), and a
-  **+** that opens Add people. Add people takes one address or many pasted at once, and says
-  which ones aren't addresses.
+- Over it, one field that searches and adds: the app's search field, with a count and a × once
+  there are words. A whole address that isn't on the list, typed or pasted many at once, shows
+  an **Add** row at the top of the list, and Enter adds it. A pasted list says which words
+  aren't addresses.
 - The owners (`OWNER_EMAILS`) are marked and can't be removed.
 - The page shows addresses only. The doorman keeps no names or pictures for it.
 - Remove asks first, in the app's confirmation dialog.

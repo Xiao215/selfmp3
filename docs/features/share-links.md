@@ -91,8 +91,10 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   and a big Play low under it. The words are the page's other view, opened as Now Playing's
   are, by a tap on the cover or a pull up, and put back by a pull down or the chevron. There
   is no Lyrics button; Now Playing's one-time guide says so instead.
-- **The words** are read from what the link lends (`useLentWords`), once the song is loaded
-  or the phone's words view is opened, so a link only looked at costs its sender no reads.
+- **The words** are read from what the link lends (`useLentWords`). On a computer they are
+  read as the page opens, one read of the sender's bucket per opening, so the page is whole
+  before Play; until the song plays no line is lit and a click on one seeks nothing. On a
+  phone they are read once the song is loaded or its words view is opened.
   The bar is there before Play, so nothing moves when it starts.
 - **A song that has ended** is its cover, faded, and its names, with the ways on under them.
 - **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then

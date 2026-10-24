@@ -50,9 +50,6 @@ const PHONE_COVER_MOST = 420
 /** How far a phone view starts from and leaves to: the cover above, the words below. */
 const VIEW_TRAVEL = 48
 
-/** Before Play the words are not read yet: the link costs its sender nothing until it plays. */
-const WORDS_LATER = 'The lyrics come up here when it plays.'
-
 interface SongProps {
   song: RoomSong
   /** The same song as the player has it, for its visual. */
@@ -89,20 +86,20 @@ interface SongProps {
  * words a view of their own, opened the way Now Playing's are.
  */
 export function ShareSong(props: SongProps): ReactNode {
-  const { wide, width } = useLayout()
-  const height = useWindowValue(window => window.height)
-  // A page taller than it is wide (an iPad in portrait) is laid out as a phone's.
-  return wide && !stageGeometry(width, height).stacked ? (
-    <SongStage {...props} />
-  ) : (
-    <SongPhone {...props} />
-  )
+  return useShareStage() ? <SongStage {...props} /> : <SongPhone {...props} />
 }
 
 /**
  * The bar, held at the start and still until the song is loaded, so nothing
  * moves when it plays.
  */
+/** Whether a link's song is laid out as the stage: a computer's width, not a page taller than it is wide (an iPad in portrait), which is a phone's. */
+export function useShareStage(): boolean {
+  const { wide, width } = useLayout()
+  const height = useWindowValue(window => window.height)
+  return wide && !stageGeometry(width, height).stacked
+}
+
 function Seek({ song, loaded }: { song: RoomSong; loaded: boolean }): ReactNode {
   const { theme } = useUnistyles()
   return (
@@ -131,8 +128,8 @@ function bylineOf(song: RoomSong): string {
 /**
  * The computer's: Now Playing's stage (`stageGeometry`), its cover at the top
  * of the left column with the title under it, then the link's bar and Play.
- * The words take the column to the right and scroll in time, read once the
- * song is loaded. A song without words has its visual there instead, as Now
+ * The words take the column to the right, read as the page opens so it is
+ * whole before Play, and held still until the song plays, then in time. A song without words has its visual there instead, as Now
  * Playing's does (`C10`), so the page is laid out the same either way.
  */
 function SongStage(props: SongProps): ReactNode {
@@ -149,7 +146,7 @@ function SongStage(props: SongProps): ReactNode {
   const words = lyrics.words
   const sides = { paddingLeft: geometry.pad, paddingRight: geometry.right }
   // Lent without words, or with words that would not read.
-  const showVisual = !lent || (loaded && words.status === 'missing')
+  const showVisual = !lent || words.status === 'missing'
   const sampler = useMotionSampler(track, showVisual)
 
   return (
@@ -231,12 +228,11 @@ function SongStage(props: SongProps): ReactNode {
                 focus={false}
                 fontSize={geometry.lyric}
                 clearRight={canRomanize(lyrics) ? TOOLS_CLEARANCE : 0}
+                still={!loaded}
               />
             ) : (
               <View style={styles.status}>
-                <Text style={styles.statusText}>
-                  {loaded ? lyricsStatusText(words) : WORDS_LATER}
-                </Text>
+                <Text style={styles.statusText}>{lyricsStatusText(words)}</Text>
               </View>
             )}
             {canRomanize(lyrics) ? (

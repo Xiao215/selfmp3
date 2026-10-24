@@ -46,7 +46,7 @@ import { sayRoomFailure } from '../room/roomFailure'
 import { useGetSongs } from '../room/useGetSongs'
 import { GoneLink } from './GoneLink'
 import { gettable, shareHeadLine, shareStage, shareTracks, sourceName } from './share.model'
-import { ShareSong, SongStill } from './ShareSong'
+import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
@@ -153,9 +153,15 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const tone = first?.song.coverTone ?? null
   const wash = ended ? (tone ? neutralWash(tone) : theme.colors.surface2) : light.color
 
-  // Its words, read once it is loaded or the phone's words view is opened.
+  // Its words: as the page opens on a computer, where they are half the page;
+  // on a phone once it is loaded or its words view is opened.
+  const onStage = useShareStage()
   const [wordsOpen, setWordsOpen] = useState(false)
-  const lyrics = useLentWords(link, link.kind === 'song' ? first : undefined, loaded || wordsOpen)
+  const lyrics = useLentWords(
+    link,
+    link.kind === 'song' && !ended ? first : undefined,
+    onStage || loaded || wordsOpen,
+  )
   // As big as the column allows, short of pushing Play out of sight.
   const coverSide = Math.min(wide ? 360 : 340, Math.min(width, PAGE_WIDTH) - space.gutter * 2)
 

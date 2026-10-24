@@ -24,9 +24,10 @@ async function lentText(url: string): Promise<string> {
  * A link's song's words, as Now Playing's words take them (`useSongWords`):
  * read from what the link lends — the words file, with their romanized lines
  * in it — rather than asked of a library, which a friend opening the link may
- * not have. Asked for only once `asked` (the song is loaded), so a link that
- * is only looked at costs its sender no reads. The files are named by their
- * hash, so the answer never goes stale.
+ * not have. Asked for only once `asked`: as the page opens on a computer, and
+ * on a phone once the song is loaded or its words are opened, so a link only
+ * glanced at on a phone costs its sender no read. The files are named by
+ * their hash, so the answer never goes stale.
  */
 export function useLentWords(
   link: ShareLink,

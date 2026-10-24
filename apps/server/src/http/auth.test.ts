@@ -226,12 +226,12 @@ describe('reaching the API', () => {
   })
 
   /*
-   * The server's own page is served outside `/api` and was never behind the
-   * token, but everything it shows is — and it has to work on the machine it is
-   * running on without anybody typing anything.
+   * The public port serves the API and no page: the owner's admin page has a
+   * listener of its own (admin/app.ts). The API still answers this machine
+   * without anybody typing anything.
    */
-  it('serves its own page and answers what the page asks it', async () => {
-    expect((await get({ connectTo: '127.0.0.1', url: '/' })).status).toBe(200)
+  it('serves no page, and answers the API on its own machine', async () => {
+    expect((await get({ connectTo: '127.0.0.1', url: '/' })).status).toBe(404)
     expect((await get({ connectTo: '127.0.0.1', url: '/api/cloud' })).status).toBe(200)
   })
 })

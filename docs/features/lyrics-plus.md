@@ -31,8 +31,8 @@ words are first seen — an import, a fetch, a hand edit, and a pass over the wh
 after start — and kept in the server's cache at `lyrics/<songId>/romanized.<hash>.json`
 under the library's data folder, keyed by a hash of the lyric text, so an edited lyric
 gets fresh romaji and an unchanged one is never romanized twice. The cloud pass uploads
-the lines beside the words in the bucket and names them in the snapshot
-(`lyrics.romanized`), so a device reading the bucket has them without asking the server.
+the lines in one file with the words (`lyrics/<sha256>.words`, `CloudWordsSchema`), so a
+device reading the bucket has them, with one read, without asking the server.
 A server answers them inside the lyrics response itself, as its `romanized` field
 (`GET /api/songs/:id/lyrics`); there is no separate route.
 

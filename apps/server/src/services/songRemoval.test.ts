@@ -131,7 +131,6 @@ describe('SongRemovalService', () => {
       lyricsKey: null,
       lyricsSize: null,
       lyricsKind: null,
-      romanizedKey: null,
       lyricsSig: 'tags-5-1700000000000',
       motionKey: null,
       motionSig: 'none',

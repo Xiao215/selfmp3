@@ -22,7 +22,7 @@ export function roomSongOf(song: Song, files: SongFiles, uid: string | null): Ro
     coverTone: song.coverTone,
     lyrics:
       files.lyrics && files.lyricsKind
-        ? { key: files.lyrics, size: 0, kind: files.lyricsKind, romanized: files.romanized }
+        ? { key: files.lyrics, size: 0, kind: files.lyricsKind }
         : null,
     sourceUrl: song.sourceUrl && isUrl(song.sourceUrl) ? song.sourceUrl : null,
     link: null,

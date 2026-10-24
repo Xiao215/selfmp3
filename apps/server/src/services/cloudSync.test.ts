@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CloudPlaysFileSchema,
   CloudSnapshotSchema,
+  coverPackMembers,
   formatHlc,
   logFile,
   logKey,
@@ -65,6 +66,10 @@ import { SOUND_DIMENSIONS, toBlob } from '../sound/vectors.js'
  */
 
 const sha = (content: string | Buffer): string => createHash('sha256').update(content).digest('hex')
+
+/** Where a song's words go: one file, the text and its romanized lines (`wordsKey`). */
+const wordsKeyOf = (text: string, romanized: string[] | null = null): string =>
+  `lyrics/${sha(JSON.stringify({ text, romanized }))}.words`
 
 const CONNECT: CloudConnect = {
   endpoint: 's3.us-west-004.backblazeb2.com',
@@ -249,6 +254,10 @@ describe('CloudSyncService', () => {
   }
 
   const snapshotKeys = (store = bucket): string[] => store.keys('snapshots/')
+
+  /** The pictures in the bucket, each on its own: what is in `covers/` less the packs of them. */
+  const singlePictures = (store = bucket): string[] =>
+    store.keys('covers/').filter(key => !key.endsWith('.pack'))
 
   const latest = (store = bucket): CloudSnapshot => {
     const key = newestSnapshotKey(snapshotKeys(store))
@@ -483,12 +492,17 @@ describe('CloudSyncService', () => {
 
       const audio = `audio/${sha('audio-gunjou')}.m4a`
       const cover = `covers/${sha(Buffer.alloc(2048, 7))}.jpg`
-      const lyrics = `lyrics/${sha(words)}.lrc`
+      const lyrics = wordsKeyOf(words)
       expect(bucket.keys('audio/')).toEqual([audio])
       expect(bucket.keys('covers/')).toEqual([cover])
       expect(bucket.keys('lyrics/')).toEqual([lyrics])
       expect(bucket.objects.get(audio)?.contentType).toBe('audio/mp4')
       expect(bucket.objects.get(cover)?.contentType).toBe('image/jpeg')
+      expect(bucket.objects.get(lyrics)?.contentType).toBe('application/json')
+      expect(JSON.parse(bucket.objects.get(lyrics)?.body.toString() ?? 'null')).toEqual({
+        text: words,
+        romanized: null,
+      })
 
       const [song] = latest().songs
       expect(song).toMatchObject({
@@ -566,15 +580,15 @@ describe('CloudSyncService', () => {
       await pass()
 
       expect(latest().songs[0]?.lyrics).toMatchObject({
-        key: `lyrics/${sha('just the words')}.txt`,
+        key: wordsKeyOf('just the words'),
         kind: 'plain',
       })
     })
 
     /*
-     * Romaji is made on the server, which has the dictionaries, and goes up beside
-     * the words, so a device signed in to the cloud gets the same lyrics answer
-     * the server itself gives.
+     * Romaji is made on the server, which has the dictionaries, and goes up in
+     * the words' own file, so a device signed in to the cloud gets the same
+     * lyrics answer the server itself gives, with one read of the bucket.
      */
     describe('romaji', () => {
       const JAPANESE = '[00:01.00]夜に駆ける\n[00:05.00]沈むように溶けてゆくように'
@@ -608,20 +622,22 @@ describe('CloudSyncService', () => {
         return { asked, run }
       }
 
-      it('puts the romanized lines up beside the words, and the snapshot names them', async () => {
+      it('puts the romanized lines up in one file with the words, and the snapshot names it', async () => {
         const lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
         addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
         const { run } = withRomanizer(() => lines)
         await run()
 
-        const romanized = `lyrics/${sha(JSON.stringify(lines))}.json`
-        expect(bucket.keys('lyrics/')).toEqual([`lyrics/${sha(JAPANESE)}.lrc`, romanized].sort())
-        expect(bucket.objects.get(romanized)?.contentType).toBe('application/json')
-        expect(JSON.parse(bucket.objects.get(romanized)?.body.toString() ?? 'null')).toEqual(lines)
-        expect(latest().songs[0]?.lyrics).toMatchObject({
-          key: `lyrics/${sha(JAPANESE)}.lrc`,
+        const key = wordsKeyOf(JAPANESE, lines)
+        expect(bucket.keys('lyrics/')).toEqual([key])
+        expect(JSON.parse(bucket.objects.get(key)?.body.toString() ?? 'null')).toEqual({
+          text: JAPANESE,
+          romanized: lines,
+        })
+        expect(latest().songs[0]?.lyrics).toEqual({
+          key,
+          size: bucket.objects.get(key)?.body.length,
           kind: 'synced',
-          romanized,
         })
       })
 
@@ -630,16 +646,14 @@ describe('CloudSyncService', () => {
         addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
         const { asked, run } = withRomanizer(() => lines)
         await run()
-        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf(JAPANESE))
         const before = asked.count
 
         lines = ['yoru ni kakeru', 'shizumu you ni tokete yuku you ni']
         await run()
 
         expect(asked.count).toBeGreaterThan(before)
-        expect(latest().songs[0]?.lyrics?.romanized).toBe(
-          `lyrics/${sha(JSON.stringify(lines))}.json`,
-        )
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf(JAPANESE, lines))
       })
 
       it('does not ask again for words that need no romaji', async () => {
@@ -650,7 +664,7 @@ describe('CloudSyncService', () => {
         await run()
 
         expect(asked.count).toBe(once)
-        expect(latest().songs[0]?.lyrics?.romanized).toBeNull()
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf('[00:01.00] just the words'))
       })
     })
 
@@ -836,6 +850,110 @@ describe('CloudSyncService', () => {
     })
   })
 
+  describe('packs of covers', () => {
+    /** The covers of three songs, each its own bytes. */
+    const threeWithCovers = async (): Promise<Buffer[]> => {
+      const bytes = [Buffer.alloc(2048, 1), Buffer.alloc(3000, 2), Buffer.alloc(1500, 3)]
+      for (const [index, name] of ['A - One', 'B - Two', 'C - Three'].entries()) {
+        await covers.save(addSong(name, name), bytes[index] as Buffer, '.jpg')
+      }
+      return bytes
+    }
+
+    const packKeys = (): string[] => bucket.keys('covers/').filter(key => key.endsWith('.pack'))
+
+    it('packs the library’s covers into one file, each where the snapshot says', async () => {
+      const bytes = await threeWithCovers()
+      await connect()
+
+      const [pack, ...more] = latest().coverPacks
+      expect(more).toEqual([])
+      if (!pack) throw new Error('no pack')
+      expect(packKeys()).toEqual([pack.key])
+      const body = bucket.objects.get(pack.key)?.body as Buffer
+      expect(pack.key).toBe(`covers/${sha(body)}.pack`)
+      expect(pack.size).toBe(body.length)
+
+      // Every cover, cut out of the pack where the snapshot says it is, is the
+      // cover the song names — which is still in the bucket on its own too.
+      const named = latest()
+        .songs.map(song => song.cover?.key)
+        .sort()
+      expect(pack.covers.map(([key]) => key)).toEqual(named)
+      for (const member of coverPackMembers(pack)) {
+        const cut = body.subarray(member.at, member.at + member.size)
+        expect(member.key).toBe(`covers/${sha(cut)}.jpg`)
+        expect(bucket.objects.get(member.key)?.body).toEqual(cut)
+      }
+      expect(bytes.map(cover => `covers/${sha(cover)}.jpg`).sort()).toEqual(named)
+    })
+
+    it('does not pack a library again that has not changed', async () => {
+      await threeWithCovers()
+      await connect()
+      const puts = bucket.puts.length
+      await pass()
+      await pass()
+      expect(bucket.puts.slice(puts).filter(key => key.endsWith('.pack'))).toEqual([])
+    })
+
+    it('packs a new cover with the rest, and deletes the old pack once the new one is named', async () => {
+      await threeWithCovers()
+      await connect()
+      const [before] = packKeys()
+
+      await covers.save(addSong('D - Four', 'four'), Buffer.alloc(1000, 4), '.jpg')
+      await pass()
+
+      // Packs are enrichment: held a moment, and the old one let go after.
+      await vi.waitFor(() => expect(latest().coverPacks[0]?.covers).toHaveLength(4))
+      const [after] = latest().coverPacks
+      expect(after?.key).not.toBe(before)
+      await vi.waitFor(() => expect(packKeys()).toEqual([after?.key]))
+    })
+
+    it('packs again without a cover taken off', async () => {
+      await threeWithCovers()
+      await connect()
+      const first = latest().songs.find(song => song.title === 'One')
+      const gone = first?.cover?.key
+
+      await covers.remove(
+        Number(db.prepare('SELECT id FROM songs WHERE title = ?').pluck().get('One')),
+      )
+      await pass()
+      await vi.waitFor(() =>
+        expect(latest().coverPacks.flatMap(pack => pack.covers.map(([key]) => key))).not.toContain(
+          gone,
+        ),
+      )
+      await vi.waitFor(() => expect(packKeys()).toEqual([latest().coverPacks[0]?.key]))
+    })
+
+    it('takes on the bucket’s packs when it has no covers to make them from', async () => {
+      const cover = (name: string) => theirFile('covers', `their cover of ${name}`, '.jpg')
+      const songs = ['YOASOBI - Gunjou', 'Nova - Dusk'].map(name =>
+        theirSong(name, { cover: cover(name) }),
+      )
+      const members = songs.map(song => song.cover as { key: string; size: number })
+      const body = Buffer.concat(members.map(member => bodies.get(member.key) as Buffer))
+      const pack = {
+        key: `covers/${sha(body)}.pack`,
+        size: body.length,
+        covers: members.map(({ key, size }): [string, number] => [key, size]),
+      }
+      seedBucket({ ...theirSnapshot({ songs }), coverPacks: [pack] })
+      bucket.objects.set(pack.key, { body, contentType: 'application/octet-stream' })
+
+      await connect()
+
+      expect(cloud.coverPacks()).toEqual([pack])
+      expect(packKeys()).toEqual([pack.key])
+      await pass()
+      expect(latest().coverPacks).toEqual([pack])
+    })
+  })
+
   describe('artists’ pictures', () => {
     /** A server that keeps one picture pair per artist named in `kept`, under `dataDir`. */
     const pictures = (kept: Map<string, { banner: string; portrait: string; rev: string }>) => {
@@ -881,7 +999,7 @@ describe('CloudSyncService', () => {
           portrait: { key: `covers/${sha('round')}.jpg`, size: 5 },
         },
       ])
-      expect(bucket.keys('covers/')).toEqual(
+      expect(singlePictures()).toEqual(
         [`covers/${sha('wide')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
       )
       // And the server looked for the pictures it does not have yet.
@@ -896,7 +1014,7 @@ describe('CloudSyncService', () => {
       sync = makeSync({ artists })
       await connect()
       await pass()
-      expect(bucket.puts.filter(key => key.startsWith('covers/'))).toHaveLength(2)
+      expect(bucket.puts.filter(key => /^covers\/.*\.jpg$/.test(key))).toHaveLength(2)
 
       artists.kept.set('yoasobi', { banner: 'wider', portrait: 'round', rev: 'r2' })
       await pass()
@@ -906,7 +1024,7 @@ describe('CloudSyncService', () => {
         expect(latest().artists[0]?.banner.key).toBe(`covers/${sha('wider')}.jpg`),
       )
       await vi.waitFor(() =>
-        expect(bucket.keys('covers/')).toEqual(
+        expect(singlePictures()).toEqual(
           [`covers/${sha('wider')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
         ),
       )
@@ -1377,9 +1495,12 @@ describe('CloudSyncService', () => {
         duration: 245.5,
         cover: theirFile('covers', 'their cover of Gunjou', '.jpg'),
         lyrics: {
-          ...theirFile('lyrics', '[00:01.00] their words', '.lrc'),
+          ...theirFile(
+            'lyrics',
+            JSON.stringify({ text: '[00:01.00] their words', romanized: null }),
+            '.words',
+          ),
           kind: 'synced',
-          romanized: null,
         },
         audioFeatures: {
           bpm: 128,
@@ -1962,6 +2083,95 @@ describe('CloudSyncService', () => {
       await service.syncNow()
       expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
       expect(latest().songs.map(song => song.title)).toEqual(['One again'])
+    })
+
+    /*
+     * Migration 45: words used to go up as a text file with their romanized
+     * lines in a second one beside it, two reads for a device. A song sent
+     * that way, its copy here long gone, is put up again as one words file
+     * from what this server keeps or the bucket holds, and the old text goes.
+     */
+    describe('words sent as two files', () => {
+      const JAPANESE = '[00:01.00]夜に駆ける'
+      const LINES = ['yoru ni kakeru']
+
+      /** A song whose words are up as they were before migration 45, and nowhere here. */
+      const sentAsTwoFiles = async (service: CloudSyncService): Promise<number> => {
+        const id = addSong('YOASOBI - Yoru ni Kakeru', 'audio-yoru', { lyrics: JAPANESE })
+        analysed.add(id)
+        await service.connect(CONNECT)
+        await service.whenIdle()
+        expect(here('YOASOBI - Yoru ni Kakeru')).toBe(false)
+
+        const now = latest().songs[0]?.lyrics?.key ?? ''
+        await bucket.delete(now)
+        cloud.forgetFile(now)
+        const text = Buffer.from(JAPANESE)
+        const romanized = Buffer.from(JSON.stringify(LINES))
+        await bucket.put(OLD_TEXT, text, { contentType: 'text/plain; charset=utf-8' })
+        await bucket.put(OLD_ROMANIZED, romanized, { contentType: 'application/json' })
+        cloud.recordFile(OLD_TEXT, text.length)
+        cloud.recordFile(OLD_ROMANIZED, romanized.length)
+        db.prepare('UPDATE cloud_songs SET lyrics_key = ?, lyrics_size = ? WHERE song_id = ?').run(
+          OLD_TEXT,
+          text.length,
+          id,
+        )
+        return id
+      }
+      const OLD_TEXT = `lyrics/${sha(JAPANESE)}.lrc`
+      const OLD_ROMANIZED = `lyrics/${sha(JSON.stringify(LINES))}.json`
+
+      it('puts them up again as one file, and lets the old text go', async () => {
+        const service = lettingGo({ romanize: () => Promise.resolve(LINES) })
+        const id = await sentAsTwoFiles(service)
+
+        await service.syncNow()
+
+        const key = wordsKeyOf(JAPANESE, LINES)
+        expect(latest().songs[0]?.lyrics).toMatchObject({
+          key,
+          size: bucket.objects.get(key)?.body.length,
+        })
+        expect(JSON.parse(bucket.objects.get(key)?.body.toString() ?? 'null')).toEqual({
+          text: JAPANESE,
+          romanized: LINES,
+        })
+        expect(bucket.keys('lyrics/')).not.toContain(OLD_TEXT)
+        expect(cloud.songsWithOldWords()).toEqual([])
+        expect((await service.fetchLyrics(id))?.text).toBe(JAPANESE)
+
+        // Done once: the next pass sends no words.
+        const before = bucket.puts.length
+        await service.syncNow()
+        expect(bucket.puts.slice(before).filter(put => put.startsWith('lyrics/'))).toEqual([])
+      })
+
+      it('reads the old text from this disk when it is kept here, not from the bucket', async () => {
+        const kept = new KeptCloudFiles(path.join(dataDir, 'cloud-files'), createLogger('silent'))
+        const service = lettingGo({ kept, romanize: () => Promise.resolve(LINES) })
+        await sentAsTwoFiles(service)
+        await kept.keep(OLD_TEXT, Buffer.from(JAPANESE))
+
+        await service.syncNow()
+
+        expect(latest().songs[0]?.lyrics?.key).toBe(wordsKeyOf(JAPANESE, LINES))
+        expect(bucket.gets).not.toContain(OLD_TEXT)
+        // Nor its romanized lines: they are made again here.
+        expect(bucket.gets).not.toContain(OLD_ROMANIZED)
+        expect(fs.existsSync(path.join(dataDir, 'cloud-files', OLD_TEXT))).toBe(false)
+      })
+
+      it('publishes the song without words the bucket no longer has', async () => {
+        const service = lettingGo({ romanize: () => Promise.resolve(LINES) })
+        await sentAsTwoFiles(service)
+        await bucket.delete(OLD_TEXT)
+
+        await service.syncNow()
+
+        expect(latest().songs[0]?.lyrics).toBeNull()
+        expect(cloud.songsWithOldWords()).toEqual([])
+      })
     })
   })
 

@@ -80,6 +80,55 @@ describe('CoverService.save', () => {
   })
 })
 
+describe('CoverService.jpegKept', () => {
+  let dataDir = ''
+
+  afterEach(() => {
+    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
+  })
+
+  const picture = (format: 'png' | 'jpeg'): Promise<Buffer> => {
+    const made = sharp({
+      create: { width: 64, height: 64, channels: 3, background: { r: 200, g: 40, b: 40 } },
+    })
+    return format === 'png' ? made.png().toBuffer() : made.jpeg().toBuffer()
+  }
+
+  it('makes a PNG cover kept from before a JPEG, and leaves a JPEG as it is', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const recorded = new Map<number, string | null>([
+      [1, '.png'],
+      [2, '.jpg'],
+      [3, null],
+    ])
+    const setArt = vi.fn((id: number, _has: boolean, extension: string | null) => {
+      recorded.set(id, extension)
+    })
+    const covers = new CoverService(
+      { dataDir } as Config,
+      { setArt, artExt: (id: number) => recorded.get(id) ?? null } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    const jpeg = await picture('jpeg')
+    fs.writeFileSync(path.join(dataDir, 'covers', '1.png'), await picture('png'))
+    fs.writeFileSync(path.join(dataDir, 'covers', '2.jpg'), jpeg)
+    const saved = vi.fn()
+    covers.onSaved = saved
+
+    expect(await covers.jpegKept([1, 2, 3])).toBe(1)
+
+    expect(fs.readdirSync(path.join(dataDir, 'covers')).sort()).toEqual(['1.jpg', '2.jpg'])
+    expect((await sharp(path.join(dataDir, 'covers', '1.jpg')).metadata()).format).toBe('jpeg')
+    // Untouched, byte for byte: its hash, the bucket's name for it, stays.
+    expect(fs.readFileSync(path.join(dataDir, 'covers', '2.jpg'))).toEqual(jpeg)
+    expect(setArt).toHaveBeenCalledTimes(1)
+    expect(saved).toHaveBeenCalledWith(1)
+
+    // A second start finds nothing to do.
+    expect(await covers.jpegKept([1, 2, 3])).toBe(0)
+  })
+})
+
 describe('CoverService.thumbnail', () => {
   let dataDir = ''
 

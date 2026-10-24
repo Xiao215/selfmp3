@@ -181,7 +181,6 @@ describe('the trash', () => {
     lyricsKey: lyrics,
     lyricsSize: lyrics ? 5 : null,
     lyricsKind: lyrics ? ('plain' as const) : null,
-    romanizedKey: null,
     lyricsSig: lyrics ?? 'none',
     motionKey: null,
     motionSig: 'none',

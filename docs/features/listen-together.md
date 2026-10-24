@@ -329,7 +329,7 @@ POST /v1/rooms/<code>/join           RoomJoin    → RoomJoined    a session mak
 GET  /v1/rooms/<code>?t=<token>                  → RoomState
 POST /v1/rooms/<code>/act?t=<token>  RoomAction  → RoomState     add needs the session too
 GET  /v1/rooms/<code>/socket?t=<token>           WebSocket: state down, ping up
-GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics | romanized
+GET | HEAD /v1/rooms/<code>/files/<entry>/<part>?t=<token>   audio | cover | lyrics
 GET | POST /v1/rooms/<code>/vectors?t=<token>    how the room's songs sound
 PUT  /v1/rooms/<code>/link-server?t=<token>      the host's server, for links
 POST /v1/rooms/<code>/keep?t=<token>             kept as a shared playlist   signed in
@@ -360,7 +360,7 @@ and the `v2` and `v3` migrations in `apps/doorman/wrangler.toml`. `npx wrangler 
 `apps/doorman` creates them; nothing deploys the doorman automatically.
 
 **Who can sign in.** A friend who brings songs, or joins a shared playlist, signs in to
-*your* doorman, so their address must be on its list (Settings › Who can sign in). Anyone
+*your* doorman, so their address must be on its list (the admin page's Access tab). Anyone
 not on it can still join a room as a guest.
 
 ## Tried on

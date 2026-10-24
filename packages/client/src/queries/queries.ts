@@ -19,8 +19,6 @@ import type {
   CloudServer,
   CloudStatus,
   DeviceList,
-  DoormanAccess,
-  DoormanAccessUpdate,
   DoormanGrants,
   Library,
   Settings,
@@ -93,7 +91,6 @@ export const queryKeys = {
   cloudImports: ['cloud-imports'] as const,
   cloudServer: ['cloud-server'] as const,
   serverGrants: ['cloud-grants'] as const,
-  access: ['cloud-access'] as const,
   library: ['library'] as const,
   settings: ['settings'] as const,
   importQueue: ['import', 'queue'] as const,
@@ -1209,32 +1206,6 @@ export function useRemoveServerGrant(): UseMutationResult<unknown, Error, string
       // The server removed is passed over from now, though the snapshot still names it.
       void client.invalidateQueries({ queryKey: queryKeys.cloudServer })
     },
-  })
-}
-
-// --- who may sign in (apps/doorman/src/access.ts) -----------------------------
-
-/**
- * The allow list, for the doorman's owner. Anyone else is refused, which is
- * how Settings knows not to draw it: no retry, since a 403 is the answer.
- */
-export function useAccess(): UseQueryResult<DoormanAccess, Error> {
-  const { ready } = useClientState()
-  return useQuery({
-    queryKey: queryKeys.access,
-    enabled: ready,
-    retry: false,
-    staleTime: STALE.minute,
-    queryFn: () => clientApi().access(),
-  })
-}
-
-/** Replace the allow list, whole. */
-export function useUpdateAccess(): UseMutationResult<DoormanAccess, Error, DoormanAccessUpdate> {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (update: DoormanAccessUpdate) => clientApi().updateAccess(update),
-    onSuccess: saved => client.setQueryData(queryKeys.access, saved),
   })
 }
 

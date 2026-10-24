@@ -42,7 +42,8 @@ apps/server
   container.ts           composition root for one library: constructs everything, once
   start.ts               one library's background work
   app.ts                 express wiring, middleware order
-  http/                  route helper, error handling, range requests, the admin page
+  http/                  route helper, error handling, range requests
+  admin/                 the owner's admin page's listener and API (docs/features/admin.md)
   db/                    connection, migrations, row types
   storage/               StorageDriver interface + the local inbox folder
   bucket/                CloudStore: Backblaze through the doorman, S3 with a key, a folder
@@ -52,8 +53,8 @@ apps/server
   sound/                 the listening model (CLaMP 3 on onnxruntime)
   routes/                thin — validate, call a service, return
   cli.ts, cli/           the `selfmp3` command: start, scan, import, backup, doctor
-  public/                the page it serves on :4600: hand-written HTML, CSS and
-                         JS, an admin page for the server and nothing else
+  ../admin/              the admin page itself: hand-written HTML, CSS and JS,
+                         on its own listener on 127.0.0.1, opened through Tailscale
 
 apps/app                 one Expo app for iOS, Android and the web (Foundations and Stack, below)
   app/                   expo-router file routes, one per screen
@@ -262,12 +263,11 @@ place every device points at. It serves no app: the app is on GitHub Pages, on
 the phone and in the desktop app, and a device signs in with Google and reads
 the library wherever the page came from. An app served from the server would
 answer from the server's database rather than the bucket, a surface with no
-sign-in. The page on `:4600` is an admin page instead (`http/admin.ts`,
-`apps/server/public/`): hand-written HTML, CSS and JS, no build step. Opened on
-the server itself it lists the libraries the server works for (`GET /api/hub`),
-each with its publishing and **Publish now**; with a folder for a bucket, or
-opened elsewhere with a library's token, it shows that one library's count,
-cloud connection and **Publish now**. With no bucket connected, a library's API refuses everything
+sign-in. The server serves no page on its public port at all. Its owner's admin page
+(`apps/server/src/admin/`, `apps/server/admin/`: hand-written HTML, CSS and JS, no build
+step) listens on the server's own machine and is opened through Tailscale: totals of how
+the server is used, who may sign in, and how the machine is doing
+([features/admin.md](features/admin.md)). With no bucket connected, a library's API refuses everything
 but connecting one: there is no library to serve.
 
 What only the server can do, a device asks it for directly: Import (yt-dlp runs

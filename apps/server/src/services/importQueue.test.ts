@@ -9,6 +9,7 @@ import { ImportRepository } from '../repositories/imports.js'
 import { SettingsRepository } from '../repositories/settings.js'
 import { ThrottleRepository } from '../repositories/throttle.js'
 import { ImportQueueService } from './importQueue.js'
+import { ServerMetrics } from './metrics.js'
 import { YtDlpService } from './ytdlp.js'
 import { YtThrottleService } from './ytThrottle.js'
 
@@ -72,6 +73,7 @@ describe('ImportQueueService, when a download fails', { timeout: 90_000 }, () =>
   let imports: ImportRepository
   let throttle: YtThrottleService
   let queue: ImportQueueService
+  let metrics: ServerMetrics
   let db: Database.Database
   let now: number
   let dir: string
@@ -118,6 +120,7 @@ exit 1
     db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     imports = new ImportRepository(db)
+    metrics = new ServerMetrics(null)
     const settings = new SettingsRepository(db)
     throttle = new YtThrottleService(
       new ThrottleRepository(db),
@@ -144,6 +147,7 @@ exit 1
       ytdlp: new YtDlpService(createLogger('silent'), () => settings.get(), throttle),
       cloud: { connected: false, uploadSong: nothing, kick: () => undefined },
       keepAwake: { hold: () => () => undefined },
+      metrics,
       throttle,
       logger: createLogger('silent'),
     })
@@ -227,6 +231,10 @@ exit 1
     expect(job?.attempts).toBe(1)
     // A broken song is not the network's fault, and must not cost the budget.
     expect(throttle.status().ratchet).toBe(1)
+    // The admin page counts it, by why it failed and where from.
+    const imported = metrics.summary(1, new Map()).imports
+    expect(imported.failures).toEqual([{ kind: 'unavailable', count: 1 }])
+    expect(imported.sources).toEqual([{ source: 'youtube', done: 0, failed: 1, medianMs: null }])
   })
 
   it('puts a rate-limited song back in the queue instead of failing it', async () => {
@@ -240,6 +248,10 @@ exit 1
     // Nothing is wrong with this song, so nothing about it is marked wrong.
     expect(job?.status).toBe('queued')
     expect(job?.error).toBeNull()
+    // Counted as YouTube holding the server back, not as a failed import.
+    const imported = metrics.summary(1, new Map()).imports
+    expect(imported.held.map(day => day.count)).toEqual([1])
+    expect(imported.byDay[0]).toMatchObject({ done: 0, failed: 0 })
   })
 
   it('stops the whole queue after a rate limit, rather than burning through it', async () => {

@@ -234,7 +234,7 @@ export async function share(ctx: Context): Promise<Response> {
     if (!target) throw notFound('whoever sent it has no bucket connected any more')
     let response: Response
     try {
-      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method, 'lent')
     } catch (error) {
       // The song left its sender's library: the link says so from now on.
       if (part === 'audio' && error instanceof DoormanError && error.status === 404) {

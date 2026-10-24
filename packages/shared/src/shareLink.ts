@@ -169,7 +169,7 @@ export function applyShareAction(
 export function shareLends(
   doc: ShareDoc,
   entryId: string,
-  part: 'audio' | 'cover' | 'lyrics' | 'romanized',
+  part: 'audio' | 'cover' | 'lyrics',
   now: number,
 ): boolean {
   const entry = doc.entries.find(candidate => candidate.id === entryId)

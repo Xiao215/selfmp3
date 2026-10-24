@@ -14,10 +14,10 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
+  coverPackKey,
   foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
-  lyricsKey,
   motionKey,
   newestSnapshotKey,
   othersSnapshotsToPrune,
@@ -27,19 +27,22 @@ import {
   lyricTextLines,
   parseLyrics,
   readLogFile,
-  romanizedKey,
   snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
   soundVectorsKey,
   playsKey,
+  parseCloudWords,
+  wordsKey,
   unfoldedLogKeys,
   type Change,
   type CloudConnect,
   type CloudLyrics,
   type CloudSnapshot,
   type CloudPlays,
+  type CloudCoverPack,
   type CloudSound,
+  type CloudWords,
   type CloudStatus,
   type DoormanMe,
   type CloudServer,
@@ -54,6 +57,7 @@ import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
+  CloudArtistState,
   CloudConnection,
   CloudRepository,
   CloudSongState,
@@ -70,6 +74,7 @@ import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { ArtistBackdropService } from './artistBackdrops.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { planCoverPacks } from './coverPacks.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
@@ -232,12 +237,11 @@ interface Settled {
   readonly sidecarHere: boolean
 }
 
-/** A song's words in the bucket, and their romanized lines beside them. */
+/** A song's words file in the bucket: the text and its romanized lines (`wordsKey`). */
 interface UploadedLyrics {
   readonly key: string
   readonly size: number
   readonly kind: CloudLyrics['kind']
-  readonly romanized: string | null
 }
 
 /** Whether a lyric text is Chinese or Japanese: words that should have romanized lines. */
@@ -260,7 +264,7 @@ interface CloudSyncDeps {
   readonly logger: Logger
   /**
    * A lyric text's romanized lines, made once per text and cached
-   * (services/romanizedLines.ts), uploaded beside the words. Null when the
+   * (services/romanizedLines.ts), uploaded in the words' own file. Null when the
    * words need none or the dictionary would not load. Absent where romaji is
    * not what is being tested, which then uploads none.
    */
@@ -421,6 +425,12 @@ export class CloudSyncService {
    * before that snapshot has been looked at.
    */
   #bucketSound: CloudSound | null | undefined = undefined
+  /**
+   * Pictures named in the library whose bytes this server does not have, as
+   * the last look for them found: not looked for again every pass. A cover
+   * that changes has a new key, and is looked for under that.
+   */
+  readonly #unpackable = new Set<string>()
   /** The pass that sends the vectors once the hour since the last is up. */
   #soundTimer: NodeJS.Timeout | null = null
   /**
@@ -657,7 +667,8 @@ export class CloudSyncService {
       body = await store.get(key)
       if (body) await kept?.keep(key, body)
     }
-    return body ? { text: body.toString('utf8'), synced: state.lyricsKind === 'synced' } : null
+    const words = body ? parseCloudWords(body.toString('utf8')) : null
+    return words ? { text: words.text, synced: state.lyricsKind === 'synced' } : null
   }
 
   /**
@@ -998,6 +1009,10 @@ export class CloudSyncService {
         if (generation !== this.#generation || this.#stopped) return
       }
 
+      // Words sent as two files, before they were one (migration 45).
+      failed += await this.#rewriteOldWords(store, generation)
+      if (generation !== this.#generation || this.#stopped) return
+
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const files = cloud.songFiles()
@@ -1068,6 +1083,8 @@ export class CloudSyncService {
 
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadArtists(store)
+      if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadCoverPacks(store)
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadSound(store)
       if (generation !== this.#generation || this.#stopped) return
@@ -1475,6 +1492,7 @@ export class CloudSyncService {
     }
     this.#bucketSound = snapshot.sound
     this.#bucketPlays = snapshot.plays ?? []
+    this.#takeOnCoverPacks(snapshot.coverPacks)
     if (snapshot.writtenBy === this.#deviceId()) {
       // This server's own, from before it last stopped. Said again word for
       // word, it would be one more download for every device and nothing new
@@ -1513,6 +1531,19 @@ export class CloudSyncService {
         songs: result.withoutAudio,
       })
     }
+  }
+
+  /**
+   * The bucket's packs of covers, for a server that has none of its own yet:
+   * it may not have the covers to make them again (a library taken on from
+   * the bucket has none here), and without them every device would be back
+   * to a read per cover. Only those the bucket still has, as its listing said.
+   */
+  #takeOnCoverPacks(packs: readonly CloudCoverPack[]): void {
+    const { cloud } = this.#deps
+    if (cloud.coverPacks().length > 0) return
+    const present = packs.filter(pack => cloud.hasFile(pack.key))
+    if (present.length > 0) cloud.saveCoverPacks(present)
   }
 
   /**
@@ -1602,12 +1633,7 @@ export class CloudSyncService {
     if (state && state.lyricsSig === signatures.lyrics) {
       lyrics =
         state.lyricsKey !== null && state.lyricsKind !== null
-          ? {
-              key: state.lyricsKey,
-              size: state.lyricsSize ?? 0,
-              kind: state.lyricsKind,
-              romanized: state.romanizedKey,
-            }
+          ? { key: state.lyricsKey, size: state.lyricsSize ?? 0, kind: state.lyricsKind }
           : null
     } else {
       const uploaded = await this.#uploadLyrics(store, file)
@@ -1635,7 +1661,6 @@ export class CloudSyncService {
       lyricsKey: lyrics?.key ?? null,
       lyricsSize: lyrics?.size ?? null,
       lyricsKind: lyrics?.kind ?? null,
-      romanizedKey: lyrics?.romanized ?? null,
       lyricsSig,
       motionKey: motion,
       motionSig: signatures.motion,
@@ -1700,6 +1725,95 @@ export class CloudSyncService {
       }
     }
     for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
+  }
+
+  /**
+   * The covers and artists' pictures, packed a few megabytes to a file
+   * (services/coverPacks.ts), so a device with none of them reads a file per
+   * pack rather than one per picture. A pack replaced goes in the trash with
+   * the pass that replaced it; a library already packed costs a look at the
+   * database.
+   */
+  async #uploadCoverPacks(store: CloudStore): Promise<void> {
+    const { cloud } = this.#deps
+    const live = new Map<string, number>()
+    for (const state of cloud.states().values()) {
+      if (state.coverKey !== null) live.set(state.coverKey, state.coverSize ?? 0)
+    }
+    const artists = cloud.artistStates()
+    for (const artist of artists.values()) {
+      live.set(artist.bannerKey, artist.bannerSize)
+      live.set(artist.portraitKey, artist.portraitSize)
+    }
+    const packs = cloud.coverPacks()
+    // First as if every picture not known to be missing were here: when that
+    // packs nothing, nothing is looked for on the disk.
+    const hoped = planCoverPacks(live, packs, key => !this.#unpackable.has(key))
+    if (hoped.groups.length === 0) {
+      if (hoped.kept.length !== packs.length) cloud.saveCoverPacks(hoped.kept)
+      return
+    }
+
+    const sources = await this.#pictureSources(artists)
+    for (const key of live.keys()) if (!sources.has(key)) this.#unpackable.add(key)
+    const plan = planCoverPacks(live, packs, key => sources.has(key))
+    const made: CloudCoverPack[] = []
+    for (const group of plan.groups) {
+      if (this.#stopped) return
+      const parts: Buffer[] = []
+      const covers: [string, number][] = []
+      for (const { key } of group) {
+        const data = await fsp.readFile(sources.get(key) ?? '').catch(() => null)
+        // Changed since it went up: the cover's next upload names it anew.
+        if (!data || !key.includes(`/${sha256(data)}.`)) {
+          this.#unpackable.add(key)
+          continue
+        }
+        parts.push(data)
+        covers.push([key, data.length])
+      }
+      if (covers.length === 0) continue
+      const bytes = Buffer.concat(parts)
+      const key = coverPackKey(sha256(bytes))
+      await this.#putOnce(store, key, bytes, 'application/octet-stream')
+      made.push({ key, size: bytes.length, covers })
+    }
+    const next = [...plan.kept, ...made]
+    const before = packs.map(pack => pack.key).join()
+    if (next.map(pack => pack.key).join() !== before) {
+      cloud.saveCoverPacks(next)
+      this.#logger.debug('covers packed', {
+        packs: next.length,
+        covers: next.reduce((sum, pack) => sum + pack.covers.length, 0),
+      })
+    }
+  }
+
+  /** Where this server keeps each picture the bucket has of its library, by key. */
+  async #pictureSources(
+    artists: ReadonlyMap<string, CloudArtistState>,
+  ): Promise<Map<string, string>> {
+    const { cloud, covers } = this.#deps
+    const sources = new Map<string, string>()
+    for (const [songId, state] of cloud.states()) {
+      if (state.coverKey === null || sources.has(state.coverKey)) continue
+      if (this.#unpackable.has(state.coverKey)) continue
+      const found = await covers.find(songId)
+      if (found) sources.set(state.coverKey, found.path)
+    }
+    const pictures = this.#deps.artists
+    if (pictures) {
+      for (const [artist, state] of artists) {
+        if (this.#unpackable.has(state.bannerKey) && this.#unpackable.has(state.portraitKey)) {
+          continue
+        }
+        const pair = await pictures.keptPair(artist)
+        if (!pair) continue
+        sources.set(state.bannerKey, pair.banner)
+        sources.set(state.portraitKey, pair.portrait)
+      }
+    }
+    return sources
   }
 
   /**
@@ -1890,7 +2004,7 @@ export class CloudSyncService {
 
   /**
    * The words — the sidecar if there is one, else the audio file's own tags —
-   * and their romanized lines beside them, as the server's own lyrics answer
+   * put up with their romanized lines, as the server's own lyrics answer
    * carries them. `romanizedMissing` says the words are Chinese or Japanese
    * and no romaji could be made this time.
    */
@@ -1913,25 +2027,76 @@ export class CloudSyncService {
       }
     }
     if (!text?.trim()) return null
+    return this.#uploadWords(store, file.id, text, kind)
+  }
 
-    const data = Buffer.from(text, 'utf8')
-    const key = lyricsKey(sha256(data), kind === 'synced')
-    await this.#putOnce(store, key, data, 'text/plain; charset=utf-8')
+  /**
+   * One words file (`wordsKey`): the text and its romanized lines together,
+   * so a device reads both with one call to the bucket.
+   */
+  async #uploadWords(
+    store: CloudStore,
+    songId: number,
+    text: string,
+    kind: CloudLyrics['kind'],
+  ): Promise<{ lyrics: UploadedLyrics; romanizedMissing: boolean }> {
+    const romanize = this.#deps.romanize
+    const romanized = romanize ? await romanize(songId, text).catch(() => null) : null
+    const words: CloudWords = { text, romanized }
+    const data = Buffer.from(JSON.stringify(words), 'utf8')
+    const key = wordsKey(sha256(data))
+    await this.#putOnce(store, key, data, 'application/json')
     // Read from here once the sidecar is let go, rather than from the bucket.
     await this.#deps.kept?.keep(key, data)
-
-    const romanize = this.#deps.romanize
-    const lines = romanize ? await romanize(file.id, text).catch(() => null) : null
-    let romanized: string | null = null
-    if (lines) {
-      const json = Buffer.from(JSON.stringify(lines), 'utf8')
-      romanized = romanizedKey(sha256(json))
-      await this.#putOnce(store, romanized, json, 'application/json')
-    }
     return {
-      lyrics: { key, size: data.length, kind, romanized },
-      romanizedMissing: romanize !== undefined && lines === null && wantsRomanized(text),
+      lyrics: { key, size: data.length, kind },
+      romanizedMissing: romanize !== undefined && romanized === null && wantsRomanized(text),
     }
+  }
+
+  /**
+   * Migration 45: words sent before a song's words and romanized lines were one
+   * file were a text file (`.lrc` or `.txt`) with the romanized lines in a
+   * second one beside it. Each is put up again as one words file, from the
+   * copy kept here or else the bucket, with its romanized lines made again
+   * here (they are cached, so this reads no second file); the old text goes
+   * in the trash once the new one is named. A song whose old text the bucket
+   * no longer has loses it, as a lost file does (`reconcileFiles`): sent again
+   * from a copy here if there is one. One that fails stays as it was, for the
+   * next pass.
+   */
+  async #rewriteOldWords(store: CloudStore, generation: number): Promise<number> {
+    const { cloud } = this.#deps
+    let failed = 0
+    for (const songId of cloud.songsWithOldWords()) {
+      if (generation !== this.#generation || this.#stopped) return failed
+      const state = cloud.state(songId)
+      if (!state?.lyricsKey || !state.lyricsKind) continue
+      try {
+        const kept = this.#deps.kept
+        let body = (await kept?.read(state.lyricsKey)) ?? null
+        if (!body) body = await store.get(state.lyricsKey)
+        if (!body) {
+          cloud.saveWords(songId, null, '')
+          continue
+        }
+        const { lyrics, romanizedMissing } = await this.#uploadWords(
+          store,
+          songId,
+          body.toString('utf8'),
+          state.lyricsKind,
+        )
+        cloud.saveWords(songId, lyrics, romanizedMissing ? '' : state.lyricsSig)
+      } catch (error) {
+        if (error instanceof CloudError && error.kind !== 'other') throw error
+        failed++
+        this.#logger.warn('could not put a song’s words up as one file', {
+          songId,
+          message: messageOf(error),
+        })
+      }
+    }
+    return failed
   }
 
   /**
@@ -2229,6 +2394,7 @@ export class CloudSyncService {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
+      coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.
       sound: this.#bucketSound ?? cloud.soundState(),

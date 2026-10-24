@@ -12,13 +12,13 @@ import {
   isDeletableCloudKey,
   isHashNamedCloudKey,
   logKey,
-  lyricsKey,
   newCloudDeviceId,
   newCloudFormatText,
   newUid,
   newestSnapshotKey,
   othersSnapshotsToPrune,
   parseEndpoint,
+  parseCloudWords,
   parseLogKey,
   parseSnapshotKey,
   snapshotFileKeys,
@@ -26,6 +26,7 @@ import {
   snapshotsToPrune,
   toCloudRules,
   unfoldedLogKeys,
+  wordsKey,
 } from './cloud.js'
 import { CloudSnapshotSchema, CloudSongSchema, UidSchema } from './schemas/cloud.js'
 import {
@@ -62,12 +63,36 @@ describe('uids', () => {
   })
 })
 
+describe('a words file', () => {
+  it('holds the text and its romanized lines', () => {
+    expect(parseCloudWords('{"text":"你好","romanized":["nǐ hǎo"]}')).toEqual({
+      text: '你好',
+      romanized: ['nǐ hǎo'],
+    })
+    expect(parseCloudWords('{"text":"hello","romanized":null}')).toEqual({
+      text: 'hello',
+      romanized: null,
+    })
+  })
+
+  it('is nothing when it is not one', () => {
+    expect(parseCloudWords('[00:01.00]hello')).toBeNull()
+    expect(parseCloudWords('["ni hao"]')).toBeNull()
+    expect(parseCloudWords('{"text":"hi","romanized":[1]}')).toBeNull()
+    expect(parseCloudWords('{"romanized":null}')).toBeNull()
+  })
+})
+
 describe('file names', () => {
   it('name a file by its hash, with a clean extension', () => {
     expect(audioKey(SHA, '.M4A')).toBe(`audio/${SHA}.m4a`)
     expect(coverKey(SHA, 'jpg')).toBe(`covers/${SHA}.jpg`)
-    expect(lyricsKey(SHA, true)).toBe(`lyrics/${SHA}.lrc`)
-    expect(lyricsKey(SHA, false)).toBe(`lyrics/${SHA}.txt`)
+    expect(wordsKey(SHA)).toBe(`lyrics/${SHA}.words`)
+  })
+
+  it('give a words file a key the doorman already lets through', () => {
+    expect(isCloudFileKey(wordsKey(SHA))).toBe(true)
+    expect(isHashNamedCloudKey(wordsKey(SHA))).toBe(true)
   })
 
   it('never lets an odd extension become part of a path', () => {
@@ -377,8 +402,7 @@ describe('snapshot schema', () => {
   })
 
   it('names every file it points at', () => {
-    const lyrics = `lyrics/${'1'.repeat(64)}.lrc`
-    const romanized = `lyrics/${'2'.repeat(64)}.json`
+    const lyrics = `lyrics/${'1'.repeat(64)}.words`
     const motion = `lyrics/${'3'.repeat(64)}.json`
     const sound = `lyrics/${'4'.repeat(64)}.vec`
     const plays = `lyrics/${'5'.repeat(64)}.plays`
@@ -389,7 +413,7 @@ describe('snapshot schema', () => {
       writtenAt: '2026-09-11T10:00:00.000Z',
       writtenBy: 'pi-aaaaaaaa',
       upTo: {},
-      songs: [{ ...song, lyrics: { key: lyrics, size: 1, kind: 'synced', romanized }, motion }],
+      songs: [{ ...song, lyrics: { key: lyrics, size: 1, kind: 'synced' }, motion }],
       tags: [],
       playlists: [],
       artists: [
@@ -403,17 +427,7 @@ describe('snapshot schema', () => {
       plays: [{ month: '2026-09', key: plays, size: 1, count: 1 }],
     })
     expect([...snapshotFileKeys(snapshot)].sort()).toEqual(
-      [
-        song.audio.key,
-        song.cover.key,
-        lyrics,
-        romanized,
-        motion,
-        banner,
-        portrait,
-        sound,
-        plays,
-      ].sort(),
+      [song.audio.key, song.cover.key, lyrics, motion, banner, portrait, sound, plays].sort(),
     )
   })
 

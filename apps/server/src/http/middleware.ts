@@ -5,6 +5,7 @@ import type { Config, ServingConfig } from '../config.js'
 import type { Logger } from '../logger.js'
 import { HttpError } from './errors.js'
 import { isLocalRequest } from './local.js'
+import { METRIC, type ServerMetrics } from '../services/metrics.js'
 
 /**
  * Cross-cutting middleware: request logging, auth, CORS and security headers.
@@ -18,7 +19,10 @@ import { isLocalRequest } from './local.js'
  * read, pasted and kept, and the secret that guards the library has no place
  * in it.
  */
-export function requestLogger(logger: Logger): RequestHandler {
+export function requestLogger(
+  logger: Logger,
+  metrics: Pick<ServerMetrics, 'count'> | null = null,
+): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
     const startedAt = process.hrtime.bigint()
     res.on('finish', () => {
@@ -27,12 +31,27 @@ export function requestLogger(logger: Logger): RequestHandler {
       const noisy = req.path.startsWith('/api/stream/') || req.path.startsWith('/api/art/')
       const line = `${req.method} ${loggedUrl(req.originalUrl)} ${res.statusCode}`
       const fields = { ms: ms.toFixed(1) }
+      if (res.statusCode >= 500) metrics?.count(METRIC.serverError(routeOf(req, res.statusCode)))
       if (noisy) logger.debug(line, fields)
       else if (res.statusCode >= 500) logger.error(line, fields)
       else logger.info(line, fields)
     })
     next()
   }
+}
+
+/**
+ * A request as the admin page groups its 500s: `POST /api/imports → 502`,
+ * with anything that names one song, job or tag (numbers, hashes, ids) put
+ * as `:id`, so a hundred songs failing the same way are one line.
+ */
+export function routeOf(req: Pick<Request, 'method' | 'originalUrl'>, status: number): string {
+  const bare = req.originalUrl.split('?')[0] ?? ''
+  const path = bare
+    .split('/')
+    .map(part => (/^\d+$|^[0-9a-f]{8,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part))
+    .join('/')
+  return `${req.method} ${path} → ${status}`
 }
 
 /** The request's URL with the token, if it carried one, blanked. */

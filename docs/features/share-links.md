@@ -169,10 +169,26 @@ The sender sees asks in two places:
 has just works again. A link whose songs are no longer in your library cannot be asked for
 or shared again.
 
-**Links you shared** (`/links`) lists every link you sent:
+**Links you shared** (`/links`) lists every link you sent. It is drawn like Library, so the
+rows are familiar, but there is no play. Agreed with Xiao on 2026-10-23
+([proposal](https://claude.ai/artifact/CfGMFmYhBtXaWk9eCfCLn4), picks A1 B C3 D2 D3 E F G1 H1
+I1 J2 K1):
 
-- who opened it, by name if signed in and counted otherwise;
-- how long it has left, or when it ended and how often it played.
+- **Two sections.** **Playing** comes first, the link ending soonest on top. **Ended** follows,
+  the latest first. Past five, the ended ones fold under *Show 3 more*.
+- **A row** is Library's. On a computer it has the name over who opened it, how many songs it
+  holds, and how long it has where a song's length would be. That time is amber on the last
+  day. Once a link has ended, its line says how often it played, and its cover fades. On a
+  phone the second line says all of it.
+- **A press opens the link's page**: in a new tab in a browser, and in place on a phone or in
+  the Mac app.
+- **Choosing** works as it does in Library: the circle, holding a row, shift-click. Once
+  choosing is on, a press ticks and does not open anything. Each section's head has
+  **Select 8**, which unfolds Ended first, so nothing ticked is out of sight. The bar's checkbox
+  selects every link.
+- **The bar** has one button, **Remove**. It takes playing links too, after asking once
+  (*1 of them is still playing and stops for everyone*). **More** holds **Share again**, **End**
+  and **Copy links**.
 
 You reach it from Profile, under Report. Each link's ⋯ holds:
 
@@ -221,7 +237,7 @@ POST /v1/share                       ShareCreate → ShareLink       signed in, 
 GET  /v1/share                                   → ShareSummary[] the links you sent
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
-GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics | romanized
+GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
 GET  /l/<id>/<key>                               a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget

@@ -27,12 +27,14 @@ import {
   toSqliteTime,
   unfoldedLogKeys,
   type Change,
+  type CloudCoverPack,
   type CloudSnapshot,
   type LibraryVersion,
   type LogFile,
   type SyncLibrary,
   type SyncManifest,
   MotionSchema,
+  parseCloudWords,
   type Motion,
   type RoomSong,
   decodeSoundPack,
@@ -275,6 +277,8 @@ export interface CloudLibraryApi {
   cloudPicturesNow: () => {
     readonly covers: ReadonlySet<string>
     readonly artists: readonly ArtistPictureKeys[]
+    /** The same pictures, packed a few megabytes to a file, for filling a device from nothing. */
+    readonly packs: readonly CloudCoverPack[]
   } | null
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   /**
@@ -529,6 +533,7 @@ export function createCloudLibrary(
       tags: [],
       playlists: [],
       artists: [],
+      coverPacks: [],
       sound: null,
     }
   }
@@ -1099,8 +1104,8 @@ export function createCloudLibrary(
 
   /**
    * A song's lyrics and their romanized lines, the way the server's own lyrics
-   * answer carries them: from this device if it has read them before, else
-   * the bucket.
+   * answer carries them: one file (`wordsKey`), from this device if it has
+   * read it before, else the bucket.
    */
   async function cloudLyrics(
     session: CloudSession | null,
@@ -1108,12 +1113,9 @@ export function createCloudLibrary(
   ): Promise<{ text: string; kind: 'plain' | 'synced'; romanized: string[] | null } | null> {
     const files = await filesOf(songId)
     if (!files?.lyrics || !files.lyricsKind) return null
-    const text = await cloudText(session, files.lyrics)
-    if (text === null) return null
-    const romanized = files.romanized
-      ? romanizedLines(await cloudText(session, files.romanized))
-      : null
-    return { text, kind: files.lyricsKind, romanized }
+    const json = await cloudText(session, files.lyrics)
+    const words = json === null ? null : parseCloudWords(json)
+    return words ? { text: words.text, kind: files.lyricsKind, romanized: words.romanized } : null
   }
 
   /**
@@ -1158,17 +1160,6 @@ export function createCloudLibrary(
     return text
   }
 
-  /** A romanized-lines file's JSON, or null when it is not a list of lines. */
-  function romanizedLines(json: string | null): string[] | null {
-    if (json === null) return null
-    try {
-      const value: unknown = JSON.parse(json)
-      return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
-    } catch {
-      return null
-    }
-  }
-
   /**
    * Where a song's cover is in the bucket.
    *
@@ -1195,12 +1186,17 @@ export function createCloudLibrary(
   function cloudPicturesNow(): {
     covers: ReadonlySet<string>
     artists: readonly ArtistPictureKeys[]
+    packs: readonly CloudCoverPack[]
   } | null {
     const view = replica?.view
     if (!view) return null
     const covers = new Set<string>()
     for (const files of Object.values(view.files)) if (files.cover) covers.add(files.cover)
-    return { covers, artists: [...view.artists.values()] }
+    return {
+      covers,
+      artists: [...view.artists.values()],
+      packs: replica?.base.snapshot?.coverPacks ?? [],
+    }
   }
 
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */

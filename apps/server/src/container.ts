@@ -64,6 +64,7 @@ import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
 import { SongMerge } from './services/songMerge.js'
 import { PlaysArchive } from './services/playsArchive.js'
+import type { ServerMetrics } from './services/metrics.js'
 
 /**
  * Composition root.
@@ -83,6 +84,8 @@ export interface Container {
   readonly config: ServingConfig
   /** Which server this library is on (shared.ts `serverIdOf`): its snapshot and health say it. */
   readonly serverId: string
+  /** The server's counts for its owner's admin page, shared by every library here (services/metrics.ts). */
+  readonly metrics: ServerMetrics
   readonly logger: Logger
   readonly db: Db
   readonly storage: StorageDriver
@@ -384,6 +387,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     throttle,
     cloud: cloudSync,
     keepAwake,
+    metrics: shared.metrics,
     logger,
   })
 
@@ -455,6 +459,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     settings,
     netease,
     lookup,
+    metrics: shared.metrics,
   })
   const fixCovers = new FixCoversService({
     songs,
@@ -525,6 +530,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const container: Container = {
     config,
     serverId: shared.serverId,
+    metrics: shared.metrics,
     logger,
     db,
     storage,

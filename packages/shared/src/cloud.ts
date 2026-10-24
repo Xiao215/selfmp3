@@ -1,9 +1,12 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
+  CloudWordsSchema,
+  type CloudCoverPack,
   type CloudFormat,
   type CloudSmartRules,
   type CloudSnapshot,
+  type CloudWords,
 } from './schemas/cloud.js'
 import { HASH_FILE_NAME } from './doormanWire.js'
 import type { SmartRules } from './schemas/smart.js'
@@ -82,21 +85,51 @@ export function coverKey(sha256: string, extension: string): string {
   return `covers/${sha256}.${cleanExtension(extension)}`
 }
 
-/** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the server. */
-export function lyricsKey(sha256: string, synced: boolean): string {
-  return `lyrics/${sha256}.${synced ? 'lrc' : 'txt'}`
+/**
+ * Many covers in one file (`CloudCoverPackSchema`), in `covers/` like the
+ * pictures it holds: the doorman's key rule already allows the folder and
+ * the extension.
+ */
+export function coverPackKey(sha256: string): string {
+  return `covers/${sha256}.pack`
 }
 
-/** A lyric text's romanized lines, as a JSON array, beside the words in `lyrics/`. */
-export function romanizedKey(sha256: string): string {
-  return `lyrics/${sha256}.json`
+/** Where each picture of a pack is in its file: its key, where it starts, and how long it is. */
+export function coverPackMembers(
+  pack: CloudCoverPack,
+): { readonly key: string; readonly at: number; readonly size: number }[] {
+  let at = 0
+  return pack.covers.map(([key, size]) => {
+    const member = { key, at, size }
+    at += size
+    return member
+  })
+}
+
+/**
+ * A song's words and their romanized lines, together in one JSON file
+ * (`CloudWordsSchema`), so a device reads both with one call to the bucket.
+ * In `lyrics/`, named by the hash of its bytes like everything there.
+ */
+export function wordsKey(sha256: string): string {
+  return `lyrics/${sha256}.words`
+}
+
+/** A words file's JSON (`wordsKey`), or null when it is not one. */
+export function parseCloudWords(json: string): CloudWords | null {
+  try {
+    const parsed = CloudWordsSchema.safeParse(JSON.parse(json))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
 }
 
 /**
  * A song's motion curve (schemas/motion.ts), as JSON, also in `lyrics/`: the
  * doorman's key rule already allows the folder, and a new folder would need
  * every doorman redeployed before a device could read it. Named by the hash of
- * its bytes, so it can never be mistaken for a lyric's romanized lines.
+ * its bytes, so it can never be mistaken for a song's words.
  */
 export function motionKey(sha256: string): string {
   return `lyrics/${sha256}.json`
@@ -233,8 +266,8 @@ export function othersSnapshotsToPrune(
 }
 
 /**
- * Every file a snapshot names: each song's audio, cover, words, romanized
- * lines and motion curve, each artist's pictures, the sound vectors and the
+ * Every file a snapshot names: each song's audio, cover, words and motion
+ * curve, each artist's pictures, the sound vectors and the
  * months of plays. What must not be deleted while that snapshot may be read.
  */
 export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
@@ -246,7 +279,6 @@ export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
     add(song.audio.key)
     add(song.cover?.key)
     add(song.lyrics?.key)
-    add(song.lyrics?.romanized)
     add(song.motion)
   }
   for (const artist of snapshot.artists) {
@@ -311,7 +343,7 @@ export function foldedLogKeys(
 
 /**
  * The folders whose files are named by the hash of their bytes (`audioKey`,
- * `coverKey`, `lyricsKey` and the rest above): the same key is the same bytes,
+ * `coverKey`, `wordsKey` and the rest above): the same key is the same bytes,
  * forever, so such a file is never replaced and may be cached for good.
  */
 export const HASH_NAMED_FOLDERS = ['audio', 'covers', 'lyrics'] as const
@@ -396,12 +428,11 @@ export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
  * Where the app is, for something that has a server's address but needs to send
  * someone to the app instead — the browser extension's "open the queue", say.
  *
- * The server's own address is not it: the server serves its own page there
- * (`apps/server/src/http/admin.ts`), so the two are different places. A fork
- * publishes its own Pages site and changes this one line, as with the doorman
- * above. `apps/server/public/admin.html` links to the same address, and
- * `apps/app/public/index.html` names it for its link card: plain files that
- * cannot import this.
+ * The server's own address is not it: the server serves its API there and no
+ * page at all, so the two are different places. A fork publishes its own
+ * Pages site and changes this one line, as with the doorman above.
+ * `apps/app/public/index.html` names the same address for its link card: a
+ * plain file that cannot import this.
  */
 export const DEFAULT_APP_URL = 'https://xiao215.github.io/selfmp3'
 

@@ -6,6 +6,7 @@ import type {
   DownloadResult,
   FileKind,
   FileStat,
+  PackSlice,
   StreamSession,
   TransferProgress,
   UpdateStatus,
@@ -73,6 +74,17 @@ export interface DesktopBridge {
       name: string,
       url: string,
       headers?: Record<string, string>,
+    ): Promise<void>
+    /**
+     * A pack of covers from the bucket, cut into the files it holds: each of
+     * `slices` kept under its name, unless its bytes are not the SHA-256 its
+     * name begins with. Covers.
+     */
+    unpackTo(
+      kind: FileKind,
+      url: string,
+      headers: Record<string, string>,
+      slices: readonly PackSlice[],
     ): Promise<void>
     /**
      * Put text in a file of this kind, atomically.

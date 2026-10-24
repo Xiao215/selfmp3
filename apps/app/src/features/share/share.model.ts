@@ -111,17 +111,18 @@ export function sentLinksHint(links: readonly ShareSummary[] | undefined, now: n
     .join(' · ')
 }
 
+/** Who opened a link of yours: "Opened by Ken, Mia and 2 more", "Opened 3 times", "Not opened yet". */
+function openedLine(link: ShareSummary): string {
+  const names = link.opened.slice(0, 3)
+  const more = link.opened.length - names.length + link.guests
+  if (names.length > 0) return `Opened by ${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}`
+  return link.guests > 0 ? `Opened ${plural(link.guests, 'time', 'times')}` : 'Not opened yet'
+}
+
 /** A link in your Links you shared (F2): who opened it, and how long it has. */
 export function sentLine(link: ShareSummary, now: number): string {
   const stage = shareStage(link, now)
-  const names = link.opened.slice(0, 3)
-  const more = link.opened.length - names.length + link.guests
-  const who =
-    names.length > 0
-      ? `Opened by ${names.join(', ')}${more > 0 ? ` and ${more} more` : ''}`
-      : link.guests > 0
-        ? `Opened ${plural(link.guests, 'time', 'times')}`
-        : 'Not opened yet'
+  const who = openedLine(link)
   if (stage === 'ended') {
     if (link.ended?.why === 'removed') return 'Ended · no longer in your library'
     const played = link.plays > 0 ? ` · played ${plural(link.plays, 'time', 'times')}` : ''
@@ -129,6 +130,75 @@ export function sentLine(link: ShareSummary, now: number): string {
   }
   if (stage === 'lastDay') return `${who} · ${endingWords(link.endsAt, now).toLowerCase()}`
   return `${who} · ${plural(daysLeft(link.endsAt, now), 'day', 'days')} left`
+}
+
+/**
+ * Links you shared, in its two sections (C3): the ones still playing, soonest
+ * to end first, so the one on its last day is on top (G1); then the ones that
+ * have ended, the latest first.
+ */
+export function sentSections(
+  links: readonly ShareSummary[],
+  now: number,
+): { playing: ShareSummary[]; ended: ShareSummary[] } {
+  const over = (link: ShareSummary): boolean => shareStage(link, now) === 'ended'
+  const endedAt = (link: ShareSummary): number => link.ended?.at ?? link.endsAt
+  return {
+    playing: links.filter(link => !over(link)).sort((a, b) => a.endsAt - b.endsAt),
+    ended: links.filter(over).sort((a, b) => endedAt(b) - endedAt(a)),
+  }
+}
+
+/** How many ended links show before the rest fold away under "Show 3 more" (J2). */
+export const ENDED_SHOWN = 5
+
+/** The line under Links you shared's title (F): "11 links · 3 playing". */
+export function sentCountLine(links: readonly ShareSummary[], now: number): string {
+  const playing = links.filter(link => shareStage(link, now) !== 'ended').length
+  return `${plural(links.length, 'link', 'links')} · ${playing > 0 ? `${playing} playing` : 'none playing'}`
+}
+
+/**
+ * A link's second line on a computer, beside its time column (A1): who opened
+ * it while it plays, and how much it played once it is over.
+ */
+export function sentSub(link: ShareSummary, now: number): string {
+  if (shareStage(link, now) === 'ended') {
+    if (link.ended?.why === 'removed') return 'No longer in your library'
+    return link.plays > 0 ? `Played ${plural(link.plays, 'time', 'times')}` : 'Never played'
+  }
+  return openedLine(link)
+}
+
+/** Its time column (A1), where a song's length would be: "6 days left", "Ends tonight", "Ended Oct 20". */
+export function sentTime(link: ShareSummary, now: number): string {
+  const line = shareTimeLine(link, now)
+  return line.charAt(0).toUpperCase() + line.slice(1)
+}
+
+/**
+ * Asking before removing ticked links (D3): playing ones are taken too, and
+ * stop for whoever has them.
+ */
+export function removeLinksWords(
+  links: readonly ShareSummary[],
+  now: number,
+): { title: string; body: string } {
+  const playing = links.filter(link => shareStage(link, now) !== 'ended').length
+  const one = links.length === 1
+  const pages = one ? 'Its page goes too.' : 'Their pages go too.'
+  const stopping =
+    playing === 0
+      ? ''
+      : one
+        ? 'It is still playing and stops for everyone. '
+        : playing === 1
+          ? '1 of them is still playing and stops for everyone. '
+          : `${playing} of them are still playing and stop for everyone. `
+  return {
+    title: one ? 'Remove this link?' : `Remove ${links.length} links?`,
+    body: `${stopping}${pages}`,
+  }
 }
 
 /** A link on Home's From friends: whose, and how long it has. */
@@ -179,19 +249,4 @@ export function sourceName(url: string): string {
   if (host.endsWith('spotify.com')) return 'Spotify'
   if (host.endsWith('bilibili.com') || host === 'b23.tv') return 'bilibili'
   return host || 'the web'
-}
-
-/**
- * A lent song's romanized lines, from the JSON file the doorman lends beside
- * its words; null when the file is not a list of lines, as a cloud library
- * reads it.
- */
-export function romanizedLines(json: string | null): string[] | null {
-  if (json === null) return null
-  try {
-    const value: unknown = JSON.parse(json)
-    return Array.isArray(value) && value.every(line => typeof line === 'string') ? value : null
-  } catch {
-    return null
-  }
 }

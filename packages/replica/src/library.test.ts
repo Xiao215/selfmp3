@@ -229,65 +229,51 @@ describe('lyrics', () => {
     const library = createCloudLibrary(platform, createCloudSession(platform))
 
     await store.write(FILES_KEY, {
-      7: {
-        audio: 'audio/7.m4a',
-        cover: null,
-        lyrics: 'lyrics/7.lrc',
-        lyricsKind: 'plain',
-        romanized: null,
-      },
+      7: { audio: 'audio/7.m4a', cover: null, lyrics: 'lyrics/7.words', lyricsKind: 'plain' },
     })
-    bucket.files.set('lyrics/7.lrc', 'la la la')
+    bucket.files.set('lyrics/7.words', { text: 'la la la', romanized: null })
 
-    // The fake bucket answers in JSON, so the text is the JSON of what it holds.
     await expect(library.cloudLyrics(SESSION, 7)).resolves.toEqual({
-      text: JSON.stringify('la la la'),
+      text: 'la la la',
       kind: 'plain',
       romanized: null,
     })
   })
 
   /*
-   * Romaji is made on the server, which has the dictionaries, and goes up beside
-   * the words. A device signed in to the cloud reads it the way it reads the
-   * words, so its lyrics answer is the same one the server itself gives.
+   * Romaji is made on the server, which has the dictionaries, and goes up in
+   * the words' own file. A device signed in to the cloud reads both with one
+   * call to the bucket, so its lyrics answer is the same one the server
+   * itself gives, for one of the bucket's day of reads rather than two.
    */
-  it('brings the romanized lines back with the words', async () => {
+  it('brings the romanized lines back with the words, in one read', async () => {
     const made = build()
     await made.store.write(FILES_KEY, {
-      9: {
-        audio: 'audio/9.m4a',
-        cover: null,
-        lyrics: 'lyrics/9.lrc',
-        lyricsKind: 'synced',
-        romanized: 'lyrics/9.json',
-      },
+      9: { audio: 'audio/9.m4a', cover: null, lyrics: 'lyrics/9.words', lyricsKind: 'synced' },
     })
-    made.bucket.files.set('lyrics/9.lrc', '[00:01.00]夜に駆ける')
-    // The fake bucket answers every file as JSON of what it holds: this one is the list itself.
-    made.bucket.files.set('lyrics/9.json', ['yoru ni kakeru'])
+    made.bucket.files.set('lyrics/9.words', {
+      text: '[00:01.00]夜に駆ける',
+      romanized: ['yoru ni kakeru'],
+    })
 
     const found = await made.library.cloudLyrics(SESSION, 9)
 
-    expect(found?.kind).toBe('synced')
-    expect(found?.romanized).toEqual(['yoru ni kakeru'])
+    expect(found).toEqual({
+      text: '[00:01.00]夜に駆ける',
+      kind: 'synced',
+      romanized: ['yoru ni kakeru'],
+    })
+    expect(made.bucket.reads).toEqual(['lyrics/9.words'])
   })
 
-  it('answers no romanized lines when the file is not a list of lines', async () => {
+  it('answers no words when the file is not a words file', async () => {
     const made = build()
     await made.store.write(FILES_KEY, {
-      9: {
-        audio: 'audio/9.m4a',
-        cover: null,
-        lyrics: 'lyrics/9.lrc',
-        lyricsKind: 'synced',
-        romanized: 'lyrics/9.json',
-      },
+      9: { audio: 'audio/9.m4a', cover: null, lyrics: 'lyrics/9.words', lyricsKind: 'synced' },
     })
-    made.bucket.files.set('lyrics/9.lrc', 'words')
-    made.bucket.files.set('lyrics/9.json', { not: 'lines' })
+    made.bucket.files.set('lyrics/9.words', ['not', 'words'])
 
-    expect((await made.library.cloudLyrics(SESSION, 9))?.romanized).toBeNull()
+    expect(await made.library.cloudLyrics(SESSION, 9)).toBeNull()
   })
 })
 
@@ -302,7 +288,6 @@ describe('motion curves', () => {
         cover: null,
         lyrics: null,
         lyricsKind: null,
-        romanized: null,
         // Left out entirely, as a library kept by an older build has it.
         ...(motion === undefined ? {} : { motion }),
       },
@@ -527,7 +512,7 @@ describe('opening', () => {
     expect(made.bucket.reads).toEqual([])
     expect(store.data.get('cloud-base')).toEqual({
       key: SNAPSHOT_KEY,
-      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], sound: null },
+      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], coverPacks: [], sound: null },
     })
   })
 

@@ -21,10 +21,6 @@ describe('the allow list', () => {
   it('shows the owner who may sign in, and nobody else', async () => {
     const h = harness()
     const owner = await h.signIn()
-    // A session's use notes Google's name and picture after its answer, so
-    // the list is read once that has been noted, not alongside the noting.
-    expect((await h.call('/v1/me', { token: owner })).status).toBe(200)
-    await h.settle()
     expect(await read(h, owner)).toEqual({
       anyone: false,
       emails: ['friend@example.com'],

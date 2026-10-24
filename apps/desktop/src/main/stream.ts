@@ -107,6 +107,9 @@ export function createStreamProxy({
   /** Whole downloads under way, by file name in the folder. */
   const arriving = new Map<string, Arriving>()
 
+  /** When each song still arriving was last asked for: what it is kept as, once whole. */
+  const askedAt = new Map<string, number>()
+
   /** The kept songs by file name, and when each was last played; read from the folder once. */
   let kept: Promise<Map<string, number>> | null = null
 
@@ -135,10 +138,16 @@ export function createStreamProxy({
     await utimes(join(dir, name), at / 1000, at / 1000).catch(() => {})
   }
 
-  /** A whole song, kept: the newest, and the oldest past `PLAYED_KEPT` let go. */
+  /**
+   * A whole song, kept, and the oldest past `PLAYED_KEPT` let go. It is kept as
+   * played when it was last asked for, not when its last byte landed: a song
+   * another play overtook while it was arriving is the older of the two, and
+   * one asked for again in that time is the newer.
+   */
   async function keep(name: string): Promise<void> {
     const songs = await keptSongs()
-    songs.set(name, now())
+    songs.set(name, askedAt.get(name) ?? now())
+    askedAt.delete(name)
     const oldestFirst = [...songs].sort(([, a], [, b]) => a - b)
     for (const [old] of oldestFirst.slice(0, Math.max(0, songs.size - PLAYED_KEPT))) {
       songs.delete(old)
@@ -237,6 +246,7 @@ export function createStreamProxy({
     songs.delete(name)
     if (request.method === 'HEAD') return relay(request, key, current)
 
+    askedAt.set(name, now())
     let download = arriving.get(name)
     if (!download) {
       const started = new Arriving(
@@ -248,7 +258,10 @@ export function createStreamProxy({
       download = started
       arriving.set(name, started)
       void started.settled.finally(() => {
-        if (arriving.get(name) === started) arriving.delete(name)
+        if (arriving.get(name) !== started) return
+        arriving.delete(name)
+        // Kept by now, or stopped short: either way nothing more to keep it as.
+        askedAt.delete(name)
       })
     }
     const head = await download.head

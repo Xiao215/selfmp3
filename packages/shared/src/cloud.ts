@@ -418,12 +418,11 @@ export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
  * Where the app is, for something that has a server's address but needs to send
  * someone to the app instead — the browser extension's "open the queue", say.
  *
- * The server's own address is not it: the server serves its own page there
- * (`apps/server/src/http/admin.ts`), so the two are different places. A fork
- * publishes its own Pages site and changes this one line, as with the doorman
- * above. `apps/server/public/admin.html` links to the same address, and
- * `apps/app/public/index.html` names it for its link card: plain files that
- * cannot import this.
+ * The server's own address is not it: the server serves its API there and no
+ * page at all, so the two are different places. A fork publishes its own
+ * Pages site and changes this one line, as with the doorman above.
+ * `apps/app/public/index.html` names the same address for its link card: a
+ * plain file that cannot import this.
  */
 export const DEFAULT_APP_URL = 'https://xiao215.github.io/selfmp3'
 

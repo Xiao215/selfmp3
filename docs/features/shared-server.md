@@ -53,9 +53,8 @@ The hub's own routes (`hub/app.ts`) need no workspace: `POST /api/hub/join` (bel
 answered only to the server's own machine. There is no route to leave by: an
 account takes its grant back (below), which works while the server is off.
 
-The server's own page on `:4600` (`apps/server/public/`), opened on the server itself, lists
-the workspaces from `GET /api/hub`, each with how its publishing is going and **Publish
-now**, asking each one's `/api/cloud` by naming it. Changing a library's cloud connection
+The `selfmp3` command on the server itself lists the workspaces from `GET /api/hub`. The
+owner's admin page shows only how many there are ([admin.md](admin.md)). Changing a library's cloud connection
 (sign-in, bucket, disconnect, publish now) is refused from anywhere but that machine, token or
 not: a workspace reaches its bucket through the grant its devices gave it, and nothing a
 device holds may repoint it. The `selfmp3` command names one the same
@@ -236,9 +235,9 @@ device acts on, such as crossfade, stays on the device.
 
 The doorman decides, and the server takes its word. Its owners — the `OWNER_EMAILS` secret,
 set where the doorman is deployed — are always let in. Everyone else is on a list the owner
-keeps in **Settings › Who can sign in**, a panel only an owner is shown (`/v1/access`,
-`apps/doorman/src/access.ts`, kept in KV), or the owner turns on **Anyone with a Google
-account**. Taking someone off refuses their next request within a minute, and with it any
+keeps on the admin page's **Access** tab (`/v1/access`, `apps/doorman/src/access.ts`,
+kept in KV; [admin.md](admin.md)), or the owner turns on **Anyone with a Google account**.
+Someone turned away is listed there for a week, with **Let in**. Taking someone off refuses their next request within a minute, and with it any
 server's grant for them: the server can no longer reach their bucket.
 
 ## Cost and risk
@@ -246,7 +245,7 @@ server's grant for them: the server can no longer reach their bucket.
 - **Anyone signed in may join.** Every import goes out from the server's address to YouTube,
   and every Smart feature runs on the server's model (`SELFMP3_AI_BASE_URL`,
   [ai.md](ai.md)). YouTube has blocked this home's IPv6 range before (yt-dlp now pins
-  IPv4). The doorman's allow list (Settings › Who can sign in, owner only) and the Google
+  IPv4). The doorman's allow list (the admin page's Access tab, owner only) and the Google
   OAuth app's publishing state are what decide who can sign in at all.
 - **The model is the owner's.** With cli-bridge as the endpoint, as on Xiao's Pi, every
   account's Smart features run on the Claude subscription signed in on the server.

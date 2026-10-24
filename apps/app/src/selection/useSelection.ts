@@ -16,26 +16,26 @@ import {
 
 import { useEscape } from '../shell/useEscape'
 
-export interface Selection {
-  readonly ids: ReadonlySet<number>
+export interface Selection<Id = number> {
+  readonly ids: ReadonlySet<Id>
   readonly count: number
   /** Checkboxes showing: something selected, or selection mode on. */
   readonly active: boolean
   /** A plain tap toggles rather than plays. */
   readonly mode: boolean
   readonly allSelected: boolean
-  has: (id: number) => boolean
-  toggle: (id: number) => void
+  has: (id: Id) => boolean
+  toggle: (id: Id) => void
   /** A click on a row. True when it was a selection gesture, not a play. */
-  click: (id: number, modifiers: SelectionModifiers) => boolean
-  enter: (id?: number) => void
+  click: (id: Id, modifiers: SelectionModifiers) => boolean
+  enter: (id?: Id) => void
   selectAll: () => void
   clear: () => void
   /**
    * What dragging the row of song `id` carries: every selected song, in the
    * list's order, when it is one of them; otherwise that song alone.
    */
-  carried: (id: number) => readonly number[]
+  carried: (id: Id) => readonly Id[]
 }
 
 /**
@@ -51,9 +51,9 @@ export interface Selection {
  * arriving back at a list still holding a selection made against a view you
  * have since left is how songs get deleted by accident.
  */
-export function useSelection(visibleIds: readonly number[]): Selection {
+export function useSelection<Id = number>(visibleIds: readonly Id[]): Selection<Id> {
   const pathname = usePathname()
-  const [stored, setStored] = useState<{ path: string; state: SelectionState }>({
+  const [stored, setStored] = useState<{ path: string; state: SelectionState<Id> }>({
     path: pathname,
     state: EMPTY_SELECTION,
   })
@@ -65,7 +65,7 @@ export function useSelection(visibleIds: readonly number[]): Selection {
 
   /** Apply a rule to what is actually on screen now, on this route. */
   const update = useCallback(
-    (rule: (current: SelectionState) => SelectionState): void => {
+    (rule: (current: SelectionState<Id>) => SelectionState<Id>): void => {
       setStored(previous => {
         const current =
           previous.path === pathname ? pruneSelection(previous.state, visibleIds) : EMPTY_SELECTION
@@ -78,13 +78,10 @@ export function useSelection(visibleIds: readonly number[]): Selection {
     [pathname, visibleIds],
   )
 
-  const toggle = useCallback(
-    (id: number) => update(current => toggleSelected(current, id)),
-    [update],
-  )
+  const toggle = useCallback((id: Id) => update(current => toggleSelected(current, id)), [update])
 
   const click = useCallback(
-    (id: number, modifiers: SelectionModifiers): boolean => {
+    (id: Id, modifiers: SelectionModifiers): boolean => {
       const { handled, state: next } = clickSelected(state, id, modifiers, visibleIds)
       update(() => next)
       return handled
@@ -92,10 +89,7 @@ export function useSelection(visibleIds: readonly number[]): Selection {
     [state, visibleIds, update],
   )
 
-  const enter = useCallback(
-    (id?: number) => update(current => enterSelection(current, id)),
-    [update],
-  )
+  const enter = useCallback((id?: Id) => update(current => enterSelection(current, id)), [update])
   const selectAll = useCallback(
     () => update(current => selectAllVisible(current, visibleIds)),
     [update, visibleIds],
@@ -105,9 +99,9 @@ export function useSelection(visibleIds: readonly number[]): Selection {
   const active = selectionActive(state)
   useEscape(active, clear)
 
-  const has = useCallback((id: number) => state.ids.has(id), [state])
+  const has = useCallback((id: Id) => state.ids.has(id), [state])
   const carried = useCallback(
-    (id: number): readonly number[] =>
+    (id: Id): readonly Id[] =>
       state.ids.has(id) ? visibleIds.filter(each => state.ids.has(each)) : [id],
     [state, visibleIds],
   )

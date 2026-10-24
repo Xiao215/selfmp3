@@ -52,6 +52,7 @@ import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { sendPending, showToast } from '../src/ui/toast'
 import { SIDEBAR_WIDTH } from '../src/shell/widths'
+import { UsageReporter } from '../src/features/usage/UsageRow'
 
 /**
  * The app shell.
@@ -197,6 +198,8 @@ export default function RootLayout(): ReactNode {
                           <WidgetSync />
                           {/* The bucket refusing for the day, said once. */}
                           <BucketHoldNotice />
+                          {/* Yesterday's feature counts, sent to the server once. */}
+                          <UsageReporter />
                         </LibraryFilterProvider>
                       </CarProvider>
                     </DevicesProvider>

@@ -289,8 +289,8 @@ Once per phone:
    Xcode has seen the phone**; afterwards it is at the very bottom of Settings → Privacy &
    Security. Turn it on; the phone restarts. `xcrun devicectl list devices` should then
    say `connected`.
-3. After the first install: Settings → General → VPN & Device Management → the developer
-   certificate → **Trust**. Until then the app installs and refuses to launch ("invalid
+3. After the first install from a free Apple ID: Settings → General → VPN & Device
+   Management → the developer certificate → **Trust**. A paid team's build skips this. Until then the app installs and refuses to launch ("invalid
    code signature … not been explicitly trusted").
 
 Every time:
@@ -305,7 +305,8 @@ The UDID is in `xcrun xctrace list devices`. The first build is 15–20 minutes,
 a few. It generates `apps/app/ios/`, which is ignored by git and by Prettier. The phone
 must be plugged in and unlocked at the install step, or it waits on *Connecting to…*
 for ever. A build signed with a free Apple ID stops launching after seven days; build it
-again.
+again. Signing with a friend's team instead is in
+[MOBILE.md](MOBILE.md#signing-with-a-friends-team).
 
 When iOS asks whether the app may **find devices on your local network, say no.** A user
 does not need it — the library is the bucket's and the server is reached at its public

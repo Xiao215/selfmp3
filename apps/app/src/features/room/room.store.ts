@@ -22,6 +22,7 @@ import { isHost } from './room.model'
 import { connectionKind } from '../../offline/connectionKind'
 import { showToast } from '../../ui/toast'
 import { session as cloudSession } from '../../replica'
+import { countUse } from '../usage/usage'
 
 /**
  * The room this device is in, if any (docs/features/listen-together.md): its
@@ -394,6 +395,7 @@ export async function startRoom(input: RoomCreate): Promise<RoomState> {
   const token = await sessionToken()
   if (!token) throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to open a room')
   const joined = await roomApi.create(token, input)
+  countUse('room')
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }

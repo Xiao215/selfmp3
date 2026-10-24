@@ -9,7 +9,6 @@ import {
   CreateTagSchema,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
-  DoormanAccessUpdateSchema,
   DoormanError,
   DoormanHealthSchema,
   GemsQuerySchema,
@@ -133,6 +132,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'POST /api/ai/describe',
   'POST /api/ai/refine',
   'POST /api/ai/ask',
+  'POST /api/usage',
   'GET /api/ai/ask/progress',
   'POST /api/ai/ask/stop',
   'GET /api/ai/tags/untagged',
@@ -614,14 +614,6 @@ export function createCloudRoutes(
       'POST',
       '/api/cloud/server/join',
       async ({ session }) => ({ server: await shared.join(session) }),
-    ],
-    // Who may sign in, for the doorman's owner (apps/doorman/src/access.ts).
-    ['GET', '/api/cloud/access', ({ session }) => shared.access(session)],
-    [
-      'PUT',
-      '/api/cloud/access',
-      ({ session, body }) =>
-        shared.updateAccess(session, parseInput(DoormanAccessUpdateSchema, body)),
     ],
     // The servers this account has let into its bucket, from the doorman.
     ['GET', '/api/cloud/grants', ({ session }) => shared.grants(session)],

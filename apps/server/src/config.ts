@@ -99,6 +99,9 @@ const BooleanFromEnv = z
     typeof value === 'boolean' ? value : value === 'true' || value === '1' || value === 'yes',
   )
 
+/** The admin page's port on this machine (`adminPort`); 4610 sits beside the API's 4600. */
+const DEFAULT_ADMIN_PORT = 4610
+
 const ConfigSchema = z.object({
   /** Port the API listens on. */
   port: z.coerce.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
@@ -129,6 +132,29 @@ const ConfigSchema = z.object({
    * and only a device elsewhere pays for the tunnel.
    */
   publicUrl: z
+    .string()
+    .trim()
+    .url()
+    .transform(value => value.replace(/\/+$/, ''))
+    .nullable()
+    .default(null),
+
+  /**
+   * The owner's admin page (docs/features/admin.md) listens on this port, on
+   * this machine only (127.0.0.1), whatever `host` says. It is reached from
+   * elsewhere through `tailscale serve`, never Funnel, so only the owner's own
+   * devices can open it. 0 turns it off.
+   */
+  adminPort: z.coerce.number().int().min(0).max(65535).default(DEFAULT_ADMIN_PORT),
+
+  /**
+   * The address `tailscale serve` gives the admin page, such as
+   * https://pi.tail3d8516.ts.net:4443. The page answers only to that name and
+   * to this machine's own, so another site cannot reach it by pointing a name
+   * of its own at 127.0.0.1. The doorman must list it in APP_ORIGINS for the
+   * page to sign in.
+   */
+  adminUrl: z
     .string()
     .trim()
     .url()
@@ -283,6 +309,8 @@ function readEnv(): unknown {
     host: env['SELFMP3_HOST'] || undefined,
     publicUrl: env['SELFMP3_PUBLIC_URL'] || undefined,
     appUrl: env['SELFMP3_APP_URL'] || undefined,
+    adminPort: env['SELFMP3_ADMIN_PORT'] || undefined,
+    adminUrl: env['SELFMP3_ADMIN_URL'] || undefined,
     // Resolved here rather than as schema defaults so a profile set by `.env`
     // (read just before this) chooses the folders too, not only one exported.
     ...resolveDirs(env),

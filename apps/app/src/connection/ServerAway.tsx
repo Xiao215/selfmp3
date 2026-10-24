@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import {
@@ -16,6 +16,7 @@ import { Button } from '../ui/components/Button'
 import { Refresh } from '../ui/components/Icons'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { StatusLine } from '../ui/components/StatusLine'
+import { countShownError } from '../features/usage/usage'
 
 /**
  * What a screen shows instead of what it came for, while the server behind a
@@ -55,6 +56,10 @@ export function ServerAway({
   const accent = useAccent()
   const { theme } = useUnistyles()
   const said = reach.state === 'away' && reach.said
+  // Counted once each time it comes to say so, for the server owner's admin page (features/usage).
+  useEffect(() => {
+    if (said) countShownError('server-away')
+  }, [said])
   const offered = !said && sharedServerUrl !== ''
   const copy = awayCopy(said, need, offered)
 

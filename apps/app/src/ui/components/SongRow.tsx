@@ -32,8 +32,9 @@ import { useSongColor } from '../useSongColor'
 import { Checkbox } from './Checkbox'
 import { Cover } from './Cover'
 import { Equalizer } from './Equalizer'
+import { Reveal } from './Reveal'
 import { TagDot } from './TagDot'
-import { useFade, usePresence, usePressScale } from '../motion'
+import { usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
@@ -786,16 +787,6 @@ function RowTag({
       </Text>
     </Pressable>
   )
-}
-
-/**
- * A row's controls with a mouse (`M3`, 3): they fade in over 100 ms as the
- * pointer arrives and out over 140 as it leaves. Only the desktop's rows draw
- * these, so a phone's list carries no animated value per row.
- */
-function Reveal({ shown, children }: { shown: boolean; children: ReactNode }): ReactNode {
-  const opacity = useFade(shown, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
-  return <Animated.View style={{ opacity }}>{children}</Animated.View>
 }
 
 /**

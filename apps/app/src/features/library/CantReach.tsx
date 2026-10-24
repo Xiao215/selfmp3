@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Linking } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
@@ -10,6 +10,7 @@ import { Refresh } from '../../ui/components/Icons'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
 import { bucketCapped, unreachableCopy } from './library.model'
+import { countShownError } from '../usage/usage'
 
 /**
  * What stands where the library would, when it did not answer and nothing is
@@ -36,6 +37,11 @@ export function CantReach({
   const { wide } = useLayout()
   const { fromCloud, connection } = useConnection()
   const capped = bucketCapped(error)
+  // Counted once each time it is drawn, for the server owner's admin page
+  // (features/usage); a used-up allowance is counted where it is announced.
+  useEffect(() => {
+    if (!capped) countShownError('cloud-unreachable')
+  }, [capped])
   const copy = unreachableCopy({
     fromCloud,
     address: connection?.baseUrl ?? null,

@@ -332,6 +332,17 @@ export class StatsRepository {
   }
 
   /** Recent plays, newest first. Powers the history list. */
+  /** Plays a day since `from` (a UTC date), for the owner's admin page. */
+  playsByDay(from: string): Map<string, number> {
+    const rows = this.#db
+      .prepare<[string], { day: string; plays: number }>(
+        `SELECT substr(played_at, 1, 10) AS day, COUNT(*) AS plays
+           FROM play_events WHERE played_at >= ? GROUP BY day`,
+      )
+      .all(from)
+    return new Map(rows.map(row => [row.day, row.plays]))
+  }
+
   recent(limit = 100): Array<{ songId: number; playedAt: string; completed: boolean }> {
     return this.#db
       .prepare<[number], { song_id: number; played_at: string; completed: number }>(

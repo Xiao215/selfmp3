@@ -284,11 +284,13 @@ Tailscale addresses. To reach it away from home, put Tailscale Funnel in front o
 (`tailscale funnel --bg 4600`) and set `SELFMP3_PUBLIC_URL` to that `https://` address in a
 `.env` beside `docker-compose.yml` (copy `.env.example`). Then sign in with Google in
 the [web app](https://xiao215.github.io/selfmp3), the desktop app or the phone app, and
-connect your bucket in Settings.
+connect your bucket on the page that follows. Making one on Backblaze is
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, step by step.
 
 The whole walkthrough — the Raspberry Pi, Tailscale, the bucket, the AI helper, the desktop
 app and the phone — is in **[docs/INSTALL.md](docs/INSTALL.md)**. For the phone app, see
-[MOBILE.md](docs/MOBILE.md); for the bucket, [SYNC.md](docs/SYNC.md).
+[MOBILE.md](docs/MOBILE.md); for the bucket, [Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html) and, for how it
+works, [SYNC.md](docs/SYNC.md).
 
 The server also runs without Docker, on a Mac or a Linux machine with Node 22 or newer:
 `./scripts/setup-mac.sh` installs yt-dlp and ffmpeg, builds, and offers to start the server

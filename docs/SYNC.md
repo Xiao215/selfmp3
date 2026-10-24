@@ -26,14 +26,14 @@ storage — no code runs there — so every rule about how changes combine lives
 
 | Piece | Where | Cost |
 |---|---|---|
-| Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB, no card. $0.005/GB-month past that |
+| Music, covers, lyrics, snapshots, the change log | [Backblaze B2](https://www.backblaze.com/cloud-storage) | Free up to 10 GB. $6.95/TB-month past that |
 | Signing in, and the bucket's key | The doorman, a [Cloudflare Worker](https://workers.cloudflare.com/) (`apps/doorman`) | Free |
 | The web app | GitHub Pages, at `xiao215.github.io/selfmp3` | Free |
 | Fetching YouTube links (yt-dlp), Stats, the smart features | The server, one that works for anyone signed in ([features/shared-server.md](features/shared-server.md)), on a computer at home | The computer's electricity |
 
-**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. It
-needs no card for the free tier. Uploads are free API calls; downloads, reads of a file's
-headers and listings are counted, with 2,500 of each free per day. Downloads are free up to
+**Why B2.** It speaks the S3 API, so the server reaches it with the AWS SDK like any other bucket. Its
+first 10 GB are free, and since 1 May 2026 it charges nothing for API calls (uploads, reads,
+listings) — though the daily caps below still apply. Downloads are free up to
 three times what you store each month — 30 GB for a full 10 GB library, which is a great deal
 more listening than one person does. And it is not tied to your Google account, so nothing that
 happens to the bucket can touch your email.
@@ -418,8 +418,9 @@ business.
 The app's web export builds for GitHub Pages (under `/selfmp3/`, which the Pages workflow
 passes as `EXPO_PUBLIC_BASE`), with no server behind
 it. Whatever is in `apps/app/public/` is published beside it as it is. `privacy.html` is the
-privacy policy Google's OAuth consent screen points at, written at export from
-`packages/shared/src/privacy.ts` (the one place its words live); `index.html` is the page's template (Expo's own, plus a link to that policy
+privacy policy Google's OAuth consent screen points at, and `bucket.html` the guide to making a
+bucket, both written at export (`apps/app/scripts/pages.mjs`) from
+`packages/shared/src/privacy.ts` and `bucketGuide.ts` (the one place their words live); `index.html` is the page's template (Expo's own, plus a link to that policy
 for the crawler that checks the home page for one); and a Search Console verification file
 dropped there is served at the site's root too. It signs in with Google, connects the account's bucket if no device has yet, and shows the
 library from the newest snapshot. The service worker (`apps/app/sw/sw.ts`) stands between the
@@ -776,8 +777,12 @@ libraries that deliberately number different songs the same.
 
 ### 1. The bucket
 
+Each account makes its own. For someone who has never seen a bucket, the steps are
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)**, published beside the web app from
+`packages/shared/src/bucketGuide.ts`, which the app's *Don't have a bucket yet?* on Where it
+lives reads too: one place for the words. What they come to, and why:
+
 1. Sign up for **B2 Cloud Storage** at [backblaze.com](https://www.backblaze.com/sign-up/cloud-storage).
-   No card is needed.
 2. **Create a bucket.** Private. Any name — bucket names are global across B2, so something
    like `selfmp3-<yourname>`. Default encryption on is fine; leave Object Lock off.
 3. **Lifecycle settings → "Keep only the last version of the file".** B2 keeps every version
@@ -786,10 +791,12 @@ libraries that deliberately number different songs the same.
    for one bucket cannot change this setting (Backblaze allows `writeBuckets` only on a key for
    the whole account), so the doorman reads it when the key is pasted and refuses a bucket
    without it, saying what to set. A rule that keeps old versions some days longer passes too.
-4. **Application Keys → Add a New Application Key.** Allow access to this bucket only, *Read
-   and Write*. Copy the `keyID` and `applicationKey` — the second is shown only once.
-5. The bucket's page shows its **Endpoint**, like `s3.us-west-004.backblazeb2.com`. The
-   region (`us-west-004`) is worked out from it.
+4. **Application Keys → Add a New Application Key.** *Allow Access to Bucket(s)*: this bucket,
+   not *All* (the doorman refuses a key for every bucket, a master key, and a key limited to a
+   file name prefix). *Read and Write*. Copy the `keyID` and `applicationKey` — the second is
+   shown only once. The doorman works out the bucket, its endpoint and region from the key.
+5. **Before a big first import, Caps & Alerts → Edit Caps.** A first import of hundreds of
+   songs can reach a day's cap ("Caps", above), and the library then waits for midnight GMT.
 
 ### 2. The doorman
 

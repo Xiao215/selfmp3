@@ -174,9 +174,6 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   )
 }
 
-/** Backblaze's Caps & Alerts page, where the daily allowance is raised. */
-export const BACKBLAZE_CAPS_URL = 'https://secure.backblaze.com/b2_caps_alerts.htm'
-
 /**
  * Whether the library failed because the bucket's daily allowance is used up.
  * Everything answered then — the doorman, the server — so nothing should say

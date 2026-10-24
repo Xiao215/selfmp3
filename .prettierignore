@@ -8,8 +8,10 @@ package-lock.json
 # Built by `npm run build:sw`, and minified. Ignored by apps/app/.gitignore,
 # which Prettier does not read: it consults the root .gitignore only.
 apps/app/public/sw.js
-# Written by `npm run build:privacy` from packages/shared/src/privacy.ts; git-ignored the same way.
+# Written by `npm run build:pages` from packages/shared/src/privacy.ts and bucketGuide.ts;
+# git-ignored the same way.
 apps/app/public/privacy.html
+apps/app/public/bucket.html
 
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios

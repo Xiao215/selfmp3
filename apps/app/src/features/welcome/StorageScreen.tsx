@@ -16,12 +16,11 @@ import { BucketAddressFields } from './BucketAddressFields'
 import { useCloudSession } from '../profile/useCloudSession'
 import { afterWelcome } from './firstSync.model'
 import { storedFirstSync } from './firstSyncMemory'
+import { BUCKET_GUIDE, BUCKET_GUIDE_URL, guideParts } from '@selfmp3/shared'
 import {
   addressReady,
   cloudConnectInput,
-  BACKBLAZE_URL,
   backblazeReady,
-  HELPER_STEPS,
   TRYING,
   type AddressFields,
   type StorageMode,
@@ -43,7 +42,9 @@ import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
  * Two strings and a button. The key ID and the application key Backblaze
  * showed go to the doorman, which asks Backblaze which bucket the key opens
  * and where, tries the key against it, and keeps it sealed. Under them, for
- * someone who has no bucket yet, the three steps and a way to Backblaze. For
+ * someone who has no bucket yet, the steps on Backblaze (`BUCKET_GUIDE`), each
+ * with a way to the console page it happens on, and the published guide that
+ * says the same at length. For
  * any other provider, the server's form: the address, the region where it
  * does not name one, the bucket and the folder.
  *
@@ -163,7 +164,9 @@ export function StorageScreen(): ReactNode {
         <View style={styles.helperWords}>
           <Text style={styles.helperTitle}>Don’t have a bucket yet?</Text>
           {helperOpen ? null : (
-            <Text style={styles.hint}>Three steps on Backblaze, about five minutes.</Text>
+            <Text style={styles.hint}>
+              {`${BUCKET_GUIDE.steps.length} steps on Backblaze, about ten minutes. Easiest on a computer.`}
+            </Text>
           )}
         </View>
         {helperOpen ? (
@@ -174,19 +177,44 @@ export function StorageScreen(): ReactNode {
       </Press>
       {helperOpen ? (
         <>
-          {HELPER_STEPS.map((step, index) => (
+          {BUCKET_GUIDE.steps.map((step, index) => (
             <View key={step.title} style={styles.step}>
               <View style={styles.stepNumber}>
                 <Text style={styles.stepNumberText}>{index + 1}</Text>
               </View>
               <View style={styles.stepWords}>
                 <Text style={styles.stepTitle}>{step.title}</Text>
-                <Text style={styles.stepDetail}>{step.detail}</Text>
+                <Text style={styles.stepDetail}>
+                  {guideParts(step.detail).map((part, at) =>
+                    part.label ? (
+                      <Text key={at} style={styles.stepLabel}>
+                        {part.text}
+                      </Text>
+                    ) : (
+                      part.text
+                    ),
+                  )}
+                </Text>
+                {step.link ? (
+                  <View style={styles.open}>
+                    <Button
+                      label={step.link.label}
+                      size="small"
+                      onPress={() => void Linking.openURL(step.link?.url ?? '')}
+                      testID={`storage-helper-link-${index + 1}`}
+                    />
+                  </View>
+                ) : null}
               </View>
             </View>
           ))}
           <View style={styles.open}>
-            <Button label="Open Backblaze" onPress={() => void Linking.openURL(BACKBLAZE_URL)} />
+            <Button
+              label="The whole guide, step by step"
+              variant="text"
+              onPress={() => void Linking.openURL(BUCKET_GUIDE_URL)}
+              testID="storage-helper-guide"
+            />
           </View>
         </>
       ) : null}
@@ -274,7 +302,8 @@ const styles = StyleSheet.create(theme => ({
   stepWords: textColumn,
   stepTitle: { ...rowTitle(theme.colors), ...textStyle('body') },
   stepDetail: lineSub(theme.colors),
-  open: { alignItems: 'flex-start' },
+  stepLabel: { color: theme.colors.textPrimary, fontWeight: '600' },
+  open: { alignItems: 'flex-start', paddingTop: space.xs },
   trying: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   tryingText: {
     flex: 1,

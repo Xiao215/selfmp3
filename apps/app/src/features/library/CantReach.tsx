@@ -8,7 +8,8 @@ import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { NoticeCard } from '../../ui/components/NoticeCard'
-import { BACKBLAZE_CAPS_URL, bucketCapped, unreachableCopy } from './library.model'
+import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
+import { bucketCapped, unreachableCopy } from './library.model'
 
 /**
  * What stands where the library would, when it did not answer and nothing is

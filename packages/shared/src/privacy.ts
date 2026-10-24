@@ -1,11 +1,12 @@
 import { DEFAULT_APP_URL } from './cloud.js'
+import { escapeHtml, renderPublicPage } from './publicPage.js'
 /**
  * The privacy policy, once: what the doorman keeps about a person who signs
  * in with Google, and what passes through it untouched.
  *
  * It is data here rather than a page anywhere. The web app publishes it
  * beside itself on GitHub Pages (`privacy.html`, written from this by
- * `apps/app/scripts/privacy.mjs` at export), which is the address Google's
+ * `apps/app/scripts/pages.mjs` at export), which is the address Google's
  * consent screen names — a policy has to sit on a domain of one's own, and
  * workers.dev is not one. Edit the words here and the page follows.
  */
@@ -79,13 +80,7 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
   ],
 }
 
-const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
-/**
- * The policy as one self-contained page: no script, an inline stylesheet, the
- * doorman's look. Every string is escaped on its way in, however trusted.
- */
+/** The policy as one page, in the look `publicPage.ts` gives every page beside the app. */
 export function renderPrivacyPage(policy: PrivacyPolicy = PRIVACY_POLICY): string {
   const body = policy.sections
     .map(section =>
@@ -95,66 +90,8 @@ export function renderPrivacyPage(policy: PrivacyPolicy = PRIVACY_POLICY): strin
       ].join('\n'),
     )
     .join('\n')
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Privacy · self.mp3</title>
-<style>
-:root {
-  color-scheme: dark;
-  --surface: oklch(0.16 0.012 268);
-  --card: oklch(0.19 0.014 268);
-  --border: oklch(0.3 0.016 268);
-  --text: oklch(0.97 0.005 268);
-  --text-secondary: oklch(0.76 0.012 268);
-  --accent: oklch(0.72 0.16 268);
-}
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --surface: oklch(0.985 0.004 268);
-    --card: oklch(1 0 0);
-    --border: oklch(0.89 0.008 268);
-    --text: oklch(0.22 0.015 268);
-    --text-secondary: oklch(0.44 0.014 268);
-    --accent: oklch(0.52 0.19 268);
-  }
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: var(--surface);
-  color: var(--text);
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
-}
-main {
-  width: 100%;
-  max-width: 640px;
-  padding: 32px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--card);
-}
-.brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
-h1 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
-h2 { margin: 24px 0 8px; font-size: 17px; line-height: 1.3; }
-p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
-</style>
-</head>
-<body>
-<main>
-<p class="brand">self.mp3</p>
-<h1>Privacy</h1>
-<p>Last updated ${escapeHtml(policy.updated)}.</p>
-${body}
-</main>
-</body>
-</html>
-`
+  return renderPublicPage(
+    'Privacy',
+    `<h1>Privacy</h1>\n<p>Last updated ${escapeHtml(policy.updated)}.</p>\n${body}`,
+  )
 }

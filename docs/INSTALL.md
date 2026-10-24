@@ -12,8 +12,10 @@ self.mp3 has three parts, and only one of them is installed on a computer of you
   for every Google account that joins it ([features/shared-server.md](features/shared-server.md)).
 
 If somebody already runs a server and a doorman and has let you in, you need nothing from
-this guide: open the app and sign in. Your devices join that server by themselves. This guide
-is for running the server.
+this guide: open the app, sign in, and make your bucket the first time, as
+**[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** shows step by step (about ten minutes, on Backblaze; the app's
+*Don't have a bucket yet?* lists the same steps). Your devices join that server by themselves.
+This guide is for running the server.
 
 | You want | Go to |
 |---|---|
@@ -241,10 +243,13 @@ of its own instead.
 
 ## The bucket and the doorman
 
-The library is the bucket. Setting one up, and the doorman that signs devices in to it, is
-**[SYNC.md](SYNC.md), "Setting up"**: a Backblaze B2 bucket, a Cloudflare Worker deployed
-by hand from `apps/doorman` ([apps/doorman/README.md](../apps/doorman/README.md)), and the
-key pasted once, on the first device that signs in.
+The library is the bucket. Each account makes its own on Backblaze and pastes its key once, on
+the first device that signs in: **[Set up your bucket](https://xiao215.github.io/selfmp3/bucket.html)** is that, step by step, for
+someone who has never seen a bucket (the words live in `packages/shared/src/bucketGuide.ts`,
+which the app's *Don't have a bucket yet?* reads too). The doorman that signs devices in to
+it is a Cloudflare Worker deployed by hand from `apps/doorman`
+([apps/doorman/README.md](../apps/doorman/README.md)); both are in **[SYNC.md](SYNC.md),
+"Setting up"**.
 
 The server is never given a bucket key by hand. When a device whose bucket names no server
 asks for one, it joins the server the app offers. The server gets a **grant** for that

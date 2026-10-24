@@ -4,9 +4,14 @@ import { libraryIndex, roomTrackId } from '@selfmp3/client'
 import {
   gettable,
   receivedLine,
+  removeLinksWords,
   romanizedLines,
+  sentCountLine,
   sentLine,
   sentLinksHint,
+  sentSections,
+  sentSub,
+  sentTime,
   shareFromLine,
   shareHeadLine,
   shareStage,
@@ -137,6 +142,59 @@ describe('a share link’s words', () => {
       '2 links playing · 1 friend asks again',
     )
     expect(sentLinksHint([ended], NOW)).toBe('None playing')
+  })
+})
+
+describe('Links you shared', () => {
+  const soon = summary({ id: '000000000000000a', endsAt: NOW + 2 * DAY })
+  const later = summary({ id: '000000000000000b', endsAt: NOW + 6 * DAY })
+  const endedLately = summary({ id: '000000000000000c', ended: { at: NOW - DAY, why: 'idle' } })
+  const endedLong = summary({
+    id: '000000000000000d',
+    ended: { at: NOW - 9 * DAY, why: 'stopped' },
+    plays: 1,
+  })
+  const ranOut = summary({ id: '000000000000000e', endsAt: NOW - 3 * DAY })
+
+  it('splits into playing, soonest to end first, and ended, latest first', () => {
+    const { playing, ended } = sentSections([endedLong, later, ranOut, soon, endedLately], NOW)
+    expect(playing.map(link => link.id)).toEqual([soon.id, later.id])
+    // A link whose time ran out is over, and ended when it ran out.
+    expect(ended.map(link => link.id)).toEqual([endedLately.id, ranOut.id, endedLong.id])
+  })
+
+  it('counts them under the title', () => {
+    expect(sentCountLine([soon, endedLately], NOW)).toBe('2 links · 1 playing')
+    expect(sentCountLine([endedLately], NOW)).toBe('1 link · none playing')
+  })
+
+  it('says who opened one while it plays, how much it played once over, and how long it has', () => {
+    expect(sentSub(summary({ opened: ['Mia'] }), NOW)).toBe('Opened by Mia')
+    expect(sentSub(endedLong, NOW)).toBe('Played 1 time')
+    expect(sentSub(endedLately, NOW)).toBe('Never played')
+    expect(sentSub(summary({ ended: { at: NOW, why: 'removed' } }), NOW)).toBe(
+      'No longer in your library',
+    )
+    expect(sentTime(later, NOW)).toBe('6 days left')
+    expect(sentTime(summary({ endsAt: NOW + 6 * 60 * 60 * 1000 }), NOW)).toBe('Ends tonight')
+    expect(sentTime(endedLately, NOW)).toMatch(/^Ended [^·]+$/)
+  })
+
+  it('asks before removing, saying which still play', () => {
+    expect(removeLinksWords([endedLately], NOW)).toEqual({
+      title: 'Remove this link?',
+      body: 'Its page goes too.',
+    })
+    expect(removeLinksWords([soon], NOW).body).toBe(
+      'It is still playing and stops for everyone. Its page goes too.',
+    )
+    expect(removeLinksWords([soon, endedLately, endedLong], NOW)).toEqual({
+      title: 'Remove 3 links?',
+      body: '1 of them is still playing and stops for everyone. Their pages go too.',
+    })
+    expect(removeLinksWords([soon, later], NOW).body).toBe(
+      '2 of them are still playing and stop for everyone. Their pages go too.',
+    )
   })
 })
 

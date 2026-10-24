@@ -28,10 +28,12 @@ watch_dir = ["src", "../../packages/shared/src", "../../packages/client/src/them
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
 # The addresses the web app is served from. Browsers may call the doorman only
 # from these, and a sign-in may send you back here (or to this computer, for the
-# server's settings). The desktop app's and the browser extension's own origins
+# server's settings). The second is the owner's admin page on the Pi, which is
+# reachable only on the owner's tailnet (docs/features/admin.md). The desktop
+# app's and the browser extension's own origins
 # are always allowed: they are the same on every install, and the doorman takes
 # them from packages/shared/src/origins.ts.
-APP_ORIGINS = "https://xiao215.github.io"
+APP_ORIGINS = "https://xiao215.github.io,https://pi.tail3d8516.ts.net:4443"
 # Where the web app is, path and all. A share link's own address on the doorman
 # (`/l/<id>/<key>`) shows a chat app the song's card and sends a person on to
 # the same address here (src/linkPage.ts).
@@ -72,6 +74,13 @@ class_name = "SharedPlaylist"
 name = "SHARES"
 class_name = "ShareLink"
 
+# What the doorman counts for its owner's admin page (src/tally.ts): reads and
+# sign-ins a day at a time, totals only, and who was turned away this week.
+# One Durable Object for the whole doorman.
+[[durable_objects.bindings]]
+name = "TALLY"
+class_name = "Tally"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Changes"]
@@ -88,6 +97,10 @@ new_sqlite_classes = ["SharedPlaylist"]
 tag = "v4"
 new_sqlite_classes = ["ShareLink"]
 
+[[migrations]]
+tag = "v5"
+new_sqlite_classes = ["Tally"]
+
 # Secrets, set once with `npx wrangler secret put <NAME>`, typing the value when asked:
 #   GOOGLE_CLIENT_SECRET  the OAuth client's secret, from the Google Cloud console
 #   SEAL_KEY              `openssl rand -base64 32`; every key the doorman uses comes from it
@@ -101,7 +114,7 @@ new_sqlite_classes = ["ShareLink"]
 # named again here.
 [env.dev.vars]
 GOOGLE_CLIENT_ID = "230606192127-sihrkjctjgcoittmcb15afkp4k2f72s0.apps.googleusercontent.com"
-APP_ORIGINS = "http://localhost:4600,http://localhost:4601"
+APP_ORIGINS = "http://localhost:4600,http://localhost:4601,http://localhost:4610"
 APP_URL = "http://localhost:4601"
 DEV = "true"
 
@@ -124,3 +137,7 @@ class_name = "SharedPlaylist"
 [[env.dev.durable_objects.bindings]]
 name = "SHARES"
 class_name = "ShareLink"
+
+[[env.dev.durable_objects.bindings]]
+name = "TALLY"
+class_name = "Tally"

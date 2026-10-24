@@ -119,7 +119,13 @@ export async function shared(ctx: Context): Promise<Response> {
     const file = z.object({ sub: z.string(), key: z.string() }).parse(await lent.json())
     const target = await ctx.accounts.bucket(file.sub)
     if (!target) throw notFound('that song’s owner has no bucket connected any more')
-    const response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+    const response = await relayRead(
+      ctx,
+      new Bucket(target, ctx.bucketDeps),
+      file.key,
+      method,
+      'lent',
+    )
     // As a room's files are (rooms.ts): the web app's audio element asks with credentials.
     response.headers.set('access-control-allow-credentials', 'true')
     return response

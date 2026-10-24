@@ -1,4 +1,5 @@
 import {
+  DOORMAN_COUNT,
   DEEP_LINK_SCHEME,
   DOORMAN_ERROR,
   DOORMAN_PATHS,
@@ -20,6 +21,7 @@ import { forbidden, isLoopbackHost, json, noContent, readJson, unauthorized } fr
 import type { DoormanKeys } from './keys.js'
 import { getRecord, putRecord } from './kv.js'
 import { IdentitySchema, bearerToken, type Identity } from './sessions.js'
+import { tallyOf } from './tally.js'
 import {
   codeMatches,
   codeTag,
@@ -181,7 +183,13 @@ export async function callback(ctx: Context): Promise<Response> {
   }
 
   if (await ctx.access.nobody()) return nobodyAllowedPage()
-  if (!(await ctx.access.allows(identity.email))) return notAllowedPage(identity.email)
+  if (!(await ctx.access.allows(identity.email))) {
+    // Remembered for the owner's admin page, where they can let this address in.
+    const tally = tallyOf(ctx)
+    tally.asked(identity.email)
+    tally.count(DOORMAN_COUNT.refused)
+    return notAllowedPage(identity.email)
+  }
 
   // Google has vouched for an address on the list: the sign-in's first write.
   const signInCode = newSignInCode()
@@ -245,6 +253,7 @@ export async function claim(ctx: Context): Promise<Response> {
 
   const { token, session } = await ctx.sessions.create(live)
   await ctx.env.KV.delete(key)
+  tallyOf(ctx).count(DOORMAN_COUNT.signedIn)
   const result: DoormanClaimResult = {
     status: 'signed-in',
     token,

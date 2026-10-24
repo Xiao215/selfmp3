@@ -116,7 +116,7 @@ export async function rooms(ctx: Context): Promise<Response> {
     } else {
       const target = await ctx.accounts.bucket(file.sub)
       if (!target) throw notFound('that song’s owner has no bucket connected any more')
-      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method)
+      response = await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method, 'lent')
     }
     // The web app's audio element asks with credentials (apps/app's
     // engine.web.ts), which a browser lets it read only when the answer says

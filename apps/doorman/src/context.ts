@@ -34,6 +34,7 @@ export interface Env {
   readonly SHARED?: DurableObjectNamespace
   /** Share links, one Durable Object per link (share.ts). Optional as ROOMS is. */
   readonly SHARES?: DurableObjectNamespace
+  readonly TALLY?: DurableObjectNamespace
   readonly GOOGLE_CLIENT_ID?: string
   readonly GOOGLE_CLIENT_SECRET?: string
   /** base64 of 32 random bytes; every key the doorman uses comes from it. See keys.ts. */

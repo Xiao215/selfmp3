@@ -11,7 +11,6 @@ import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanization
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
-import { useConnection } from '../../connection/ConnectionProvider'
 import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { deviceKind } from '../../ports/device'
@@ -31,7 +30,6 @@ import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
 import { forgetGuides } from '../guide/guideMemory'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
-import { AccessPanel } from './AccessPanel'
 import { AppearancePanel } from './AppearancePanel'
 import { Confirmations } from './Confirmations'
 import { ConnectionPanel } from './ConnectionPanel'
@@ -60,6 +58,7 @@ import {
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { UsageRow } from '../usage/UsageRow'
 
 /** The index column itself, and the gutter on either side of it. */
 const INDEX_WIDTH = 172
@@ -108,7 +107,6 @@ const LINKED_HOLD_MS = 2500
  * its section (`/settings?section=account`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
-  const { fromCloud } = useConnection()
   const pinyinOn = useRomanizationOn('zh')
   const romajiOn = useRomanizationOn('ja')
   const { wide } = useLayout()
@@ -358,8 +356,6 @@ export function SettingsScreen(): ReactNode {
         <StackedRows value={!rowsBeside}>
           <View style={styles.panels}>
             <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
-            {/* The doorman's owner only: it draws nothing for anyone else. */}
-            {fromCloud ? <AccessPanel /> : null}
 
             <AppearancePanel anchor={anchorAt('appearance')} />
 
@@ -408,7 +404,7 @@ export function SettingsScreen(): ReactNode {
                 </Text>
               </Row>
               {/* Each guide shows once on a device; this brings them all back, once each. */}
-              <Row label="Tips" last>
+              <Row label="Tips">
                 <Button
                   label="Show tips again"
                   onPress={() => {
@@ -418,6 +414,7 @@ export function SettingsScreen(): ReactNode {
                   testID="settings-show-tips"
                 />
               </Row>
+              <UsageRow />
             </Panel>
 
             {indexed.some(section => section.id === 'advanced') ? (

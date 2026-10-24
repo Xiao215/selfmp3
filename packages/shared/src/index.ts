@@ -37,6 +37,7 @@ export * from './schemas/ai.js'
 export * from './schemas/room.js'
 export * from './schemas/shared.js'
 export * from './schemas/share.js'
+export * from './schemas/admin.js'
 
 export * from './format.js'
 export * from './range.js'

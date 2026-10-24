@@ -25,6 +25,7 @@ export const CHANNELS = {
   filesStat: 'selfmp3:files.stat',
   filesList: 'selfmp3:files.list',
   filesFetchTo: 'selfmp3:files.fetchTo',
+  filesUnpackTo: 'selfmp3:files.unpackTo',
   filesWrite: 'selfmp3:files.write',
   filesUsage: 'selfmp3:files.usage',
   filesReveal: 'selfmp3:files.reveal',

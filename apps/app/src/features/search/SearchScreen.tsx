@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -69,6 +69,7 @@ import { useGoBack } from '../../ui/useBackTo'
 import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, rowTitle, textColumn } from '../../ui/surfaces'
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
+import { countUse } from '../usage/usage'
 
 /** What a song played from Search names Up next: the rows and the lyric hits alike. */
 const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
@@ -99,6 +100,11 @@ export function SearchScreen(): ReactNode {
   const player = usePlayer()
 
   const [query, setQuery] = useState(() => (typeof params.q === 'string' ? params.q : ''))
+  // A search counted as it starts: the field going from empty to something.
+  const searching = query.trim() !== ''
+  useEffect(() => {
+    if (searching) countUse('search')
+  }, [searching])
   /** The section a "See all" opened alone, or null for All. */
   const [section, setSection] = useState<SearchSection | null>(null)
   /** What was asked (S1), answered in place of the results until the words change. */

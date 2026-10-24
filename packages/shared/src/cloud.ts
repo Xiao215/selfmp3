@@ -1,6 +1,7 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
+  type CloudCoverPack,
   type CloudFormat,
   type CloudSmartRules,
   type CloudSnapshot,
@@ -80,6 +81,27 @@ export function audioKey(sha256: string, extension: string): string {
 
 export function coverKey(sha256: string, extension: string): string {
   return `covers/${sha256}.${cleanExtension(extension)}`
+}
+
+/**
+ * Many covers in one file (`CloudCoverPackSchema`), in `covers/` like the
+ * pictures it holds: the doorman's key rule already allows the folder and
+ * the extension.
+ */
+export function coverPackKey(sha256: string): string {
+  return `covers/${sha256}.pack`
+}
+
+/** Where each picture of a pack is in its file: its key, where it starts, and how long it is. */
+export function coverPackMembers(
+  pack: CloudCoverPack,
+): { readonly key: string; readonly at: number; readonly size: number }[] {
+  let at = 0
+  return pack.covers.map(([key, size]) => {
+    const member = { key, at, size }
+    at += size
+    return member
+  })
 }
 
 /** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the server. */
@@ -396,12 +418,11 @@ export const DEFAULT_SERVER_URL = 'https://pi.tail3d8516.ts.net'
  * Where the app is, for something that has a server's address but needs to send
  * someone to the app instead — the browser extension's "open the queue", say.
  *
- * The server's own address is not it: the server serves its own page there
- * (`apps/server/src/http/admin.ts`), so the two are different places. A fork
- * publishes its own Pages site and changes this one line, as with the doorman
- * above. `apps/server/public/admin.html` links to the same address, and
- * `apps/app/public/index.html` names it for its link card: plain files that
- * cannot import this.
+ * The server's own address is not it: the server serves its API there and no
+ * page at all, so the two are different places. A fork publishes its own
+ * Pages site and changes this one line, as with the doorman above.
+ * `apps/app/public/index.html` names the same address for its link card: a
+ * plain file that cannot import this.
  */
 export const DEFAULT_APP_URL = 'https://xiao215.github.io/selfmp3'
 

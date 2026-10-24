@@ -1,4 +1,6 @@
-import { Directory, File, Paths } from 'expo-file-system'
+import * as Crypto from 'expo-crypto'
+import { Directory, File, FileMode, Paths } from 'expo-file-system'
+import { namesDigest } from './coverPacks'
 import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
 
 /**
@@ -97,6 +99,49 @@ const platform: CoverPlatform = {
   forgetFiles: async () => {
     if (STORE.exists) STORE.delete()
   },
+
+  packs: {
+    have: async () => {
+      if (!STORE.exists) return []
+      return STORE.list().flatMap(entry => (entry instanceof File ? [entry.name] : []))
+    },
+
+    // To the cache directory first, then read a picture at a time from the
+    // file: a pack is megabytes, and none of it is held in memory beyond the
+    // picture being cut. Each picture is written beside the pack and moved in
+    // whole, so the covers folder never holds half of one under its hash.
+    unpack: async (url, headers, slices) => {
+      STORE.create({ intermediates: true, idempotent: true })
+      const work = new Directory(Paths.cache, `cover-pack-${Date.now().toString(36)}`)
+      work.create({ intermediates: true, idempotent: true })
+      try {
+        const pack = await File.downloadFileAsync(url, new File(work, 'pack'), {
+          headers,
+          idempotent: true,
+        })
+        const handle = pack.open(FileMode.ReadOnly)
+        try {
+          for (const slice of slices) {
+            const target = new File(STORE, slice.name)
+            if (target.exists) continue
+            handle.offset = slice.at
+            const bytes = handle.readBytes(slice.size)
+            if (bytes.length !== slice.size) continue
+            const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)
+            if (!namesDigest(slice.name, digest)) continue
+            const part = new File(work, slice.name)
+            part.write(bytes)
+            // The same name is the same bytes: one fetched alone meanwhile is this one.
+            await part.move(target, { overwrite: true })
+          }
+        } finally {
+          handle.close()
+        }
+      } finally {
+        if (work.exists) work.delete()
+      }
+    },
+  },
 }
 
 /** Whether this device keeps covers at all. A phone always does. */
@@ -141,6 +186,7 @@ export const {
   keepLent,
   holdPictures,
   sweepPictures,
+  fillFromPacks,
   forgetCovers,
 } = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

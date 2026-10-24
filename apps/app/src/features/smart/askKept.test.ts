@@ -3,6 +3,9 @@ import { ApiError } from '@selfmp3/client'
 import type { AskAnswer, AskProgress } from '@selfmp3/shared'
 import { askKept, type AskSent } from './askKept'
 
+// What the device counts (features/usage) sits on its prefs, which need a device.
+vi.mock('../usage/usage', () => ({ countUse: () => undefined }))
+
 const sent: AskSent = { text: 'only the albums', playing: null, ticket: 'ticket-1', before: [] }
 const answer: AskAnswer = { kind: 'none', say: 'Here it is.', try: [] }
 const running: AskProgress = { steps: [], known: true, done: false, answer: null, failed: null }

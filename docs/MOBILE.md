@@ -145,10 +145,13 @@ may be the test harness's.
   export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
   ```
 
-- An Apple ID. A free one is enough to run the app on your own phone, seven
-  days at a time; the paid Developer Program ($99/year) is what makes a build
-  last and allows TestFlight. This is a personal app on the free path, which is
-  also why there is no CarPlay (its entitlement is granted only to paid teams).
+- Something to sign with. A free Apple ID runs the app on your own phone seven
+  days at a time. A paid Developer Program team ($99/year) makes a build last a
+  year and gives the widget its App Group, whether the team is yours or a
+  friend's who makes the profiles for you (see
+  [A release build on your own iPhone](#a-release-build-on-your-own-iphone)).
+  There is still no CarPlay: Apple grants its entitlement on request, and
+  nobody has asked.
 
 **Android**
 
@@ -260,6 +263,70 @@ is locked, but `process launch` needs it unlocked — or tap the icon.
 app stops launching until it is built and installed again. At most three apps
 can be signed this way, and the profiles carry no App Group, which the widget
 reads its snapshot through.
+
+### Signing with a friend's team
+
+A friend's paid team can sign your builds, but only the account holder of an
+**Individual** membership gets into Certificates, Identifiers & Profiles. An
+invited member sees the team in Xcode → Settings → Accounts, with a red ✕ next to
+that line, and cannot pick it as a target's team. So instead of Xcode making the
+profiles, the friend makes them once, by hand, and you sign with those.
+
+1. **You** make a key and a certificate request, and send the friend the request:
+
+   ```bash
+   mkdir -p ~/.ios-signing && cd ~/.ios-signing
+   openssl genrsa -out dev.key 2048
+   openssl req -new -key dev.key -out you.certSigningRequest \
+     -subj "/emailAddress=<your apple id>/CN=<your name>"
+   ```
+
+   The key never leaves your Mac, and the friend never sends theirs.
+
+2. **The friend**, at developer.apple.com → Certificates, IDs & Profiles:
+   - Devices: registers your phone's UDID.
+   - Identifiers: registers the App Group `group.com.selfmp3.app`, then the App
+     IDs `com.selfmp3.app` and `com.selfmp3.app.widget`, each with App Groups
+     turned on **and that group assigned** (Configure). Turning the capability on
+     without assigning the group gives profiles with an empty group list.
+   - Certificates: an Apple Development certificate from your request.
+   - Profiles: an iOS App Development profile for each App ID, with that
+     certificate and your phone.
+
+   They send back the `.cer` and the two `.mobileprovision` files. All of it lasts
+   a year; only a new phone or a new capability sends you back to them.
+
+3. **You** put the certificate in the keychain and the profiles where Xcode looks:
+
+   ```bash
+   cd ~/.ios-signing
+   openssl x509 -inform der -in development.cer -out dev.pem
+   openssl pkcs12 -export -legacy -inkey dev.key -in dev.pem -out dev.p12 -passout pass:x
+   security import dev.p12 -k ~/Library/Keychains/login.keychain-db -P x -T /usr/bin/codesign
+   rm dev.p12 dev.pem
+   for p in *.mobileprovision; do
+     cp "$p" ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$(security cms -D -i "$p" | plutil -extract UUID raw -)".mobileprovision
+   done
+   ```
+
+4. Build as above, minus `-allowProvisioningUpdates`, with manual signing. Each
+   target picks its own profile by name through `$(TARGET_NAME)`, so the
+   generated project needs no edits:
+
+   ```bash
+   xcodebuild -workspace ios/selfmp3.xcworkspace -scheme selfmp3 \
+     -configuration Release -destination 'generic/platform=iOS' \
+     -derivedDataPath build/ddp \
+     CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=<friend's team id> \
+     'CODE_SIGN_IDENTITY=Apple Development' \
+     PROFILE_selfmp3=<app profile name> PROFILE_SelfMp3Widget=<widget profile name> \
+     'PROVISIONING_PROFILE_SPECIFIER=$(PROFILE_$(TARGET_NAME))' build
+   ```
+
+iOS will not upgrade an app signed by another team in place ("application-identifier
+entitlement … does not match"), so the first install from the new team needs the old
+app deleted, along with what it kept on the phone. A paid team's build launches without
+the Trust step in [PREPROD.md](PREPROD.md); that step is for free Apple IDs.
 
 ---
 

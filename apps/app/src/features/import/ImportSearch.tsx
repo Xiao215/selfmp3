@@ -21,6 +21,7 @@ import { ReviewGridHead, useReviewRows } from './ReviewRows'
 import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Spinner } from '../../ui/components/Spinner'
+import { countUse } from '../usage/usage'
 
 /** How many of a search's songs show before "Show more", under the songs picked before it. */
 const FOUND_SHOWN = 12
@@ -77,6 +78,7 @@ export function ImportSearch({
   const enqueue = useMutation({
     mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
     onSuccess: () => {
+      countUse('import')
       // The songs are in the queue, which Import shows; the search is done, and so are its tags.
       void source.invalidateQueue()
       listen.close({ resume: false })

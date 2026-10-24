@@ -61,7 +61,10 @@ vi.mock('expo-file-system', () => ({
   Directory: FakeDirectory,
   File: FakeFile,
   Paths: { cache: 'file:///cache', document: 'file:///document' },
+  FileMode: { ReadOnly: 'r' },
 }))
+// What a pack's pictures are checked with; no test here unpacks one.
+vi.mock('expo-crypto', () => ({ CryptoDigestAlgorithm: { SHA256: 'SHA-256' }, digest: vi.fn() }))
 vi.mock('../replica', () => ({
   library: { cloudCoverKey: async (songId: number) => `covers/hash-${songId}.jpg` },
   cloudPlatform: { doormanUrl: 'https://doorman.example' },

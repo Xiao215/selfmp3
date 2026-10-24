@@ -105,6 +105,7 @@ const ALLOWED = new Map([
     'SharedObject',
     'exported from the doorman’s index.ts as SharedPlaylist, the name wrangler.toml binds',
   ],
+  ['Tally', 'the doorman’s tally Durable Object class, bound by name in wrangler.toml'],
   ['ShareLink', 'the doorman’s share link Durable Object class, bound by name in wrangler.toml'],
   [
     'ShareObject',

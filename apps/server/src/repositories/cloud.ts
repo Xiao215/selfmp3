@@ -3,6 +3,7 @@ import {
   DoormanStorageSchema,
   newCloudDeviceId,
   toSqliteTime,
+  type CloudCoverPack,
   type CloudLyrics,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
@@ -110,6 +111,12 @@ interface CloudPlaysRow {
   uploaded_at: string
 }
 
+interface CloudCoverPackRow {
+  key: string
+  size: number
+  covers: string
+}
+
 interface CloudSoundRow {
   model: string
   key: string
@@ -132,7 +139,8 @@ const NAMED_KEYS = `
   UNION SELECT banner_key FROM cloud_artists
   UNION SELECT portrait_key FROM cloud_artists
   UNION SELECT key FROM cloud_sound
-  UNION SELECT key FROM cloud_plays`
+  UNION SELECT key FROM cloud_plays
+  UNION SELECT key FROM cloud_cover_packs`
 
 /** What the sync needs to know about a song's files, straight from its row. */
 export interface SongFileInfo {
@@ -259,6 +267,9 @@ export class CloudRepository {
   readonly #playsOf
   readonly #savePlays
   readonly #dropPlays
+  readonly #coverPacks
+  readonly #saveCoverPack
+  readonly #dropCoverPack
   readonly #trashedKeys
   readonly #forgetFile
   readonly #rememberRemoved
@@ -392,6 +403,14 @@ export class CloudRepository {
         sig = excluded.sig, uploaded_at = excluded.uploaded_at
     `)
     this.#dropPlays = db.prepare('DELETE FROM cloud_plays WHERE month = ?')
+    this.#coverPacks = db.prepare<[], CloudCoverPackRow>(
+      'SELECT * FROM cloud_cover_packs ORDER BY rowid',
+    )
+    this.#saveCoverPack = db.prepare(`
+      INSERT INTO cloud_cover_packs (key, size, covers) VALUES (@key, @size, @covers)
+      ON CONFLICT (key) DO UPDATE SET size = excluded.size, covers = excluded.covers
+    `)
+    this.#dropCoverPack = db.prepare('DELETE FROM cloud_cover_packs WHERE key = ?')
     this.#forgetFile = db.prepare('DELETE FROM cloud_files WHERE key = ?')
     this.#rememberRemoved = db.prepare(
       'INSERT OR IGNORE INTO removed_songs (uid) SELECT uid FROM songs WHERE id = ?',
@@ -480,7 +499,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_plays; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_plays; DELETE FROM cloud_cover_packs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -614,6 +633,40 @@ export class CloudRepository {
       if (!before) return
       this.#dropSound.run()
       this.#trashReplaced([before.key], [])
+    })()
+  }
+
+  // --- Cover packs -----------------------------------------------------------
+
+  /** The packs of covers in the bucket (services/coverPacks.ts), in the order they were made. */
+  coverPacks(): CloudCoverPack[] {
+    return this.#coverPacks.all().map(row => ({
+      key: row.key,
+      size: row.size,
+      covers: JSON.parse(row.covers) as [string, number][],
+    }))
+  }
+
+  /**
+   * The packs the bucket now has, all of them: one not among them goes in the
+   * trash, and goes from the bucket once the snapshot that no longer names it
+   * is up.
+   */
+  saveCoverPacks(packs: readonly CloudCoverPack[]): void {
+    this.#db.transaction(() => {
+      const keep = new Set(packs.map(pack => pack.key))
+      for (const before of this.#coverPacks.all()) {
+        if (keep.has(before.key)) continue
+        this.#dropCoverPack.run(before.key)
+        this.#trashKey.run({ key: before.key })
+      }
+      for (const pack of packs) {
+        this.#saveCoverPack.run({
+          key: pack.key,
+          size: pack.size,
+          covers: JSON.stringify(pack.covers),
+        })
+      }
     })()
   }
 
@@ -812,13 +865,15 @@ export class CloudRepository {
          UPDATE cloud_songs SET motion_key = NULL, motion_sig = '' WHERE ${gone('motion_key')}`,
       )
       // An artist whose picture went is sent again too, and so are the sound
-      // vectors and a month of plays; they are not counted as songs.
+      // vectors, a month of plays and a pack of covers; they are not counted
+      // as songs.
       this.#db.exec(
         `DELETE FROM cloud_artists
           WHERE banner_key NOT IN (SELECT key FROM cloud_files)
              OR portrait_key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files);
-         DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files)`,
+         DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files);
+         DELETE FROM cloud_cover_packs WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )
       return again.n
     })()

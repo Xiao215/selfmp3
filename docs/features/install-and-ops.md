@@ -18,7 +18,7 @@ pieces are and why they are shaped that way.
 - **The runtime** is a clean image with `ffmpeg`, `tini` and `yt-dlp`. It copies the
   production `node_modules` (the root's and `apps/server/node_modules`, where npm nests a
   version the server wants differently), the two `dist/` folders, their `package.json` files
-  and `apps/server/public`, the server's own page. The layout mirrors the repo, so the
+  and `apps/server/admin`, the owner's admin page. The layout mirrors the repo, so the
   workspace symlinks in `node_modules` still resolve. Before it is published, the build
   imports every package the server declares and opens SQLite, so an image that could not
   start fails to build.

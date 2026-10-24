@@ -4,6 +4,9 @@
 /ios
 /android
 
+# xcodebuild's derived data for a device build (docs/MOBILE.md).
+/build
+
 /.expo
 *.jks
 *.p8

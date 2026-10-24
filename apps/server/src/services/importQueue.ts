@@ -5,7 +5,9 @@ import {
   messageOf,
   isSquareCoverUrl,
   sanitizeFilename,
+  type ImportFailure,
   type ImportJob,
+  type ImportStep,
   type Settings,
 } from '@selfmp3/shared'
 import { stagingDir, type Config } from '../config.js'
@@ -22,6 +24,7 @@ import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 import { asksYouTube, type YtDlpService } from './ytdlp.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
+import { METRIC, failureOf, type ServerMetrics, type TimedStep } from './metrics.js'
 import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
 
 /**
@@ -80,8 +83,11 @@ export class ImportQueueService {
   readonly #throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
   readonly #cloud: ImportUploader
   readonly #keepAwake: KeepAwakeService
+  readonly #metrics: Pick<ServerMetrics, 'recordImport' | 'count'>
   readonly #logger: Logger
 
+  /** How long each in-flight job has spent in each step, for the admin page (metrics.ts). */
+  readonly #clocks = new Map<string, StepClock>()
   /** Abort controllers for in-flight jobs, so cancel can actually stop them. */
   readonly #inFlight = new Map<string, AbortController>()
   /** Library folders handed to imports that have not written their file yet. */
@@ -114,6 +120,7 @@ export class ImportQueueService {
     throttle: Pick<YtThrottleService, 'waitMs' | 'tryTake'>
     cloud: ImportUploader
     keepAwake: KeepAwakeService
+    metrics: Pick<ServerMetrics, 'recordImport' | 'count'>
     logger: Logger
   }) {
     this.#config = deps.config
@@ -130,6 +137,7 @@ export class ImportQueueService {
     this.#throttle = deps.throttle
     this.#cloud = deps.cloud
     this.#keepAwake = deps.keepAwake
+    this.#metrics = deps.metrics
     this.#logger = deps.logger.child('import')
   }
 
@@ -303,19 +311,22 @@ export class ImportQueueService {
   async #process(job: ImportJob, paid: boolean): Promise<void> {
     const controller = new AbortController()
     this.#inFlight.set(job.id, controller)
+    const clock = new StepClock(job)
+    this.#clocks.set(job.id, clock)
     const settings = this.#settings.get()
 
     this.#logger.info('importing', { title: job.title || job.url, attempt: job.attempts })
 
     try {
       const songId = await this.#runJob(job, settings, controller.signal, paid)
-      this.#imports.update(job.id, {
+      this.#update(job.id, {
         status: 'done',
         step: 'finished',
         progress: 100,
         songId,
         error: null,
       })
+      this.#finished(job, clock, null)
       this.#logger.info('imported', { songId, title: job.title })
       // A pass per song of a run was a listing per song; the run's last song kicks.
       if (this.#imports.counts().queued === 0) this.#cloud.kick()
@@ -325,10 +336,10 @@ export class ImportQueueService {
         // queue, and the next boot's `resetOrphaned` picks it up where a
         // cancelled one would stay cancelled for good.
         if (this.#stopped) {
-          this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
+          this.#update(job.id, { status: 'queued', step: 'waiting', error: null })
           return
         }
-        this.#imports.update(job.id, { status: 'cancelled', step: 'finished', error: null })
+        this.#update(job.id, { status: 'cancelled', step: 'finished', error: null })
         this.#cloud.kick()
         return
       }
@@ -349,7 +360,8 @@ export class ImportQueueService {
         // The budget was already cut where the refusal was met (ytdlp.ts);
         // all that is left to do here is not blame the song.
         this.#logger.warn('rate limited; job put back in the queue', { title: job.title })
-        this.#imports.update(job.id, { status: 'queued', step: 'waiting', error: null })
+        this.#metrics.count(METRIC.youtubeHeld)
+        this.#update(job.id, { status: 'queued', step: 'waiting', error: null })
         this.#cloud.kick()
         return
       }
@@ -360,7 +372,8 @@ export class ImportQueueService {
         // later each time, until the bucket takes it (cloudSync.ts) — and
         // marks this job done once the song is up.
         this.#logger.warn('imported, but not uploaded yet', { message, songId: current?.songId })
-        this.#imports.update(job.id, {
+        this.#finished(job, clock, 'bucket')
+        this.#update(job.id, {
           status: 'error',
           step: 'uploading',
           error: `Saved on this server, but not uploaded yet: ${message} It will upload by itself once the bucket can be reached.`,
@@ -375,9 +388,31 @@ export class ImportQueueService {
         url: job.url,
         ...(detail !== null && detail !== message ? { detail } : {}),
       })
-      this.#imports.update(job.id, { status: 'error', step: 'finished', error: message })
+      this.#update(job.id, { status: 'error', step: 'finished', error: message })
+      this.#finished(job, clock, failureOf(message))
       this.#cloud.kick()
+    } finally {
+      this.#clocks.delete(job.id)
     }
+  }
+
+  /** The job's row, changed; a step it moves to starts that step's clock. */
+  #update(jobId: string, changes: Parameters<ImportRepository['update']>[1]): void {
+    this.#imports.update(jobId, changes)
+    if (changes.step !== undefined) this.#clocks.get(jobId)?.moveTo(changes.step)
+  }
+
+  /** Into the import log: worked when `failure` is null. */
+  #finished(job: ImportJob, clock: StepClock, failure: ImportFailure | null): void {
+    clock.moveTo('finished')
+    this.#metrics.recordImport({
+      finishedAt: new Date(),
+      url: job.url,
+      worked: failure === null,
+      failure,
+      steps: clock.steps,
+      attempts: job.attempts,
+    })
   }
 
   async #runJob(
@@ -411,7 +446,7 @@ export class ImportQueueService {
      * name, the lyrics lookup and the tags the download embeds.
      */
     if (!title.trim() || !artist.trim()) {
-      this.#imports.update(job.id, { step: 'resolving' })
+      this.#update(job.id, { step: 'resolving' })
       const probed = await this.#ytdlp.probe(job.url, signal, turn ? 'paid' : 'patient')
       turn = false
       if (probed.kind === 'playlist') {
@@ -428,7 +463,7 @@ export class ImportQueueService {
         album = album || track.album
         duration = duration || track.duration
         thumbnail ??= track.thumbnail
-        this.#imports.update(job.id, { title, artist, album, duration })
+        this.#update(job.id, { title, artist, album, duration })
       }
     }
 
@@ -436,7 +471,7 @@ export class ImportQueueService {
 
     // --- download -----------------------------------------------------------
 
-    this.#imports.update(job.id, { step: 'downloading', progress: 0 })
+    this.#update(job.id, { step: 'downloading', progress: 0 })
 
     const name = sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled'
     const baseName = uniqueBaseName(name, job.id)
@@ -477,7 +512,7 @@ export class ImportQueueService {
         const whole = Math.floor(percent)
         if (whole === shown) return
         shown = whole
-        this.#imports.update(job.id, { progress: whole })
+        this.#update(job.id, { progress: whole })
       },
     })
 
@@ -496,7 +531,7 @@ export class ImportQueueService {
       // The last moment a cancel can stop this. Past here the song goes into
       // the library, and the queue no longer takes one (ImportRepository.cancel).
       signal.throwIfAborted()
-      this.#imports.update(job.id, { step: 'converting', progress: null })
+      this.#update(job.id, { step: 'converting', progress: null })
 
       libraryKey = await this.#claimLibraryKey(name, path.extname(downloaded))
 
@@ -510,7 +545,7 @@ export class ImportQueueService {
       // there is one to write it to.
       let instrumental = false
       if (settings.autoFetchLyrics) {
-        this.#imports.update(job.id, { step: 'lyrics' })
+        this.#update(job.id, { step: 'lyrics' })
         const remote = await this.#lyrics.fetchRemote({
           artist,
           title,
@@ -529,7 +564,7 @@ export class ImportQueueService {
 
       // --- save -------------------------------------------------------------
 
-      this.#imports.update(job.id, { step: 'saving' })
+      this.#update(job.id, { step: 'saving' })
 
       const songId = await this.#scanner.ingest(libraryKey)
 
@@ -601,7 +636,7 @@ export class ImportQueueService {
    */
   async #upload(jobId: string, songId: number): Promise<void> {
     if (!this.#cloud.connected) return
-    this.#imports.update(jobId, { step: 'uploading', progress: null, songId })
+    this.#update(jobId, { step: 'uploading', progress: null, songId })
     try {
       await this.#cloud.uploadSong(songId, { more: this.#imports.counts().queued > 0 })
     } catch (error) {
@@ -653,5 +688,34 @@ async function safeReaddir(dir: string): Promise<string[]> {
     return await fsp.readdir(dir)
   } catch {
     return []
+  }
+}
+
+/**
+ * Where an import's time goes, step by step. Its wait in the queue counts
+ * only on a job's first go: a job tried again days later did not wait days.
+ */
+class StepClock {
+  readonly steps: Partial<Record<TimedStep, number>> = {}
+  #step: ImportStep
+  #at: number
+
+  constructor(job: Pick<ImportJob, 'createdAt' | 'attempts' | 'step'>, now = Date.now()) {
+    const created = Date.parse(
+      job.createdAt.includes('T') ? job.createdAt : `${job.createdAt.replace(' ', 'T')}Z`,
+    )
+    if (job.attempts <= 1 && Number.isFinite(created))
+      this.steps.waiting = Math.max(0, now - created)
+    this.#step = job.step
+    this.#at = now
+  }
+
+  moveTo(step: ImportStep, now = Date.now()): void {
+    if (step === this.#step) return
+    if (this.#step !== 'finished') {
+      this.steps[this.#step] = (this.steps[this.#step] ?? 0) + Math.max(0, now - this.#at)
+    }
+    this.#step = step
+    this.#at = now
   }
 }

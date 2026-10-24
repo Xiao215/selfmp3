@@ -28,6 +28,7 @@ const mockEnsureCover = jest.fn<Promise<string | null>, [number]>()
 const mockPlaylistSongs = jest.fn<Promise<{ playlistId: number; songIds: number[] }>, [number]>()
 const mockEnsurePicture = jest.fn<Promise<string | null>, [string]>()
 const mockSweep = jest.fn<Promise<number>, [ReadonlySet<string>]>()
+const mockFill = jest.fn<Promise<ReadonlySet<string>>, [() => boolean]>()
 
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
@@ -47,6 +48,7 @@ jest.mock('./DownloadsProvider', () => ({
 jest.mock('./caches', () => ({ playlistCache: { write: () => undefined } }))
 jest.mock('../replica', () => ({
   library: {
+    cloudCoverKeyNow: () => `covers/${'a'.repeat(64)}.jpg`,
     cloudPicturesNow: () => ({
       covers: new Set([`covers/${'a'.repeat(64)}.jpg`]),
       artists: [
@@ -61,6 +63,7 @@ jest.mock('./covers', () => ({
   ensurePicture: (key: string) => mockEnsurePicture(key),
   ensureServerCover: () => Promise.resolve(),
   sweepPictures: (named: ReadonlySet<string>) => mockSweep(named),
+  fillFromPacks: (isCancelled: () => boolean) => mockFill(isCancelled),
 }))
 
 /** Lets the pass's chain of awaits run out. */
@@ -76,6 +79,7 @@ describe('useKeepAlongside, for a cloud library', () => {
     mockEnsureCover.mockReset().mockResolvedValue('file:///cover.jpg')
     mockEnsurePicture.mockReset().mockResolvedValue('file:///picture.jpg')
     mockSweep.mockReset().mockResolvedValue(0)
+    mockFill.mockReset().mockResolvedValue(new Set())
   })
   afterEach(() => {
     jest.useRealTimers()
@@ -89,6 +93,28 @@ describe('useKeepAlongside, for a cloud library', () => {
     expect(mockEnsurePicture.mock.calls.map(([key]) => key).sort()).toEqual([BANNER, PORTRAIT])
     expect(mockSweep).toHaveBeenCalledTimes(1)
     expect([...(mockSweep.mock.calls[0]?.[0] ?? [])].sort()).toEqual([COVER, BANNER, PORTRAIT])
+  })
+
+  it('fills from the packs first, and leaves what a pack could not bring for later', async () => {
+    // The pack with the cover and the banner did not come: not fetched one by
+    // one instead, but asked for again with the next pass.
+    mockFill.mockResolvedValueOnce(new Set([COVER, BANNER]))
+    await renderHook(() => useKeepAlongside())
+    await settle()
+
+    expect(mockFill).toHaveBeenCalledTimes(1)
+    expect(mockEnsureCover).not.toHaveBeenCalled()
+    expect(mockEnsurePicture.mock.calls.map(([key]) => key)).toEqual([PORTRAIT])
+    expect(mockSweep).not.toHaveBeenCalled()
+
+    await act(async () => {
+      jest.advanceTimersByTime(10 * 60_000)
+    })
+    await settle()
+
+    expect(mockFill).toHaveBeenCalledTimes(2)
+    expect(mockEnsureCover).toHaveBeenCalledWith(1)
+    expect(mockSweep).toHaveBeenCalledTimes(1)
   })
 
   it('sweeps nothing while a picture is missing, and asks again ten minutes later', async () => {

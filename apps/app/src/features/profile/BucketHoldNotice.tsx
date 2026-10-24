@@ -5,6 +5,7 @@ import { showToast } from '../../ui/toast'
 import { deviceKind } from '../../ports/device'
 import { untilCapResets } from '../library/library.model'
 import { devicePlace } from '../settings/settings.model'
+import { countShownError } from '../usage/usage'
 
 /**
  * Says, once, that the bucket has refused for the day (docs/SYNC.md, "Caps").
@@ -29,6 +30,7 @@ export function BucketHoldNotice(): ReactNode {
     const now = Date.now()
     if (saidAt.current !== null && now - saidAt.current < SAY_AGAIN_AFTER_MS) return
     saidAt.current = now
+    countShownError('bucket-full')
     const place = devicePlace(deviceKind())
     showToast(
       `Your storage’s allowance for today is used up. Songs not on this ${place} come back in about ${untilCapResets(new Date())}.`,

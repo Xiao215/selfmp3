@@ -1,5 +1,14 @@
+import { API_CACHE } from '../../sw/names'
+import { bucketPictureAddress } from '../ports/bucketMedia'
 import { coverFiles } from '../ports/coverFiles'
-import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
+import { namesDigest } from './coverPacks'
+import {
+  createCoverStore,
+  isPicture,
+  parseServedName,
+  type CoverPlatform,
+  type PackSink,
+} from './coverStore'
 
 /**
  * Cover art from the bucket, for the platforms Metro calls web: the installed
@@ -19,6 +28,51 @@ import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from
  *
  * What to do about a cover is offline/coverStore.ts, shared with the phone.
  */
+
+/**
+ * Where a tab puts the pictures of a pack of covers: the service worker's
+ * covers cache, under the `api/bucket/<key>` address it answers a bucket
+ * picture at, which is where it looks for a song's cover before the bucket
+ * (sw/sw.ts). A tab keeps no files, but with this a cloud library's covers
+ * are a few reads for the whole library rather than one a row. Null where no
+ * worker answers those addresses.
+ */
+function tabPacks(): PackSink | null {
+  if (typeof caches === 'undefined' || bucketPictureAddress('covers/') === null) return null
+  const addressOf = (name: string): string =>
+    new URL(bucketPictureAddress(`covers/${name}`) ?? '', location.origin).href
+  return {
+    have: async () => {
+      const cache = await caches.open(API_CACHE)
+      const prefix = addressOf('')
+      return (await cache.keys()).flatMap(request =>
+        request.url.startsWith(prefix) ? [request.url.slice(prefix.length)] : [],
+      )
+    },
+    unpack: async (url, headers, slices) => {
+      const response = await fetch(url, { headers })
+      if (!response.ok) throw new Error(`the bucket answered ${response.status}`)
+      const pack = new Uint8Array(await response.arrayBuffer())
+      const cache = await caches.open(API_CACHE)
+      for (const slice of slices) {
+        if (slice.at + slice.size > pack.length) continue
+        const bytes = pack.slice(slice.at, slice.at + slice.size)
+        if (!namesDigest(slice.name, await crypto.subtle.digest('SHA-256', bytes))) continue
+        await cache.put(
+          addressOf(slice.name),
+          new Response(bytes, { headers: { 'content-type': pictureType(slice.name) } }),
+        )
+      }
+    },
+  }
+}
+
+/** What a picture's extension says it is, for the worker to answer it with. */
+function pictureType(name: string): string {
+  const extension = name.slice(name.lastIndexOf('.') + 1)
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
+  return `image/${extension}`
+}
 
 const platform: CoverPlatform = {
   canKeep: () => coverFiles !== null,
@@ -72,6 +126,15 @@ const platform: CoverPlatform = {
   forgetFiles: async () => {
     await coverFiles?.forget()
   },
+
+  packs: coverFiles
+    ? {
+        have: () => coverFiles?.list() ?? Promise.resolve([]),
+        unpack: async (url, headers, slices) => {
+          await coverFiles?.unpack(url, headers, slices)
+        },
+      }
+    : (tabPacks() ?? undefined),
 }
 
 /**
@@ -113,6 +176,7 @@ export const {
   keepLent,
   holdPictures,
   sweepPictures,
+  fillFromPacks,
   forgetCovers,
 } = createCoverStore(platform)
 export { KEPT_COVER_SIZE } from './coverStore'

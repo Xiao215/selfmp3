@@ -1,7 +1,7 @@
-import sharp from 'sharp'
+import sharp, { type Sharp } from 'sharp'
 
 /**
- * A cover made square, the shape every place draws one.
+ * A cover made square, the shape every place draws one, and a JPEG.
  *
  * Most covers that are not square came from a video: yt-dlp embeds the
  * video's still, 1280×720, or an older 4:3 one (480×360, 640×480) with black
@@ -18,7 +18,13 @@ import sharp from 'sharp'
  * one bright spot is not art on a border, and cutting to the spot would lose
  * the scene.
  *
- * A cover already square is handed back as it was, byte for byte: nothing is
+ * A JPEG is what every cover is kept as. A PNG cover — what yt-dlp makes of
+ * a video's still when it puts it in an .m4a — was five or six times the
+ * bytes of the same picture as a JPEG, and every device keeps every cover:
+ * on a library of 109 songs, 27 PNGs were 15 of 17 MB of covers. A cover in
+ * another format is re-encoded, on black where it was see-through.
+ *
+ * A JPEG already square is handed back as it was, byte for byte: nothing is
  * re-encoded that need not be, and its hash — the bucket's name for it — stays.
  */
 export async function squareCover(
@@ -30,7 +36,11 @@ export async function squareCover(
   const turned = (meta.orientation ?? 1) >= 5
   const width = turned ? meta.height : meta.width
   const height = turned ? meta.width : meta.height
-  if (!width || !height || width === height) return { data, extension }
+  if (!width || !height) return { data, extension }
+  if (width === height) {
+    if (meta.format === 'jpeg') return { data, extension: '.jpg' }
+    return { data: await asJpeg(sharp(data).rotate()), extension: '.jpg' }
+  }
 
   const upright = await sharp(data).rotate().toBuffer()
   let source = upright
@@ -53,10 +63,17 @@ export async function squareCover(
 
   const side = Math.min(w, h)
   const pipeline = sharp(source).resize(side, side, { fit: 'cover', position: 'centre' })
-  // A PNG or WebP stays what it was; anything else is a JPEG, as most covers are.
-  if (extension === '.png') return { data: await pipeline.png().toBuffer(), extension }
-  if (extension === '.webp') return { data: await pipeline.webp().toBuffer(), extension }
-  return { data: await pipeline.jpeg({ quality: 90, mozjpeg: true }).toBuffer(), extension: '.jpg' }
+  return { data: await asJpeg(pipeline), extension: '.jpg' }
+}
+
+/** Sharp enough that a cover drawn the size of a window shows nothing lost. */
+const JPEG_QUALITY = 85
+
+function asJpeg(image: Sharp): Promise<Buffer> {
+  return image
+    .flatten({ background: '#000000' })
+    .jpeg({ quality: JPEG_QUALITY, mozjpeg: true })
+    .toBuffer()
 }
 
 /** How dark a pixel still counts as border: video black is rarely exactly zero. */

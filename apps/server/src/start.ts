@@ -17,6 +17,21 @@ export function startContainer(container: Container): void {
   void container.covers.sweepThumbnails().catch((error: unknown) => {
     logger.warn('could not sweep cover thumbnails', { message: messageOf(error) })
   })
+  // Covers kept as PNG or WebP from before every cover was a JPEG
+  // (squareCover.ts); each one converted goes up with the next cloud pass.
+  void container.covers
+    .jpegKept(
+      container.songs
+        .all()
+        .filter(song => song.hasArt)
+        .map(song => song.id),
+    )
+    .then(converted => {
+      if (converted > 0) container.bumpLibraryVersion()
+    })
+    .catch((error: unknown) => {
+      logger.warn('making kept covers JPEGs stopped early', { message: messageOf(error) })
+    })
   // Rescan on folder changes (a file dropped into the inbox) when the setting is on.
   container.libraryWatcher.apply()
   // Publishing, and any links other devices asked for while this server was off.

@@ -14,8 +14,8 @@ import { DEEP_LINK_SCHEME, signInCodeFromUrl } from '@selfmp3/shared'
  */
 
 /**
- * Where a sign-in can come back to: Welcome. A server signs in on its own page
- * (`apps/server/public/admin.js`), not through the app.
+ * Where a sign-in can come back to: Welcome. The owner's admin page signs in
+ * on its own (`apps/server/admin/admin.js`), not through the app.
  */
 export type SignInTarget = 'welcome'
 

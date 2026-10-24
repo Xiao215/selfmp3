@@ -32,6 +32,8 @@ A link holds at most 100 songs (`SHARE_MAX_SONGS`). **Share link** opens the sha
 row: the cover and the name of what it sends, a QR button, and **Copy**. Under it is
 **Share…**, for the system's share sheet, left out where the browser has none (Copy already
 does what it would). The QR button opens the code large, for a friend standing beside you.
+In a browser the cover and the name open the link's page in a new tab (`openInNewTab`), to
+see what a friend will; the Mac app and a phone have no tabs, so there they are not a button.
 
 **The words with the link** are `干杯 · 五月天` for a song and `五月天 精选 · 12 songs` for a
 list (`shareWords`). The link goes beside them, never inside them, so it is sent once: on

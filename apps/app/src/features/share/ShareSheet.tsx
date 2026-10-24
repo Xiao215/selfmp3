@@ -13,6 +13,7 @@ import {
 import { failureText, radius, shareLinkUrl, space } from '@selfmp3/client'
 import { linkAddress } from '../../ports/linkAddress'
 import { copyText } from '../../ports/clipboard'
+import { hasTabs, openInNewTab } from '../../ports/newTab'
 import { canShareLink, shareLink } from '../../ports/shareLink'
 import { useArt } from '../../offline/useArt'
 import { library as cloudLibrary } from '../../replica'
@@ -22,6 +23,7 @@ import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
+import { Press } from '../../ui/components/Press'
 import { Check, QrCode, ShareOut } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { Spinner } from '../../ui/components/Spinner'
@@ -163,6 +165,7 @@ export function ShareSheet(): ReactNode {
             }
             song={coverOf(yours)}
             url={url}
+            path={`/l/${link.id}/${link.key}`}
             words={words}
           />
         ) : (
@@ -181,18 +184,25 @@ function coverOf(songs: readonly Song[]): Song | null {
   return songs.find(song => song.hasArt) ?? songs[0] ?? null
 }
 
-/** The link, made: what it sends with Copy beside it, the QR behind its button, and Share…. */
+/**
+ * The link, made: what it sends with Copy beside it, the QR behind its button,
+ * and Share…. In a browser the song opens the link's page in a new tab, to
+ * see what a friend will.
+ */
 function MadeLink({
   name,
   sub,
   song,
   url,
+  path,
   words,
 }: {
   name: string
   sub: string
   song: Song | null
   url: string
+  /** The link's page in this app. */
+  path: string
   words: string
 }): ReactNode {
   const artFor = useArt()
@@ -207,15 +217,25 @@ function MadeLink({
   return (
     <>
       <View style={styles.link} testID="share-sheet-link">
-        <Cover uri={song ? artFor(song) : null} title={name} size={44} />
-        <View style={textColumn}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
-          </Text>
-          <Text style={styles.sub} numberOfLines={1}>
-            {sub}
-          </Text>
-        </View>
+        <Press
+          feedback="dim"
+          disabled={!hasTabs()}
+          onPress={() => openInNewTab(path)}
+          accessibilityRole={hasTabs() ? 'link' : undefined}
+          accessibilityLabel={hasTabs() ? `Open the link to ${name} in a new tab` : undefined}
+          style={styles.what}
+          testID="share-sheet-open"
+        >
+          <Cover uri={song ? artFor(song) : null} title={name} size={44} />
+          <View style={textColumn}>
+            <Text style={styles.name} numberOfLines={1}>
+              {name}
+            </Text>
+            <Text style={styles.sub} numberOfLines={1}>
+              {sub}
+            </Text>
+          </View>
+        </Press>
         <IconButton
           label={qr ? 'Hide the QR code' : 'Show the QR code'}
           caption="QR code"
@@ -275,6 +295,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
   },
+  // The cover and the name, which open the link's page in a browser.
+  what: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   name: smallTitle(theme.colors),
   sub: lineSub(theme.colors),
   lasts: { ...hint(theme.colors), textAlign: 'center' },

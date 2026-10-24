@@ -57,9 +57,14 @@ says to set the key, and the doorman's counts stay off the Data tab.
 
 Who can sign in, built for a hundred people or more:
 
-- One list, A–Z, with a search box over it. The list scrolls inside its panel.
+- One list, A–Z by name, with a search box over it (names or addresses). The list scrolls
+  inside its panel.
+- Each person shows the name and picture Google last gave the doorman when they signed in, or
+  their initial before they ever have. The doorman keeps these in its `TALLY` Durable Object
+  (`profile:<email>`, written only when Google gives something new), never in KV.
 - The owners (`OWNER_EMAILS`) are marked and can't be removed.
-- **Add people** takes one address or many pasted at once, and says which ones aren't addresses.
+- The **+** beside the search box opens Add people: one address or many pasted at once, and it
+  says which ones aren't addresses.
 - Remove asks first, in the app's confirmation dialog.
 - **Anyone with a Google account** is a setting of its own. Turning it on asks first.
 
@@ -76,9 +81,11 @@ counts live in three places:
 | --- | --- | --- |
 | The server's `metrics.db`, beside `hub.json` (`services/metrics.ts`) | `import_log`: one row per finished import (where it came from, worked or why not, seconds per step, retries; no library, no song). `daily_totals`: Smart requests by feature with failures and time, YouTube asking the server to slow down, 500s by route, and what apps report | a year |
 | Each library's own database | plays, added up across libraries when the page asks | as the library keeps them |
-| The doorman's `TALLY` Durable Object (`apps/doorman/src/tally.ts`) | reads by bucket folder (`audio`, `covers`, `lyrics`) and by app (web, computer, phone, extension, server, lent), new sessions, refused sign-ins | a year |
+| The doorman's `TALLY` Durable Object (`apps/doorman/src/tally.ts`) | reads by bucket folder (`audio`, `covers`, `lyrics`) and by app (web, computer, phone, extension, server, lent), new sessions, refused sign-ins (the count, not the address) | a year |
 
-A range switch (week, month, 3 months) scopes everything on the tab. The title line says
+A range switch (week, month, 3 months) scopes everything on the tab. On a wide window an
+**On this page** index sits on the right, with every section and chart, and marks the one
+being read. The title line says
 whether Smart features answer and whether YouTube is holding the server back. Then:
 
 - **Headline numbers**: imports with the change on the period before, the share that worked,

@@ -84,6 +84,7 @@ export default tseslint.config(
         HTMLInputElement: 'readonly',
         localStorage: 'readonly',
         location: 'readonly',
+        IntersectionObserver: 'readonly',
         ResizeObserver: 'readonly',
         sessionStorage: 'readonly',
         setInterval: 'readonly',

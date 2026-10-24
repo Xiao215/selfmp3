@@ -259,6 +259,75 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  /* Each card as tall as what it holds, not as its neighbour. */
+  align-items: start;
+}
+
+/* ---- The page's own index, as Settings has one, on the right ---- */
+
+.with-index {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 196px;
+  gap: 32px;
+  align-items: start;
+}
+.index-main {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.index {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 2px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.index .label {
+  padding: 0 10px 8px;
+}
+.index a {
+  display: block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.index a.sub {
+  padding-left: 20px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.index a:hover {
+  background: var(--surface2);
+}
+.index a[aria-current='location'] {
+  background: var(--text-primary);
+  color: var(--on-primary);
+  font-weight: 600;
+}
+#overview,
+.section,
+.card[id] {
+  scroll-margin-top: 20px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+@media (max-width: 1180px) {
+  .with-index {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .index {
+    display: none;
+  }
 }
 
 /* ---- Controls ---- */
@@ -478,6 +547,8 @@ textarea.field {
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface3);
   display: grid;
   place-items: center;
   font-size: 13px;
@@ -637,7 +708,8 @@ textarea.field {
 }
 .hbar-row {
   display: grid;
-  grid-template-columns: minmax(110px, 38%) minmax(0, 1fr) auto;
+  /* Names as wide as they need, up to half the card; the bars take the rest. */
+  grid-template-columns: fit-content(50%) minmax(48px, 1fr) 52px;
   gap: 12px;
   align-items: center;
   font-size: 13px;
@@ -660,7 +732,6 @@ textarea.field {
 .hbar-value {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  min-width: 44px;
   text-align: right;
 }
 .actions {
@@ -672,6 +743,41 @@ textarea.field {
   justify-content: space-between;
   flex-wrap: wrap;
   align-items: center;
+}
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Under the heading, at full width, when there isn't room for search beside it. */
+  flex: 1 1 260px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.list-tools .search {
+  flex: 1;
+  max-width: 340px;
+}
+.icon-btn.add {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.icon-btn.add:hover {
+  background: color-mix(in oklab, var(--accent) 88%, var(--text-primary));
+  color: var(--on-accent);
+}
+.icon-btn.add svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+}
+.icon-btn.add[aria-expanded='true'] svg {
+  transform: rotate(45deg);
+}
+.icon-btn.add svg {
+  transition: transform var(--slow) cubic-bezier(0.3, 1.3, 0.5, 1);
 }
 table.data {
   width: 100%;

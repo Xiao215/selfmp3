@@ -7,6 +7,7 @@ import { unauthorized } from './http.js'
 import type { DoormanKeys } from './keys.js'
 import type { KvStore } from './kv.js'
 import { bearerToken, type Session, type Sessions } from './sessions.js'
+import { tallyOf } from './tally.js'
 
 /**
  * What every route is handed: the request, the Worker's settings, and the
@@ -117,7 +118,26 @@ export async function requireSession(ctx: Context): Promise<Session> {
   if (cutoff !== null && !(Date.parse(session.createdAt) > cutoff)) {
     throw unauthorized('this session was signed out everywhere; sign in again')
   }
+  noteProfile(ctx, session)
   return session
+}
+
+/** What each address's profile was last sent as, from this Worker instance. */
+const notedProfiles = new Map<string, string>()
+
+/**
+ * The name and picture Google gave this person, for the admin page's People
+ * tab (tally.ts). Sent once per value per Worker instance, after the answer;
+ * a server's grant carries the same identity and is left out.
+ */
+function noteProfile(ctx: Context, session: Session): void {
+  if (session.grant !== undefined) return
+  const email = session.email.trim().toLowerCase()
+  const value = `${session.name ?? ''}\n${session.picture ?? ''}`
+  if (notedProfiles.get(email) === value) return
+  if (notedProfiles.size >= 2000) notedProfiles.clear()
+  notedProfiles.set(email, value)
+  tallyOf(ctx).noteProfile(email, { name: session.name, picture: session.picture })
 }
 
 /** The signed-in account's bucket, ready to use. */

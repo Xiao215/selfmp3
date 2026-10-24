@@ -208,7 +208,7 @@ function chartCard({ id, title, subtitle = '', legend = [], height = 180, draw, 
   const body = showingTable
     ? tableHtml
     : `${legendHtml}<div class="plot" data-chart="${id}" style="height:${height}px"></div>`
-  return `<div class="card"><div class="card-head">${titles}${toggle}</div>${body}</div>`
+  return `<div class="card" id="chart-${id}"><div class="card-head">${titles}${toggle}</div>${body}</div>`
 }
 
 function drawCharts() {
@@ -507,7 +507,7 @@ function hbars(rows, { color = 'var(--accent)', format = fmt } = {}) {
   return `<div class="hbars">${rows
     .map(
       r =>
-        `<div class="hbar-row"><span class="hbar-name">${escape(r.label)}</span><span class="hbar-track"><i style="width:${Math.max(1, (100 * r.value) / max)}%;background:${color}"></i></span><span class="hbar-value">${escape(format(r.value))}</span></div>`,
+        `<div class="hbar-row"><span class="hbar-name" title="${escape(r.label)}">${escape(r.label)}</span><span class="hbar-track"><i style="width:${Math.max(1, (100 * r.value) / max)}%;background:${color}"></i></span><span class="hbar-value">${escape(format(r.value))}</span></div>`,
     )
     .join('')}</div>`
 }
@@ -612,8 +612,8 @@ function bandPosition(ms) {
   return i + Math.min(1, (ms - low) / (high - low))
 }
 
-function listCard(title, hint, body) {
-  return `<div class="card"><div class="card-head"><div class="titles"><h3>${escape(title)}</h3><span class="hint">${escape(hint)}</span></div></div>${body}</div>`
+function listCard(title, hint, body, id = '') {
+  return `<div class="card"${id ? ` id="chart-${id}"` : ''}><div class="card-head"><div class="titles"><h3>${escape(title)}</h3><span class="hint">${escape(hint)}</span></div></div>${body}</div>`
 }
 
 function statusLine(status) {
@@ -628,6 +628,46 @@ function statusLine(status) {
     ? `<span class="warn">held until ${new Date(status.youtubeHeldUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`
     : '<span class="ok">open</span>'
   return `Totals across everyone · Smart features ${smart} · YouTube ${youtube}`
+}
+
+/** The page's own index, as Settings has one: sections, and the cards under them. */
+function indexOf(entries) {
+  const items = entries
+    .map(
+      ([id, label, level]) =>
+        `<a href="#${id}" class="${level ? 'sub' : ''}" data-index="${id}">${escape(label)}</a>`,
+    )
+    .join('')
+  return `<nav class="index" aria-label="On this page"><span class="label">On this page</span>${items}</nav>`
+}
+
+/** Lights the index entry for whatever is at the top of the page now. */
+let spy = null
+function watchIndex() {
+  spy?.disconnect()
+  const links = new Map([...document.querySelectorAll('.index a')].map(a => [a.dataset.index, a]))
+  if (!links.size) return
+  const seen = new Set()
+  spy = new IntersectionObserver(
+    entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) seen.add(entry.target.id)
+        else seen.delete(entry.target.id)
+      }
+      // The deepest entry in view: a card over the section it sits in.
+      const first = [...links.keys()].findLast(id => seen.has(id))
+      if (!first) return
+      for (const [id, link] of links) {
+        if (id === first) link.setAttribute('aria-current', 'location')
+        else link.removeAttribute('aria-current')
+      }
+    },
+    { rootMargin: '0px 0px -70% 0px' },
+  )
+  for (const id of links.keys()) {
+    const target = document.getElementById(id)
+    if (target) spy.observe(target)
+  }
 }
 
 function dataView() {
@@ -772,6 +812,7 @@ function dataView() {
         .map(s => ({ label: STEPS[s.step] ?? s.step, value: s.medianMs })),
       { format: duration },
     ),
+    'steps',
   )
 
   const ytWorked = imports.youtube.map(d =>
@@ -811,6 +852,7 @@ function dataView() {
     'Why imports fail',
     plural(failed, 'failure', 'failures'),
     hbars(imports.failures.map(f => ({ label: FAILURES[f.kind] ?? f.kind, value: f.count }))),
+    'failures',
   )
 
   const sourceRows = imports.sources
@@ -825,6 +867,7 @@ function dataView() {
     imports.sources.length
       ? `<table class="data"><thead><tr><th>Source</th><th class="num">Imports</th><th class="num">Share</th><th class="num">Worked</th><th class="num">Median time</th></tr></thead><tbody>${sourceRows}</tbody></table>`
       : '<p class="empty">No imports in these days.</p>',
+    'sources',
   )
 
   const doormanNote = data.doorman
@@ -878,10 +921,20 @@ function dataView() {
     .filter(r => r.value > 0)
     .sort((a, b) => b.value - a.value)
   const byApp = data.doorman
-    ? listCard('Reads by app', `${fmt(sum(appReads.map(r => r.value)))} reads`, hbars(appReads))
+    ? listCard(
+        'Reads by app',
+        `${fmt(sum(appReads.map(r => r.value)))} reads`,
+        hbars(appReads),
+        'reads-by-app',
+      )
     : ''
   const playsCard = !plays
-    ? listCard('Plays a day', 'every library', '<p class="empty">No plays in these days.</p>')
+    ? listCard(
+        'Plays a day',
+        'every library',
+        '<p class="empty">No plays in these days.</p>',
+        'plays',
+      )
     : chartCard({
         id: 'plays',
         title: 'Plays a day',
@@ -908,6 +961,7 @@ function dataView() {
             .sort((a, b) => b.value - a.value),
         )
       : '<p class="empty">No app has reported yet. Apps send each day’s counts the next day.</p>',
+    'features',
   )
   const smartCard = listCard(
     'Smart features',
@@ -919,6 +973,7 @@ function dataView() {
           data.smart.byFeature.map(f => ({ label: SMART[f.feature] ?? f.feature, value: f.count })),
         )
       : '<p class="empty">No Smart requests in these days.</p>',
+    'smart',
   )
   const errorRows = data.errors
     .map(
@@ -932,36 +987,70 @@ function dataView() {
     data.errors.length
       ? `<table class="data"><thead><tr><th>Where</th><th>What</th><th class="num">Times</th><th class="num">Last</th></tr></thead><tbody>${errorRows}</tbody></table>`
       : '<p class="empty">Nothing went wrong.</p>',
+    'errors',
   )
 
+  const index = indexOf([
+    ['overview', 'Overview', 0],
+    ['import', 'Music import', 0],
+    ['chart-imports', 'Imports a day', 1],
+    ['chart-error-rate', 'Share that failed', 1],
+    ['chart-median-time', 'Median import time', 1],
+    ['chart-bands', 'How long imports take', 1],
+    ['chart-steps', 'Where the time goes', 1],
+    ['chart-youtube', 'YouTube', 1],
+    ['chart-failures', 'Why imports fail', 1],
+    ['chart-sources', 'By source', 1],
+    ['listening', 'Listening', 0],
+    ...(data.doorman ? [['chart-reads', 'Reads from buckets', 1]] : []),
+    ['chart-plays', 'Plays a day', 1],
+    ...(data.doorman ? [['chart-reads-by-app', 'Reads by app', 1]] : []),
+    ['app', 'The app', 0],
+    ['chart-features', 'Features used', 1],
+    ['chart-smart', 'Smart features', 1],
+    ['chart-errors', 'Errors', 1],
+  ])
   return `${header}
+    <div class="with-index"><div class="index-main">
     ${state.dataError ? `<p class="notice bad">${escape(state.dataError)}</p>` : ''}
-    ${stats}
-    <section class="section"><h2 class="section-title">Music import</h2>
+    <div id="overview" class="anchor">${stats}</div>
+    <section class="section" id="import"><h2 class="section-title">Music import</h2>
       ${perDay}
       <div class="grid2">${errorCard}${medianCard}</div>
       <div class="grid2">${histogram}${steps}</div>
       <div class="grid2">${youtubeCard}${failures}</div>
       ${sources}
     </section>
-    <section class="section"><h2 class="section-title">Listening</h2>
+    <section class="section" id="listening"><h2 class="section-title">Listening</h2>
       ${doormanNote}${reads}
       <div class="grid2">${playsCard}${byApp}</div>
     </section>
-    <section class="section"><h2 class="section-title">The app</h2>
+    <section class="section" id="app"><h2 class="section-title">The app</h2>
       <div class="grid2">${usage}${smartCard}</div>
       ${errors}
-    </section>`
+    </section>
+    </div>${index}</div>`
 }
 
 const AVATAR_HUES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--good)']
 
-function avatarOf(email) {
+/** Google's picture when the doorman has one, else the address's first letter on a tint of its own. */
+function avatarOf(person) {
+  if (person.picture) {
+    return `<img class="avatar" src="${escape(person.picture)}" alt="" referrerpolicy="no-referrer" data-initial="${escape(initialOf(person))}" />`
+  }
+  return letterAvatar(person)
+}
+
+function initialOf(person) {
+  return (person.name || person.email)[0]?.toUpperCase() ?? '?'
+}
+
+function letterAvatar(person) {
   let hash = 0
-  for (const ch of email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  for (const ch of person.email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
   const hue = AVATAR_HUES[hash % AVATAR_HUES.length]
-  const letter = escape(email[0]?.toUpperCase() ?? '?')
-  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${letter}</span>`
+  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${escape(initialOf(person))}</span>`
 }
 
 const ICON_TRASH =
@@ -975,19 +1064,18 @@ function personRow(person) {
   const end = person.owner
     ? '<span class="hint">always let in</span>'
     : `<button class="icon-btn" type="button" data-action="remove" data-email="${escape(person.email)}" aria-label="Remove ${escape(person.email)}" title="Remove" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
-  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span></div>${end}</div>`
+  const who = person.name
+    ? `<span class="name">${escape(person.name)}${chip}</span><span class="hint">${escape(person.email)}</span>`
+    : `<span class="name">${escape(person.email)}${chip}</span>`
+  return `<div class="row">${avatarOf(person)}<div class="lbl">${who}</div>${end}</div>`
 }
 
 function peopleView() {
   const people = state.people
   const count = people ? people.owners.length + people.emails.length : 0
-  const add = people
-    ? `<button class="btn primary" type="button" data-action="add-open">${ICON_PLUS}Add people</button>`
-    : ''
   const header = head(
     'People',
     people ? escape(`${plural(count, 'person', 'people')} can sign in`) : 'Who can sign in',
-    add,
   )
   if (!people) {
     const why = state.peopleError
@@ -996,11 +1084,14 @@ function peopleView() {
     return header + why
   }
   const query = state.search.trim().toLowerCase()
+  const person = (email, owner) => ({ email, owner, ...(people.profiles?.[email] ?? {}) })
   const everyone = [
-    ...people.owners.map(email => ({ email, owner: true })),
-    ...people.emails.map(email => ({ email, owner: false })),
-  ].sort((a, b) => a.email.localeCompare(b.email))
-  const shown = query ? everyone.filter(p => p.email.includes(query)) : everyone
+    ...people.owners.map(email => person(email, true)),
+    ...people.emails.map(email => person(email, false)),
+  ].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
+  const shown = query
+    ? everyone.filter(p => p.email.includes(query) || (p.name ?? '').toLowerCase().includes(query))
+    : everyone
   const adding = state.adding
     ? `<div class="card">
         <div class="card-head"><div class="titles"><h3>Add people</h3><span class="hint">Their Google addresses: one, or many pasted at once, separated by spaces, commas or new lines. While Google sign-in is in Testing, Google wants them as test users too.</span></div></div>
@@ -1021,7 +1112,7 @@ function peopleView() {
     ${adding}
     <section class="section">
       <div class="group-head list-head"><span><span class="label">Who can sign in</span> <span class="hint">${escape(counted)}</span></span>
-        <label class="search">${ICON_SEARCH}<input id="people-search" type="search" placeholder="Search addresses" value="${escape(state.search)}" aria-label="Search addresses" autocomplete="off" /></label>
+        <span class="list-tools"><label class="search">${ICON_SEARCH}<input id="people-search" type="search" placeholder="Search people" value="${escape(state.search)}" aria-label="Search people" autocomplete="off" /></label><button class="icon-btn add" type="button" data-action="add-open" aria-label="Add people" title="Add people" aria-expanded="${state.adding}">${ICON_PLUS}</button></span>
       </div>
       <div class="panel"><div class="people-list">${rows}</div></div>
     </section>
@@ -1056,6 +1147,21 @@ function render({ entering = false } = {}) {
   document.title = `${state.tab === 'data' ? 'Data' : 'People'} · self.mp3 admin`
   hideTip()
   drawCharts()
+  watchIndex()
+  for (const img of document.querySelectorAll('img.avatar')) {
+    img.addEventListener(
+      'error',
+      () => {
+        const letter = document.createElement('span')
+        letter.className = 'avatar'
+        letter.setAttribute('aria-hidden', 'true')
+        letter.style.background = 'var(--surface3)'
+        letter.textContent = img.dataset.initial ?? '?'
+        img.replaceWith(letter)
+      },
+      { once: true },
+    )
+  }
   const addBox = document.getElementById('add-emails')
   if (addBox && typed !== undefined) addBox.value = typed
   if (searching) {
@@ -1182,7 +1288,7 @@ document.addEventListener('click', event => {
   if (kind === 'confirm-cancel' && action.classList.contains('scrim') && target !== action) return
   switch (kind) {
     case 'add-open':
-      state.adding = true
+      state.adding = !state.adding
       state.addProblem = null
       render()
       break

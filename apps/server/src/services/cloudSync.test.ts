@@ -44,6 +44,7 @@ import { TagRepository } from '../repositories/tags.js'
 import { LocalStorageDriver } from '../storage/local.js'
 import { CloudAdopt } from './cloudAdopt.js'
 import { CloudIngest } from './cloudIngest.js'
+import { SongMerge } from './songMerge.js'
 import { CloudSyncService, type Doorman } from './cloudSync.js'
 import { SyncClock } from './localEdits.js'
 import { CoverService } from './covers.js'
@@ -132,6 +133,7 @@ describe('CloudSyncService', () => {
         now: () => clock,
       }),
       logger,
+      merge: new SongMerge({ db, sync: syncRepo }),
     })
     const storage = new LocalStorageDriver(root)
     covers = new CoverService({ dataDir } as Config, songs, logger)
@@ -346,6 +348,7 @@ describe('CloudSyncService', () => {
       artists: [],
       artistNames: [],
       spellings: {},
+      coverPacks: [],
       sound: null,
     })
 
@@ -1287,6 +1290,31 @@ describe('CloudSyncService', () => {
   })
 
   describe('what a snapshot says', () => {
+    it('is named for when it was written, after the names were spelt', async () => {
+      // Spelling a new library can take minutes; the name starts the window
+      // the logs are tidied against, so it is the time of the writing.
+      let spelt = 0
+      sync = makeSync({
+        names: {
+          repo: new NamesRepository(db),
+          spellings: {
+            fill: () => {
+              clock += 60 * 60 * 1000
+              spelt = clock
+              return Promise.resolve(0)
+            },
+            current: () => ({}),
+          },
+          lookup: { fill: () => Promise.resolve(0) },
+        },
+      })
+      addSong('A - One', 'one')
+      await connect()
+
+      expect(spelt).toBeGreaterThan(0)
+      expect(Date.parse(latest().writtenAt)).toBeGreaterThan(spelt)
+    })
+
     it('leaves out a song that is not up yet', async () => {
       addSong('A - One', 'one')
       await connect()
@@ -1566,6 +1594,24 @@ describe('CloudSyncService', () => {
         playlists: theirs.playlists,
       })
       expect(sync.status()).toMatchObject({ state: 'idle', lastError: null })
+    })
+
+    it('takes on the spellings the snapshot carries, keeping its own', async () => {
+      // Spelling the whole library is what a rebuilt server would otherwise
+      // do before its first snapshot; the one that wrote this one did it.
+      const names = new NamesRepository(db)
+      names.setSpelling('群青', ['gunjou (spelt here)'])
+      seedBucket({
+        ...theirLibrary(),
+        spellings: { 群青: ['gunjou'], 周杰伦: ['zhou jie lun', 'zhoujielun'] },
+      })
+
+      await connect()
+
+      expect(Object.fromEntries(names.spellings())).toEqual({
+        群青: ['gunjou (spelt here)'],
+        周杰伦: ['zhou jie lun', 'zhoujielun'],
+      })
     })
 
     it('does not upload a file the bucket already has', async () => {
@@ -1896,7 +1942,7 @@ describe('CloudSyncService', () => {
       expect(key).toBeDefined()
 
       // What the lyrics routes, the index and the romanization pass now read.
-      expect(await service.fetchLyrics(id)).toEqual({ text: words, synced: true })
+      expect(await service.fetchLyrics(id)).toEqual({ text: words, synced: true, romanized: null })
       const lyrics = new LyricsService(
         new LocalStorageDriver(root),
         createLogger('silent'),
@@ -1933,7 +1979,11 @@ describe('CloudSyncService', () => {
 
       // Kept as they went up: every start's index and romaji pass read them from here.
       for (let i = 0; i < 3; i++) {
-        expect(await service.fetchLyrics(id)).toEqual({ text: words, synced: true })
+        expect(await service.fetchLyrics(id)).toEqual({
+          text: words,
+          synced: true,
+          romanized: null,
+        })
       }
       expect(reads()).toBe(0)
 

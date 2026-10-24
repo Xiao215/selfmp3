@@ -151,8 +151,7 @@ const ConfigSchema = z.object({
    * The address `tailscale serve` gives the admin page, such as
    * https://pi.tail3d8516.ts.net:4443. The page answers only to that name and
    * to this machine's own, so another site cannot reach it by pointing a name
-   * of its own at 127.0.0.1. The doorman must list it in APP_ORIGINS for the
-   * page to sign in.
+   * of its own at 127.0.0.1.
    */
   adminUrl: z
     .string()

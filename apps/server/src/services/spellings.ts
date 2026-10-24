@@ -10,7 +10,9 @@ import type { RomanizationService } from './romanization.js'
  * The dictionaries are the server's — the Japanese one is too big for a phone
  * or a tab — so the spellings are made here, kept, and travel in the snapshot.
  * A name is spelt once: the first pass after a library arrives spells all of
- * it, and every pass after spells only what is new.
+ * it, and every pass after spells only what is new. A library taken on from
+ * the bucket brings the spellings its snapshot carries (services/cloudAdopt.ts),
+ * so only what that server had not spelt is left.
  */
 export class SpellingService {
   readonly #names: NamesRepository

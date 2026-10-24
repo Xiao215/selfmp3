@@ -331,7 +331,6 @@ export class StatsRepository {
     return { current: dayGap(lastDate, localDayKey(new Date())) <= 1 ? last : 0, longest }
   }
 
-  /** Recent plays, newest first. Powers the history list. */
   /** Plays a day since `from` (a UTC date), for the owner's admin page. */
   playsByDay(from: string): Map<string, number> {
     const rows = this.#db
@@ -343,6 +342,7 @@ export class StatsRepository {
     return new Map(rows.map(row => [row.day, row.plays]))
   }
 
+  /** Recent plays, newest first. Powers the history list. */
   recent(limit = 100): Array<{ songId: number; playedAt: string; completed: boolean }> {
     return this.#db
       .prepare<[number], { song_id: number; played_at: string; completed: number }>(

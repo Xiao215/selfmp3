@@ -127,6 +127,27 @@ describe('CoverService.jpegKept', () => {
     // A second start finds nothing to do.
     expect(await covers.jpegKept([1, 2, 3])).toBe(0)
   })
+
+  it('leaves a cover sharp cannot read unsaved, start after start', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const setArt = vi.fn()
+    const covers = new CoverService(
+      { dataDir } as Config,
+      { setArt, artExt: () => '.png' } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    fs.writeFileSync(path.join(dataDir, 'covers', '1.png'), image(3))
+    const saved = vi.fn()
+    covers.onSaved = saved
+
+    expect(await covers.jpegKept([1])).toBe(0)
+    expect(await covers.jpegKept([1])).toBe(0)
+
+    // Not saved again as it was: that would count its revision on each start.
+    expect(setArt).not.toHaveBeenCalled()
+    expect(saved).not.toHaveBeenCalled()
+    expect(fs.readFileSync(path.join(dataDir, 'covers', '1.png'))).toEqual(image(3))
+  })
 })
 
 describe('CoverService.thumbnail', () => {

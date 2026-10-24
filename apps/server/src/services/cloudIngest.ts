@@ -27,7 +27,7 @@ import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
-import { SongMerge } from './songMerge.js'
+import type { SongMerge } from './songMerge.js'
 
 /**
  * Other devices' changes, applied to this server's database (docs/SYNC.md).
@@ -82,8 +82,8 @@ export class CloudIngest {
     names: NamesRepository
     clock: SyncClock
     logger: Logger
-    /** Keeps a folded copy's cover file for the song kept (`CoverService.copy`). */
-    copyCover?: (fromId: number, intoId: number) => void
+    /** Folds a copy into the song kept: the one `POST /api/songs/merge` uses too. */
+    merge: SongMerge
   }) {
     this.#db = deps.db
     this.#songs = deps.songs
@@ -96,7 +96,7 @@ export class CloudIngest {
     this.#names = deps.names
     this.#clock = deps.clock
     this.#logger = deps.logger.child('ingest')
-    this.#merge = new SongMerge({ db: deps.db, sync: deps.sync, copyCover: deps.copyCover })
+    this.#merge = deps.merge
   }
 
   /**

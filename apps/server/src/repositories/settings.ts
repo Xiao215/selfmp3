@@ -12,9 +12,8 @@ import type { Db } from '../db/index.js'
  * clients writing different settings at the same time cannot clobber each
  * other's change. Reads merge stored values over the defaults, which means a
  * newly added setting works immediately without a migration. Each stored value
- * is checked against its own field: one that no longer fits — or the row of a
- * setting that was later removed — falls back to its default alone, and every
- * other setting keeps what was chosen.
+ * is checked against its own field: one that no longer fits falls back to its
+ * default alone, and every other setting keeps what was chosen.
  */
 export class SettingsRepository {
   readonly #all

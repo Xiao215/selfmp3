@@ -256,8 +256,10 @@ export class Hub {
     const doorman = this.#doorman!
     const made = await this.#askDoorman(() => doorman.grant(session, this.#name()))
     const grant = { token: made.token, id: made.grant.id }
-    // A library that was here before and was let go, joining again: the same
-    // workspace, with the new grant.
+    // An account already in the registry with no workspace open: one whose
+    // workspace could not be opened when it joined (`#open` below threw),
+    // joining again. The same workspace, token and all, with the new grant,
+    // rather than a second entry for one account.
     const known = registry.byAccount(account)
     const entry = known
       ? registry.update(known.id, { grant, email: me.email })

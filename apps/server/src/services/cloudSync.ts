@@ -668,10 +668,14 @@ export class CloudSyncService {
 
   /**
    * A song's words from the bucket, once the sidecar here has gone: what the
-   * lyrics routes, the search index and the romanization pass read. Null with
-   * no bucket, or a song the bucket holds no words for.
+   * lyrics routes, the search index and the romanization pass read. With the
+   * romanized lines the words file carries beside them, so a server that did
+   * not make them need not make them again (`keepRomanizedFromBucket`). Null
+   * with no bucket, or a song the bucket holds no words for.
    */
-  async fetchLyrics(songId: number): Promise<{ text: string; synced: boolean } | null> {
+  async fetchLyrics(
+    songId: number,
+  ): Promise<{ text: string; synced: boolean; romanized: string[] | null } | null> {
     const store = this.#store
     const state = this.#deps.cloud.state(songId)
     if (!store || !state?.lyricsKey) return null
@@ -683,7 +687,9 @@ export class CloudSyncService {
       if (body) await kept?.keep(key, body)
     }
     const words = body ? parseCloudWords(body.toString('utf8')) : null
-    return words ? { text: words.text, synced: state.lyricsKind === 'synced' } : null
+    return words
+      ? { text: words.text, synced: state.lyricsKind === 'synced', romanized: words.romanized }
+      : null
   }
 
   /**
@@ -2343,7 +2349,6 @@ export class CloudSyncService {
     await this.#prepareBucket(store)
 
     const deviceId = this.#deviceId()
-    const writtenAt = this.#now()
     // A request whose songs have all finished says so from now on.
     importRequests?.settle()
 
@@ -2355,6 +2360,10 @@ export class CloudSyncService {
     await names?.spellings.fill().catch((error: unknown) => {
       this.#logger.warn('could not spell names', { message: messageOf(error) })
     })
+    // After the spelling, which can take a while on a new library: the time
+    // names the snapshot and starts the window logs are tidied against, so it
+    // is the time the snapshot was really written.
+    const writtenAt = this.#now()
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),

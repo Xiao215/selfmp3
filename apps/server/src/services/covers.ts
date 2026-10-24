@@ -88,6 +88,10 @@ export class CoverService {
    * packs, and its colour is read again. A JPEG costs a look at its row, so
    * once every cover is one, a start passes straight through. Returns how many
    * it converted.
+   *
+   * One sharp cannot read is left exactly as it is, unsaved: saving it would
+   * keep the same file but count its revision on all the same, and every start
+   * would send every device for a cover that never changed.
    */
   async jpegKept(songIds: readonly number[]): Promise<number> {
     let converted = 0
@@ -97,9 +101,14 @@ export class CoverService {
       const cover = await this.find(songId)
       if (!cover) continue
       try {
-        await this.save(songId, await fsp.readFile(cover.path), extension)
-        // One sharp could not read stays as it was.
-        if (this.#songs.artExt(songId) === '.jpg') converted += 1
+        const squared = await squareCover(await fsp.readFile(cover.path), extension).catch(
+          () => null,
+        )
+        if (squared?.extension === '.jpg') {
+          await this.save(songId, squared.data, squared.extension)
+          // `save` keeps its own failures to itself; the row says whether it took.
+          if (this.#songs.artExt(songId) === '.jpg') converted += 1
+        }
       } catch (error) {
         this.#logger.warn('could not make a cover a JPEG', { songId, message: messageOf(error) })
       }

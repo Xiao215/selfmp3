@@ -139,7 +139,7 @@ export class CloudAdopt {
    * library that published would be the original bug wearing a hat.
    */
   async adopt(snapshot: CloudSnapshot): Promise<AdoptionResult> {
-    this.#adoptArtistNames(snapshot)
+    this.#adoptNames(snapshot)
     const empty = this.#nothingHere()
     const { prepared, same } = await this.#prepare(snapshot.songs)
     const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
@@ -325,12 +325,24 @@ export class CloudAdopt {
    * The names artists go by in the bucket, each list as the later of the two
    * says: exactly what `artistNamed` does when it arrives in a log. Whatever
    * else this server already has, a name set elsewhere is not left behind.
+   *
+   * And the Latin spellings of the library's names, for each name this server
+   * has not spelt yet. Spelling is the slow part of a first publish — the
+   * Japanese dictionary and pinyin over every title, artist and album — and
+   * the server that wrote the snapshot has done it already, so a rebuilt one
+   * takes its word rather than spelling the whole library again before it can
+   * write a snapshot of its own (services/spellings.ts). A name already spelt
+   * here keeps its spelling: both came out of the same dictionaries.
    */
-  #adoptArtistNames(snapshot: CloudSnapshot): void {
+  #adoptNames(snapshot: CloudSnapshot): void {
     this.#db.transaction(() => {
       for (const { artist, names, stamps } of snapshot.artistNames) {
         const hlc = stamps?.['names']
         if (hlc) this.#names.takeArtistNames(artist, names, hlc)
+      }
+      const spelt = this.#names.spellings()
+      for (const [name, spellings] of Object.entries(snapshot.spellings)) {
+        if (!spelt.has(name) && spellings.length > 0) this.#names.setSpelling(name, spellings)
       }
     })()
   }

@@ -38,10 +38,10 @@ import { usageRoutes } from './routes/usage.js'
  * token), auth before any route, and the error handler dead last so it catches
  * everything above it.
  *
- * Two shapes share it. `createApp` serves one library, as a test or a laptop
- * with a folder for a bucket wants. A server working for several accounts
- * serves each library's `libraryApi` behind the hub's own door instead
- * (hub/app.ts), which finds the library a request is for by its token.
+ * Two shapes share it. `createApp` serves one library, as the route tests
+ * stand it up. A running server works for several accounts and serves each
+ * library's `libraryApi` behind the hub's own door instead (hub/app.ts), which
+ * finds the library a request is for by its token.
  */
 export function createApp(container: Container): Express {
   const app = frame(container.config, container.logger)
@@ -88,7 +88,6 @@ export function frame(
   return app
 }
 
-/** The API's own 404, then the server's page, then the one error handler. */
 /**
  * The end of every app here: anything not answered is a 404, the API's own.
  * The server serves no page on its public port: its admin page has a listener

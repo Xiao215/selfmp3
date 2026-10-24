@@ -19,6 +19,7 @@ import { NamesRepository } from '../repositories/names.js'
 import { TagRepository } from '../repositories/tags.js'
 import { CloudImportService } from './cloudImports.js'
 import { CloudIngest } from './cloudIngest.js'
+import { SongMerge } from './songMerge.js'
 import { SyncClock } from './localEdits.js'
 
 /**
@@ -85,6 +86,7 @@ describe('links other devices ask to import', () => {
       names: new NamesRepository(db),
       clock: new SyncClock({ deviceId: () => 'mac-aaaa1111', latest: () => null, now: () => BASE }),
       logger,
+      merge: new SongMerge({ db, sync }),
     })
     resolve = () => Promise.resolve(single('Sunrise'))
     kicked = 0

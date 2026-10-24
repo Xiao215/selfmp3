@@ -89,8 +89,6 @@ function main(): void {
     process.exit(1)
   })
 
-  // Streaming a track over a slow phone connection can legitimately take a
-  // while; the defaults would cut it off.
   /*
    * The owner's admin page: this machine only, whatever SELFMP3_HOST says,
    * and reached from elsewhere through `tailscale serve` (docs/features/admin.md).
@@ -110,6 +108,8 @@ function main(): void {
     })
   })
 
+  // Streaming a track over a slow phone connection can legitimately take a
+  // while; the defaults would cut it off.
   server.keepAliveTimeout = 65_000
   server.headersTimeout = 70_000
   server.requestTimeout = 0

@@ -22,6 +22,7 @@ import { SyncRepository } from '../repositories/sync.js'
 import { NamesRepository } from '../repositories/names.js'
 import { TagRepository } from '../repositories/tags.js'
 import { CloudIngest } from './cloudIngest.js'
+import { SongMerge } from './songMerge.js'
 import { buildSnapshot } from './cloudSnapshot.js'
 import { LocalEdits, SyncClock } from './localEdits.js'
 
@@ -83,6 +84,7 @@ describe('CloudIngest', () => {
       names,
       clock,
       logger,
+      merge: new SongMerge({ db, sync }),
     })
   })
 

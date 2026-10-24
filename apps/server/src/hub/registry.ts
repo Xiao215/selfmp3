@@ -60,21 +60,17 @@ export class HubRegistry {
     return this.#entries
   }
 
-  byId(id: string): HubEntry | null {
-    return this.#entries.find(entry => entry.id === id) ?? null
-  }
-
   byAccount(account: string): HubEntry | null {
     return this.#entries.find(entry => entry.account === account) ?? null
   }
 
-  /** A new entry, kept at once. */
-  add(fields: Omit<HubEntry, 'id' | 'joinedAt' | 'token'> & { token?: string }): HubEntry {
+  /** A new entry, with a token of its own, kept at once. */
+  add(fields: Omit<HubEntry, 'id' | 'joinedAt' | 'token'>): HubEntry {
     const entry: HubEntry = {
       id: randomHex(8),
       joinedAt: new Date().toISOString(),
       ...fields,
-      token: fields.token ?? newToken(),
+      token: newToken(),
     }
     this.#entries = [...this.#entries, entry]
     this.#write()
@@ -82,7 +78,7 @@ export class HubRegistry {
   }
 
   update(id: string, fields: Partial<Omit<HubEntry, 'id'>>): HubEntry {
-    const entry = this.byId(id)
+    const entry = this.#entries.find(candidate => candidate.id === id)
     if (!entry) throw new Error(`no workspace ${id}`)
     const next = { ...entry, ...fields }
     this.#entries = this.#entries.map(candidate => (candidate.id === id ? next : candidate))

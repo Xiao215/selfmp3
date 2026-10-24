@@ -42,7 +42,7 @@ import type { KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
 import { MotionStore } from './services/motionStore.js'
 import type { RomanizationService } from './services/romanization.js'
-import { romanizedLines } from './services/romanizedLines.js'
+import { keepRomanizedFromBucket, romanizedLines } from './services/romanizedLines.js'
 import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
@@ -233,13 +233,20 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const metadata = new MetadataService(storage, logger)
   const netease = new NeteaseMusic(logger)
   // The words come from the bucket once the sidecar has gone up and been let
-  // go; the sync is built below, so it is reached lazily.
+  // go, and their romaji with them; the sync and the cache are built below,
+  // so both are reached lazily.
   const lyrics: LyricsService = new LyricsService(
     storage,
     logger,
     fetch,
     new YouTubeMusicLyrics(logger),
-    songId => cloudSync.fetchLyrics(songId),
+    async songId => {
+      const words = await cloudSync.fetchLyrics(songId)
+      if (words?.romanized) {
+        await keepRomanizedFromBucket({ lyricsCache }, songId, words.text, words.romanized)
+      }
+      return words
+    },
     netease,
   )
   const covers = new CoverService(config, songs, logger)
@@ -251,6 +258,13 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     latest: () => latestStamp(syncRepo.latestStamp(), names.latestStamp()),
   })
   const edits = new LocalEdits({ db, sync: syncRepo, clock })
+  // A song held twice, folded into the copy kept: when this server is asked
+  // (`POST /api/songs/merge`), and when another device's log says so.
+  const songMerge = new SongMerge({
+    db,
+    sync: syncRepo,
+    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
+  })
   const ingest = new CloudIngest({
     db,
     songs,
@@ -263,13 +277,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     names,
     clock,
     logger,
-    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
-  })
-  // A song held twice, folded into the copy kept when this server is asked (`POST /api/songs/merge`).
-  const songMerge = new SongMerge({
-    db,
-    sync: syncRepo,
-    copyCover: (fromId, intoId) => covers.copy(fromId, intoId),
+    merge: songMerge,
   })
 
   // Signing in to a bucket that already holds a library: take it on before

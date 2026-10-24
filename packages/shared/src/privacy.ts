@@ -25,7 +25,7 @@ interface PrivacyPolicy {
 export const PRIVACY_POLICY_URL = `${DEFAULT_APP_URL}/privacy.html`
 
 export const PRIVACY_POLICY: PrivacyPolicy = {
-  updated: '13 October 2026',
+  updated: '24 October 2026',
   sections: [
     {
       heading: 'What self.mp3 is',
@@ -46,8 +46,19 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
     {
       heading: 'Your bucket',
       lines: [
-        'When you connect your storage bucket, its address, name, key id and application key are kept, encrypted (AES-256-GCM) with a key only the doorman holds. They are used for one thing: passing your own signed-in devices’ reads and writes through to your bucket. They are never sent to any device, and never used to read your bucket on the doorman’s own behalf.',
+        'When you connect your storage bucket, its address, name, key id and application key are kept, encrypted (AES-256-GCM) with a key only the doorman holds. They are used for two things: passing your own signed-in devices’ reads and writes through to your bucket, and reading the files of the songs you share — in a link, a listening room or a shared playlist — for the people you shared them with, while that lasts. They are never sent to any device, and never used to read your bucket for anything else.',
         'Disconnecting the bucket deletes them at once. The bucket itself, and everything in it, is yours and is never touched by that.',
+      ],
+    },
+    {
+      heading: 'Sharing',
+      lines: [
+        'A song you share plays from your own bucket. Its files are read through the doorman for the people you shared it with, and only while the link, room or playlist lasts.',
+        'A share link keeps the songs in it and the name and profile picture you share it under, so whoever holds the link sees who sent it. It plays for 30 days at most, and ends sooner after 7 days without a play. Its card stays for 90 days after it ends; then the doorman forgets the link entirely.',
+        'While a link lasts, it keeps for its sender the names of the signed-in people who opened it (up to 50) and of anyone who asks to hear it again. Someone not signed in is counted, not named: their device sends a random id of its own, so a second look is not counted twice.',
+        'Chat apps that show a preview of a link fetch its page and the song’s cover through the doorman.',
+        'A listening room keeps the name and picture of each person in it, and the songs they add, while it is open. It is deleted ten minutes after it ends, or two hours after it was last used.',
+        'A shared playlist keeps the names and pictures of its people and the songs they put in it, until its last person leaves; then it is deleted.',
       ],
     },
     {
@@ -57,10 +68,11 @@ export const PRIVACY_POLICY: PrivacyPolicy = {
       ],
     },
     {
-      heading: 'Logs',
+      heading: 'Logs and counts',
       lines: [
         'The doorman writes a short line to its log when something goes wrong, such as a sign-in Google did not finish or an address that is not allowed in, so its operator can see why. A log line may name the email address involved. It never contains a session token, a bucket key or any file.',
         'Logs are kept by Cloudflare for a short period and are not used for anything else.',
+        'The doorman also keeps daily totals for its operator: how many files were read, by kind and by app, how many sessions were started, and how many sign-ins were turned away. They are numbers only, with no account, name, address or file in them, and are kept for a year.',
       ],
     },
     {

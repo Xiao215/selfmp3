@@ -67,7 +67,11 @@ class SongStreamModule : Module() {
       SongProxy.fetch(name, url, headers, directory) { promise.resolve(it) }
     }
 
-    /** Every download under way stopped: the folder is being emptied. */
+    /**
+     * Every download under way stopped, and every song named so far forgotten:
+     * the folder is being emptied, often on signing out, and an address the
+     * player still holds must not go on relaying with the bearer it was named with.
+     */
     Function("stopAll") { SongProxy.stopAll() }
   }
 }
@@ -108,7 +112,10 @@ private object SongProxy {
   }
 
   fun stopAll() {
-    val stopping = synchronized(lock) { arrivals.values.toList().also { arrivals.clear() } }
+    val stopping = synchronized(lock) {
+      sources.clear()
+      arrivals.values.toList().also { arrivals.clear() }
+    }
     stopping.forEach { it.cancel() }
   }
 

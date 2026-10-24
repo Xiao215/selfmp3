@@ -23,7 +23,8 @@ export function Confirmations({
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
   // Redo all is the server's pass, asked of it as Settings › Advanced › Library asks.
-  const startAnalysis = useStartAnalysis(useServerApi().api)
+  const server = useServerApi()
+  const startAnalysis = useStartAnalysis(server.api, server.via?.baseUrl ?? null)
   const place = devicePlace(deviceKind())
 
   const dialogs: Record<

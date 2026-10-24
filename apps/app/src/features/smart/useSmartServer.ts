@@ -15,6 +15,8 @@ interface SmartServer {
   readonly reach: Reach & { readonly lookAgain: () => void }
   /** Asks the server, or null until it is found and its songs are lined up with this device's. */
   readonly api: Api | null
+  /** The server's address, which what is asked of it is kept by; null until it is found. */
+  readonly baseUrl: string | null
   /** This device's id for a song the server numbers `serverId`. */
   readonly onDevice: (serverId: number) => number | undefined
   /** The server's id for a song this device numbers `songId`. */
@@ -34,12 +36,13 @@ export function useSmartServer(): SmartServer {
   const server = useServerApi(THINKING_MS)
   const ids = useServerSongIds(fromCloud ? server.via : undefined)
   const api = fromCloud && !ids.ready ? null : server.api
+  const baseUrl = server.via?.baseUrl ?? null
 
   return useMemo(
     () =>
       fromCloud
-        ? { reach: server.reach, api, onDevice: ids.onDevice, onServer: ids.onServer }
-        : { reach: server.reach, api, onDevice: same, onServer: same },
-    [fromCloud, server.reach, api, ids.onDevice, ids.onServer],
+        ? { reach: server.reach, api, baseUrl, onDevice: ids.onDevice, onServer: ids.onServer }
+        : { reach: server.reach, api, baseUrl, onDevice: same, onServer: same },
+    [fromCloud, server.reach, api, baseUrl, ids.onDevice, ids.onServer],
   )
 }

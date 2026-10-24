@@ -21,10 +21,10 @@ import {
  *
  * In the installed app it is: `coverFiles` puts it in the shell's covers folder
  * and `app://selfmp3/_media/covers/…` serves it back. In a tab there is no such
- * place, so `coverFiles` is null, `canKeep` is false, and every export here
- * becomes the nothing a browser has always done — a cloud library's rows keep
- * their letter tiles, and a server's covers are drawn from the server's own
- * address, which needs no file.
+ * place, so `coverFiles` is null and `canKeep` is false: the service worker
+ * attaches the header and draws each cover from an address of its own
+ * (sw/sw.ts), and a server's covers are drawn from the server's. What a tab
+ * does keep is what the packs bring (`tabPictures`).
  *
  * What to do about a cover is offline/coverStore.ts, shared with the phone.
  */
@@ -36,19 +36,30 @@ import {
  * (sw/sw.ts). A tab keeps no files, but with this a cloud library's covers
  * are a few reads for the whole library rather than one a row. Null where no
  * worker answers those addresses.
+ *
+ * Kept, they are let go by the rules a computer's folder is: the sweep takes
+ * the pictures the library no longer names, and signing out takes them all
+ * (`remove`, `forget`) — the worker keeps one version of a song's cover, but
+ * never looks back at a picture under its key.
  */
-function tabPacks(): PackSink | null {
+interface TabPictures extends PackSink {
+  readonly remove: (name: string) => Promise<void>
+  readonly forget: () => Promise<void>
+}
+
+function tabPictures(): TabPictures | null {
   if (typeof caches === 'undefined' || bucketPictureAddress('covers/') === null) return null
   const addressOf = (name: string): string =>
     new URL(bucketPictureAddress(`covers/${name}`) ?? '', location.origin).href
+  const have = async (): Promise<readonly string[]> => {
+    const cache = await caches.open(API_CACHE)
+    const prefix = addressOf('')
+    return (await cache.keys()).flatMap(request =>
+      request.url.startsWith(prefix) ? [request.url.slice(prefix.length)] : [],
+    )
+  }
   return {
-    have: async () => {
-      const cache = await caches.open(API_CACHE)
-      const prefix = addressOf('')
-      return (await cache.keys()).flatMap(request =>
-        request.url.startsWith(prefix) ? [request.url.slice(prefix.length)] : [],
-      )
-    },
+    have,
     unpack: async (url, headers, slices) => {
       const response = await fetch(url, { headers })
       if (!response.ok) throw new Error(`the bucket answered ${response.status}`)
@@ -64,6 +75,13 @@ function tabPacks(): PackSink | null {
         )
       }
     },
+    remove: async name => {
+      await (await caches.open(API_CACHE)).delete(addressOf(name))
+    },
+    forget: async () => {
+      const cache = await caches.open(API_CACHE)
+      for (const name of await have()) await cache.delete(addressOf(name))
+    },
   }
 }
 
@@ -73,6 +91,9 @@ function pictureType(name: string): string {
   if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg'
   return `image/${extension}`
 }
+
+/** A tab's, where there is no folder to keep covers in. */
+const tab = coverFiles ? null : tabPictures()
 
 const platform: CoverPlatform = {
   canKeep: () => coverFiles !== null,
@@ -103,10 +124,10 @@ const platform: CoverPlatform = {
     return (await files.has(name)) ? files.uriFor(name) : null
   },
 
-  listCloud: async () => (await coverFiles?.list()) ?? [],
+  listCloud: async () => (coverFiles ? coverFiles.list() : ((await tab?.have()) ?? [])),
 
   removeCloud: async name => {
-    await coverFiles?.remove(name)
+    await (coverFiles ?? tab)?.remove(name)
   },
 
   keepCloud: async (name, url, headers) => {
@@ -124,7 +145,7 @@ const platform: CoverPlatform = {
   },
 
   forgetFiles: async () => {
-    await coverFiles?.forget()
+    await (coverFiles ?? tab)?.forget()
   },
 
   packs: coverFiles
@@ -134,7 +155,7 @@ const platform: CoverPlatform = {
           await coverFiles?.unpack(url, headers, slices)
         },
       }
-    : (tabPacks() ?? undefined),
+    : (tab ?? undefined),
 }
 
 /**

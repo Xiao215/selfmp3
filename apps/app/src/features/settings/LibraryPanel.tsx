@@ -83,8 +83,8 @@ function LibraryRows({
   })
   const libraryPath = health.data?.libraryPath
   const scan = useScanLibrary(api)
-  const analysis = useAnalysisStatus(api)
-  const startAnalysis = useStartAnalysis(api)
+  const analysis = useAnalysisStatus(api, baseUrl ?? null)
+  const startAnalysis = useStartAnalysis(api, baseUrl ?? null)
   const analysed = songs.filter(song => song.audioFeatures !== null).length
   const running = analysis.data?.running === true
 
@@ -125,7 +125,7 @@ function LibraryRows({
           <Text style={partStyles.progressText}>{analysisProgress(analysis.data)}</Text>
         </View>
       ) : null}
-      <CoverArtRow api={api} songs={songs} last />
+      <CoverArtRow api={api} baseUrl={baseUrl} songs={songs} last />
     </>
   )
 }
@@ -137,16 +137,18 @@ function LibraryRows({
  */
 function CoverArtRow({
   api,
+  baseUrl,
   songs,
   last,
 }: {
   api: Api
+  baseUrl: string | undefined
   songs: readonly Song[]
   last: boolean
 }): ReactNode {
   const client = useQueryClient()
-  const { data: status } = useFixCoversStatus(api)
-  const fixCovers = useFixCovers(api)
+  const { data: status } = useFixCoversStatus(api, baseUrl ?? null)
+  const fixCovers = useFixCovers(api, baseUrl ?? null)
   const missingArt = missingArtCount(songs)
   const running = status?.status === 'running'
   const result = status ? coverResult(status) : null

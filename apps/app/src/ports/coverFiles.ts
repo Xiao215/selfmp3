@@ -6,9 +6,11 @@ import type { PackSlice } from '../offline/coverPacks'
  * `null` on a phone and in an ordinary tab. A phone keeps its covers through
  * expo-file-system (offline/covers.ts) and needs nothing from here; a browser
  * has no folder to keep them in, and no way to hand an `<img>` a bearer token,
- * so a cloud library's covers stay letter tiles there. The installed app has
- * both: the shell fetches with the header and serves the file back from its own
- * origin, which is the whole reason this port exists.
+ * so its service worker attaches the header and draws a cloud library's covers
+ * from addresses of its own, filled ahead by the bucket's packs
+ * (offline/covers.web.ts). The installed app has a folder but no worker: the
+ * shell fetches with the header and serves the file back from its own origin,
+ * which is the whole reason this port exists.
  */
 export interface CoverFiles {
   /** Where a kept cover is drawn from, whether or not it is there yet. */

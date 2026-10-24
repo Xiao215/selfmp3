@@ -1,4 +1,5 @@
-import { requireOptionalNativeModule } from 'expo'
+import { requireNativeModule } from 'expo'
+import { HASH_FILE_NAME } from '@selfmp3/shared'
 
 interface Subscription {
   remove(): void
@@ -37,15 +38,14 @@ interface SongStreamModule {
  * song's for as long as it is kept.
  *
  * Built for iOS (`ios/SongStreamModule.swift`) and Android
- * (`android/.../SongStreamModule.kt`), which answer alike. `null` in a dev
- * client built before the module was added: the player then asks the doorman
- * for each range itself, with the bearer as a header (`bucketMedia.ts`), and a
- * played song is fetched again whole to be kept.
+ * (`android/.../SongStreamModule.kt`), which answer alike, and required: a
+ * phone build without it is a build to redo, not a case to stream around.
  */
-export const songStream: SongStreamModule | null =
-  requireOptionalNativeModule<SongStreamModule>('SongStream')
+export const songStream = requireNativeModule<SongStreamModule>('SongStream')
+
+const HASH_NAMED = new RegExp(`^${HASH_FILE_NAME}$`)
 
 /** What the module will take: `<sha256>.<extension>`, as `fileNameFor` names a bucket song. */
 export function streamsOnce(fileName: string): boolean {
-  return songStream !== null && /^[0-9a-f]{64}\.[a-z0-9]{1,5}$/.test(fileName)
+  return HASH_NAMED.test(fileName)
 }

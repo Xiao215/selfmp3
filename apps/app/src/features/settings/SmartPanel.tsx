@@ -84,7 +84,10 @@ const SWITCHES: readonly {
  */
 export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
-  const { settings, failed, retry, set } = useServerSettings(server.api)
+  const { settings, failed, retry, set } = useServerSettings(
+    server.api,
+    server.via?.baseUrl ?? null,
+  )
   return (
     <Panel
       title="Smart features"

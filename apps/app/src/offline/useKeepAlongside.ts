@@ -10,6 +10,7 @@ import {
   ensureServerCover,
   fillFromPacks,
   KEPT_COVER_SIZE,
+  keepsCovers,
   sweepPictures,
 } from './covers'
 import { useDownloads } from './DownloadsProvider'
@@ -188,8 +189,10 @@ export function useKeepAlongside(): void {
           if (cancelled) return
           if (song.hasArt) {
             if (fromCloud) {
+              // A tab keeps none one at a time: its worker fetches each as it is
+              // drawn, and only what a pack was to bring can be missing.
               const waits = packWaits(cloudLibrary.cloudCoverKeyNow(song.id))
-              if (!waits && !(await ensureCover(song.id))) missing++
+              if (!waits && keepsCovers && !(await ensureCover(song.id))) missing++
             } else if (connection) {
               // Waited on, so the server is asked for AT_ONCE covers at a time.
               await ensureServerCover(
@@ -226,7 +229,7 @@ export function useKeepAlongside(): void {
           pictures.artists.flatMap(artist => [artist.banner, artist.portrait]),
           AT_ONCE,
           async key => {
-            if (packWaits(key)) return
+            if (packWaits(key) || !keepsCovers) return
             if (!(await ensurePicture(key))) missing++
           },
           isCancelled,

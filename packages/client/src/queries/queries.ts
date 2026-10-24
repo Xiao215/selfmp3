@@ -78,7 +78,9 @@ import {
  *
  * Keys carry no server address: the cache is cleared when the address changes
  * (`queryClient.clear()`), and every query is gated on having an address at
- * all, which is `ClientState.ready`.
+ * all, which is `ClientState.ready`. The exceptions are what is asked of a
+ * library's server directly rather than of whatever answers this device
+ * (`devicesThrough`, `settings` and the rest), which carry its address.
  */
 
 /**
@@ -93,7 +95,15 @@ export const queryKeys = {
   cloudServer: ['cloud-server'] as const,
   serverGrants: ['cloud-grants'] as const,
   library: ['library'] as const,
-  settings: ['settings'] as const,
+  /**
+   * What only a library's server keeps — its settings, its analysis pass, its
+   * cover-fixing pass — asked of that server directly (`useServerApi` in the
+   * app), and so kept by its address. A device's cache is cleared when its own
+   * address changes, but a cloud library reaching one server and then another
+   * (a refused one passed over, a shared library joined, a new name) keeps the
+   * same cache, and one server's answer would stand in for the next's.
+   */
+  settings: (baseUrl: string | null) => ['settings', baseUrl] as const,
   importQueue: ['import', 'queue'] as const,
   importHistory: ['import', 'history'] as const,
   importTools: ['import', 'tools'] as const,
@@ -123,11 +133,13 @@ export const queryKeys = {
   motion: (id: number) => ['motion', id] as const,
   health: ['health'] as const,
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
-  fixCovers: ['metadata', 'fix-covers'] as const,
+  /** By the server's address, as `settings` is. */
+  fixCovers: (baseUrl: string | null) => ['metadata', 'fix-covers', baseUrl] as const,
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
   /** The limit is in the key: a different count is a different answer. */
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
-  analysis: ['analysis'] as const,
+  /** By the server's address, as `settings` is. */
+  analysis: (baseUrl: string | null) => ['analysis', baseUrl] as const,
   devices: ['devices'] as const,
   /**
    * The device list as a server reached directly from a cloud library tells
@@ -341,12 +353,15 @@ function serverOf(api: Api | null): Api {
 /**
  * The library's settings, which only its server keeps and acts on
  * (`SettingsSchema`). `api` is that server — reached directly from a cloud
- * library (`useServerApi` in the app) — or null while it is away. One key for
- * them: a device has one server, and the cache is cleared when it changes.
+ * library (`useServerApi` in the app) — or null while it is away, and
+ * `baseUrl` its address, which the answer is kept by (`queryKeys.settings`).
  */
-export function useSettings(api: Api | null): UseQueryResult<Settings, Error> {
+export function useSettings(
+  api: Api | null,
+  baseUrl: string | null,
+): UseQueryResult<Settings, Error> {
   return useQuery({
-    queryKey: queryKeys.settings,
+    queryKey: queryKeys.settings(baseUrl),
     enabled: api !== null,
     queryFn: () => serverOf(api).settings(),
     staleTime: STALE.fiveMinutes,
@@ -862,14 +877,14 @@ export function useToggleLoved() {
   })
 }
 
-export function useUpdateSettings(api: Api | null) {
+export function useUpdateSettings(api: Api | null, baseUrl: string | null) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (patch: Parameters<Api['updateSettings']>[0]) =>
       serverOf(api).updateSettings(patch),
     meta: { failure: 'Couldn’t save the setting' },
     onSuccess: settings => {
-      client.setQueryData(queryKeys.settings, settings)
+      client.setQueryData(queryKeys.settings(baseUrl), settings)
     },
   })
 }
@@ -1015,23 +1030,26 @@ export const useApplyMetadata = () =>
   )
 
 /** The cover-art pass, polled only while it runs (same idea as the import queue). */
-export function useFixCoversStatus(api: Api | null): UseQueryResult<FixCoversStatus, Error> {
+export function useFixCoversStatus(
+  api: Api | null,
+  baseUrl: string | null,
+): UseQueryResult<FixCoversStatus, Error> {
   return useQuery({
-    queryKey: queryKeys.fixCovers,
+    queryKey: queryKeys.fixCovers(baseUrl),
     enabled: api !== null,
     queryFn: () => serverOf(api).fixCoversStatus(),
     refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
   })
 }
 
-export function useFixCovers(api: Api | null) {
+export function useFixCovers(api: Api | null, baseUrl: string | null) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (action: 'start' | 'cancel') =>
       action === 'start' ? serverOf(api).fixCoversStart() : serverOf(api).fixCoversCancel(),
     meta: { failure: 'Couldn’t reach the cover fixing' },
     onSuccess: status => {
-      client.setQueryData(queryKeys.fixCovers, status)
+      client.setQueryData(queryKeys.fixCovers(baseUrl), status)
       void client.invalidateQueries({ queryKey: queryKeys.library })
       // A rule can ask for art (`hasArt`), so found covers are new members.
       refetchLivePlaylists(client)
@@ -1068,13 +1086,16 @@ export function useSimilar(
  * library is refetched once it stops, so the new BPM and key badges appear,
  * with the members of any live playlist whose rules follow those.
  */
-export function useAnalysisStatus(api: Api | null): UseQueryResult<AnalysisStatus, Error> {
+export function useAnalysisStatus(
+  api: Api | null,
+  baseUrl: string | null,
+): UseQueryResult<AnalysisStatus, Error> {
   const client = useQueryClient()
   return useQuery({
-    queryKey: queryKeys.analysis,
+    queryKey: queryKeys.analysis(baseUrl),
     queryFn: async () => {
       const status = await serverOf(api).analysisStatus()
-      const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis)
+      const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis(baseUrl))
       if (previous?.running && !status.running) {
         void client.invalidateQueries({ queryKey: queryKeys.library })
         refetchLivePlaylists(client)
@@ -1086,12 +1107,12 @@ export function useAnalysisStatus(api: Api | null): UseQueryResult<AnalysisStatu
   })
 }
 
-export function useStartAnalysis(api: Api | null) {
+export function useStartAnalysis(api: Api | null, baseUrl: string | null) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (force: boolean) => serverOf(api).analyze(force),
     onSuccess: status => {
-      client.setQueryData(queryKeys.analysis, status)
+      client.setQueryData(queryKeys.analysis(baseUrl), status)
     },
   })
 }

@@ -1,14 +1,12 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Tag } from '@selfmp3/shared'
-import { clientApi, queryKeys, STALE, space, useLibrary } from '@selfmp3/client'
+import { useQuery } from '@tanstack/react-query'
+import { clientApi, queryKeys, space, useLibrary } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerApi, type ServerApi } from '../../connection/useServerApi'
-import { noServer, viaKey } from '../../connection/via'
 import { copyText } from '../../ports/clipboard'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
@@ -19,6 +17,7 @@ import { Toggle } from '../../ui/components/Toggle'
 import { Panel, Row, SettingsWaiting } from './SettingsParts'
 import { addressForElsewhere, serverTokenHint } from './settings.model'
 import { useServerSettings } from './useServerSettings'
+import { useServerLibrary } from '../import/useServerLibrary'
 
 /**
  * Settings › Advanced › Importing: how the library's server imports, so read
@@ -28,7 +27,10 @@ import { useServerSettings } from './useServerSettings'
  */
 export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
-  const { settings, failed, retry, set } = useServerSettings(server.api)
+  const { settings, failed, retry, set } = useServerSettings(
+    server.api,
+    server.via?.baseUrl ?? null,
+  )
   const named = useNamedServer()
   return (
     <Panel title="Importing" hint="on your library’s computer" anchor={anchor}>
@@ -159,8 +161,7 @@ function copy(text: string, what: 'token' | 'address'): void {
  * The tags every import gets (`defaultImportTagIds`), chosen with the picker an
  * import's own tags use. They are the server's tag ids, so a cloud library
  * offers the server's tags and makes a new one there, as Import does
- * (importSource.ts, under the same key); a device talking to its server has
- * them as its own.
+ * (`useServerLibrary`); a device talking to its server has them as its own.
  */
 function DefaultTags({
   server,
@@ -172,30 +173,13 @@ function DefaultTags({
   onChange: (ids: number[]) => void
 }): ReactNode {
   const { fromCloud } = useConnection()
-  const queryClient = useQueryClient()
-  const { api } = server
-  const baseUrl = server.via?.baseUrl
-  const libraryKey = useMemo(() => viaKey(baseUrl, 'library'), [baseUrl])
-  const theirs = useQuery({
-    queryKey: libraryKey,
-    queryFn: () => (api ? api.library() : noServer()),
-    enabled: fromCloud && api !== null,
-    staleTime: STALE.halfMinute,
-  })
+  const theirs = useServerLibrary(server.api, server.via?.baseUrl, fromCloud)
   const own = useLibrary()
-  const create = useCallback(
-    async (name: string): Promise<Tag> => {
-      if (!api) return noServer()
-      const tag = await api.createTag({ name })
-      await queryClient.invalidateQueries({ queryKey: libraryKey })
-      return tag
-    },
-    [api, queryClient, libraryKey],
-  )
-  const tags = (fromCloud ? theirs.data?.tags : own.data?.tags) ?? []
+  const tags = (fromCloud ? theirs.library?.tags : own.data?.tags) ?? []
+  const create = theirs.createTag
   const from = useMemo(
-    () => (fromCloud ? { tags: theirs.data?.tags ?? [], create } : undefined),
-    [fromCloud, theirs.data?.tags, create],
+    () => (fromCloud ? { tags: theirs.library?.tags ?? [], create } : undefined),
+    [fromCloud, theirs.library?.tags, create],
   )
   const chosen = useMemo(() => new Set(selected), [selected])
   return (

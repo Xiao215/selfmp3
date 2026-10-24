@@ -61,6 +61,7 @@ jest.mock('../replica', () => ({
 }))
 jest.mock('./covers', () => ({
   KEPT_COVER_SIZE: 640,
+  keepsCovers: true,
   ensureCover: (songId: number) => mockEnsureCover(songId),
   ensurePicture: (key: string) => mockEnsurePicture(key),
   ensureServerCover: () => Promise.resolve(),

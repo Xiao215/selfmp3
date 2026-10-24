@@ -47,9 +47,11 @@ const RETRY_FAILED_MS = 30_000
 export interface CoverPlatform {
   /**
    * Whether this platform can keep a cover at all. An ordinary browser tab
-   * cannot, and every export below becomes the nothing a browser has always
-   * done: a cloud library's rows keep their letter tiles, and a server's
-   * covers are drawn from the server's own address, which needs no file.
+   * cannot, and the exports below that keep one become nothing: its service
+   * worker draws a cloud library's covers from their own addresses, and a
+   * server's from the server's. What a tab's packs put in that worker's cache
+   * (`packs`) is still listed, swept and forgotten here (`listCloud`,
+   * `removeCloud`, `forgetFiles`).
    */
   readonly canKeep: () => boolean
   /**
@@ -69,7 +71,7 @@ export interface CoverPlatform {
    * a phone's file system can. Left out where it cannot.
    */
   readonly peekCloud?: (name: string) => string | null
-  /** Every cloud picture this device keeps, by name. May throw. */
+  /** Every cloud picture this device keeps, by name — a tab's, those its packs brought. May throw. */
   readonly listCloud: () => Promise<readonly string[]>
   /** Delete the cloud picture `name`. May throw. */
   readonly removeCloud: (name: string) => Promise<void>
@@ -379,7 +381,6 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
    * holds (`holdPictures`: a past room's friends' covers) stays.
    */
   const sweepPictures = async (named: ReadonlySet<string>): Promise<number> => {
-    if (!platform.canKeep()) return 0
     const keep = new Set([...named].map(nameFromKey))
     const gone = new Set<string>()
     for (const name of await platform.listCloud()) {

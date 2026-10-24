@@ -51,3 +51,21 @@ jest.mock('expo-file-system', () => ({
   },
   Paths: { document: '/tmp', cache: '/tmp' },
 }))
+
+// The app's own loopback server for a bucket song (modules/song-stream), which
+// ports/songStream.ts requires: providers reach the played-songs folder on
+// their way to the player. It never listens here, so a song has no address.
+jest.mock('expo', () => {
+  const actual = jest.requireActual('expo')
+  const songStream = {
+    address: () => null,
+    fetch: () => Promise.resolve(null),
+    stopAll() {},
+    addListener: () => ({ remove() {} }),
+  }
+  return {
+    ...actual,
+    requireNativeModule: name =>
+      name === 'SongStream' ? songStream : actual.requireNativeModule(name),
+  }
+})

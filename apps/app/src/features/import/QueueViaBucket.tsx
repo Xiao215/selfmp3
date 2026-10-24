@@ -49,6 +49,17 @@ export function QueueViaBucket(): ReactNode {
   const [tagIds, setTagIds] = useState<ReadonlySet<number>>(new Set())
   const [added, setAdded] = useState(false)
 
+  // A link shared while this is open lands in the box as the first one did:
+  // the share in the address is what changed, so the box follows it then.
+  const [sharedSeen, setSharedSeen] = useState(shared)
+  if (shared !== sharedSeen) {
+    setSharedSeen(shared)
+    if (shared) {
+      setUrl(shared)
+      setAdded(false)
+    }
+  }
+
   const tags = library?.tags ?? []
   const ready = url.trim().length > 0 && !queue.isPending
 

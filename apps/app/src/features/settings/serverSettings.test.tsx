@@ -95,7 +95,14 @@ const METRICS = {
 }
 
 const draw = async (ui: ReactNode) => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // Nothing is collected on a timer: a query or a saved setting left to be
+  // collected in five minutes keeps jest from exiting.
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { gcTime: Infinity },
+    },
+  })
   const drawn = await render(
     <SafeAreaProvider initialMetrics={METRICS}>
       <QueryClientProvider client={client}>{ui}</QueryClientProvider>

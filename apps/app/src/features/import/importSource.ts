@@ -19,6 +19,7 @@ import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from './useSongsLanding'
+import { useServerLibrary } from './useServerLibrary'
 import { noServer, viaKey } from '../../connection/via'
 
 /**
@@ -84,12 +85,7 @@ export function useImportSource(
   )
   const queryClient = useQueryClient()
 
-  const serverLibrary = useQuery({
-    queryKey: keys.library,
-    queryFn: () => (server ? server.library() : noServer()),
-    enabled: server !== null,
-    staleTime: STALE.halfMinute,
-  })
+  const serverLibrary = useServerLibrary(server, baseUrl)
   const serverQueue = useQuery({
     queryKey: keys.queue,
     queryFn: () => (server ? server.importQueue() : noServer()),
@@ -120,16 +116,6 @@ export function useImportSource(
   const ownHistory = useImportHistory(server === null && history)
   const ownTools = useImportTools(server === null)
   const createHere = useCreateTag()
-  // Steady between renders: the picker rebuilds its list around this.
-  const createOnServer = useCallback(
-    async (name: string): Promise<Tag> => {
-      if (!server) return noServer()
-      const tag = await server.createTag({ name })
-      await queryClient.invalidateQueries({ queryKey: keys.library })
-      return tag
-    },
-    [server, queryClient, keys.library],
-  )
   // `mutateAsync` is the same function between renders; the object around it is not.
   const makeHere = createHere.mutateAsync
   const createOnDevice = useCallback((name: string): Promise<Tag> => makeHere({ name }), [makeHere])
@@ -161,8 +147,8 @@ export function useImportSource(
   if (server) {
     return {
       api: server,
-      library: serverLibrary.data,
-      createTag: createOnServer,
+      library: serverLibrary.library,
+      createTag: serverLibrary.createTag,
       tools: serverTools.data,
       refetchTools: serverTools.refetch,
       queue,

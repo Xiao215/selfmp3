@@ -26,7 +26,7 @@ interface SmartSwitches {
 export function useSmartSwitches(): SmartSwitches {
   const server = usePresenceConnection()
   const api = useMemo(() => (server ? apiFor(server) : null), [server])
-  const { data } = useSettings(api)
+  const { data } = useSettings(api, server?.baseUrl ?? null)
   return {
     ask: data?.smartAsk ?? true,
     tidy: data?.smartTidy ?? true,

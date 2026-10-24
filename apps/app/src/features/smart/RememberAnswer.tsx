@@ -16,9 +16,9 @@ import { useSmartServer } from './useSmartServer'
  */
 export function RememberAnswer({ note, onDone }: { note: string; onDone: () => void }): ReactNode {
   // The notes are the library's settings, kept by the server Ask asked.
-  const { api } = useSmartServer()
-  const { data: settings } = useSettings(api)
-  const update = useUpdateSettings(api)
+  const { api, baseUrl } = useSmartServer()
+  const { data: settings } = useSettings(api, baseUrl)
+  const update = useUpdateSettings(api, baseUrl)
   const notes = settings?.smartNotes ?? []
   const saved = notes.some(each => each.toLowerCase() === note.toLowerCase())
   const full = notes.length >= SMART_NOTES_MAX

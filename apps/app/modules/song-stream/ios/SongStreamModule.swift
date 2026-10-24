@@ -46,7 +46,10 @@ public class SongStreamModule: Module {
       }
     }
 
-    /// Every download under way stopped: the folder is being emptied.
+    /// Every download under way stopped, and every song named so far
+    /// forgotten: the folder is being emptied, often on signing out, and an
+    /// address the player still holds must not go on relaying with the bearer
+    /// it was named with.
     Function("stopAll") {
       SongProxy.shared.stopAll()
     }
@@ -104,6 +107,7 @@ final class SongProxy {
     let stopping = lock.withLock { () -> [Arrival] in
       let all = Array(arrivals.values)
       arrivals.removeAll()
+      sources.removeAll()
       return all
     }
     stopping.forEach { $0.cancel() }

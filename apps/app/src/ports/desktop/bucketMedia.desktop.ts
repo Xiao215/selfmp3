@@ -60,7 +60,9 @@ function over(bridge: DesktopBridge): DesktopBucketMedia {
       if (token === told) return
       told = token
       void bridge.bucket.use(token === null ? null : { doormanUrl, token }).catch(() => {
-        // The shell refused the session's shape: songs not here say they cannot be had.
+        // The shell refused the session's shape: songs not here say they cannot
+        // be had, and the same session is handed over again the next time.
+        if (told === token) told = null
       })
     },
   }

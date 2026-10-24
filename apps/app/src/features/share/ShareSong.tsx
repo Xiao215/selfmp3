@@ -41,7 +41,7 @@ const STAGE_COVER_GAP = 24
 const TOOLS_CLEARANCE = 96
 
 /** Everything on the phone's cover view but the cover, for the cover to fit the screen beside. */
-const PHONE_ROOM = 400
+const PHONE_ROOM = 320
 /** Signed in, the app's mini player sits over the page's foot. */
 const IN_APP_ROOM = 120
 const PHONE_COVER_LEAST = 160
@@ -474,10 +474,10 @@ const styles = StyleSheet.create(theme => ({
   },
   tools: { position: 'absolute', top: 0, right: 0 },
 
-  phone: { flex: 1, paddingBottom: space.xl },
+  phone: { flex: 1, paddingBottom: space.md },
   // The cover and the words, one over the other, above the controls they share.
   phoneViews: { flex: 1, minHeight: 0 },
-  phoneControls: { alignSelf: 'center', gap: space.lg, paddingTop: space.lg },
+  phoneControls: { alignSelf: 'center', gap: space.sm, paddingTop: space.md },
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   phonePage: { paddingHorizontal: space.gutter, paddingTop: space.gutter },
   phoneInApp: { paddingBottom: IN_APP_ROOM },
@@ -486,13 +486,13 @@ const styles = StyleSheet.create(theme => ({
   phoneTitle: heroTitle(theme.colors, 'page'),
   phoneByline: { color: theme.colors.textSecondary, fontSize: type.body },
   phonePlay: { alignItems: 'center' },
-  phoneFoot: { alignItems: 'center', paddingTop: space.lg },
-  wordsPage: { paddingTop: space.sm },
+  phoneFoot: { alignItems: 'center', paddingTop: space.md },
+  wordsPage: { paddingTop: space.md },
   wordsHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   wordsTitle: rowTitle(theme.colors),
   wordsArtist: { color: theme.colors.textSecondary, fontSize: type.small },
   // Past the page's sides, as Now Playing's words are, so a line's press wash has room.
-  words: { flex: 1, minHeight: 0, marginTop: space.md, marginHorizontal: -space.gutter },
+  words: { flex: 1, minHeight: 0, marginTop: space.lg, marginHorizontal: -space.gutter },
   wordsStatus: {
     color: theme.colors.textMuted,
     fontSize: type.sub,

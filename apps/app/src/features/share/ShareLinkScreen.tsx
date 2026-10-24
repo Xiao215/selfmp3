@@ -511,7 +511,6 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.tight,
-    paddingTop: space.xl,
   },
   footerText: { color: theme.colors.textMuted, fontSize: type.small },
 }))

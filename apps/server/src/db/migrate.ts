@@ -944,10 +944,9 @@ const MIGRATIONS: readonly Migration[] = [
     // (`wordsKey`), so a device reads them with one call rather than two, and
     // `romanized_key` goes. Made again without it, so the table is the same
     // however it is reached. The romanized lines' own files are then named by
-    // nothing, and go as any such file does (`#trashOrphans`); the words' old
-    // text files are put up again as words files by the next cloud pass
-    // (`CloudSync`'s `#rewriteOldWords`), which needs the bucket, and go in the
-    // trash as each is replaced.
+    // nothing, and go as any such file does (`#trashOrphans`). The words' old
+    // text files were put up again as words files by a one-off step of the
+    // cloud pass, removed once the Pi had run it (2026-10-24).
     name: 'words and romanized lines in one file',
     sql: `
       CREATE TABLE cloud_songs_new (

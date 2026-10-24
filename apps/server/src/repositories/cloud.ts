@@ -245,8 +245,6 @@ export class CloudRepository {
   readonly #states
   readonly #state
   readonly #saveState
-  readonly #oldWords
-  readonly #saveWords
   readonly #hasFile
   readonly #recordFile
   readonly #trashSong
@@ -313,16 +311,6 @@ export class CloudRepository {
         lyrics_kind = excluded.lyrics_kind, lyrics_sig = excluded.lyrics_sig,
         motion_key = excluded.motion_key,
         motion_sig = excluded.motion_sig, uploaded_at = excluded.uploaded_at
-    `)
-    this.#oldWords = db.prepare<[], { song_id: number }>(`
-      SELECT song_id FROM cloud_songs
-       WHERE lyrics_key IS NOT NULL AND lyrics_key NOT LIKE 'lyrics/%.words'
-       ORDER BY song_id
-    `)
-    this.#saveWords = db.prepare(`
-      UPDATE cloud_songs
-         SET lyrics_key = @key, lyrics_size = @size, lyrics_kind = @kind, lyrics_sig = @sig
-       WHERE song_id = @songId
     `)
     this.#hasFile = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM cloud_files WHERE key = ?',
@@ -564,37 +552,6 @@ export class CloudRepository {
         [before.audio_key, before.cover_key, before.lyrics_key, before.motion_key],
         [state.audioKey, state.coverKey, state.lyricsKey, state.motionKey],
       )
-    })()
-  }
-
-  /**
-   * Migration 45's songs: those whose words are still the text file sent
-   * before a song's words and romanized lines were one file (`wordsKey`).
-   */
-  songsWithOldWords(): number[] {
-    return this.#oldWords.all().map(row => row.song_id)
-  }
-
-  /**
-   * Record a song's words file, or that it has none, and the signature of
-   * what it was sent from; the file it named before goes in the trash.
-   */
-  saveWords(
-    songId: number,
-    words: { key: string; size: number; kind: CloudLyrics['kind'] } | null,
-    lyricsSig: string,
-  ): void {
-    this.#db.transaction(() => {
-      const before = this.#state.get(songId)
-      if (!before) return
-      this.#saveWords.run({
-        songId,
-        key: words?.key ?? null,
-        size: words?.size ?? null,
-        kind: words?.kind ?? null,
-        sig: lyricsSig,
-      })
-      this.#trashReplaced([before.lyrics_key], [words?.key ?? null])
     })()
   }
 

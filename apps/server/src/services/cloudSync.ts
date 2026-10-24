@@ -1009,10 +1009,6 @@ export class CloudSyncService {
         if (generation !== this.#generation || this.#stopped) return
       }
 
-      // Words sent as two files, before they were one (migration 45).
-      failed += await this.#rewriteOldWords(store, generation)
-      if (generation !== this.#generation || this.#stopped) return
-
       // Work out what changed first, so progress counts real work.
       const states = cloud.states()
       const files = cloud.songFiles()
@@ -2027,21 +2023,11 @@ export class CloudSyncService {
       }
     }
     if (!text?.trim()) return null
-    return this.#uploadWords(store, file.id, text, kind)
-  }
 
-  /**
-   * One words file (`wordsKey`): the text and its romanized lines together,
-   * so a device reads both with one call to the bucket.
-   */
-  async #uploadWords(
-    store: CloudStore,
-    songId: number,
-    text: string,
-    kind: CloudLyrics['kind'],
-  ): Promise<{ lyrics: UploadedLyrics; romanizedMissing: boolean }> {
+    // One file, the text and its romanized lines together, so a device reads
+    // both with one call to the bucket.
     const romanize = this.#deps.romanize
-    const romanized = romanize ? await romanize(songId, text).catch(() => null) : null
+    const romanized = romanize ? await romanize(file.id, text).catch(() => null) : null
     const words: CloudWords = { text, romanized }
     const data = Buffer.from(JSON.stringify(words), 'utf8')
     const key = wordsKey(sha256(data))
@@ -2052,51 +2038,6 @@ export class CloudSyncService {
       lyrics: { key, size: data.length, kind },
       romanizedMissing: romanize !== undefined && romanized === null && wantsRomanized(text),
     }
-  }
-
-  /**
-   * Migration 45: words sent before a song's words and romanized lines were one
-   * file were a text file (`.lrc` or `.txt`) with the romanized lines in a
-   * second one beside it. Each is put up again as one words file, from the
-   * copy kept here or else the bucket, with its romanized lines made again
-   * here (they are cached, so this reads no second file); the old text goes
-   * in the trash once the new one is named. A song whose old text the bucket
-   * no longer has loses it, as a lost file does (`reconcileFiles`): sent again
-   * from a copy here if there is one. One that fails stays as it was, for the
-   * next pass.
-   */
-  async #rewriteOldWords(store: CloudStore, generation: number): Promise<number> {
-    const { cloud } = this.#deps
-    let failed = 0
-    for (const songId of cloud.songsWithOldWords()) {
-      if (generation !== this.#generation || this.#stopped) return failed
-      const state = cloud.state(songId)
-      if (!state?.lyricsKey || !state.lyricsKind) continue
-      try {
-        const kept = this.#deps.kept
-        let body = (await kept?.read(state.lyricsKey)) ?? null
-        if (!body) body = await store.get(state.lyricsKey)
-        if (!body) {
-          cloud.saveWords(songId, null, '')
-          continue
-        }
-        const { lyrics, romanizedMissing } = await this.#uploadWords(
-          store,
-          songId,
-          body.toString('utf8'),
-          state.lyricsKind,
-        )
-        cloud.saveWords(songId, lyrics, romanizedMissing ? '' : state.lyricsSig)
-      } catch (error) {
-        if (error instanceof CloudError && error.kind !== 'other') throw error
-        failed++
-        this.#logger.warn('could not put a song’s words up as one file', {
-          songId,
-          message: messageOf(error),
-        })
-      }
-    }
-    return failed
   }
 
   /**

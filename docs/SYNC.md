@@ -310,8 +310,8 @@ for Chinese or Japanese words their romanized lines, one per line of the text, m
 needs a dictionary only the server has). One file, so a device reads a song's words with one call
 to the bucket rather than two, and shows them exactly as a device talking to the server does.
 Words sent before this were a `.lrc`/`.txt` file with the romanized lines in a `.json` beside it;
-migration 45 drops the second from `cloud_songs`, and the next pass puts each such song's words up
-again as one file (`#rewriteOldWords`), from the copy kept here or else the bucket.
+migration 45 dropped the second from `cloud_songs`, and a one-off step of the pass, since removed,
+put each such song's words up again as one file.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
 so a rescan, a restart or a tag edit does not re-hash two thousand files. That bookkeeping is

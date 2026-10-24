@@ -748,11 +748,17 @@ textarea.field {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  /* Under the heading, at full width, when there isn't room for search beside it. */
+  flex: 1 1 260px;
   justify-content: flex-end;
   min-width: 0;
 }
+.list-tools .search {
+  flex: 1;
+  max-width: 340px;
+}
 .icon-btn.add {
+  flex: none;
   width: 36px;
   height: 36px;
   background: var(--accent);

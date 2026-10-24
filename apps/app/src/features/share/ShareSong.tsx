@@ -43,6 +43,9 @@ const STAGE_HEAD = 60
 /** From the head to the cover, as Now Playing's `COVER_TOP` is past its head. */
 const STAGE_COVER_GAP = 24
 
+/** How far a lyric line's words sit inside its press wash (`StageLyrics`). */
+const LINE_INSET = space.tight
+
 /** Everything on the phone's cover view but the cover, for the cover to fit the screen beside. */
 const PHONE_ROOM = 320
 const PHONE_COVER_LEAST = 160
@@ -260,14 +263,13 @@ function SongPhone(props: SongProps): ReactNode {
   // page owns the display, as it does now (`pageChrome.ts`).
   const chrome = useBottomInset()
   const words = lyrics.words
-  // As big as the screen allows with Play still on it.
+  // The page's one column: the head, the names, the bar and the words.
+  const column = Math.min(width - space.gutter * 2, PHONE_COVER_MOST)
+  // The cover as big as the column, short of pushing Play off a short screen,
+  // where it is smaller and in the column's middle, as Now Playing's is.
   const side = Math.max(
     PHONE_COVER_LEAST,
-    Math.min(
-      width - space.gutter * 2,
-      PHONE_COVER_MOST,
-      height - insets.top - insets.bottom - PHONE_ROOM - chrome,
-    ),
+    Math.min(column, height - insets.top - insets.bottom - PHONE_ROOM - chrome),
   )
 
   // Now Playing's own move between them: the one arriving springs in as the other goes.
@@ -315,9 +317,9 @@ function SongPhone(props: SongProps): ReactNode {
             style={[styles.layer, styles.phonePage, coverView.style]}
           >
             {back}
-            <View style={[styles.phoneColumn, { width: side }]}>
+            <View style={[styles.phoneColumn, { width: column }]}>
               {from}
-              <View ref={coverTarget} collapsable={false} style={styles.art}>
+              <View ref={coverTarget} collapsable={false} style={[styles.art, styles.phoneArt]}>
                 <Press
                   disabled={!lent}
                   onPress={() => onWords(true)}
@@ -352,18 +354,20 @@ function SongPhone(props: SongProps): ReactNode {
               coverTitle={song.title}
               onBack={() => onWords(false)}
               tool={canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
+              style={[styles.wordsHead, { width: column }]}
             />
             <PhoneWordsBody
               words={words}
               fingerOnWords={fingerOnWords}
               still={!loaded}
-              style={styles.words}
+              // The lines' own inset past the bar's ends, so their words start and end where it does.
+              style={[styles.words, { width: column + LINE_INSET * 2 }]}
             />
           </Animated.View>
         ) : null}
       </View>
 
-      <View style={[styles.phoneControls, { width: side }]}>
+      <View style={[styles.phoneControls, { width: column }]}>
         <Seek song={song} loaded={loaded} />
         <View style={styles.phonePlay}>
           <Play {...props} size={64} />
@@ -450,6 +454,7 @@ const styles = StyleSheet.create(theme => ({
   phoneControls: { alignSelf: 'center', gap: space.sm, paddingTop: space.md },
   layer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   phonePage: { paddingHorizontal: space.gutter, paddingTop: space.gutter },
+  phoneArt: { alignSelf: 'center' },
   phoneColumn: { alignSelf: 'center', gap: space.lg },
   phoneNames: { gap: space.xs },
   phoneTitle: heroTitle(theme.colors, 'page'),
@@ -458,7 +463,8 @@ const styles = StyleSheet.create(theme => ({
   phoneFoot: { alignItems: 'center', paddingTop: space.md },
   // With the head's own top, the page's: the cover view's is the gutter.
   wordsPage: { paddingTop: space.xs },
-  // Past the page's sides, as Now Playing's words are, so a line's press wash has room.
-  words: { marginTop: space.lg, marginHorizontal: -space.gutter },
+  // In the bar's column, as the cover is: the page's one width.
+  wordsHead: { alignSelf: 'center' },
+  words: { marginTop: space.lg, alignSelf: 'center' },
   still: { gap: space.lg },
 }))

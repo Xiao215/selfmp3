@@ -44,6 +44,7 @@ export function PhoneWordsHead({
   coverTitle,
   onBack,
   tool,
+  style,
 }: {
   title: string
   artist: string
@@ -53,10 +54,12 @@ export function PhoneWordsHead({
   onBack: () => void
   /** Romaji or pinyin, or Now Playing's Find lyrics. */
   tool: ReactNode
+  /** Where the page lays it, when not across its whole width: a link's, in its one column. */
+  style?: StyleProp<ViewStyle>
 }): ReactNode {
   const { theme } = useUnistyles()
   return (
-    <View style={styles.head}>
+    <View style={[styles.head, style]}>
       <IconButton onPress={onBack} label="Back to the cover" filled>
         <ChevronDown size={iconSize.large} color={theme.colors.textPrimary} />
       </IconButton>
@@ -78,8 +81,9 @@ export function PhoneWordsHead({
  * The words across the page, or what is said where they would be. It tells
  * `fingerOnWords` while a finger that came down on them is still down, so the
  * page's pull leaves a drag down to the list, which is reading back up the
- * song. `style` is where the page lays it: past its own sides, so a line's
- * press wash has room.
+ * song. `style` is where the page lays it: Now Playing's past its own
+ * sides, so a line's press wash has room; a link's in its one column, the
+ * wash's inset past the bar's ends.
  */
 export function PhoneWordsBody({
   words,

@@ -52,14 +52,25 @@ const REFUSED_KEY = 'selfmp3.cloud.refused-server'
 /** How long a join that failed waits before the next is tried by itself. */
 const RETRY_MS = 10 * 60_000
 
+/**
+ * How many refused tokens an account keeps, newest last. More than one: the
+ * server the snapshot names and the shared one joined from here can both
+ * refuse, and remembering only the latest would pass each over in turn — back
+ * to the other at once, since the address looked for changes every time.
+ */
+const REFUSED_KEPT = 8
+
 /** What is kept: the server, and whose session joined it, so another account never uses it. */
 const JoinedSchema = z.object({ email: z.string(), server: CloudServerSchema })
 
 /** Which account removed the shared server from this device. */
 const LeftSchema = z.object({ email: z.string() })
 
-/** The token a server refused, and whose: that server no longer works for this library. */
-const RefusedSchema = z.object({ email: z.string(), token: z.string() })
+/**
+ * The tokens servers refused, and whose: those servers no longer work for this
+ * library. Anything else kept under the key reads as none refused.
+ */
+const RefusedSchema = z.object({ email: z.string(), tokens: z.array(z.string()) })
 
 interface SharedServerApi {
   /** The server this account joined from this device, until a snapshot names one. */
@@ -91,10 +102,17 @@ export function createSharedServer(
   sessionApi: CloudSessionApi,
 ): SharedServerApi {
   const base = platform.sharedServerUrl.replace(/\/+$/, '')
-  /** A join under way, so the screens asking at once make one. */
-  let joining: Promise<CloudServer | null> | null = null
-  /** When a join that failed may be tried again by itself. */
-  let nextTry = 0
+  /**
+   * A join under way for each account, so the screens asking at once make one
+   * — and an account signed into while another's join runs gets its own, not
+   * the server the other one is handed.
+   */
+  const joining = new Map<string, Promise<CloudServer | null>>()
+  /**
+   * When a join that failed may be tried again by itself, for each account:
+   * one account's failure does not hold back the next one signed in.
+   */
+  const nextTry = new Map<string, number>()
 
   async function joined(session: CloudSession): Promise<CloudServer | null> {
     try {
@@ -114,34 +132,67 @@ export function createSharedServer(
     }
   }
 
-  /** The token this account's library was last refused with, if any. */
-  async function refusedToken(session: CloudSession): Promise<string | null> {
+  /** The tokens this account's library was refused with, newest last. */
+  async function refusedTokens(session: CloudSession): Promise<string[]> {
     try {
-      const parsed = RefusedSchema.safeParse(await platform.store.read(REFUSED_KEY))
-      return parsed.success && parsed.data.email === session.me.email ? parsed.data.token : null
+      return tokensOf(session, await platform.store.read(REFUSED_KEY))
     } catch {
-      return null
+      return []
     }
+  }
+
+  /** What is kept under the key, read as this account's refused tokens. */
+  function tokensOf(session: CloudSession, kept: unknown): string[] {
+    const parsed = RefusedSchema.safeParse(kept)
+    return parsed.success && parsed.data.email === session.me.email ? parsed.data.tokens : []
+  }
+
+  /**
+   * Change this account's refused tokens. Another account's list, or anything
+   * else kept under the key, is replaced rather than added to. Store failures
+   * are the caller's to swallow.
+   */
+  async function changeRefused(
+    session: CloudSession,
+    change: (tokens: string[]) => string[],
+  ): Promise<void> {
+    await platform.store.update(REFUSED_KEY, current => ({
+      email: session.me.email,
+      tokens: change(tokensOf(session, current)).slice(-REFUSED_KEPT),
+    }))
+  }
+
+  /** Remember that `token` was refused: not passed over twice, and kept the newest. */
+  function addRefused(session: CloudSession, token: string): Promise<void> {
+    return changeRefused(session, tokens => [...tokens.filter(kept => kept !== token), token])
   }
 
   async function automatic(
     session: CloudSession,
     named: CloudServer | null,
   ): Promise<CloudServer | null> {
-    const gone = await refusedToken(session)
-    if (named && (gone === null || named.token !== gone)) return named
+    const gone = await refusedTokens(session)
+    const works = (server: CloudServer): boolean =>
+      server.token === null || !gone.includes(server.token)
+    if (named && works(named)) return named
     const kept = await joined(session)
-    if (kept && (gone === null || kept.token !== gone)) return kept
-    if (!base || !session.me.storage || Date.now() < nextTry || (await left(session))) return null
-    joining ??= takeOver(session, named !== null && isShared(named))
-      .catch(() => {
-        nextTry = Date.now() + RETRY_MS
-        return null
-      })
-      .finally(() => {
-        joining = null
-      })
-    return joining
+    if (kept && works(kept)) return kept
+    const email = session.me.email
+    if (!base || !session.me.storage || Date.now() < (nextTry.get(email) ?? 0)) return null
+    if (await left(session)) return null
+    let under = joining.get(email)
+    if (!under) {
+      under = takeOver(session, named !== null && isShared(named))
+        .catch(() => {
+          nextTry.set(email, Date.now() + RETRY_MS)
+          return null
+        })
+        .finally(() => {
+          joining.delete(email)
+        })
+      joining.set(email, under)
+    }
+    return under
   }
 
   /**
@@ -172,7 +223,7 @@ export function createSharedServer(
     named: CloudServer | null,
   ): Promise<CloudServer | null> {
     try {
-      await platform.store.write(REFUSED_KEY, { email: session.me.email, token })
+      await addRefused(session, token)
     } catch {
       // No storage: the next look is refused again, and says so again.
     }
@@ -192,7 +243,11 @@ export function createSharedServer(
       await platform.store.write(JOINED_KEY, { email: session.me.email, server })
       await platform.store.remove(LEFT_KEY)
       // The token refused, answered again: it works for this library after all.
-      if ((await refusedToken(session)) === server.token) await platform.store.remove(REFUSED_KEY)
+      // Only that one: the others stay passed over.
+      const { token } = server
+      if (token !== null && (await refusedTokens(session)).includes(token)) {
+        await changeRefused(session, tokens => tokens.filter(kept => kept !== token))
+      }
     } catch {
       // No storage: the snapshot naming the server brings it back soon anyway.
     }
@@ -214,15 +269,21 @@ export function createSharedServer(
     // A grant already gone is gone: `doormanFetch` answers its 404 rather than throwing.
     await sessionApi.doormanFetch(session, DOORMAN_PATHS.grant(id), { method: 'DELETE' })
     if (!removed) return
-    // The server the snapshot names, taken back: passed over from now, not
-    // from whenever it notices and starts refusing the token.
-    if (named?.token && named.addresses.some(address => sameAddress(address, removed.server))) {
-      await platform.store.write(REFUSED_KEY, { email: session.me.email, token: named.token })
-    }
-    // The shared one, taken back: not joined again by itself from here.
-    if (base && sameAddress(removed.server, base)) {
-      await platform.store.write(LEFT_KEY, { email: session.me.email })
-      await platform.store.remove(JOINED_KEY)
+    // The grant is gone whatever happens next: a device with no storage only
+    // forgets that it was, and the server's refusals then say so on the next look.
+    try {
+      // The server the snapshot names, taken back: passed over from now, not
+      // from whenever it notices and starts refusing the token.
+      if (named?.token && named.addresses.some(address => sameAddress(address, removed.server))) {
+        await addRefused(session, named.token)
+      }
+      // The shared one, taken back: not joined again by itself from here.
+      if (base && sameAddress(removed.server, base)) {
+        await platform.store.write(LEFT_KEY, { email: session.me.email })
+        await platform.store.remove(JOINED_KEY)
+      }
+    } catch {
+      // No storage: see above.
     }
   }
 

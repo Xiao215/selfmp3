@@ -110,20 +110,39 @@ export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
   { field: 'lastPlayedAt', label: 'Recently played' },
 ]
 
+type PreparedNames = ReturnType<typeof preparedNamesFor<Song>>
+
 /**
  * Each song's names, lowercased once per song object rather than once per
  * keystroke, and once per set of the library's other names
- * (`songSearchNames`). The library query hands back the same objects until it
- * is refetched, so typing reuses them; a refetch brings new objects and the
- * old names go with the old songs.
+ * (`songSearchNames`).
+ *
+ * Kept by the other names themselves — the artists' names and the spellings —
+ * not by whatever object carries them, which is usually the whole library:
+ * a refetch hands back a new library whenever any song changed, but the
+ * query's structural sharing keeps every unchanged song, and these two
+ * records when nothing in them changed, as the objects they were. So the
+ * songs a refetch did not touch keep their prepared names, and a song that
+ * changed is a new object and is prepared again.
  */
-const preparedByNames = new WeakMap<LibraryNames, ReturnType<typeof preparedNamesFor<Song>>>()
+const preparedByNames = new WeakMap<
+  LibraryNames['artistNames'],
+  WeakMap<LibraryNames['spellings'], PreparedNames>
+>()
 
-function preparedNames(names: LibraryNames): ReturnType<typeof preparedNamesFor<Song>> {
-  let prepared = preparedByNames.get(names)
+function preparedNames({ artistNames, spellings }: LibraryNames): PreparedNames {
+  let bySpellings = preparedByNames.get(artistNames)
+  if (!bySpellings) {
+    bySpellings = new WeakMap()
+    preparedByNames.set(artistNames, bySpellings)
+  }
+  let prepared = bySpellings.get(spellings)
   if (!prepared) {
+    // Its own copy of the two, not the library they came with: kept for as
+    // long as the names are, it must not hold a refetched-away library.
+    const names: LibraryNames = { artistNames, spellings }
     prepared = preparedNamesFor<Song>(song => songSearchNames(song, names))
-    preparedByNames.set(names, prepared)
+    bySpellings.set(spellings, prepared)
   }
   return prepared
 }

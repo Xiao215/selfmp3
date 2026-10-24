@@ -183,6 +183,14 @@ describe('editing songs', () => {
     expect(view.library.songs.find(s => s.title === 'Song c')?.playCount).toBe(1)
   })
 
+  it('merges nothing into a kept song that is gone, as the server does', () => {
+    const d = device()
+    expect(edits.mergeSongs(d.ctx(), 424242, [d.idOf('songs', 'a')])).toEqual([])
+    expect(
+      edits.mergeSongs(d.ctx(), d.idOf('songs', 'a'), [d.idOf('songs', 'b'), 424242]),
+    ).toMatchObject([{ type: 'songMerged', uid: uid('b'), into: uid('a') }])
+  })
+
   it('refuses a song this device does not have', () => {
     const d = device()
     expect(() => edits.editSong(d.ctx(), 424242, { loved: true })).toThrow(CloudRouteError)

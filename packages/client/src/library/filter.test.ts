@@ -118,6 +118,28 @@ describe('tag filtering', () => {
     }
   })
 
+  it('keeps a song’s prepared names through a refetch that kept the song and the names', () => {
+    let reads = 0
+    const kept = song(1, 'Drive', [])
+    const counted = Object.defineProperty({ ...kept }, 'title', {
+      get: () => {
+        reads += 1
+        return kept.title
+      },
+    })
+    const artistNames = {}
+    const spellings = {}
+    // Two libraries, as two fetches hand them back: new objects around the same records.
+    searchSongs('drive', [counted], { artistNames, spellings })
+    const once = reads
+    expect(once).toBeGreaterThan(0)
+    searchSongs('drive', [counted], { artistNames, spellings })
+    expect(reads).toBe(once)
+    // Other names are other spellings to search: the song is prepared again.
+    searchSongs('drive', [counted], { artistNames, spellings: {} })
+    expect(reads).toBeGreaterThan(once)
+  })
+
   it('leaves out a tag that no longer exists', () => {
     expect(filterHeading(toggleTag(byTitle, 99), TAGS)).toBe('Library')
     expect(filterHeading(toggleTag(toggleTag(byTitle, 99), CHILL), TAGS)).toBe('chill')

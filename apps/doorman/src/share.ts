@@ -56,7 +56,17 @@ interface Secrets {
   /** Ask id → the account that asked, when it was signed in. */
   readonly askSubs: Readonly<Record<string, string>>
   /** The devices that opened it signed out, so a guest is counted once however often they look. */
-  readonly visitors?: readonly string[]
+  readonly visitors: readonly string[]
+}
+
+/**
+ * A link's secrets as they were kept before its guests were counted, brought
+ * up to now: a link made then counted none, and had seen nobody signed out.
+ * Data, not a second reading: `#found` writes the upgrade back, so a link is
+ * upgraded once, the first time it is read.
+ */
+function upgradeSecrets(kept: Omit<Secrets, 'visitors'> & { visitors?: unknown }): Secrets {
+  return Array.isArray(kept.visitors) ? (kept as Secrets) : { ...kept, visitors: [] }
 }
 
 /** What a link needs from the runtime. */
@@ -209,8 +219,7 @@ export class Share {
     if (input.key !== secrets.key) return WRONG_KEY()
     const sub = input.sub || null
     if (sub === secrets.owner) return Response.json(this.#viewOf(doc, secrets, sub))
-    // Links made before guests were counted keep none: none seen yet.
-    const visitors = secrets.visitors ?? []
+    const { visitors } = secrets
     const seen = !sub && input.visitor !== null && visitors.includes(input.visitor)
     const opened = seen ? doc : shareOpened(doc, sub ? input.name : null)
     const openers =
@@ -399,10 +408,12 @@ export class Share {
   async #found(): Promise<{ doc: ShareDoc; secrets: Secrets } | null> {
     const stored = await this.#runtime.storage.get<unknown>('doc')
     const parsed = ShareDocSchema.safeParse(stored)
-    const secrets = await this.#runtime.storage.get<Secrets>('secrets')
-    if (!parsed.success || !secrets) return null
+    const kept = await this.#runtime.storage.get<Parameters<typeof upgradeSecrets>[0]>('secrets')
+    if (!parsed.success || !kept) return null
     // Past its card's days, it is as good as forgotten even before the alarm comes.
     if (this.#runtime.now() >= shareKeptUntil(parsed.data)) return null
+    const secrets = upgradeSecrets(kept)
+    if (secrets !== kept) await this.#runtime.storage.put('secrets', secrets)
     return { doc: parsed.data, secrets }
   }
 

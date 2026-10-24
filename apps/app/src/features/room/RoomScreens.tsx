@@ -32,7 +32,7 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useCloudSession } from '../profile/useCloudSession'
 import { nameToJoinWith } from '../shared/shared.model'
 import { newPlaylist } from '../playlists/playlists.model'
-import { forgetPastRoom, pastRoomFaces, usePastRooms, withYourPicture } from './pastRooms.store'
+import { forgetPastRoom, pastRoomFaces, usePastRooms } from './pastRooms.store'
 import { usePastRoomCovers } from './usePastRoomCovers'
 import { FacesCover } from './RoomFace'
 import { GetIt } from './GetIt'
@@ -227,7 +227,6 @@ export function PastRoomScreen(): ReactNode {
   const byId = useSongsById()
   const covers = usePastRoomCovers(past)
   const artFor = useArt()
-  const yourPicture = useCloudSession().data?.picture
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const heroRef = useRef<View>(null)
@@ -349,7 +348,7 @@ export function PastRoomScreen(): ReactNode {
       heroRef={heroRef}
       cover={
         <FacesCover
-          people={pastRoomFaces(past, yourPicture)}
+          people={pastRoomFaces(past)}
           size={wide ? 176 : 196}
           covers={past.songs.map((entry, at) => ({
             uri: covers[at],
@@ -417,10 +416,7 @@ export function PastRoomScreen(): ReactNode {
                 key={`${at}-${entry.song.title}`}
                 song={entry.song}
                 uri={covers[at]}
-                face={withYourPicture(
-                  { name: entry.by, colour: entry.colour, picture: entry.picture },
-                  yourPicture,
-                )}
+                face={{ name: entry.by, colour: entry.colour, picture: entry.picture }}
                 // The room that lent a friend's song has gone: it can only be got.
                 faded={id === null}
                 onPress={id !== null ? () => play(id) : undefined}

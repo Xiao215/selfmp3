@@ -100,8 +100,8 @@ room in Recently played.
 added. Someone signed in shows their Google profile picture, inside a thin ring of their
 colour; a guest, or anyone without a picture, shows their initial. The doorman takes the
 picture from the session, never from what a device sends, and a shared playlist's people
-show theirs the same way. Rooms and playlists kept before faces had pictures load with
-none; a shared playlist's person gets theirs the next time they open it.
+show theirs the same way. A shared playlist kept before faces had pictures was migrated to
+none the first time it was read, and each of its people gets theirs the next time they open it.
 
 What a friend or a guest may do is the host's choice under **Friends can**:
 

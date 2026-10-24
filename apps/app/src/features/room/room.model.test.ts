@@ -26,6 +26,7 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  upgradePastRooms,
   soundTarget,
   startingSongs,
   roomLine,
@@ -336,6 +337,22 @@ describe('after the room', () => {
       ['Song 1', 'You', true],
       ['Song 2', 'Xiao', false],
     ])
+  })
+
+  it('brings rooms remembered before pictures and kept playlists up to now, once', () => {
+    const song = { song: { title: 'Song 1' }, by: 'You', colour: 1, mine: true }
+    const old = [{ code: 'KQ7482', people: [{ name: 'Mia', colour: 2 }], songs: [song] }]
+    expect(upgradePastRooms(old)).toEqual([
+      {
+        code: 'KQ7482',
+        shared: null,
+        people: [{ name: 'Mia', colour: 2, picture: null }],
+        songs: [{ ...song, picture: null }],
+      },
+    ])
+    // Rooms already as they are now come back as the very same value: nothing to write.
+    const now = upgradePastRooms(old)
+    expect(upgradePastRooms(now)).toBe(now)
   })
 
   it('remembers nothing of a room where nothing played', () => {

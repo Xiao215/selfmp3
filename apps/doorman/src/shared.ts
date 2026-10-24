@@ -363,8 +363,11 @@ export class Shared {
 
   async #doc(): Promise<SharedDoc | null> {
     const stored = await this.#runtime.storage.get<unknown>('doc')
-    const parsed = SharedDocSchema.safeParse(stored)
-    return parsed.success ? parsed.data : null
+    const upgraded = upgradeDoc(stored)
+    const parsed = SharedDocSchema.safeParse(upgraded)
+    if (!parsed.success) return null
+    if (upgraded !== stored) await this.#runtime.storage.put('doc', parsed.data)
+    return parsed.data
   }
 
   async #secrets(): Promise<Secrets | null> {
@@ -375,6 +378,28 @@ export class Shared {
     await this.#runtime.storage.put('doc', doc)
     await this.#runtime.storage.put('secrets', secrets)
   }
+}
+
+/**
+ * A playlist as it was kept before faces had pictures, brought up to now: the
+ * people in it then have none. Data, not a second reading of the schema:
+ * `#doc` writes the upgrade back, so a playlist is upgraded once, the first
+ * time it is read. Anything else is handed on as it is, for the schema to say.
+ */
+function upgradeDoc(stored: unknown): unknown {
+  if (!isRecord(stored) || !Array.isArray(stored['members'])) return stored
+  const members: unknown[] = stored['members']
+  if (members.every(member => !isRecord(member) || 'picture' in member)) return stored
+  return {
+    ...stored,
+    members: members.map(member =>
+      isRecord(member) && !('picture' in member) ? { ...member, picture: null } : member,
+    ),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**

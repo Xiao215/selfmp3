@@ -12,7 +12,13 @@ const SERVER = 'https://pi.example.ts.net'
 const ME: CloudSession = {
   doormanUrl: 'https://doorman.test',
   token: 'session-token',
-  me: { email: 'me@example.com', name: null, picture: null, storage: null },
+  me: {
+    account: '0123456789abcdef0123456789abcdef',
+    email: 'me@example.com',
+    name: null,
+    picture: null,
+    storage: null,
+  },
 }
 const ANSWER = {
   id: 'the-shared-server',

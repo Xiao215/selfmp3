@@ -167,6 +167,22 @@ describe('a shared playlist', () => {
     expect(list[0]?.people.map(person => person.picture)).toEqual([ME.picture, MIA.picture])
   })
 
+  it('upgrades a playlist kept before faces had pictures the first time it is read', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shared.stored(made.id)
+    const doc = stored.get('doc') as { members: Record<string, unknown>[] }
+    for (const member of doc.members) delete member.picture
+    stored.set('doc', doc)
+    // A list reads it without anyone's session picture: the upgrade alone.
+    const list = SharedSummariesSchema.parse(
+      await (await s.h.call('/v1/shared', { token: s.me })).json(),
+    )
+    expect(list.map(each => each.people.map(person => person.picture))).toEqual([[null]])
+    const kept = stored.get('doc') as { members: { picture?: string | null }[] }
+    expect(kept.members.map(member => member.picture)).toEqual([null])
+  })
+
   it('gives someone kept from before faces had pictures theirs when they next look', async () => {
     const s = await setup()
     const made = await make(s)

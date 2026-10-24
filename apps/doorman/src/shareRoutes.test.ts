@@ -118,6 +118,18 @@ describe('a share link', () => {
     expect(await (await file(s, made, 'audio')).text()).toBe('song 1')
   })
 
+  it('upgrades a link kept before its guests were counted the first time it is read', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shares.stored(made.id)
+    const secrets = stored.get('secrets') as Record<string, unknown>
+    delete secrets['visitors']
+    stored.set('secrets', secrets)
+    await s.h.call(`/v1/share/${made.id}?k=${made.key}&v=device-1`)
+    expect((stored.get('secrets') as { visitors?: unknown }).visitors).toEqual(['device-1'])
+    expect((await link(await open(s, made, s.me))).guests).toBe(1)
+  })
+
   it('tells its sender who opened it and how often it played, and nobody else', async () => {
     const s = await setup()
     const made = await make(s)

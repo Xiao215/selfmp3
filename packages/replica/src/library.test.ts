@@ -27,7 +27,13 @@ import type { CloudPlatform, CloudResponse, DeviceStore, TextCache } from './pla
 
 const DOORMAN = 'https://doorman.test'
 const TOKEN = 'tok'.padEnd(32, '0')
-const ME = { email: 'a@b.c', name: null, picture: null, storage: null }
+const ME = {
+  account: '0123456789abcdef0123456789abcdef',
+  email: 'a@b.c',
+  name: null,
+  picture: null,
+  storage: null,
+}
 const SESSION: CloudSession = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
 
 /** A store that serialises like a real one, and can count its writes. */

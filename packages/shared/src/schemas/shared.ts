@@ -39,7 +39,7 @@ export const SharedMemberSchema = z.object({
   /** As in a room: which of the eight face colours is theirs. */
   colour: z.number().int().min(0).max(7),
   /** As in a room: their face's picture, or null. */
-  picture: MemberPictureSchema.nullable().default(null),
+  picture: MemberPictureSchema.nullable(),
   joinedAt: z.number().int().nonnegative(),
   /** Made it: may rename it, and take out anyone's song. */
   creator: z.boolean(),
@@ -90,7 +90,7 @@ export const SharedSummarySchema = z.object({
     z.object({
       name: RoomMemberNameSchema,
       colour: z.number().int(),
-      picture: MemberPictureSchema.nullable().default(null),
+      picture: MemberPictureSchema.nullable(),
     }),
   ),
   songs: z.number().int().nonnegative(),

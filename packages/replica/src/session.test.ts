@@ -82,7 +82,13 @@ function platform(
   }
 }
 
-const ME = { email: 'someone@example.com', name: 'Someone', picture: null, storage: null }
+const ME = {
+  account: '0123456789abcdef0123456789abcdef',
+  email: 'someone@example.com',
+  name: 'Someone',
+  picture: null,
+  storage: null,
+}
 /** The doorman's tokens are at least thirty-two characters, and the schema says so. */
 const TOKEN = 'tok'.padEnd(32, '0')
 

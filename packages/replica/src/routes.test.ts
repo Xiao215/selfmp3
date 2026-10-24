@@ -52,7 +52,13 @@ describe('/api/cloud/uids', () => {
   const SESSION: CloudSession = {
     doormanUrl: DOORMAN,
     token: 'tok'.padEnd(32, '0'),
-    me: { email: 'a@b.c', name: null, picture: null, storage: null },
+    me: {
+      account: '0123456789abcdef0123456789abcdef',
+      email: 'a@b.c',
+      name: null,
+      picture: null,
+      storage: null,
+    },
   }
   const uid = (letter: string) => letter.repeat(32)
 

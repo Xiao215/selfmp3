@@ -143,10 +143,8 @@ export const DoormanMeSchema = z.object({
   /**
    * Which account this is, for a server that works for several
    * (docs/features/shared-server.md): its workspaces are kept by this.
-   * Absent from a session a device kept from before the doorman said it, which
-   * still signs in; a server asks the doorman itself, and refuses without it.
    */
-  account: DoormanAccountSchema.optional(),
+  account: DoormanAccountSchema,
   email: z.string(),
   name: z.string().nullable(),
   picture: z.string().nullable(),

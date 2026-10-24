@@ -143,16 +143,6 @@ describe('opening and joining a room', () => {
     expect(ken.state.members.at(-1)?.picture).toBeNull()
   })
 
-  it('opens a room kept before faces had pictures, with none', async () => {
-    const s = await setup()
-    const stored = s.h.rooms.stored(s.room.code)
-    const doc = stored.get('doc') as { members: Record<string, unknown>[] }
-    for (const member of doc.members) delete member.picture
-    stored.set('doc', doc)
-    const opened = await state(await s.h.call(`/v1/rooms/${s.room.code}?t=${s.room.token}`))
-    expect(opened.members.map(member => member.picture)).toEqual([null])
-  })
-
   it('takes a code however it was typed, and says plainly when there is no such room', async () => {
     const s = await setup()
     const typed = `${s.room.code.slice(0, 3).toLowerCase()}-${s.room.code.slice(3)}`

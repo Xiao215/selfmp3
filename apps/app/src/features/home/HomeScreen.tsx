@@ -27,7 +27,6 @@ import {
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'
-import { useCloudSession } from '../profile/useCloudSession'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
@@ -681,7 +680,7 @@ function Recents({
  */
 function PastRoomTile({ room, size }: { room: PastRoom; size: number }): ReactNode {
   const router = useRouter()
-  const faces = pastRoomFaces(room, useCloudSession().data?.picture)
+  const faces = pastRoomFaces(room)
   // The songs that played behind them, as a playlist's cover is made.
   const pictures = usePastRoomCovers(room)
   const covers = room.songs.map((entry, at) => ({

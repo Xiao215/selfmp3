@@ -88,7 +88,8 @@ read, and keeps an entry that was clicked marked until the reader scrolls. The t
 whether Smart features answer and whether YouTube is holding the server back. Then:
 
 - **Headline numbers**: imports with the change on the period before, the share that worked,
-  the median import time, plays, and songs read from buckets per play.
+  the median import time, plays, songs read from buckets per play, and sign-ins with how many
+  were turned away (the count, not the addresses).
 - **Music import**:
   - Imports a day (worked and failed, stacked).
   - The share that failed per day.

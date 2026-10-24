@@ -692,6 +692,9 @@ function dataView() {
   const doorDays = days.map(d => data.doorman?.days.find(x => x.day === d)?.counts ?? {})
   const doorTotal = name => sum(doorDays.map(c => c[name] ?? 0))
   const songReads = doorTotal('reads.audio')
+  // The doorman's names for them (DOORMAN_COUNT in packages/shared).
+  const signIns = doorTotal('signins.new')
+  const turnedAway = doorTotal('signins.refused')
 
   const stats = `<div class="stats">
     ${statTile('Imports', fmt(total), importDelta, importTone)}
@@ -706,6 +709,11 @@ function dataView() {
           ? `${(songReads / plays).toFixed(1)} per play`
           : ''
         : 'the doorman’s count',
+    )}
+    ${statTile(
+      'Sign-ins',
+      data.doorman ? fmt(signIns) : '—',
+      data.doorman ? `${fmt(turnedAway)} turned away` : 'the doorman’s count',
     )}
   </div>`
 

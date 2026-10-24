@@ -374,7 +374,7 @@ export interface PastRoom {
     readonly picture: string | null
   }[]
   /** The shared playlist it was kept as, when it was (features/shared). */
-  readonly shared?: string | null
+  readonly shared: string | null
   readonly songs: readonly {
     readonly song: RoomSong
     readonly by: string
@@ -383,6 +383,41 @@ export interface PastRoom {
     /** Brought by you, from your own library. */
     readonly mine: boolean
   }[]
+}
+
+/**
+ * Rooms remembered before faces had pictures, or before a room said which
+ * shared playlist it was kept as, brought up to now: they have neither. Data,
+ * not a second reading of the schema: the store writes the upgrade back (pastRooms.store.ts), so a
+ * device's rooms are upgraded once. Anything else is handed on as it is, for
+ * the schema to say.
+ */
+export function upgradePastRooms(stored: unknown): unknown {
+  if (!Array.isArray(stored)) return stored
+  let changed = false
+  const pictured = (face: unknown): unknown => {
+    if (!isRecord(face) || 'picture' in face) return face
+    changed = true
+    return { ...face, picture: null }
+  }
+  const rooms = stored.map((room: unknown) => {
+    if (!isRecord(room)) return room
+    const people: unknown = room['people']
+    const songs: unknown = room['songs']
+    const upgraded = {
+      ...room,
+      people: Array.isArray(people) ? people.map(pictured) : people,
+      songs: Array.isArray(songs) ? songs.map(pictured) : songs,
+    }
+    if ('shared' in room) return upgraded
+    changed = true
+    return { ...upgraded, shared: null }
+  })
+  return changed ? rooms : stored
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** What is worth remembering of a room: the songs that played, oldest first, and who was there. */
@@ -395,6 +430,8 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
     code: state.code,
     title: pastTitle(state),
     endedAt: state.endedAt ?? now,
+    // Not kept as one yet: RoomProvider says, as the room ends.
+    shared: null,
     people: state.members.map(member => ({
       name: nameOf(state, member),
       colour: member.colour,

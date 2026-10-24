@@ -2,7 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react'
 import { RoomSongSchema } from '@selfmp3/shared'
 import { z } from 'zod'
 import { prefs } from '../../ports/prefs'
-import type { PastRoom } from './room.model'
+import { upgradePastRooms, type PastRoom } from './room.model'
 
 /**
  * Rooms this device was in, once they ended: Home's Recently played shows
@@ -18,21 +18,16 @@ const PastRoomSchema = z.object({
   code: z.string(),
   title: z.string(),
   endedAt: z.number(),
-  // A room remembered before faces had pictures has none.
   people: z.array(
-    z.object({
-      name: z.string(),
-      colour: z.number(),
-      picture: z.string().nullable().default(null),
-    }),
+    z.object({ name: z.string(), colour: z.number(), picture: z.string().nullable() }),
   ),
-  shared: z.string().nullable().optional(),
+  shared: z.string().nullable(),
   songs: z.array(
     z.object({
       song: RoomSongSchema,
       by: z.string(),
       colour: z.number(),
-      picture: z.string().nullable().default(null),
+      picture: z.string().nullable(),
       mine: z.boolean(),
     }),
   ),
@@ -40,8 +35,12 @@ const PastRoomSchema = z.object({
 
 function read(): readonly PastRoom[] {
   try {
-    const parsed = z.array(PastRoomSchema).safeParse(JSON.parse(prefs.get(KEY) ?? '[]'))
-    return parsed.success ? parsed.data : []
+    const stored: unknown = JSON.parse(prefs.get(KEY) ?? '[]')
+    const upgraded = upgradePastRooms(stored)
+    const parsed = z.array(PastRoomSchema).safeParse(upgraded)
+    if (!parsed.success) return []
+    if (upgraded !== stored) prefs.set(KEY, JSON.stringify(parsed.data))
+    return parsed.data
   } catch {
     return []
   }
@@ -73,29 +72,10 @@ export function usePastRooms(): readonly PastRoom[] {
   return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
-/**
- * You, in a room kept without your picture (one from before faces had them,
- * or a doorman that had not sent it): your own, from your session. Anyone
- * else keeps what the room said.
- */
-export function withYourPicture<
-  Face extends { readonly name: string; readonly picture: string | null },
->(face: Face, yours: string | null | undefined): Face {
-  return face.name === 'You' && face.picture === null && yours ? { ...face, picture: yours } : face
-}
-
-/**
- * Who a room that ended is drawn as: the others who were there, or you when
- * nobody else came, each with their picture (yours from your session).
- */
-export function pastRoomFaces(
-  room: PastRoom,
-  yourPicture: string | null | undefined,
-): PastRoom['people'] {
+/** Who a room that ended is drawn as: the others who were there, or you when nobody else came. */
+export function pastRoomFaces(room: PastRoom): PastRoom['people'] {
   const others = room.people.filter(person => person.name !== 'You')
-  return (others.length > 0 ? others : room.people).map(person =>
-    withYourPicture(person, yourPicture),
-  )
+  return others.length > 0 ? others : room.people
 }
 
 /**

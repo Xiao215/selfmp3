@@ -145,8 +145,7 @@ export class Hub {
       )
     }
     const me = await this.#askDoorman(() => this.#doorman!.me(session))
-    const account = me.account
-    if (!account) throw new HttpError(502, 'The doorman is too old to say who you are.', 'doorman')
+    const { account } = me
     if (!me.storage) {
       throw HttpError.conflict('Connect your storage first: this server works in your bucket.')
     }

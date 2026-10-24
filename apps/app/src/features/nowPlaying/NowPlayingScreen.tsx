@@ -70,6 +70,7 @@ import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
 import { countUse } from '../usage/usage'
+import { TouchFlag } from '../../ui/touchFlag'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -304,7 +305,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
    * through the verse flipped the page to the cover (Xiao, 2026-10-07). The
    * head strip above the words still pulls, and the chevron still goes back.
    */
-  const [fingerOnWords] = useState(() => new Flag())
+  const [fingerOnWords] = useState(() => new TouchFlag())
   const pan = useMemo(() => {
     const settle = (): void => void spring(pull, 0)
     return PanResponder.create({
@@ -806,7 +807,7 @@ function WordsView({
   noLyrics: boolean
   onBack: () => void
   /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
-  fingerOnWords: Flag
+  fingerOnWords: TouchFlag
 }): ReactNode {
   const { theme } = useUnistyles()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
@@ -866,20 +867,6 @@ function WordsView({
       />
     </View>
   )
-}
-
-/**
- * A yes or no that touch handlers set and a gesture reads, outside React's
- * drawing: whether the finger now down came down on the words.
- */
-class Flag {
-  #on = false
-  set(on: boolean): void {
-    this.#on = on
-  }
-  on(): boolean {
-    return this.#on
-  }
 }
 
 /** The space kept above and below the cover in its room. */

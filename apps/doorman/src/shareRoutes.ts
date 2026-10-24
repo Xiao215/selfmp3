@@ -9,6 +9,7 @@ import {
   ShareCreateSchema,
   ShareIdSchema,
   ShareSummarySchema,
+  shareSongKey,
   SHARE_KEPT_MS,
   SHARE_LIMIT_MS,
   type ShareCreate,
@@ -79,7 +80,7 @@ const SAME_TTL_SECONDS = Math.ceil((SHARE_LIMIT_MS + SHARE_KEPT_MS) / 1000)
 
 /** What makes two shares the same: who, what it is called, and which songs, in any order. */
 async function sameKey(sub: string, body: ShareCreate): Promise<string> {
-  const songs = body.songs.map(song => song.audio?.key ?? song.uid ?? song.link ?? song.title)
+  const songs = body.songs.map(shareSongKey)
   const hash = await sha256Hex(JSON.stringify([body.kind, body.name, songs.sort()]))
   return `share-same:${sub}:${hash}`
 }
@@ -89,7 +90,12 @@ async function sameKey(sub: string, body: ShareCreate): Promise<string> {
  * is while it plays, shared again once it ran out. Null when there is none,
  * or it was ended by its sender or by its songs leaving the bucket.
  */
-async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Response | null> {
+async function sharedBefore(
+  ctx: Context,
+  sub: string,
+  same: string,
+  songs: ShareCreate['songs'],
+): Promise<Response | null> {
   const id = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
   if (!id.success) return null
   const object = shareObject(ctx, id.data)
@@ -101,6 +107,11 @@ async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Re
   const before = ShareSummarySchema.parse(await answer.json())
   if (!before.yours) return null
   await remember(ctx, 'out', sub, before.id)
+  if (before.ended && before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
+  // Its songs as the library has them now: a file renamed since is lent by its new name.
+  const latest = await object.fetch('https://share/songs', post({ sub, songs }))
+  await latest.body?.cancel()
+  if (!latest.ok) return null
   if (!before.ended) {
     // Its sender opening it: the link as it is, nothing counted.
     return object.fetch(
@@ -108,7 +119,6 @@ async function sharedBefore(ctx: Context, sub: string, same: string): Promise<Re
       post({ key: before.key, sub, name: null, visitor: null }),
     )
   }
-  if (before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
   const renewed = await object.fetch('https://share/act', post({ sub, action: { type: 'renew' } }))
   if (!renewed.ok) {
     await renewed.body?.cancel()
@@ -177,7 +187,7 @@ export async function share(ctx: Context): Promise<Response> {
       throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
     }
     const same = await sameKey(session.sub, body)
-    const before = await sharedBefore(ctx, session.sub, same)
+    const before = await sharedBefore(ctx, session.sub, same, body.songs)
     if (before) return relayed(before)
     const id = secureHex(8)
     const made = await shareObject(ctx, id).fetch(

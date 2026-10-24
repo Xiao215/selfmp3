@@ -54,6 +54,10 @@ order, gives back the link you already made, not a second one:
 - once it ran out, shared again (as **Share it again**), so the tab your friend has works again;
 - once you ended it, or its songs left your bucket, a new link.
 
+Either way the link takes its songs' files as your library names them now, so a file renamed
+since it was shared (words rewritten into one file, a cover kept another way) is lent by its
+new name.
+
 ## Songs never move
 
 As in a room, each song stays in its sender's bucket. The link records its files' keys, and
@@ -68,19 +72,26 @@ same source link), your own copy plays.
 
 ## The page
 
-`/l/<id>/<key>` (`features/share/ShareLinkScreen.tsx`), laid out like Apple Music's share
-page. Agreed with Xiao on 2026-10-14, picks F1 and F2.
+`/l/<id>/<key>` (`features/share/ShareLinkScreen.tsx`). Agreed with Xiao on 2026-10-14,
+picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1.
 
 - **The ground** is washed in the first cover's colour, the way the phone's Now Playing is:
   the colour, the cover blurred over it, a veil of the ground on top. Grey once it ends.
 - **The top line** is the sender's face and *Xiao sent you a song · 6 days left*
   (`shareHeadLine`). On your own link it says who opened it.
-- **One song:** the big cover, the title and *artist · album* under it, then Play with the
-  seek bar beside it. The bar is there before Play, so nothing moves when it starts.
-- **Its words while it plays (F2).** A song with words shrinks its cover into a row, and the
-  words scroll in time below, Now Playing's own (`StageLyrics`). They are read from what the
-  link lends (`useLentWords`), only once the song is loaded. A tap on the row brings the
-  cover back.
+- **One song, on a computer (A1)**, is Now Playing's stage at its measurements
+  (`stageGeometry`, `features/share/ShareSong.tsx`): the cover at the top of the left column,
+  the title and *artist · album* under it, then the seek bar and Play, all the cover's width.
+  The words take the column on the right and scroll in time (`StageLyrics`). A song lent
+  without words keeps the left column alone, in the middle of the window.
+- **One song, on a phone (B1)**, is the phone's Now Playing: the cover, the title, the bar,
+  and a big Play low under it. The words are the page's other view, opened as Now Playing's
+  are, by a tap on the cover or a pull up, and put back by a pull down or the chevron. There
+  is no Lyrics button; Now Playing's one-time guide says so instead.
+- **The words** are read from what the link lends (`useLentWords`), once the song is loaded
+  or the phone's words view is opened, so a link only looked at costs its sender no reads.
+  The bar is there before Play, so nothing moves when it starts.
+- **A song that has ended** is its cover, faded, and its names, with the ways on under them.
 - **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then
   the songs.
 - **Signed out**, a quiet line at the foot says what self.mp3 is and opens it.

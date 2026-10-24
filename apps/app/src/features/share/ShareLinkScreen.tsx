@@ -36,19 +36,17 @@ import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { PageLoading } from '../../ui/components/PageLoading'
-import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { Press } from '../../ui/components/Press'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
-import { SeekBar } from '../../ui/components/SeekBar'
 import { TextField } from '../../ui/components/TextField'
 import { RoomEntryLine } from '../room/RoomEntryLine'
 import { FacesCover, RoomFace } from '../room/RoomFace'
 import { sayRoomFailure } from '../room/roomFailure'
 import { useGetSongs } from '../room/useGetSongs'
 import { gettable, shareHeadLine, shareStage, shareTracks, sourceName } from './share.model'
-import { ShareSongHead } from './ShareSongHead'
+import { ShareSong, SongStill } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
@@ -112,11 +110,11 @@ export function ShareLinkScreen(): ReactNode {
 }
 
 /**
- * The link itself (F1 and F2 of the page's proposal, Apple Music's way): on
- * its cover's colour, its sender and how long it has on one line at the top,
- * then the song — its big cover, its name, Play with the bar beside it — or
- * the list's covers, name and Play. While a song with words plays, its words
- * take the cover's place (`ShareSongHead`).
+ * The link itself (F1 and F2 of the page's proposal): on its cover's colour,
+ * its sender and how long it has at the top. A song that still plays is Now
+ * Playing's own page (`ShareSong`): the stage on a computer, the phone's page
+ * on a phone. A list, or a song that has ended, is one column: its covers,
+ * its name, Play, and the ways on.
  */
 function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const router = useRouter()
@@ -166,10 +164,9 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const tone = first?.song.coverTone ?? null
   const wash = ended ? (tone ? neutralWash(tone) : theme.colors.surface2) : light.color
 
-  // Its words in the cover's place while it plays (F2), until the cover is asked back.
-  const lyrics = useLentWords(link, link.kind === 'song' ? first : undefined, loaded)
-  const [coverAsked, setCoverAsked] = useState(false)
-  const hasWords = loaded && lyrics.words.status === 'lyrics'
+  // Its words, read once it is loaded or the phone's words view is opened.
+  const [wordsOpen, setWordsOpen] = useState(false)
+  const lyrics = useLentWords(link, link.kind === 'song' ? first : undefined, loaded || wordsOpen)
   // As big as the column allows, short of pushing Play out of sight.
   const coverSide = Math.min(wide ? 360 : 340, Math.min(width, PAGE_WIDTH) - space.gutter * 2)
 
@@ -180,144 +177,145 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
     else player.playFrom(ids, at)
   }
 
+  const back = signedIn ? <BackButton to="/" /> : null
+  const from = (
+    <View style={styles.from} testID={`share-stage-${stage}`}>
+      <RoomFace name={link.from.name} colour={0} picture={link.from.picture} size={28} />
+      <Text style={styles.fromText} numberOfLines={2}>
+        {head.from}
+        {' · '}
+        <Text style={stage === 'lastDay' ? styles.warn : undefined}>{head.time}</Text>
+      </Text>
+    </View>
+  )
+  const ways = (
+    <Ways
+      link={link}
+      stage={stage}
+      signedIn={signedIn}
+      toGet={toGet.length}
+      getting={toGet.some(entry => getSongs.getting.has(entry.song.sourceUrl ?? ''))}
+      onGet={() => void getSongs.get(toGet.map(entry => entry.song))}
+      source={link.kind === 'song' ? source : null}
+    />
+  )
+  // For whoever has never seen self.mp3: what it is, and the way in.
+  const foot = signedIn ? null : (
+    <Press
+      feedback="dim"
+      onPress={() => router.push('/')}
+      accessibilityRole="link"
+      style={styles.footer}
+      testID="share-home"
+    >
+      <BrandMark size={16} tone="textMuted" />
+      <Text style={styles.footerText}>self.mp3 · your own music library</Text>
+    </Press>
+  )
+
   return (
     <View style={styles.screen}>
       <Backdrop color={wash} art={ended ? null : cover} />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <ScrollView
-          contentContainerStyle={[
-            styles.page,
-            wide && styles.pageWide,
-            signedIn && styles.pageInApp,
-          ]}
-          testID="share-link"
-        >
-          {signedIn ? <BackButton to="/" /> : null}
-          <View style={styles.from} testID={`share-stage-${stage}`}>
-            <RoomFace name={link.from.name} colour={0} picture={link.from.picture} size={28} />
-            <Text style={styles.fromText} numberOfLines={2}>
-              {head.from}
-              {' · '}
-              <Text style={stage === 'lastDay' ? styles.warn : undefined}>{head.time}</Text>
-            </Text>
-          </View>
-
-          {link.kind === 'song' && first ? (
-            <ShareSongHead
-              song={first.song}
-              cover={cover}
-              size={coverSide}
-              wide={wide}
-              ended={ended}
-              lyrics={lyrics}
-              showWords={hasWords && !coverAsked}
-              onShowWords={hasWords ? on => setCoverAsked(!on) : null}
-            />
-          ) : (
-            <View style={styles.listHead}>
-              <View style={[styles.mosaic, ended && styles.faded]}>
-                <FacesCover
-                  people={[]}
-                  size={wide ? 240 : 200}
-                  covers={link.entries.map(entry => ({
-                    uri: coverOf(entry),
-                    title: entry.song.title,
-                  }))}
-                />
-              </View>
-              <View style={styles.names}>
-                <Text
-                  style={wide ? styles.titleWide : styles.title}
-                  accessibilityRole="header"
-                  numberOfLines={3}
-                >
-                  {link.name}
-                </Text>
-                <Text style={styles.byline}>{plural(link.entries.length, 'song', 'songs')}</Text>
-              </View>
-            </View>
-          )}
-
-          {!ended && link.kind === 'song' && first ? (
-            // The bar beside Play from the start, so nothing moves when it plays.
-            <View style={styles.transport}>
-              <PlayPauseButton
-                songId={firstId}
-                playLabel={`Play ${first.song.title}`}
-                onPress={() => play(0)}
-                testID="share-play"
-              />
-              <View style={styles.seek} pointerEvents={loaded ? 'auto' : 'none'}>
-                <SeekBar
-                  color={theme.colors.textPrimary}
-                  waiting={loaded ? undefined : first.song.duration}
-                />
-              </View>
-            </View>
-          ) : null}
-
-          {!ended && link.kind === 'list' ? (
-            <View style={styles.actions}>
-              <PlayShuffle
-                name={link.name}
-                songIds={ids}
-                onPlay={() => play(0)}
-                onShuffle={() => player.playShuffled(ids)}
-                testPrefix="share"
-              />
-            </View>
-          ) : null}
-
-          <Ways
-            link={link}
-            stage={stage}
-            signedIn={signedIn}
-            toGet={toGet.length}
-            getting={toGet.some(entry => getSongs.getting.has(entry.song.sourceUrl ?? ''))}
-            onGet={() => void getSongs.get(toGet.map(entry => entry.song))}
-            source={link.kind === 'song' ? source : null}
+        {link.kind === 'song' && first && !ended ? (
+          <ShareSong
+            song={first.song}
+            songId={firstId}
+            cover={cover}
+            lyrics={lyrics}
+            lent={first.song.lyrics !== null}
+            loaded={loaded}
+            onPlay={() => play(0)}
+            back={back}
+            from={from}
+            ways={ways}
+            foot={foot}
+            inApp={signedIn}
+            wordsOpen={wordsOpen}
+            onWords={setWordsOpen}
           />
+        ) : (
+          <ScrollView
+            contentContainerStyle={[
+              styles.page,
+              wide && styles.pageWide,
+              signedIn && styles.pageInApp,
+            ]}
+            testID="share-link"
+          >
+            {back}
+            {from}
 
-          {link.kind === 'list' ? (
-            <View>
-              {link.entries.map((entry, at) => {
-                const from = entry.song.sourceUrl
-                return (
-                  <RoomEntryLine
-                    key={entry.id}
-                    song={entry.song}
-                    uri={coverOf(entry)}
-                    face={null}
-                    note={yoursOf(entry.song, index) !== null ? 'yours' : undefined}
-                    dim={ended || entry.gone}
-                    onPress={
-                      !ended && !entry.gone
-                        ? () => play(entries.indexOf(entry))
-                        : from
-                          ? () => void Linking.openURL(from)
-                          : undefined
-                    }
-                    testID={`share-row-${at}`}
+            {link.kind === 'song' && first ? (
+              <SongStill song={first.song} cover={cover} size={coverSide} />
+            ) : (
+              <View style={styles.listHead}>
+                <View style={[styles.mosaic, ended && styles.faded]}>
+                  <FacesCover
+                    people={[]}
+                    size={wide ? 240 : 200}
+                    covers={link.entries.map(entry => ({
+                      uri: coverOf(entry),
+                      title: entry.song.title,
+                    }))}
                   />
-                )
-              })}
-            </View>
-          ) : null}
+                </View>
+                <View style={styles.names}>
+                  <Text
+                    style={wide ? styles.titleWide : styles.title}
+                    accessibilityRole="header"
+                    numberOfLines={3}
+                  >
+                    {link.name}
+                  </Text>
+                  <Text style={styles.byline}>{plural(link.entries.length, 'song', 'songs')}</Text>
+                </View>
+              </View>
+            )}
 
-          {/* For whoever has never seen self.mp3: what it is, and the way in. */}
-          {signedIn ? null : (
-            <Press
-              feedback="dim"
-              onPress={() => router.push('/')}
-              accessibilityRole="link"
-              style={styles.footer}
-              testID="share-home"
-            >
-              <BrandMark size={16} tone="textMuted" />
-              <Text style={styles.footerText}>self.mp3 · your own music library</Text>
-            </Press>
-          )}
-        </ScrollView>
+            {!ended && link.kind === 'list' ? (
+              <View style={styles.actions}>
+                <PlayShuffle
+                  name={link.name}
+                  songIds={ids}
+                  onPlay={() => play(0)}
+                  onShuffle={() => player.playShuffled(ids)}
+                  testPrefix="share"
+                />
+              </View>
+            ) : null}
+
+            {ways}
+
+            {link.kind === 'list' ? (
+              <View>
+                {link.entries.map((entry, at) => {
+                  const from = entry.song.sourceUrl
+                  return (
+                    <RoomEntryLine
+                      key={entry.id}
+                      song={entry.song}
+                      uri={coverOf(entry)}
+                      face={null}
+                      note={yoursOf(entry.song, index) !== null ? 'yours' : undefined}
+                      dim={ended || entry.gone}
+                      onPress={
+                        !ended && !entry.gone
+                          ? () => play(entries.indexOf(entry))
+                          : from
+                            ? () => void Linking.openURL(from)
+                            : undefined
+                      }
+                      testID={`share-row-${at}`}
+                    />
+                  )
+                })}
+              </View>
+            ) : null}
+
+            {foot}
+          </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   )
@@ -507,8 +505,6 @@ const styles = StyleSheet.create(theme => ({
   title: heroTitle(theme.colors, 'page'),
   titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
-  transport: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
-  seek: { flex: 1, minWidth: 0 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   ways: { gap: space.sm, alignItems: 'stretch' },
   fine: { color: theme.colors.textMuted, fontSize: type.small },

@@ -85,7 +85,7 @@ async function make(
 const open = (s: Setup, made: ShareLink, token?: string, key = made.key) =>
   s.h.call(`/v1/share/${made.id}?k=${key}`, { token })
 
-const file = (s: Setup, made: ShareLink, part: 'audio' | 'cover', headers = {}) =>
+const file = (s: Setup, made: ShareLink, part: 'audio' | 'cover' | 'lyrics', headers = {}) =>
   s.h.call(`/v1/share/${made.id}/files/${made.entries[0]?.id ?? ''}/${part}?k=${made.key}`, {
     headers,
   })
@@ -157,6 +157,21 @@ describe('a share link', () => {
     // Other songs, or another name, are another link.
     expect((await make(s, [song(1)], 'Chill', 'list')).id).not.toBe(made.id)
     expect((await make(s, [song(1), song(2)], 'Mix', 'list')).id).not.toBe(made.id)
+  })
+
+  it('lends a song’s files by their names now when it is shared again', async () => {
+    const s = await setup()
+    const words = (name: string): RoomSong => ({
+      ...song(1),
+      lyrics: { key: `lyrics/${'01'.repeat(32)}.${name}`, size: 5, kind: 'synced' },
+    })
+    s.h.bucket.put(`selfmp3/lyrics/${'01'.repeat(32)}.words`, 'words')
+    const made = await make(s, [words('lrc')])
+    // Its words were rewritten into another file since it was shared.
+    expect((await file(s, made, 'lyrics')).status).toBe(404)
+    const again = await make(s, [words('words')])
+    expect(again.id).toBe(made.id)
+    expect(await (await file(s, made, 'lyrics')).text()).toBe('words')
   })
 
   it('shares the same link again once it ran out, but not once its sender ended it', async () => {

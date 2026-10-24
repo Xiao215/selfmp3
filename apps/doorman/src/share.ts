@@ -18,6 +18,7 @@ import {
   shareLends,
   shareOpened,
   sharePlayed,
+  shareSongsAgain,
   shareSummary,
   shareView,
   SHARE_MAX_SONGS,
@@ -106,6 +107,10 @@ const AskSchema = z.object({
 const PlayedSchema = z.object({ entry: RoomIdSchema, fromStart: z.boolean() })
 const GoneSchema = z.object({ entry: RoomIdSchema })
 const ActSchema = z.object({ sub: SubSchema, action: ShareActionSchema })
+const SongsSchema = z.object({
+  sub: SubSchema,
+  songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+})
 
 /** Which bucket, and which key in it: what the Worker reads a lent file by. */
 export const ShareFileSchema = z.object({ sub: z.string(), key: z.string() })
@@ -166,6 +171,8 @@ export class Share {
           return await this.#ask(AskSchema.parse(await request.json()))
         case 'POST /act':
           return await this.#act(ActSchema.parse(await request.json()))
+        case 'POST /songs':
+          return await this.#songs(SongsSchema.parse(await request.json()))
         default:
           return answer(404, DOORMAN_ERROR.notFound, 'no such endpoint')
       }
@@ -365,6 +372,18 @@ export class Share {
     await this.#save(next, answered)
     if (input.action.type === 'renew') await this.#runtime.storage.setAlarm(shareKeptUntil(next))
     return Response.json(this.#viewOf(next, answered, input.sub))
+  }
+
+  /** Shared again by its sender: its songs' files as their library names them now. */
+  async #songs(input: z.infer<typeof SongsSchema>): Promise<Response> {
+    const found = await this.#found()
+    if (!found) return MISSING()
+    const { doc, secrets } = found
+    if (input.sub !== secrets.owner) {
+      return answer(403, DOORMAN_ERROR.shareForbidden, 'only its sender can do that')
+    }
+    await this.#save(shareSongsAgain(doc, input.songs), secrets)
+    return new Response(null, { status: 204 })
   }
 
   #asked(secrets: Secrets, sub: string | null): boolean {

@@ -17,6 +17,7 @@ function filesFor(bridge: NonNullable<typeof desktop>): CoverFiles {
     uriFor: name => bridge.mediaUrl('covers', name),
     has: async name => (await bridge.files.stat('covers', name)) !== null,
     keep: (name, url, headers) => bridge.files.fetchTo('covers', name, url, headers),
+    unpack: (url, headers, slices) => bridge.files.unpackTo('covers', url, headers, slices),
     list: async () => (await bridge.files.list('covers')).map(one => one.name),
     remove: name => bridge.files.delete('covers', name),
     forget: () => bridge.files.clear('covers'),

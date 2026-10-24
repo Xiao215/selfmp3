@@ -4,6 +4,7 @@ import { CLOUD_FORMAT } from './schemas/cloud.js'
 import type {
   CloudSmartRules,
   CloudArtist,
+  CloudCoverPack,
   CloudSound,
   CloudImport,
   CloudPlaylist,
@@ -51,6 +52,8 @@ export interface SyncLibrary {
   readonly imports: Map<string, CloudImport>
   /** Artists' pictures, as the snapshot had them: no change touches them. */
   readonly artists: readonly CloudArtist[]
+  /** The packs of covers, as the snapshot had them: the server's, like the pictures. */
+  readonly coverPacks: readonly CloudCoverPack[]
   /** The server's sound vectors, as the snapshot had them: no change touches them either. */
   readonly sound: CloudSound | null
   /** Plays counted during this replay, by id. */
@@ -67,6 +70,7 @@ export function syncLibrary(snapshot?: CloudSnapshot | null): SyncLibrary {
     aliases: new Map(Object.entries(snapshot?.aliases ?? {})),
     imports: new Map(snapshot?.imports?.map(request => [request.uid, request])),
     artists: snapshot?.artists ?? [],
+    coverPacks: snapshot?.coverPacks ?? [],
     sound: snapshot?.sound ?? null,
     counted: new Set(),
     merged: new Map(Object.entries(snapshot?.merged ?? {})),
@@ -86,6 +90,7 @@ export function snapshotOf(
     tags: [...library.tags.values()],
     playlists: [...library.playlists.values()],
     artists: [...library.artists],
+    coverPacks: [...library.coverPacks],
     sound: library.sound,
     ...(library.aliases.size > 0 ? { aliases: Object.fromEntries(library.aliases) } : {}),
     ...(library.merged.size > 0 ? { merged: Object.fromEntries(library.merged) } : {}),

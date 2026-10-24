@@ -10,6 +10,13 @@
  * packages/shared's `@selfmp3/shared/wire` instead.
  */
 
+/**
+ * Covers, the worker's own, and the pictures a tab unpacks from the bucket's
+ * packs of covers (src/offline/covers.web.ts), under the `api/bucket/<key>`
+ * address the worker answers an artist's picture at.
+ */
+export const API_CACHE = 'selfmp3-api-v2'
+
 /** Songs kept on this device (src/ports/offline.web.ts), answered by the worker. */
 export const AUDIO_CACHE = 'selfmp3-audio-v1'
 

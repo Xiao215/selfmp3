@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CloudPlaysFileSchema,
   CloudSnapshotSchema,
+  coverPackMembers,
   formatHlc,
   logFile,
   logKey,
@@ -249,6 +250,10 @@ describe('CloudSyncService', () => {
   }
 
   const snapshotKeys = (store = bucket): string[] => store.keys('snapshots/')
+
+  /** The pictures in the bucket, each on its own: what is in `covers/` less the packs of them. */
+  const singlePictures = (store = bucket): string[] =>
+    store.keys('covers/').filter(key => !key.endsWith('.pack'))
 
   const latest = (store = bucket): CloudSnapshot => {
     const key = newestSnapshotKey(snapshotKeys(store))
@@ -836,6 +841,110 @@ describe('CloudSyncService', () => {
     })
   })
 
+  describe('packs of covers', () => {
+    /** The covers of three songs, each its own bytes. */
+    const threeWithCovers = async (): Promise<Buffer[]> => {
+      const bytes = [Buffer.alloc(2048, 1), Buffer.alloc(3000, 2), Buffer.alloc(1500, 3)]
+      for (const [index, name] of ['A - One', 'B - Two', 'C - Three'].entries()) {
+        await covers.save(addSong(name, name), bytes[index] as Buffer, '.jpg')
+      }
+      return bytes
+    }
+
+    const packKeys = (): string[] => bucket.keys('covers/').filter(key => key.endsWith('.pack'))
+
+    it('packs the library’s covers into one file, each where the snapshot says', async () => {
+      const bytes = await threeWithCovers()
+      await connect()
+
+      const [pack, ...more] = latest().coverPacks
+      expect(more).toEqual([])
+      if (!pack) throw new Error('no pack')
+      expect(packKeys()).toEqual([pack.key])
+      const body = bucket.objects.get(pack.key)?.body as Buffer
+      expect(pack.key).toBe(`covers/${sha(body)}.pack`)
+      expect(pack.size).toBe(body.length)
+
+      // Every cover, cut out of the pack where the snapshot says it is, is the
+      // cover the song names — which is still in the bucket on its own too.
+      const named = latest()
+        .songs.map(song => song.cover?.key)
+        .sort()
+      expect(pack.covers.map(([key]) => key)).toEqual(named)
+      for (const member of coverPackMembers(pack)) {
+        const cut = body.subarray(member.at, member.at + member.size)
+        expect(member.key).toBe(`covers/${sha(cut)}.jpg`)
+        expect(bucket.objects.get(member.key)?.body).toEqual(cut)
+      }
+      expect(bytes.map(cover => `covers/${sha(cover)}.jpg`).sort()).toEqual(named)
+    })
+
+    it('does not pack a library again that has not changed', async () => {
+      await threeWithCovers()
+      await connect()
+      const puts = bucket.puts.length
+      await pass()
+      await pass()
+      expect(bucket.puts.slice(puts).filter(key => key.endsWith('.pack'))).toEqual([])
+    })
+
+    it('packs a new cover with the rest, and deletes the old pack once the new one is named', async () => {
+      await threeWithCovers()
+      await connect()
+      const [before] = packKeys()
+
+      await covers.save(addSong('D - Four', 'four'), Buffer.alloc(1000, 4), '.jpg')
+      await pass()
+
+      // Packs are enrichment: held a moment, and the old one let go after.
+      await vi.waitFor(() => expect(latest().coverPacks[0]?.covers).toHaveLength(4))
+      const [after] = latest().coverPacks
+      expect(after?.key).not.toBe(before)
+      await vi.waitFor(() => expect(packKeys()).toEqual([after?.key]))
+    })
+
+    it('packs again without a cover taken off', async () => {
+      await threeWithCovers()
+      await connect()
+      const first = latest().songs.find(song => song.title === 'One')
+      const gone = first?.cover?.key
+
+      await covers.remove(
+        Number(db.prepare('SELECT id FROM songs WHERE title = ?').pluck().get('One')),
+      )
+      await pass()
+      await vi.waitFor(() =>
+        expect(latest().coverPacks.flatMap(pack => pack.covers.map(([key]) => key))).not.toContain(
+          gone,
+        ),
+      )
+      await vi.waitFor(() => expect(packKeys()).toEqual([latest().coverPacks[0]?.key]))
+    })
+
+    it('takes on the bucket’s packs when it has no covers to make them from', async () => {
+      const cover = (name: string) => theirFile('covers', `their cover of ${name}`, '.jpg')
+      const songs = ['YOASOBI - Gunjou', 'Nova - Dusk'].map(name =>
+        theirSong(name, { cover: cover(name) }),
+      )
+      const members = songs.map(song => song.cover as { key: string; size: number })
+      const body = Buffer.concat(members.map(member => bodies.get(member.key) as Buffer))
+      const pack = {
+        key: `covers/${sha(body)}.pack`,
+        size: body.length,
+        covers: members.map(({ key, size }): [string, number] => [key, size]),
+      }
+      seedBucket({ ...theirSnapshot({ songs }), coverPacks: [pack] })
+      bucket.objects.set(pack.key, { body, contentType: 'application/octet-stream' })
+
+      await connect()
+
+      expect(cloud.coverPacks()).toEqual([pack])
+      expect(packKeys()).toEqual([pack.key])
+      await pass()
+      expect(latest().coverPacks).toEqual([pack])
+    })
+  })
+
   describe('artists’ pictures', () => {
     /** A server that keeps one picture pair per artist named in `kept`, under `dataDir`. */
     const pictures = (kept: Map<string, { banner: string; portrait: string; rev: string }>) => {
@@ -881,7 +990,7 @@ describe('CloudSyncService', () => {
           portrait: { key: `covers/${sha('round')}.jpg`, size: 5 },
         },
       ])
-      expect(bucket.keys('covers/')).toEqual(
+      expect(singlePictures()).toEqual(
         [`covers/${sha('wide')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
       )
       // And the server looked for the pictures it does not have yet.
@@ -896,7 +1005,7 @@ describe('CloudSyncService', () => {
       sync = makeSync({ artists })
       await connect()
       await pass()
-      expect(bucket.puts.filter(key => key.startsWith('covers/'))).toHaveLength(2)
+      expect(bucket.puts.filter(key => /^covers\/.*\.jpg$/.test(key))).toHaveLength(2)
 
       artists.kept.set('yoasobi', { banner: 'wider', portrait: 'round', rev: 'r2' })
       await pass()
@@ -906,7 +1015,7 @@ describe('CloudSyncService', () => {
         expect(latest().artists[0]?.banner.key).toBe(`covers/${sha('wider')}.jpg`),
       )
       await vi.waitFor(() =>
-        expect(bucket.keys('covers/')).toEqual(
+        expect(singlePictures()).toEqual(
           [`covers/${sha('wider')}.jpg`, `covers/${sha('round')}.jpg`].sort(),
         ),
       )

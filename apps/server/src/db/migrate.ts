@@ -924,6 +924,21 @@ const MIGRATIONS: readonly Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_song_merges_song ON song_merges(song_id);
     `,
   },
+  {
+    // 44. The covers and artists' pictures, packed a few megabytes to a file
+    // in the bucket (services/coverPacks.ts), so a device with none of them
+    // reads a few files instead of one per picture. A row per pack: its key,
+    // its size, and the pictures it holds in order, as JSON `[key, size]`
+    // pairs. A library already in the bucket is packed by the next pass.
+    name: 'covers packed a few megabytes to a file',
+    sql: `
+      CREATE TABLE IF NOT EXISTS cloud_cover_packs (
+        key    TEXT    PRIMARY KEY,
+        size   INTEGER NOT NULL,
+        covers TEXT    NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

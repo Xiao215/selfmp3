@@ -2,6 +2,7 @@ import { doormanAuth, doormanFileUrl, library, session as cloudSession } from '.
 import { bucketHold } from '@selfmp3/replica'
 import { HASH_FILE_NAME, messageOf } from '@selfmp3/shared'
 import { createCoverChanges } from './coverChanges'
+import { nameFromKey, packsToFetch, type PackSlice } from './coverPacks'
 
 /**
  * What to do about a cover, without knowing where the bytes go.
@@ -82,6 +83,27 @@ export interface CoverPlatform {
   readonly keepServed: (name: string, url: string) => Promise<string | null>
   /** Drop everything this platform is keeping. May throw. */
   readonly forgetFiles: () => Promise<void>
+  /**
+   * Where pictures unpacked from the bucket's packs go (`fillFromPacks`), on a
+   * platform that keeps them. An ordinary tab has one even though it keeps no
+   * files: its service worker draws a cover from what is put here.
+   */
+  readonly packs?: PackSink
+}
+
+/** Somewhere to put the pictures of a pack of covers (offline/coverPacks.ts). */
+export interface PackSink {
+  /** Every bucket picture already here, by name. May throw. */
+  readonly have: () => Promise<readonly string[]>
+  /**
+   * Fetch the pack at `url` and keep each of `slices` under its name, leaving
+   * out any whose bytes are not the hash its name says. May throw.
+   */
+  readonly unpack: (
+    url: string,
+    headers: Record<string, string>,
+    slices: readonly PackSlice[],
+  ) => Promise<void>
 }
 
 interface CoverStore {
@@ -116,12 +138,14 @@ interface CoverStore {
   readonly holdPictures: (holder: string, keys: Iterable<string>) => void
   /** Delete every bucket picture kept here that `named` does not name; how many went. */
   readonly sweepPictures: (named: ReadonlySet<string>) => Promise<number>
+  /**
+   * Fill this device from the bucket's packs of covers, where a pack brings
+   * more than fetching its pictures alone would; the keys of the pictures
+   * packs were to bring and could not, which are better asked for again later
+   * than one read at a time now.
+   */
+  readonly fillFromPacks: (isCancelled: () => boolean) => Promise<ReadonlySet<string>>
   readonly forgetCovers: () => Promise<void>
-}
-
-/** `4f1c….jpg` from `covers/4f1c….jpg`: the hash is already the name. */
-function nameFromKey(key: string): string {
-  return key.slice(key.lastIndexOf('/') + 1)
 }
 
 /** A picture from the bucket, as it is kept: the hash its key is named by, and the extension. */
@@ -382,6 +406,42 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     return gone.size
   }
 
+  const fillFromPacks = async (isCancelled: () => boolean): Promise<ReadonlySet<string>> => {
+    const sink = platform.packs
+    const named = sink ? library.cloudPicturesNow() : null
+    if (!sink || !named || named.packs.length === 0) return new Set()
+    const wanted = new Set(named.covers)
+    for (const artist of named.artists) wanted.add(artist.banner).add(artist.portrait)
+    let here: Set<string>
+    try {
+      here = new Set(await sink.have())
+    } catch {
+      return new Set()
+    }
+    const fetches = packsToFetch(named.packs, wanted, name => here.has(name))
+    if (fetches.length === 0) return new Set()
+    const signedIn = await cloudSession.loadSession()
+    if (!signedIn) return new Set()
+    const unfilled = new Set<string>()
+    for (const { pack, slices, keys } of fetches) {
+      // Called off, or the bucket refusing for the day: what is left waits for
+      // the next pass, rather than being fetched a picture at a time now.
+      if (isCancelled() || bucketHold('read')) {
+        for (const key of keys) unfilled.add(key)
+        continue
+      }
+      try {
+        await sink.unpack(doormanFileUrl(pack.key), doormanAuth(signedIn.token), slices)
+      } catch (error) {
+        for (const key of keys) unfilled.add(key)
+        console.warn(
+          `self.mp3: could not fetch a pack of covers (${pack.key}): ${messageOf(error)}`,
+        )
+      }
+    }
+    return unfilled
+  }
+
   /**
    * Keep a server's cover on this device, from the address the server serves it
    * at. Safe to call for every visible row: a cover already kept, or an address
@@ -505,6 +565,7 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
     keepLent,
     holdPictures,
     sweepPictures,
+    fillFromPacks,
     forgetCovers,
   }
 }

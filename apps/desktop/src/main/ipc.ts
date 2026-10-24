@@ -13,6 +13,7 @@ import {
   fileNameSchema,
   fileTextSchema,
   headersSchema,
+  packSlicesSchema,
   loginItemOpenSchema,
   secretKeySchema,
   secretValueSchema,
@@ -110,6 +111,16 @@ export function registerIpc({
         fileNameSchema.parse(name),
         externalUrlSchema.parse(url),
         headersSchema.optional().parse(headers),
+      ),
+  )
+  ipcMain.handle(
+    CHANNELS.filesUnpackTo,
+    (_event, kind: unknown, url: unknown, headers: unknown, slices: unknown) =>
+      files.unpackTo(
+        fileKindSchema.parse(kind),
+        externalUrlSchema.parse(url),
+        headersSchema.parse(headers),
+        packSlicesSchema.parse(slices),
       ),
   )
   ipcMain.handle(CHANNELS.filesWrite, (_event, kind: unknown, name: unknown, text: unknown) =>

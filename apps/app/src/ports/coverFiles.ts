@@ -1,3 +1,5 @@
+import type { PackSlice } from '../offline/coverPacks'
+
 /**
  * Cover art kept as files, where that is something this platform can do.
  *
@@ -15,6 +17,8 @@ export interface CoverFiles {
   has(name: string): Promise<boolean>
   /** Fetch one and keep it, with headers an image loader could not have sent. */
   keep(name: string, url: string, headers?: Record<string, string>): Promise<void>
+  /** Fetch a pack of covers and keep the pictures it holds (offline/coverPacks.ts). */
+  unpack(url: string, headers: Record<string, string>, slices: readonly PackSlice[]): Promise<void>
   /** Everything kept, by name. */
   list(): Promise<readonly string[]>
   /** Delete one. */

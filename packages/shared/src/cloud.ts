@@ -1,6 +1,7 @@
 import {
   CLOUD_FORMAT,
   CloudFormatSchema,
+  type CloudCoverPack,
   type CloudFormat,
   type CloudSmartRules,
   type CloudSnapshot,
@@ -80,6 +81,27 @@ export function audioKey(sha256: string, extension: string): string {
 
 export function coverKey(sha256: string, extension: string): string {
   return `covers/${sha256}.${cleanExtension(extension)}`
+}
+
+/**
+ * Many covers in one file (`CloudCoverPackSchema`), in `covers/` like the
+ * pictures it holds: the doorman's key rule already allows the folder and
+ * the extension.
+ */
+export function coverPackKey(sha256: string): string {
+  return `covers/${sha256}.pack`
+}
+
+/** Where each picture of a pack is in its file: its key, where it starts, and how long it is. */
+export function coverPackMembers(
+  pack: CloudCoverPack,
+): { readonly key: string; readonly at: number; readonly size: number }[] {
+  let at = 0
+  return pack.covers.map(([key, size]) => {
+    const member = { key, at, size }
+    at += size
+    return member
+  })
 }
 
 /** Timed lyrics are `.lrc` and plain ones `.txt`, as sidecars are on the server. */

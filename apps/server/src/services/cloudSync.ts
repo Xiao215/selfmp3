@@ -14,6 +14,7 @@ import {
   SNAPSHOTS_FOLDER,
   audioKey,
   coverKey,
+  coverPackKey,
   foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
@@ -39,6 +40,7 @@ import {
   type CloudLyrics,
   type CloudSnapshot,
   type CloudPlays,
+  type CloudCoverPack,
   type CloudSound,
   type CloudStatus,
   type DoormanMe,
@@ -54,6 +56,7 @@ import type { KeptCloudFiles } from '../bucket/kept.js'
 import { debounce, type Debounced } from './debounce.js'
 import { importPacer, type ImportPacer } from './importPacing.js'
 import type {
+  CloudArtistState,
   CloudConnection,
   CloudRepository,
   CloudSongState,
@@ -70,6 +73,7 @@ import type { CloudIngest, IngestResult } from './cloudIngest.js'
 import type { CoverService } from './covers.js'
 import type { ArtistBackdropService } from './artistBackdrops.js'
 import { removeFolderIfEmpty } from './libraryLayout.js'
+import { planCoverPacks } from './coverPacks.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
@@ -421,6 +425,12 @@ export class CloudSyncService {
    * before that snapshot has been looked at.
    */
   #bucketSound: CloudSound | null | undefined = undefined
+  /**
+   * Pictures named in the library whose bytes this server does not have, as
+   * the last look for them found: not looked for again every pass. A cover
+   * that changes has a new key, and is looked for under that.
+   */
+  readonly #unpackable = new Set<string>()
   /** The pass that sends the vectors once the hour since the last is up. */
   #soundTimer: NodeJS.Timeout | null = null
   /**
@@ -1069,6 +1079,8 @@ export class CloudSyncService {
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadArtists(store)
       if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadCoverPacks(store)
+      if (generation !== this.#generation || this.#stopped) return
       await this.#uploadSound(store)
       if (generation !== this.#generation || this.#stopped) return
       if (await this.#uploadPlays(store)) this.#playsCovered = this.#deps.sync?.cursors() ?? {}
@@ -1475,6 +1487,7 @@ export class CloudSyncService {
     }
     this.#bucketSound = snapshot.sound
     this.#bucketPlays = snapshot.plays ?? []
+    this.#takeOnCoverPacks(snapshot.coverPacks)
     if (snapshot.writtenBy === this.#deviceId()) {
       // This server's own, from before it last stopped. Said again word for
       // word, it would be one more download for every device and nothing new
@@ -1513,6 +1526,19 @@ export class CloudSyncService {
         songs: result.withoutAudio,
       })
     }
+  }
+
+  /**
+   * The bucket's packs of covers, for a server that has none of its own yet:
+   * it may not have the covers to make them again (a library taken on from
+   * the bucket has none here), and without them every device would be back
+   * to a read per cover. Only those the bucket still has, as its listing said.
+   */
+  #takeOnCoverPacks(packs: readonly CloudCoverPack[]): void {
+    const { cloud } = this.#deps
+    if (cloud.coverPacks().length > 0) return
+    const present = packs.filter(pack => cloud.hasFile(pack.key))
+    if (present.length > 0) cloud.saveCoverPacks(present)
   }
 
   /**
@@ -1700,6 +1726,95 @@ export class CloudSyncService {
       }
     }
     for (const artist of states.keys()) if (!kept.has(artist)) cloud.dropArtist(artist)
+  }
+
+  /**
+   * The covers and artists' pictures, packed a few megabytes to a file
+   * (services/coverPacks.ts), so a device with none of them reads a file per
+   * pack rather than one per picture. A pack replaced goes in the trash with
+   * the pass that replaced it; a library already packed costs a look at the
+   * database.
+   */
+  async #uploadCoverPacks(store: CloudStore): Promise<void> {
+    const { cloud } = this.#deps
+    const live = new Map<string, number>()
+    for (const state of cloud.states().values()) {
+      if (state.coverKey !== null) live.set(state.coverKey, state.coverSize ?? 0)
+    }
+    const artists = cloud.artistStates()
+    for (const artist of artists.values()) {
+      live.set(artist.bannerKey, artist.bannerSize)
+      live.set(artist.portraitKey, artist.portraitSize)
+    }
+    const packs = cloud.coverPacks()
+    // First as if every picture not known to be missing were here: when that
+    // packs nothing, nothing is looked for on the disk.
+    const hoped = planCoverPacks(live, packs, key => !this.#unpackable.has(key))
+    if (hoped.groups.length === 0) {
+      if (hoped.kept.length !== packs.length) cloud.saveCoverPacks(hoped.kept)
+      return
+    }
+
+    const sources = await this.#pictureSources(artists)
+    for (const key of live.keys()) if (!sources.has(key)) this.#unpackable.add(key)
+    const plan = planCoverPacks(live, packs, key => sources.has(key))
+    const made: CloudCoverPack[] = []
+    for (const group of plan.groups) {
+      if (this.#stopped) return
+      const parts: Buffer[] = []
+      const covers: [string, number][] = []
+      for (const { key } of group) {
+        const data = await fsp.readFile(sources.get(key) ?? '').catch(() => null)
+        // Changed since it went up: the cover's next upload names it anew.
+        if (!data || !key.includes(`/${sha256(data)}.`)) {
+          this.#unpackable.add(key)
+          continue
+        }
+        parts.push(data)
+        covers.push([key, data.length])
+      }
+      if (covers.length === 0) continue
+      const bytes = Buffer.concat(parts)
+      const key = coverPackKey(sha256(bytes))
+      await this.#putOnce(store, key, bytes, 'application/octet-stream')
+      made.push({ key, size: bytes.length, covers })
+    }
+    const next = [...plan.kept, ...made]
+    const before = packs.map(pack => pack.key).join()
+    if (next.map(pack => pack.key).join() !== before) {
+      cloud.saveCoverPacks(next)
+      this.#logger.debug('covers packed', {
+        packs: next.length,
+        covers: next.reduce((sum, pack) => sum + pack.covers.length, 0),
+      })
+    }
+  }
+
+  /** Where this server keeps each picture the bucket has of its library, by key. */
+  async #pictureSources(
+    artists: ReadonlyMap<string, CloudArtistState>,
+  ): Promise<Map<string, string>> {
+    const { cloud, covers } = this.#deps
+    const sources = new Map<string, string>()
+    for (const [songId, state] of cloud.states()) {
+      if (state.coverKey === null || sources.has(state.coverKey)) continue
+      if (this.#unpackable.has(state.coverKey)) continue
+      const found = await covers.find(songId)
+      if (found) sources.set(state.coverKey, found.path)
+    }
+    const pictures = this.#deps.artists
+    if (pictures) {
+      for (const [artist, state] of artists) {
+        if (this.#unpackable.has(state.bannerKey) && this.#unpackable.has(state.portraitKey)) {
+          continue
+        }
+        const pair = await pictures.keptPair(artist)
+        if (!pair) continue
+        sources.set(state.bannerKey, pair.banner)
+        sources.set(state.portraitKey, pair.portrait)
+      }
+    }
+    return sources
   }
 
   /**
@@ -2229,6 +2344,7 @@ export class CloudSyncService {
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
+      coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.
       sound: this.#bucketSound ?? cloud.soundState(),

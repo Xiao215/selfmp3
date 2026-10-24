@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { countUse } from '../usage/usage'
 
 /**
  * Whether Up next is open (docs/ui-mock `P25`, `C11`): the sheet over a
@@ -14,6 +15,7 @@ const listeners = new Set<() => void>()
 function set(next: boolean): void {
   if (open === next) return
   open = next
+  if (next) countUse('up-next')
   for (const listener of listeners) listener()
 }
 

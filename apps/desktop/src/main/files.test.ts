@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type * as fs from 'node:fs'
 import type { WriteStream } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
@@ -6,7 +7,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { download, move } from './files.js'
+import { download, move, unpackTo } from './files.js'
 
 /*
  * The shell's two edges, faked at the boundary and nowhere nearer: `electron`
@@ -208,5 +209,54 @@ describe('move', () => {
 
   it('says there was nothing to move', async () => {
     expect(await move('recent', 'songs', 'gone.m4a')).toBeNull()
+  })
+})
+
+describe('unpackTo', () => {
+  beforeEach(async () => {
+    harness.userData = await mkdtemp(join(tmpdir(), 'selfmp3-unpack-'))
+    harness.fetch.mockReset()
+  })
+  afterEach(async () => {
+    await rm(harness.userData, { recursive: true, force: true })
+  })
+
+  const named = (text: string, extension: string): string =>
+    `${createHash('sha256').update(text).digest('hex')}.${extension}`
+
+  it('keeps each picture of a pack under its name, and none whose bytes are not that name', async () => {
+    const pack = 'first-coversecond-cover'
+    harness.fetch.mockResolvedValue(new Response(pack))
+    const first = named('first-cover', 'jpg')
+    const second = named('second-cover', 'png')
+    const wrong = named('something else', 'jpg')
+
+    await unpackTo(
+      'covers',
+      'https://doorman.example/v1/files/covers/p.pack',
+      { Authorization: 'Bearer t' },
+      [
+        { name: first, at: 0, size: 11 },
+        { name: second, at: 11, size: 12 },
+        // Where the page said, but not the bytes its name promises.
+        { name: wrong, at: 0, size: 11 },
+      ],
+    )
+
+    expect(harness.fetch).toHaveBeenCalledWith('https://doorman.example/v1/files/covers/p.pack', {
+      headers: { Authorization: 'Bearer t' },
+    })
+    expect(await readFile(join(harness.userData, 'covers', first), 'utf8')).toBe('first-cover')
+    expect(await readFile(join(harness.userData, 'covers', second), 'utf8')).toBe('second-cover')
+    await expect(stat(join(harness.userData, 'covers', wrong))).rejects.toThrow()
+  })
+
+  it('keeps nothing from a refusal', async () => {
+    harness.fetch.mockResolvedValue(new Response('{"error":"no such file"}', { status: 404 }))
+    await expect(
+      unpackTo('covers', 'https://doorman.example/v1/files/covers/p.pack', {}, [
+        { name: named('x', 'jpg'), at: 0, size: 1 },
+      ]),
+    ).rejects.toThrow()
   })
 })

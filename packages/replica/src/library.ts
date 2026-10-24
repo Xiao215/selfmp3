@@ -27,6 +27,7 @@ import {
   toSqliteTime,
   unfoldedLogKeys,
   type Change,
+  type CloudCoverPack,
   type CloudSnapshot,
   type LibraryVersion,
   type LogFile,
@@ -276,6 +277,8 @@ export interface CloudLibraryApi {
   cloudPicturesNow: () => {
     readonly covers: ReadonlySet<string>
     readonly artists: readonly ArtistPictureKeys[]
+    /** The same pictures, packed a few megabytes to a file, for filling a device from nothing. */
+    readonly packs: readonly CloudCoverPack[]
   } | null
   cloudManifest: (scope: 'library' | 'playlists') => SyncManifest
   /**
@@ -530,6 +533,7 @@ export function createCloudLibrary(
       tags: [],
       playlists: [],
       artists: [],
+      coverPacks: [],
       sound: null,
     }
   }
@@ -1182,12 +1186,17 @@ export function createCloudLibrary(
   function cloudPicturesNow(): {
     covers: ReadonlySet<string>
     artists: readonly ArtistPictureKeys[]
+    packs: readonly CloudCoverPack[]
   } | null {
     const view = replica?.view
     if (!view) return null
     const covers = new Set<string>()
     for (const files of Object.values(view.files)) if (files.cover) covers.add(files.cover)
-    return { covers, artists: [...view.artists.values()] }
+    return {
+      covers,
+      artists: [...view.artists.values()],
+      packs: replica?.base.snapshot?.coverPacks ?? [],
+    }
   }
 
   /** What this device should keep, for automatic downloads: every song, or those in playlists. */

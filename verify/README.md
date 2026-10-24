@@ -34,7 +34,7 @@ That is what the flows default to: the app at `http://localhost:4601`, its API
 at `http://localhost:4600`. Both defaults live in `verify/env.ts`, and only
 there: the config, the teardown and every spec that asks the server something
 import them from it. The two are separate because the server does not
-serve the app — its own page on 4600 is an admin page, and the app is built
+serve the app — it serves no page at all, and the app is built
 for GitHub Pages, the phone and the desktop shell.
 
 **The server has to accept the app's origin.** The app on 4601 is another

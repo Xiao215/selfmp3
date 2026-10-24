@@ -165,6 +165,7 @@ selfmp3/
   format.json                        which version of this layout the bucket uses
   audio/<sha256>.<ext>               the music. Never changes.
   covers/<sha256>.<ext>              cover art, and each artist's picture (banner and portrait). Never changes.
+  covers/<sha256>.pack               those pictures again, a few megabytes of them end to end. Never changes.
   lyrics/<sha256>.words              one song's words and their romanized lines (romaji, pinyin), as JSON. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
@@ -195,6 +196,23 @@ log it has been folded in (`upTo`), so a device replays only what comes after.
 every artist of the library (`services/artistBackdrops.ts`, `fill`, after each pass) and the
 next pass puts it up; the snapshot's `artists` names each pair by `artistKey` of the artist's
 name, and a device keeps them the way it keeps a cover.
+
+**Packs of covers** are the covers and artists' pictures again, about 8 MB of them to a file,
+end to end (`apps/server/src/services/coverPacks.ts`). Every read is one of the bucket's daily
+allowance, and a device with no covers yet used to read every picture alone: half the day's
+reads for a library of 1,500 songs, again for every new device and every friend let in. A
+fresh device now reads the packs instead, a read per 8 MB, and only what no pack holds alone
+(`apps/app/src/offline/coverPacks.ts`); one missing only a few pictures of a pack fetches
+those alone rather than the whole file. Each picture is still in the bucket on its own, so a
+single cover, a room's lent cover or a share link's picture is fetched as before. The
+snapshot's `coverPacks` lists each pack's pictures in order with their sizes, which is where
+each one starts. A pack is full at 8 MB and kept while half of it is still the library's;
+the covers in no full pack — new ones, and those of a pack mostly let go — are packed again
+in key order, so an unchanged tail comes out the same file and is not sent twice. Devices
+keep what they unpack under each picture's own hash, so packing again costs a device that
+has the pictures nothing, and a slice whose bytes are not the hash its name says is never
+kept. A server packs only what it has on its disk; one that took its library on from the
+bucket keeps the bucket's packs as they are.
 
 **Sound vectors** are how each song sounds to the server's listening model (docs/features/
 audio-intelligence.md), all of them in one file (`apps/server/src/sound/pack.ts`), keyed by each
@@ -272,8 +290,7 @@ that account, which it is given when one of the account's devices joins it — b
 first time the device looks for a server and the bucket names none
 ([features/shared-server.md](features/shared-server.md)). Each account it works for is a
 workspace of its own, with its own database and inbox, and everything below happens once per
-workspace. The server's own page (port 4600, opened on the server itself) lists the
-workspaces, each with how its publishing is going and **Publish now**. Everything that
+workspace. Everything that
 changes a library's way into its bucket — signing in, connecting a bucket by its key when
 there is no doorman, disconnecting, publishing now — is taken from that machine alone. A
 library's token is on every one of its account's devices, and none of them should be able to
@@ -290,7 +307,7 @@ for Chinese or Japanese words their romanized lines, one per line of the text, m
 needs a dictionary only the server has). One file, so a device reads a song's words with one call
 to the bucket rather than two, and shows them exactly as a device talking to the server does.
 Words sent before this were a `.lrc`/`.txt` file with the romanized lines in a `.json` beside it;
-migration 44 drops the second from `cloud_songs`, and the next pass puts each such song's words up
+migration 45 drops the second from `cloud_songs`, and the next pass puts each such song's words up
 again as one file (`#rewriteOldWords`), from the copy kept here or else the bucket.
 
 A table, `cloud_songs`, remembers what was uploaded for each song and from which state of it,
@@ -433,7 +450,8 @@ from that one download as it arrives, and the last ten played kept by the worker
 request to the bucket is one read against the day's count, so a
 song loaded to sit paused — the queue restored when the tab opens, Next pressed while paused —
 fetches nothing until it is played (`ports/engine.web.ts`, `#startWhenPlayed`). What a tab does
-keep is small and named by hash: covers, and the words and motion curve of every song played,
+keep is small and named by hash: covers — filled from the packs of covers into the worker's
+cache, where it looks for a song's cover before the bucket — and the words and motion curve of every song played,
 in Cache Storage, which a new build leaves alone. In an installed app — the desktop app, the phone — a song listened to all
 the way through is kept, up to a budget, oldest let go first, unless that device is
 downloading everything anyway; a song downloaded by hand is kept for good.
@@ -855,13 +873,15 @@ given a grant to, with *Remove* on each.
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
 | Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
+| Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `#uploadCoverPacks` in `apps/server/src/services/cloudSync.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |
 | Tidying the log, old snapshots, and audio and words nothing names | `apps/server/src/services/cloudSync.ts` (`#tidyLogs`, `#trashOrphans`), `unnamedFiles` and `unplacedSongSizes` in `apps/server/src/repositories/cloud.ts`, `othersSnapshotsToPrune` and `snapshotFileKeys` in `packages/shared/src/cloud.ts` |
 | Applying other devices' changes to the server | `apps/server/src/services/cloudIngest.ts`, `apps/server/src/services/localEdits.ts`, `apps/server/src/repositories/sync.ts` |
 | Links other devices ask the server to import | `apps/server/src/services/cloudImports.ts`, `apps/server/src/repositories/importRequests.ts` |
 | The schema: uids, stamps, requests | `apps/server/src/db/migrate.ts` (the `uid` columns, `sync_stamps`, `import_requests`) |
-| The server's cloud API and its own page | `apps/server/src/routes/cloud.ts`, `apps/server/public/admin.js` |
+| The server's cloud API | `apps/server/src/routes/cloud.ts` |
+| The owner's admin page | `apps/server/src/admin/`, `apps/server/admin/`, [features/admin.md](features/admin.md) |
 | A device's own copy of the library, and its outbox | `packages/replica/src/library.ts`, `replay.ts`, `edits.ts`, `routes.ts` |
 | Signing in, and out, on a device | `apps/app/src/features/welcome/WelcomeScreen.tsx`, `apps/app/src/features/settings/signOut.ts`, `packages/replica/src/session.ts`, `apps/app/src/ports/cloudPlatform.web.ts` |
 | Finding the server from a cloud library, and what each screen says when it is away | `packages/client/src/connection/reach.ts`; `apps/app/src/connection/useServerDirect.ts`, `ServerAway.tsx`; `apps/server/src/services/addresses.ts` |

@@ -2,6 +2,7 @@ import { DoormanClaimResultSchema, signInStartUrl } from '@selfmp3/shared'
 import { AwsV4Signer } from 'aws4fetch'
 import type { Fetch, FetchInit } from './bucket.js'
 import { ChangesObject } from './changes.js'
+import { TallyObject } from './tally.js'
 import type { Env } from './context.js'
 import { createDoorman, type Doorman } from './doorman.js'
 import { Room, type RoomSocket } from './room.js'
@@ -556,6 +557,48 @@ export class FakeChanges {
   }
 }
 
+/**
+ * The doorman's one tally (tally.ts), a real `TallyObject` with storage in a
+ * map: its own code runs, and only the runtime is stood in for.
+ */
+export class FakeTally {
+  readonly values = new Map<string, unknown>()
+  #object: TallyObject | null = null
+
+  namespace(): DurableObjectNamespace {
+    const values = this.values
+    const get = () => ({
+      fetch: (url: string, init?: RequestInit): Promise<Response> => {
+        this.#object ??= new TallyObject({
+          storage: {
+            get: <T>(key: string) => Promise.resolve(values.get(key) as T | undefined),
+            put: <T>(key: string, value: T) => {
+              values.set(key, structuredClone(value))
+              return Promise.resolve()
+            },
+            delete: (key: string) => Promise.resolve(values.delete(key)),
+            list: <T>({ prefix }: { prefix: string }) =>
+              Promise.resolve(
+                new Map(
+                  [...values]
+                    .filter(([key]) => key.startsWith(prefix))
+                    .sort(([a], [b]) => a.localeCompare(b)) as Array<[string, T]>,
+                ),
+              ),
+          },
+        })
+        return this.#object.fetch(new Request(url, init))
+      },
+    })
+    return { idFromName: (name: string) => ({ name }), get } as unknown as DurableObjectNamespace
+  }
+
+  /** A day's counts, as stored. */
+  day(day: string): Record<string, number> {
+    return (this.values.get(`day:${day}`) as Record<string, number> | undefined) ?? {}
+  }
+}
+
 /** A member's socket in a fake room: what it was sent, and whether it was closed. */
 export class FakeSocket implements RoomSocket {
   readonly sent: unknown[] = []
@@ -789,6 +832,7 @@ export interface Harness {
   readonly rooms: FakeRooms
   readonly shared: FakeShared
   readonly shares: FakeShares
+  readonly tally: FakeTally
   readonly clock: Clock
   /** Any other host a test puts on the internet: a room host's server, say. */
   readonly elsewhere: Map<string, (request: Request) => Response | Promise<Response>>
@@ -888,6 +932,7 @@ export function harness(): Harness {
   const rooms = new FakeRooms(clock)
   const shared = new FakeShared(clock)
   const shares = new FakeShares(clock)
+  const tally = new FakeTally()
   const outside: Harness['outside'] = []
   const elsewhere: Harness['elsewhere'] = new Map()
 
@@ -913,6 +958,7 @@ export function harness(): Harness {
     ROOMS: rooms.namespace(),
     SHARED: shared.namespace(),
     SHARES: shares.namespace(),
+    TALLY: tally.namespace(),
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
     SEAL_KEY,
@@ -1010,6 +1056,7 @@ export function harness(): Harness {
     rooms,
     shared,
     shares,
+    tally,
     elsewhere,
     clock,
     outside,

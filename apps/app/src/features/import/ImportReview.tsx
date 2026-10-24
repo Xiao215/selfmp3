@@ -31,6 +31,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { TapAway } from '../../ui/components/TapAway'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
+import { countUse } from '../usage/usage'
 
 /**
  * Reviewing what a link holds, before any of it downloads (`/import/review`,
@@ -93,6 +94,7 @@ export function ImportReview({
   const enqueue = useMutation({
     mutationFn: (current: Review) => source.api.importEnqueue(importRequest(current, tagIds)),
     onSuccess: () => {
+      countUse('import')
       // The songs are in the queue now, which Import shows under Currently importing.
       void source.invalidateQueue()
       leave({ imported: true })

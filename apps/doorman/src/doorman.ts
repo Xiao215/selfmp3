@@ -6,7 +6,7 @@ import {
   type DoormanHealth,
 } from '@selfmp3/shared'
 import { version as DOORMAN_VERSION } from '../package.json'
-import { Access, access, type AccessCache } from './access.js'
+import { Access, access, accessRequests, stats, type AccessCache } from './access.js'
 import { Accounts, newAccountCache } from './accounts.js'
 import * as auth from './auth.js'
 import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
@@ -80,6 +80,8 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.signOutEverywhere]: { POST: auth.signOutEverywhere },
   [DOORMAN_PATHS.me]: { GET: storage.me },
   [DOORMAN_PATHS.access]: { GET: access, PUT: access },
+  [DOORMAN_PATHS.accessRequests]: { GET: accessRequests, DELETE: accessRequests },
+  [DOORMAN_PATHS.stats]: { GET: stats },
   [DOORMAN_PATHS.storage]: { PUT: storage.connect, DELETE: storage.disconnect },
   [DOORMAN_PATHS.backblaze]: { POST: storage.connectBackblaze },
   [DOORMAN_PATHS.list]: { GET: files.list },

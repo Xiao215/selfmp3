@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>self.mp3 admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&display=swap"
+    />
+    <link rel="stylesheet" href="/admin.css" />
+  </head>
+  <body>
+    <!-- The owner's admin page (docs/features/admin.md). admin.js fills it in. -->
+    <div class="shell">
+      <nav class="rail" aria-label="Admin sections">
+        <div class="brand">
+          <span class="mark" aria-hidden="true"><i></i></span>self.mp3<span>admin</span>
+        </div>
+        <div class="nav">
+          <a href="/data" data-tab="data">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg
+            >Data
+          </a>
+          <a href="/access" data-tab="access">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+            </svg>
+            Access<span class="count" id="access-count"></span>
+          </a>
+          <a href="/server" data-tab="server">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="7" rx="2" />
+              <rect x="3" y="13" width="18" height="7" rx="2" />
+              <path d="M7 7.5h.01M7 16.5h.01" />
+            </svg>
+            Server
+          </a>
+        </div>
+        <div class="rail-foot" id="who"></div>
+      </nav>
+      <main class="page" id="page" aria-live="polite"></main>
+    </div>
+    <script type="module" src="/admin.js"></script>
+  </body>
+</html>

@@ -165,7 +165,7 @@ describe('migrate', () => {
     const db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     const latest = db.pragma('user_version', { simple: true }) as number
-    // The table as 43 left it.
+    // The table as 44 left it.
     db.exec(`
       ALTER TABLE cloud_songs ADD COLUMN romanized_key TEXT;
       INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
@@ -177,7 +177,7 @@ describe('migrate', () => {
         'lyrics/r.json', 'lyrics/m.json', 'motion-1'
       );
     `)
-    db.pragma('user_version = 43')
+    db.pragma('user_version = 44')
     migrate(db, createLogger('silent'))
 
     expect(db.pragma('user_version', { simple: true })).toBe(latest)

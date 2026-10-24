@@ -80,10 +80,26 @@ describe('squareCover', () => {
     expect(await sizeOf(out.data)).toEqual({ width: 720, height: 720 })
   })
 
-  it('keeps a PNG a PNG', async () => {
-    const out = await squareCover(await picture(400, 200, RED, undefined, 'png'), '.png')
-    expect(out.extension).toBe('.png')
-    expect((await sharp(out.data).metadata()).format).toBe('png')
-    expect(await sizeOf(out.data)).toEqual({ width: 200, height: 200 })
+  it('keeps a PNG as a JPEG, square or not', async () => {
+    const wide = await squareCover(await picture(400, 200, RED, undefined, 'png'), '.png')
+    expect(wide.extension).toBe('.jpg')
+    expect((await sharp(wide.data).metadata()).format).toBe('jpeg')
+    expect(await sizeOf(wide.data)).toEqual({ width: 200, height: 200 })
+
+    const square = await squareCover(await picture(300, 300, RED, undefined, 'png'), '.png')
+    expect(square.extension).toBe('.jpg')
+    expect((await sharp(square.data).metadata()).format).toBe('jpeg')
+    expect(isRed(await pixel(square.data, 150, 150))).toBe(true)
+  })
+
+  it('puts a see-through cover on black', async () => {
+    const clear = await sharp({
+      create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .webp()
+      .toBuffer()
+    const out = await squareCover(clear, '.webp')
+    expect(out.extension).toBe('.jpg')
+    expect(await pixel(out.data, 32, 32)).toEqual([0, 0, 0])
   })
 })

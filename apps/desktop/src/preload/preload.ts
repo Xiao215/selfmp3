@@ -101,6 +101,9 @@ const bridge: DesktopBridge = {
     fetchTo: async (kind, name, url, headers) => {
       await ipcRenderer.invoke(CHANNELS.filesFetchTo, kind, name, url, headers)
     },
+    unpackTo: async (kind, url, headers, slices) => {
+      await ipcRenderer.invoke(CHANNELS.filesUnpackTo, kind, url, headers, slices)
+    },
     write: async (kind, name, text) => {
       await ipcRenderer.invoke(CHANNELS.filesWrite, kind, name, text)
     },

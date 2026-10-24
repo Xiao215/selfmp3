@@ -69,6 +69,7 @@ import { TaggingLine } from './TaggingLine'
 import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
+import { countUse } from '../usage/usage'
 
 /**
  * Now Playing: the computer's stage, or the phone's own full-screen page.
@@ -79,6 +80,7 @@ export function NowPlayingScreen(): ReactNode {
   const router = useRouter()
   const { song: songParam } = useLocalSearchParams<{ song?: string }>()
   const songId = player.current?.id
+  useEffect(() => countUse('now-playing'), [])
   // The address names the song, so a refresh or a copied link comes back to it
   // (usePlaybackMemory reads it when the app opens).
   useEffect(() => {
@@ -164,6 +166,9 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const router = useRouter()
   const { view: viewParam } = useLocalSearchParams<{ view?: string }>()
   const view = parseView(viewParam)
+  useEffect(() => {
+    if (view === 'lyrics') countUse('lyrics')
+  }, [view])
   const uri = artFor(song)
   /*
    * The blurred page behind everything is drawn from a small cover on purpose.

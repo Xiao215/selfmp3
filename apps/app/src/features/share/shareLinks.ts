@@ -14,6 +14,7 @@ import { doormanUrl } from '../../ports/doormanUrl'
 import { getDeviceId } from '../../ports/device'
 import { session as cloudSession } from '../../replica'
 import { plainFetch } from '../room/room.store'
+import { countUse } from '../usage/usage'
 
 /**
  * Share links, from this device (docs/features/share-links.md): the
@@ -78,7 +79,9 @@ export function useReceivedLinks(): UseQueryResult<ShareSummary[]> {
 
 /** A new link of these songs. */
 export async function createShareLink(input: ShareCreate): Promise<ShareLink> {
-  return shareApi.create(await session(), input)
+  const link = await shareApi.create(await session(), input)
+  countUse('share-link')
+  return link
 }
 
 /** Asking its sender for it again (F1): signed in as yourself, or with a name. */

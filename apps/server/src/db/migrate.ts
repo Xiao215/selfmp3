@@ -925,7 +925,22 @@ const MIGRATIONS: readonly Migration[] = [
     `,
   },
   {
-    // 44. A song's words and their romanized lines are one file in the bucket
+    // 44. The covers and artists' pictures, packed a few megabytes to a file
+    // in the bucket (services/coverPacks.ts), so a device with none of them
+    // reads a few files instead of one per picture. A row per pack: its key,
+    // its size, and the pictures it holds in order, as JSON `[key, size]`
+    // pairs. A library already in the bucket is packed by the next pass.
+    name: 'covers packed a few megabytes to a file',
+    sql: `
+      CREATE TABLE IF NOT EXISTS cloud_cover_packs (
+        key    TEXT    PRIMARY KEY,
+        size   INTEGER NOT NULL,
+        covers TEXT    NOT NULL
+      );
+    `,
+  },
+  {
+    // 45. A song's words and their romanized lines are one file in the bucket
     // (`wordsKey`), so a device reads them with one call rather than two, and
     // `romanized_key` goes. Made again without it, so the table is the same
     // however it is reached. The romanized lines' own files are then named by

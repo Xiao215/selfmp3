@@ -512,7 +512,7 @@ describe('opening', () => {
     expect(made.bucket.reads).toEqual([])
     expect(store.data.get('cloud-base')).toEqual({
       key: SNAPSHOT_KEY,
-      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], sound: null },
+      snapshot: { ...SNAPSHOT, upTo: {}, artists: [], coverPacks: [], sound: null },
     })
   })
 

@@ -77,6 +77,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { MoreButton } from '../../ui/components/MoreMenu'
+import { countUse } from '../usage/usage'
 
 /**
  * The page for the song that is playing, on a computer.
@@ -299,6 +300,9 @@ function Stage({
 
   const focus = mode === 'focus'
   const shownTab: StageTab = focus ? 'lyrics' : tab
+  useEffect(() => {
+    if (shownTab === 'lyrics') countUse('lyrics')
+  }, [shownTab])
   // Only where a pointer can say it is still there: on a touch screen nothing
   // reports activity (`ports/activity`), so the bar went away and stayed away.
   const idle = useIdle(focus && finePointer)

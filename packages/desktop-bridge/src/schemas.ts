@@ -199,6 +199,22 @@ export const transferIdSchema = z.string().min(1).max(128)
  */
 export const headersSchema = z.record(z.string(), z.string())
 
+/**
+ * The pictures to cut out of a pack of covers (`files.unpackTo`): each one's
+ * name, where it starts in the pack, and how long it is. A pack is a few
+ * megabytes, and holds a few hundred pictures at most.
+ */
+export const packSlicesSchema = z
+  .array(
+    z.object({
+      name: fileNameSchema,
+      at: z.number().int().nonnegative(),
+      size: z.number().int().positive(),
+    }),
+  )
+  .max(10_000)
+export type PackSlice = z.infer<typeof packSlicesSchema>[number]
+
 /** Where a song's bytes come from: the server, or the bucket through the doorman. */
 export const downloadRequestSchema = z.object({
   id: transferIdSchema,

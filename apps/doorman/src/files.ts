@@ -1,8 +1,12 @@
 import {
   messageOf,
   CHANGES_HEADER,
+  DESKTOP_APP_ORIGIN,
+  DOORMAN_COUNT,
   DOORMAN_ERROR,
   DoormanError,
+  EXTENSION_ORIGIN,
+  EXTENSION_SIGNIN_ORIGIN,
   FORMAT_KEY,
   SNAPSHOTS_FOLDER,
   isCloudFileKey,
@@ -13,6 +17,7 @@ import {
   relayedRange,
   type DoormanChanges,
   type DoormanList,
+  type DoormanReadApp,
 } from '@selfmp3/shared'
 import { changesOf, requireBucket, requireSession, type Context } from './context.js'
 import {
@@ -27,6 +32,7 @@ import {
 } from './http.js'
 import type { Bucket } from './bucket.js'
 import type { Session } from './sessions.js'
+import { tallyOf } from './tally.js'
 
 /**
  * A signed-in device's reads and writes, passed through to its bucket.
@@ -132,7 +138,22 @@ async function read(
   key: string,
   method: 'GET' | 'HEAD',
 ): Promise<Response> {
-  return relayRead(ctx, await requireBucket(ctx, session), key, method)
+  return relayRead(ctx, await requireBucket(ctx, session), key, method, readApp(ctx, session))
+}
+
+/**
+ * Which app is reading, for the owner's counts (tally.ts). Nothing says so
+ * outright, but the request gives it away: a server reads with a grant, the
+ * desktop app and the extension from their own fixed origins, the web app
+ * from one of APP_ORIGINS, and a phone's native requests carry no origin.
+ */
+function readApp(ctx: Context, session: Session): DoormanReadApp {
+  if (session.grant !== undefined) return 'server'
+  const origin = ctx.request.headers.get('origin')
+  if (origin === null) return 'phone'
+  if (origin === DESKTOP_APP_ORIGIN) return 'computer'
+  if (origin === EXTENSION_ORIGIN || origin === EXTENSION_SIGNIN_ORIGIN) return 'extension'
+  return 'web'
 }
 
 /**
@@ -146,7 +167,10 @@ export async function relayRead(
   bucket: Bucket,
   key: string,
   method: 'GET' | 'HEAD',
+  app: DoormanReadApp,
 ): Promise<Response> {
+  // Counted before the bucket answers: it counts a read whatever it says.
+  tallyOf(ctx).count(DOORMAN_COUNT.read(key.slice(0, key.indexOf('/'))), DOORMAN_COUNT.readBy(app))
   const forward = new Headers()
   const range = relayedRange(ctx.request.headers.get('range'))
   if (range !== null) forward.set('range', range)

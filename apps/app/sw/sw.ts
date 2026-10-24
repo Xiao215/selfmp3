@@ -42,6 +42,7 @@ import {
   relayedRange,
 } from '@selfmp3/shared/wire'
 import {
+  API_CACHE,
   AUDIO_CACHE,
   CLOUD_FILES_CACHE,
   DB_NAME,
@@ -67,11 +68,10 @@ const SHELL_BUILD = typeof __SHELL_BUILD__ === 'string' ? __SHELL_BUILD__ : 'dev
 
 const SHELL_CACHE = `selfmp3-shell-${SHELL_BUILD}`
 /*
- * The API and audio caches are deliberately *not* named after the build: what
- * they hold is the person's, not this build's, and re-downloading every song
- * and cover on a deploy is unthinkable.
+ * The API and audio caches (./names.ts) are deliberately *not* named after the
+ * build: what they hold is the person's, not this build's, and re-downloading
+ * every song and cover on a deploy is unthinkable.
  */
-const API_CACHE = 'selfmp3-api-v2'
 
 /**
  * Caches this worker keeps, its own and the tab's. Anything else from an old
@@ -542,6 +542,10 @@ async function cacheFirst(
   if (cached) return cached
   try {
     const fromBucket = await bucketFileFor(new URL(request.url), 'cover')
+    // Unpacked by the page from a pack of covers, under the picture's own key:
+    // that copy, rather than a read from the bucket and a second copy here.
+    const unpacked = fromBucket ? await caches.match(bucketAddress(fromBucket.key)) : undefined
+    if (unpacked) return unpacked
     const response = fromBucket ? await fetchFromBucket(fromBucket) : await fetch(request)
     if (response.ok) {
       const cache = await caches.open(cacheName)
@@ -678,6 +682,11 @@ async function bucketFileFor(url: URL, kind: 'audio' | 'cover'): Promise<BucketF
   } catch {
     return null
   }
+}
+
+/** Where a bucket picture is kept by its key: the address `bucketPicture` answers. */
+function bucketAddress(key: string): string {
+  return new URL(`${BASE}api/bucket/${key}`, self.location.origin).href
 }
 
 /** `api/bucket/covers/<sha256>.<ext>`: the only bucket files asked for by key. */

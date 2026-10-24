@@ -93,6 +93,28 @@ export const CloudArtistSchema = z.object({
 export type CloudArtist = z.infer<typeof CloudArtistSchema>
 
 /**
+ * Many pictures in one file (the server's services/coverPacks.ts), so a
+ * device that has none of them reads a few files instead of one per picture:
+ * every read is one of the bucket's daily allowance, and a library's covers
+ * one by one were half of it. The pictures are each still in the bucket on
+ * their own, under the key they are listed by here; a pack is only the
+ * cheaper way to fetch many at once.
+ *
+ * The file is the pictures' bytes end to end, in the order listed, and
+ * nothing else: a picture starts where the ones before it end. Named by its
+ * own hash, in `covers/` with the `pack` extension, which the doorman's key
+ * rule already allows. A pack may still hold pictures the library has since
+ * let go of; a device keeps only those it names.
+ */
+export const CloudCoverPackSchema = z.object({
+  key: fileKey('covers'),
+  size: z.number().int().nonnegative(),
+  /** Each picture's key and size, in the order the file holds them. */
+  covers: z.array(z.tuple([fileKey('covers'), z.number().int().nonnegative()])).min(1),
+})
+export type CloudCoverPack = z.infer<typeof CloudCoverPackSchema>
+
+/**
  * Every song's sound vector, in one file (the server's sound/pack.ts), keyed
  * inside by each song's audio key. Made on the server, the one device with the
  * listening model, and kept in the bucket so a server that starts again from
@@ -344,6 +366,11 @@ export const CloudSnapshotSchema = z.object({
   playlists: z.array(CloudPlaylistSchema),
   /** Every artist of the library's songs the server has a picture for. */
   artists: z.array(CloudArtistSchema),
+  /**
+   * The covers and artists' pictures, packed a few megabytes to a file, for a
+   * device filling its covers from nothing. None before the server first packs.
+   */
+  coverPacks: z.array(CloudCoverPackSchema).default([]),
   /** How every song sounds, as the server heard it; null before it has heard any. */
   sound: CloudSoundSchema.nullable(),
   /** When each song was played, a file a month; absent before a server first sent any. */

@@ -429,23 +429,58 @@ textarea {
   background: var(--surface2);
   color: var(--danger);
 }
+/* The app's search field: a pill whose edge turns the accent while it has the focus. */
 .search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 14px;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 6px 0 14px;
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--surface2);
-  color: var(--text-muted);
-  width: min(340px, 100%);
+  color: var(--text-secondary);
+  cursor: text;
+  transition: border-color var(--base) ease;
+}
+.search:focus-within {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .search input {
   border: 0;
   background: none;
   outline: none;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  font: inherit;
   font-size: 14px;
+  color: var(--text-primary);
+}
+.search > svg {
+  width: 17px;
+  height: 17px;
+}
+.search .hint {
+  white-space: nowrap;
+}
+.search .clear {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    background-color var(--base) ease,
+    color var(--base) ease;
+}
+.search .clear:hover {
+  background: var(--surface3);
   color: var(--text-primary);
 }
 .search input::placeholder {
@@ -547,7 +582,6 @@ textarea.field {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  object-fit: cover;
   background: var(--surface3);
   display: grid;
   place-items: center;
@@ -739,45 +773,39 @@ textarea.field {
   gap: 8px;
   justify-content: flex-end;
 }
-.list-head {
-  justify-content: space-between;
-  flex-wrap: wrap;
-  align-items: center;
+/* People: search the list, and add to it, in one row over it. */
+.people {
+  display: grid;
+  gap: 12px;
 }
-.list-tools {
+.toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  /* Under the heading, at full width, when there isn't room for search beside it. */
-  flex: 1 1 260px;
-  justify-content: flex-end;
-  min-width: 0;
+  gap: 10px;
 }
-.list-tools .search {
+.toolbar .search {
   flex: 1;
-  max-width: 340px;
 }
 .icon-btn.add {
   flex: none;
-  width: 36px;
-  height: 36px;
-  background: var(--accent);
-  color: var(--on-accent);
+  width: 40px;
+  height: 40px;
+  background: var(--surface2);
+  color: var(--text-primary);
 }
-.icon-btn.add:hover {
-  background: color-mix(in oklab, var(--accent) 88%, var(--text-primary));
-  color: var(--on-accent);
+.icon-btn.add:hover,
+.icon-btn.add[aria-expanded='true'] {
+  background: var(--surface3);
+  color: var(--text-primary);
 }
 .icon-btn.add svg {
   width: 18px;
   height: 18px;
-  stroke-width: 2.2;
+  stroke-width: 2;
+  transition: transform var(--slow) cubic-bezier(0.3, 1.3, 0.5, 1);
 }
 .icon-btn.add[aria-expanded='true'] svg {
   transform: rotate(45deg);
-}
-.icon-btn.add svg {
-  transition: transform var(--slow) cubic-bezier(0.3, 1.3, 0.5, 1);
 }
 table.data {
   width: 100%;

@@ -31,12 +31,7 @@ describe('the admin page', () => {
   ] as const
   const KEY = 'k'.repeat(64)
   /** The doorman, stood in for at its HTTP edge: it takes the admin key and nothing else. */
-  let list = {
-    anyone: false,
-    emails: ['friend@example.com'],
-    owners: ['me@example.com'],
-    profiles: {},
-  }
+  let list = { anyone: false, emails: ['friend@example.com'], owners: ['me@example.com'] }
   const doormanSeen: Array<{ method: string; path: string; auth: string }> = []
   const fakeDoorman = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://doorman')

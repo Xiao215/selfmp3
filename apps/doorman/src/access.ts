@@ -66,12 +66,12 @@ export class Access {
     return !list.anyone && list.emails.length === 0
   }
 
-  async read(): Promise<Omit<DoormanAccess, 'profiles'>> {
+  async read(): Promise<DoormanAccess> {
     return { ...(await this.#list()), owners: [...this.#owners] }
   }
 
   /** The list replaced, whole. One KV write. */
-  async write(update: DoormanAccessUpdate): Promise<Omit<DoormanAccess, 'profiles'>> {
+  async write(update: DoormanAccessUpdate): Promise<DoormanAccess> {
     // An owner on the list is noise: they are let in anyway.
     const emails = [...new Set(update.emails.map(normal))].filter(email => !this.isOwner(email))
     const list = { anyone: update.anyone, emails }
@@ -120,22 +120,9 @@ async function isAdminKey(key: string | undefined, token: string): Promise<boole
 /** `GET /v1/access` and `PUT /v1/access`: the list, for an owner only. */
 export async function access(ctx: Context): Promise<Response> {
   await requireOwner(ctx)
-  const withProfiles = async (list: Omit<DoormanAccess, 'profiles'>): Promise<Response> => {
-    const known = await tallyOf(ctx)
-      .profiles()
-      .catch((): DoormanAccess['profiles'] => ({}))
-    const profiles: DoormanAccess['profiles'] = {}
-    for (const email of [...list.owners, ...list.emails]) {
-      const profile = known[email]
-      if (profile) profiles[email] = profile
-    }
-    return json({ ...list, profiles })
-  }
-  if (ctx.request.method === 'GET') return withProfiles(await ctx.access.read())
+  if (ctx.request.method === 'GET') return json(await ctx.access.read())
   if (ctx.request.method === 'PUT') {
-    return withProfiles(
-      await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)),
-    )
+    return json(await ctx.access.write(await readJson(ctx.request, DoormanAccessUpdateSchema)))
   }
   return methodNotAllowed(['GET', 'PUT'])
 }

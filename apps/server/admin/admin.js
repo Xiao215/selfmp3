@@ -641,33 +641,41 @@ function indexOf(entries) {
   return `<nav class="index" aria-label="On this page"><span class="label">On this page</span>${items}</nav>`
 }
 
-/** Lights the index entry for whatever is at the top of the page now. */
-let spy = null
-function watchIndex() {
-  spy?.disconnect()
-  const links = new Map([...document.querySelectorAll('.index a')].map(a => [a.dataset.index, a]))
-  if (!links.size) return
-  const seen = new Set()
-  spy = new IntersectionObserver(
-    entries => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) seen.add(entry.target.id)
-        else seen.delete(entry.target.id)
+/**
+ * Lights the index entry for what is being read: the last card or section
+ * whose top has passed a line a quarter down the window. Two cards side by
+ * side pass it together, and the first of them is lit; an entry clicked stays
+ * lit, whatever sits beside it or below it, until the reader scrolls themself.
+ */
+let pinned = null
+function lightIndex() {
+  const links = [...document.querySelectorAll('.index a')]
+  if (!links.length) return
+  let current = pinned
+  if (!current) {
+    const line = window.innerHeight / 4
+    let passed = -Infinity
+    for (const link of links) {
+      const top = document.getElementById(link.dataset.index)?.getBoundingClientRect().top
+      if (top !== undefined && top <= line && top > passed + 1) {
+        passed = top
+        current = link.dataset.index
       }
-      // The deepest entry in view: a card over the section it sits in.
-      const first = [...links.keys()].findLast(id => seen.has(id))
-      if (!first) return
-      for (const [id, link] of links) {
-        if (id === first) link.setAttribute('aria-current', 'location')
-        else link.removeAttribute('aria-current')
-      }
-    },
-    { rootMargin: '0px 0px -70% 0px' },
-  )
-  for (const id of links.keys()) {
-    const target = document.getElementById(id)
-    if (target) spy.observe(target)
+    }
+    current ??= links[0].dataset.index
   }
+  for (const link of links) {
+    if (link.dataset.index === current) link.setAttribute('aria-current', 'location')
+    else link.removeAttribute('aria-current')
+  }
+}
+
+let indexFrame = 0
+function lightIndexSoon() {
+  indexFrame ||= requestAnimationFrame(() => {
+    indexFrame = 0
+    lightIndex()
+  })
 }
 
 function dataView() {
@@ -1034,29 +1042,20 @@ function dataView() {
 
 const AVATAR_HUES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--good)']
 
-/** Google's picture when the doorman has one, else the address's first letter on a tint of its own. */
-function avatarOf(person) {
-  if (person.picture) {
-    return `<img class="avatar" src="${escape(person.picture)}" alt="" referrerpolicy="no-referrer" data-initial="${escape(initialOf(person))}" />`
-  }
-  return letterAvatar(person)
-}
-
-function initialOf(person) {
-  return (person.name || person.email)[0]?.toUpperCase() ?? '?'
-}
-
-function letterAvatar(person) {
+/** The address's first letter, on a tint of its own. */
+function avatarOf(email) {
   let hash = 0
-  for (const ch of person.email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  for (const ch of email) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
   const hue = AVATAR_HUES[hash % AVATAR_HUES.length]
-  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${escape(initialOf(person))}</span>`
+  const letter = escape(email[0]?.toUpperCase() ?? '?')
+  return `<span class="avatar" aria-hidden="true" style="background:color-mix(in oklab, ${hue} 32%, var(--surface2))">${letter}</span>`
 }
 
 const ICON_TRASH =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
 const ICON_SEARCH =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
+const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>'
 const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
 
 function personRow(person) {
@@ -1064,10 +1063,7 @@ function personRow(person) {
   const end = person.owner
     ? '<span class="hint">always let in</span>'
     : `<button class="icon-btn" type="button" data-action="remove" data-email="${escape(person.email)}" aria-label="Remove ${escape(person.email)}" title="Remove" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
-  const who = person.name
-    ? `<span class="name">${escape(person.name)}${chip}</span><span class="hint">${escape(person.email)}</span>`
-    : `<span class="name">${escape(person.email)}${chip}</span>`
-  return `<div class="row">${avatarOf(person)}<div class="lbl">${who}</div>${end}</div>`
+  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span></div>${end}</div>`
 }
 
 function peopleView() {
@@ -1084,14 +1080,11 @@ function peopleView() {
     return header + why
   }
   const query = state.search.trim().toLowerCase()
-  const person = (email, owner) => ({ email, owner, ...(people.profiles?.[email] ?? {}) })
   const everyone = [
-    ...people.owners.map(email => person(email, true)),
-    ...people.emails.map(email => person(email, false)),
-  ].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email))
-  const shown = query
-    ? everyone.filter(p => p.email.includes(query) || (p.name ?? '').toLowerCase().includes(query))
-    : everyone
+    ...people.owners.map(email => ({ email, owner: true })),
+    ...people.emails.map(email => ({ email, owner: false })),
+  ].sort((a, b) => a.email.localeCompare(b.email))
+  const shown = query ? everyone.filter(p => p.email.includes(query)) : everyone
   const adding = state.adding
     ? `<div class="card">
         <div class="card-head"><div class="titles"><h3>Add people</h3><span class="hint">Their Google addresses: one, or many pasted at once, separated by spaces, commas or new lines. While Google sign-in is in Testing, Google wants them as test users too.</span></div></div>
@@ -1103,18 +1096,22 @@ function peopleView() {
   const rows = shown.length
     ? shown.map(personRow).join('')
     : `<p class="empty">No one matches “${escape(state.search)}”.</p>`
-  const counted = query ? `${shown.length} of ${count}` : String(count)
   const anyoneHint = people.anyone
     ? 'On: anyone who signs in with Google gets in, whoever they are.'
     : 'Off: only the people above.'
+  // The app's search field (SearchField.tsx): a count and a × once there are words.
+  const clear = state.search
+    ? `<span class="hint">${escape(`${shown.length} of ${count}`)}</span><button class="clear" type="button" data-action="search-clear" aria-label="Clear search" title="Clear">${ICON_X}</button>`
+    : ''
   return `${header}
     ${state.peopleError ? `<p class="notice bad">${escape(state.peopleError)}</p>` : ''}
+    <section class="people">
+    <div class="toolbar">
+      <label class="search">${ICON_SEARCH}<input id="people-search" type="text" inputmode="email" placeholder="Search people" value="${escape(state.search)}" aria-label="Search people" autocomplete="off" spellcheck="false" />${clear}</label>
+      <button class="icon-btn add" type="button" data-action="add-open" aria-label="Add people" title="Add people" aria-expanded="${state.adding}">${ICON_PLUS}</button>
+    </div>
     ${adding}
-    <section class="section">
-      <div class="group-head list-head"><span><span class="label">Who can sign in</span> <span class="hint">${escape(counted)}</span></span>
-        <span class="list-tools"><label class="search">${ICON_SEARCH}<input id="people-search" type="search" placeholder="Search people" value="${escape(state.search)}" aria-label="Search people" autocomplete="off" /></label><button class="icon-btn add" type="button" data-action="add-open" aria-label="Add people" title="Add people" aria-expanded="${state.adding}">${ICON_PLUS}</button></span>
-      </div>
-      <div class="panel"><div class="people-list">${rows}</div></div>
+    <div class="panel"><div class="people-list">${rows}</div></div>
     </section>
     <section class="section">
       <div class="group-head"><span class="label">Sign-in</span></div>
@@ -1147,21 +1144,7 @@ function render({ entering = false } = {}) {
   document.title = `${state.tab === 'data' ? 'Data' : 'People'} · self.mp3 admin`
   hideTip()
   drawCharts()
-  watchIndex()
-  for (const img of document.querySelectorAll('img.avatar')) {
-    img.addEventListener(
-      'error',
-      () => {
-        const letter = document.createElement('span')
-        letter.className = 'avatar'
-        letter.setAttribute('aria-hidden', 'true')
-        letter.style.background = 'var(--surface3)'
-        letter.textContent = img.dataset.initial ?? '?'
-        img.replaceWith(letter)
-      },
-      { once: true },
-    )
-  }
+  lightIndex()
   const addBox = document.getElementById('add-emails')
   if (addBox && typed !== undefined) addBox.value = typed
   if (searching) {
@@ -1261,6 +1244,12 @@ document.addEventListener('click', event => {
     void go(link.dataset.tab ?? 'data')
     return
   }
+  const entry = target.closest('.index a')
+  if (entry) {
+    pinned = entry.dataset.index
+    lightIndex()
+    return
+  }
   const range = target.closest('button[data-range]')
   if (range) {
     state.days = Number(range.dataset.range)
@@ -1291,6 +1280,11 @@ document.addEventListener('click', event => {
       state.adding = !state.adding
       state.addProblem = null
       render()
+      break
+    case 'search-clear':
+      state.search = ''
+      render()
+      document.getElementById('people-search')?.focus()
       break
     case 'add-cancel':
       state.adding = false
@@ -1365,6 +1359,17 @@ document.addEventListener('keydown', event => {
   }
 })
 
+document.addEventListener('scroll', lightIndexSoon, { capture: true, passive: true })
+window.addEventListener('resize', lightIndexSoon)
+for (const type of ['wheel', 'touchstart', 'keydown']) {
+  window.addEventListener(
+    type,
+    () => {
+      pinned = null
+    },
+    { passive: true },
+  )
+}
 window.addEventListener('popstate', () => void go(tabOf(location.pathname), { push: false }))
 
 // A page left open keeps its numbers current while it is being looked at.

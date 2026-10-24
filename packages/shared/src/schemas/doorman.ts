@@ -221,19 +221,10 @@ export const DoormanAccessUpdateSchema = z.object({
 })
 export type DoormanAccessUpdate = z.infer<typeof DoormanAccessUpdateSchema>
 
-/** A person's name and picture as Google last gave them, for the admin page's People tab. */
-export const DoormanProfileSchema = z.object({
-  name: z.string().nullable(),
-  picture: z.string().nullable(),
-})
-export type DoormanProfile = z.infer<typeof DoormanProfileSchema>
-
 /** The allow list as its owner sees it (`GET /v1/access`), owners included. */
 export const DoormanAccessSchema = DoormanAccessUpdateSchema.extend({
   /** OWNER_EMAILS: who may change this, always let in. Set where the doorman is deployed. */
   owners: z.array(z.string()),
-  /** By address, for the people listed who have signed in since the doorman began noting it. */
-  profiles: z.record(z.string(), DoormanProfileSchema),
 })
 export type DoormanAccess = z.infer<typeof DoormanAccessSchema>
 

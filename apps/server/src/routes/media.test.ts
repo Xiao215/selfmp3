@@ -91,7 +91,8 @@ describe('GET /api/art/:id', () => {
   it('serves the cover itself', async () => {
     const response = await get('/api/art/1')
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-type')).toContain('image/png')
+    // Saved as a PNG, kept as a JPEG (squareCover.ts).
+    expect(response.headers.get('content-type')).toContain('image/jpeg')
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(0)
   })
 

@@ -52,7 +52,7 @@ export class CoverService {
 
   async save(songId: number, given: Buffer, extension: string): Promise<void> {
     try {
-      // Square before it is kept, so every copy of it everywhere is
+      // Square and a JPEG before it is kept, so every copy of it everywhere is
       // (squareCover.ts). A picture sharp cannot read is kept as it came.
       const { data, extension: squared } = await squareCover(given, extension).catch(() => ({
         data: given,
@@ -79,6 +79,35 @@ export class CoverService {
         message: messageOf(error),
       })
     }
+  }
+
+  /**
+   * Make the covers kept before `save` kept only JPEGs into JPEGs — in the
+   * background, at start. Each is saved again, which counts its revision on:
+   * phones fetch it afresh, the next cloud pass puts it in the bucket and its
+   * packs, and its colour is read again. A JPEG costs a look at its row, so
+   * once every cover is one, a start passes straight through. Returns how many
+   * it converted.
+   */
+  async jpegKept(songIds: readonly number[]): Promise<number> {
+    let converted = 0
+    for (const songId of songIds) {
+      const extension = this.#songs.artExt(songId)
+      if (extension === null || extension === '.jpg') continue
+      const cover = await this.find(songId)
+      if (!cover) continue
+      try {
+        await this.save(songId, await fsp.readFile(cover.path), extension)
+        // One sharp could not read stays as it was.
+        if (this.#songs.artExt(songId) === '.jpg') converted += 1
+      } catch (error) {
+        this.#logger.warn('could not make a cover a JPEG', { songId, message: messageOf(error) })
+      }
+      // Between covers, so a big library's pass never holds the server up.
+      await new Promise(resolve => setImmediate(resolve))
+    }
+    if (converted > 0) this.#logger.info('made kept covers JPEGs', { converted })
+    return converted
   }
 
   /**

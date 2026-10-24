@@ -27,3 +27,7 @@ public/bucket.html
 # The widget's asset catalog, written by `expo prebuild` from the colours in
 # targets/widget/expo-target.config.js (@bacons/apple-targets).
 /targets/*/Assets.xcassets
+
+# What Gradle builds of a local module's Android half (modules/*/android).
+/modules/*/android/build
+/modules/*/android/.cxx

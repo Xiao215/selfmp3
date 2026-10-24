@@ -36,10 +36,11 @@ interface SongStreamModule {
  * Only a file named by the hash of its bytes goes through it: that name is the
  * song's for as long as it is kept.
  *
- * `null` on Android, where the module is not built yet, and in a dev client
- * built before it was added: the player then asks the doorman for each range
- * itself, with the bearer as a header (`bucketMedia.ts`), and a played song is
- * fetched again whole to be kept.
+ * Built for iOS (`ios/SongStreamModule.swift`) and Android
+ * (`android/.../SongStreamModule.kt`), which answer alike. `null` in a dev
+ * client built before the module was added: the player then asks the doorman
+ * for each range itself, with the bearer as a header (`bucketMedia.ts`), and a
+ * played song is fetched again whole to be kept.
  */
 export const songStream: SongStreamModule | null =
   requireOptionalNativeModule<SongStreamModule>('SongStream')

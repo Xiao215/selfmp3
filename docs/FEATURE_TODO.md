@@ -62,7 +62,7 @@ What exists is in [features/desktop-app.md](features/desktop-app.md).
 
 ## The phone
 
-- **Android.** No Android binary has ever been built and nothing has run on a physical
+- **Android.** A debug build has run on an emulator, but nothing has run on a physical
   Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
 - **The widget on a real iPhone.** It builds and runs on the simulator; a signed build needs
   the App Group `group.com.selfmp3.app` registered in a paid Apple Developer account and

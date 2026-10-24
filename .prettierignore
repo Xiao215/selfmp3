@@ -16,6 +16,9 @@ apps/app/public/bucket.html
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios
 apps/app/android
+# What Gradle builds of a local module's Android half, the same way
+apps/app/modules/*/android/build
+apps/app/modules/*/android/.cxx
 
 # The agreed UI mock, exported from the design canvas as plain HTML (docs/ui-mock/README.md)
 docs/ui-mock

@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 // The place word is the browser's own (device.web.ts); here it is a computer.
-vi.mock('./device', () => ({ deviceKind: () => 'desktop' }))
+vi.mock('./device', () => ({ deviceKind: () => 'desktop', deviceModel: () => 'browser' }))
 
 class FakeAudio extends EventTarget {
   preload = 'metadata'

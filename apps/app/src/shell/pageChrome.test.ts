@@ -19,6 +19,7 @@ describe('pageOwnsScreen', () => {
     for (const path of [
       '/profile',
       '/settings',
+      '/links',
       '/search',
       '/import',
       '/import/review',
@@ -30,7 +31,7 @@ describe('pageOwnsScreen', () => {
   })
 
   it('keeps a computer’s sidebar and player bar on all of them', () => {
-    for (const path of ['/profile', '/settings', '/search', '/import', '/stats/report']) {
+    for (const path of ['/profile', '/settings', '/links', '/search', '/import', '/stats/report']) {
       expect(pageOwnsScreen(path, true)).toBe(false)
     }
   })

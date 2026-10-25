@@ -18,12 +18,13 @@ import { useValueStore } from '../state/useValueStore'
 
 /**
  * And, on a phone only, the pages it opens over its tabs rather than as one:
- * everything under Profile, and Search. They are a step away from the tabs
+ * everything under Profile (Links you shared too, though Home's From friends
+ * reaches it as well), and Search. They are a step away from the tabs
  * rather than one of them, and each carries its own way back, so the display
  * is theirs. A computer keeps its sidebar and its player
  * bar on all of them, because the sidebar is how it reaches them at all.
  */
-const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/search']
+const PHONE_FULL_SCREEN = ['/profile', '/import', '/stats', '/settings', '/links', '/search']
 
 /** Does this page take the whole display, leaving no room for the chrome? */
 export function pageOwnsScreen(pathname: string, wide: boolean): boolean {

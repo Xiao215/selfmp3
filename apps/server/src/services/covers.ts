@@ -2,13 +2,12 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
-import sharp from 'sharp'
 import { messageOf } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { readCapped } from './fetching.js'
-import { squareCover } from './squareCover.js'
+import { cover as coverImage, CoverTooBig, squareCover } from './squareCover.js'
 
 /**
  * This server's copy of every cover, in `data/covers/<id>`.
@@ -53,11 +52,14 @@ export class CoverService {
   async save(songId: number, given: Buffer, extension: string): Promise<void> {
     try {
       // Square and a JPEG before it is kept, so every copy of it everywhere is
-      // (squareCover.ts). A picture sharp cannot read is kept as it came.
-      const { data, extension: squared } = await squareCover(given, extension).catch(() => ({
-        data: given,
-        extension,
-      }))
+      // (squareCover.ts). A picture sharp cannot read is kept as it came; one
+      // too big to read is not kept at all.
+      const { data, extension: squared } = await squareCover(given, extension).catch(
+        (error: unknown) => {
+          if (error instanceof CoverTooBig) throw error
+          return { data: given, extension }
+        },
+      )
       const ext = (EXTENSIONS as readonly string[]).includes(squared) ? squared : '.jpg'
       await fsp.writeFile(this.#pathFor(songId, ext), data)
       // A cover in another format would stay behind otherwise, a stale file
@@ -162,7 +164,7 @@ export class CoverService {
     const partial = `${file}.${randomUUID()}.partial`
     try {
       await fsp.mkdir(path.dirname(file), { recursive: true })
-      await sharp(cover.path)
+      await coverImage(cover.path)
         .rotate()
         .resize(size, size, { fit: 'cover', withoutEnlargement: true })
         .jpeg({ quality: 82, mozjpeg: true })

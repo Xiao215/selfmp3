@@ -135,9 +135,10 @@ describe('now playing', () => {
     expect(stageGeometry(900, 300).cover).toBe(180)
   })
 
-  it('says where in the queue it is', () => {
-    expect(contextLine(false, 9, 13)).toBe('Playing · 10 of 13')
-    expect(contextLine(true, 0, 2)).toBe('Shuffling · 1 of 2')
+  it('says where in the queue it is, and nothing for a song alone', () => {
+    expect(contextLine(9, 13)).toBe('10 of 13')
+    expect(contextLine(0, 2)).toBe('1 of 2')
+    expect(contextLine(0, 1)).toBeNull()
   })
 
   it('shows "Next" for the last fifteen seconds only', () => {

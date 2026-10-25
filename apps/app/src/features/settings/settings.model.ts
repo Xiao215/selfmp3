@@ -211,19 +211,15 @@ export function activeSection<T extends string>(
   return current
 }
 
-export const crossfadeLabel = (seconds: number): string => (seconds === 0 ? 'off' : `${seconds}s`)
-
-/** The accent's name when it is a preset, else its hue. */
-export function accentName(hue: number, presets: readonly { hue: number; name: string }[]): string {
-  return presets.find(preset => preset.hue === hue)?.name ?? `Hue ${hue}°`
-}
+export const crossfadeLabel = (seconds: number): string => (seconds === 0 ? 'Off' : `${seconds}s`)
 
 /**
- * The line under the title.
- *
- * While the check is out it says so, rather than "not connected": the phone
- * said that for the second it took to ask, with a song playing from the very
- * server it claimed not to reach.
+ * The line under the title, only when something needs you: the library out
+ * of reach, or the storage's allowance used up. A library that answered has
+ * nothing to say there (the version is in About, E1 2026-10-25), and neither
+ * has the check while it is out: the phone said "not connected" for the
+ * second it took to ask, with a song playing from the very server it claimed
+ * not to reach.
  */
 export function healthLine(
   health: Health | undefined,
@@ -241,19 +237,14 @@ export function healthLine(
     readonly compact?: boolean
     readonly now?: Date
   } = {},
-): string {
+): string | null {
   if (asking.capped || bucketCapped(asking.error)) {
     const now = asking.now ?? new Date()
     return asking.compact
       ? `Storage allowance used up · ${untilCapResets(now, true)} left`
       : `Storage allowance used up · resets in about ${untilCapResets(now)}`
   }
-  if (health) {
-    const songs =
-      health.songCount === undefined ? '' : ` · ${plural(health.songCount, 'song', 'songs')}`
-    return `self.mp3 ${health.version}${songs}`
-  }
-  if (asking.loading) return 'Checking your library…'
+  if (health || asking.loading) return null
   if (asking.error) return unreachableLabel(asking.error)
   return 'Not connected to your library right now'
 }
@@ -263,31 +254,36 @@ export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * Settings' device rows, split: this device, anything online, and anything
- * seen in the last week first; the rest behind "Show N older".
+ * seen in the last week, one row each; everything else is the stale sessions
+ * a browser leaves behind, said as one "N older sessions" row with Remove all
+ * (E1, 2026-10-25). That is the rest of a name's folded copies too: of 76
+ * "Mac · Chrome" rows only the newest is a device still in use.
  *
  * Takes the rows already folded by name (`deviceGroups`) and in their order,
- * which is this device, then online, then most recently seen — so the split
- * keeps that order on both sides.
+ * which is this device, then online, then most recently seen — so the rows
+ * kept keep that order.
  */
 export function splitDevices<
   T extends {
     readonly device: { readonly id: string; readonly online: boolean; readonly lastSeenAt: number }
+    readonly ids: readonly string[]
   },
 >(
   rows: readonly T[],
   thisDeviceId: string | null,
   now: number,
   windowMs: number = RECENT_DEVICE_WINDOW_MS,
-): { recent: T[]; older: T[] } {
+): { recent: T[]; olderIds: string[] } {
   const recent: T[] = []
-  const older: T[] = []
+  const olderIds: string[] = []
   for (const row of rows) {
     const { device } = row
     if (device.id === thisDeviceId || device.online || now - device.lastSeenAt <= windowMs) {
-      recent.push(row)
-    } else older.push(row)
+      recent.push({ ...row, ids: [device.id] })
+      olderIds.push(...row.ids.filter(id => id !== device.id))
+    } else olderIds.push(...row.ids)
   }
-  return { recent, older }
+  return { recent, olderIds }
 }
 
 export function scanHint(result: ScanResult | undefined): string {

@@ -56,6 +56,11 @@ interface SongActionFacts {
   readonly inPlaylist: boolean
   /** Opened on Now Playing, which shows the song's heart, tags and details itself, and is already playing it. */
   readonly nowPlaying: boolean
+  /**
+   * Now Playing has no door of its own to the song's page: the phone's, whose
+   * ⓘ gave its place to Up next (D1, 2026-10-25). Its menu offers Song details.
+   */
+  readonly detailsInMenu?: boolean
   /** What this device is called in "Remove from this phone". */
   readonly place: string
   /** Signed in with a bucket, which a share link lends from (docs/features/share-links.md). */
@@ -105,7 +110,9 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
       'song',
     )
   }
-  if (!many && !facts.nowPlaying) add('details', SONG_ACTION_LABELS.details, 'song')
+  if (!many && (!facts.nowPlaying || facts.detailsInMenu)) {
+    add('details', SONG_ACTION_LABELS.details, 'song')
+  }
 
   if (facts.inPlaylist) add('removeFromPlaylist', SONG_ACTION_LABELS.removeFromPlaylist, 'list')
 

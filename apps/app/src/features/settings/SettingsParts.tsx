@@ -5,17 +5,20 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, type, space, iconSize } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, label as labelText, serif, hint } from '../../ui/surfaces'
+import { card, label, serif, hint } from '../../ui/surfaces'
+import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
- * quiet line of explanation, the control on the right. On a phone the control
- * drops under the words.
+ * quiet line of explanation only where it adds something, the control on the
+ * right, on a phone as on a computer (E1, 2026-10-25). Only a control that
+ * needs the width — the accent's swatches, a name being typed — drops under
+ * the words on a phone (`stack`).
  *
- * A section is a small uppercase label over a card (`P38`, `C17`), and its rows
- * are told apart by spacing alone. The boards draw a line between rows; `S2`
+ * A section is a quiet label, its name alone, over a card (`P38`, `C17`), and
+ * its rows are told apart by spacing alone. The boards draw a line between rows; `S2`
  * has no hairlines anywhere, and where tone is not enough, space is the
  * second tool.
  */
@@ -26,14 +29,12 @@ export const StackedRows = Stacked.Provider
 export function Panel({
   title,
   mark,
-  hint,
   anchor,
   children,
 }: {
   title: string
   /** Drawn before the title: the sparkle that marks a smart feature. */
   mark?: ReactNode
-  hint?: string
   /**
    * The panel's own view, so the index can ask where it sits when it scrolls
    * there. A view rather than an `onLayout` offset: in a browser a view reports
@@ -49,7 +50,6 @@ export function Panel({
         <Text style={styles.groupLabel} accessibilityRole="header">
           {title}
         </Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
       </View>
       <View style={styles.panel}>{children}</View>
     </View>
@@ -60,17 +60,23 @@ export function Row({
   label,
   hint,
   last = false,
+  stack = false,
+  disabled = false,
   children,
 }: {
   label: string
   hint?: ReactNode
   last?: boolean
+  /** The control needs the row's width, so on a phone it goes under the words. */
+  stack?: boolean
+  /** Greyed: what it sets does nothing while something above it is off. */
+  disabled?: boolean
   children?: ReactNode
 }): ReactNode {
-  const stacked = useContext(Stacked)
+  const stacked = useContext(Stacked) && stack
   return (
     <View style={[styles.row, stacked && styles.rowStacked, last && styles.rowLast]}>
-      <View style={styles.label}>
+      <View style={[styles.label, disabled && styles.labelDisabled]}>
         <Text style={styles.name}>{label}</Text>
         {hint ? <Text style={styles.rowHint}>{hint}</Text> : null}
       </View>
@@ -161,8 +167,16 @@ export function ButtonRow({ children }: { children: ReactNode }): ReactNode {
   return <View style={styles.buttons}>{children}</View>
 }
 
-/** Rows that are there when asked for: shut until "Details" is pressed. */
-export function Details({ children }: { children: ReactNode }): ReactNode {
+/** Rows that are there when asked for: shut until "Details" (or `label`) is pressed. */
+export function Details({
+  label = 'Details',
+  testID,
+  children,
+}: {
+  label?: string
+  testID?: string
+  children: ReactNode
+}): ReactNode {
   const [open, setOpen] = useState(false)
   const Chevron = open ? ChevronDown : ChevronRight
   return (
@@ -173,9 +187,10 @@ export function Details({ children }: { children: ReactNode }): ReactNode {
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
         style={styles.detailsRow}
+        testID={testID}
       >
         <Chevron size={iconSize.field} tone="textMuted" />
-        <Text style={styles.detailsRowText}>Details</Text>
+        <Text style={styles.detailsRowText}>{label}</Text>
       </Press>
       {open ? children : null}
     </>
@@ -226,7 +241,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
   },
   groupMark: { alignSelf: 'center', marginRight: -4 },
-  groupLabel: labelText(theme.colors),
+  groupLabel: label(theme.colors),
   // The first row brings its own space above it; the last needs the card's below.
   panel: {
     ...card(theme.colors),
@@ -246,6 +261,7 @@ const styles = StyleSheet.create(theme => ({
   // The card's own padding is below the last row, so it needs none of its own.
   rowLast: { paddingBottom: 0 },
   label: { flex: 1, minWidth: 120, gap: 3 },
+  labelDisabled: { opacity: OPACITY.disabled },
   name: { color: theme.colors.textPrimary, fontSize: type.body },
   rowHint: {
     ...hint(theme.colors),

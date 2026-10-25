@@ -689,7 +689,7 @@ function Stage({
         ) : (
           <>
             <Text style={styles.context} pointerEvents="none">
-              {contextLine(player.queue.shuffle, player.queue.index, player.queue.items.length)}
+              {contextLine(player.queue.index, player.queue.items.length)}
             </Text>
             {geometry.stacked ? null : (
               <>

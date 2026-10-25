@@ -7,7 +7,7 @@ import { lineSub } from '../surfaces'
 
 /**
  * What stands where a list would be, when there is nothing in it: an optional
- * icon, a title saying what is missing, one short line saying what to do
+ * icon, on a round mark one step up from the ground, a title saying what is missing, one short line saying what to do
  * about it, and the button that does it — one kind of "nothing" on every
  * page.
  *
@@ -45,6 +45,9 @@ export function EmptyState({
   )
 }
 
+/** The round the icon sits on. */
+const ICON_MARK = 64
+
 const styles = StyleSheet.create(theme => ({
   empty: {
     alignItems: 'center',
@@ -54,7 +57,15 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xl,
   },
   compact: { paddingTop: space.lg, paddingBottom: space.lg, paddingHorizontal: space.lg },
-  icon: { marginBottom: space.xs },
+  icon: {
+    width: ICON_MARK,
+    height: ICON_MARK,
+    borderRadius: ICON_MARK / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: space.xs,
+    backgroundColor: theme.colors.surface1,
+  },
   title: {
     color: theme.colors.textPrimary,
     ...textStyle('body'),

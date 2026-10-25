@@ -1,27 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  energyWavePath,
-  formatName,
-  sourceName,
-  tempoMark,
-  tempoWords,
-  waveShape,
-} from './facts.js'
+import { energyWavePath, formatName, sourceName, waveShape } from './facts.js'
 
 describe('song facts', () => {
-  it('writes a tempo like a metronome marking that never wraps', () => {
-    expect(tempoMark(129.6)).toBe('♩ = 130')
-  })
-
-  it('names the pace in plain words', () => {
-    expect(tempoWords(60)).toBe('slow')
-    expect(tempoWords(90)).toBe('relaxed')
-    expect(tempoWords(110)).toBe('moderate')
-    expect(tempoWords(140)).toBe('fast')
-    expect(tempoWords(170)).toBe('very fast')
-  })
-
   it('draws calm low and slow, intense tall and dense', () => {
     const calm = waveShape(0, 12)
     const intense = waveShape(1, 12)

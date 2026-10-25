@@ -222,6 +222,7 @@ export function StorageScreen(): ReactNode {
   return (
     <OnboardingPage
       title="Where it lives"
+      face="display"
       keyboard
       lead={
         mode === 'backblaze'

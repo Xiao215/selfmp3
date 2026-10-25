@@ -131,6 +131,29 @@ describe('smart features turned off in Settings', () => {
     expect(asked).toBe(0)
   })
 
+  it('refuses every feature while smart features are off, whatever their own switches say', async () => {
+    container.settings.update({
+      smartFeatures: false,
+      smartAsk: true,
+      smartTidy: true,
+      smartTags: true,
+      smartWritten: true,
+      smartMetadata: true,
+      smartImport: true,
+    })
+    for (const [method, url, body] of [
+      ['POST', '/api/ai/ask', { text: 'check my song names' }],
+      ['GET', '/api/ai/tidy'],
+      ['GET', '/api/ai/tags/untagged'],
+    ] as const) {
+      const response = await call(method, url, body)
+      expect(response.status, url).toBe(403)
+      expect(((await response.json()) as { code: string }).code).toBe('ai_disabled')
+    }
+    expect(asked).toBe(0)
+    container.settings.update({ smartFeatures: true })
+  })
+
   it('lets Ask through but not into Tidy up while Tidy up is off', async () => {
     container.settings.update({ smartAsk: true, smartTidy: false })
     const response = await call('POST', '/api/ai/ask', { text: 'check my song names' })

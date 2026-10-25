@@ -59,7 +59,6 @@ describe('Import, when the server it found stops answering', () => {
         mutations: { retry: false, gcTime: Infinity },
       },
     })
-    // "Tag it" holds a sheet, which reads the insets a device would give it.
     await render(
       <SafeAreaProvider initialMetrics={METRICS}>
         <QueryClientProvider client={client}>
@@ -73,7 +72,7 @@ describe('Import, when the server it found stops answering', () => {
       await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abc')
     })
     await act(async () => {
-      await fireEvent.press(screen.getByText('Look it up'))
+      await fireEvent.press(screen.getByLabelText('Look it up'))
     })
   }
 

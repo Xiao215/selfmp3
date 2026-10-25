@@ -27,12 +27,14 @@ export function useSmartSwitches(): SmartSwitches {
   const server = usePresenceConnection()
   const api = useMemo(() => (server ? apiFor(server) : null), [server])
   const { data } = useSettings(api, server?.baseUrl ?? null)
+  // "Use smart features" off turns every one of them off.
+  const on = data?.smartFeatures ?? true
   return {
-    ask: data?.smartAsk ?? true,
-    tidy: data?.smartTidy ?? true,
-    tags: data?.smartTags ?? true,
-    written: data?.smartWritten ?? true,
-    metadata: data?.smartMetadata ?? true,
-    import: data?.smartImport ?? true,
+    ask: on && (data?.smartAsk ?? true),
+    tidy: on && (data?.smartTidy ?? true),
+    tags: on && (data?.smartTags ?? true),
+    written: on && (data?.smartWritten ?? true),
+    metadata: on && (data?.smartMetadata ?? true),
+    import: on && (data?.smartImport ?? true),
   }
 }

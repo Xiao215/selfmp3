@@ -89,10 +89,16 @@ describe('the lines a playlist is described by', () => {
     expect(playlistHeadLine(1, 180, null, NOW)).toBe('1 song · 3 min')
   })
 
-  it('says how many are listed and in what order', () => {
-    expect(playlistsSubline(4, 'recent')).toBe('4 playlists · last played first')
-    expect(playlistsSubline(1, 'name')).toBe('1 playlist · A–Z')
-    expect(playlistsSubline(2, 'added')).toBe('2 playlists · newest first')
+  it('says what a playlist that fills itself fills from', () => {
+    const live = playlist('Long walks', { songCount: 76 })
+    expect(playlistTileLine(live, NOW, ['night', 'focus'])).toBe(
+      'Fills from night, focus · 76 songs',
+    )
+  })
+
+  it('says how many are listed, and leaves the order to the dropdown', () => {
+    expect(playlistsSubline(4)).toBe('4 playlists')
+    expect(playlistsSubline(1)).toBe('1 playlist')
   })
 })
 

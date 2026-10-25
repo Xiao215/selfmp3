@@ -12,8 +12,8 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import type { AskAnswer, AskTurn } from '@selfmp3/shared'
-import { failureText, iconSize, radius, space, textStyle, type } from '@selfmp3/client'
+import { splitArtists, type AskAnswer, type AskTurn } from '@selfmp3/shared'
+import { failureText, iconSize, radius, space, textStyle, type, useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -27,6 +27,7 @@ import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
+import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView, type ScrollView as ScrollNode } from '../../ui/components/Scroll'
@@ -42,7 +43,9 @@ import { AnswerActions, CLOSED } from './AnswerParts'
 import { SelectableText } from '../../ports/selectableText'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
-import { answerRecap } from './smart.model'
+import { answerRecap, askSuggestions } from './smart.model'
+import { tagsMostPlayed } from '../tag/tag.model'
+import { waitingArtists } from '../tags/tags.model'
 import { StopButton } from './StopButton'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
@@ -277,11 +280,7 @@ export function AskScreen(): ReactNode {
                   threadHeight.current = height
                 }}
               >
-                {turns.length === 0 ? (
-                  <Text style={styles.empty}>
-                    Ask for music, about a song or an artist, or about your library.
-                  </Text>
-                ) : null}
+                {turns.length === 0 ? <Suggestions onAsk={ask} /> : null}
                 {turns.map((turn, index) => (
                   <TurnView
                     key={turn.id}
@@ -348,6 +347,39 @@ export function AskScreen(): ReactNode {
         </SafeAreaView>
       </NarrowerContentWidth>
     </AddingToRoom.Provider>
+  )
+}
+
+/**
+ * Before the first question, three things to ask, made from this library
+ * (`askSuggestions`), at the foot of the empty thread just above the field
+ * (L1, 2026-10-25). A press asks it.
+ */
+function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
+  const { data: library } = useLibrary()
+  const lines = useMemo(() => {
+    if (!library) return []
+    const tags = tagsMostPlayed(library.tags, library.songs).map(standing => standing.tag)
+    const untagged = waitingArtists(library.songs, 1).artists[0]?.name ?? null
+    const byArtist = new Map<string, number>()
+    for (const song of library.songs) {
+      for (const name of splitArtists(song.artist)) {
+        byArtist.set(name, (byArtist.get(name) ?? 0) + 1)
+      }
+    }
+    const top = [...byArtist].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    return askSuggestions(tags, untagged, top)
+  }, [library])
+  if (lines.length === 0) return null
+  return (
+    <View style={styles.suggestions} testID="ask-suggestions">
+      <Text style={styles.suggestionsLabel}>Try</Text>
+      {lines.map(line => (
+        <View key={line} style={styles.suggestion}>
+          <Chip label={line} selected={false} onPress={() => onAsk(line)} />
+        </View>
+      ))}
+    </View>
   )
 }
 
@@ -587,8 +619,17 @@ const styles = StyleSheet.create(theme => ({
   titleText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   away: { flex: 1, paddingHorizontal: space.md },
   thread: { flex: 1 },
-  turns: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.lg, gap: 28 },
-  empty: { color: theme.colors.textMuted, ...textStyle('body'), paddingTop: space.lg },
+  turns: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingTop: space.sm,
+    paddingBottom: space.lg,
+    gap: 28,
+  },
+  // At the foot of the empty thread, just above the field.
+  suggestions: { marginTop: 'auto', gap: space.sm },
+  suggestionsLabel: { color: theme.colors.textMuted, fontSize: type.small },
+  suggestion: { alignItems: 'flex-start' },
   turn: { gap: space.md },
   // What you said: on the right, in the accent's tint, as a message you sent.
   bubble: {

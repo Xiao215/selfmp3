@@ -17,8 +17,8 @@ looks it up on your server, which it reaches by the addresses in your bucket's s
 song starts ticked and only ticked songs are imported: a song you already have says *In
 library* and is skipped, the box at the left of a row unticks it and ticks it back (the
 head's box does that for all of them), and a song's title, artist and album can be fixed
-before *Import N songs*. The songs arrive with the tags chosen under *Tag it … as it
-arrives* on the Import page, plus any added under *Tag them* on the review. Importing only
+before *Import N songs*. The songs arrive with the tags chosen under *Tag them* on the
+review (and a tag named like the link, which is ticked for you). Importing only
 ever tags; it never offers a playlist. The query string is stripped from the address
 afterwards so a reload does not look it up twice.
 

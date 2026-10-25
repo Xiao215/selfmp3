@@ -313,8 +313,9 @@ function Rail({
 
   const playing = rows.playing
   const ended = onlySongEnded(player)
-  // Something besides the song playing, to come or played, for Clear the rest to take.
-  const clearable = player.queue.items.length > 1
+  // Something to come for Clear the rest to take: with nothing after the song
+  // playing it is hidden, where it sat over "Nothing next" (w23).
+  const clearable = rows.next.length > 0
 
   /*
    * Open and shut (docs/ui-mock `M3`, 6): 0 is away past the right edge, 1 is
@@ -441,7 +442,7 @@ function Rail({
               <Text style={styles.summary} numberOfLines={1}>
                 {nextLabel(rows.next)}
               </Text>
-              <ClearRestButton onPress={clearRest} enabled={clearable} />
+              {clearable ? <ClearRestButton onPress={clearRest} /> : null}
             </View>
 
             <UpNextList

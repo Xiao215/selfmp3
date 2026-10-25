@@ -52,7 +52,7 @@ export function queueRows(
  * "Nothing next" and "Nothing after this one".
  */
 export function nextLabel(next: readonly QueueRow[]): string {
-  if (next.length === 0) return 'Nothing after this one'
+  if (next.length === 0) return 'Nothing next'
   const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
   return `Next · ${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
 }

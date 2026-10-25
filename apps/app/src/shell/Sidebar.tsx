@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import { Guide } from '../features/guide/Guide'
 import { useGuideAsked } from '../features/guide/guideMemory'
@@ -56,13 +56,14 @@ import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
-import { label as labelText, serif } from '../ui/surfaces'
+import { label, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
 import { thisPlace } from '../ports/place'
+import { tabbing } from './tabbing'
 
 /**
  * The desktop's left rail.
@@ -75,20 +76,24 @@ import { thisPlace } from '../ports/place'
  * At the top, under the brand, a Search row that opens the command palette —
  * the one way to it in a browser tab, which has no ⌘K of its own.
  *
- * Playlists are a section whose header is itself the way to the playlists
- * page, with the count and a ＋ that makes any of the three kinds; the few
+ * Playlists are a section whose quiet header is itself the way to the
+ * playlists page, with a ＋ that makes any of the three kinds (shown while the
+ * pointer is over the header; a right-click on it offers the same); the few
  * played last sit under it, and a song dragged from the library drops onto
  * one. There are no pins (docs/UI-MIGRATION.md, Phase 5), and an empty
  * playlist is not listed.
  *
  * Below them, the tags reached for last: a click opens the tag's page, the ⋯
- * edits it, and the TAGS header opens all of them. At the foot, you, and a
- * card only when something needs you.
+ * edits it, and the Tags header (or "3 more" under the list) opens all of
+ * them. At the foot, you, and a card only when something needs you.
  */
 const ROWS = NAV.filter(place => place.rail === 'row')
 
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
+
+/** How many tags the rail lists before "N more". */
+const RAIL_TAGS = 8
 
 function SidebarInner(): ReactNode {
   // On an iPad the rail runs up under the status bar, which a phone's tab bar never did.
@@ -247,34 +252,24 @@ function Playlists(): ReactNode {
   return (
     <View style={styles.section} testID="sidebar-playlists">
       {/*
-        A section, as Tags is: its header opens every playlist ("All 4"), and
-        the few under it are the ones played last. The ＋ beside the header makes
-        any of the three kinds.
+        A section, as Tags is: its header opens every playlist, and the few
+        under it are the ones played last. The ＋ beside the header makes any of
+        the three kinds.
       */}
-      <View style={styles.groupTitle}>
-        <Press
-          feedback="dim"
-          onPress={() => {
-            if (!navGoes(pathname, '/playlists')) return
-            enterFromSidebar()
-            router.navigate('/playlists')
-          }}
-          accessibilityLabel="Playlists"
-          {...navItemProps(onPage)}
-          testID="nav-playlists"
-          style={styles.groupTitleMain}
-        >
-          <Text style={[styles.groupTitleText, onPage && styles.groupTitleOn]}>PLAYLISTS</Text>
-          {listed.length > 0 ? <Text style={styles.groupAll}>All {listed.length}</Text> : null}
-        </Press>
-        <IconButton
-          size={TINY_BUTTON}
-          onPress={() => setNewOpen(open => !open)}
-          label="New playlist"
-        >
-          <Plus size={iconSize.field} tone="textMuted" />
-        </IconButton>
-      </View>
+      <GroupHead
+        title="Playlists"
+        on={onPage}
+        onOpen={() => {
+          if (!navGoes(pathname, '/playlists')) return
+          enterFromSidebar()
+          router.navigate('/playlists')
+        }}
+        openProps={{ accessibilityLabel: 'Playlists', ...navItemProps(onPage) }}
+        testID="nav-playlists"
+        newLabel="New playlist"
+        onNew={() => setNewOpen(open => !open)}
+        newShown={newOpen}
+      />
 
       <View ref={dropTarget} collapsable={false}>
         {recent.map(playlist => (
@@ -379,7 +374,12 @@ function Tags(): ReactNode {
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */
-  const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
+  const rail = useMemo(() => railTags(recentIds, tags, RAIL_TAGS), [recentIds, tags])
+  const more = tags.length - rail.length
+  const openAll = (): void => {
+    enterFromSidebar()
+    router.navigate('/tags')
+  }
 
   // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its
   // page, which is already open when its row is lit.
@@ -403,27 +403,19 @@ function Tags(): ReactNode {
 
   return (
     <View style={styles.group}>
-      <View style={styles.groupTitle}>
-        <Press
-          feedback="dim"
-          onPress={() => {
-            enterFromSidebar()
-            router.navigate('/tags')
-          }}
-          accessibilityRole="link"
-          accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
-          testID="sidebar-tags"
-          style={styles.groupTitleMain}
-        >
-          <Text style={[styles.groupTitleText, pathname === '/tags' && styles.groupTitleOn]}>
-            TAGS
-          </Text>
-          {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
-        </Press>
-        <IconButton size={TINY_BUTTON} onPress={() => setAdding(isOpen => !isOpen)} label="New tag">
-          <Plus size={iconSize.field} color={theme.colors.textMuted} />
-        </IconButton>
-      </View>
+      <GroupHead
+        title="Tags"
+        on={pathname === '/tags'}
+        onOpen={openAll}
+        openProps={{
+          accessibilityRole: 'link',
+          accessibilityLabel: `All ${plural(tags.length, 'tag', 'tags')}`,
+        }}
+        testID="sidebar-tags"
+        newLabel="New tag"
+        onNew={() => setAdding(isOpen => !isOpen)}
+        newShown={adding}
+      />
 
       {adding ? (
         <View style={styles.tagForm} testID="sidebar-new-tag">
@@ -471,6 +463,18 @@ function Tags(): ReactNode {
             onOpen={() => open(tag)}
           />
         ))}
+        {more > 0 ? (
+          <Press
+            feedback="dim"
+            onPress={openAll}
+            accessibilityRole="link"
+            accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
+            style={styles.moreTags}
+            testID="sidebar-more-tags"
+          >
+            <Text style={styles.hint}>{more} more</Text>
+          </Press>
+        ) : null}
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
@@ -487,6 +491,71 @@ function Tags(): ReactNode {
         ) : null}
       </ScrollView>
       {form.nudge}
+    </View>
+  )
+}
+
+/**
+ * A section's header in the rail: its name, quiet and in sentence case, which
+ * opens the whole page; and a ＋ that makes a new one. With a mouse the ＋
+ * waits for the pointer to come over the header, as a tag row's ⋯ does, and a
+ * right-click on the header makes a new one too; a finger sees it always.
+ */
+function GroupHead({
+  title,
+  on,
+  onOpen,
+  openProps,
+  testID,
+  newLabel,
+  onNew,
+  newShown,
+}: {
+  title: string
+  on: boolean
+  onOpen: () => void
+  openProps: Partial<ComponentProps<typeof Press>>
+  testID: string
+  newLabel: string
+  onNew: () => void
+  /** The new form is open, so the ＋ that closes it stays. */
+  newShown: boolean
+}): ReactNode {
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const reveal = useFade(
+    !finePointer || hovered || focused || newShown,
+    MOVE_MS.hoverIn,
+    MOVE_MS.hoverOut,
+  )
+  return (
+    <View
+      style={styles.groupTitle}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      {...rightClick(onNew)}
+    >
+      <Press
+        feedback="dim"
+        onPress={onOpen}
+        {...openProps}
+        testID={testID}
+        style={styles.groupTitleMain}
+      >
+        <Text style={[styles.groupTitleText, on && styles.groupTitleOn]}>{title}</Text>
+      </Press>
+      <Animated.View style={{ opacity: reveal }}>
+        <IconButton
+          size={TINY_BUTTON}
+          onPress={onNew}
+          label={newLabel}
+          onFocus={() => setFocused(tabbing())}
+          onBlur={() => setFocused(false)}
+        >
+          <Plus size={iconSize.field} tone="textMuted" />
+        </IconButton>
+      </Animated.View>
     </View>
   )
 }
@@ -785,9 +854,9 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
     paddingRight: space.sm,
   },
-  groupTitleText: labelText(theme.colors),
+  groupTitleText: label(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
-  groupAll: { color: theme.colors.textMuted, fontSize: type.tiny, fontWeight: '600' },
+  moreTags: { paddingVertical: space.tight, paddingHorizontal: space.snug },
   tagForm: {
     gap: space.tight,
     paddingTop: space.xs,

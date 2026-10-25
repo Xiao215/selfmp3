@@ -30,20 +30,18 @@ const stats: Stats = {
 
 describe('the Profile page', () => {
   it('lists Import, Report and Settings, and nothing else, with no links to show', () => {
-    const rows = profileRows({ place: 'phone', linksHint: null })
+    const rows = profileRows({ linksHint: null })
     expect(rows.map(row => [row.id, row.label, row.href])).toEqual([
       ['import', 'Import', '/import'],
       ['report', 'Report', '/stats/report'],
       ['settings', 'Settings', '/settings'],
     ])
-    expect(rows[2]?.hint).toBe('Account, look, on this phone, devices')
-    expect(profileRows({ place: 'computer', linksHint: null })[2]?.hint).toBe(
-      'Account, look, on this computer, devices',
-    )
+    expect(rows[0]?.hint).toBe('From a link or a search')
+    expect(rows[2]?.hint).toBe('Account, look, devices')
   })
 
   it('puts Links you shared before Settings for an account that can send one', () => {
-    const rows = profileRows({ place: 'phone', linksHint: '2 links playing' })
+    const rows = profileRows({ linksHint: '2 links playing' })
     expect(rows.map(row => row.id)).toEqual(['import', 'report', 'links', 'settings'])
     expect(rows[2]).toEqual({
       id: 'links',

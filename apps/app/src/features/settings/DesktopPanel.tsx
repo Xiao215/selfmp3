@@ -47,11 +47,7 @@ export function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }
   }
 
   return (
-    <Panel
-      title="Desktop app"
-      hint={updates.version === null ? 'on this computer' : `version ${updates.version}`}
-      anchor={anchor}
-    >
+    <Panel title="Desktop app" anchor={anchor}>
       <Row label="Open at login" hint="Starts self.mp3 when you log in.">
         <Toggle
           value={open ?? false}
@@ -64,7 +60,7 @@ export function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }
           testID="setting-login-item"
         />
       </Row>
-      <Row label="Updates" hint={updateHint(update, looking)} last>
+      <Row label="Updates" hint={updateHint(update, looking, updates.version)} last>
         {update?.state === 'ready' && update.canInstall ? (
           <Button
             label="Restart to update"
@@ -91,7 +87,12 @@ export function DesktopPanel({ anchor }: { anchor: (node: View | null) => void }
 }
 
 /** One line saying where the update check has got to, in plain words. */
-function updateHint(update: UpdateState | null, looking: boolean): string {
+function updateHint(
+  update: UpdateState | null,
+  looking: boolean,
+  /** This app's version, said while nothing has been checked. */
+  version: string | null,
+): string {
   if (looking || update?.state === 'checking') return 'Looking…'
   switch (update?.state) {
     case 'none':
@@ -107,6 +108,6 @@ function updateHint(update: UpdateState | null, looking: boolean): string {
     case 'error':
       return `Could not check: ${update.message ?? 'no answer from GitHub'}.`
     default:
-      return 'self.mp3 does not check by itself.'
+      return version === null ? 'self.mp3 does not check by itself.' : `Version ${version}.`
   }
 }

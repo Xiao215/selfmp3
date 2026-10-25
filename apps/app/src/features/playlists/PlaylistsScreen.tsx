@@ -11,15 +11,21 @@ import {
   type Playlist,
   type SharedSummary,
 } from '@selfmp3/shared'
-import { radius, space, type, useGems, usePlaylistSongs, iconSize } from '@selfmp3/client'
+import {
+  radius,
+  space,
+  type,
+  useGems,
+  useLibrary,
+  usePlaylistSongs,
+  iconSize,
+} from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
-import { Button } from '../../ui/components/Button'
-import { IconButton } from '../../ui/components/IconButton'
 import { Live, Play, Plus } from '../../ui/components/Icons'
 import { Menu } from '../../ui/components/MoreMenu'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -32,7 +38,8 @@ import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
-import { GEMS_SOURCE } from '../lists/lists.model'
+import { GEMS_SOURCE, tagsWithIds } from '../lists/lists.model'
+import { followedTagIds } from '../playlistDetail/follows.model'
 import { NewPlaylist } from './NewPlaylist'
 import { DeletePlaylistDialog, usePlaylistMenu } from './playlistMenu'
 import { PlaylistCover } from './PlaylistCover'
@@ -71,7 +78,6 @@ const SORT_PREF = 'playlists.sort'
  * songs, and it exists once it has one (`NewPlaylist`).
  */
 export function PlaylistsScreen(): ReactNode {
-  const { theme } = useUnistyles()
   const router = useRouter()
   const { wide, finePointer } = useLayout()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
@@ -97,6 +103,16 @@ export function PlaylistsScreen(): ReactNode {
    */
   const now = useMemo(() => new Date(), [])
   const playback = usePlaylistPlayback()
+  // What a playlist that fills itself fills from, by name, for its tile's line.
+  const { data: library } = useLibrary()
+  const tags = library?.tags
+  const fillsFrom = useCallback(
+    (playlist: Playlist): string[] =>
+      playlist.kind === 'live'
+        ? tagsWithIds(followedTagIds(playlist.rules), tags ?? []).map(tag => tag.name)
+        : [],
+    [tags],
+  )
   const openPlaylist = useCallback(
     (playlist: Playlist) =>
       router.push({ pathname: '/playlists/[id]', params: { id: String(playlist.id) } }),
@@ -135,42 +151,22 @@ export function PlaylistsScreen(): ReactNode {
                 ? 'Not loaded'
                 : playlists.length === 0
                   ? 'None of your own yet'
-                  : playlistsSubline(playlists.length, sort)
+                  : playlistsSubline(playlists.length)
           }
           style={styles.head}
           actions={
-            // A phone's New sits beside the name, as Library's buttons do; a
-            // computer's goes at the far end with the order.
+            // The order, on a computer. New is the grid's first tile (and the
+            // sidebar's +), not a header button as well (I1, 2026-10-25).
             wide ? (
-              <>
-                <Select
-                  size="small"
-                  value={sort}
-                  options={PLAYLIST_SORTS}
-                  onChange={setSort}
-                  label="Sort by"
-                  testID="playlists-sort"
-                />
-                {/* White, as `C07` draws it: `active` is the pill's white. */}
-                <Button
-                  label="New"
-                  icon={<Plus color={theme.colors.onPrimary} />}
-                  active
-                  onPress={() => setNewOpen(true)}
-                  testID="playlists-new"
-                />
-              </>
-            ) : (
-              <IconButton
-                onPress={() => setNewOpen(true)}
-                label="New playlist"
-                filled
-                active={newOpen}
-                testID="playlists-new"
-              >
-                <Plus size={iconSize.nav} color={theme.colors.textPrimary} />
-              </IconButton>
-            )
+              <Select
+                size="small"
+                value={sort}
+                options={PLAYLIST_SORTS}
+                onChange={setSort}
+                label="Sort by"
+                testID="playlists-sort"
+              />
+            ) : null
           }
         />
 
@@ -197,7 +193,7 @@ export function PlaylistsScreen(): ReactNode {
               ) : (
                 <PlaylistTile
                   playlist={tile.playlist}
-                  line={playlistTileLine(tile.playlist, now)}
+                  line={playlistTileLine(tile.playlist, now, fillsFrom(tile.playlist))}
                   index={playlists.indexOf(tile.playlist)}
                   width={tileWidth}
                   finePointer={finePointer}
@@ -328,10 +324,10 @@ const PlaylistTile = memo(function PlaylistTile({
       cover={
         <View>
           <PlaylistCover playlist={playlist} />
+          {/* A round mark: the line under the name says what it fills from. */}
           {live ? (
-            <View style={[styles.badge, styles.badgeRow]}>
-              <Live size={iconSize.tiny} color={theme.colors.textPrimary} />
-              <Text style={styles.badgeText}>{FOLLOWS_LABEL}</Text>
+            <View style={styles.fillsMark} accessibilityLabel={FOLLOWS_LABEL}>
+              <Live size={iconSize.field} color={theme.colors.textPrimary} />
             </View>
           ) : null}
         </View>
@@ -435,7 +431,17 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.glass,
   },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  fillsMark: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.glass,
+  },
   badgeText: { color: theme.colors.textPrimary, fontSize: type.tiny, fontWeight: '700' },
   fabPlace: { position: 'absolute', right: 8 },
   fab: {

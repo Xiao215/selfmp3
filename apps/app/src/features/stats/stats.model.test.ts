@@ -78,7 +78,7 @@ describe('stats windows and words', () => {
 })
 
 describe('the cards', () => {
-  it('Listened: the time, the plays and the days with music', () => {
+  it('Listened: the time, the plays and the days with any', () => {
     const card = listenedCard(
       stats({
         daily: [
@@ -89,7 +89,7 @@ describe('the cards', () => {
       }),
     )
     expect(card.value).toBe('6h 12')
-    expect(card.line).toBe('128 plays · 2 days with music')
+    expect(card.line).toBe('128 plays · 2 days')
     expect(card.trend).toEqual([11, 0, 4])
   })
 

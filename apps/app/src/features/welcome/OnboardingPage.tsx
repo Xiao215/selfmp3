@@ -9,7 +9,7 @@ import { titleBarInset } from '../../ports/titleBarInset'
 import { useLayoutValue } from '../../shell/useLayout'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
-import { card, bodyText, nameTitle, hint } from '../../ui/surfaces'
+import { card, bodyText, heroTitle, nameTitle, hint } from '../../ui/surfaces'
 
 /**
  * The side margin of every page on the way in — Welcome, Where it lives and
@@ -31,11 +31,14 @@ export const ONBOARDING_GUTTER = 28
  */
 export function OnboardingPage({
   title,
+  face = 'serif',
   lead,
   keyboard = false,
   children,
 }: {
   title: string
+  /** The serif for a greeting ("Hello, Xiao."); a page's own name is the display face. */
+  face?: TitleFace
   lead: ReactNode
   keyboard?: boolean
   children: ReactNode
@@ -45,7 +48,7 @@ export function OnboardingPage({
     <ScrollView contentContainerStyle={[styles.page, wide && styles.pageWide]}>
       <View style={[styles.column, wide && styles.columnWide]}>
         <View style={styles.head}>
-          <OnboardingTitle>{title}</OnboardingTitle>
+          <OnboardingTitle face={face}>{title}</OnboardingTitle>
           <Text style={styles.lead}>{lead}</Text>
         </View>
         {children}
@@ -65,22 +68,30 @@ export function OnboardingPage({
   )
 }
 
+/** A greeting is the serif; a page's name the display face (N1, 2026-10-25). */
+type TitleFace = 'serif' | 'display'
+
 /**
- * The big serif title of a page on the way in, with its full stop in the
- * accent's italic. A greeting, so the serif: one weight, never bolded.
- * Welcome's too, so the three pages' titles are one size, one spacing.
+ * The big title of a page on the way in, with its full stop in the accent. A
+ * greeting is the serif, its stop the serif's italic: one weight, never
+ * bolded. Welcome's too, so the pages' titles are one size, one spacing. A
+ * page that names what it is for ("Where it lives") is the display face, as
+ * every page's title is.
  */
 export function OnboardingTitle({
   children,
   mark = '.',
+  face = 'serif',
 }: {
   children: ReactNode
   mark?: string
+  face?: TitleFace
 }): ReactNode {
+  const display = face === 'display'
   return (
-    <Text style={styles.title} accessibilityRole="header">
+    <Text style={display ? styles.titleDisplay : styles.title} accessibilityRole="header">
       {children}
-      <Text style={styles.titleMark}>{mark}</Text>
+      <Text style={display ? styles.titleMarkDisplay : styles.titleMark}>{mark}</Text>
     </Text>
   )
 }
@@ -136,6 +147,8 @@ const styles = StyleSheet.create(theme => ({
   head: { gap: space.sm },
   title: nameTitle(theme.colors),
   titleMark: { fontFamily: fonts.serifItalic, color: theme.colors.accent },
+  titleDisplay: heroTitle(theme.colors),
+  titleMarkDisplay: { color: theme.colors.accent },
   lead: bodyText(theme.colors),
   card: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
   footnote: {

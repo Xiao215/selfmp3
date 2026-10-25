@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
+import { queueSections } from '@selfmp3/shared'
+import { type } from '@selfmp3/client'
+import { usePlayer } from '../../player/PlayerProvider'
 import { StyleSheet } from 'react-native-unistyles'
 import { MOVE_MS } from '../motion.model'
 import { ease, spring, timing, useMotionReduced } from '../motion'
 import {
   currentFlights,
+  flightsUnderway,
   landFlight,
   landingCount,
   registerUpNextTarget,
@@ -116,35 +120,82 @@ function OneFlight({ flight }: { flight: Flight }): ReactNode {
 
 /**
  * Around the button that opens Up next: registers it as where covers land,
- * and swells once when they do.
+ * and swells once when they do. It wears how many songs are waiting after the
+ * one playing, as a small count on its shoulder (O2, 2026-10-25), which ticks
+ * up as covers land rather than the moment the songs are queued: the songs
+ * arrive with their covers. Nothing waiting, no count.
  */
 export function UpNextTarget({ children }: { children: ReactNode }): ReactNode {
   const reduced = useMotionReduced()
   const landed = useSyncExternalStore(subscribeFlights, landingCount, landingCount)
+  const flying = useSyncExternalStore(subscribeFlights, flightsUnderway, flightsUnderway)
+  const { queue } = usePlayer()
+  const waiting = queueSections(queue).next.length
   const [scale] = useState(() => new Animated.Value(1))
+  const [bump] = useState(() => new Animated.Value(1))
+  // The count the badge says: held while covers are on their way in, so it
+  // ticks up as they land; anything else (a song played on, one removed)
+  // says itself at once.
+  const [shown, setShown] = useState(waiting)
+  if (shown !== waiting && !(flying > 0 && waiting > shown)) setShown(waiting)
   // The landing last answered: those before this button was drawn are not its
   // to answer, and a change of Reduce Motion is not a new landing.
   const answered = useRef(landed)
   useEffect(() => {
     if (answered.current === landed) return
     answered.current = landed
-    if (!reduced) timing(scale, 1.12, MOVE_MS.landing, () => spring(scale, 1), { easing: ease.out })
-  }, [landed, reduced, scale])
+    if (reduced) return
+    timing(scale, 1.12, MOVE_MS.landing, () => spring(scale, 1), { easing: ease.out })
+    timing(bump, 1.25, MOVE_MS.landing, () => spring(bump, 1), { easing: ease.out })
+  }, [landed, reduced, scale, bump])
   const held = useRef<View | null>(null)
   const ref = useCallback((node: View | null) => {
     registerUpNextTarget(node, held.current)
     held.current = node
   }, [])
   const [style] = useState(() => ({ transform: [{ scale }] }))
+  const [badgeMotion] = useState(() => ({ transform: [{ scale: bump }] }))
   return (
     <Animated.View ref={ref} collapsable={false} style={style}>
       {children}
+      {shown > 0 ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.count, badgeMotion]}
+          accessibilityLabel={`${shown} waiting`}
+          testID="up-next-count"
+        >
+          <Text style={styles.countText}>{shown > 99 ? '99+' : shown}</Text>
+        </Animated.View>
+      ) : null}
     </Animated.View>
   )
 }
+
+/** The count's height. */
+const COUNT = 16
 
 const styles = StyleSheet.create(theme => ({
   // A flying cover is artwork, so it casts what artwork casts, from the
   // palette: the leaning cover's shadow, a soft one on Paper.
   ghost: { position: 'absolute', ...artShadow(theme.colors, 'lean') },
+  // On the button's shoulder, in the accent: a count, not a warning.
+  count: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: COUNT,
+    height: COUNT,
+    paddingHorizontal: 4,
+    borderRadius: COUNT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.accent,
+  },
+  countText: {
+    color: theme.colors.onAccent,
+    fontSize: type.tiny,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
 }))

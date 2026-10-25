@@ -415,7 +415,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       drawnGroups.push(
         <View style={styles.group} key={group.title}>
           <View style={styles.groupTitle}>
-            <Text style={styles.groupText}>{group.title.toUpperCase()}</Text>
+            <Text style={styles.groupText}>{group.title}</Text>
             <Text style={[styles.groupText, styles.groupCount]}>{group.rows.length}</Text>
           </View>
           {group.rows.map((row, offset) => drawRow(row, first + offset))}

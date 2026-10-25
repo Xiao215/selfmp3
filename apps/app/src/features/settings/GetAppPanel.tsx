@@ -44,7 +44,7 @@ export function GetAppPanel({ anchor }: { anchor: (node: View | null) => void })
   const offers = installers ? chips.filter(one => installers.dmg[one] !== null) : []
 
   return (
-    <Panel title="Mac app" hint="for this computer" anchor={anchor}>
+    <Panel title="Mac app" anchor={anchor}>
       <Row
         label="self.mp3 for Mac"
         hint={downloadHint({

@@ -77,7 +77,7 @@ describe('the counts', () => {
   })
 
   it('says when nothing is next', () => {
-    expect(nextLabel([])).toBe('Nothing after this one')
+    expect(nextLabel([])).toBe('Nothing next')
   })
 })
 

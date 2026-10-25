@@ -9,7 +9,7 @@ import {
   songLink,
   songPlays,
   songStory,
-  soundWords,
+  unplayedLine,
   timeAgo,
   usualHour,
 } from './song.model'
@@ -177,11 +177,13 @@ describe('playStrip', () => {
   })
 })
 
-describe('soundWords', () => {
-  it('is the tempo and a word for the energy', () => {
-    expect(soundWords({ bpm: 91.6, energy: 0.2 } as never)).toBe('tempo 92 · calm')
-    expect(soundWords({ bpm: null, energy: 0.9 } as never)).toBe('driving')
-    expect(soundWords(null)).toBeNull()
+describe('unplayedLine', () => {
+  it('says a song was never played, and when it came, in one line', () => {
+    const now = new Date('2026-10-25T12:00:00Z')
+    expect(unplayedLine({ playCount: 0, addedAt: '2026-09-20 12:00:00' }, now)).toBe(
+      'Not played yet · added a month ago',
+    )
+    expect(unplayedLine({ playCount: 2, addedAt: '2026-09-20 12:00:00' }, now)).toBeNull()
   })
 })
 

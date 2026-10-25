@@ -9,7 +9,6 @@ import { HueSwatches } from '../../ui/components/HueSwatches'
 import { Select } from '../../ui/components/Select'
 import { Slider } from '../../ui/components/Slider'
 import { Panel, Row } from './SettingsParts'
-import { accentName } from './settings.model'
 
 /**
  * Each preset's swatch colour, worked out once: the panel redraws on every
@@ -27,24 +26,20 @@ export function AppearancePanel({ anchor }: { anchor: (node: View | null) => voi
   const ring = ui.colors.textPrimary
   const swatches = useMemo(() => PRESET_SWATCHES.map(each => ({ ...each, ring })), [ring])
   return (
-    <Panel title="Appearance" hint="on this device" anchor={anchor}>
-      <Row label="Theme" hint="System follows this device.">
+    <Panel title="Appearance" anchor={anchor}>
+      <Row label="Theme">
         <Select<ThemeChoice>
           value={accent.theme}
           onChange={accent.setTheme}
           options={[
             { value: 'dark', label: 'Dark' },
             { value: 'light', label: 'Light' },
-            { value: 'system', label: 'System' },
+            { value: 'system', label: 'Match this device' },
           ]}
           label="Theme"
         />
       </Row>
-      <Row
-        label="Accent colour"
-        hint={`Tints the whole app · ${accentName(accent.hue, ACCENT_PRESETS)}`}
-        last
-      >
+      <Row label="Accent" stack last>
         <HueSwatches
           value={accent.hue}
           options={swatches}

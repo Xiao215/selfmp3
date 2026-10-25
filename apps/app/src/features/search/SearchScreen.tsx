@@ -64,7 +64,7 @@ import {
   type RoomAdds,
 } from '../room/RoomPicks'
 import { useGoBack } from '../../ui/useBackTo'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, rowTitle, textColumn } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle, rowTitle, textColumn } from '../../ui/surfaces'
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
 import { countUse } from '../usage/usage'
@@ -167,6 +167,13 @@ export function SearchScreen(): ReactNode {
       <NarrowerContentWidth max={COLUMN}>
         <SafeAreaView style={styles.screen} edges={['top']}>
           <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
+            {/* A computer's page has its title, as every page does, and no Cancel:
+                Esc leaves and the field's × clears (M1, 2026-10-25). */}
+            {wide ? (
+              <Text style={styles.pageTitle} accessibilityRole="header">
+                Search
+              </Text>
+            ) : null}
             <View style={styles.head}>
               <SearchField
                 inputRef={field}
@@ -194,14 +201,16 @@ export function SearchScreen(): ReactNode {
                 testID="search-field"
                 style={styles.field}
               />
-              <Press
-                feedback="dim"
-                onPress={close}
-                accessibilityRole="button"
-                hitSlop={hitSlopFor(leading.body)}
-              >
-                <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
-              </Press>
+              {wide && !adding ? null : (
+                <Press
+                  feedback="dim"
+                  onPress={close}
+                  accessibilityRole="button"
+                  hitSlop={hitSlopFor(leading.body)}
+                >
+                  <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
+                </Press>
+              )}
             </View>
             {adding ? (
               <View style={styles.adding} testID="search-adding">
@@ -588,6 +597,8 @@ function useSearchRows(
     onPlay: index => player.playFrom(ids, index, { source: FROM_SEARCH }),
     testPrefix,
     withTags: true,
+    // Where a match fell is no rank and no track (M1).
+    numbered: false,
   })
 }
 
@@ -668,12 +679,19 @@ const styles = StyleSheet.create(theme => ({
   askAfter: { marginTop: space.md },
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   page: { flex: 1 },
-  // The field's row starts where every page's first row does (`PAGE_TOP_WIDE`).
+  // The title starts where every page's does (`PAGE_TOP_WIDE`, `gutterWide`):
+  // on the left with the page, rather than a column floating in the middle.
   pageWide: {
-    maxWidth: COLUMN,
+    maxWidth: COLUMN + space.gutterWide - space.lg,
     width: '100%',
-    alignSelf: 'center',
+    alignSelf: 'flex-start',
+    paddingLeft: space.gutterWide - space.lg,
     paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,
+  },
+  pageTitle: {
+    ...pageTitle(theme.colors),
+    paddingHorizontal: space.lg,
+    paddingTop: PAGE_TOP_PHONE,
   },
   head: {
     flexDirection: 'row',

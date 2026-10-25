@@ -389,6 +389,11 @@ export const More = icon(color => (
   </>
 ))
 
+/** Two links of a chain: a link you shared. */
+export const Link = icon(() => (
+  <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+))
+
 /** An arrow out of a box: sending a link to someone. */
 export const ShareOut = icon(() => (
   <>
@@ -451,6 +456,9 @@ export const ChevronUp = icon(() => <Path d="m6 15 6-6 6 6" />)
 export const ChevronLeft = icon(() => <Path d="m15 6-6 6 6 6" />)
 
 export const ChevronRight = icon(() => <Path d="m9 6 6 6-6 6" />)
+
+/** Go: a field's own button that sends what was typed (Import's). */
+export const ArrowRight = icon(() => <Path d="M5 12h14m-6-6 6 6-6 6" />)
 
 export const Expand = icon(() => <Path d="M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-6" />)
 

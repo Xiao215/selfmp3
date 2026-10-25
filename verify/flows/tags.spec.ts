@@ -135,15 +135,13 @@ test.describe('tags as places', () => {
     const card = page.getByTestId('tags-untagged')
     await expect(card).toBeVisible()
     await expect(card).toContainText(
-      `${untagged} ${untagged === 1 ? 'song has' : 'songs have'} no tag yet`,
+      `${untagged} ${untagged === 1 ? 'song' : 'songs'} without a tag`,
     )
-    // A computer's card names who the songs are by and has a button that tags
-    // them while they play; a phone's whole card is that button.
-    if (info.project.name === 'desktop') {
-      await expect(card.getByTestId('tags-untagged-start')).toHaveText('Tag while they play')
-    } else {
-      await expect(card).toHaveAccessibleName(/Tag them one at a time, while they play$/)
-    }
+    // A computer's card has one "Tag them", a phone's whole card is that
+    // button; either offers tagging them while they play.
+    if (info.project.name === 'desktop') await card.getByTestId('tags-untagged-tag').click()
+    else await card.click()
+    await expect(page.getByTestId('tags-untagged-start')).toHaveText('Tag while they play')
   })
 })
 

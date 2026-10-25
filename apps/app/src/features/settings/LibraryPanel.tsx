@@ -47,7 +47,7 @@ export function LibraryPanel({
   const library = useLibrary()
   const songs = library.data?.songs ?? []
   return (
-    <Panel title="Library" hint={plural(songs.length, 'song', 'songs')} anchor={anchor}>
+    <Panel title="Library" anchor={anchor}>
       {server.reach.state !== 'reachable' || !server.api ? (
         <ServerAway reach={server.reach} need="settings" row testID="library-server" />
       ) : (
@@ -175,14 +175,16 @@ function CoverArtRow({
             disabled={fixCovers.isPending}
             onPress={() => fixCovers.mutate('cancel')}
           />
-        ) : (
+        ) : missingArt > 0 ? (
+          // Only once a song has no artwork: a greyed button beside "Every song
+          // has artwork" offered nothing.
           <Button
             label="Find missing art"
             icon={<Sparkles tone="textPrimary" />}
-            disabled={fixCovers.isPending || missingArt === 0}
+            disabled={fixCovers.isPending}
             onPress={() => fixCovers.mutate('start')}
           />
-        )}
+        ) : null}
       </Row>
       {status && running ? (
         <View style={partStyles.progress} accessibilityLiveRegion="polite">

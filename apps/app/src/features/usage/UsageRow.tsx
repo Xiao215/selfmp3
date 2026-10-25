@@ -10,7 +10,7 @@ export function UsageRow(): ReactNode {
   return (
     <Row
       label="Count features I use"
-      hint="Once a day, how often each feature was used goes to your server as part of one total for everyone. Never what you play, search or ask."
+      hint="Daily totals only. Never what you play, search or ask."
       last
     >
       <Toggle

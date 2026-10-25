@@ -39,9 +39,13 @@ type SmartSwitch =
 export function aiRoutes(container: Container): Router {
   const router = Router()
 
-  /** A feature turned off in Settings › Smart features is refused before any model is asked. */
+  /**
+   * A feature turned off in Settings › Smart features, or all of them with
+   * "Use smart features", is refused before any model is asked.
+   */
   const allowed = (feature: SmartSwitch): void => {
-    if (!container.settings.get()[feature]) {
+    const settings = container.settings.get()
+    if (!settings.smartFeatures || !settings[feature]) {
       throw new HttpError(
         403,
         'This smart feature is turned off in Settings › Smart features.',
@@ -73,7 +77,9 @@ export function aiRoutes(container: Container): Router {
     '/ai/ask',
     route({ body: AskRequestSchema }, ({ body, res }): Promise<AskAnswer> => {
       allowed('smartAsk')
-      const { smartTidy: tidy, smartTags: tags } = container.settings.get()
+      const { smartFeatures, smartTidy, smartTags } = container.settings.get()
+      const tidy = smartFeatures && smartTidy
+      const tags = smartFeatures && smartTags
       return answering(
         container.smart.ask(
           body.text,

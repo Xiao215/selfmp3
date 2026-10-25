@@ -91,11 +91,14 @@ export function ShelfCard({
   caption,
   onMenu,
   onLongPress,
+  titleLines = 1,
   testID,
 }: {
   width: number
   cover: ReactNode
   title: string
+  /** How many lines the name may take before it is cut: two where names run long ("Sounds like"). */
+  titleLines?: number
   /** Under the name: the artist, a kind, when it was last played. */
   lines: readonly string[]
   onPress: () => void
@@ -121,7 +124,7 @@ export function ShelfCard({
       {...rightClick(onMenu)}
     >
       {cover}
-      <Text style={[styles.title, large && styles.titleLarge]} numberOfLines={1}>
+      <Text style={[styles.title, large && styles.titleLarge]} numberOfLines={titleLines}>
         {title}
       </Text>
       {lines.map((line, index) => (
@@ -148,6 +151,7 @@ export function SongCard({
   size,
   onPress,
   more,
+  titleLines,
   testID,
 }: {
   song: Song
@@ -155,6 +159,7 @@ export function SongCard({
   onPress: () => void
   /** A third line: when it was last played. */
   more?: string
+  titleLines?: number
   testID?: string
 }): ReactNode {
   // A small card's picture is a row's; a large one's, the kept size.
@@ -167,6 +172,7 @@ export function SongCard({
       cover={<Cover uri={art(song)} title={song.album || song.title} size={size} />}
       title={song.title}
       lines={more ? [artist, more] : [artist]}
+      titleLines={titleLines}
       onPress={onPress}
       label={`Play ${song.title} by ${artist}`}
       caption={`${song.title} — ${artist}`}

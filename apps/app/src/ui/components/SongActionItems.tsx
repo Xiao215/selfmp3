@@ -77,6 +77,7 @@ export function SongActionItems({
   songs,
   playlist,
   nowPlaying = false,
+  detailsInMenu = false,
   leave = [],
   flyFrom,
   onClose,
@@ -92,6 +93,8 @@ export function SongActionItems({
   playlist?: { readonly id: number; readonly name: string }
   /** Opened on Now Playing (`songActions`). */
   nowPlaying?: boolean
+  /** Now Playing with no door of its own to the song's page (`songActions`). */
+  detailsInMenu?: boolean
   /** What the surface already offers itself: the selection bar's own buttons. */
   leave?: readonly SongActionId[]
   /** Where Up next's covers fly from: the ⋯ that opened the menu. */
@@ -131,6 +134,7 @@ export function SongActionItems({
     roomSong: songs.some(song => isRoomTrackId(song.id)),
     inPlaylist: playlist !== undefined,
     nowPlaying,
+    detailsInMenu,
     place: thisPlace(),
     shareable: fromCloud && !needsStorage,
   }).filter(action => !leave.includes(action.id))

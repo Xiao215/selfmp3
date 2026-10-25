@@ -811,15 +811,18 @@ tier, remembered against its exact question; Ask again asks afresh. Standing pre
 
 ## Settings › Smart features: a switch per feature
 
-Six switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags`,
-`smartWritten`, `smartMetadata`, `smartImport`, all on by default): Ask in Search (which
+One switch over six, kept in the server's settings: "Use smart features" (`smartFeatures`),
+which says what leaves the library at all ("Song names and tags only. Never audio.") and off,
+turns every feature off and greys the six while each keeps its own setting; then
+`smartAsk`, `smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, `smartImport`, all on by
+default: Ask in Search (which
 also covers New playlist's Describe it and Up next), Tidy up (with filling in what's missing
 and copies), Tags (Suggest tags, and Ask's tag changes), the Report in words, Fix song info's
 Suggested card, and Names at import, which has a switch of its own because it runs by itself
 whenever a review opens. Searching the web has no switch: it is part of smart features. The
-remembered preferences are listed under them. Each
-says what of the library it shows the model, in a line, because "the model sees your
-library" is too vague to agree to and each sees less than that. Settings reads and writes them
+remembered preferences are listed under them. What
+each shows the model is a line under "What each one sends", folded under the switches,
+because "the model sees your library" is too vague to agree to and each sees less than that. Settings reads and writes them
 on the server itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy
 of the library keeps no settings. Off, the way in is not drawn (`useSmartSwitches`, which asks
 the server presence has already found, so it costs no probe) and the server refuses the route with 403 `ai_disabled` before any

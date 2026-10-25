@@ -5,7 +5,6 @@ import {
   fromSqliteTime,
   startOfLocalDay,
   WEEKDAYS,
-  type AudioFeatures,
   type Song,
 } from '@selfmp3/shared'
 
@@ -232,23 +231,12 @@ export function playStrip({
 }
 
 /**
- * The words beside "Sounds like": "tempo 92 · calm". Null for a song the
- * analyser has not reached, which then shows the heading alone.
+ * The one quiet line by a song's buttons while it has never been played:
+ * "Not played yet · added a month ago". Null once it has plays, which the
+ * listening card says instead.
  */
-export function soundWords(features: AudioFeatures | null): string | null {
-  if (!features) return null
-  const parts = [
-    features.bpm != null ? `tempo ${Math.round(features.bpm)}` : null,
-    features.energy != null ? energyWord(features.energy) : null,
-  ].filter((part): part is string => part !== null)
-  return parts.length > 0 ? parts.join(' · ') : null
-}
-
-/** A plain word for the energy, in thirds. */
-function energyWord(energy: number): string {
-  if (energy < 0.34) return 'calm'
-  if (energy < 0.67) return 'steady'
-  return 'driving'
+export function unplayedLine(song: Pick<Song, 'playCount' | 'addedAt'>, now: Date): string | null {
+  return song.playCount === 0 ? `Not played yet · added ${timeAgo(song.addedAt, now)}` : null
 }
 
 /**

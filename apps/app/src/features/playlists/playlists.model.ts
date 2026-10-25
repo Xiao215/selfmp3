@@ -64,12 +64,18 @@ const songsWord = (count: number): string => plural(count, 'song', 'songs')
  *
  * The day is when it was last played, or when it was made if it never has
  * been — the same day the page sorts by, so the line says why a tile is where
- * it is. A live playlist reads the same: its badge already says what it is.
+ * it is. A playlist that fills itself says from what instead, "Fills from
+ * night, focus · 76 songs", under the round mark on its cover (I1).
  */
 export function playlistTileLine(
   playlist: Pick<Playlist, 'songCount' | 'lastPlayedAt' | 'createdAt'>,
   now: Date,
+  /** The names of the tags a playlist that fills itself fills from; none for one you fill. */
+  fillsFrom: readonly string[] = [],
 ): string {
+  if (fillsFrom.length > 0) {
+    return `Fills from ${fillsFrom.join(', ')} · ${songsWord(playlist.songCount)}`
+  }
   const day = relativeDay(playlist.lastPlayedAt ?? playlist.createdAt, now)
   return day ? `${songsWord(playlist.songCount)} · ${day}` : songsWord(playlist.songCount)
 }
@@ -91,10 +97,9 @@ export function playlistHeadLine(
   return parts.join(' · ')
 }
 
-/** The line under the page's title: how many, and in what order. */
-export function playlistsSubline(count: number, sort: PlaylistSort): string {
-  const order = { recent: 'last played first', name: 'A–Z', added: 'newest first' }[sort]
-  return `${plural(count, 'playlist', 'playlists')} · ${order}`
+/** The line under the page's title: how many. The order is the dropdown's beside it. */
+export function playlistsSubline(count: number): string {
+  return plural(count, 'playlist', 'playlists')
 }
 
 /**

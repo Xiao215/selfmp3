@@ -113,8 +113,8 @@ describe('All tags', () => {
   it('counts the untagged songs for the card, newest first', () => {
     const songs = [song(1), song(2, { tagIds: [1] }), song(3)]
     expect(untaggedSongs(songs).map(item => item.id)).toEqual([3, 1])
-    expect(untaggedCardTitle(2)).toBe('2 songs have no tag yet')
-    expect(untaggedCardTitle(1)).toBe('1 song has no tag yet')
+    expect(untaggedCardTitle(2)).toBe('2 songs without a tag')
+    expect(untaggedCardTitle(1)).toBe('1 song without a tag')
   })
 })
 

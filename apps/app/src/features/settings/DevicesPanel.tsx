@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatRelative, type Device, DeviceNameSchema } from '@selfmp3/shared'
+import { formatRelative, plural, type Device, DeviceNameSchema } from '@selfmp3/shared'
 import {
   clientApi,
   deviceGroups,
@@ -67,15 +67,7 @@ function ServerDevices({ anchor }: { anchor: (node: View | null) => void }): Rea
     )
   }
 
-  return (
-    <DevicesList
-      anchor={anchor}
-      hint={reach === 'reachable' ? (connected ? 'live updates' : 'polling') : undefined}
-      reach={reach}
-      devices={devices}
-      onForget={forget}
-    />
-  )
+  return <DevicesList anchor={anchor} reach={reach} devices={devices} onForget={forget} />
 }
 
 /** A cloud library: the server found by its addresses, and asked directly. */
@@ -113,7 +105,6 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
   return (
     <DevicesList
       anchor={anchor}
-      hint={reach === 'reachable' ? 'through your library’s computer' : undefined}
       reach={reach}
       devices={list.data?.devices ?? []}
       onForget={forget}
@@ -137,20 +128,17 @@ async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]
 /** The panel itself, whichever way its list arrived. */
 function DevicesList({
   anchor,
-  hint,
   reach,
   devices,
   onForget,
 }: {
   anchor: (node: View | null) => void
-  hint: string | undefined
   reach: DevicesReach
   devices: readonly Device[]
   onForget: (ids: readonly string[]) => void
 }): ReactNode {
   const { deviceId, name, rename, heard } = useDeviceContext()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
-  const [showOlder, setShowOlder] = useState(false)
   const shown = draft && draft.from === name ? draft.text : name
   const live = reach === 'reachable'
 
@@ -177,19 +165,24 @@ function DevicesList({
     [live, here, known],
   )
 
-  // Offline devices that share a name folded into one row; this device, what
-  // is online and what was seen in the last week first; the rest behind a button.
+  // This device, what is online and what was seen in the last week, a row
+  // each; every stale session (a name's older copies among them) is one row.
   const [now] = useState(Date.now)
-  const view = useMemo(
+  const { recent: rows, olderIds } = useMemo(
     () => splitDevices(deviceGroups(listed, deviceId), deviceId, now),
     [listed, deviceId, now],
   )
-  const rows = showOlder ? [...view.recent, ...view.older] : view.recent
-  const olderIds = view.older.flatMap(row => row.ids)
+  // A browser registers itself afresh whenever its storage is cleared, which
+  // is where nearly all of these come from.
+  const olderKinds = new Set(
+    listed.filter(device => olderIds.includes(device.id)).map(device => device.kind),
+  )
+  const session = olderKinds.size === 1 && olderKinds.has('other') ? 'browser session' : 'session'
+  const olderLine = plural(olderIds.length, `older ${session}`, `older ${session}s`)
 
   return (
-    <Panel title="Devices" hint={hint} anchor={anchor}>
-      <Row label="This device’s name" hint="Shown on your other devices.">
+    <Panel title="Devices" anchor={anchor}>
+      <Row label="This device’s name" stack>
         <TextField
           size="small"
           style={partStyles.field}
@@ -216,9 +209,6 @@ function DevicesList({
                   this device
                 </Text>
               ) : null}
-              {ids.length > 1 ? (
-                <Text style={styles.deviceTag} numberOfLines={1}>{`×${ids.length}`}</Text>
-              ) : null}
             </View>
             <Text style={styles.deviceWhen} numberOfLines={1}>
               {!live
@@ -229,13 +219,7 @@ function DevicesList({
             </Text>
             {/* Forgetting is the server's to do, so only while it answers. */}
             {live ? (
-              <IconButton
-                onPress={() => onForget(ids)}
-                label={
-                  ids.length > 1 ? `Remove ${device.name} (${ids.length})` : `Remove ${device.name}`
-                }
-                size={28}
-              >
+              <IconButton onPress={() => onForget(ids)} label={`Remove ${device.name}`} size={28}>
                 <Trash size={iconSize.field} tone="textMuted" />
               </IconButton>
             ) : null}
@@ -253,13 +237,13 @@ function DevicesList({
                 : 'Can’t reach your library’s computer — showing the last list.'}
           </Text>
         ) : null}
-        {view.older.length > 0 ? (
-          <View style={styles.devicesMore}>
-            <Button
-              label={showOlder ? 'Show fewer' : `Show ${view.older.length} older`}
-              onPress={() => setShowOlder(open => !open)}
-            />
-            {live ? <Button label="Remove all older" onPress={() => onForget(olderIds)} /> : null}
+        {olderIds.length > 0 ? (
+          <View style={styles.device} testID="settings-older-devices">
+            <View style={styles.dot} />
+            <Text style={[styles.deviceText, styles.olderText]} numberOfLines={1}>
+              {olderLine}
+            </Text>
+            {live ? <Button label="Remove all" onPress={() => onForget(olderIds)} /> : null}
           </View>
         ) : null}
       </View>
@@ -275,7 +259,6 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     paddingVertical: 9,
   },
-  devicesMore: { paddingTop: space.snug, flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   devicesNote: { paddingTop: space.snug },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.borderStrong },
   dotOnline: { backgroundColor: theme.colors.good },
@@ -294,4 +277,5 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   deviceWhen: { flexShrink: 1, color: theme.colors.textMuted, fontSize: type.small },
+  olderText: { flex: 1, color: theme.colors.textSecondary },
 }))

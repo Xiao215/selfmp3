@@ -12,6 +12,9 @@ import { useSvgId } from '../useSvgId'
  * colour washing down from the top into the ground, and, where the page has
  * one cover to show, that cover itself behind the head, fading out.
  *
+ * `full` is a colour of the page's own rather than a cover's — a tag's tile
+ * (G1, 2026-10-25) — which starts at full strength and fades into the ground.
+ *
  * It fills whatever holds it, so the caller decides how far down the light
  * reaches; a tag's page keeps it inside the head, so it never runs on under
  * the rows. `blur` softens the cover into light rather than a picture, as a
@@ -27,10 +30,12 @@ export function CoverLight({
   color,
   art,
   blur = 0,
+  full = false,
 }: {
   color: string
   art: string | null | undefined
   blur?: number
+  full?: boolean
 }): ReactNode {
   const { layers, fade } = useCrossfade({ color, art }, `${color}|${art ?? ''}`)
   return (
@@ -39,7 +44,7 @@ export function CoverLight({
         // The first layer is the ground; the one after it, when there is one, is
         // the light arriving over it.
         <Animated.View key={layer.key} style={[styles.light, index > 0 && { opacity: fade }]}>
-          <Light color={layer.value.color} art={layer.value.art} blur={blur} />
+          <Light color={layer.value.color} art={layer.value.art} blur={blur} full={full} />
         </Animated.View>
       ))}
     </View>
@@ -51,10 +56,12 @@ function Light({
   color,
   art,
   blur,
+  full,
 }: {
   color: string
   art: string | null | undefined
   blur: number
+  full: boolean
 }): ReactNode {
   const { theme } = useUnistyles()
   const id = useSvgId('coverlight')
@@ -71,9 +78,23 @@ function Light({
       <Svg width="100%" height="100%" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={color} stopOpacity={art ? 0.25 : 0.45} />
-            <Stop offset="0.45" stopColor={theme.colors.surface0} stopOpacity={art ? 0.75 : 0.4} />
-            <Stop offset="1" stopColor={theme.colors.surface0} stopOpacity={1} />
+            {full
+              ? // A colour of the page's own: whole at the top, into the ground.
+                [
+                  <Stop key="top" offset="0" stopColor={color} stopOpacity={1} />,
+                  <Stop key="mid" offset="0.4" stopColor={color} stopOpacity={0.7} />,
+                  <Stop key="end" offset="1" stopColor={theme.colors.surface0} stopOpacity={1} />,
+                ]
+              : [
+                  <Stop key="top" offset="0" stopColor={color} stopOpacity={art ? 0.25 : 0.45} />,
+                  <Stop
+                    key="mid"
+                    offset="0.45"
+                    stopColor={theme.colors.surface0}
+                    stopOpacity={art ? 0.75 : 0.4}
+                  />,
+                  <Stop key="end" offset="1" stopColor={theme.colors.surface0} stopOpacity={1} />,
+                ]}
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />

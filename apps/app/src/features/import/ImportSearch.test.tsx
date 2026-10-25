@@ -215,7 +215,10 @@ describe('Import’s search page', () => {
     expect(await screen.findByText('安達組合')).toBeTruthy()
     expect(mockSearch).toHaveBeenCalledWith('孤勇者')
     expect(screen.getByLabelText('Select 孤勇者')).toBeTruthy()
-    expect(screen.getByTestId('import-search-commit')).toBeDisabled()
+    // Tag and Import come up only once a song is picked.
+    expect(screen.queryByTestId('import-search-commit')).toBeNull()
+    await fireEvent.press(screen.getByLabelText('Select 孤勇者'))
+    expect(screen.getByTestId('import-search-commit')).toBeEnabled()
   })
 
   it('imports the songs ticked over two searches, then goes back to Import afresh', async () => {

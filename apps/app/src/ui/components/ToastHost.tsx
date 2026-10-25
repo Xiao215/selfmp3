@@ -148,7 +148,7 @@ const SWIPE_AWAY = 72
  * a card a step lighter than anything under it, with what it is about at its
  * start — a song's cover, a friend's face — then its words, then what you can
  * do. Its tone is its ground: a good, warning or failed message is washed in
- * that colour, so it is told apart before it is read. A message with nothing
+ * its tone's own dark (or light) ground, so it is told apart before it is read. A message with nothing
  * but a few words is a capsule its own width.
  *
  * Every one ends in a ✕. One that goes by itself has a ring round its ✕
@@ -180,13 +180,13 @@ export function ToastCard({
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const swipe = useSwipeAway(onDismiss)
   const close = finePointer ? 32 : 40
-  const wash =
+  const ground =
     tone === 'good'
-      ? theme.colors.goodWash
+      ? theme.colors.toastGood
       : tone === 'warn'
-        ? theme.colors.warningWash
+        ? theme.colors.toastWarn
         : tone === 'error'
-          ? theme.colors.dangerWash
+          ? theme.colors.toastError
           : null
   const capsule = !art && !words.over && !words.under && !children
   return (
@@ -194,20 +194,16 @@ export function ToastCard({
       {...swipe.handlers}
       // One stylesheet entry beside the drag: an animated view flattens its
       // styles into one object, which Unistyles cannot follow two of.
-      style={[capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst, swipe.style]}
+      style={[
+        capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst,
+        ground && { backgroundColor: ground },
+        swipe.style,
+      ]}
       role={tone === 'error' ? 'alert' : 'status'}
       accessibilityActions={DISMISS_ACTIONS}
       onAccessibilityAction={onDismiss}
       onAccessibilityEscape={onDismiss}
     >
-      {wash ? (
-        <View
-          style={[RNStyleSheet.absoluteFill, capsule ? styles.clipCapsule : styles.clip]}
-          pointerEvents="none"
-        >
-          <View style={[RNStyleSheet.absoluteFill, { backgroundColor: wash }]} />
-        </View>
-      ) : null}
       {art}
       <View style={styles.words}>
         {words.over ? (
@@ -215,7 +211,7 @@ export function ToastCard({
             {words.over}
           </Text>
         ) : null}
-        <Text style={styles.say} numberOfLines={words.over ? 1 : 2}>
+        <Text style={[styles.say, words.over && styles.subject]} numberOfLines={words.over ? 1 : 2}>
           {words.say}
         </Text>
         {words.under ? (
@@ -469,17 +465,12 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
 
-  /** Its wash and its bar, cut to its corners; the card itself is not clipped, or its shadow would be. */
-  clip: { borderRadius: radius.card, overflow: 'hidden' },
-  clipCapsule: { borderRadius: radius.pill, overflow: 'hidden' },
   words: { flexShrink: 1, flexGrow: 1, gap: 1 },
   over: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  say: {
-    color: theme.colors.textPrimary,
-    fontSize: type.body,
-    lineHeight: leading.body,
-    fontWeight: '600',
-  },
+  // Plain weight: a message is read in passing, not shouted. Only the thing
+  // one is about (a song's title under "Removed from Up next") stands out a little.
+  say: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
+  subject: { fontWeight: '500' },
   under: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
   button: {
     height: BUTTON_HEIGHT,

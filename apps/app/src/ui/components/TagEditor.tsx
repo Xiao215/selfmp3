@@ -157,8 +157,9 @@ function Editor({
       ) : (
         <View>
           <Text style={[styles.hint, styles.confirm]}>
-            Delete “{isolated(tag.name)}”? Its {plural(tag.songCount, 'song stays', 'songs stay')}{' '}
-            in your library.
+            {tag.songCount === 0
+              ? `Delete “${isolated(tag.name)}”? No song has it.`
+              : `Delete “${isolated(tag.name)}”? Its ${plural(tag.songCount, 'song stays', 'songs stay')} in your library.`}
             {following.length > 0
               ? ` ${quoted(following)} ${following.length === 1 ? 'fills' : 'fill'} from it, and will go on without it.`
               : null}

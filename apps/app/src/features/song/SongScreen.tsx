@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { Song } from '@selfmp3/shared'
+import { plural, type Song } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useBottomInset } from '../../shell/bottomInset'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -88,7 +88,7 @@ export function SongScreen(): ReactNode {
 function SongPage({ song }: { song: Song }): ReactNode {
   const router = useRouter()
   const openTag = useOpenTag()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const bottom = useBottomInset()
   const { top } = useSafeAreaInsets()
   const player = usePlayer()
@@ -156,33 +156,52 @@ function SongPage({ song }: { song: Song }): ReactNode {
             >
               {song.title}
             </Text>
-            <Text style={styles.byline}>
+            {/* Two lines at most: an album named at length ran on for forty. */}
+            <Text style={styles.byline} numberOfLines={2}>
               <ArtistLinks artist={song.artist} />
               {rest ? ` · ${rest}` : ''}
             </Text>
-            <View style={styles.tags}>
-              {tags.map(tag => (
-                <Chip
-                  key={tag.id}
-                  label={tag.name}
-                  hue={tag.hue}
-                  selected={false}
-                  compact
-                  onPress={() => openTag(tag)}
-                />
-              ))}
-              <View ref={addTagRef} collapsable={false}>
-                <Chip
-                  testID="song-add-tag"
-                  label="Tag"
-                  icon={<Text style={styles.plus}>+</Text>}
-                  selected={false}
-                  dashed
-                  compact
-                  onPress={() => setTagging(true)}
-                />
-              </View>
+          </View>
+        </View>
+
+        {/*
+          Under the hero, the page's width to wrap in, and a few of them: a song
+          with fifty tags had pushed the cover to the foot of a column a
+          thousand points tall. The rest are a count that opens the tag window,
+          where all of them are.
+        */}
+        <View style={styles.tags}>
+          {tags.slice(0, SHOWN_TAGS).map(tag => (
+            <View key={tag.id} style={styles.tagSlot}>
+              <Chip
+                label={tag.name}
+                hue={tag.hue}
+                selected={false}
+                compact
+                onPress={() => openTag(tag)}
+              />
             </View>
+          ))}
+          {tags.length > SHOWN_TAGS ? (
+            <Chip
+              testID="song-more-tags"
+              label={`+${tags.length - SHOWN_TAGS}`}
+              accessibilityLabel={`All ${plural(tags.length, 'tag', 'tags')}`}
+              selected={false}
+              compact
+              onPress={() => setTagging(true)}
+            />
+          ) : null}
+          <View ref={addTagRef} collapsable={false}>
+            <Chip
+              testID="song-add-tag"
+              label="Tag"
+              icon={<Text style={styles.plus}>+</Text>}
+              selected={false}
+              dashed
+              compact
+              onPress={() => setTagging(true)}
+            />
           </View>
         </View>
 
@@ -328,6 +347,9 @@ function SongMissing(): ReactNode {
   )
 }
 
+/** How many of a song's tags its page lays out; the rest are a count that opens them all. */
+const SHOWN_TAGS = 12
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingHorizontal: space.gutter, gap: 18 },
@@ -356,6 +378,8 @@ const styles = StyleSheet.create(theme => ({
   titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight, alignItems: 'center' },
+  // A chip never wider than the page: a long name ends in "…".
+  tagSlot: { maxWidth: '100%' },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },

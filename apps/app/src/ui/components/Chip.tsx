@@ -153,10 +153,14 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
+  // Both give way in a chip held narrower than its name (a song page's long
+  // tag), so the name ends in "…" rather than running off the display.
   press: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.tight,
+    flexShrink: 1,
+    minWidth: 0,
   },
   labelStrip: { paddingHorizontal: space.roomy, paddingVertical: space.sm },
   labelCompact: { paddingHorizontal: space.snug, paddingVertical: 5 },
@@ -168,6 +172,7 @@ const styles = StyleSheet.create(theme => ({
   label: {
     fontSize: type.sub,
     fontWeight: '500',
+    flexShrink: 1,
   },
   remove: { paddingLeft: 2, paddingRight: space.snug },
   removeGlyph: { fontSize: type.body, opacity: 0.6 },

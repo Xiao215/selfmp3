@@ -117,6 +117,8 @@ describe('the command palette', () => {
       s => songSearchNames(s, NO_NAMES),
     )
     expect(paletteResults('night', many).songs).toEqual(ranked.slice(0, 8).map(match => match.item))
+    // And says how many matched in all, not the eight it kept.
+    expect(paletteResults('night', many).songsFound).toBe(ranked.length)
   })
 
   it('counts untagged songs once per library', () => {

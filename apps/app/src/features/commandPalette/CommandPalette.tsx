@@ -71,6 +71,8 @@ interface Row {
 interface RowGroup {
   readonly title: string
   readonly rows: readonly Row[]
+  /** What its head counts, where that is more than its rows say: "8 of 93". */
+  readonly count?: string
 }
 
 /**
@@ -295,21 +297,46 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     },
     {
       title: 'Songs',
-      rows: found.songs.map(song => ({
-        key: `song-${song.id}`,
-        label: `${song.title}, ${artistOr(song.artist)}`,
-        run: () => playSong(song.id),
-        node: (
-          <SongLine
-            style={styles.songLine}
-            artUri={artFor(song)}
-            coverTitle={song.album || song.title}
-            title={song.title}
-            sub={artistOr(song.artist)}
-            trailing={<Text style={styles.hint}>{formatDuration(song.duration)}</Text>}
-          />
-        ),
-      })),
+      count:
+        found.songsFound > found.songs.length
+          ? `${found.songs.length} of ${found.songsFound}`
+          : undefined,
+      rows: [
+        ...found.songs.map(song => ({
+          key: `song-${song.id}`,
+          label: `${song.title}, ${artistOr(song.artist)}`,
+          run: () => playSong(song.id),
+          node: (
+            <SongLine
+              style={styles.songLine}
+              artUri={artFor(song)}
+              coverTitle={song.album || song.title}
+              title={song.title}
+              sub={artistOr(song.artist)}
+              trailing={<Text style={styles.hint}>{formatDuration(song.duration)}</Text>}
+            />
+          ),
+        })),
+        // The rest are on Search's Songs, every one of them.
+        ...(found.songsFound > found.songs.length
+          ? [
+              {
+                key: 'songs-all',
+                label: `See all ${found.songsFound} songs`,
+                run: () =>
+                  router.push({
+                    pathname: '/search',
+                    params: { q: query.trim(), section: 'songs' },
+                  }),
+                node: (
+                  <View style={styles.labelBox}>
+                    <Text style={styles.sub}>See all {found.songsFound} songs</Text>
+                  </View>
+                ),
+              },
+            ]
+          : []),
+      ],
     },
     {
       title: 'Lyrics',
@@ -422,7 +449,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         <View style={styles.group} key={group.title}>
           <View style={styles.groupTitle}>
             <Text style={styles.groupText}>{group.title.toUpperCase()}</Text>
-            <Text style={[styles.groupText, styles.groupCount]}>{group.rows.length}</Text>
+            <Text style={[styles.groupText, styles.groupCount]}>
+              {group.count ?? group.rows.length}
+            </Text>
           </View>
           {group.rows.map((row, offset) => drawRow(row, first + offset))}
         </View>,

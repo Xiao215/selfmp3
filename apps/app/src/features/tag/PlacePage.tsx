@@ -8,7 +8,7 @@ import type { Song } from '@selfmp3/shared'
 import { space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
@@ -21,6 +21,7 @@ import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
 import { BackButton } from '../../ui/components/BackButton'
 import { SongList } from '../../ui/components/SongList'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
@@ -90,7 +91,7 @@ export function PlacePage({
   onChange?: (places: readonly Place[]) => void
 }): ReactNode {
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const player = usePlayerCommands()
   const artFor = useArt()
   const { data: library } = useLibrary()
@@ -362,6 +363,18 @@ export function PlacePage({
         scope={
           artistAlone ? 'by this artist' : only?.kind === 'tag' ? 'in this tag' : 'on this page'
         }
+        // A tag no song has yet: a page with nothing under its head but "0
+        // songs" said nothing of how one gets there.
+        empty={
+          only?.kind === 'tag' ? (
+            <EmptyState
+              compact
+              testID="place-empty"
+              title="No songs in this tag yet"
+              line="Add some with Tag songs… in the ⋯ above."
+            />
+          ) : null
+        }
       />
       <AddSheet open={adding} chosen={chosen} onClose={() => setAdding(false)} onShow={combine} />
     </View>
@@ -421,6 +434,7 @@ function PlaceSongs({
   head,
   label,
   scope,
+  empty,
 }: {
   songs: readonly Song[]
   /** The page's selection, which its ⋯ can start. */
@@ -432,10 +446,12 @@ function PlaceSongs({
   label: string
   /** What "all" means on this page, for the selection bar. */
   scope: string
+  /** What stands under the head with no songs. */
+  empty: ReactElement | null
 }): ReactNode {
   const player = usePlayerCommands()
   const artFor = useArt()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   // Newest first, or an artist's albums one after another: the scrollbar's bubble says which.
   const scrollLabel = useMemo(() => sortLabel(byAlbum ? 'album' : 'addedAt'), [byAlbum])
@@ -479,6 +495,7 @@ function PlaceSongs({
         pinned={bar.pinned}
         scrollLabel={scrollLabel}
         contentContainerStyle={bar.listPadding}
+        empty={empty}
       />
       {rows.menu}
     </View>

@@ -25,6 +25,19 @@ interface RemovalResult {
   failed: BulkDeleteFailure[]
 }
 
+/** Rows `take` removed, and the ids it could not, for `settle` to finish. */
+interface Taken {
+  songs: Song[]
+  alreadyGone: number[]
+}
+
+/**
+ * Rows a removal takes out between two looks at the event loop. Each row's
+ * delete cascades through its plays, tags, places and search rows, so a few
+ * hundred at once held every other request for most of a second.
+ */
+const REMOVE_BATCH = 50
+
 /** A row another device already removed. */
 interface RemovedElsewhere {
   id: number
@@ -46,9 +59,9 @@ interface RemovedElsewhere {
  * *trashed* (`cloud_trash`): the cloud pass lets them go once the snapshot
  * without the song has gone up and no other song names them.
  *
- * The database is strict and the file system forgiving: a copy that will not
- * go never keeps the row, and the caller is told which copies it was forgiving
- * about.
+ * The database is strict and the file system forgiving: the rows go first, in
+ * one step, a copy that will not go never keeps the row, and the caller is told
+ * which copies it was forgiving about.
  */
 export class SongRemovalService {
   readonly #storage: StorageDriver
@@ -62,6 +75,7 @@ export class SongRemovalService {
   readonly #lyricsIndex: Pick<LyricsIndexService, 'remove'>
   readonly #onChange: () => void
   readonly #logger: Logger
+  readonly #leaving = new Set<string>()
 
   constructor(deps: {
     storage: StorageDriver
@@ -97,41 +111,74 @@ export class SongRemovalService {
    * Ids that are not in the library are already gone, which is what was
    * asked: a phone working from a stale list, or asking again after an answer
    * that never reached it, loses the rows it can and counts the rest as done.
-   * The rows go in one transaction and the library version moves once.
+   * The rows go a batch at a time (`take`), with the event loop let go between
+   * batches so a thousand-song delete does not starve every other request, and
+   * the library version moves once at the end.
    */
   async remove(ids: readonly number[]): Promise<RemovalResult> {
+    const requested = [...new Set(ids)]
+    const taken: Taken = { songs: [], alreadyGone: [] }
+    for (let start = 0; start < requested.length; start += REMOVE_BATCH) {
+      if (start > 0) await new Promise(resolve => setImmediate(resolve))
+      const batch = this.take(requested.slice(start, start + REMOVE_BATCH))
+      taken.songs.push(...batch.songs)
+      taken.alreadyGone.push(...batch.alreadyGone)
+    }
+    return this.settle(taken)
+  }
+
+  /**
+   * The rows, now: read, trashed and deleted with no wait in between, so two
+   * requests can never both see a song that one of them is removing (a second
+   * merge of a copy already folded in would count its plays twice). Run it
+   * inside the caller's transaction when the removal is part of a larger
+   * change, and `settle` what it returns once that has committed.
+   */
+  take(ids: readonly number[]): Taken {
     const requested = [...new Set(ids)]
     const songs = this.#songs.byIds(requested)
     const found = new Set(songs.map(song => song.id))
     const alreadyGone = requested.filter(id => !found.has(id))
-    const failed: BulkDeleteFailure[] = []
-
-    // Side effects one song at a time, and never fatal: the point of a batch
-    // is that one bad file does not cost you the other thirty-nine.
-    for (const song of songs) {
-      const problem = await this.#cleanUp(song)
-      if (problem) failed.push({ songId: song.id, reason: problem, removed: true })
-    }
 
     // Each tag's count before the rows go, to tell which ones they empty.
     const tags = this.#tags.all()
     // The bucket's files first, from the bookkeeping the row's deletion takes
-    // with it; then the rows, in one transaction.
+    // with it; then the rows.
     for (const song of songs) this.#cloud.trashSong(song.id)
-    const { removed } = this.#songs.deleteMany(songs.map(song => song.id))
-    if (removed.length > 0) {
-      // A tag these were the last songs of goes too — only those, as a device
-      // removing them takes them (shared `tagsEmptiedBy`): an empty tag made a
-      // moment ago is nobody's leftover.
-      const gone = new Set(removed)
-      const emptied = tagsEmptiedBy(
-        tags,
-        songs.filter(song => gone.has(song.id)),
-      )
-      for (const tagId of emptied) this.#tags.delete(tagId)
-      this.#onChange()
+    const gone = new Set(this.#songs.deleteMany(songs.map(song => song.id)).removed)
+    const removed = songs.filter(song => gone.has(song.id))
+    // A tag these were the last songs of goes too — only those, as a device
+    // removing them takes them (shared `tagsEmptiedBy`): an empty tag made a
+    // moment ago is nobody's leftover.
+    for (const tagId of tagsEmptiedBy(tags, removed)) this.#tags.delete(tagId)
+    // Until its files are tidied, a copy still on disk is not a new song.
+    for (const song of removed) this.#leaving.add(song.path)
+    return { songs: removed, alreadyGone }
+  }
+
+  /**
+   * Everything but the rows, for songs `take` took: clients are told, then
+   * each song's files are tidied. Side effects one song at a time, and never
+   * fatal: the point of a batch is that one bad file does not cost you the
+   * other thirty-nine.
+   */
+  async settle(taken: Taken): Promise<RemovalResult> {
+    if (taken.songs.length > 0) this.#onChange()
+    const failed: BulkDeleteFailure[] = []
+    for (const song of taken.songs) {
+      try {
+        const problem = await this.#cleanUp(song)
+        if (problem) failed.push({ songId: song.id, reason: problem, removed: true })
+      } finally {
+        this.#leaving.delete(song.path)
+      }
     }
-    return { removed, alreadyGone, failed }
+    return { removed: taken.songs.map(song => song.id), alreadyGone: taken.alreadyGone, failed }
+  }
+
+  /** Whether this path's song has been removed and its copy is still being tidied away. */
+  isLeaving(key: string): boolean {
+    return this.#leaving.has(key)
   }
 
   /**

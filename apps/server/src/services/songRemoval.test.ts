@@ -240,6 +240,47 @@ describe('SongRemovalService', () => {
     })
   })
 
+  describe('in batches', () => {
+    it('lets the event loop run between batches of a big removal', async () => {
+      const ids = Array.from({ length: 120 }, (_, i) => addSong(`S${i}`).id)
+      let turns = 0
+      let spinning = true
+      const spin = (): void => {
+        turns++
+        if (spinning) setImmediate(spin)
+      }
+      setImmediate(spin)
+      const seen: number[] = []
+      const deleteMany = songs.deleteMany.bind(songs)
+      songs.deleteMany = batch => {
+        seen.push(turns)
+        return deleteMany(batch)
+      }
+
+      const result = await removal.remove(ids)
+      spinning = false
+
+      expect(result.removed).toHaveLength(120)
+      expect(seen).toHaveLength(3)
+      expect(seen[1]!).toBeGreaterThan(seen[0]!)
+      expect(seen[2]!).toBeGreaterThan(seen[1]!)
+      expect(songs.count()).toBe(0)
+      expect(changes).toBe(1)
+    })
+
+    it('takes the rows at once and calls a copy still being deleted leaving', async () => {
+      const { id, key } = addSong('A - One')
+
+      const taken = removal.take([id])
+
+      expect(songs.byId(id)).toBeNull()
+      expect(removal.isLeaving(key)).toBe(true)
+      expect(await removal.settle(taken)).toEqual({ removed: [id], alreadyGone: [], failed: [] })
+      expect(removal.isLeaving(key)).toBe(false)
+      expect(onDisk(key)).toBe(false)
+    })
+  })
+
   describe('tidyAfter', () => {
     it('clears what hung off a row another device removed, the copy on disk included', async () => {
       const one = addSong('A - One')

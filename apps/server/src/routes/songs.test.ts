@@ -269,6 +269,61 @@ describe('POST /api/songs/merge', () => {
     expect(await again.json()).toEqual({ removed: 1, failed: [] })
   })
 
+  const playsOf = (id: number): number =>
+    (
+      container.db.prepare('SELECT COUNT(*) AS n FROM play_events WHERE song_id = ?').get(id) as {
+        n: number
+      }
+    ).n
+
+  const played = (id: number, times: number) => {
+    for (let i = 0; i < times; i++) {
+      const at = `2026-08-0${i + 1} 10:00:00`
+      container.stats.record(id, 60_000, true, at, null)
+      container.songs.recordPlay(id, at)
+    }
+  }
+
+  it('keeps one song with every play when two merges cross', async () => {
+    const a = insert('Crossed')
+    const b = insert('Crossed')
+    played(a, 2)
+    played(b, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: a, songIds: [b] }),
+      post('/api/songs/merge', { keep: b, songIds: [a] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+
+    const left = [a, b].map(id => container.songs.byId(id)).filter(song => song !== null)
+    expect(left).toHaveLength(1)
+    expect(left[0]!.playCount).toBe(5)
+    expect(playsOf(left[0]!.id)).toBe(5)
+  })
+
+  it('folds a copy once when the same merge is sent twice at once', async () => {
+    const kept = insert('Twice')
+    const extra = insert('Twice')
+    played(kept, 3)
+    played(extra, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+    expect(container.songs.byId(extra)).toBeNull()
+    expect(container.songs.byId(kept)!.playCount).toBe(6)
+    expect(playsOf(kept)).toBe(6)
+  })
+
   it('folds nothing into a song that is not there, and nothing into itself', async () => {
     const only = insert('Only')
     expect(await (await post('/api/songs/merge', { keep: 9999, songIds: [only] })).json()).toEqual({

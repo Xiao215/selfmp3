@@ -110,11 +110,16 @@ export function songRoutes(container: Container): Router {
     '/songs/merge',
     route({ body: MergeSongsSchema }, async ({ body }): Promise<MergeSongsResult> => {
       const hlc = container.clock.tick()
-      const merged = container.db.transaction(() =>
-        [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+      // The copies' rows go in the same transaction as the fold: left alive
+      // while their files are tidied, a second merge of them (a double tap, or
+      // the other direction) would fold them again, or delete the kept song.
+      const taken = container.db.transaction(() =>
+        container.songRemoval.take(
+          [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+        ),
       )()
-      if (merged.length > 0) await container.songRemoval.remove(merged)
-      return { merged: merged.length }
+      await container.songRemoval.settle(taken)
+      return { merged: taken.songs.length }
     }),
   )
 

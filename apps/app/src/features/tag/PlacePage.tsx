@@ -278,6 +278,8 @@ export function PlacePage({
       wide={wide}
       light={light.color}
       art={artistAlone ? (backdrop ?? leadArt) : null}
+      // Their banner opens out when pressed; a song's cover standing in does not.
+      opensArt={artistAlone && backdrop !== null}
       topBar={
         <>
           {/* None on a computer for a place the sidebar opened (J1). */}

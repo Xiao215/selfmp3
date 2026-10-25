@@ -165,6 +165,11 @@ export interface StageGeometry {
   readonly gutter: number
   /** Right of the words, the tools and the expand button. */
   readonly right: number
+  /**
+   * The left column's width: the cover's, until a very wide page gives the
+   * title and the tags more room than the cover takes (AJ1).
+   */
+  readonly column: number
   readonly cover: number
   readonly title: number
   readonly lyric: number
@@ -182,6 +187,15 @@ export interface StageGeometry {
 const STACK_MAX_WIDTH = 1000
 
 /**
+ * Past the first width the left column grows toward a third of the page and
+ * its cover toward half the page's height, all the way there by the second;
+ * the title steps up by `GROWN_TITLE` over the same stretch (AJ1).
+ */
+const GROW_FROM = 1800
+const GROW_FULL = 2400
+const GROWN_TITLE = 1.25
+
+/**
  * The Romaji pill's width and a gap: what the words keep clear at their right
  * edge beside the cover, on Now Playing's stage and a link's.
  */
@@ -190,20 +204,29 @@ export const TOOLS_CLEARANCE = 96
 /** The page's measurements, from its own size. */
 export function stageGeometry(width: number, height: number, inset = 0): StageGeometry {
   const stacked = width < STACK_MAX_WIDTH && height > width
+  const pad = clamp(width * 0.05, 28, 72)
+  // Past 2000 the cover, the title and the words keep growing with the
+  // page, so a very wide window fills with the song rather than leaving
+  // most of itself empty right of the words (P1 C).
+  const cover = stacked
+    ? clamp(width * 0.36, 200, 320)
+    : Math.max(180, Math.min(clamp(width * 0.2, 400, 600), width * 0.34, height - 290))
+  const title = Math.min(40, Math.max(clamp(width * 0.022, 22, 30), width * 0.0125))
+  // And past 1800 the song's own column grows faster than that: on a 2560
+  // window a 500-point cover in the corner left the song a footnote beside
+  // the words (AJ1). At 1800 and under nothing differs.
+  const grow = stacked ? 0 : clamp((width - GROW_FROM) / (GROW_FULL - GROW_FROM), 0, 1)
+  const third = width / 3 - pad
+  const tallest = Math.min(third, height * 0.5, height - 290)
   return {
     stacked,
     inset,
-    pad: clamp(width * 0.05, 28, 72),
+    pad,
     gutter: clamp(width * 0.05, 28, 72),
     right: clamp(width * 0.04, 20, 56),
-    // Past 2000 the cover, the title and the words keep growing with the
-    // page, so a very wide window fills with the song rather than leaving
-    // most of itself empty right of the words (P1 C); at 2000 and under
-    // nothing differs.
-    cover: stacked
-      ? clamp(width * 0.36, 200, 320)
-      : Math.max(180, Math.min(clamp(width * 0.2, 400, 600), width * 0.34, height - 290)),
-    title: Math.min(40, Math.max(clamp(width * 0.022, 22, 30), width * 0.0125)),
+    column: cover + (Math.max(cover, third) - cover) * grow,
+    cover: cover + (Math.max(cover, tallest) - cover) * grow,
+    title: title * (1 + (GROWN_TITLE - 1) * grow),
     lyric: Math.min(44, Math.max(clamp(width * 0.023, 22, 32), width * 0.0135)),
     focusLyric: clamp(width * 0.039, 30, 54),
   }

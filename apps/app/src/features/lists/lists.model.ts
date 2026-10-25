@@ -640,7 +640,9 @@ export function recentKind(source: ListSource): string {
           return 'Songs you picked'
         case 'gems':
           return 'Forgotten gems'
+        // The tile's title is the words searched: this says what they were.
         case 'search':
+          return 'Search'
         case 'found':
           return 'From Search'
         case 'untagged':

@@ -136,6 +136,13 @@ describe('what Save makes', () => {
   })
 })
 
+describe('songs played from a search', () => {
+  // The tile's title is the words searched; its line says they were searched.
+  it('is a Search, not "From Search" under a title of Search', () => {
+    expect(recentKind({ kind: 'songs', origin: 'search', name: '“yoru”' })).toBe('Search')
+  })
+})
+
 describe('Home’s Recently played songs, played again', () => {
   const recent: ListSource = { kind: 'songs', origin: 'recent', name: 'Recently played' }
 

@@ -11,7 +11,7 @@ import type { ReactNode } from 'react'
 import { router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { StyleSheet } from 'react-native-unistyles'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { BottomNav } from '../ui/components/BottomNav'
 import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
@@ -113,6 +113,7 @@ export function Shell({
       <PaletteHost />
       <MenuCommands />
       {desktop ? <MenuChecks /> : null}
+      {desktop ? <WindowGround /> : null}
       <NewPlaylistHost />
       <DeepLinkRoutes />
       {/* Covers flying into the Up next button (`ui/coverFlight.ts`). */}
@@ -450,6 +451,19 @@ function MenuCommands(): ReactNode {
     'volume-down': () => player.stepVolume(-VOLUME_STEP),
     mute: () => player.toggleMute(),
   })
+  return null
+}
+
+/**
+ * The Mac window's own colour follows the theme on screen: the ground it shows
+ * at its edges while being resized, and opens in next time (Paper's on Paper).
+ */
+function WindowGround(): ReactNode {
+  const { theme } = useUnistyles()
+  const ground = theme.colors.surface0
+  useEffect(() => {
+    void desktop?.setWindowGround(ground)
+  }, [ground])
   return null
 }
 

@@ -904,6 +904,30 @@ test.describe('an application, not a page', () => {
     }
   })
 
+  // The window's own colour shows at its edges while it is resized: Paper's on Paper.
+  test('wears the ground of the theme the page shows', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const ground = () =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]?.getBackgroundColor().toLowerCase(),
+        )
+      const tell = (colour: string) =>
+        page.evaluate(async next => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.setWindowGround(next)
+        }, colour)
+      await tell('#f6f2ea')
+      expect(await ground()).toBe('#f6f2ea')
+      await tell('#0b0d13')
+      expect(await ground()).toBe('#0b0d13')
+    } finally {
+      await app.close()
+    }
+  })
+
   test('holds the machine awake only while something is playing', async () => {
     const app = await launchApp()
     try {
@@ -1327,6 +1351,7 @@ interface DesktopForTest {
     artist: string | null
   }): Promise<void>
   setMenuState(state: { shuffle: boolean; repeat: string; liked: boolean | null }): Promise<void>
+  setWindowGround(colour: string): Promise<void>
   updates: {
     check(): Promise<{ state: string; canInstall: boolean; version: string | null }>
   }

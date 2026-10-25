@@ -131,6 +131,9 @@ export const menuStateSchema = z.object({
 })
 export type MenuState = z.infer<typeof menuStateSchema>
 
+/** The page's ground in the theme it shows, for the window's own colour: `#rrggbb`. */
+export const windowGroundSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
+
 /**
  * Told to the shell so it can hold a power-save blocker and label the Dock.
  *

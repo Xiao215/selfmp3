@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -69,8 +69,18 @@ import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
 import { countUse } from '../usage/usage'
 
-/** What a song played from Search names Up next: the rows and the lyric hits alike. */
-const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
+/**
+ * What a song played from Search names Up next, and its tile in Recently
+ * played: the words searched, in quotes ("“yoru”", kind "Search"), rather
+ * than "Search / From Search". The rows and the lyric hits alike; before
+ * anything is typed, plain "Search".
+ */
+function fromSearch(words: string) {
+  return { kind: 'songs', origin: 'search', name: words ? `“${words}”` : 'Search' } as const
+}
+
+/** The words the results are for, to name what plays from them (`fromSearch`). */
+const SearchedWords = createContext('')
 
 const NO_SONGS: readonly Song[] = []
 
@@ -164,139 +174,141 @@ export function SearchScreen(): ReactNode {
 
   return (
     <AddingToRoom.Provider value={addingTo}>
-      <NarrowerContentWidth max={COLUMN}>
-        <SafeAreaView style={styles.screen} edges={['top']}>
-          <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
-            {/* A computer's page has its title, as every page does, and no Cancel:
+      <SearchedWords.Provider value={words}>
+        <NarrowerContentWidth max={COLUMN}>
+          <SafeAreaView style={styles.screen} edges={['top']}>
+            <View style={[styles.page, wide && styles.pageWide]} testID="search-screen">
+              {/* A computer's page has its title, as every page does, and no Cancel:
                 Esc leaves and the field's × clears (M1, 2026-10-25). */}
-            {wide ? (
-              <Text style={styles.pageTitle} accessibilityRole="header">
-                Search
-              </Text>
-            ) : null}
-            <View style={styles.head}>
-              <SearchField
-                inputRef={field}
-                autoFocus
-                value={query}
-                // A cleared field is a fresh search, back on All.
-                onChangeText={text => {
-                  setQuery(text)
-                  if (text.trim() === '') setSection(null)
-                }}
-                // Enter asks only when nothing matches (I1); with matches it puts
-                // the keyboard away and the results stay where they are.
-                onSubmitEditing={() => {
-                  if (search.enterAsks()) ask(query.trim())
-                  else field.current?.blur()
-                }}
-                placeholder={
-                  adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
-                }
-                autoCapitalize="none"
-                autoCorrect={false}
-                spellCheck={false}
-                returnKeyType="search"
-                accessibilityLabel="Search"
-                testID="search-field"
-                style={styles.field}
-              />
-              {wide && !adding ? null : (
-                <Press
-                  feedback="dim"
-                  onPress={close}
-                  accessibilityRole="button"
-                  hitSlop={hitSlopFor(leading.body)}
-                >
-                  <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
-                </Press>
-              )}
-            </View>
-            {adding ? (
-              <View style={styles.adding} testID="search-adding">
-                <Text style={styles.addingText} numberOfLines={1}>
-                  Adding to {roomTitle(adding)}
+              {wide ? (
+                <Text style={styles.pageTitle} accessibilityRole="header">
+                  Search
                 </Text>
+              ) : null}
+              <View style={styles.head}>
+                <SearchField
+                  inputRef={field}
+                  autoFocus
+                  value={query}
+                  // A cleared field is a fresh search, back on All.
+                  onChangeText={text => {
+                    setQuery(text)
+                    if (text.trim() === '') setSection(null)
+                  }}
+                  // Enter asks only when nothing matches (I1); with matches it puts
+                  // the keyboard away and the results stay where they are.
+                  onSubmitEditing={() => {
+                    if (search.enterAsks()) ask(query.trim())
+                    else field.current?.blur()
+                  }}
+                  placeholder={
+                    adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
+                  }
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  returnKeyType="search"
+                  accessibilityLabel="Search"
+                  testID="search-field"
+                  style={styles.field}
+                />
+                {wide && !adding ? null : (
+                  <Press
+                    feedback="dim"
+                    onPress={close}
+                    accessibilityRole="button"
+                    hitSlop={hitSlopFor(leading.body)}
+                  >
+                    <Text style={styles.cancel}>{adding ? 'Done' : 'Cancel'}</Text>
+                  </Press>
+                )}
               </View>
-            ) : null}
+              {adding ? (
+                <View style={styles.adding} testID="search-adding">
+                  <Text style={styles.addingText} numberOfLines={1}>
+                    Adding to {roomTitle(adding)}
+                  </Text>
+                </View>
+              ) : null}
 
-            {typed && section !== null ? (
-              <Press
-                feedback="wash"
-                onPress={() => setSection(null)}
-                accessibilityRole="button"
-                accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
-                style={styles.back}
-                hitSlop={hitSlopFor(leading.body + space.sm * 2)}
-                testID="search-back"
-              >
-                <ChevronLeft size={iconSize.medium} tone="textSecondary" />
-                <Text style={styles.backTitle} numberOfLines={1}>
-                  {SECTION_TITLES[section]}
-                </Text>
-                <Text style={styles.backCount}>{counts[section]}</Text>
-              </Press>
-            ) : (
-              <View style={styles.headGap} />
-            )}
-
-            {bar.beforeList}
-
-            {!typed ? (
-              adding ? (
-                <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+              {typed && section !== null ? (
+                <Press
+                  feedback="wash"
+                  onPress={() => setSection(null)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
+                  style={styles.back}
+                  hitSlop={hitSlopFor(leading.body + space.sm * 2)}
+                  testID="search-back"
+                >
+                  <ChevronLeft size={iconSize.medium} tone="textSecondary" />
+                  <Text style={styles.backTitle} numberOfLines={1}>
+                    {SECTION_TITLES[section]}
+                  </Text>
+                  <Text style={styles.backCount}>{counts[section]}</Text>
+                </Press>
               ) : (
-                <BeforeTyping
-                  tags={empty.tags}
-                  recent={empty.recent}
+                <View style={styles.headGap} />
+              )}
+
+              {bar.beforeList}
+
+              {!typed ? (
+                adding ? (
+                  <BeforeAdding room={adding} recent={empty.recent} adds={adds} />
+                ) : (
+                  <BeforeTyping
+                    tags={empty.tags}
+                    recent={empty.recent}
+                    selection={selection}
+                    listPadding={bar.listPadding}
+                  />
+                )
+              ) : section === 'songs' ? (
+                <SongResults
+                  songs={found.songs}
+                  query={shown}
                   selection={selection}
                   listPadding={bar.listPadding}
+                  adds={adding ? adds : null}
                 />
-              )
-            ) : section === 'songs' ? (
-              <SongResults
-                songs={found.songs}
-                query={shown}
-                selection={selection}
-                listPadding={bar.listPadding}
-                adds={adding ? adds : null}
-              />
-            ) : (
-              <ScrollView contentContainerStyle={[styles.results, bar.listPadding]}>
-                {!link && offerAsk && counts.all === 0 ? (
-                  <AskCard words={words} first onAsk={() => ask(words)} />
-                ) : null}
-                {adding && link ? <LinkPick state={adding} url={link} /> : null}
-                {link ? null : section === null ? (
-                  <AllResults
-                    found={found}
-                    lyricHits={lyricHits}
-                    selection={selection}
-                    onSeeAll={setSection}
-                    onArtist={openArtist}
-                    adds={adding ? adds : null}
-                  />
-                ) : section === 'places' ? (
-                  <View style={styles.section}>
-                    <Places places={placesOf(found)} onArtist={openArtist} />
-                  </View>
-                ) : (
-                  <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
-                )}
-                {!link && offerAsk && counts.all > 0 ? (
-                  <AskCard words={words} first={false} onAsk={() => ask(words)} />
-                ) : null}
-                {!link &&
-                counts[section ?? 'all'] === 0 &&
-                !(section === 'lyrics' && lyricsAway) ? (
-                  <NothingMatches words={shown.trim()} />
-                ) : null}
-                <ChromeSpacer />
-              </ScrollView>
-            )}
-          </View>
-        </SafeAreaView>
-      </NarrowerContentWidth>
+              ) : (
+                <ScrollView contentContainerStyle={[styles.results, bar.listPadding]}>
+                  {!link && offerAsk && counts.all === 0 ? (
+                    <AskCard words={words} first onAsk={() => ask(words)} />
+                  ) : null}
+                  {adding && link ? <LinkPick state={adding} url={link} /> : null}
+                  {link ? null : section === null ? (
+                    <AllResults
+                      found={found}
+                      lyricHits={lyricHits}
+                      selection={selection}
+                      onSeeAll={setSection}
+                      onArtist={openArtist}
+                      adds={adding ? adds : null}
+                    />
+                  ) : section === 'places' ? (
+                    <View style={styles.section}>
+                      <Places places={placesOf(found)} onArtist={openArtist} />
+                    </View>
+                  ) : (
+                    <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
+                  )}
+                  {!link && offerAsk && counts.all > 0 ? (
+                    <AskCard words={words} first={false} onAsk={() => ask(words)} />
+                  ) : null}
+                  {!link &&
+                  counts[section ?? 'all'] === 0 &&
+                  !(section === 'lyrics' && lyricsAway) ? (
+                    <NothingMatches words={shown.trim()} />
+                  ) : null}
+                  <ChromeSpacer />
+                </ScrollView>
+              )}
+            </View>
+          </SafeAreaView>
+        </NarrowerContentWidth>
+      </SearchedWords.Provider>
     </AddingToRoom.Provider>
   )
 }
@@ -581,7 +593,7 @@ function SongRows({
 
 /**
  * Search's rows: a row plays the songs it is among, from itself, and Up next
- * says they came from Search. Search is one of the lists that shows tags on
+ * is named for the words searched. Search is one of the lists that shows tags on
  * its rows (`S3`).
  */
 function useSearchRows(
@@ -590,11 +602,12 @@ function useSearchRows(
   testPrefix: string,
 ): ReturnType<typeof useSongRows> {
   const player = usePlayerCommands()
+  const words = useContext(SearchedWords)
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   return useSongRows({
     songs,
     selection,
-    onPlay: index => player.playFrom(ids, index, { source: FROM_SEARCH }),
+    onPlay: index => player.playFrom(ids, index, { source: fromSearch(words) }),
     testPrefix,
     withTags: true,
     // Where a match fell is no rank and no track (M1).
@@ -615,6 +628,7 @@ function LyricResults({
   adds: RoomAdds | null
 }): ReactNode {
   const player = usePlayerCommands()
+  const words = useContext(SearchedWords)
   const artFor = useArt(ROW_COVER_SIZE)
   const accent = useAccent()
   const byId = useSongsById()
@@ -637,7 +651,7 @@ function LyricResults({
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
             onPress={() => {
-              if (!adds) player.playFrom([hit.songId], 0, { source: FROM_SEARCH })
+              if (!adds) player.playFrom([hit.songId], 0, { source: fromSearch(words) })
               else if (song) {
                 adds.add(song)
                 showToast({ over: 'Added', say: hit.title }, 'good', {

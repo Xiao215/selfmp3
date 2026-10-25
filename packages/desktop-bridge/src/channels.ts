@@ -36,6 +36,7 @@ export const CHANNELS = {
   openExternal: 'selfmp3:openExternal',
   setPlaybackState: 'selfmp3:setPlaybackState',
   setMenuState: 'selfmp3:setMenuState',
+  setWindowGround: 'selfmp3:setWindowGround',
 
   loginItemGet: 'selfmp3:loginItem.get',
   loginItemSet: 'selfmp3:loginItem.set',

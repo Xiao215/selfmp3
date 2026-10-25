@@ -156,6 +156,10 @@ const bridge: DesktopBridge = {
     await ipcRenderer.invoke(CHANNELS.setMenuState, state)
   },
 
+  setWindowGround: async (colour: string) => {
+    await ipcRenderer.invoke(CHANNELS.setWindowGround, colour)
+  },
+
   updates: {
     check: async () => updateStatusSchema.parse(await ipcRenderer.invoke(CHANNELS.updatesCheck)),
     install: async () => {

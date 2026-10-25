@@ -181,4 +181,10 @@ export interface DesktopBridge {
 
   /** Ticks Shuffle, the Repeat mode and Like in the application menu as the player has them. */
   setMenuState(state: MenuState): Promise<void>
+
+  /**
+   * The page's ground in the theme it shows (`#rrggbb`): the window's own
+   * colour, at its edges while it is resized and before the next launch paints.
+   */
+  setWindowGround(colour: string): Promise<void>
 }

@@ -20,12 +20,14 @@ import {
   secretValueSchema,
   streamSessionSchema,
   transferIdSchema,
+  windowGroundSchema,
   type DesktopInfo,
 } from '@selfmp3/desktop-bridge'
 
 import * as files from './files.js'
 import * as updates from './updates.js'
 
+import { setWindowGround } from './ground.js'
 import { setMenuState } from './menu.js'
 import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
@@ -174,5 +176,8 @@ export function registerIpc({
   })
   ipcMain.handle(CHANNELS.setMenuState, (_event, state: unknown) => {
     setMenuState(menuStateSchema.parse(state))
+  })
+  ipcMain.handle(CHANNELS.setWindowGround, (_event, colour: unknown) => {
+    setWindowGround(window_(), windowGroundSchema.parse(colour))
   })
 }

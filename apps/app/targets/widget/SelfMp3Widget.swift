@@ -255,7 +255,7 @@ struct TagsWidget: Widget {
       TagsView(entry: entry)
     }
     .configurationDisplayName("Your tags")
-    .description("Four of your tags. Tap one to play it.")
+    .description("Your tags, one tap to play.")
     .supportedFamilies([.systemMedium])
     .contentMarginsDisabled()
   }

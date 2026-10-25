@@ -311,7 +311,13 @@ export function LinksScreen(): ReactNode {
         </ScrollView>
       </View>
 
-      <Sheet open={menu !== null} onClose={() => setMenu(null)} title={menu?.name ?? ''}>
+      <Sheet
+        open={menu !== null}
+        onClose={() => setMenu(null)}
+        title={menu?.name ?? ''}
+        role="menu"
+        scroll
+      >
         {menu ? (
           <>
             <SheetItem

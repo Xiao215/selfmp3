@@ -10,6 +10,7 @@ import { spring } from '../motion'
 import { tip } from '../tip'
 import { filledTenths, valueAlong } from './scrubber.model'
 import { ADJUST_ACTIONS } from './slider.model'
+import { browserKeys } from '../../ports/browserKeys'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -92,6 +93,7 @@ export function Scrubber({
   label,
   step,
   spokenScale = 1,
+  valueText,
   vertical = false,
   size = 'small',
   thumb = true,
@@ -114,6 +116,8 @@ export function Scrubber({
   step: number
   /** The value as it is said: seconds as they are, a 0 to 1 level as a per cent (100). */
   spokenScale?: number
+  /** The value in words, where a number alone is not enough: "1:05 of 2:23", "40%". */
+  valueText?: (value: number) => string
   /** Upright, filling from the foot: the volume pop-up's fader. */
   vertical?: boolean
   size?: keyof typeof SIZES
@@ -213,13 +217,54 @@ export function Scrubber({
   }, [grabbing, grabbed])
   const [swell] = useState(() => ({ transform: [{ scale: grabbed }] }))
 
-  /** A screen reader's swipe up or down: a step along, as the keyboard does. */
-  const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void => {
-    const by = event.nativeEvent.actionName === 'increment' ? step : -step
-    const target = clamp(shown + by, 0, max)
-    if (hold) holdAt(target)
-    onCommit(target)
+  /** A step along, or to an end: a screen reader's swipe, or a key. */
+  const moveTo = (target: number): void => {
+    const at = clamp(target, 0, max)
+    if (hold) holdAt(at)
+    onCommit(at)
   }
+  /** A screen reader's swipe up or down: a step along, as the keyboard does. */
+  const onAccessibilityAction = (event: { nativeEvent: { actionName: string } }): void =>
+    moveTo(shown + (event.nativeEvent.actionName === 'increment' ? step : -step))
+  /*
+   * In a browser the bar is a Tab stop that the arrows move, as a range input
+   * is: react-native-web turns none of the screen reader's actions above into
+   * keys, and left alone the bar was a slider the keyboard could not reach.
+   * The arrows are its own while it has focus, ahead of the page's.
+   */
+  const keys = browserKeys
+    ? {
+        tabIndex: 0,
+        onKeyDown: (event: {
+          key: string
+          altKey: boolean
+          metaKey: boolean
+          ctrlKey: boolean
+          preventDefault: () => void
+          stopPropagation: () => void
+        }) => {
+          if (event.altKey || event.metaKey || event.ctrlKey) return
+          const target =
+            event.key === 'ArrowRight' || event.key === 'ArrowUp'
+              ? shown + step
+              : event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+                ? shown - step
+                : event.key === 'PageUp'
+                  ? shown + step * 5
+                  : event.key === 'PageDown'
+                    ? shown - step * 5
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? max
+                        : null
+          if (target === null) return
+          event.preventDefault()
+          event.stopPropagation()
+          moveTo(target)
+        },
+      }
+    : null
 
   const onLayout = (event: LayoutChangeEvent): void => {
     const { width, height } = event.nativeEvent.layout
@@ -245,11 +290,13 @@ export function Scrubber({
       aria-valuemin={0}
       aria-valuemax={spoken(max)}
       aria-valuenow={spoken(shown)}
+      aria-valuetext={valueText?.(shown)}
       accessibilityActions={ADJUST_ACTIONS}
       onAccessibilityAction={onAccessibilityAction}
       {...tip(caption)}
       testID={testID}
       {...responder.panHandlers}
+      {...(keys as object)}
     >
       {/* Draws only: every touch belongs to the bar, see the responder. */}
       {vertical ? (

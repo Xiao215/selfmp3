@@ -137,6 +137,8 @@ export function SongMenu({
         onClose={onClose}
         anchorRef={anchorRef}
         width={300}
+        role="menu"
+        label={song?.title}
         testID="song-menu"
       >
         {items}

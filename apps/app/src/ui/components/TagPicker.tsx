@@ -123,6 +123,7 @@ function PickerWindow({
       width={320}
       title={title}
       titleTone="label"
+      scrolls
       testID="tag-picker"
     >
       {children}

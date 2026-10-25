@@ -76,6 +76,24 @@
         clip-path: inset(50%);
         white-space: nowrap;
       }
+      /*
+       * Still a Tab stop, so it shows itself while it has focus, as a skip
+       * link does: a keyboard that reached it had a ring round nothing.
+       */
+      #root:not(:empty) ~ #foot:focus-within {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 2147483647;
+        width: auto;
+        height: auto;
+        padding: 8px 12px;
+        overflow: visible;
+        clip-path: none;
+        border-radius: 8px;
+        background: Canvas;
+        color: CanvasText;
+      }
     </style>
   </head>
 

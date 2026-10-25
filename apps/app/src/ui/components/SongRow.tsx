@@ -40,6 +40,7 @@ import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
+import { textScale } from '../../ports/textScale'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -550,13 +551,13 @@ const DENSE_ROW_HEIGHT = 7 * 2 + coverSize.rowDense
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
- * enlarged in the system's settings can wrap past the cover, and a list told
- * the wrong number places every row in the wrong spot.
+ * enlarged in the system's settings, or a browser's, can wrap past the cover,
+ * and a list told the wrong number places every row in the wrong spot.
  */
 export function useSongRowHeight(): number | null {
   const wide = useLayoutValue(isWide)
   const dense = useLayoutValue(isDense)
-  const enlarged = useWindowValue(window => window.fontScale > 1)
+  const enlarged = useWindowValue(window => window.fontScale > 1) || textScale > 1
   if (enlarged) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT

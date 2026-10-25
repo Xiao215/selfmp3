@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
+import type { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { HIT_TARGET, hitSlopFor, iconSize } from '@selfmp3/client'
 import { OPACITY } from '../motion.model'
@@ -26,11 +27,14 @@ export function IconButton({
   label,
   size: sizeProp,
   disabled = false,
-  active = false,
+  active,
   filled = false,
   caption,
+  ref,
 }: {
   children: ReactNode
+  /** The button itself, for focus to be given back to. */
+  ref?: Ref<View>
   testID?: string
   onPress: () => void
   /** What a screen reader says: "Pause", "Next", "Like". */
@@ -55,6 +59,7 @@ export function IconButton({
      * right every time it was pressed.
      */
     <Press
+      ref={ref}
       depth="control"
       wrap={{ width: size, height: size }}
       onPress={onPress}
@@ -64,7 +69,10 @@ export function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       {...tip(caption ?? label)}
+      // A toggle says whether it is on — "Shuffle, selected"; a browser's
+      // reader hears a toggle button, pressed or not.
       accessibilityState={{ disabled, selected: active }}
+      aria-pressed={active}
       style={({ pressed }) => [
         styles.button,
         { width: size, height: size, borderRadius: size / 2 },

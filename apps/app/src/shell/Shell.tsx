@@ -195,7 +195,7 @@ function Frame({
         {/* First, so a keyboard and a screen reader still come to it before the
             page; drawn over the page by its `zIndex`, not by coming after it. */}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
-        <View ref={pageRef} style={styles.content} {...pageTap}>
+        <View ref={pageRef} style={styles.content} role="main" {...pageTap}>
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>

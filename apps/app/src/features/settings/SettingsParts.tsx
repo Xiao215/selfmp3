@@ -46,7 +46,7 @@ export function Panel({
     <View ref={anchor} style={styles.group}>
       <View style={styles.groupHead}>
         {mark ? <View style={styles.groupMark}>{mark}</View> : null}
-        <Text style={styles.groupLabel} accessibilityRole="header">
+        <Text style={styles.groupLabel} accessibilityRole="header" aria-level={2}>
           {title}
         </Text>
         {hint ? <Text style={styles.hint}>{hint}</Text> : null}

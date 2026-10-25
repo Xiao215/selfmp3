@@ -9,6 +9,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useOpenSearch } from '../../shell/palette'
+import { useEscape } from '../../shell/useEscape'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
@@ -305,6 +306,8 @@ function NewTag({
   // The field stays open and empty once a tag is made: tags arrive in
   // handfuls, and a second one should not cost another trip to the +.
   const form = useNewTagForm({ tags, onExisting })
+  // Escape puts the card away, as its × does, from the field as well.
+  useEscape(true, onClose)
 
   return (
     <View style={styles.newCard} testID="tags-new-form">
@@ -324,6 +327,7 @@ function NewTag({
         form={form}
         placeholder="chill, 中文, gym…"
         autoFocus
+        onEscape={onClose}
         testID="tags-new-name"
         action={
           <Button

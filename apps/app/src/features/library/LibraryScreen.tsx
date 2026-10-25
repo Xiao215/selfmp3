@@ -27,7 +27,7 @@ import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useWindowValue } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
 import { thisPlace } from '../../ports/place'
 import { onThisDevice } from '../settings/settings.model'
@@ -49,6 +49,12 @@ import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 
 /**
+ * How tall a window is before the head scrolls with the songs: a 720p laptop's
+ * browser at 200% is 360, at 150% 480; a phone held upright is 640 and more.
+ */
+const SHORT_WINDOW = 520
+
+/**
  * The library, at every width.
  *
  * The header holds the title and a count, a door to Search on a line of its
@@ -61,6 +67,7 @@ export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
   const { wide, dense, finePointer } = useLayout()
+  const shortWindow = useWindowValue(window => window.height < SHORT_WINDOW)
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
@@ -235,21 +242,27 @@ export function LibraryScreen(): ReactNode {
       </EmptyState>
     )
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
+  /*
+   * Everything above the songs: the title and its tools, the tag picker, the
+   * gems. In a short window — a laptop's browser zoomed to 200%, a phone on
+   * its side — it scrolls away with the songs rather than standing over them:
+   * held still, it left one song in view at 640 by 360 and none at 400%.
+   */
+  const head = (
+    <>
       {/*
-        On a phone: the title, then the search on a line of its own, then order
-        and play. At desktop width it is one row — the title on the left, and
-        search, order and play along from it, with the search giving up width
-        before the row wraps.
-      */}
+          On a phone: the title, then the search on a line of its own, then order
+          and play. At desktop width it is one row — the title on the left, and
+          search, order and play along from it, with the search giving up width
+          before the row wraps.
+        */}
       <View style={[styles.head, wide && styles.headGutterWide, headWide && styles.headWide]}>
         {/*
-          "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
-          many songs, how long, and on an installed app how many are here.
-          The tags picked to narrow it are the strip below, not the title: a
-          tag you want as a place has its own page now.
-        */}
+            "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
+            many songs, how long, and on an installed app how many are here.
+            The tags picked to narrow it are the strip below, not the title: a
+            tag you want as a place has its own page now.
+          */}
         <PageHeader
           title="Library"
           subtitle={
@@ -280,7 +293,7 @@ export function LibraryScreen(): ReactNode {
                   <SortLines tone="textPrimary" />
                 </IconButton>
                 {/* A row plays one song, so the whole list starts here. With
-                    tags on, the transport row under the head does it. */}
+                      tags on, the transport row under the head does it. */}
                 {model.tagFiltered ? null : (
                   <IconButton
                     label="Shuffle"
@@ -298,11 +311,11 @@ export function LibraryScreen(): ReactNode {
         />
 
         {/*
-          A phone's library keeps Shuffle with its tools in the title row — a
-          tap on a row plays that song alone. But tags turn this list into an
-          idea, and an idea is worth starting, so the two controls a computer
-          keeps in its header take a row of their own here.
-        */}
+            A phone's library keeps Shuffle with its tools in the title row — a
+            tap on a row plays that song alone. But tags turn this list into an
+            idea, and an idea is worth starting, so the two controls a computer
+            keeps in its header take a row of their own here.
+          */}
         {!wide && model.tagFiltered ? (
           <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
             <PlayButton
@@ -323,11 +336,11 @@ export function LibraryScreen(): ReactNode {
 
         <View style={[styles.controls, headWide && styles.controlsWide]}>
           {/*
-            Not a second search: a door to the one Search (docs/ui-mock `P19`,
-            `C05`), which it opens on Songs — the page on a phone, the palette
-            over this page on a computer. The tag strip below stays: that is a
-            filter, not a search.
-          */}
+              Not a second search: a door to the one Search (docs/ui-mock `P19`,
+              `C05`), which it opens on Songs — the page on a phone, the palette
+              over this page on a computer. The tag strip below stays: that is a
+              filter, not a search.
+            */}
           <SearchField
             onPress={openSearch}
             placeholder="Search songs"
@@ -364,14 +377,14 @@ export function LibraryScreen(): ReactNode {
               </Press>
 
               {/*
-              With no tags on, Shuffle alone — a click on a row plays that song
-              alone, and "play 1,204 songs alphabetically" is not a thing
-              anybody wants a button for.
+                With no tags on, Shuffle alone — a click on a row plays that song
+                alone, and "play 1,204 songs alphabetically" is not a thing
+                anybody wants a button for.
 
-              With tags on this list is an idea rather than a library, so it is
-              worth a Play. Keeping it is Up next's Save, once it has been
-              heard (docs/features/lists.md).
-            */}
+                With tags on this list is an idea rather than a library, so it is
+                worth a Play. Keeping it is Up next's Save, once it has been
+                heard (docs/features/lists.md).
+              */}
               <View
                 ref={transportRef}
                 collapsable={false}
@@ -414,12 +427,12 @@ export function LibraryScreen(): ReactNode {
       </View>
 
       {/*
-        The strip (docs/ui-mock `P12`, `C04`): All, then tags as a filter —
-        every one turned on adds its songs — the chosen ones first, then the
-        ones used lately, then the biggest. The + at its end searches every
-        tag, for a library with more than a strip holds. On an installed
-        phone, "On this phone" narrows to what is here.
-      */}
+          The strip (docs/ui-mock `P12`, `C04`): All, then tags as a filter —
+          every one turned on adds its songs — the chosen ones first, then the
+          ones used lately, then the biggest. The + at its end searches every
+          tag, for a library with more than a strip holds. On an installed
+          phone, "On this phone" narrows to what is here.
+        */}
       {songs.length > 0 ? (
         <ScrollView
           horizontal
@@ -517,9 +530,9 @@ export function LibraryScreen(): ReactNode {
       </Sheet>
 
       {/*
-        The picker, in the page rather than over it: the head grows, the songs
-        move down, and nothing is drawn across the sidebar.
-      */}
+          The picker, in the page rather than over it: the head grows, the songs
+          move down, and nothing is drawn across the sidebar.
+        */}
       <View style={[styles.chooser, wide && styles.gutterWide]}>
         <ListenTags
           open={choosingTags}
@@ -537,6 +550,13 @@ export function LibraryScreen(): ReactNode {
 
       {/* Links asked of the server, until what they bring is published. */}
       {fromCloud ? <PendingImports /> : null}
+    </>
+  )
+  const inList = shortWindow && !model.loading
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
+      {inList ? null : head}
 
       {/* The selection bar takes a lane above the list, so it covers no row. */}
       <View style={styles.listArea}>
@@ -551,7 +571,9 @@ export function LibraryScreen(): ReactNode {
             label={`${model.heading} songs`}
             renderSong={renderSong}
             listRef={rows.listRef}
-            rowHeight={rowHeight}
+            header={inList ? head : undefined}
+            // Rows placed by arithmetic start at the first row, which a header is above.
+            rowHeight={inList ? null : rowHeight}
             scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}
             refreshing={pull.refreshing}

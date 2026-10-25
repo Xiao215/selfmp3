@@ -26,6 +26,7 @@ import { useBucketHold } from '../features/profile/useBucketHold'
 import { useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
+import { useEscape } from './useEscape'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
@@ -109,6 +110,8 @@ function SidebarInner(): ReactNode {
   return (
     <View
       style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]}
+      // The app's navigation, as a landmark a screen reader can jump to.
+      role="navigation"
       testID="sidebar"
     >
       {/*
@@ -134,7 +137,7 @@ function SidebarInner(): ReactNode {
 
         <SearchRow />
 
-        <View accessibilityRole="tablist" style={styles.nav}>
+        <View accessibilityRole="tablist" accessibilityLabel="Pages" style={styles.nav}>
           {slide.highlight}
           {ROWS.map(row => {
             const active = row.href === lit
@@ -261,8 +264,11 @@ function Playlists(): ReactNode {
             enterFromSidebar()
             router.navigate('/playlists')
           }}
-          accessibilityLabel="Playlists"
-          {...navItemProps(onPage)}
+          // A section's head and a link to every playlist, as Tags' is: a tab
+          // here stood alone, outside the tab list above.
+          accessibilityRole="link"
+          accessibilityLabel={`All ${plural(listed.length, 'playlist', 'playlists')}`}
+          accessibilityState={{ selected: onPage }}
           testID="nav-playlists"
           style={styles.groupTitleMain}
         >
@@ -390,6 +396,9 @@ function Tags(): ReactNode {
     if (!onTagPage(pathname, tag.name)) openTag(tag, { from: 'sidebar' })
   }
 
+  // The + the form opens from, where focus goes back to once it closes on
+  // its own: made, or Escape. A field that goes leaves focus on nothing.
+  const plus = useRef<View>(null)
   // Made, or already there and opened: the form has done its job and closes.
   const form = useNewTagForm({
     tags,
@@ -397,8 +406,15 @@ function Tags(): ReactNode {
       open(tag)
       setAdding(false)
     },
-    onMade: () => setAdding(false),
+    onMade: () => putAway(),
   })
+  const putAway = (): void => {
+    setAdding(false)
+    form.setName('')
+    plus.current?.focus?.()
+  }
+  // Escape puts it away, typed name and all.
+  useEscape(adding, putAway)
   const trimmed = form.name.trim()
   const suggestions = trimmed ? fuzzyRank(trimmed, tags, tag => tag.name).slice(0, 3) : []
   const exact = existingTag(tags, trimmed)
@@ -422,7 +438,12 @@ function Tags(): ReactNode {
           </Text>
           {tags.length > 0 ? <Text style={styles.groupAll}>All {tags.length}</Text> : null}
         </Press>
-        <IconButton size={TINY_BUTTON} onPress={() => setAdding(isOpen => !isOpen)} label="New tag">
+        <IconButton
+          ref={plus}
+          size={TINY_BUTTON}
+          onPress={() => setAdding(isOpen => !isOpen)}
+          label="New tag"
+        >
           <Plus size={iconSize.field} color={theme.colors.textMuted} />
         </IconButton>
       </View>
@@ -434,6 +455,7 @@ function Tags(): ReactNode {
             size="small"
             placeholder="tag name"
             autoFocus
+            onEscape={putAway}
             onBlur={() => {
               if (!form.name) setAdding(false)
             }}
@@ -834,7 +856,9 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.tight,
     paddingLeft: space.snug,
   },
-  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
+  // Left-aligned whatever its script: a browser sets a name's direction from
+  // its first letter, and an Arabic one stood at the right of the rail.
+  tagName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT, textAlign: 'left' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
   tagAction: { paddingVertical: space.tight, paddingHorizontal: 5 },
   tagRowHovered: {

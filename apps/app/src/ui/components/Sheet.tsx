@@ -24,6 +24,7 @@ import { ease, nativeDriver, spring, timing, useMotionReduced } from '../motion'
 import { MOVE_MS, OPACITY, OVERSHOOT_S, overshootRange, PULL } from '../motion.model'
 import { useKeyboardLift } from '../../ports/keyboardLift'
 import { pressPutsKeyboardAway } from '../../ports/keyboard'
+import { ScrollView } from './Scroll'
 
 /**
  * How far a computer's dialog rises as it fades in: this sheet's wide shape,
@@ -81,6 +82,38 @@ const LAYOUT_WAIT_MS = 400
 const GROW_AT_LEAST = 8
 
 /**
+ * How much of the dimmed page a phone's sheet always leaves showing above it,
+ * however much it holds: somewhere to tap it away, and a sign there is a page
+ * under it. A longer list scrolls in the room below.
+ */
+const TOP_GAP = 48
+
+/** What a sheet's or a popover's panel is to a screen reader. */
+export type LayerRole = 'dialog' | 'menu' | 'listbox'
+
+/**
+ * A layer's panel as a screen reader meets it: a modal dialog named for what
+ * it is about, holding a menu or a list of choices when it is one. On iOS
+ * VoiceOver's scrub gesture closes it.
+ */
+export function panelA11y(label: string | undefined, onClose: () => void): object {
+  return {
+    role: 'dialog',
+    'aria-modal': true,
+    accessibilityLabel: label,
+    accessibilityViewIsModal: true,
+    onAccessibilityEscape: onClose,
+    // Somewhere for focus to go when nothing in it takes it, never a Tab stop.
+    tabIndex: -1,
+  }
+}
+
+/** The items' own role inside the panel: a menu's actions or a list's choices. */
+export function contentA11y(role: LayerRole): object | null {
+  return role === 'dialog' ? null : { role }
+}
+
+/**
  * A menu, as a sheet from the bottom of the screen — or, on a computer, as a
  * small window in the middle of it.
  *
@@ -109,11 +142,24 @@ export function Sheet({
   children,
   testID,
   width,
+  role = 'dialog',
+  label,
+  scroll = false,
 }: {
   open: boolean
   onClose: () => void
   title?: string
   subtitle?: string
+  /** A menu of actions or a list of choices, rather than a dialog's own content. */
+  role?: LayerRole
+  /** What a screen reader calls it, where the title does not say: the song a menu is for. */
+  label?: string
+  /**
+   * Scroll the content when it is taller than the room: a menu's items. A
+   * sheet whose content scrolls a list of its own under a field that stays
+   * put (a tag search) leaves this off and lets that list give way.
+   */
+  scroll?: boolean
   /** How wide the window may grow at desktop width, for content wider than a menu. */
   width?: number
   /**
@@ -296,10 +342,11 @@ export function Sheet({
     anyway.
   */
   const content = (
-    <View testID={testID} style={styles.content} {...pressPutsKeyboardAway}>
-      {children}
+    <View testID={testID} style={styles.content} {...pressPutsKeyboardAway} {...contentA11y(role)}>
+      {scroll ? <ScrollView showsVerticalScrollIndicator={false}>{children}</ScrollView> : children}
     </View>
   )
+  const a11y = panelA11y(label ?? title, onClose)
 
   // Drawn by the shell's overlay host rather than in a `Modal` of its own
   // (src/shell/Overlay.tsx says why).
@@ -320,6 +367,7 @@ export function Sheet({
         <View pointerEvents="box-none" style={styles.dialogFrame}>
           <Animated.View
             style={[styles.dialog, width !== undefined && { maxWidth: width }, settle]}
+            {...a11y}
           >
             {head}
             {/* A window with a mouse to hand: the panel's items, not a finger's list. */}
@@ -333,18 +381,23 @@ export function Sheet({
           style={styles.panelFrame}
         >
           <Animated.View
+            {...a11y}
             onLayout={event => onPanelLayout(event.nativeEvent.layout.height)}
             style={[
               styles.panel,
               {
                 // The keyboard covers the home indicator's room; above it the
                 // panel needs none, and no taller than the window it leaves.
+                // Without one, never taller than the window less a strip of
+                // the page to tap it away by: a song's menu with Add to
+                // playlist open, or any menu in a short landscape window, ran
+                // off the top with no way to reach its first items.
                 paddingBottom:
                   keyboard.height > 0 ? space.sm : Math.max(insets.bottom, space.sm) + space.xs,
                 maxHeight:
                   keyboard.height > 0
                     ? windowHeight - keyboard.height - insets.top - space.sm
-                    : undefined,
+                    : Math.max(windowHeight - insets.top - TOP_GAP, 0) || undefined,
                 // In a browser, invisible and still until it has been measured,
                 // then up from below the foot, four points past its place, and
                 // back. On a phone the frame around it does the rise.
@@ -371,6 +424,7 @@ export function Sheet({
       )}
     </>,
     mounted,
+    open,
   )
 
   return null
@@ -431,12 +485,15 @@ export function SheetBackdrop({
   const [shownAt] = useState(() => Date.now())
   return (
     <Animated.View style={[styles.backdrop, { opacity }]}>
+      {/* A button to a screen reader, but no Tab stop: the keyboard has Escape. */}
       <Pressable
         style={StyleSheet.absoluteFill}
         onPress={() => {
           if (Date.now() - shownAt >= BACKDROP_SETTLE_MS) onClose()
         }}
+        accessibilityRole="button"
         accessibilityLabel={label}
+        tabIndex={-1}
       />
     </Animated.View>
   )

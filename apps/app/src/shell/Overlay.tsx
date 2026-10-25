@@ -6,6 +6,7 @@ import {
   useId,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
@@ -13,6 +14,7 @@ import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
+import { useLayerFocus, useLayerKeys } from './layerFocus'
 
 /**
  * One place, at the root of the app, where sheets and popovers are drawn.
@@ -32,29 +34,43 @@ import { useValueStore } from '../state/useValueStore'
  *
  * `pointerEvents="box-none"` on the host so an empty overlay is not a sheet of
  * glass over the app.
+ *
+ * A layer that is `modal` — a sheet, a popover, a dialog, while it is open —
+ * is all a screen reader has: the page under it is hidden from VoiceOver,
+ * TalkBack and a browser's readers until it closes, so a swipe past the
+ * sheet's last item does not walk on into the song list behind it. In a
+ * browser it also takes the keyboard's focus and gives it back
+ * (`layerFocus.web.ts`), and Tab goes round it rather than out into the page.
  */
 
+interface Entry {
+  id: string
+  node: ReactNode
+  modal: boolean
+}
+
 interface OverlayApi {
-  set: (id: string, node: ReactNode) => void
+  set: (id: string, node: ReactNode, modal: boolean) => void
   remove: (id: string) => void
 }
 
 const OverlayContext = createContext<OverlayApi | null>(null)
 
 export function OverlayProvider({ children }: { children: ReactNode }): ReactNode {
-  const [nodes, setNodes] = useState<readonly { id: string; node: ReactNode }[]>([])
+  const [nodes, setNodes] = useState<readonly Entry[]>([])
 
   // An entry keeps its place: the host paints in the order overlays opened,
   // which is the order `useEscape` closes them in. Moving a re-rendered one
   // to the end would put whichever owner rendered last on top, so a popover
   // under a sheet would come over it the moment its screen re-rendered.
-  const set = useCallback((id: string, node: ReactNode) => {
+  const set = useCallback((id: string, node: ReactNode, modal: boolean) => {
     setNodes(current => {
       const index = current.findIndex(entry => entry.id === id)
-      if (index === -1) return [...current, { id, node }]
-      if (current[index]?.node === node) return current
+      if (index === -1) return [...current, { id, node, modal }]
+      const was = current[index]
+      if (was?.node === node && was?.modal === modal) return current
       const next = [...current]
-      next[index] = { id, node }
+      next[index] = { id, node, modal }
       return next
     })
   }, [])
@@ -67,17 +83,32 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
 
   const api = useMemo<OverlayApi>(() => ({ set, remove }), [set, remove])
 
+  const modal = nodes.some(entry => entry.modal)
+  // The topmost modal layer's node, for its keys.
+  const entryNodes = useRef(new Map<string, unknown>())
+  const topModal = [...nodes].reverse().find(entry => entry.modal)?.id
+  useLayerKeys(() => (topModal === undefined ? null : entryNodes.current.get(topModal)))
+
   return (
     <OverlayContext.Provider value={api}>
       {/* A container of its own, so "absolutely positioned" has something
           definite to be positioned against: the whole app, tab bar included. */}
       <View style={styles.root}>
-        {children}
+        <View style={styles.root} aria-hidden={modal}>
+          {children}
+        </View>
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
           {nodes.map(entry => (
-            <View key={entry.id} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+            <OverlayEntry
+              key={entry.id}
+              modal={entry.modal}
+              onNode={node => {
+                if (node) entryNodes.current.set(entry.id, node)
+                else entryNodes.current.delete(entry.id)
+              }}
+            >
               {entry.node}
-            </View>
+            </OverlayEntry>
           ))}
         </View>
         <PressHold />
@@ -112,6 +143,32 @@ function PressHold(): ReactNode {
   return useValueStore(held) ? <View style={StyleSheet.absoluteFill} testID="press-hold" /> : null
 }
 
+/** One layer in the host, which takes focus while it is modal. */
+function OverlayEntry({
+  modal,
+  onNode,
+  children,
+}: {
+  modal: boolean
+  onNode: (node: View | null) => void
+  children: ReactNode
+}): ReactNode {
+  const ref = useRef<View | null>(null)
+  useLayerFocus(ref, modal)
+  return (
+    <View
+      ref={node => {
+        ref.current = node
+        onNode(node)
+      }}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="box-none"
+    >
+      {children}
+    </View>
+  )
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -123,8 +180,11 @@ const styles = StyleSheet.create({
  *
  * Keyed by a stable id, so a re-render replaces the node rather than removing
  * and re-adding it — an animation part-way through survives.
+ *
+ * `modal` while it is a layer the user is in — open, not on its way out —
+ * which hides the page from screen readers and holds the keyboard's focus.
  */
-export function useOverlay(node: ReactNode, active: boolean): void {
+export function useOverlay(node: ReactNode, active: boolean, modal = false): void {
   const api = useContext(OverlayContext)
   const id = useId()
 
@@ -141,7 +201,7 @@ export function useOverlay(node: ReactNode, active: boolean): void {
   // pinyin typed into the Search box would come out as "nninihnihanihao你好".
   useLayoutEffect(() => {
     if (!api) return
-    if (active) api.set(id, node)
+    if (active) api.set(id, node, modal)
     else api.remove(id)
   })
 

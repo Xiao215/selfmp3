@@ -25,6 +25,9 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { isComposing } from '../../shell/composing'
+import { focusNextStop } from '../../shell/focusNext'
+import { useEscape } from '../../shell/useEscape'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
@@ -114,6 +117,8 @@ export function SearchScreen(): ReactNode {
   /** The section a "See all" opened alone, or null for All. */
   const [section, setSection] = useState<SearchSection | null>(null)
   const field = useRef<TextInput>(null)
+  // Cancel, the last thing in the head: what ↓ moves on from into the results.
+  const cancelRef = useRef<View>(null)
   // The palette's search too, so the two find the same and Enter decides alike.
   const search = useLibrarySearch(query, {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
@@ -161,6 +166,9 @@ export function SearchScreen(): ReactNode {
   // The page's one selection, for every song row on it: holding a row starts
   // selecting here as it does in Library (D1, 2026-10-08).
   const selection = useSelection(rowIds)
+  // Escape is Cancel, as it closes the palette a computer draws instead; a
+  // selection takes it first, and clears.
+  useEscape(!selection.active, close)
   const bar = useListSelectionBar({
     songs: rowSongs,
     selection,
@@ -197,11 +205,25 @@ export function SearchScreen(): ReactNode {
                 autoCorrect={false}
                 spellCheck={false}
                 returnKeyType="search"
+                // ↓ goes from the field down into the results, as the
+                // palette's does: Tab past Cancel was the only way in.
+                onKeyPress={event => {
+                  const key = event.nativeEvent.key
+                  if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
+                  // The field keeps its keys from the page, so Escape is
+                  // answered here as well as by the page's own (`useEscape`).
+                  if (key === 'Escape' && !selection.active) close()
+                  if (key !== 'ArrowDown') return
+                  if (focusNextStop(cancelRef.current)) {
+                    ;(event as unknown as { preventDefault: () => void }).preventDefault()
+                  }
+                }}
                 accessibilityLabel="Search"
                 testID="search-field"
                 style={styles.field}
               />
               <Press
+                ref={cancelRef}
                 feedback="dim"
                 onPress={close}
                 accessibilityRole="button"

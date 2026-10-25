@@ -106,8 +106,9 @@ describe('removing the song Now Playing is the page of', () => {
     expect(await screen.findByText('Delete “Nocturne” from your library?')).toBeTruthy()
     await fireEvent.press(screen.getByRole('button', { name: 'Delete song' }))
 
-    // The player has let the song go; the server has not answered yet.
-    expect(screen.getByText('Nothing playing')).toBeTruthy()
+    // The player has let the song go; the server has not answered yet. The
+    // page is under the dialog still asking, hidden from a screen reader.
+    expect(screen.getByText('Nothing playing', { includeHiddenElements: true })).toBeTruthy()
     expect(mockPutAway).not.toHaveBeenCalled()
 
     await act(async () => mockAnswer?.({ removed: 1, failed: [] }))

@@ -92,7 +92,7 @@ function Question({
   const wide = useLayoutValue(layout => layout.wide)
   return (
     <>
-      <Text style={styles.title} accessibilityRole="header">
+      <Text style={styles.title} accessibilityRole="header" aria-level={2}>
         {title}
       </Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}

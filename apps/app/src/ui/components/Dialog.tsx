@@ -116,6 +116,9 @@ function DialogLayer({
     'aria-modal': true,
     accessibilityLabel: label,
     accessibilityViewIsModal: true,
+    onAccessibilityEscape: onEscape ?? onDismiss,
+    // Somewhere for focus to go when nothing in it takes it, never a Tab stop.
+    tabIndex: -1,
     testID,
     // A browser's own event, which the types of a View do not name.
     ...(onKeyDownCapture ? ({ onKeyDownCapture } as object) : null),
@@ -130,7 +133,9 @@ function DialogLayer({
             // Not the second click of the double click that opened it (`BACKDROP_SETTLE_MS`).
             if (Date.now() - shownAt >= BACKDROP_SETTLE_MS) onDismiss()
           }}
+          accessibilityRole="button"
           accessibilityLabel={dismissLabel}
+          tabIndex={-1}
         />
       </Animated.View>
       <View style={[styles.frame, frameStyle]} pointerEvents="box-none">
@@ -146,6 +151,7 @@ function DialogLayer({
       </View>
     </>,
     true,
+    open,
   )
 
   return null
@@ -172,7 +178,7 @@ export function DialogHead({
   const { theme } = useUnistyles()
   return (
     <View style={[styles.head, style]}>
-      <Text style={titleStyle ?? styles.title} accessibilityRole="header">
+      <Text style={titleStyle ?? styles.title} accessibilityRole="header" aria-level={2}>
         {title}
       </Text>
       <IconButton onPress={onClose} label={closeLabel}>

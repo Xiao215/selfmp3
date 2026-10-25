@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -104,6 +104,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   const input = useRef<TextInput>(null)
+  // The list's id and its rows' ids, for the field to say which row is lit:
+  // focus stays in the field, so a screen reader hears the row only through
+  // `aria-activedescendant`.
+  const listId = useId()
+  const optionId = (index: number): string => `${listId}-${index}`
 
   const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
@@ -395,6 +400,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           rowNodes.current.set(index, node)
         }}
         role="option"
+        nativeID={optionId(index)}
         aria-selected={on}
         accessibilityLabel={row.label}
         onHoverIn={() => setHighlighted(index)}
@@ -476,6 +482,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           spellCheck={false}
           role="combobox"
           aria-expanded
+          aria-controls={listId}
+          aria-activedescendant={rows.length > 0 ? optionId(active) : undefined}
+          aria-autocomplete="list"
           accessibilityLabel="Search songs, playlists and tags, or type a command"
           trailing={
             trimmed ? (
@@ -490,7 +499,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       <ScrollView
         // A listbox, so its options read as one list's choices. React
         // Native's Role type has no "listbox"; react-native-web renders it.
-        {...({ role: 'listbox' } as object)}
+        {...({ role: 'listbox', 'aria-label': 'Results' } as object)}
+        nativeID={listId}
         contentContainerStyle={styles.results}
       >
         {drawnGroups}

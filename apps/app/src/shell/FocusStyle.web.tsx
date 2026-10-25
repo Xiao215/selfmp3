@@ -48,8 +48,37 @@ ${TABBING_SELECTOR} ${TEXT_FIELD}:focus-visible, ${TABBING_SELECTOR} textarea:fo
 ${TEXT_FIELD}:focus, textarea:focus { border-color: ${accent} !important; }
 ${TABBING_SELECTOR} ${ROW_PRESS}:focus-visible { outline: none; }
 ${TABBING_SELECTOR} [${SONG_ROW}]:has(${ROW_PRESS}:focus-visible) { outline: 2px solid ${accent}; outline-offset: -2px; }
+${FORCED}
 `
 }
+
+/** What is chosen, lit or here: the states the app draws with a tone of its own. */
+const ON = [
+  '[role="option"][aria-selected="true"]',
+  '[role="tab"][aria-selected="true"]',
+  '[role="radio"][aria-checked="true"]',
+  '[role="switch"][aria-checked="true"]',
+  '[aria-current="page"]',
+  '[aria-pressed="true"]',
+]
+
+/**
+ * Forced colours (Windows' contrast themes): the browser paints every ground
+ * Canvas, so the tones that mark the palette's lit result, the page you are
+ * on and a chosen chip all vanish, and the icons, whose fills are the theme's
+ * own, stay a pale grey on white. Here what is on is painted in the system's
+ * Highlight, and every icon in the text's colour.
+ */
+const FORCED = `
+@media (forced-colors: active) {
+  svg [fill]:not([fill="none"]) { fill: CanvasText !important; }
+  svg [stroke]:not([stroke="none"]) { stroke: CanvasText !important; }
+  ${ON.join(', ')} { forced-color-adjust: none; background-color: Highlight !important; color: HighlightText !important; }
+  ${ON.map(on => `${on} *`).join(', ')} { color: HighlightText !important; }
+  ${ON.map(on => `${on} svg [fill]:not([fill="none"])`).join(', ')} { fill: HighlightText !important; }
+  ${ON.map(on => `${on} svg [stroke]:not([stroke="none"])`).join(', ')} { stroke: HighlightText !important; }
+}
+`
 
 export function FocusStyle(): ReactNode {
   const { accent } = useAccent()

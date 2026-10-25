@@ -385,10 +385,14 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
     })
     // The chip is the button; the row in the picker above it is the checkbox.
-    expect(screen.getByRole('button', { name: 'jpop' })).toBeTruthy()
+    // The chip is on the page under the open picker, which hides the page
+    // from a screen reader while it is up.
+    expect(screen.getByRole('button', { name: 'jpop', includeHiddenElements: true })).toBeTruthy()
 
+    // Import, on the page under the picker (which a press on it straight
+    // after opening would not put away, `BACKDROP_SETTLE_MS`).
     await act(async () => {
-      await fireEvent.press(screen.getByTestId('import-commit'))
+      await fireEvent.press(screen.getByTestId('import-commit', { includeHiddenElements: true }))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
     // The tags were for these songs: the next link starts with none.
@@ -408,7 +412,10 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByLabelText('Create citypop'))
     })
     expect(mockCreateTag).toHaveBeenCalledWith('citypop')
-    expect(screen.getByRole('button', { name: 'citypop' })).toBeTruthy()
+    // On the page, under the picker that hides it from a screen reader.
+    expect(
+      screen.getByRole('button', { name: 'citypop', includeHiddenElements: true }),
+    ).toBeTruthy()
   })
 
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {

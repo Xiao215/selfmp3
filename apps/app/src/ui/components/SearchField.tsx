@@ -68,7 +68,8 @@ export function SearchField({
         // `style` places the field in its row; the pill itself is the press.
         wrap={style}
         onPress={onPress}
-        accessibilityRole="search"
+        // A door to Search, not a field or a landmark: a button that opens it.
+        accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ?? placeholder}
         testID={testID}
         style={({ pressed }) => [box, pressed && styles.doorPressed]}

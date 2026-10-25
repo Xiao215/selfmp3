@@ -23,6 +23,7 @@ import { SheetItem } from './Sheet'
 import { label } from '../surfaces'
 import { StatusLine } from './StatusLine'
 import { TagDot } from './TagDot'
+import { isolated } from '../hueNames.model'
 
 /**
  * Everything you can do to a tag itself.
@@ -55,6 +56,7 @@ export function TagEditor({
       onClose={onClose}
       anchorRef={anchorRef}
       width={290}
+      label={tag ? `Edit tag ${isolated(tag.name)}` : undefined}
       testID="tag-editor"
     >
       {tag ? <Editor key={tag.id} tag={tag} onDeleted={onDeleted} onClose={onClose} /> : null}
@@ -97,7 +99,7 @@ function Editor({
       <View style={styles.title}>
         <TagDot hue={tag.hue} />
         <Text style={styles.titleText} numberOfLines={1}>
-          Tag <Text style={styles.titleName}>{tag.name}</Text>
+          Tag <Text style={styles.titleName}>{isolated(tag.name)}</Text>
         </Text>
         <Text style={styles.hint}>{plural(tag.songCount, 'song', 'songs')}</Text>
       </View>
@@ -155,8 +157,8 @@ function Editor({
       ) : (
         <View>
           <Text style={[styles.hint, styles.confirm]}>
-            Delete “{tag.name}”? Its {plural(tag.songCount, 'song stays', 'songs stay')} in your
-            library.
+            Delete “{isolated(tag.name)}”? Its {plural(tag.songCount, 'song stays', 'songs stay')}{' '}
+            in your library.
             {following.length > 0
               ? ` ${quoted(following)} ${following.length === 1 ? 'fills' : 'fill'} from it, and will go on without it.`
               : null}

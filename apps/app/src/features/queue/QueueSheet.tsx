@@ -379,7 +379,12 @@ function SheetPanel({
             </Press>
             {inRoom ? null : (
               <View style={styles.titleRow}>
-                <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
+                <Text
+                  style={styles.title}
+                  accessibilityRole="header"
+                  aria-level={2}
+                  numberOfLines={1}
+                >
                   Up next
                 </Text>
                 <View style={styles.pills}>

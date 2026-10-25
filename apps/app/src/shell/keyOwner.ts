@@ -52,3 +52,18 @@ export function songRowOf(target: EventTarget | null): HTMLElement | null {
 export function rowOwnsKey(target: EventTarget | null, combination: string): boolean {
   return combination === ' ' && tabbing() && songRowOf(target) !== null
 }
+
+/** Controls that Space works, as Enter does (`Press`). */
+const SPACE_CONTROL = '[role="switch"], [role="checkbox"], [role="radio"], [role="tab"]'
+
+/**
+ * Whether Space is a switch's, a radio's, a checkbox's or a tab's, rather
+ * than the page's play and pause: on one the keyboard has brought focus to,
+ * Space flips, chooses or opens it, as WAI-ARIA's patterns have it. As with a
+ * row, the focus a click leaves behind is not that, and Space still pauses.
+ */
+export function controlOwnsKey(target: EventTarget | null, combination: string): boolean {
+  if (combination !== ' ' || !tabbing()) return false
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return false
+  return target.matches(SPACE_CONTROL)
+}

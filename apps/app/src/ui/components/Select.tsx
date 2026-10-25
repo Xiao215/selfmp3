@@ -105,6 +105,14 @@ export function Select<T extends string | number>({
         // so that pressing it again reaches it, and what opened the list is
         // what a second press on it should close.
         onPress={() => setOpen(shown => !shown)}
+        // ↓ or ↑ opens the list too, as a combo box's do; once it is open
+        // focus is on the chosen option, and the arrows walk the options.
+        onKeyDown={event => {
+          if (open || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return
+          event.preventDefault()
+          setOpen(true)
+        }}
+        aria-haspopup="listbox"
         testID={testID}
         // This control is a combobox named by what is chosen, with the
         // current value as its content.
@@ -138,6 +146,7 @@ export function Select<T extends string | number>({
         anchorRef={anchorRef}
         title={label}
         titleTone="label"
+        role="listbox"
       >
         {options.map(item)}
       </Popover>

@@ -54,7 +54,11 @@ function BottomNavInner(): ReactNode {
   const pill = useSlidingHighlight(current, styles.pill)
 
   return (
-    <View style={[styles.bar, { bottom, left: side, right: side }]} accessibilityRole="tablist">
+    <View
+      style={[styles.bar, { bottom, left: side, right: side }]}
+      accessibilityRole="tablist"
+      accessibilityLabel="Pages"
+    >
       {/*
           The tabs share the bar's width, so each one's width changes when the
           bar's does and the pill is measured again (a position that moves

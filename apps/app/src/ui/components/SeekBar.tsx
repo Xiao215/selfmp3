@@ -48,6 +48,7 @@ export function SeekBar({
       hold={waiting === undefined}
       label="Seek"
       step={SEEK_STEP_SECONDS}
+      valueText={at => `${formatDuration(at)} of ${formatDuration(duration)}`}
       size={inline ? 'small' : 'large'}
       color={color}
       around={(bar, shown) =>

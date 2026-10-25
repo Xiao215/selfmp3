@@ -129,6 +129,8 @@ interface RowActions {
   readonly removeFocused: (index: number) => void
   /** A row's right-click menu; `played` for one in the rail's history rather than to come. */
   readonly menu: (anchor: View | null, row: QueueRow, played: boolean) => void
+  /** One place up or down Up next, from the keyboard; where it went, or null if it could not. */
+  readonly step: (index: number, by: 1 | -1) => number | null
   /** The hold has begun on a row, or it is over: the row's swell (`useLiftScale`). */
   readonly holding: (songId: number, holding: boolean) => void
   readonly dragStart: (row: QueueRow, node: View | null, x: number) => void
@@ -225,6 +227,14 @@ function Rail({
             rail?.querySelector?.<HTMLElement>(`[data-testid="queue-row-${at}"]`)
           ;(row(index) ?? row(index - 1))?.focus()
         })
+      },
+      step: (index, by) => {
+        const now = latest.current
+        if (index < now.first || index > now.last) return null
+        const to = dragTarget(index, by * ROW_HEIGHT, ROW_HEIGHT, now)
+        if (to === index) return null
+        now.player.reorderQueue(index, to)
+        return to
       },
       menu: (anchor, row, played) => {
         menuAnchor.current = anchor
@@ -627,6 +637,17 @@ function PlayingDrop({
 const REMOVE_KEYS = new Set(['Delete', 'Backspace'])
 
 /**
+ * Focus the rail's row at `index` once the rail has drawn its move: a row
+ * moved from the keyboard is drawn anew in its new place, and the next ⌥↓
+ * would otherwise go nowhere. Only a browser has keys to press.
+ */
+function focusRowSoon(index: number): void {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-testid="queue-row-${index}"]`)?.focus()
+  })
+}
+
+/**
  * A song still to come, or one that has played (greyed, no grip). A click
  * plays it. Keys and the right-click menu arrive as a browser's events, which
  * react-native-web hands to a pressable; a phone has neither.
@@ -702,8 +723,19 @@ const RailRow = memo(function RailRow({
     [actions, index],
   )
   const web = {
-    onKeyDown: (event: { nativeEvent: { key: string }; preventDefault: () => void }) => {
-      if (!REMOVE_KEYS.has(event.nativeEvent.key)) return
+    onKeyDown: (event: {
+      nativeEvent: { key: string; altKey: boolean }
+      preventDefault: () => void
+    }) => {
+      const { key, altKey } = event.nativeEvent
+      // ⌥↑ and ⌥↓ move a song still to come, as dragging it does.
+      if (altKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        event.preventDefault()
+        const to = actions.step(index, key === 'ArrowDown' ? 1 : -1)
+        if (to !== null) focusRowSoon(to)
+        return
+      }
+      if (!REMOVE_KEYS.has(key)) return
       event.preventDefault()
       actions.removeFocused(index)
     },

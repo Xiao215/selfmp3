@@ -424,6 +424,7 @@ export function SelectionLane({
         onClose={closeMenu}
         anchorRef={moreRef}
         title={`${count} ${word(count)} selected`}
+        role="menu"
         width={280}
         testID="selection-menu"
       >

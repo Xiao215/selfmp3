@@ -61,6 +61,8 @@ export function SectionHead({
     <Text
       style={look === 'label' ? styles.label : styles.title}
       accessibilityRole="header"
+      // A section of the page, under the page's own title: an H2 in a browser.
+      aria-level={2}
       numberOfLines={1}
       testID={titleTestID}
     >

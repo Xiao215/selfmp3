@@ -88,7 +88,11 @@ export function NoticeCard({
         {title ? (
           <View style={styles.titleRow}>
             {tone === 'plain' ? null : <View style={[styles.dot, dots[tone]]} />}
-            <Text style={[styles.title, compact && styles.titleCompact]} accessibilityRole="header">
+            <Text
+              style={[styles.title, compact && styles.titleCompact]}
+              accessibilityRole="header"
+              aria-level={2}
+            >
               {title}
             </Text>
           </View>

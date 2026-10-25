@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Song } from '@selfmp3/shared'
 import { createLogger } from '../logger.js'
 import type { Config } from '../config.js'
+import type { ArtistNamesRow, NamesRepository } from '../repositories/names.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { ArtistBackdropService } from './artistBackdrops.js'
 import type { YouTubeMusicArtists } from './youtubeMusicArtist.js'
@@ -88,6 +89,11 @@ function fakeYouTubeMusic(hitsByQuery: Record<string, Hit[]>) {
 
 describe('ArtistBackdropService', () => {
   let dataDir = ''
+  /** The names each artist also goes by, by key, as the names repository has them. */
+  let otherNames = new Map<string, ArtistNamesRow>()
+  beforeEach(() => {
+    otherNames = new Map()
+  })
   afterEach(() => {
     if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
   })
@@ -105,7 +111,9 @@ describe('ArtistBackdropService', () => {
     return {
       backdrops: new ArtistBackdropService(
         { dataDir } as Config,
-        { all: () => songs } as unknown as SongRepository,
+        // A fresh array each time, as the repository's after a change.
+        { all: () => [...songs] } as unknown as SongRepository,
+        { artistNames: () => otherNames } as unknown as NamesRepository,
         youtube,
         createLogger('silent'),
         fetchImpl,
@@ -274,5 +282,59 @@ describe('ArtistBackdropService', () => {
     // One song alone has to be vouched for by its hit naming the artist, and
     // this hit names the band, not the singer.
     expect(await backdrops.find('suis')).toBeNull()
+  })
+
+  it.each([
+    ['the new name goes by the old', 'ヨルシカ', ['Yorushika']],
+    ['the old name goes by the new', 'yorushika', ['ヨルシカ']],
+  ])(
+    'gives a renamed artist the picture kept under their old name: %s',
+    async (_, named, names) => {
+      const yt = fakeYouTubeMusic({
+        'Yorushika 靴の花火': [
+          hit({ title: '靴の花火', artist: 'ヨルシカ', channelId: YORUSHIKA, length: '5:06' }),
+        ],
+        'Yorushika 晴る': [
+          hit({ title: '晴る', artist: 'Yorushika', channelId: YORUSHIKA, length: '3:12' }),
+        ],
+      })
+      const songs = [song(1, '靴の花火', 'Yorushika', 306), song(2, '晴る', 'Yorushika', 192)]
+      const { backdrops } = service(songs, yt.fetchImpl)
+      await backdrops.find('Yorushika')
+
+      // Renamed before anyone said the two names are one artist: none found
+      // for the new name, which the search does not know.
+      songs.splice(0, 2, song(1, '靴の花火', 'ヨルシカ', 306), song(2, '晴る', 'ヨルシカ', 192))
+      expect(await backdrops.find('ヨルシカ')).toBeNull()
+      const searches = yt.searches.length
+
+      // Then they are: the kept picture is theirs, "none" notwithstanding.
+      otherNames.set(named, { names, hlc: '1' })
+      expect(await backdrops.fill()).toBe(1)
+      const kept = await backdrops.kept('ヨルシカ')
+      expect(fs.readFileSync(kept!.path)).toEqual(BANNER)
+      expect(fs.readFileSync((await backdrops.kept('ヨルシカ', 'portrait'))!.path)).toEqual(
+        PORTRAIT,
+      )
+      expect(yt.searches).toHaveLength(searches)
+      expect(yt.pictures()).toBe(2)
+    },
+  )
+
+  it('asks again about an artist with none once the songs naming them change', async () => {
+    const yt = fakeYouTubeMusic({})
+    const songs = [song(1, 'Song A', 'Xiao', 180)]
+    const { backdrops } = service(songs, yt.fetchImpl)
+
+    expect(await backdrops.find('Xiao')).toBeNull()
+    expect(await backdrops.find('Xiao')).toBeNull()
+    expect(yt.searches).toEqual(['Xiao Song A'])
+
+    // A song renamed to them is a new witness: the week is not waited out.
+    songs.push(song(2, 'Song B', 'Xiao', 200))
+    expect(await backdrops.find('Xiao')).toBeNull()
+    expect(yt.searches).toHaveLength(3)
+    expect(await backdrops.find('Xiao')).toBeNull()
+    expect(yt.searches).toHaveLength(3)
   })
 })

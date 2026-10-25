@@ -14,6 +14,7 @@ import {
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { SongRepository } from '../repositories/songs.js'
 import { readCapped, type FetchLike } from './fetching.js'
 import { YouTubeMusicApi } from './youtubeMusicApi.js'
@@ -47,7 +48,13 @@ import { fits, isSameSong, searchSongs } from './youtubeMusicSongs.js'
  * Fetched once and kept, as a cover is: under `data/artists/`, both shapes
  * together, disposable, rebuilt on the next ask if either is deleted. An artist found to have no picture is
  * remembered for a while too, so an artist page does not go out to YouTube
- * Music every time it is opened.
+ * Music every time it is opened — but only while the songs naming them stay
+ * the same: songs renamed to the artist, or new ones, are new witnesses.
+ *
+ * Kept by name, so an artist renamed — "Yu-Peng Chen" written 陈致逸 — has
+ * none under the new one. Where one of the names they also go by
+ * (repositories/names.ts) has a picture kept, that picture is theirs: the
+ * same person, with no need to ask YouTube Music again.
  *
  * Every artist of the library is looked for, not only those whose page was
  * opened (`fill`), and the cloud pass puts what is kept in the bucket beside
@@ -105,6 +112,7 @@ interface KeptPicture {
 export class ArtistBackdropService {
   readonly #dir: string
   readonly #songs: Pick<SongRepository, 'all'>
+  readonly #names: Pick<NamesRepository, 'artistNames'>
   readonly #youtube: Pick<YouTubeMusicArtists, 'picture'>
   readonly #api: YouTubeMusicApi
   readonly #fetch: FetchLike
@@ -119,6 +127,7 @@ export class ArtistBackdropService {
   constructor(
     config: Config,
     songs: Pick<SongRepository, 'all'>,
+    names: Pick<NamesRepository, 'artistNames'>,
     youtube: Pick<YouTubeMusicArtists, 'picture'>,
     logger: Logger,
     fetchImpl: FetchLike = fetch,
@@ -127,6 +136,7 @@ export class ArtistBackdropService {
     this.#pause = pause
     this.#dir = path.join(config.dataDir, 'artists')
     this.#songs = songs
+    this.#names = names
     this.#youtube = youtube
     this.#api = new YouTubeMusicApi(logger, fetchImpl)
     this.#fetch = fetchImpl
@@ -189,6 +199,10 @@ export class ArtistBackdropService {
     let asked = false
     for (const artist of this.artists()) {
       if (await this.kept(artist.key)) continue
+      if (await this.#fromOtherName(artist.key)) {
+        found++
+        continue
+      }
       if (await this.#saidNoneLately(artist.key)) continue
       const unanswered = this.#unanswered.get(artist.key)
       if (unanswered !== undefined && Date.now() - unanswered < UNANSWERED_RETRY_MS) continue
@@ -211,7 +225,10 @@ export class ArtistBackdropService {
     const kept = await this.kept(name)
     if (kept) return kept
     const key = artistKey(name)
-    if (!key || (await this.#saidNoneLately(key))) return null
+    if (!key) return null
+    const renamed = await this.#fromOtherName(key)
+    if (renamed) return renamed
+    if (await this.#saidNoneLately(key)) return null
 
     let finding = this.#finding.get(key)
     if (!finding) {
@@ -244,9 +261,7 @@ export class ArtistBackdropService {
    * could not be asked.
    */
   async #pageOf(name: string, key: string): Promise<string | null | undefined> {
-    const songs = this.#songs
-      .all()
-      .filter(song => splitArtists(song.artist).some(named => artistKey(named) === key))
+    const songs = this.#songsBy(key)
       // A song whose length is known is a stronger witness: its hit has to be as long.
       .sort((a, b) => Number(b.duration > 0) - Number(a.duration > 0))
       .slice(0, SONGS_ASKED)
@@ -308,6 +323,53 @@ export class ArtistBackdropService {
     return hits
   }
 
+  /**
+   * The picture kept under another name this artist goes by, copied to their
+   * own: a name in their other names, or an artist whose other names hold
+   * theirs. Null when no such name has one.
+   */
+  async #fromOtherName(key: string): Promise<KeptPicture | null> {
+    const everyone = this.#names.artistNames()
+    const others = new Set((everyone.get(key)?.names ?? []).map(artistKey))
+    for (const [artist, row] of everyone) {
+      if (row.names.some(named => artistKey(named) === key)) others.add(artist)
+    }
+    others.delete(key)
+    for (const other of others) {
+      const pair = await this.keptPair(other)
+      if (!pair) continue
+      try {
+        const [banner, portrait] = await Promise.all([
+          fsp.readFile(pair.banner),
+          fsp.readFile(pair.portrait),
+        ])
+        return await this.#keep(key, { banner, portrait })
+      } catch {
+        // Gone between the look and the read: the next name, or the search.
+        continue
+      }
+    }
+    return null
+  }
+
+  /** The songs naming this artist, among others or alone. */
+  #songsBy(key: string): Song[] {
+    return this.#songs
+      .all()
+      .filter(song => splitArtists(song.artist).some(named => artistKey(named) === key))
+  }
+
+  /**
+   * What a "none" was decided on: the songs naming the artist, as one hash.
+   * A different set is new witnesses, and the verdict no longer holds.
+   */
+  #witnesses(key: string): string {
+    const ids = this.#songsBy(key)
+      .map(song => song.id)
+      .sort((a, b) => a - b)
+    return createHash('sha1').update(ids.join(','), 'utf8').digest('hex')
+  }
+
   async #download(url: string): Promise<Buffer | null> {
     try {
       const response = await this.#fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
@@ -359,15 +421,17 @@ export class ArtistBackdropService {
   }
 
   async #saidNoneLately(key: string): Promise<boolean> {
+    const file = this.#file(key, '.none')
     try {
-      return Date.now() - (await fsp.stat(this.#file(key, '.none'))).mtimeMs < NONE_TTL_MS
+      if (Date.now() - (await fsp.stat(file)).mtimeMs >= NONE_TTL_MS) return false
+      return (await fsp.readFile(file, 'utf8')) === this.#witnesses(key)
     } catch {
       return false
     }
   }
 
   async #rememberNone(key: string): Promise<void> {
-    await fsp.writeFile(this.#file(key, '.none'), '').catch(() => undefined)
+    await fsp.writeFile(this.#file(key, '.none'), this.#witnesses(key)).catch(() => undefined)
   }
 
   /** Named by a hash of the key: an artist's name is any script, a file's name is not. */

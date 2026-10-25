@@ -107,6 +107,8 @@ interface SheetRowActions {
   readonly move: (index: number, dy: number) => void
   readonly end: (index: number, dy: number) => void
   readonly measured: (height: number) => void
+  /** A row has been taken by a sideways swipe, or let go. */
+  readonly swiping: (swiping: boolean) => void
   /** The finger's travel, which the carried row follows without a render. */
   readonly dragY: Animated.Value
   /** The scale the held row wears (`useLiftScale`). */
@@ -192,6 +194,8 @@ function SheetPanel({
   // which moves the lifted row without a render.
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null)
   const [dragY] = useState(() => new Animated.Value(0))
+  // A row under a sideways swipe: the guide waits until it is let go.
+  const [swiping, setSwiping] = useState(false)
   /*
    * The held row lifts a little towards the finger (`M2`, 6); the rows it
    * passes step aside for it (`MakeRoom`), so where it will land is a gap
@@ -221,11 +225,18 @@ function SheetPanel({
   const first = rows.next[0]?.index ?? 0
   /*
    * Swiping a song away and holding one to move it, shown once on the first
-   * song to come, in place of a line that sat under the list for good.
+   * song to come, in place of a line that sat under the list for good. Never
+   * over a row already being held or swiped: it came up mid-swipe, and the
+   * tap that closed it was the swipe's own finger.
    */
   const [firstTarget, guide] = useGuide(
     'up-next',
-    shown && !inRoom && rows.next.length >= 2 && drag === null && !onlySongEnded(player),
+    shown &&
+      !inRoom &&
+      rows.next.length >= 2 &&
+      drag === null &&
+      !swiping &&
+      !onlySongEnded(player),
   )
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 
@@ -268,6 +279,7 @@ function SheetPanel({
         if (to !== index) latest.current.player.reorderQueue(index, to)
       },
       measured: setMeasured,
+      swiping: setSwiping,
       dragY,
       lift: liftScale,
     }
@@ -509,7 +521,12 @@ const SheetRow = memo(function SheetRow({
             : null
       }
     >
-      <SwipeToRemove enabled={!carrying} onRemove={onRemove} peek={peek}>
+      <SwipeToRemove
+        enabled={!carrying}
+        onRemove={onRemove}
+        onSwiping={actions.swiping}
+        peek={peek}
+      >
         <HoldToReorder
           enabled={movable}
           onHolding={onHolding}
@@ -580,11 +597,14 @@ function MakeRoom({
 function SwipeToRemove({
   enabled,
   onRemove,
+  onSwiping,
   peek,
   children,
 }: {
   enabled: boolean
   onRemove: () => void
+  /** Told when the swipe takes the row and when the finger lets go. */
+  onSwiping: (swiping: boolean) => void
   /** The guide pulling the row, the way a finger would: the ground stays put. */
   peek: object | null
   children: ReactNode
@@ -641,6 +661,7 @@ function SwipeToRemove({
         .activeOffsetX([-SWIPE_START, Number.MAX_SAFE_INTEGER])
         .failOffsetY([-SWIPE_VERTICAL_SLOP, SWIPE_VERTICAL_SLOP])
         .runOnJS(true)
+        .onStart(() => onSwiping(true))
         .onUpdate(event => {
           x.setValue(swipeOffset(event.translationX, width))
           markSwiping()
@@ -657,8 +678,9 @@ function SwipeToRemove({
           } else {
             spring(x, 0)
           }
-        }),
-    [enabled, width, x, markSwiping],
+        })
+        .onFinalize(() => onSwiping(false)),
+    [enabled, width, x, markSwiping, onSwiping],
   )
 
   return (

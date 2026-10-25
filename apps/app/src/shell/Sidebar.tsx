@@ -21,8 +21,6 @@ import {
 } from '@selfmp3/client'
 import { footNotice, footSummary } from '../features/library/library.model'
 import { profileName } from '../features/profile/profile.model'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from '../ports/device'
 import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import { useRecentTagIds } from '../features/library/recentTags.store'
@@ -58,12 +56,13 @@ import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
-import { label as labelText } from '../ui/surfaces'
+import { label as labelText, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
+import { thisPlace } from '../ports/place'
 
 /**
  * The desktop's left rail.
@@ -592,7 +591,7 @@ function Foot(): ReactNode {
   )
 
   const name = profileName(account?.name)
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   // A failed refetch keeps the cached library, so an error wins over the data.
   // Edits a cloud library is still holding are read as the foot draws, which
   // it does again whenever the library's answer changes.
@@ -694,11 +693,8 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingHorizontal: space.sm,
   },
-  wordmark: {
-    color: theme.colors.textPrimary,
-    fontSize: type.title,
-    fontWeight: '700',
-  },
+  // The name in the serif, as the install page and the welcome screen set it.
+  wordmark: serif(theme.colors, 'large'),
   nav: {
     gap: 2,
   },

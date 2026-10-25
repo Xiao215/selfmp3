@@ -4,8 +4,7 @@ import { plural, type Library } from '@selfmp3/shared'
 import { queryKeys } from '@selfmp3/client'
 import { showPendingToast } from '../ui/toast'
 import { useDownloads } from './DownloadsProvider'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from '../ports/device'
+import { thisPlace } from '../ports/place'
 
 /**
  * Downloads off this device at once, with an Undo for five seconds
@@ -27,7 +26,7 @@ export function useDownloadRemoval(): (songIds: readonly number[]) => void {
   return useCallback(
     (songIds: readonly number[]) => {
       if (songIds.length === 0) return
-      const place = devicePlace(deviceKind())
+      const place = thisPlace()
       const gone = new Set(songIds)
       const library = client.getQueryData<Library>(queryKeys.library)
       const songs = library?.songs.filter(song => gone.has(song.id)) ?? []

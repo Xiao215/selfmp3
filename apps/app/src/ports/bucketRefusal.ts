@@ -1,8 +1,7 @@
 import { BUCKET_CAP_CODE, LENDER_CAP_CODE, parseDoormanRefusal } from '@selfmp3/shared'
 import { bucketHold, holdBucket } from '@selfmp3/replica'
 import { streamFailureMessage } from './streamFailure.model'
-import { deviceKind } from './device'
-import { devicePlace } from '../features/settings/settings.model'
+import { thisPlace } from './place'
 
 /**
  * Why a file from the bucket would not come, asked of the doorman, or null
@@ -28,14 +27,25 @@ export async function askWhyRefused(
     const response = await fetch(url, { headers: { ...headers, range: 'bytes=0-0' } })
     if (response.ok || response.status === 206) return null
     const body = await response.text()
-    const message = streamFailureMessage(response.status, body, devicePlace(deviceKind()))
-    if (parseDoormanRefusal(body)?.code === BUCKET_CAP_CODE) holdBucket(message, 'read')
-    noteLenderCap(body, message)
+    const message = streamFailureMessage(response.status, body, thisPlace())
+    noteRefusal(body, message)
     return message
   } catch {
     // No answer at all: nothing to add to what failed.
     return null
   }
+}
+
+/**
+ * Act on a refusal a song's address answered with: this bucket's day held for
+ * the whole app, or a friend's remembered (`noteLenderCap`). The browser's
+ * engine reads its own answers (engine.web.ts, `#explainSource`) and tells them
+ * here, so a tab's player passes over the songs it would have to fetch at once,
+ * not after its service worker's word of the same refusal arrives.
+ */
+export function noteRefusal(body: string, message: string): void {
+  if (parseDoormanRefusal(body)?.code === BUCKET_CAP_CODE) holdBucket(message, 'read')
+  noteLenderCap(body, message)
 }
 
 /** The words of every lent song's refusal for its owner's day (`LENDER_CAP_CODE`) heard this session. */
@@ -47,7 +57,7 @@ const lenderCaps = new Set<string>()
  * daily quota"), rather than its own "Couldn't play", and does not try again.
  * Nothing is held: it is their bucket, not this device's.
  */
-export function noteLenderCap(body: string, message: string): void {
+function noteLenderCap(body: string, message: string): void {
   if (parseDoormanRefusal(body)?.code === LENDER_CAP_CODE) lenderCaps.add(message)
 }
 

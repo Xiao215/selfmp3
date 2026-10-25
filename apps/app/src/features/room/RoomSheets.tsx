@@ -40,8 +40,6 @@ import {
 import { closeRoomSheet, useRoomSheetOpen, useRoomStart } from './roomSheets.store'
 import { ArrivalRing, useRoomMoves, type RoomMoves } from './roomMotion'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { devicePlace } from '../settings/settings.model'
-import { deviceKind } from '../../ports/device'
 import { sayRoomFailure } from './roomFailure'
 import {
   keptAsOf,
@@ -58,6 +56,7 @@ import { sharedApi, sharedSession } from '../shared/sharedPlaylists'
 import { nameToJoinWith } from '../shared/shared.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
+import { thisPlace } from '../../ports/place'
 
 /**
  * How a sheet goes to a page: pushed, or — drawn inside the phone's Now
@@ -440,7 +439,7 @@ function PlaysOn({ state }: { state: RoomState }): ReactNode {
       <SheetItem
         role="option"
         icon={<Devices color={theme.colors.textSecondary} />}
-        label={`This ${devicePlace(deviceKind())}`}
+        label={`This ${thisPlace()}`}
         detail="Friends add songs"
         active={state.mode === 'speaker'}
         onPress={() => set('speaker')}

@@ -19,7 +19,6 @@ import { playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { askForGuide } from '../../features/guide/guideMemory'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
-import { devicePlace } from '../../features/settings/settings.model'
 import { playSimilar } from '../../features/song/playSimilar'
 import { openShareSheet } from '../../features/share/shareSheet.store'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -27,7 +26,6 @@ import { songLink } from '../../features/song/song.model'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { deviceKind } from '../../ports/device'
 import type { PopoverAnchor } from '../rightClick'
 import { songActions, type SongAction, type SongActionId } from '../songActions.model'
 import { showFailure, showToast } from '../toast'
@@ -46,6 +44,7 @@ import {
   X,
 } from './Icons'
 import { SheetItem } from './Sheet'
+import { thisPlace } from '../../ports/place'
 
 /** Each action's mark, beside its name. */
 const ICON: Record<SongActionId, ReactNode> = {
@@ -132,7 +131,7 @@ export function SongActionItems({
     roomSong: songs.some(song => isRoomTrackId(song.id)),
     inPlaylist: playlist !== undefined,
     nowPlaying,
-    place: devicePlace(deviceKind()),
+    place: thisPlace(),
     shareable: fromCloud && !needsStorage,
   }).filter(action => !leave.includes(action.id))
   // The one played last first; not the playlist this is, and never a live one.

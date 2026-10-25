@@ -10,11 +10,10 @@ import {
   type LoadOptions,
   type PlaybackEngine,
 } from '@selfmp3/client'
-import { noteLenderCap } from './bucketRefusal'
+import { noteRefusal } from './bucketRefusal'
 import { cannotPlayYet, notHere, streamFailureMessage } from './streamFailure.model'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from './device'
 import { clamp } from '@selfmp3/shared'
+import { thisPlace } from './place'
 
 /**
  * The web half of the `PlaybackEngine` port.
@@ -186,10 +185,7 @@ class AudioEngine implements PlaybackEngine {
         this.#currentId = null
         this.#hub.patch(
           unplayableState(
-            cannotPlayYet(
-              this.#hub.wiring.trackMetadata?.(songId)?.title,
-              devicePlace(deviceKind()),
-            ),
+            cannotPlayYet(this.#hub.wiring.trackMetadata?.(songId)?.title, thisPlace()),
           ),
         )
         return
@@ -427,14 +423,14 @@ class AudioEngine implements PlaybackEngine {
    * has moved on to another song meanwhile.
    */
   async #explainSource(src: string): Promise<void> {
-    const place = devicePlace(deviceKind())
+    const place = thisPlace()
     let message = notHere(place)
     try {
       const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
       if (!response.ok && response.status !== 206) {
         const body = await response.text()
         message = streamFailureMessage(response.status, body, place)
-        noteLenderCap(body, message)
+        noteRefusal(body, message)
       }
     } catch {
       // No answer at all: the plain wording stands.

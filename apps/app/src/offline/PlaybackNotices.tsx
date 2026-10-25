@@ -3,8 +3,7 @@ import { plural, formatBytes } from '@selfmp3/shared'
 import { LARGE_SYNC_BYTES, useLibrary } from '@selfmp3/client'
 import { ConfirmDialog } from '../ui/components/ConfirmDialog'
 import { useDownloads, type DownloadQuestion } from './DownloadsProvider'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from '../ports/device'
+import { thisPlace } from '../ports/place'
 
 /**
  * The questions downloading and streaming put to the person, in words.
@@ -70,7 +69,7 @@ function wordsFor(
     }
   }
 
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   const quoted = `“${title}” isn’t on this ${place}`
   switch (question.block) {
     case 'data':

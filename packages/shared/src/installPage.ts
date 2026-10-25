@@ -1,10 +1,11 @@
 import { DEFAULT_DOORMAN_URL } from './cloud.js'
 import { DOORMAN_PATHS } from './doormanWire.js'
 import { IOS_INSTALL_LINK, IOS_INSTALL_PAGE_URL } from './iosApp.js'
-import { escapeHtml } from './publicPage.js'
+import { PAGE_ICONS, escapeHtml } from './publicPage.js'
 
 /**
  * The iPhone app's install page, published beside the web app as install.html
+ * and linked as `/install`, which GitHub Pages answers with that file
  * (apps/app/scripts/pages.mjs).
  *
  * Not in `publicPage.ts`'s plain look: this one is the app's front door, so it
@@ -194,7 +195,7 @@ export function renderInstallPage(doormanUrl: string = DEFAULT_DOORMAN_URL): str
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0a10">
 <title>Get self.mp3 for iPhone</title>
-<link rel="apple-touch-icon" href="icons/icon-180.png">
+${PAGE_ICONS}
 <link rel="preload" href="fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <style>${STYLE}</style>
 </head>

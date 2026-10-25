@@ -89,19 +89,22 @@ export function settingsIndex(sections: readonly Section[]): readonly Section[] 
 }
 
 /**
- * What this device is, as the words for it: a phone, or a computer. From the
- * device port's own answer (`ports/device`), which the Devices list uses too,
- * so this device is called the same thing in both places. The desktop app
- * and a browser on a computer are computers; everything native is a phone, an
- * iPad included, since it keeps songs the same way.
+ * Where this device keeps songs, as the words for it: a phone, a computer, or
+ * a browser. From the device port's own answer (`ports/device`), which the
+ * Devices list uses too, so an installed app is called the same thing in both
+ * places: the desktop app is a computer, and everything native a phone, an
+ * iPad included, since it keeps songs the same way. A tab is a browser on any
+ * device: what it has, it keeps in the browser's own storage, and a song
+ * there is not on the computer it runs on (`ports/place.ts`, `thisPlace`).
  */
-export type DevicePlace = 'phone' | 'computer'
+export type DevicePlace = 'phone' | 'computer' | 'browser'
 
-export function devicePlace(kind: DeviceKind): DevicePlace {
+export function devicePlace(kind: DeviceKind, installed: boolean): DevicePlace {
+  if (!installed) return 'browser'
   return kind === 'phone' ? 'phone' : 'computer'
 }
 
-/** "On this phone", "On this computer": the group of what this device keeps. */
+/** "On this phone", "On this computer", "On this browser": the group of what this device keeps. */
 export function onThisDevice(place: DevicePlace): string {
   return `On this ${place}`
 }

@@ -34,6 +34,7 @@ import {
   CLOUD_SESSION_KEY,
   DOORMAN_PATHS,
   HASH_FILE_NAME,
+  PLAIN_PAGES,
   PLAYED_KEPT,
   REFRESH_HEADER,
   WAIT_AHEAD_BYTES,
@@ -49,6 +50,7 @@ import {
   DB_STORE,
   DB_VERSION,
   PLAYED_CACHE,
+  PLAYED_PREFIX,
   SW_MESSAGE,
 } from './names'
 
@@ -169,10 +171,11 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // The plain pages published beside the app (scripts/pages.mjs: the privacy
-  // policy, the bucket guide, the iPhone install page) are not the app. Left
-  // to the browser, so loading one is never kept as the app's offline index.
-  if (url.pathname.endsWith('.html') && url.pathname !== INDEX) return
+  // The plain pages published beside the app (PLAIN_PAGES, with or without
+  // `.html`) are not the app. Left to the browser, so loading one is never
+  // kept as the app's offline index.
+  const page = url.pathname.slice(BASE.length).replace(/\.html$/, '')
+  if ((PLAIN_PAGES as readonly string[]).includes(page)) return
 
   event.respondWith(handleShell(request, url))
 })
@@ -348,6 +351,10 @@ class Arriving {
     for (const old of names.slice(0, Math.max(0, names.length - PLAYED_KEPT))) {
       await cache.delete(old)
     }
+    // The pages count a kept song as on this browser (src/ports/playedCopies.web.ts):
+    // with the bucket refusing for the day, it is one of the few that still play.
+    const clients = await self.clients.matchAll({ type: 'window' })
+    for (const client of clients) client.postMessage({ type: SW_MESSAGE.played })
   }
 
   /** The bucket's own answer when it would not give the song: a cap's 502, say. */
@@ -439,7 +446,7 @@ class Arriving {
 
 /** Where a played song is kept: under the worker's own scope, by its bucket key. */
 function playedName(key: string): string {
-  return new URL(`played/${key}`, self.registration.scope).href
+  return new URL(`${PLAYED_PREFIX}${key}`, self.registration.scope).href
 }
 
 /**

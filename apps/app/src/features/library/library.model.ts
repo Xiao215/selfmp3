@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { plural } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
+import type { DevicePlace } from '../settings/settings.model'
 import {
   ApiError,
   bothTagsCount,
@@ -287,7 +288,7 @@ export function footNotice({
   held: boolean
   fromCloud: boolean
   keepsSongs: boolean
-  place: 'phone' | 'computer'
+  place: DevicePlace
   unsent: number
   now?: Date
 }): { title: string; body: string } | null {
@@ -327,7 +328,7 @@ export function footSummary({
 }: {
   songs: number
   here: number
-  place: 'phone' | 'computer'
+  place: DevicePlace
 }): string {
   const parts = ['All saved', plural(songs, 'song', 'songs')]
   if (here > 0) parts.push(`${here} on this ${place}`)

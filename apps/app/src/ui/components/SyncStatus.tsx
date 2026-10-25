@@ -16,8 +16,7 @@ import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvid
 import { timing } from '../motion'
 import { card } from '../surfaces'
 import { Press } from './Press'
-import { devicePlace } from '../../features/settings/settings.model'
-import { deviceKind } from '../../ports/device'
+import { thisPlace } from '../../ports/place'
 
 /**
  * One line saying whether this device has your music yet — "Downloading 12
@@ -41,7 +40,7 @@ export function SyncStatus(): ReactNode {
   const header = syncHeader(downloads.situation)
   if (header.kind === 'none') return null
 
-  const { text, action } = syncHeaderText(header, devicePlace(deviceKind()))
+  const { text, action } = syncHeaderText(header, thisPlace())
   const { queue } = downloads
   const onAction = (): void => {
     if (header.kind === 'downloading') {

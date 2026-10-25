@@ -21,6 +21,16 @@ describe('whether a row can play here', () => {
     expect(rowAvailability(true, { ...phone, streamBlocked: true }).unavailable).toBe(false)
   })
 
+  it('does not fade a song a browser kept for having played it', () => {
+    const capped = { ...browser, streamBlocked: true }
+    expect(rowAvailability(false, capped).unavailable).toBe(true)
+    expect(rowAvailability(false, capped, true)).toEqual({
+      downloaded: false,
+      notDownloadedMark: false,
+      unavailable: false,
+    })
+  })
+
   // Up next knew only the bucket's side: a phone whose server was away faded
   // nothing there, while Library faded the same song.
   it('fades a song that is not here when the server is away, on an installed app', () => {

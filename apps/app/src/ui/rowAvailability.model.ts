@@ -31,11 +31,15 @@ interface Sources {
  * is away fades nothing there either: every song is equally out of reach,
  * which the page already says.
  */
-export function rowAvailability(here: boolean, sources: Sources): RowAvailability {
+export function rowAvailability(here: boolean, sources: Sources, kept = false): RowAvailability {
   return {
     downloaded: here,
     notDownloadedMark: sources.installed && !here,
+    // A song a browser's worker kept for having played it is no download, but
+    // it plays from here when nothing can be streamed.
     unavailable:
-      !here && (sources.streamBlocked || (sources.installed && sources.libraryUnreachable)),
+      !here &&
+      !kept &&
+      (sources.streamBlocked || (sources.installed && sources.libraryUnreachable)),
   }
 }

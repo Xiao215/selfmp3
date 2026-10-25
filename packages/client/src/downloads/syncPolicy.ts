@@ -123,8 +123,8 @@ export function syncHeader(situation: SyncSituation): SyncHeader {
 /** The header in words: what it says, and the one thing it offers. */
 export function syncHeaderText(
   header: SyncHeader,
-  /** This device, by what it is: "40 not on this phone". */
-  place: 'phone' | 'computer',
+  /** Where this device keeps songs: "40 not on this phone". */
+  place: 'phone' | 'computer' | 'browser',
 ): { text: string; action: string | null } {
   switch (header.kind) {
     case 'none':
@@ -199,15 +199,15 @@ export function playBlock({
    * The bucket refusing reads for the day (replica's `bucketHold`). A song not
    * on this device would be refused too: tried anyway, it fails, is retried
    * and skipped, and three of those stop the music however many downloaded
-   * songs come after. An installed app only: a browser's service worker may
-   * still have a played song to hand.
+   * songs come after. A browser too: what its service worker kept of the
+   * songs it played counts as `downloaded`, and nothing else can come.
    */
   bucketHeld: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
   if (network === 'none') return 'offline'
-  if (fromCloud && installed && bucketHeld) return 'held'
+  if (fromCloud && bucketHeld) return 'held'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'
   if (network === 'cellular' && !dataAllowed) return 'data'

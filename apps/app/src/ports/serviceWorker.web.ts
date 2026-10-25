@@ -2,6 +2,7 @@ import { holdBucket } from '@selfmp3/replica'
 import { SW_MESSAGE } from '../../sw/names'
 import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
+import { refreshPlayed } from './playedCopies'
 import { CLAIM_GRACE_MS, shouldReloadForControl } from './serviceWorkerControl.model'
 
 /**
@@ -57,6 +58,7 @@ export function registerServiceWorker({ cloud }: { cloud: boolean }): void {
       if (type === SW_MESSAGE.bucketCapped && typeof message === 'string') {
         holdBucket(message, 'read')
       }
+      if (type === SW_MESSAGE.played) void refreshPlayed()
     })
   }
   const script = appPath(cloud ? 'sw.js?cloud=1' : 'sw.js')

@@ -1,4 +1,4 @@
-import { clamp, rgbToOklch, type CoverTone } from '@selfmp3/shared'
+import { clamp, hasColour, rgbToOklch, type CoverTone } from '@selfmp3/shared'
 import { oklchToHex } from '../theme/oklch.js'
 import { hexToRgb } from './palette.js'
 import { currentColorScheme, tagColors, type ColorScheme } from '../theme/tokens.js'
@@ -57,6 +57,20 @@ export function neutralWash(
   return scheme === 'light'
     ? oklchToHex(0.35 + 0.35 * lightness, 0, 0)
     : oklchToHex(0.55 + 0.35 * lightness, 0, 0)
+}
+
+/**
+ * A cover's colour taken deep enough to carry the theme's own text over it:
+ * dark on the dark theme, pale on the light one. Stats' first place veils its
+ * blurred cover in this rather than in grey, so a pale pink cover gives a rose
+ * card instead of the grey every pale cover used to give (Xiao chose A1,
+ * 2026-10-25). A cover with no colour in it gives a grey.
+ */
+export function deepWash(tone: CoverTone, scheme: ColorScheme = currentColorScheme()): string {
+  const chroma = hasColour(tone) ? clamp(tone.chroma * 1.4, 0.05, 0.11) : 0
+  return scheme === 'light'
+    ? oklchToHex(0.9, chroma * 0.6, tone.hue)
+    : oklchToHex(0.3, chroma, tone.hue)
 }
 
 /** The two colours to draw with, from a cover's tone. */

@@ -16,6 +16,7 @@ import {
   space,
   type,
   useAddToPlaylist,
+  useBulkLoved,
   useLibrary,
   iconSize,
 } from '@selfmp3/client'
@@ -29,6 +30,7 @@ import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { useEscape } from './useEscape'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
 import { addedToPlaylist, isLive, listedPlaylists } from '../features/playlists/playlists.model'
+import { LIKED_LINK } from '../features/lists/lists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { useMenuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -44,7 +46,7 @@ import { StatusLine } from '../ui/components/StatusLine'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
 import { BrandMark } from '../ui/components/BrandMark'
-import { Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
+import { Heart, Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
@@ -247,6 +249,8 @@ function Playlists(): ReactNode {
   // The ones the playlists page lists: an empty playlist is in neither.
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
   const recent = listed.slice(0, RAIL_PLAYLISTS)
+  // Liked leads, once a song is liked: until then the Playlists page has it.
+  const anyLiked = useMemo(() => library?.songs.some(song => song.loved) ?? false, [library?.songs])
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = activeDestination(pathname) === '/playlists'
   /*
@@ -291,6 +295,15 @@ function Playlists(): ReactNode {
 
       <View ref={dropTarget} collapsable={false}>
         {library ? null : <RailWaiting kind="playlists" />}
+        {anyLiked ? (
+          <RailLiked
+            active={pathname === LIKED_LINK.pathname}
+            onOpen={() => {
+              enterFromSidebar()
+              router.navigate(LIKED_LINK)
+            }}
+          />
+        ) : null}
         {recent.map(playlist => (
           <RailPlaylist
             key={playlist.id}
@@ -316,6 +329,45 @@ function Playlists(): ReactNode {
           },
         ]}
       />
+    </View>
+  )
+}
+
+/**
+ * Liked in the rail, over the playlists. Songs dragged onto it are liked: it
+ * keeps itself, so that is what adding to it means.
+ */
+function RailLiked({ active, onOpen }: { active: boolean; onOpen: () => void }): ReactNode {
+  const { theme } = useUnistyles()
+  const ref = useRef<View>(null)
+  const like = useBulkLoved()
+  const over = useSongDropTarget(ref, {
+    enabled: true,
+    onDrop: songIds =>
+      like.mutate(
+        { songIds: [...songIds], loved: true },
+        { onSuccess: () => showToast(`Liked ${plural(songIds.length, 'song', 'songs')}`, 'good') },
+      ),
+  })
+  return (
+    <View ref={ref} collapsable={false}>
+      <Press
+        feedback="wash"
+        onPress={onOpen}
+        accessibilityRole="link"
+        accessibilityLabel="Liked"
+        accessibilityState={{ selected: active }}
+        testID="nav-liked"
+        style={[styles.playlistRow, active && styles.itemOn, over && styles.dropping]}
+      >
+        <View style={styles.likedMark}>
+          <Heart size={iconSize.sub} filled color={theme.colors.danger} />
+        </View>
+        <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
+          Liked
+        </Text>
+      </Press>
+      {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to like</Text> : null}
     </View>
   )
 }
@@ -926,6 +978,15 @@ const styles = StyleSheet.create(theme => ({
     // target itself.
     borderWidth: 1,
     borderColor: 'transparent',
+  },
+  // A playlist's 22-point cover, for Liked: its heart on a plain tile.
+  likedMark: {
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surface2,
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
   dropping: {

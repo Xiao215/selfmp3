@@ -1,5 +1,6 @@
 import {
   fromCloudRules,
+  lovedAt,
   playlistRules,
   type CloudSnapshot,
   type Library,
@@ -136,6 +137,7 @@ export function snapshotToLibrary(
       instrumental: song.instrumental,
       playCount: song.playCount,
       loved: song.loved,
+      lovedAt: lovedAt(song.loved, song.stamps?.['loved']),
       sourceUrl: song.sourceUrl,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,

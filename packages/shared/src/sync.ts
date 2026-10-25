@@ -624,6 +624,16 @@ function withoutKey<K extends string>(
   }
 }
 
+/**
+ * When a song was liked, from the stamp on its love, as SQLite time: null when
+ * it is not liked, or has no stamp (liked before there were any).
+ */
+export function lovedAt(loved: boolean, stamp: string | null | undefined): string | null {
+  if (!loved || !stamp) return null
+  const ms = hlcTime(stamp)
+  return ms > 0 ? toSqliteTime(ms) : null
+}
+
 /** SQLite's own UTC format, `2026-09-11 14:22:05`, which the server's times are in. */
 export function toSqliteTime(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ')

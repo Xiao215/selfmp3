@@ -20,8 +20,9 @@ Files:
 
 ## Picking tags, in the library
 
-Under the Library's head runs the tag strip: **All**, **On this phone** on a phone that
-keeps songs, the tags used lately, and **More tags**, which opens the picker
+Under the Library's head runs the tag strip: **All**, **Liked** once a song is liked (it
+narrows to the songs you like, whatever else is on; docs/features/lists.md), **On this phone**
+on a phone that keeps songs, the tags used lately, and **More tags**, which opens the picker
 (`ListenTags.tsx`) — in the page, not over it, so the head grows and the songs move down.
 With nothing typed it offers the tags used most and the few made lately; with something
 typed, only the matches. Every tag you turn on *adds* its songs (`filter.ts`: a song

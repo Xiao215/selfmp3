@@ -5,7 +5,10 @@ import {
   combinedLink,
   describeSource,
   homeRecents,
+  LIKED_SOURCE,
+  libraryListSource,
   librarySource,
+  likedSongs,
   parseCombinedParams,
   parseListSource,
   parseRecentLists,
@@ -359,5 +362,54 @@ describe('Recently played', () => {
     expect(parseRecentLists(JSON.stringify(lists))).toEqual(lists)
     expect(parseRecentLists('nope')).toEqual([])
     expect(parseRecentLists(JSON.stringify([{ key: 1 }]))).toEqual([])
+  })
+})
+
+describe('Liked', () => {
+  const songs = [
+    song(1, { loved: true, lovedAt: '2026-10-01 10:00:00' }),
+    song(2, { loved: false, lovedAt: null }),
+    song(3, { loved: true, lovedAt: '2026-10-20 10:00:00' }),
+    // Liked before likes were timed: after the timed ones, newest added first.
+    song(4, { loved: true, lovedAt: null }),
+    song(5, { loved: true, lovedAt: null }),
+  ]
+
+  it('lists the liked songs, the newest like first', () => {
+    expect(likedSongs(songs).map(each => each.id)).toEqual([3, 1, 5, 4])
+  })
+
+  it('is a place of its own: named Liked, linked to its page, never saved', () => {
+    expect(describeSource(LIKED_SOURCE, known)).toMatchObject({
+      label: 'Liked',
+      link: { pathname: '/playlists/liked' },
+    })
+    expect(savePlan(LIKED_SOURCE, queue([3, 1, 5]), known)).toBeNull()
+    expect(parseListSource(JSON.parse(JSON.stringify(LIKED_SOURCE)))).toEqual(LIKED_SOURCE)
+  })
+
+  it('is remembered once, and plays again as the likes are now', () => {
+    expect(sourceKey(LIKED_SOURCE, [1, 3])).toBe('liked')
+    const entry: RecentList = {
+      key: 'liked',
+      source: LIKED_SOURCE,
+      songIds: [1],
+      played: [],
+      at: 1,
+    }
+    expect(recentSongIds(entry, { songs, tags: TAGS })).toEqual([3, 1, 5, 4])
+  })
+
+  it('is what Library plays with its Liked chip on, and with tags too it is a list of its own', () => {
+    expect(libraryListSource({ tagIds: [], likedOnly: true }, TAGS)).toEqual(LIKED_SOURCE)
+    expect(libraryListSource({ tagIds: [3], likedOnly: false }, TAGS)).toEqual(
+      librarySource([3], TAGS),
+    )
+    const both = libraryListSource({ tagIds: [3], likedOnly: true }, TAGS)
+    expect(both).toEqual({ kind: 'songs', origin: 'liked', name: 'Liked · Calm' })
+    expect(savePlan(both, queue([1, 3]), known)).toMatchObject({
+      kind: 'songs',
+      name: 'Liked · Calm',
+    })
   })
 })

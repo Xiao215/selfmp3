@@ -36,6 +36,7 @@ export function songOf(id: number, title: string, more: Partial<Song> = {}): Son
     instrumental: false,
     playCount: 0,
     loved: false,
+    lovedAt: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-10-01 10:00:00',

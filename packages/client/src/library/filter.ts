@@ -33,6 +33,8 @@ export interface LibraryFilter {
   readonly sort: SongSortField
   readonly descending: boolean
   readonly downloadedOnly: boolean
+  /** Only the songs you like: the strip's Liked chip, which narrows whatever else is on. */
+  readonly likedOnly: boolean
 }
 
 /** The app's opening view: newest first. */
@@ -41,6 +43,7 @@ export const DEFAULT_FILTER: LibraryFilter = {
   sort: 'addedAt',
   descending: true,
   downloadedOnly: false,
+  likedOnly: false,
 }
 
 /**
@@ -212,6 +215,7 @@ export function filterSongs(
     result = result.filter(song => tagMatchCount(song, filter.tagIds) > 0)
   }
   if (filter.downloadedOnly) result = result.filter(song => isDownloaded(song.id))
+  if (filter.likedOnly) result = result.filter(song => song.loved)
 
   // The shared comparison, so the phone and the desktop put the same library in
   // the same order.

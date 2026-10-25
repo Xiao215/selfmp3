@@ -83,6 +83,10 @@ interface LibraryModel {
   toggleTag: (tagId: number) => void
   clearTags: () => void
   toggleDownloadedOnly: () => void
+  /** The strip's Liked chip: only the songs you like. */
+  toggleLikedOnly: () => void
+  /** How many songs you like: the chip is there only once there is one. */
+  likedCount: number
   /** Ask the server for the library again, after it did not answer. */
   retry: () => void
 }
@@ -136,6 +140,11 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     () => setFilter(current => ({ ...current, downloadedOnly: !current.downloadedOnly })),
     [setFilter],
   )
+  const toggleLikedOnly = useCallback(
+    () => setFilter(current => ({ ...current, likedOnly: !current.likedOnly })),
+    [setFilter],
+  )
+  const likedCount = useMemo(() => songs.filter(song => song.loved).length, [songs])
 
   const { isPending, isError, error, refetch } = library
   const retry = useCallback(() => void refetch(), [refetch])
@@ -171,6 +180,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       toggleTag: toggleTagId,
       clearTags,
       toggleDownloadedOnly,
+      toggleLikedOnly,
+      likedCount,
       retry,
     }),
     [
@@ -192,6 +203,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       toggleTagId,
       clearTags,
       toggleDownloadedOnly,
+      toggleLikedOnly,
+      likedCount,
     ],
   )
 }

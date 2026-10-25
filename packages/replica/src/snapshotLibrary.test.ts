@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LibrarySchema, type CloudSnapshot, type CloudSong } from '@selfmp3/shared'
+import { LibrarySchema, formatHlc, type CloudSnapshot, type CloudSong } from '@selfmp3/shared'
 import { NO_IDS, snapshotToLibrary } from './snapshotLibrary.js'
 
 /**
@@ -78,6 +78,22 @@ describe('snapshotToLibrary', () => {
     })
     expect(library.tags[0]).toMatchObject({ name: 'chill', songCount: 1 })
     expect(library.songs[0]?.tagIds).toEqual([library.tags[0]?.id])
+  })
+
+  it('times a like by the stamp on it, for Liked’s order', () => {
+    const stamp = formatHlc({ ms: Date.UTC(2026, 9, 25, 9, 30), counter: 0, device: 'web-1a2b' })
+    const { library } = snapshotToLibrary(
+      snapshot({
+        songs: [
+          song('a', { loved: true, stamps: { loved: stamp } }),
+          song('b', { loved: true }),
+          song('c', { loved: false, stamps: { loved: stamp } }),
+        ],
+      }),
+      NO_IDS,
+      1,
+    )
+    expect(library.songs.map(each => each.lovedAt)).toEqual(['2026-10-25 09:30:00', null, null])
   })
 
   it('keeps each song’s id from one snapshot to the next', () => {

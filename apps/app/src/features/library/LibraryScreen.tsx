@@ -14,6 +14,7 @@ import {
   CloudDownload,
   Download,
   Downloaded,
+  Heart,
   Music,
   Play,
   Plus,
@@ -46,7 +47,7 @@ import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
-import { librarySource, playAlone } from '../lists/lists.model'
+import { libraryListSource, playAlone } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { label, pageFrame } from '../../ui/surfaces'
@@ -132,7 +133,9 @@ export function LibraryScreen(): ReactNode {
   // screen and a song a search has hidden drops out of the selection rather
   // than being acted on with the rest.
   const selection = useSelection(songIds)
-  const narrowed = model.tagFiltered || filter.downloadedOnly
+  const narrowed = model.tagFiltered || filter.downloadedOnly || filter.likedOnly
+  // Tags ticked, or Liked: a list worth a Play of its own, not a library to shuffle.
+  const listed = model.tagFiltered || filter.likedOnly
   // The bar takes a lane above the list on a computer, so it covers no row.
   const bar = useListSelectionBar({
     songs: visible,
@@ -166,15 +169,16 @@ export function LibraryScreen(): ReactNode {
 
   const rowHeight = useSongRowHeight()
 
-  // What Up next is called when this list plays: the library, or the tags
-  // ticked. Saving them as a playlist happens there, after listening
+  // What Up next is called when this list plays: the library, Liked, or the
+  // tags ticked. Saving them as a playlist happens there, after listening
   // (docs/features/lists.md).
   const transportRef = useRef<View>(null)
   const fly = useFlyToUpNext()
   const source = useMemo(
-    () => librarySource(model.filter.tagIds, model.tags),
-    [model.filter.tagIds, model.tags],
+    () => libraryListSource(model.filter, model.tags),
+    [model.filter, model.tags],
   )
+  const playLabel = model.tagFiltered ? 'Play these tags' : 'Play liked'
   // Playing what the tags ticked hold, from either head's transport: its first
   // covers fly to Up next from the button, and Up next wears the tags' name.
   const playTags = (shuffled: boolean): void => {
@@ -189,6 +193,7 @@ export function LibraryScreen(): ReactNode {
     model.filter.sort,
     model.filter.descending ? 'desc' : 'asc',
     model.filter.downloadedOnly ? 'downloaded' : 'all',
+    model.filter.likedOnly ? 'liked' : 'any',
   ].join('|')
 
   /*
@@ -286,7 +291,15 @@ export function LibraryScreen(): ReactNode {
             ))}
           </View>
         ) : null}
-        {model.tagFiltered ? <Button label="Show all songs" onPress={model.clearTags} /> : null}
+        {model.tagFiltered ? (
+          <Button
+            label="Show all songs"
+            onPress={() => {
+              model.clearTags()
+              if (filter.likedOnly) model.toggleLikedOnly()
+            }}
+          />
+        ) : null}
       </EmptyState>
     )
 
@@ -344,7 +357,7 @@ export function LibraryScreen(): ReactNode {
                 </IconButton>
                 {/* A row plays one song, so the whole list starts here. With
                       tags on, the transport row under the head does it. */}
-                {model.tagFiltered ? null : (
+                {listed ? null : (
                   <IconButton
                     label="Shuffle"
                     filled
@@ -410,26 +423,20 @@ export function LibraryScreen(): ReactNode {
                   styles.transport,
                   // A row of its own only for the three a tag brings; Shuffle alone
                   // stays beside the order (an iPad in portrait).
-                  headWide
-                    ? styles.transportWide
-                    : model.tagFiltered
-                      ? styles.transportCompact
-                      : undefined,
+                  headWide ? styles.transportWide : listed ? styles.transportCompact : undefined,
                 ]}
               >
                 <Button
-                  label={shuffleIconOnly || model.tagFiltered ? undefined : 'Shuffle'}
+                  label={shuffleIconOnly || listed ? undefined : 'Shuffle'}
                   accessibilityLabel="Shuffle"
                   icon={<Shuffle color={theme.colors.textPrimary} />}
                   disabled={visible.length === 0}
                   testID="library-shuffle"
-                  onPress={() =>
-                    model.tagFiltered ? playTags(true) : player.playShuffled(songIds, source)
-                  }
+                  onPress={() => (listed ? playTags(true) : player.playShuffled(songIds, source))}
                 />
-                {model.tagFiltered ? (
+                {listed ? (
                   <PlayButton
-                    label="Play these tags"
+                    label={playLabel}
                     // The size of the controls beside it, so the head stays one line.
                     size={dense ? 36 : HIT_TARGET}
                     icon={<Play color={theme.colors.onPrimary} />}
@@ -469,12 +476,29 @@ export function LibraryScreen(): ReactNode {
           <Chip
             testID="library-tag-all"
             label="All"
-            selected={!model.tagFiltered && !filter.downloadedOnly}
+            selected={!narrowed}
             onPress={() => {
               model.clearTags()
               if (filter.downloadedOnly) model.toggleDownloadedOnly()
+              if (filter.likedOnly) model.toggleLikedOnly()
             }}
           />
+          {/* Liked, first: it narrows whatever else is on. Not there until a song is. */}
+          {model.likedCount > 0 || filter.likedOnly ? (
+            <Chip
+              testID="library-liked"
+              label="Liked"
+              selected={filter.likedOnly}
+              icon={
+                <Heart
+                  size={iconSize.sub}
+                  filled
+                  color={filter.likedOnly ? theme.colors.onPrimary : theme.colors.danger}
+                />
+              }
+              onPress={model.toggleLikedOnly}
+            />
+          ) : null}
           {!wide && installed ? (
             <Chip
               testID="library-on-this-phone"
@@ -525,17 +549,17 @@ export function LibraryScreen(): ReactNode {
         the chip just tapped stays under the finger. Above it, the row pushed
         the strip down, and a second tap on the chip opened Search.
       */}
-      {!wide && model.tagFiltered ? (
+      {!wide && listed ? (
         <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
           <PlayButton
-            label="Play these tags"
+            label={playLabel}
             icon={<Play color={theme.colors.onPrimary} />}
             disabled={visible.length === 0}
             onPress={() => playTags(false)}
             testID="library-play-tags"
           />
           <Button
-            accessibilityLabel="Shuffle these tags"
+            accessibilityLabel={model.tagFiltered ? 'Shuffle these tags' : 'Shuffle liked'}
             icon={<Shuffle color={theme.colors.textPrimary} />}
             disabled={visible.length === 0}
             onPress={() => playTags(true)}
@@ -585,7 +609,7 @@ export function LibraryScreen(): ReactNode {
       </View>
 
       {/* Not over a library that never came: songs to play above "can't reach" read as a library that half works. */}
-      {model.tagFiltered || model.emptyReason === 'unreachable' ? null : <GemsRow />}
+      {listed || model.emptyReason === 'unreachable' ? null : <GemsRow />}
 
       <SyncStatus />
 

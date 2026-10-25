@@ -38,11 +38,14 @@ const SONGS_ORIGINS = [
   'untagged',
   'found',
   'recent',
+  'liked',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
 export type ListSource =
   | { readonly kind: 'library' }
+  /** Every song you like, newest like first: a list that keeps itself, not a stored playlist. */
+  | { readonly kind: 'liked' }
   | { readonly kind: 'tag'; readonly tagId: number; readonly name: string }
   | { readonly kind: 'artist'; readonly key: string; readonly name: string }
   | {
@@ -79,6 +82,29 @@ export type ListSource =
 
 /** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
+
+/** What Up next is called while Liked plays, from its page, its tile or Library's chip. */
+export const LIKED_SOURCE: ListSource = { kind: 'liked' }
+
+/** Liked's page: among the playlists, though it is not one you made. */
+export const LIKED_LINK = { pathname: '/playlists/liked' } as const
+
+/**
+ * The songs you like, the newest like first. A song liked before likes were
+ * timed has no time, and follows the timed ones, newest added first.
+ */
+export function likedSongs<S extends Pick<Song, 'id' | 'loved' | 'lovedAt' | 'addedAt'>>(
+  songs: readonly S[],
+): S[] {
+  return songs
+    .filter(song => song.loved)
+    .sort(
+      (a, b) =>
+        (b.lovedAt ?? '').localeCompare(a.lovedAt ?? '') ||
+        b.addedAt.localeCompare(a.addedAt) ||
+        b.id - a.id,
+    )
+}
 
 /**
  * A song picked out of a general list — a Library row, a song or a lyric hit
@@ -199,6 +225,21 @@ export function librarySource(
   }
 }
 
+/**
+ * What Library is playing with its Liked chip on as well: Liked alone, or the
+ * liked songs among the tags ticked, which are a list of their own.
+ */
+export function libraryListSource(
+  filter: { readonly tagIds: readonly number[]; readonly likedOnly: boolean },
+  tags: readonly Pick<Tag, 'id' | 'name'>[],
+): ListSource {
+  const plain = librarySource(filter.tagIds, tags)
+  if (!filter.likedOnly) return plain
+  if (plain.kind === 'library') return LIKED_SOURCE
+  const names = tagsWithIds(filter.tagIds, tags).map(tag => tag.name)
+  return { kind: 'songs', origin: 'liked', name: ['Liked', ...names].join(' · ') }
+}
+
 const NO_TAG_IDS: readonly number[] = []
 
 /**
@@ -255,6 +296,8 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
   switch (source.kind) {
     case 'library':
       return plain('Library', { pathname: '/library' })
+    case 'liked':
+      return plain('Liked', LIKED_LINK)
     case 'tag': {
       const tag = known.tags.find(each => each.id === source.tagId)
       return tag ? plain(tag.name, tagLink(tag.name)) : plain(`${source.name} (deleted)`, null)
@@ -332,6 +375,7 @@ export function savePlan(
   }
   switch (source.kind) {
     case 'library':
+    case 'liked':
     case 'artist':
       return null
     case 'tag':
@@ -376,6 +420,8 @@ export function parseListSource(value: unknown): ListSource | null {
   switch (v['kind']) {
     case 'library':
       return { kind: 'library' }
+    case 'liked':
+      return { kind: 'liked' }
     case 'tag': {
       const tagId = id('tagId')
       const name = text('name')
@@ -457,6 +503,8 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
   switch (source.kind) {
     case 'library':
       return null
+    case 'liked':
+      return 'liked'
     case 'tag':
       return `tag:${source.tagId}`
     case 'artist':
@@ -619,6 +667,8 @@ export function recentKind(source: ListSource): string {
   switch (source.kind) {
     case 'library':
       return 'Library'
+    case 'liked':
+      return 'Keeps itself'
     case 'tag':
       return 'Tag'
     case 'artist':
@@ -648,6 +698,8 @@ export function recentKind(source: ListSource): string {
           return 'Need a tag'
         case 'recent':
           return 'Recently played'
+        case 'liked':
+          return 'Liked songs'
       }
     case 'room':
       return 'Together'
@@ -655,8 +707,8 @@ export function recentKind(source: ListSource): string {
 }
 
 /**
- * The songs a remembered list plays again. A tag, an artist or tags combined
- * are read again from the library, so a song tagged since is in it; anything
+ * The songs a remembered list plays again. Liked, a tag, an artist or tags
+ * combined are read again from the library, so a song tagged since is in it; anything
  * else plays as it was, less what has left the library.
  */
 export function recentSongIds(
@@ -664,6 +716,7 @@ export function recentSongIds(
   library: { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
 ): number[] {
   const source = entry.source
+  if (source.kind === 'liked') return likedSongs(library.songs).map(song => song.id)
   const parts =
     source.kind === 'combined'
       ? source

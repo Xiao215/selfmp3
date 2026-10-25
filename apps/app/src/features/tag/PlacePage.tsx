@@ -411,7 +411,7 @@ function Chips({
  * box on a computer) and the selection bar comes up — a lane above the list
  * on a computer, floating at the foot on a phone.
  */
-function PlaceSongs({
+export function PlaceSongs({
   songs,
   selection,
   source,

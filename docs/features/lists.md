@@ -26,6 +26,7 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 | Recently played, kept on this device | `apps/app/src/features/lists/recentLists.store.ts`, `apps/app/src/features/room/pastRooms.store.ts` |
 | The line over Up next's songs | `apps/app/src/features/queue/UpNextSource.tsx` |
 | New playlist | `apps/app/src/features/playlists/NewPlaylist.tsx` |
+| Liked: its page, its tile, its rail row, Library's chip | `apps/app/src/features/liked/LikedScreen.tsx` (`/playlists/liked`), `PlaylistsScreen.tsx`, `apps/app/src/shell/Sidebar.tsx`, `LibraryScreen.tsx` |
 | A tag's page, and tags together on top of it | `apps/app/src/features/tag/PlacePage.tsx`, `CombinedScreen.tsx` (`/combined`) |
 | Tag songs… | `apps/app/src/features/tag/TagScreen.tsx`, `apps/app/src/features/playlistDetail/AddSongsSheet.tsx` |
 | Ask's song answer: the card and the page | `apps/app/src/features/smart/SongsAnswerCard.tsx`, `AnswerScreen.tsx` (`/answer`) |
@@ -69,11 +70,32 @@ and is greyed when there is nothing to clear. The toast says "Cleared 30 songs" 
 which puts them all back in their places while the same song is playing; songs added since
 stay after them.
 
+## Liked
+
+The heart saves a like; **Liked** lists them (A1, 2026-10-25). It is a list that keeps
+itself, newest like first (`likedSongs`), not a stored playlist: nothing to rename or delete,
+no ⋯ on its tile. It is the first tile on the Playlists page — with no song liked yet it is
+still there, and its page says "No liked songs yet" — and, once a song is liked, the first row
+of the sidebar's Playlists, where songs dropped onto it are liked. Its page (`/playlists/liked`)
+is a tag's page with a heart for the dot: Play, Shuffle and the ⋯ every list has. It plays
+with the `liked` source, so Up next is named "Liked", its line opens the page, Save never
+shows, and Recently played keeps it as a tile ("Keeps itself") that plays the likes as they
+are now.
+
+When a song was liked is the stamp on its love (docs/SYNC.md): the server reads it from
+`sync_stamps`, a device from the snapshot's `stamps.loved`, both as the song's `lovedAt`. A song
+liked before there were stamps has none and follows the timed ones, newest added first.
+
+Library's tag strip has a **Liked** chip right after All, once a song is liked. It narrows
+whatever else is on, as On this phone does: alone it plays as Liked, with tags it is the liked
+songs among them ("Liked · calm", which Save keeps as songs). With it on, Library's head has
+**Play liked** and Shuffle, as it has Play these tags with tags on.
+
 ## Where a list came from
 
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and
 `player.playShuffled(ids, source)` (`ListSource` in `lists.model.ts`). A tag, an artist, a
-playlist, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
+playlist, Liked, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
 song, songs you picked, forgotten gems, found by a search, songs that need a tag, Home's
 Recently played songs), or the whole library. Left out, Up next is nameless: a song played
 alone, or a handoff from another device. The source rides in the playback session

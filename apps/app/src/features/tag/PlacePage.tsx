@@ -14,7 +14,7 @@ import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
-import { ListHead, listHeadText } from '../../ui/components/ListHead'
+import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
 import { Plus, User } from '../../ui/components/Icons'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
@@ -297,14 +297,9 @@ export function PlacePage({
               keeps its dot beside its name. */}
           <View style={listHeadText.nameRow}>
             {only?.kind === 'tag' ? <TagDot hue={only.tag.hue} size={wide ? 14 : 10} /> : null}
-            <Text
-              style={[listHeadText.name, listHeadText.nameShrink]}
-              numberOfLines={2}
-              accessibilityRole="header"
-              testID="place-name"
-            >
-              {title}
-            </Text>
+            <View style={listHeadText.nameShrink}>
+              <ListHeadName name={title} testID="place-name" />
+            </View>
           </View>
           <Text style={listHeadText.summary}>{summary}</Text>
           {combining ? (

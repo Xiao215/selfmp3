@@ -33,6 +33,7 @@ import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -41,7 +42,7 @@ import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
-import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
+import { ChevronRight, Download, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -226,7 +227,12 @@ function HomePage({
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
             {empty ? (
-              <FirstSong onPress={() => router.navigate('/import')} />
+              <>
+                <FirstSong onPress={() => router.navigate('/import')} />
+                <Text style={styles.weekLater} testID="home-week-later">
+                  Your week shows here once you’ve played something.
+                </Text>
+              </>
             ) : (
               <>
                 {/* The head's own action, as Recently played's is, rather than a
@@ -247,7 +253,9 @@ function HomePage({
               </>
             )}
           </View>
-          {wide ? (
+          {/* A new library has no week to show: no card of zeros, no second
+              Import beside the first (Z1). */}
+          {wide && !empty ? (
             <ThisWeek
               stats={stats}
               beside={beside}
@@ -268,6 +276,13 @@ function HomePage({
               action={{ label: 'See all', onPress: () => router.navigate('/library') }}
             />
             <Recents recents={recents} rooms={rooms} wide={wide} />
+          </View>
+        ) : library === undefined && recentLists.length > 0 ? (
+          // Remembered on this device, so known to be coming before the songs
+          // they name have arrived (AA1).
+          <View style={styles.stack}>
+            <SectionHead title="Recently played" action={null} />
+            <RecentsWaiting wide={wide} />
           </View>
         ) : null}
       </ScrollView>
@@ -352,23 +367,30 @@ function ToneWash({ color, diagonal = false }: { color: string; diagonal?: boole
 }
 
 /**
- * The first thing on an empty library's Home: one card washed with the
- * accent, the way the New playlist tile is, saying where the library starts,
- * and the one button that starts it.
+ * The first thing on an empty library's Home, and the only way in it offers:
+ * one card washed with the accent, the way the New playlist tile is, saying
+ * where the library starts and where songs come from, and the one button
+ * that starts it.
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
   return (
-    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]}>
-      <View style={styles.firstMark}>
-        <Plus size={iconSize.large} color={accent.accent} />
-      </View>
+    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]} testID="home-first">
       <Text style={styles.firstTitle} accessibilityRole="header">
         Your library starts with one song
         <Text style={styles.greetingDot}>.</Text>
       </Text>
+      <Text style={styles.firstLine}>
+        Paste a link from YouTube, 网易云音乐 or Spotify, or search for a song.
+      </Text>
       <View style={styles.firstAction}>
-        <Button label="Import" variant="primary" onPress={onPress} testID="home-first-song" />
+        <Button
+          label="Import a song"
+          variant="primary"
+          icon={<Download tone="onAccent" />}
+          onPress={onPress}
+          testID="home-first-song"
+        />
       </View>
     </View>
   )
@@ -438,7 +460,7 @@ function Tiles({
     reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
-  if (loading) return <View style={styles.tilesPlaceholder} />
+  if (loading) return <TilesWaiting columns={columns} />
   if (tiles.length === 0) {
     return (
       <EmptyState
@@ -458,6 +480,38 @@ function Tiles({
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
       onOpen={tile => openTag(tile.tag, { from: 'tile' })}
     />
+  )
+}
+
+/** The tiles' shapes while the library is on its way: two rows of them, a tile high (AA1). */
+function TilesWaiting({ columns }: { columns: number }): ReactNode {
+  const { wide } = useLayout()
+  const cells = useMemo(() => Array.from({ length: columns * 2 }, (_, index) => index), [columns])
+  return (
+    <Skeleton label="Loading your tags" testID="home-tiles-loading">
+      <TileGrid
+        items={cells}
+        columns={columns}
+        gap={TILE_GAP}
+        keyOf={cell => cell}
+        renderItem={() => <Bone height={wide ? 118 : 104} radius={radius.card} />}
+      />
+    </Skeleton>
+  )
+}
+
+/** Recently played's shapes: a row of covers, each with its name under it. */
+function RecentsWaiting({ wide }: { wide: boolean }): ReactNode {
+  const size = wide ? RECENT_TILE : 92
+  return (
+    <Skeleton label="Loading recently played" style={styles.recentsWaiting}>
+      {Array.from({ length: RECENTS_LEAST }, (_, index) => (
+        <View key={index} style={[styles.recentWaiting, { width: size }]}>
+          <Bone width={size} height={size} radius={radius.cover} />
+          <Bone width="70%" height={11} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
   )
 }
 
@@ -937,7 +991,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.item,
   },
   tileCoverWide: { right: -6, bottom: -8 },
-  tilesPlaceholder: { height: 218 },
+  recentsWaiting: { flexDirection: 'row', gap: RECENT_GAP, overflow: 'hidden' },
+  recentWaiting: { gap: space.sm },
   emptyTile: card(theme.colors),
   firstCard: {
     borderRadius: radius.cardLg,
@@ -945,16 +1000,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     alignItems: 'flex-start',
   },
-  firstMark: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.tight,
-  },
   firstTitle: serif(theme.colors, 'page'),
+  firstLine: { color: theme.colors.textSecondary, ...textStyle('sub') },
+  weekLater: { color: theme.colors.textMuted, ...textStyle('sub') },
   firstAction: { marginTop: space.tight },
   recents: { paddingRight: 20 },
   recentBadge: {

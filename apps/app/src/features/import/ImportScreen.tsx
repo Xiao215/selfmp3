@@ -29,6 +29,8 @@ import {
   jobAction,
   jobSubtitle,
   jobTone,
+  linkKindName,
+  shortAddress,
   matchingTag,
   queueControls,
   radius,
@@ -66,6 +68,7 @@ import { isComposing } from '../../shell/composing'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
+import { ImportCover } from './ImportCover'
 import { draftFor, useImportDraft } from './importDraft'
 import { draftSourceFor } from './importDraft.model'
 import { reviewUrls, useRefreshReview } from './useRefreshReview'
@@ -433,8 +436,8 @@ export function ImportScreen({
                       testID="import-retry-all"
                     />
                     <FoldAction
-                      label="Remove all"
-                      accessibilityLabel="Remove every import that failed"
+                      label="Clear"
+                      accessibilityLabel="Clear every import that failed"
                       onPress={() => act({ kind: 'remove' }, () => api.removeFailedImports())}
                       testID="import-remove-failed"
                     />
@@ -588,6 +591,11 @@ function RecentSongs({ songs }: { songs: readonly Song[] }): ReactNode {
   )
 }
 
+/** A job's title, or before one was found, what kind of link it is (AB1). */
+function jobName(job: Pick<ImportJob, 'title' | 'url'>): string {
+  return job.title || linkKindName(job.url)
+}
+
 /** "In your library · tagged night drive": where a finished song went, and how. */
 function arrivedLine(job: ImportJob, tags: readonly Tag[]): string {
   const names = tags.filter(tag => job.tagIds.includes(tag.id)).map(tag => tag.name)
@@ -738,10 +746,10 @@ function Finished({
       </Animated.View>
       {shown.map(job => (
         <Animated.View key={job.id} {...motion} style={styles.job}>
-          <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
+          <Cover uri={job.thumbnail} title={jobName(job)} size={coverSize.row} />
           <View style={styles.jobMeta}>
             <Text style={styles.jobTitle} numberOfLines={1}>
-              {job.title || job.url}
+              {jobName(job)}
             </Text>
             <Text style={[styles.jobSub, styles.good]} numberOfLines={1}>
               {arrivedLine(job, tags)}
@@ -832,12 +840,13 @@ function JobRow({
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = jobTone(job)
   const action = jobAction(job)
-  const name = job.title || 'this import'
+  const name = jobName(job)
+  // A failure's reason is ordinary quiet words: its red is the dot on the picture (AB1).
   const toneStyle =
     tone === 'running'
       ? styles.running
       : tone === 'error'
-        ? styles.failed
+        ? styles.mutedText
         : tone === 'waiting'
           ? styles.waiting
           : tone === 'done'
@@ -845,8 +854,10 @@ function JobRow({
             : tone === 'cancelled'
               ? styles.mutedText
               : null
-  const status =
+  const said =
     tone === 'done' ? arrivedLine(job, tags) : (job.status === 'queued' && next) || jobSubtitle(job)
+  // A link nothing was found out about is named by its kind, and its address follows the reason.
+  const status = job.title ? said : `${said} · ${shortAddress(job.url)}`
   const removable = dismissable(job)
 
   const ring =
@@ -871,7 +882,7 @@ function JobRow({
       <QueueRing
         fill={action === 'try-now' ? stepFraction({ ...job, status: 'running' }) : 0}
         glyph="retry"
-        tone={action === 'try-now' ? 'warning' : 'danger'}
+        tone={action === 'try-now' ? 'warning' : 'plain'}
         label={action === 'try-now' ? `Try uploading ${name} now` : `Retry ${name}`}
         onPress={onRetry}
         testID={`import-retry-${job.id}`}
@@ -890,10 +901,16 @@ function JobRow({
       onPointerEnter={wide && dense ? () => setHovered(true) : undefined}
       onPointerLeave={wide && dense ? () => setHovered(false) : undefined}
     >
-      <Cover uri={job.thumbnail} title={job.title || job.url} size={coverSize.row} />
+      <ImportCover
+        uri={job.thumbnail}
+        title={name}
+        size={coverSize.row}
+        failed={tone === 'error'}
+        untitled={!job.title}
+      />
       <View style={styles.jobMeta}>
         <Text style={[styles.jobTitle, tone === 'cancelled' && styles.mutedText]} numberOfLines={1}>
-          {job.title || job.url}
+          {name}
         </Text>
         <Text style={[styles.jobSub, toneStyle]} numberOfLines={2}>
           {status}
@@ -1150,7 +1167,6 @@ const styles = StyleSheet.create(theme => ({
   mutedText: { color: theme.colors.textMuted },
   jobSub: { color: theme.colors.textSecondary, fontSize: type.sub },
   running: { color: theme.colors.accent },
-  failed: { color: theme.colors.danger },
   waiting: { color: theme.colors.warning },
   good: { color: theme.colors.good },
   // Opaque, so a phone's Remove waits behind it until the row is swiped aside.

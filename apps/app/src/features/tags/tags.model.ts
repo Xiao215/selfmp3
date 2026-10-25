@@ -29,10 +29,11 @@ export interface TagEntry {
 /**
  * The page's two runs of tiles (Xiao's picks E and L, 2026-10-02).
  *
- * A tag whose every song another, bigger tag also carries is drawn inside that
- * tag rather than beside it: the four regions of a game inside the game's tag.
- * Nothing is set up for this and nothing is stored; it follows the songs, so a
- * region that gains a song from elsewhere steps back out on its own. The
+ * A tag whose every song another, bigger tag also carries hangs off that tag
+ * as a chip under its tile (AG1) rather than standing beside it: the four
+ * regions of a game under the game's tag. Nothing is set up for this and
+ * nothing is stored; it follows the songs, so a region that gains a song from
+ * elsewhere steps back out on its own. The
  * holder is the biggest such tag, which can never itself be inside another
  * (anything holding it would be bigger, and would hold the region too), so
  * there is only ever one level. Two tags on exactly the same songs stay side

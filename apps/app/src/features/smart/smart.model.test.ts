@@ -37,6 +37,10 @@ import {
   tagIdsFor,
   took,
   yearLabel,
+  shortTagsApply,
+  shortTagsTitle,
+  shortTidyApply,
+  shortTidyTitle,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -516,5 +520,27 @@ describe('askSuggestions', () => {
       'What did I play most last month?',
       'More like YOASOBI',
     ])
+  })
+})
+
+describe('a short review, in words (AD1)', () => {
+  it('titles a handful of changes by what they do', () => {
+    expect(shortTagsTitle(['add'])).toBe('One tag to add')
+    expect(shortTagsTitle(['add', 'add', 'add'])).toBe('3 tags to add')
+    expect(shortTagsTitle(['remove', 'remove'])).toBe('2 tags to take off')
+    expect(shortTagsTitle(['add', 'rename'])).toBe('2 changes to your tags')
+    expect(shortTidyTitle(1)).toBe('One thing to fix')
+    expect(shortTidyTitle(4)).toBe('4 things to fix')
+  })
+
+  it('names the action on its button, by how many are ticked', () => {
+    expect(shortTagsApply(['add'], 1)).toBe('Add it')
+    expect(shortTagsApply(['add', 'add', 'add'], 3)).toBe('Add 3 tags')
+    // Nothing ticked keeps the verb; the button is disabled.
+    expect(shortTagsApply(['add', 'add'], 0)).toBe('Add')
+    expect(shortTagsApply(['remove'], 1)).toBe('Take it off')
+    expect(shortTagsApply(['add', 'merge'], 2)).toBe('Make 2 changes')
+    expect(shortTidyApply(1)).toBe('Fix it')
+    expect(shortTidyApply(3)).toBe('Fix 3 things')
   })
 })

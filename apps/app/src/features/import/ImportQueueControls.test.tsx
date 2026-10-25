@@ -186,6 +186,27 @@ describe('Import, the whole queue at once', () => {
     expect(mockRemoveFailed).toHaveBeenCalledTimes(1)
   })
 
+  it('says a failure calmly: Clear, one red dot each, and a link with no title by its kind', async () => {
+    await act(async () =>
+      draw(
+        job('one', { status: 'error', step: 'finished', error: 'Video unavailable' }),
+        job('two', {
+          status: 'error',
+          step: 'resolving',
+          error: 'Video unavailable',
+          title: '',
+          url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        }),
+        job('three', { status: 'running', step: 'downloading', progress: 40 }),
+      ),
+    )
+    expect(screen.getByTestId('import-remove-failed')).toHaveTextContent('Clear')
+    // The red is the dot on each failed row's picture, and on no other row.
+    expect(screen.getAllByTestId('import-failed-dot')).toHaveLength(2)
+    expect(screen.getByText('A YouTube link')).toBeTruthy()
+    expect(screen.getByText(/· youtube\.com\/watch\?v=dQw4w9W…$/)).toBeTruthy()
+  })
+
   it('leaves one failure to its own Retry, which it draws at once', async () => {
     await act(async () =>
       draw(job('one', { status: 'error', step: 'finished', error: 'Video unavailable' })),

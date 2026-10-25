@@ -97,6 +97,10 @@ export const MOVE_MS = {
   longPress: 450,
   /** The least time a spinner stays once shown, so a short wait never flickers one. */
   busyHold: 300,
+  /** How long a page waits before drawing its loading shapes, so a quick answer never flashes them. */
+  skeletonWait: 300,
+  /** One pass of the light across loading shapes: slow, so it reads as waiting rather than urgency. */
+  skeletonSweep: 1800,
   /** Covers flying from what was played into the Up next button, each this far behind the one before. */
   flight: 360,
   flightStagger: 40,

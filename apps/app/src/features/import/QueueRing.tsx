@@ -40,7 +40,8 @@ export function QueueRing({
   /** 0 to 1. */
   fill: number
   glyph: Glyph
-  tone?: 'accent' | 'danger' | 'warning'
+  /** `plain` for a retry, which says nothing louder than the rest of the row (AB1). */
+  tone?: 'accent' | 'plain' | 'danger' | 'warning'
   /** Not started: a dotted ring. */
   waiting?: boolean
   label: string
@@ -49,11 +50,13 @@ export function QueueRing({
 }): ReactNode {
   const { theme } = useUnistyles()
   const ink =
-    tone === 'danger'
-      ? theme.colors.danger
-      : tone === 'warning'
-        ? theme.colors.warning
-        : theme.colors.accent
+    tone === 'plain'
+      ? theme.colors.textSecondary
+      : tone === 'danger'
+        ? theme.colors.danger
+        : tone === 'warning'
+          ? theme.colors.warning
+          : theme.colors.accent
   /*
    * The arc moves on from where it was to where the next step puts it. It
    * follows the value by a listener rather than as an animated component:

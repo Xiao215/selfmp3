@@ -3,6 +3,7 @@ import {
   extractUrls,
   fromSqliteTime,
   isNeteaseUrl,
+  isYouTubeUrl,
   neteaseLink,
   spotifyLink,
   youtubeChannel,
@@ -53,6 +54,33 @@ export function jobSubtitle(
   if (job.status === 'cancelled') return 'Paused'
   if (job.status === 'done') return 'Added to your library'
   return IMPORT_STEP_LABELS[job.step]
+}
+
+/**
+ * A job's name before anything was found out about it (AB1): what kind of
+ * link it is, rather than the address itself as if it were the song's title,
+ * which read "https://www.youtube.com/wat…".
+ */
+export function linkKindName(url: string): string {
+  if (isYouTubeUrl(url)) return 'A YouTube link'
+  if (isNeteaseUrl(url)) return 'A 网易云音乐 link'
+  if (/(^|\.)spotify\.(com|link)$/.test(hostOf(url) ?? '')) return 'A Spotify link'
+  return 'A link'
+}
+
+/**
+ * A link short enough to sit after a reason on one line: no scheme, no
+ * "www.", and cut to `max` characters with an ellipsis — "youtube.com/watch?v=dQw4…".
+ */
+export function shortAddress(url: string, max = 28): string {
+  const bare = url.replace(/^[a-z]+:\/\//i, '').replace(/^www\./i, '')
+  return bare.length > max ? `${bare.slice(0, max - 1)}…` : bare
+}
+
+/** A link's host, lower case, without a port; null for what is not a link. */
+function hostOf(url: string): string | null {
+  const host = /^[a-z][a-z0-9+.-]*:\/\/([^/?#:]+)/i.exec(url.trim())?.[1]
+  return host ? host.toLowerCase() : null
 }
 
 /**

@@ -11,8 +11,17 @@ import { Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { showToast, showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
-import { Review, reviewText, songCount, type ReviewRowState } from './Review'
-import { gapWords, tidyCovers, tidyEdits, tidyHere, tidyParts, type TidyHere } from './smart.model'
+import { Review, reviewText, songCount, type ReviewRowState, type ShortReview } from './Review'
+import {
+  gapWords,
+  shortTidyApply,
+  shortTidyTitle,
+  tidyCovers,
+  tidyEdits,
+  tidyHere,
+  tidyParts,
+  type TidyHere,
+} from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { useTakeCovers } from './useTakeCovers'
 import { AnswerLine, AnswerNote } from './AnswerParts'
@@ -167,6 +176,29 @@ export function TidyReview({
     return `${field} · ${plural(each.songIds.length, 'song', 'songs')}`
   }
 
+  // A handful on Ask's card, one line each (AD1): the song, then what changes in it.
+  const short: ShortReview<TidyHere> = {
+    title: list => shortTidyTitle(list.length),
+    song: each => songsById.get(each.songIds[0]!),
+    why: each => each.change.why,
+    apply: approved => shortTidyApply(approved.length),
+    line: each => {
+      const { change } = each
+      const song = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
+      // A title's change is the song's name already.
+      if (change.field === 'title') return wordsOf(change)
+      return (
+        <>
+          <Text style={[reviewText.name, reviewText.song]} numberOfLines={1}>
+            {song ? song.title : plural(each.songIds.length, 'song', 'songs')}
+          </Text>
+          <Text style={reviewText.meta}>{FIELD[change.field]}</Text>
+          {wordsOf(change)}
+        </>
+      )
+    },
+  }
+
   // The model's words are the answer, above what it proposes (T1); the
   // review's own small print stays under its rows.
   return (
@@ -203,36 +235,10 @@ export function TidyReview({
             note: 'Suggestions. Nothing here changes unless you tick it.',
           },
         }}
+        short={short}
         drawChange={(each, state) => {
           const { change } = each
-          const parts = tidyParts(change.from, change.to)
-          // Filled in where there was nothing: only what it adds.
-          const words =
-            change.from === '' ? (
-              change.field === 'cover' ? null : (
-                <Text style={reviewText.name} numberOfLines={2}>
-                  <Text style={reviewText.new}>{change.to}</Text>
-                </Text>
-              )
-            ) : parts ? (
-              <Text style={reviewText.name} numberOfLines={2}>
-                {parts.map((part, index) =>
-                  part.kind === 'same' ? (
-                    part.text
-                  ) : (
-                    <Text key={index} style={reviewText.gone}>
-                      {part.text}
-                    </Text>
-                  ),
-                )}
-              </Text>
-            ) : (
-              <Text style={reviewText.name} numberOfLines={2}>
-                <Text style={reviewText.gone}>{change.from}</Text>
-                <Text style={reviewText.arrow}>{'  →  '}</Text>
-                <Text style={reviewText.new}>{change.to}</Text>
-              </Text>
-            )
+          const words = wordsOf(change)
           // A cover to be taken is the picture it adds; a change on one song
           // shows that song, as an opened change shows each of its songs.
           const one = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
@@ -276,6 +282,44 @@ export function TidyReview({
         testID="tidy"
       />
     </View>
+  )
+}
+
+/**
+ * What a change does to the words: a name with the part that goes struck
+ * through, or old → new, or only what it fills in where there was nothing (a
+ * cover fill, nothing at all: it is a picture).
+ */
+function wordsOf(change: TidyHere['change']): ReactNode {
+  const parts = tidyParts(change.from, change.to)
+  if (change.from === '') {
+    return change.field === 'cover' ? null : (
+      <Text style={reviewText.name} numberOfLines={2}>
+        <Text style={reviewText.new}>{change.to}</Text>
+      </Text>
+    )
+  }
+  if (parts) {
+    return (
+      <Text style={reviewText.name} numberOfLines={2}>
+        {parts.map((part, index) =>
+          part.kind === 'same' ? (
+            part.text
+          ) : (
+            <Text key={index} style={reviewText.gone}>
+              {part.text}
+            </Text>
+          ),
+        )}
+      </Text>
+    )
+  }
+  return (
+    <Text style={reviewText.name} numberOfLines={2}>
+      <Text style={reviewText.gone}>{change.from}</Text>
+      <Text style={reviewText.arrow}>{'  →  '}</Text>
+      <Text style={reviewText.new}>{change.to}</Text>
+    </Text>
   )
 }
 

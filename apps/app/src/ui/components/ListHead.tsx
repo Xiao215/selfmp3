@@ -1,13 +1,20 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-import { Animated, Image, Pressable, View } from 'react-native'
+import { Animated, Image, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { motion, radius, space, type } from '@selfmp3/client'
-import { artShadow, label as labelText, pageFrame, heroTitle } from '../surfaces'
+import { leading, motion, radius, space, textStyle, type } from '@selfmp3/client'
+import {
+  artShadow,
+  headroom,
+  label as labelText,
+  pageFrame,
+  heroTitle,
+  nameTitle,
+} from '../surfaces'
 import { useMotionReduced } from '../motion'
 import { useSvgId } from '../useSvgId'
 import { CoverLight } from './CoverLight'
@@ -231,6 +238,101 @@ function OpenArt({ art, style }: { art: string; style: AnimatedStyle }): ReactNo
   )
 }
 
+/** The sizes a place's name may take, largest first (AC1). */
+const NAME_STEPS = ['display', 'page', 'large'] as const
+type NameStep = (typeof NAME_STEPS)[number]
+
+/**
+ * The name at the head of a tag's, an artist's or a playlist's own page: the
+ * one place the whole name is always read, so it is never cut (AC1). It is set
+ * at its size while it fits two lines; a longer one steps down a size, then
+ * another, and at the last (`type.large`) wraps to as many lines as it needs,
+ * three at the lengths names have. Lists, tiles and the sidebar still cut a
+ * long name; this is the page that is about it.
+ *
+ * How many lines it takes at each size is measured, by a hidden copy at each
+ * size laid over it: a line count is the text's own layout, which a browser
+ * does not report and a glyph count cannot guess (中文 and Latin differ by
+ * half). Until the copies are measured it is drawn as before, two lines at
+ * its size.
+ *
+ * `face` is the display face, or the serif an artist alone is named in;
+ * `header` is false where something around it is the page's header already.
+ */
+export function ListHeadName({
+  name,
+  face = 'display',
+  header = true,
+  testID,
+}: {
+  name: string
+  face?: 'display' | 'serif'
+  header?: boolean
+  testID?: string
+}): ReactNode {
+  const [width, setWidth] = useState(0)
+  // Copies measured for another name or width say nothing about this one.
+  const key = `${width}\u0000${name}`
+  const [measured, setMeasured] = useState<{ key: string; lines: Lines }>({ key: '', lines: {} })
+  const lines = measured.key === key ? measured.lines : {}
+  const measure = (step: NameStep, height: number): void => {
+    const count = Math.max(1, Math.round((height - headroom(step).paddingTop) / leading[step]))
+    setMeasured(was => ({ key, lines: { ...(was.key === key ? was.lines : {}), [step]: count } }))
+  }
+  const known = NAME_STEPS.every(step => lines[step] !== undefined)
+  const step = known
+    ? (NAME_STEPS.find(each => (lines[each] ?? Infinity) <= 2) ?? LAST_STEP)
+    : NAME_STEPS[0]
+  const styleAt = (at: NameStep) =>
+    face === 'serif' ? [styles.nameSerif, serifSteps[at]] : nameStyles[at]
+  return (
+    <View onLayout={event => setWidth(event.nativeEvent.layout.width)}>
+      <Text
+        style={styleAt(step)}
+        // Two lines before it is measured, as it was; at the last size, never cut.
+        numberOfLines={known && step === LAST_STEP ? undefined : 2}
+        accessibilityRole={header ? 'header' : undefined}
+        testID={testID}
+      >
+        {name}
+      </Text>
+      {width > 0
+        ? NAME_STEPS.map(each => (
+            <Text
+              key={each}
+              aria-hidden
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              pointerEvents="none"
+              onLayout={event => measure(each, event.nativeEvent.layout.height)}
+              style={[styleAt(each), styles.nameCopy]}
+              testID={testID && `${testID}-${each}`}
+            >
+              {name}
+            </Text>
+          ))
+        : null}
+    </View>
+  )
+}
+
+type Lines = Partial<Record<NameStep, number>>
+const LAST_STEP: NameStep = 'large'
+
+/** The serif's size, line height and room above at each step, laid over its display size. */
+const serifSteps = {
+  display: {},
+  page: { ...textStyle('page'), ...headroom('page') },
+  large: { ...textStyle('large'), ...headroom('large') },
+} as const
+
+/** The display face's name at each step, with that step's own tracking. */
+const nameStyles = StyleSheet.create(theme => ({
+  display: heroTitle(theme.colors, 'display'),
+  page: heroTitle(theme.colors, 'page'),
+  large: heroTitle(theme.colors, 'large'),
+}))
+
 /** The words in a head, as all three pages set them. */
 export const listHeadText = StyleSheet.create(theme => ({
   kind: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
@@ -284,4 +386,7 @@ const styles = StyleSheet.create(theme => ({
   titlesWide: { flexGrow: 1, flexBasis: 220 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
+  nameSerif: nameTitle(theme.colors),
+  // A measuring copy: the name's width, out of sight and out of the way.
+  nameCopy: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
 }))

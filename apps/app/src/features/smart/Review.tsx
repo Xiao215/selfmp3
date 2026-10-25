@@ -13,12 +13,15 @@ import {
   withAlpha,
   textStyle,
   iconSize,
+  coverSize,
 } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
 import { ChevronDown, ChevronRight, Sparkle } from '../../ui/components/Icons'
+import { Cover } from '../../ui/components/Cover'
+import { TagDot } from '../../ui/components/TagDot'
 import { useSongsById } from '../../ui/songsById'
 import { label as labelText, textColumn, rowTitle, hint } from '../../ui/surfaces'
 import type { AnswerKeys } from './answerKeys'
@@ -67,6 +70,20 @@ type Stop<T> =
   | { readonly id: string; readonly kind: 'song'; readonly here: T; readonly songId: number }
   | { readonly id: string; readonly kind: 'songs'; readonly here: T }
 
+/**
+ * Ask's card for a handful of changes (AD1): what the title calls them, the
+ * one line each change is ("Glass To Rum Raisin → live") with its reason
+ * under it, the song whose cover leads it, and the button that names the
+ * action ("Add it", "Add 3 tags").
+ */
+export interface ShortReview<T> {
+  readonly title: (changes: readonly T[]) => string
+  readonly line: (change: T) => ReactNode
+  readonly why: (change: T) => string
+  readonly song: (change: T) => Song | undefined
+  readonly apply: (approved: readonly T[], leftOut: ReadonlySet<string>) => string
+}
+
 /** What a change's row is drawn with: whether it is ticked, and which of its songs. */
 export interface ReviewRowState {
   readonly on: boolean
@@ -88,6 +105,11 @@ export interface ReviewRowState {
  * and "Review all", which opens the whole list on a sheet with the buttons at
  * its foot. Card and sheet are one review, ticked alike. The small print
  * comes under the rows, after what the review is.
+ *
+ * Five or fewer, given `short`, are not a review in bands at all (AD1): one
+ * line per change under a title saying what they are, as a person would list
+ * them. The bands, their notes and the ticked count are for a review big
+ * enough to need sorting.
  *
  * Closing says what happened, for the conversation to keep: what applying
  * did (the words `onApply` gives back), or that nothing changed.
@@ -112,6 +134,7 @@ export function Review<T extends Reviewed>({
   openAtFirst = [],
   foot,
   card = false,
+  short,
 }: {
   changes: readonly T[]
   /** The heading a change is listed under in its band. */
@@ -151,6 +174,8 @@ export function Review<T extends Reviewed>({
   foot?: ReactNode
   /** Ask's card: no list scrolling within it, a long one whole on a sheet. */
   card?: boolean
+  /** The card's shape for five or fewer changes; without it they show in bands. */
+  short?: ShortReview<T>
 }): ReactNode {
   const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
@@ -241,9 +266,17 @@ export function Review<T extends Reviewed>({
     }
   }
 
+  // A handful of changes on Ask's card are one line each, and the keys stop on each.
+  const shortCard = card && short && changes.length <= CARD_WHOLE ? short : null
   // Every place the keys can stop, in the order drawn.
-  const stops: Stop<T>[] = []
-  for (const band of bands) {
+  const stops: Stop<T>[] = shortCard
+    ? changes.map((each): Stop<T> => ({
+        id: `change:${each.change.key}`,
+        kind: 'change',
+        here: each,
+      }))
+    : []
+  for (const band of shortCard ? [] : bands) {
     stops.push({ id: `band:${band.by}`, kind: 'band', by: band.by })
     for (const section of band.sections) {
       const shown = allOf.has(section.title)
@@ -324,6 +357,7 @@ export function Review<T extends Reviewed>({
     }
     return false
   }
+  const lineByLine = shortCard !== null
   // Read through a ref, so the handler given once always sees the last draw's state.
   const keyRef = useRef(onKey)
   useEffect(() => {
@@ -336,12 +370,13 @@ export function Review<T extends Reviewed>({
       hints: [
         [['↑', '↓'], 'move'],
         [['space'], 'tick'],
-        [['→'], 'songs'],
+        // A short card's lines do not open to their songs.
+        ...(lineByLine ? [] : [[['→'], 'songs'] as const]),
         [[COMMAND, '↵'], keyWord],
       ],
     })
     return () => onKeys(null)
-  }, [onKeys, keyWord])
+  }, [onKeys, keyWord, lineByLine])
 
   // Keep the stop the keys are on in view.
   const nodes = useRef(new Map<string, unknown>())
@@ -548,6 +583,68 @@ export function Review<T extends Reviewed>({
     </>
   )
 
+  if (shortCard) {
+    return (
+      <View style={[styles.body, styles.card]} testID={`${testID}-review`}>
+        <Text style={styles.head}>{shortCard.title(changes)}</Text>
+        <View testID={`${testID}-list`}>
+          {changes.map(each => {
+            const id = `change:${each.change.key}`
+            const full = fullyOn(each)
+            const song = shortCard.song(each)
+            return (
+              <CheckRow
+                key={each.change.key}
+                ref={place(id)}
+                checked={full}
+                mixed={isOn(each)}
+                label={labelOf(each)}
+                onPress={() => {
+                  setAt(null)
+                  flip([each], !full)
+                }}
+                feedback="dim"
+                style={[styles.shortRow, at === id && styles.at]}
+                testID={`${testID}-change`}
+              >
+                <Checkbox checked={full} mixed={isOn(each) && !full} />
+                {song ? (
+                  <Cover
+                    uri={artFor(song)}
+                    title={song.album || song.title}
+                    size={coverSize.line}
+                  />
+                ) : null}
+                <View style={styles.words}>
+                  <View style={styles.shortLine}>
+                    {each.change.by === 'model' ? <Sparkle size={iconSize.tiny} /> : null}
+                    {shortCard.line(each)}
+                  </View>
+                  <Text style={reviewText.meta} numberOfLines={2}>
+                    {shortCard.why(each)}
+                  </Text>
+                </View>
+              </CheckRow>
+            )
+          })}
+        </View>
+        {small}
+        {foot}
+        <AnswerActions>
+          {onClose ? <Button label="Close" onPress={() => onClose(CLOSED)} /> : null}
+          <Button
+            label={shortCard.apply(approved, leftOut)}
+            variant="primary"
+            disabled={approved.length === 0}
+            busy={applying}
+            onPress={() => void apply()}
+            testID={`${testID}-apply`}
+          />
+        </AnswerActions>
+      </View>
+    )
+  }
+
   if (card) {
     const first =
       changes.length > CARD_WHOLE
@@ -652,6 +749,29 @@ function More({
   )
 }
 
+/**
+ * A tag named in a short review's line: its dot and its name on a quiet
+ * pill, as a song row's tag chips are; struck through when it goes.
+ */
+export function ReviewTag({
+  name,
+  hue,
+  gone = false,
+}: {
+  name: string
+  hue: number | undefined
+  gone?: boolean
+}): ReactNode {
+  return (
+    <View style={styles.tag}>
+      <TagDot hue={hue} size={7} />
+      <Text style={[styles.tagName, gone && styles.tagGone]} numberOfLines={1}>
+        {name}
+      </Text>
+    </View>
+  )
+}
+
 /** The words of a change: a name line and a quiet line under it, as both reviews draw them. */
 export const reviewText = StyleSheet.create(theme => ({
   name: { color: theme.colors.textPrimary, ...textStyle('sub') },
@@ -667,6 +787,8 @@ export const reviewText = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.goodWash,
   },
   arrow: { color: theme.colors.textMuted },
+  /** A song named in a short review's line. */
+  song: { fontWeight: '600', flexShrink: 1 },
   meta: { color: theme.colors.textMuted, fontSize: type.small },
   /** The model's own words about what was asked. */
   reply: { color: theme.colors.textPrimary, ...textStyle('body') },
@@ -735,6 +857,16 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: space.xs,
     borderRadius: radius.coverSm,
   },
+  // A handful on the card: the tick at its edge, the song's cover, then the line.
+  shortRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.snug,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.xs,
+    borderRadius: radius.coverSm,
+  },
+  shortLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   // A card's first few, under no band: the tick at the card's own edge.
   flatChange: { paddingLeft: space.xs },
   flatSongs: { paddingLeft: BAND_TEXT },
@@ -766,4 +898,16 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.coverSm,
   },
   moreText: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '500' },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
+    flexShrink: 1,
+  },
+  tagName: { color: theme.colors.textPrimary, fontSize: type.small, fontWeight: '500' },
+  tagGone: { textDecorationLine: 'line-through', color: theme.colors.textSecondary },
 }))

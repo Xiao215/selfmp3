@@ -20,6 +20,7 @@ import {
   jobTone,
   landed,
   linkHint,
+  linkKindName,
   lookAgain,
   lookingFor,
   matchingTag,
@@ -28,6 +29,7 @@ import {
   refreshAlreadyHave,
   reviewFrom,
   sharedLinks,
+  shortAddress,
   stepFraction,
   timeLeft,
   withFound,
@@ -43,6 +45,26 @@ describe('how a job’s row is tinted', () => {
 
   it('calls a song the server has but the cloud does not "waiting", not failed', () => {
     expect(jobTone({ status: 'error', step: 'uploading' })).toBe('waiting')
+  })
+})
+
+describe('a job without a title', () => {
+  it('is named by the kind of link it is', () => {
+    expect(linkKindName('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('A YouTube link')
+    expect(linkKindName('https://youtu.be/dQw4w9WgXcQ')).toBe('A YouTube link')
+    expect(linkKindName('https://music.163.com/#/song?id=1974443814')).toBe('A 网易云音乐 link')
+    expect(linkKindName('https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC')).toBe(
+      'A Spotify link',
+    )
+    expect(linkKindName('https://example.com/song.mp3')).toBe('A link')
+    expect(linkKindName('not a link')).toBe('A link')
+  })
+
+  it('shows its address short, after the reason', () => {
+    expect(shortAddress('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(
+      'youtube.com/watch?v=dQw4w9W…',
+    )
+    expect(shortAddress('https://youtu.be/dQw4')).toBe('youtu.be/dQw4')
   })
 })
 

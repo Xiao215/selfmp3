@@ -48,7 +48,7 @@ import {
   type StatsPeriod,
 } from './stats.model'
 import { EmptyState } from '../../ui/components/EmptyState'
-import { PageLoading } from '../../ui/components/PageLoading'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
@@ -75,7 +75,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
-        <PageLoading line="Working it out…" />
+        <CardsWaiting />
       ) : !stats ? (
         <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
       ) : stats.totals.plays === 0 ? (
@@ -92,6 +92,53 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
     </StatsFrame>
   )
 }
+
+/**
+ * The cards' shapes while the numbers are worked out (AA1), laid out as the
+ * cards will be, and the first few ranked lines under them.
+ */
+function CardsWaiting(): ReactNode {
+  const { wide } = useLayout()
+  const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
+  const height = wide ? 190 : WAITING_CARD
+  const listened = <Bone height={height} radius={radius.cardLg} />
+  const small = (
+    <View style={styles.cardRow}>
+      <View style={styles.oneCol}>
+        <Bone height={height} radius={radius.cardLg} />
+      </View>
+      <View style={styles.oneCol}>
+        <Bone height={height} radius={radius.cardLg} />
+      </View>
+    </View>
+  )
+  return (
+    <Skeleton label="Working it out" testID="stats-loading" style={styles.waiting}>
+      {row ? (
+        <View style={styles.cardRow}>
+          <View style={styles.twoCols}>{listened}</View>
+          <View style={[styles.oneCol, styles.waitingPair]}>{small}</View>
+        </View>
+      ) : (
+        <>
+          {listened}
+          {small}
+        </>
+      )}
+      {WAITING_LINES.map(width => (
+        <View key={width} style={styles.waitingLine}>
+          <Bone width={40} height={40} radius={radius.coverSm} />
+          <Bone width={width} height={12} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
+  )
+}
+
+/** A phone's card while it waits, about as tall as its words and picture. */
+const WAITING_CARD = 150
+/** The ranked lines' names while they wait. */
+const WAITING_LINES = ['46%', '38%', '52%'] as const
 
 /**
  * The three cards. A page column with the room lays them in one row, Listened
@@ -609,6 +656,10 @@ const styles = StyleSheet.create(theme => ({
   card: { ...card(theme.colors, radius.cardLg), padding: space.card },
   cardWide: { height: 190, paddingHorizontal: 20 },
   cardRow: { flexDirection: 'row', gap: space.md },
+  waiting: { gap: space.md },
+  // The two small cards' shapes beside Listened's take two columns between them.
+  waitingPair: { flex: 2 },
+  waitingLine: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   twoCols: { flex: 2, minWidth: 0 },
   oneCol: { flex: 1, minWidth: 0 },
   listened: {

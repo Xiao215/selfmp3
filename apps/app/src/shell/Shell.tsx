@@ -26,6 +26,7 @@ import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
+import { SkipToPage } from './SkipToPage'
 import { useFloatingChrome } from './bottomInset'
 import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
@@ -193,6 +194,8 @@ function Frame({
       <View style={styles.columns}>
         {/* First, so a keyboard and a screen reader still come to it before the
             page; drawn over the page by its `zIndex`, not by coming after it. */}
+        {/* Tab's first stop on a computer, before the sidebar's rows (AF1). */}
+        {wide ? <SkipToPage pageRef={pageRef} /> : null}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
         <View ref={pageRef} style={styles.content} {...pageTap}>
           <ContentWidthContext.Provider value={contentStore}>

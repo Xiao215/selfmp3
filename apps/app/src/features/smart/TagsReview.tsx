@@ -7,8 +7,22 @@ import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
 import { showUndoToast } from '../../ui/toast'
 import type { AnswerKeys } from './answerKeys'
-import { Review, reviewText, songCount, type ReviewRowState } from './Review'
-import { tagChangesHere, tagSection, tagSteps, type TagHere } from './smart.model'
+import {
+  Review,
+  ReviewTag,
+  reviewText,
+  songCount,
+  type ReviewRowState,
+  type ShortReview,
+} from './Review'
+import {
+  shortTagsApply,
+  shortTagsTitle,
+  tagChangesHere,
+  tagSection,
+  tagSteps,
+  type TagHere,
+} from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { useTagChanges } from './useTagChanges'
 import { AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
@@ -114,9 +128,69 @@ export function TagsReview({
     }
   }
 
+  // A handful on Ask's card, one line each (AD1): "Glass To Rum Raisin → live".
+  const songsOf = (each: TagHere): string => {
+    const first = songsById.get(each.songIds[0]!)
+    if (!first) return plural(each.songIds.length, 'song', 'songs')
+    return each.songIds.length > 1
+      ? `${first.title} and ${each.songIds.length - 1} more`
+      : first.title
+  }
+  const short: ShortReview<TagHere> = {
+    title: list => shortTagsTitle(list.map(each => each.change.op)),
+    song: each => songsById.get(each.songIds[0]!),
+    why: each => each.change.why,
+    apply: approved =>
+      shortTagsApply(
+        here.map(each => each.change.op),
+        approved.length,
+      ),
+    line: each => {
+      const { change: c } = each
+      const hue = each.tag?.hue
+      const songs =
+        each.songIds.length > 0 ? (
+          <Text style={[reviewText.name, reviewText.song]} numberOfLines={1}>
+            {songsOf(each)}
+          </Text>
+        ) : null
+      const arrow = <Text style={reviewText.arrow}>→</Text>
+      switch (c.op) {
+        case 'add':
+          return (
+            <>
+              {songs}
+              {arrow}
+              <ReviewTag name={each.tag ? c.tag : `${c.tag} (new)`} hue={hue} />
+            </>
+          )
+        case 'remove':
+          return (
+            <>
+              {songs}
+              {arrow}
+              <ReviewTag name={c.tag} hue={hue} gone />
+            </>
+          )
+        case 'rename':
+        case 'merge':
+          return (
+            <>
+              <ReviewTag name={c.tag} hue={hue} gone />
+              {arrow}
+              <ReviewTag name={c.to ?? ''} hue={each.into?.hue ?? hue} />
+            </>
+          )
+        case 'delete':
+          return <ReviewTag name={c.tag} hue={hue} gone />
+      }
+    },
+  }
+
   return (
     <Review
       card={card}
+      short={short}
       changes={here}
       // A change on one song has nothing to open, so its song shows from the start.
       openAtFirst={here.filter(each => each.songIds.length === 1).map(each => each.change.key)}

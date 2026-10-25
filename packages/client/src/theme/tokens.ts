@@ -189,7 +189,7 @@ const DARK = {
 
   textPrimary: NATIVE_TEXT_PRIMARY,
   textSecondary: NATIVE_TEXT_SECONDARY,
-  textMuted: '#7c8089',
+  textMuted: '#868a93',
 
   danger: '#f0555b',
   warning: '#ebaa2d',
@@ -315,7 +315,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     // Muted ink reads at 4.5 : 1 or better on every Paper surface a small
     // label sits on; secondary stays a step darker so the two still differ.
     textSecondary: '#55514a',
-    textMuted: '#67625a',
+    textMuted: '#625d55',
     ...buildAccent(hue, 'light'),
     danger: DARK.danger,
     // The dark theme's amber is 1.5–2 : 1 on cream, and warning is mostly

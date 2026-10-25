@@ -21,7 +21,7 @@ import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
 import { isComposing } from '../../shell/composing'
 import { setPageFoot } from '../../shell/pageFoot'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
@@ -109,7 +109,7 @@ export function AskScreen(): ReactNode {
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const window = useWindowDimensions()
   const server = useSmartServer()
   const player = usePlayer()

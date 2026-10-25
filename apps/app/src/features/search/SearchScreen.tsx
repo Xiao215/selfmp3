@@ -29,7 +29,7 @@ import { isComposing } from '../../shell/composing'
 import { focusNextStop } from '../../shell/focusNext'
 import { useEscape } from '../../shell/useEscape'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -53,6 +53,7 @@ import {
   ALL_LIMITS,
   allResults,
   beforeTyping,
+  isSearchSection,
   placesOf,
   searchLibrary,
   SECTION_TITLES,
@@ -84,6 +85,9 @@ const FROM_SEARCH = { kind: 'songs', origin: 'search', name: 'Search' } as const
 
 const NO_SONGS: readonly Song[] = []
 
+/** How long typing has to stop before the words go into the address. */
+const WORDS_SETTLE_MS = 400
+
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
  * from. `?q=` is what it starts with; the rest is this page's own. A computer draws the same search as the palette
@@ -99,12 +103,12 @@ const NO_SONGS: readonly Song[] = []
  */
 export function SearchScreen(): ReactNode {
   const router = useRouter()
-  const params = useLocalSearchParams<{ q?: string; to?: string }>()
+  const params = useLocalSearchParams<{ q?: string; to?: string; section?: string }>()
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const adds = useRoomAdds()
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { data: library } = useLibrary()
   const player = usePlayer()
 
@@ -114,8 +118,40 @@ export function SearchScreen(): ReactNode {
   useEffect(() => {
     if (searching) countUse('search')
   }, [searching])
-  /** The section a "See all" opened alone, or null for All. */
-  const [section, setSection] = useState<SearchSection | null>(null)
+  /**
+   * The section a "See all" opened alone, or null for All. See all is a page
+   * of its own (`?section=`), so Back comes back to All with the words still
+   * there, and a browser's Back did too: it had been this page's own state,
+   * and Back left Search altogether (bug bash F073).
+   */
+  const opened = isSearchSection(params.section) ? params.section : null
+  const [section, setSection] = useState<SearchSection | null>(opened)
+  const seeAll = useCallback(
+    (next: SearchSection) =>
+      router.push({
+        pathname: '/search',
+        params: { ...(params.to ? { to: params.to } : null), q: query.trim(), section: next },
+      }),
+    [router, params.to, query],
+  )
+  // Back to All: the page All was, where See all came from one; a See all
+  // opened from its address becomes All itself.
+  const backToAll = (): void => {
+    if (opened !== null && router.canGoBack()) {
+      router.back()
+      return
+    }
+    setSection(null)
+    if (opened !== null) router.setParams({ section: undefined })
+  }
+  // The words in the address once typing stops, so a reload, or Back to
+  // here, finds them.
+  const typing = query.trim()
+  useEffect(() => {
+    if ((params.q ?? '') === typing) return undefined
+    const timer = setTimeout(() => router.setParams({ q: typing || undefined }), WORDS_SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [router, params.q, typing])
   const field = useRef<TextInput>(null)
   // Cancel, the last thing in the head: what ↓ moves on from into the results.
   const cancelRef = useRef<View>(null)
@@ -185,7 +221,8 @@ export function SearchScreen(): ReactNode {
             <View style={styles.head}>
               <SearchField
                 inputRef={field}
-                autoFocus
+                // A See all page is for reading what was found: no keyboard over it.
+                autoFocus={opened === null}
                 value={query}
                 // A cleared field is a fresh search, back on All.
                 onChangeText={text => {
@@ -243,7 +280,7 @@ export function SearchScreen(): ReactNode {
             {typed && section !== null ? (
               <Press
                 feedback="wash"
-                onPress={() => setSection(null)}
+                onPress={backToAll}
                 accessibilityRole="button"
                 accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
                 style={styles.back}
@@ -292,7 +329,7 @@ export function SearchScreen(): ReactNode {
                     found={found}
                     lyricHits={lyricHits}
                     selection={selection}
-                    onSeeAll={setSection}
+                    onSeeAll={seeAll}
                     onArtist={openArtist}
                     adds={adding ? adds : null}
                   />

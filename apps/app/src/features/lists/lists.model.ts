@@ -1,4 +1,5 @@
 import { placeSongs, type Place } from '../tag/tag.model'
+import { artistLink, tagLink } from '../tag/placeLinks'
 import {
   DescribeResultSchema,
   fromSqliteTime,
@@ -256,12 +257,10 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       return plain('Library', { pathname: '/library' })
     case 'tag': {
       const tag = known.tags.find(each => each.id === source.tagId)
-      return tag
-        ? plain(tag.name, { pathname: '/tag/[name]', params: { name: tag.name } })
-        : plain(`${source.name} (deleted)`, null)
+      return tag ? plain(tag.name, tagLink(tag.name)) : plain(`${source.name} (deleted)`, null)
     }
     case 'artist':
-      return plain(source.name, { pathname: '/artist/[name]', params: { name: source.name } })
+      return plain(source.name, artistLink(source.name))
     case 'playlist': {
       const playlist = known.playlists.find(each => each.id === source.playlistId)
       if (!playlist) return plain(`${source.name} (deleted)`, null)

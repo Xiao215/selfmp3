@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   allResults,
   beforeTyping,
+  isSearchSection,
   lyricHitsHere,
   lyricsQueryFor,
   placesOf,
@@ -31,6 +32,15 @@ const library = {
     { id: 9, name: 'empty', hue: 3, songCount: 0 },
   ] as never,
 }
+
+describe('a section named in the address', () => {
+  it('is one of the three, or none', () => {
+    expect(isSearchSection('songs')).toBe(true)
+    expect(isSearchSection('lyrics')).toBe(true)
+    expect(isSearchSection('all')).toBe(false)
+    expect(isSearchSection(undefined)).toBe(false)
+  })
+})
 
 describe('before anything is typed', () => {
   it('offers your tags, fullest first, and what you played last', () => {

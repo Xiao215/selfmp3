@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
+import { useLibrary } from '@selfmp3/client'
 import { MissingPage } from '../../ui/components/MissingPage'
 
 /**
@@ -30,6 +31,25 @@ export function PlaceMissing({
         label: kind === 'artist' ? 'Home' : 'All tags',
         onPress: () => router.replace(kind === 'artist' ? '/' : '/tags'),
       }}
+    />
+  )
+}
+
+/**
+ * A tag's or an artist's page before the library is there to find it in:
+ * the way back, and a word on why there is nothing yet. It had drawn nothing
+ * at all, and a library that did not load left a blank page with no way out.
+ */
+export function PlaceWaiting(): ReactNode {
+  const router = useRouter()
+  const { isError } = useLibrary()
+  return (
+    <MissingPage
+      testID="place-waiting"
+      title={isError ? 'Your library didn’t load' : 'Loading…'}
+      line={isError ? 'This page shows once it can be reached.' : undefined}
+      back="/"
+      action={isError ? { label: 'Home', onPress: () => router.replace('/') } : undefined}
     />
   )
 }

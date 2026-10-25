@@ -38,7 +38,7 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { useLayout } from '../src/shell/useLayout'
+import { useLayoutFlags } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
@@ -49,7 +49,8 @@ import { onAppLeaving } from '../src/ports/appLeaving'
 import { sendingAsLeaving } from '../src/api/client'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
-import { singularPlaces } from '../src/ports/singularPlaces'
+import { singularPage, singularPlaces, singularSearch } from '../src/ports/singularPlaces'
+import { useHistoryStepsOnLiveKeys } from '../src/ports/historySteps'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
@@ -144,6 +145,13 @@ const PLACES = [
   'settings',
   'profile',
 ] as const
+
+/**
+ * The pages of one thing, which a browser keeps one of each of: the same tag,
+ * artist, playlist or song opened again brings its page back up
+ * (`singularPage`).
+ */
+const PAGES = ['tag/[name]', 'artist/[name]', 'playlists/[id]', 'song/[id]'] as const
 
 /**
  * Now Playing comes up from the foot of the display and goes back down
@@ -255,12 +263,14 @@ function RootRoutes(): ReactNode {
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const reduced = useMotionReduced()
   // A face that failed to load is not a reason to keep the app shut: the system
   // font stands in, and nothing else depends on it.
   const [fontsLoaded, fontError] = useFonts(FONTS)
   const fontsReady = fontsLoaded || fontError !== null
+  // A browser's Back and Forward keep the app mounted, and the music playing.
+  useHistoryStepsOnLiveKeys()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.
@@ -364,7 +374,14 @@ function RootRoutes(): ReactNode {
       <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
         <Stack.Screen name="now-playing" options={nowPlaying} />
         {PLACES.map(name => (
-          <Stack.Screen key={name} name={name} dangerouslySingular={singularPlaces} />
+          <Stack.Screen
+            key={name}
+            name={name}
+            dangerouslySingular={name === 'search' ? singularSearch : singularPlaces}
+          />
+        ))}
+        {PAGES.map(name => (
+          <Stack.Screen key={name} name={name} dangerouslySingular={singularPage} />
         ))}
       </Stack>
       {/*

@@ -8,8 +8,24 @@
  * says the tag is not there.
  */
 
+/**
+ * A name as the address carries it: the same name, for every name but two
+ * kinds (bug bash F170).
+ *
+ * The router reads a param out of the address and then decodes it once more
+ * for the screen, so a name with a "%" in it lost it on the way: "%2F" opened
+ * the tag "/", which is no tag. Each "%" goes as "%25", which that second
+ * decode gives back. And a name that is only dots, "." or "..", is a step
+ * the browser takes before the router sees it — "/tag/.." is Home — so its
+ * dots go as "%2E", which the same decode gives back as dots.
+ */
+export function placeParam(name: string): string {
+  const kept = name.replace(/%/g, '%25')
+  return /^\.+$/.test(kept) ? kept.replace(/\./g, '%2E') : kept
+}
+
 export function tagLink(name: string) {
-  return { pathname: '/tag/[name]', params: { name } } as const
+  return { pathname: '/tag/[name]', params: { name: placeParam(name) } } as const
 }
 
 /**
@@ -19,7 +35,7 @@ export function tagLink(name: string) {
  * decided before the page is there to say how it was opened.
  */
 export function tagFromTileLink(name: string) {
-  return { pathname: '/tag/[name]', params: { name, via: 'tile' } } as const
+  return { pathname: '/tag/[name]', params: { name: placeParam(name), via: 'tile' } } as const
 }
 
 /** Whether a route's params say it was opened from its Home tile. */
@@ -28,5 +44,5 @@ export function fromTile(params: object | undefined): boolean {
 }
 
 export function artistLink(name: string) {
-  return { pathname: '/artist/[name]', params: { name } } as const
+  return { pathname: '/artist/[name]', params: { name: placeParam(name) } } as const
 }

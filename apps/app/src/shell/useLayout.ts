@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { Dimensions, type ScaledSize } from 'react-native'
 import { BREAKPOINT } from '@selfmp3/client'
 
@@ -71,9 +71,12 @@ function subscribeWidth(listener: () => void): () => void {
  */
 const readWidth = (): number => readRootWidth() ?? windowSize.get().width
 
+function flagsAt(wide: boolean): Omit<Layout, 'width'> {
+  return { wide, compact: !wide, dense: wide && finePointer, finePointer }
+}
+
 function layoutAt(width: number): Layout {
-  const wide = width >= BREAKPOINT
-  return { wide, compact: !wide, dense: wide && finePointer, finePointer, width }
+  return { ...flagsAt(width >= BREAKPOINT), width }
 }
 
 /**
@@ -83,6 +86,18 @@ function layoutAt(width: number): Layout {
  */
 export function useLayout(): Layout {
   return layoutAt(useSyncExternalStore(subscribeWidth, readWidth, readWidth))
+}
+
+/**
+ * The layout's facts without the width — `wide`, `compact`, `dense`,
+ * `finePointer` — rendering again only when the window crosses the
+ * breakpoint. What a page that never draws by the width asks: a page asking
+ * `useLayout` for `wide` alone was drawn again for every pixel a window was
+ * dragged, the pages under the top one too (bug bash F056).
+ */
+export function useLayoutFlags(): Omit<Layout, 'width'> {
+  const wide = useLayoutValue(layout => layout.wide)
+  return useMemo(() => flagsAt(wide), [wide])
 }
 
 /**

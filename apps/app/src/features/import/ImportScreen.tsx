@@ -73,6 +73,7 @@ import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { Guide, useOpenWith } from '../guide/Guide'
 import { guideSeen } from '../guide/guideMemory'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /** How many of today's finished imports are listed before "Show all". */
 const FINISHED_SHOWN = 5
@@ -234,6 +235,7 @@ export function ImportScreen({
         testID="import-box"
       >
         <TextInput
+          {...NO_AUTOFILL}
           style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
           value={links}
           onChangeText={next => patchDraft({ links: next })}

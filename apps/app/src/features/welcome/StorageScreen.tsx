@@ -120,7 +120,6 @@ export function StorageScreen(): ReactNode {
         onChangeText={setKeyId}
         placeholder="004a1b2c3d4e5f0000000000f"
         autoCapitalize="none"
-        autoComplete="off"
         disabled={busy}
         testID="storage-key-id"
       />
@@ -131,7 +130,6 @@ export function StorageScreen(): ReactNode {
         onChangeText={setApplicationKey}
         secret
         autoCapitalize="none"
-        autoComplete="off"
         disabled={busy}
         testID="storage-application-key"
       />

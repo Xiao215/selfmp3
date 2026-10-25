@@ -7,6 +7,7 @@ import { HIT_TARGET, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { hint } from '../surfaces'
+import { NO_AUTOFILL } from '../noAutofill'
 
 /**
  * The one text field that is not a search (`SearchField` is that): a name, a
@@ -72,6 +73,7 @@ export function TextField({
 
   const field = (
     <TextInput
+      {...NO_AUTOFILL}
       ref={inputRef}
       autoCorrect={false}
       {...input}

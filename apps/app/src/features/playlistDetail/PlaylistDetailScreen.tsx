@@ -42,6 +42,7 @@ import { FollowsRow } from './FollowsRow'
 import { usePageBack } from '../../ui/useBackTo'
 import { Press } from '../../ui/components/Press'
 import { lineSub } from '../../ui/surfaces'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /**
  * One playlist (docs/ui-mock `P17`, `C08`): the same kind of page as a tag's
@@ -187,6 +188,7 @@ export function PlaylistDetailScreen(): ReactNode {
       </View>
       {renaming ? (
         <TextInput
+          {...NO_AUTOFILL}
           style={[listHeadText.name, styles.nameInput]}
           value={draftName ?? playlist?.name ?? ''}
           onChangeText={setDraftName}
@@ -212,6 +214,7 @@ export function PlaylistDetailScreen(): ReactNode {
       )}
       {describing ? (
         <TextInput
+          {...NO_AUTOFILL}
           style={[styles.description, styles.descriptionInput]}
           value={draftDescription ?? playlist?.description ?? ''}
           onChangeText={setDraftDescription}

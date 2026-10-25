@@ -57,7 +57,6 @@ export function BucketAddressFields({
         secret={name === 'applicationKey'}
         disabled={disabled}
         autoCapitalize="none"
-        autoComplete="off"
         testID={`${testID}-${copy.id}`}
       />
     )

@@ -8,6 +8,7 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
 import { Search, X } from './Icons'
 import { Press } from './Press'
+import { NO_AUTOFILL } from '../noAutofill'
 
 /**
  * The one search field: a pill one step up from
@@ -83,6 +84,7 @@ export function SearchField({
     <View style={[box, style, focused && { borderColor: accent.accent }]}>
       <Search size={iconSize.medium} color={focused ? accent.accent : theme.colors.textSecondary} />
       <TextInput
+        {...NO_AUTOFILL}
         ref={inputRef}
         {...input}
         value={value}

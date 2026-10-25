@@ -6,6 +6,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   formatDuration,
+  type ApplyMetadata,
   type MetadataCandidate,
   type MetadataSuggestion,
   type Song,
@@ -49,9 +50,9 @@ import { Cover } from '../../ui/components/Cover'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { Dialog, DialogHead } from '../../ui/components/Dialog'
-import { Check, Sparkle } from '../../ui/components/Icons'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { Check, Search, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
-import { SectionHead } from '../../ui/components/SectionHead'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { NO_AUTOFILL } from '../../ui/noAutofill'
 
@@ -68,18 +69,23 @@ const SOURCE_TONE: Record<MetadataCandidate['source'], [string, string]> = {
   ai: badgeTone(280),
 }
 
-/** The song's own fields, in the order the panel lists them, and the keyboard each wants. */
-const TEXT_FIELDS: readonly (readonly [TextField, 'default' | 'number-pad'])[] = [
-  ['title', 'default'],
-  ['artist', 'default'],
-  ['album', 'default'],
-  ['albumArtist', 'default'],
-  ['year', 'number-pad'],
-  ['trackNo', 'number-pad'],
+/**
+ * The song's own fields, in the order the panel lists them, a line each but
+ * the year and the track number, which are short and share one.
+ */
+const FIELD_LINES: readonly (readonly TextField[])[] = [
+  ['title'],
+  ['artist'],
+  ['album'],
+  ['albumArtist'],
+  ['year', 'trackNo'],
 ]
 
+/** The keyboard a field wants. */
+const NUMBER_FIELDS: ReadonlySet<TextField> = new Set(['year', 'trackNo'])
+
 /**
- * "Fix metadata…". The song as the library has it on one side, every field
+ * "Fix song info…". The song as the library has it on one side, every field
  * a box to type into; suggestions from iTunes and MusicBrainz on the other,
  * and the changes a suggestion would make, each ticked or not, so exactly
  * the corrections agreed with are applied. What is typed by hand is applied
@@ -161,37 +167,67 @@ export function MetadataDialog({
     if (input) apply.mutate(input, { onSuccess: onClose })
   }
 
+  /*
+   * Nothing matched: a corrected title or artist is what the next look-up
+   * searches with, so Look again saves those two first (the dialog stays,
+   * and the look-up asks again once they are in); with nothing typed it
+   * simply asks again.
+   */
+  const lookAgain = (): void => {
+    const names: ApplyMetadata = {}
+    if (hand.title !== undefined) names.title = hand.title
+    if (hand.artist !== undefined) names.artist = hand.artist
+    if (Object.keys(names).length > 0) apply.mutate(names, { onSuccess: () => undefined })
+    else lookup.refetch()
+  }
+
+  const field = (name: TextField): ReactNode => (
+    <TextInput
+      key={name}
+      {...NO_AUTOFILL}
+      value={edits[name] ?? editable(song[name])}
+      onChangeText={text => setEdits(previous => ({ ...previous, [name]: text }))}
+      placeholder="—"
+      placeholderTextColor={theme.colors.textMuted}
+      keyboardType={NUMBER_FIELDS.has(name) ? 'number-pad' : 'default'}
+      autoCapitalize="none"
+      autoCorrect={false}
+      spellCheck={false}
+      accessibilityLabel={FIELD_LABELS[name]}
+      testID={`metadata-field-${name}`}
+      style={[
+        styles.fieldValue,
+        !wide && styles.fieldValueNarrow,
+        styles.fieldInput,
+        hand[name] !== undefined && styles.fieldEdited,
+      ]}
+    />
+  )
+
   const current = (
-    <View style={[styles.current, !wide && styles.currentNarrow]}>
-      <SectionHead look="label" title="In your library" style={wide ? undefined : styles.fullRow} />
-      <Cover uri={artFor(song)} title={song.album || song.title} size={wide ? 120 : 96} />
-      <View style={[styles.fields, wide && styles.fieldsWide]}>
-        {TEXT_FIELDS.map(([field, keyboard]) => (
-          <View key={field} style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
-            <TextInput
-              {...NO_AUTOFILL}
-              value={edits[field] ?? editable(song[field])}
-              onChangeText={text => setEdits(previous => ({ ...previous, [field]: text }))}
-              placeholder="—"
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType={keyboard}
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              accessibilityLabel={FIELD_LABELS[field]}
-              testID={`metadata-field-${field}`}
-              style={[
-                styles.fieldValue,
-                styles.fieldInput,
-                hand[field] !== undefined && styles.fieldEdited,
-              ]}
-            />
+    <View style={styles.current}>
+      <View style={styles.currentHead}>
+        <Cover uri={artFor(song)} title={song.album || song.title} size={72} />
+        <Text style={styles.part} accessibilityRole="header">
+          In your library
+        </Text>
+      </View>
+      <View style={styles.fields}>
+        {FIELD_LINES.map(line => (
+          <View key={line.join()} style={styles.fieldRow}>
+            <Text style={styles.fieldLabel} numberOfLines={1}>
+              {line.map(name => FIELD_LABELS[name]).join(' · ')}
+            </Text>
+            {line.length === 1 ? (
+              field(line[0]!)
+            ) : (
+              <View style={styles.pair}>{line.map(field)}</View>
+            )}
           </View>
         ))}
         <View style={styles.fieldRow}>
           <Text style={styles.fieldLabel}>Length</Text>
-          <Text style={styles.fieldValue}>
+          <Text style={[styles.fieldValue, !wide && styles.fieldValueNarrow, styles.fieldStill]}>
             {song.duration ? formatDuration(song.duration) : '—'}
           </Text>
         </View>
@@ -202,21 +238,32 @@ export function MetadataDialog({
   const suggestions = (
     <View style={styles.candidates}>
       <View style={styles.sectionHead}>
-        <SectionHead look="label" title="Suggestions" />
+        <Text style={styles.part} accessibilityRole="header">
+          Suggestions
+        </Text>
         {candidates.length > 0 ? <Pill text={String(candidates.length)} /> : null}
         {lookup.isPending ? <Spinner tone="accent" /> : null}
       </View>
 
       {lookup.isError ? <StatusLine>Couldn’t reach the lookup services.</StatusLine> : null}
-      {lookup.isSuccess && candidates.length === 0 ? (
-        <Text style={styles.hint}>
-          Nothing matched on iTunes or MusicBrainz.{' '}
-          {suggest.on
-            ? 'The suggestion below reads the other catalogues and the song’s file. '
-            : ''}
-          Or correct the title or artist on the left and apply — the next look-up searches with
-          them.
-        </Text>
+      {nothingMatched ? (
+        <EmptyState
+          compact
+          title="No match yet"
+          line="Fix the title or artist, then look again."
+          style={styles.noMatch}
+          testID="metadata-no-match"
+        >
+          <Button
+            size="small"
+            label="Look again"
+            // A veil of the ink: the card is the control surface already.
+            ground="translucent"
+            icon={<Search />}
+            busy={lookup.isFetching || apply.isPending}
+            onPress={lookAgain}
+          />
+        </EmptyState>
       ) : null}
 
       {suggest.on ? (
@@ -277,7 +324,9 @@ export function MetadataDialog({
             <>
               <View style={styles.diffHead}>
                 <View style={styles.sectionHead}>
-                  <SectionHead look="label" title="Changes to apply" />
+                  <Text style={styles.part} accessibilityRole="header">
+                    Changes to apply
+                  </Text>
                   <Pill text={`${count} of ${diffs.length}`} />
                 </View>
                 <View style={styles.diffActions}>
@@ -349,6 +398,8 @@ export function MetadataDialog({
           )}
         </View>
       ) : null}
+
+      <Text style={styles.sources}>Searches iTunes, MusicBrainz and the song’s file.</Text>
     </View>
   )
 
@@ -536,38 +587,36 @@ const styles = StyleSheet.create(theme => ({
   },
   bodyWide: { flex: 1, minHeight: 0, flexDirection: 'row' },
   bodyNarrow: { flex: 1 },
-  // The song as it is, a panel one step up from the dialog rather than a column behind a rule.
-  currentScroll: {
-    width: 240,
-    flexGrow: 0,
-    marginLeft: space.md,
-    marginBottom: space.xs,
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface2,
-  },
+  // The song as it is, a form beside the suggestions, half the dialog each.
+  currentScroll: { flex: 1, maxWidth: 380 },
   candidatesScroll: { flex: 1 },
-  current: { paddingVertical: 18, paddingHorizontal: 20, gap: space.roomy },
-  currentNarrow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: space.lg,
-    rowGap: 0,
-  },
-  fullRow: { width: '100%', marginBottom: space.md },
-  fields: { flex: 1, minWidth: 0, gap: 7 },
-  fieldsWide: { flex: 0 },
-  fieldRow: { flexDirection: 'row', gap: space.md },
-  fieldLabel: { width: 84, color: theme.colors.textMuted, fontSize: type.sub, paddingTop: 2 },
-  fieldValue: { flex: 1, color: theme.colors.textPrimary, fontSize: type.sub },
-  // A box only by its underline, so the panel still reads as the song's card.
+  current: { paddingVertical: 18, paddingHorizontal: 20, gap: space.lg },
+  currentHead: { flexDirection: 'row', alignItems: 'center', gap: space.roomy },
+  // The dialog's two parts are named in plain words, not the small uppercase label.
+  part: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '600' },
+  fields: { gap: space.tight },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  // Wide enough for "Album artist" and "Year · Track №" on one line.
+  fieldLabel: { width: 104, color: theme.colors.textMuted, fontSize: type.sub },
+  fieldValue: { flex: 1, minWidth: 0, color: theme.colors.textPrimary, fontSize: type.sub },
+  fieldValueNarrow: { fontSize: type.body },
+  // A box to type into, a step up from the dialog; the edge is there only to
+  // turn the accent once a field is changed by hand.
   fieldInput: {
-    paddingVertical: 2,
-    paddingHorizontal: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.surface3,
+    paddingVertical: 7,
+    paddingHorizontal: space.snug,
+    borderRadius: radius.field,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    backgroundColor: theme.colors.surface2,
     _web: { outlineStyle: 'none' },
   },
-  fieldEdited: { borderBottomColor: theme.colors.accent },
+  fieldEdited: { borderColor: theme.colors.accent },
+  // Read-only, so no box: the words line up with the boxes' words.
+  fieldStill: { paddingHorizontal: space.snug + 1.5 },
+  pair: { flex: 1, flexDirection: 'row', gap: space.tight },
+  noMatch: { backgroundColor: theme.colors.surface2, borderRadius: radius.card },
+  sources: { color: theme.colors.textMuted, fontSize: type.small },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   candidates: { paddingVertical: 18, paddingHorizontal: 20, gap: space.md },
   hint: hint(theme.colors),

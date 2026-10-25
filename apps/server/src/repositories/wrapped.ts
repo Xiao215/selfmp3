@@ -9,7 +9,7 @@ import {
   type WrappedRange,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js'
+import { runs, toMinutes, topArtists, WINDOW_START, type ArtistPlaysRow } from './listening.js'
 
 /**
  * "Wrapped, anytime" — a summary of a listening window.
@@ -19,21 +19,6 @@ import { runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js
  * Hours and dates use SQLite's `localtime` so "peak hour" means the owner's
  * evening, not UTC's.
  */
-
-/**
- * The start of the window, as a UTC timestamp, snapped to a local midnight.
- *
- * Everything on this page is counted in days — active days, the streak, the
- * busiest date, the peak weekday — so a window that started at "now minus
- * seven times twenty-four hours" would straddle eight local dates and report
- * "8 days with music" under a heading that says seven. Snapping to local
- * midnight makes the label and the numbers agree. The bound parameter is the
- * offset, e.g. `-6 days` for a seven-day window (today plus the six before).
- *
- * `localtime` … `utc` is the standard SQLite round trip: shift to wall clock,
- * truncate, step back, shift back to what the column actually stores.
- */
-const WINDOW_START = "datetime('now', 'localtime', 'start of day', ?, 'utc')"
 
 interface SongPlaysRow {
   song_id: number

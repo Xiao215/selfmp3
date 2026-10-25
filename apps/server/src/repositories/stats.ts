@@ -9,7 +9,14 @@ import {
   type TopSong,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { dayGap, runs, toMinutes, topArtists, type ArtistPlaysRow } from './listening.js'
+import {
+  dayGap,
+  runs,
+  toMinutes,
+  topArtists,
+  WINDOW_START,
+  type ArtistPlaysRow,
+} from './listening.js'
 
 /**
  * Listening statistics, derived from the `play_events` table.
@@ -194,13 +201,17 @@ export class StatsRepository {
   }
 
   /**
-   * SQL fragment plus params limiting events to the requested window. `alias`
-   * is the events table's, `e.`, where the query joins songs to it.
+   * SQL fragment plus params limiting events to the requested window: today
+   * and the days before it, from a local midnight, as the daily chart is
+   * drawn and as Wrapped counts. A rolling `now - N days` spanned N + 1
+   * calendar days, so Stats › Month counted a partial day more than the
+   * Month report. `alias` is the events table's, `e.`, where the query joins
+   * songs to it.
    */
   #window(range: StatsRange, alias = ''): { clause: string; params: unknown[] } {
     const days = RANGE_DAYS[range]
     if (days === null) return { clause: '1 = 1', params: [] }
-    return { clause: `${alias}played_at >= datetime('now', ?)`, params: [`-${days} days`] }
+    return { clause: `${alias}played_at >= ${WINDOW_START}`, params: [`-${days - 1} days`] }
   }
 
   build(range: StatsRange): Stats {

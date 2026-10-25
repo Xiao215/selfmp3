@@ -148,6 +148,6 @@ export function monthCardSpoken(card: MonthCard | null): string {
   if (!card) return 'Stats'
   const repeat = card.onRepeat ? `, on repeat: ${card.onRepeat.title}` : ''
   return `Stats. ${MONTH_CARD_TITLE}: ${card.listened} listened, ${card.plays} ${
-    card.plays === '1' ? 'play' : 'plays'
+    card.playsCaption
   }, a streak of ${card.streak} ${card.streakUnit}${repeat}`
 }

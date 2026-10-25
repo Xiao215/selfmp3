@@ -82,6 +82,7 @@ describe('the Profile page', () => {
     expect(card).toEqual({
       listened: '6h 12',
       plays: '128',
+      playsCaption: 'plays',
       streak: '9',
       streakUnit: 'days',
       onRepeat: { songId: 21, title: 'ノーチラス' },

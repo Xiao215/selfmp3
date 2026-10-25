@@ -157,6 +157,15 @@ describe('the cards', () => {
     expect(spanWords(sep(14), sep(14))).toMatch(/^Sep\w* 14$/)
   })
 
+  it('says the year a run began when it was another year', () => {
+    expect(spanWords(new Date(2023, 11, 30), new Date(2026, 9, 25))).toMatch(
+      /^Dec\w* 30, 2023 to Oct\w* 25$/,
+    )
+    expect(spanWords(new Date(2025, 11, 30), new Date(2026, 0, 2))).toMatch(
+      /^Dec\w* 30, 2025 to Jan\w* 2$/,
+    )
+  })
+
   it('draws the trend as one stroke across the box, flat when there is nothing to draw', () => {
     expect(sparkPath([], 120, 56)).toBe('M3 28 L117 28')
     const path = sparkPath([0, 10, 5], 120, 56)
@@ -257,5 +266,16 @@ describe('the three headline numbers, on Home and You alike', () => {
     expect(figures.plays).not.toBe('1234')
     expect(figures.streak).toBe('1')
     expect(figures.streakUnit).toBe('day')
+    expect(figures.playsCaption).toBe('plays')
+  })
+
+  it('says one play, and under a minute for a few seconds', () => {
+    const figures = statFigures(stats({ totals: { ...stats().totals, plays: 1, minutes: 0.1 } }))
+    expect(figures).toMatchObject({
+      plays: '1',
+      playsCaption: 'play',
+      listened: '<1',
+      listenedUnit: 'min',
+    })
   })
 })

@@ -166,7 +166,7 @@ function Month({
         <>
           <View style={styles.figures}>
             <StatFigure value={month.listened} unit={month.listenedUnit} caption="listened" />
-            <StatFigure value={month.plays} caption="plays" />
+            <StatFigure value={month.plays} caption={month.playsCaption} />
             <StatFigure value={month.streak} unit={month.streakUnit} caption="streak" />
           </View>
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}

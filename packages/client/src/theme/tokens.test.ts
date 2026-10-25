@@ -140,6 +140,47 @@ describe('the washes and the veil', () => {
   })
 })
 
+describe('muted ink', () => {
+  // Counts, times, captions and "Off" are small text, which needs 4.5 : 1 on
+  // whatever it sits on: the ground, a card, a control and the raised tone a
+  // menu or a sheet uses. `surfaceSelected` is a switch's empty track in the
+  // dark, where no words sit; on Paper it is the raised tone, so it is held
+  // to the same line there.
+  it.each([
+    ['dark', darkPalette(), ['surface0', 'surface1', 'surface2', 'surface3']],
+    ['light', lightPalette(), ['surface0', 'surface1', 'surface2', 'surface3', 'surfaceSelected']],
+  ] as const)('reads at 4.5 : 1 on every %s surface', (scheme, palette, surfaces) => {
+    for (const surface of surfaces) {
+      expect(
+        contrast(palette.textMuted, palette[surface]),
+        `${scheme} ${surface}`,
+      ).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('stays quieter than secondary ink', () => {
+    for (const palette of [darkPalette(), lightPalette()]) {
+      expect(contrast(palette.textMuted, palette.surface0)).toBeLessThan(
+        contrast(palette.textSecondary, palette.surface0),
+      )
+    }
+  })
+})
+
+/** WCAG 2's contrast ratio between two `#rrggbb` colours. */
+function contrast(a: string, b: string): number {
+  const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
+  return (lighter! + 0.05) / (darker! + 0.05)
+}
+
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map(i => {
+    const channel = Number.parseInt(hex.slice(i, i + 2), 16) / 255
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+
 describe('the widget', () => {
   // Its Xcode target is coloured at prebuild time from @selfmp3/shared.
   it('is tinted with the accent the app starts on', () => {

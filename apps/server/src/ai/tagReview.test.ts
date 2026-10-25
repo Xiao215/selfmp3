@@ -138,6 +138,39 @@ describe('tagReview, the untagged songs', () => {
     expect(prompt).not.toContain('Grande valse')
   })
 
+  it('changes as many songs as were asked for, the library’s first', async () => {
+    const llm = scriptedLlm({
+      'tags-groups': [
+        {
+          groups: [
+            group('g1', { add: ['中文流行'], why: 'Mandarin pop' }),
+            group('g4', { newTag: '枫丹', sure: 'medium', why: 'A region' }),
+          ],
+        },
+      ],
+    })
+    const result = await tagReview(
+      { llm, songs: () => SONGS, tags: () => TAGS },
+      { text: null, limit: 2 },
+    )
+    expect(result.changes.map(each => [each.tag, each.songIds, each.who])).toEqual([
+      ['古典', [12], 'Henrik Måwe'],
+      ['中文流行', [14], '周杰倫'],
+    ])
+    expect(result.note).toBe('Kept to 2 songs, as you asked. Ask again for more.')
+  })
+
+  it('asks the model nothing once the library has placed as many as were asked for', async () => {
+    const llm = scriptedLlm({})
+    const result = await tagReview(
+      { llm, songs: () => SONGS, tags: () => TAGS },
+      { text: null, limit: 1 },
+    )
+    expect(result.changes.map(each => each.songIds)).toEqual([[12]])
+    expect(llm.asked).toEqual([])
+    expect(result.note).toBeNull()
+  })
+
   it('still gives the library’s own answers when the model cannot be asked', async () => {
     const llm = scriptedLlm({ 'tags-groups': [new LlmError('unreachable', 'down')] })
     const result = await tagReview({ llm, songs: () => SONGS, tags: () => TAGS }, { text: null })

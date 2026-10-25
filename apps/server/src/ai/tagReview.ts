@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import {
   CJK,
   mainArtist,
+  plural,
   TAG_NAME_MAX,
   type Song,
   type Tag,
@@ -106,6 +107,8 @@ interface TagReviewDeps {
 interface TagReviewInput {
   /** What was asked for, or null for the songs without a tag. */
   readonly text: string | null
+  /** The most songs to change, when the request gives a number ("tag 5 of my untagged songs"). */
+  readonly limit?: number | null
 }
 
 /** Songs by one artist that carry the same tags, with titles in one script. */
@@ -339,7 +342,20 @@ class Gathered {
     )
   }
 
-  changes(): TagChange[] {
+  /** Every song a change gives a tag or takes one from, once each. */
+  songCount(): number {
+    const ids = new Set<number>()
+    for (const entry of this.#entries.values()) for (const song of entry.songs) ids.add(song.id)
+    return ids.size
+  }
+
+  /**
+   * The changes, the library's first. With a `limit`, they touch that many
+   * songs at the most: songs are kept in the changes' order, so the
+   * library's own answers go in before the model's, and a song already in is
+   * kept in a second change too. A change left with no songs is left out.
+   */
+  changes(limit: number | null = null): TagChange[] {
     const order: Record<TagChange['op'], number> = {
       rename: 0,
       merge: 1,
@@ -347,26 +363,40 @@ class Gathered {
       add: 3,
       remove: 4,
     }
-    return [...this.#entries.values()]
-      .map(entry => ({
-        key: `${entry.op}:${entry.by}:${entry.tag}`,
-        op: entry.op,
-        tag: entry.tag,
-        isNew: entry.isNew,
-        to: entry.to,
-        songIds: entry.songs.map(song => song.id),
-        who: entry.who ?? whoOf(entry.songs),
-        // The reason that covers the most songs speaks for the change.
-        why: [...entry.whys].sort((a, b) => b[1] - a[1])[0]![0],
-        by: entry.by,
-      }))
-      .sort(
-        (a, b) =>
-          Number(a.by === 'model') - Number(b.by === 'model') ||
-          order[a.op] - order[b.op] ||
-          b.songIds.length - a.songIds.length ||
-          a.tag.localeCompare(b.tag),
-      )
+    const sorted = [...this.#entries.values()].sort(
+      (a, b) =>
+        Number(a.by === 'model') - Number(b.by === 'model') ||
+        order[a.op] - order[b.op] ||
+        b.songs.length - a.songs.length ||
+        a.tag.localeCompare(b.tag),
+    )
+    const counted = new Set<number>()
+    return sorted.flatMap(entry => {
+      const onSongs = entry.op === 'add' || entry.op === 'remove'
+      const songs =
+        limit === null || !onSongs
+          ? entry.songs
+          : entry.songs.filter(song => {
+              if (!counted.has(song.id) && counted.size >= limit) return false
+              counted.add(song.id)
+              return true
+            })
+      if (onSongs && songs.length === 0) return []
+      return [
+        {
+          key: `${entry.op}:${entry.by}:${entry.tag}`,
+          op: entry.op,
+          tag: entry.tag,
+          isNew: entry.isNew,
+          to: entry.to,
+          songIds: songs.map(song => song.id),
+          who: entry.who ?? whoOf(songs),
+          // The reason that covers the most songs speaks for the change.
+          why: [...entry.whys].sort((a, b) => b[1] - a[1])[0]![0],
+          by: entry.by,
+        },
+      ]
+    })
   }
 }
 
@@ -376,6 +406,7 @@ export async function tagReview(
   steps: Steps = NO_STEPS,
 ): Promise<TagReview> {
   const remembered = deps.remembered ?? new Remembered()
+  const limit = input.limit ?? null
   const songs = deps.songs()
   const tags = deps.tags()
   const named = (name: string): Tag | undefined =>
@@ -522,8 +553,10 @@ export async function tagReview(
     }
   }
 
-  // 3 · The model, over what the library could not place.
-  let left = inQuestion.filter(song => !placed.has(song.id))
+  // 3 · The model, over what the library could not place — none, when the
+  // library has placed as many songs as were asked for.
+  let left =
+    limit !== null && placed.size >= limit ? [] : inQuestion.filter(song => !placed.has(song.id))
   if (checkup) {
     // A checkup looks where something is likely off: songs with no tag, and
     // artists whose songs are tagged more than one way.
@@ -671,9 +704,13 @@ export async function tagReview(
     else byWhy.set(each.why, [...each.songIds])
   }
   const byId = new Map(songs.map(song => [song.id, song]))
+  // Whether the model was skipped or not, there were more than asked for: say so, not how many.
+  if (limit !== null && gathered.songCount() > limit) {
+    notes.push(`Kept to ${plural(limit, 'song', 'songs')}, as you asked. Ask again for more.`)
+  }
 
   return {
-    changes: gathered.changes(),
+    changes: gathered.changes(limit),
     looked: inQuestion.length,
     asked: input.text,
     unsure: [...byWhy].map(([why, songIds]) => ({

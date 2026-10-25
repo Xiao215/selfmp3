@@ -539,9 +539,20 @@ which could only tag songs the request named and answered "tell me which ones" o
 6. **Answer**: one row per (change, tag, who found it), with its songs, who they are by,
    and the reason that covers the most of them.
 
+**How many.** A number they give ("tag 5 of my untagged songs") is the filters' `size`, the
+"how many" every action reads: the router fills only that for `tags`. The review then
+changes that many songs at the most, the library's own answers first and the model's after,
+a song already in kept in a second change too; the model is not asked at all when the
+library has placed enough. The note says "Kept to 5 songs, as you asked. Ask again for more."
+
 The device draws it with `TagsReview.tsx` over `Review.tsx`, the list Tidy up's review
 uses too: what the library found starts ticked, the model's guesses wait with the
 sparkle, an add or a remove opens to its songs and any can be left out, ⌘↵ applies.
+Everything on it is one count (`tagCounter`, X4 2026-10-25): songs, once each, when every
+change puts a tag on songs or takes one off — the title ("Tags for 5 songs"), what is
+ticked, each band and section, "Review all 5" and the button ("Tag 3 songs") — and changes
+when a tag itself is renamed, merged or deleted ("2 changes to your tags", "Make 2 changes").
+"7 changes", "4 ticked" and "Apply 4 changes" over three rows had read as three numbers.
 Applying is ordinary edits in order (`tagSteps`, `useTagChanges`): new tags, songs in and
 out, renames, then merges (the songs get the tag they go into, live playlists following
 the merged tag follow that one, then it is deleted) and deletes. The toast's Undo takes

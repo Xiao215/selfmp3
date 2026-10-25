@@ -912,29 +912,46 @@ export function askSuggestions(
   ].filter((line): line is string => line !== null)
 }
 
-/** "One tag to add", "3 tags to add": a short review's title, from what its changes do (AD1). */
-export function shortTagsTitle(ops: readonly TagChange['op'][]): string {
-  const count = ops.length
-  const what = ops.every(op => op === 'add')
-    ? ['tag to add', 'tags to add']
-    : ops.every(op => op === 'remove')
-      ? ['tag to take off', 'tags to take off']
-      : ['change to your tags', 'changes to your tags']
-  return count === 1 ? `One ${what[0]}` : `${count} ${what[1]}`
+/**
+ * What a tag review counts, one way everywhere on it (X4, 2026-10-25): its
+ * title, what is ticked, each band, "Review all" and the button. Songs, when
+ * every change gives songs a tag or takes one off — that is what a person
+ * asked about ("tag 5 of my untagged songs"), and a song with two tags is
+ * one song; changes, when a tag itself is renamed, merged or deleted.
+ * "7 changes", "4 ticked" and "Apply 4 changes" over three rows read as
+ * three different numbers.
+ */
+export function tagCounter(
+  all: readonly TagHere[],
+): (list: readonly TagHere[], leftOut?: ReadonlySet<string>) => number {
+  if (!all.every(each => onSongs(each.change.op))) return list => list.length
+  return (list, leftOut = new Set()) => new Set(list.flatMap(each => keptSongs(each, leftOut))).size
+}
+
+function onSongs(op: TagChange['op']): boolean {
+  return op === 'add' || op === 'remove'
+}
+
+/** "Tags for 5 songs", "2 changes to your tags": a tag review's title, in what `tagCounter` counts. */
+export function tagsTitle(ops: readonly TagChange['op'][], count: number): string {
+  const songs = count === 1 ? 'one song' : `${count} songs`
+  if (ops.every(op => op === 'add')) return `Tags for ${songs}`
+  if (ops.every(op => op === 'remove')) return `Tags to take off ${songs}`
+  if (ops.every(onSongs)) return `Tag changes for ${songs}`
+  return count === 1 ? 'One change to your tags' : `${count} changes to your tags`
 }
 
 /**
- * The button under a short review, naming what it does to the `ticked` of
- * them: "Add it", "Add 3 tags". What it does is read from all of them, so
- * the button keeps its verb while nothing is ticked.
+ * The button under a tag review, naming what it does to the `ticked` of
+ * them, in what `tagCounter` counts: "Tag 5 songs", "Make 2 changes". What it
+ * does is read from all of them, so the button keeps its verb while nothing
+ * is ticked.
  */
-export function shortTagsApply(ops: readonly TagChange['op'][], ticked: number): string {
-  if (ops.every(op => op === 'add')) {
-    return ticked === 0 ? 'Add' : ticked === 1 ? 'Add it' : `Add ${ticked} tags`
-  }
-  if (ops.every(op => op === 'remove')) {
-    return ticked === 0 ? 'Take off' : ticked === 1 ? 'Take it off' : `Take off ${ticked} tags`
-  }
+export function tagsApply(ops: readonly TagChange['op'][], ticked: number): string {
+  const songs = plural(ticked, 'song', 'songs')
+  if (ops.every(op => op === 'add')) return ticked === 0 ? 'Tag' : `Tag ${songs}`
+  if (ops.every(op => op === 'remove')) return ticked === 0 ? 'Take off' : `Take tags off ${songs}`
+  if (ops.every(onSongs)) return ticked === 0 ? 'Apply' : `Change ${songs}`
   return ticked === 0 ? 'Apply' : ticked === 1 ? 'Make the change' : `Make ${ticked} changes`
 }
 

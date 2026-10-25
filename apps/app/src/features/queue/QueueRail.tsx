@@ -17,7 +17,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { ChevronRight, Downloaded, Grip, NotDownloaded } from '../../ui/components/Icons'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
-import { UpNextSource } from './UpNextSource'
+import { SaveUpNext, UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
 import { Guide, slideWith } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
@@ -26,7 +26,7 @@ import {
   dragOutcome,
   dragTarget,
   draggedOut,
-  nextLabel,
+  nextCount,
   onlySongEnded,
   type QueueRow,
 } from './queue.model'
@@ -425,9 +425,12 @@ function Rail({
         <SectionHead
           title="Up next"
           end={
-            <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
-              <ChevronRight size={iconSize.button} color={theme.colors.textSecondary} />
-            </IconButton>
+            <View style={styles.headEnd}>
+              {inRoom ? null : <SaveUpNext />}
+              <IconButton onPress={closeQueueSheet} label="Hide Up next" size={28} filled>
+                <ChevronRight size={iconSize.button} color={theme.colors.textSecondary} />
+              </IconButton>
+            </View>
           }
         />
         {inRoom ? (
@@ -436,12 +439,14 @@ function Rail({
           </ScrollView>
         ) : (
           <>
-            <UpNextSource onOpen={over ? closeQueueSheet : undefined} />
+            {/* One head line: where it came from, how much is left, and Clear the rest. */}
             <View style={styles.summaryRow}>
-              <Text style={styles.summary} numberOfLines={1}>
-                {nextLabel(rows.next)}
-              </Text>
-              <ClearRestButton onPress={clearRest} enabled={clearable} />
+              <UpNextSource
+                onOpen={over ? closeQueueSheet : undefined}
+                summary={nextCount(rows.next)}
+                saves={false}
+                end={<ClearRestButton short onPress={clearRest} enabled={clearable} />}
+              />
             </View>
 
             <UpNextList
@@ -459,6 +464,7 @@ function Rail({
                   <>
                     <PlayingDrop row={playing} onDropSongs={actions.dropSongs}>
                       <PlayingNow
+                        quiet
                         row={playing}
                         ended={ended}
                         onOpen={() => router.navigate('/now-playing')}
@@ -788,8 +794,8 @@ const styles = StyleSheet.create(theme => ({
     // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.
     boxShadow: `-18px 0 40px ${theme.colors.floatShadow}`,
   },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: -6 },
-  summary: { flex: 1, minWidth: 0, color: theme.colors.textSecondary, fontSize: type.small },
+  summaryRow: { marginTop: -6 },
+  headEnd: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   list: { flex: 1, marginHorizontal: -6 },
   listContent: { paddingBottom: space.md },
   roomContent: { paddingHorizontal: space.tight, paddingBottom: space.md },

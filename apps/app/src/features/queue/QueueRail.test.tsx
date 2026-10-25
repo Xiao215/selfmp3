@@ -141,7 +141,7 @@ describe('the Up next rail', () => {
     await draw()
 
     expect(screen.getByRole('button', { name: 'Playing Song 2. Open now playing' })).toBeTruthy()
-    expect(screen.getByText('Next · 1 song · 4 min')).toBeTruthy()
+    expect(screen.getByText(/1 song · 4 min/)).toBeTruthy()
     expect(screen.getByText('Played')).toBeTruthy()
 
     await fireEvent.press(screen.getByTestId('queue-clear-rest'))

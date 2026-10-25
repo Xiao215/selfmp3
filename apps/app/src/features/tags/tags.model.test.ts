@@ -2,14 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
 
 import { tagsMostPlayed } from '../tag/tag.model'
-import {
-  leadSong,
-  tagsHeadline,
-  tagsLayout,
-  UNTAGGED_HINT,
-  waitingArtists,
-  waitingLine,
-} from './tags.model'
+import { leadSong, tagsHeadline, tagsLayout, waitingArtists, waitingLine } from './tags.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song =>
   ({
@@ -39,8 +32,8 @@ const names = (entries: readonly { standing: { tag: Tag } }[]) =>
 describe('All tags', () => {
   it('says how many tags there are and in what order, and when there are none', () => {
     expect(tagsHeadline(0)).toBe('No tags yet')
-    expect(tagsHeadline(1)).toBe('1 tag · most played first')
-    expect(tagsHeadline(8)).toBe('8 tags · most played first')
+    expect(tagsHeadline(1)).toBe('1 tag')
+    expect(tagsHeadline(8)).toBe('8 tags')
   })
 })
 
@@ -146,24 +139,22 @@ describe('who the untagged songs are by', () => {
 })
 
 describe('the untagged card’s line', () => {
-  const named = [
-    { name: '周杰倫', count: 73, song: {} as never },
-    { name: 'HOYO-MiX', count: 1204, song: {} as never },
-  ]
+  const artist = (name: string, count: number) => ({ name, count, song: {} as never })
 
-  it('names who the songs are by, and the rest', () => {
-    expect(waitingLine(named, 24, 'count')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and 24 more`,
-    )
-    expect(waitingLine(named, 24, 'others')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX · and others`,
-    )
-    expect(waitingLine(named, 0, 'others')).toBe(
-      `73 by 周杰倫 · ${(1204).toLocaleString()} by HOYO-MiX`,
+  it('says whose they mostly are when one artist has half or more', () => {
+    expect(waitingLine([artist('Yorushika', 58), artist('ヨルシカ', 3)], 62)).toBe(
+      'Mostly Yorushika',
     )
   })
 
-  it('says what to do with nobody to name', () => {
-    expect(waitingLine([], 5, 'count')).toBe(UNTAGGED_HINT)
+  it('names the two with the most otherwise, and says there are others', () => {
+    expect(waitingLine([artist('周杰倫', 30), artist('HOYO-MiX', 20)], 70)).toBe(
+      '周杰倫, HOYO-MiX and others',
+    )
+    expect(waitingLine([artist('周杰倫', 31), artist('HOYO-MiX', 30)], 61)).toBe('Mostly 周杰倫')
+  })
+
+  it('says nothing with nobody to name', () => {
+    expect(waitingLine([], 5)).toBeNull()
   })
 })

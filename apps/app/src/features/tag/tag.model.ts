@@ -79,7 +79,7 @@ export function untaggedSongs<T extends Pick<Song, 'id' | 'tagIds' | 'addedAt'>>
 
 /** "2 songs have no tag yet", on the card at the top of All tags. */
 export function untaggedCardTitle(count: number): string {
-  return `${plural(count, 'song has', 'songs have')} no tag yet`
+  return `${plural(count, 'song', 'songs')} without a tag`
 }
 
 export interface TagStanding {

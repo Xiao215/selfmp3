@@ -34,7 +34,7 @@ import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/compon
 import { card, label, pageFrame, rowTitle, hint, textColumn } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
-import { artistLink } from '../tag/placeLinks'
+import { Menu } from '../../ui/components/MoreMenu'
 import { useOpenTag } from '../tag/useOpenTag'
 import {
   noTagsLine,
@@ -67,9 +67,8 @@ import { TagDot } from '../../ui/components/TagDot'
 const TILE_MIN_WIDTH = 220
 const GAP = 16
 const ROW_GAP = 24
-/** How many artists the untagged card names on a computer, and on a phone. */
+/** How many artists' covers the untagged card stands up. */
 const WAITING_SHOWN = 3
-const PHONE_WAITING_SHOWN = 2
 const NOTHING_WAITING = { artists: [], rest: 0 } as const
 
 type EditTag = (tag: Tag) => void
@@ -123,9 +122,6 @@ export function TagsScreen(): ReactNode {
       source: { kind: 'tag', tagId: standing.tag.id, name: standing.tag.name },
     })
   }, [])
-  const openArtist = useCallback((name: string) => {
-    latest.current.router.navigate(artistLink(name))
-  }, [])
   const [editing, setEditing] = useState<Tag | null>(null)
   // The editor is anchored to the tile that asked for it. One anchor for the
   // page, pointed at that tile as it opens, so the page keeps a single editor.
@@ -155,11 +151,6 @@ export function TagsScreen(): ReactNode {
   const waiting = useMemo(
     () => (library ? waitingArtists(library.songs, WAITING_SHOWN) : NOTHING_WAITING),
     [library],
-  )
-  // A phone names fewer, so what its "and others" counts is the rest after those.
-  const phoneRest = useMemo(
-    () => (library && !wide ? waitingArtists(library.songs, PHONE_WAITING_SHOWN).rest : 0),
-    [library, wide],
   )
 
   // The one Search, on its Tags scope: the page on a phone, the palette over
@@ -240,11 +231,9 @@ export function TagsScreen(): ReactNode {
           <UntaggedCard
             count={playAndTag.count}
             artists={waiting.artists}
-            rest={wide ? waiting.rest : phoneRest}
             wide={wide}
             onStart={playAndTag.start}
             onSuggest={switches.tags ? () => setSuggesting(true) : undefined}
-            onArtist={openArtist}
           />
         ) : null}
         <SuggestTagsSheet open={suggesting} onClose={() => setSuggesting(false)} />
@@ -351,38 +340,33 @@ function NewTag({
 }
 
 /**
- * "111 songs have no tag yet", and who they are by (K2): the artists with the
- * most of them, newest cover first. On a computer each name opens that
- * artist's page, where Select all and Tag do a batch at once, and the button
- * tags them one at a time while they play. On a phone the whole card is that
- * button, with two names to say what is waiting.
- *
- * Suggest tags (A7, docs/features/ai.md) sits beside it: the same songs, a tag
- * proposed for each, taken a tag at a time.
+ * "62 songs without a tag", and in a word who they are by ("Mostly
+ * Yorushika"), over the newest of their covers; and one "Tag them", which
+ * offers the two ways to: Suggest tags (A7, docs/features/ai.md), the same
+ * songs with a tag proposed for each, and Tag while they play, one at a time
+ * (I1, 2026-10-25). On a phone the whole card is that button.
  */
 function UntaggedCard({
   count,
   artists,
-  rest,
   wide,
   onStart,
   onSuggest,
-  onArtist,
 }: {
   count: number
   artists: readonly WaitingArtist[]
-  /** The songs by none of the artists named. */
-  rest: number
   wide: boolean
   onStart: () => void
   /** Absent while Suggest tags is turned off in Settings › Smart features. */
   onSuggest?: () => void
-  onArtist: (name: string) => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const art = useArt(COVER_STACK)
-  const named = wide ? artists : artists.slice(0, PHONE_WAITING_SHOWN)
   const title = untaggedCardTitle(count)
+  const line = waitingLine(artists, count)
+  const anchor = useRef<View>(null)
+  const [choosing, setChoosing] = useState(false)
+  // With Suggest tags off there is one way left, and the button takes it.
+  const tag = (): void => (onSuggest ? setChoosing(true) : onStart())
 
   const covers =
     artists.length > 0 ? (
@@ -403,77 +387,73 @@ function UntaggedCard({
         <TagIcon size={iconSize.medium} tone="textPrimary" />
       </View>
     )
-
-  // The same words a screen reader is given; a computer draws the names as links.
-  const line = waitingLine(named, rest, wide ? 'count' : 'others')
-  const who =
-    named.length === 0 || !wide ? (
-      line
-    ) : (
-      <>
-        {named.map((artist, index) => (
-          <Text key={artist.name}>
-            {index > 0 ? ' · ' : ''}
-            {artist.count.toLocaleString()} by{' '}
-            <Text
-              style={styles.artistLink}
-              onPress={() => onArtist(artist.name)}
-              accessibilityRole="link"
-              {...tip(`Open ${artist.name}`)}
-            >
-              {artist.name}
-            </Text>
-          </Text>
-        ))}
-        {rest > 0 ? ` · and ${rest.toLocaleString()} more` : ''}
-      </>
-    )
   const words = (
-    <View style={[styles.untaggedText, wide && styles.untaggedTextWide]}>
+    <View style={styles.untaggedText}>
       <Text style={styles.untaggedTitle} numberOfLines={1}>
         {title}
       </Text>
-      <Text style={styles.untaggedSub} numberOfLines={1}>
-        {who}
-      </Text>
+      {line ? (
+        <Text style={styles.untaggedSub} numberOfLines={1}>
+          {line}
+        </Text>
+      ) : null}
     </View>
   )
-  const suggest = (variant: 'secondary' | 'text'): ReactNode =>
-    onSuggest ? (
-      <Button
-        label="Suggest tags"
-        icon={<Sparkle />}
-        variant={variant}
-        onPress={onSuggest}
-        testID="tags-untagged-suggest"
-      />
-    ) : null
+  const menu = (
+    <Menu
+      open={choosing}
+      onClose={() => setChoosing(false)}
+      anchorRef={anchor}
+      title={title}
+      testID="tags-untagged-menu"
+      items={[
+        ...(onSuggest
+          ? [
+              {
+                key: 'suggest',
+                label: 'Suggest tags',
+                icon: <Sparkle />,
+                onPress: onSuggest,
+                testID: 'tags-untagged-suggest',
+              },
+            ]
+          : []),
+        {
+          key: 'play',
+          label: 'Tag while they play',
+          icon: <TagIcon tone="textSecondary" />,
+          onPress: onStart,
+          testID: 'tags-untagged-start',
+        },
+      ]}
+    />
+  )
 
   if (wide) {
     return (
-      <View style={[styles.untagged, styles.untaggedWide]} testID="tags-untagged">
+      <View style={styles.untagged} testID="tags-untagged">
         {covers}
         {words}
-        {/* Under the words, at the right, where the card is too narrow for both. */}
-        <View style={styles.untaggedButtons}>
-          {suggest('secondary')}
+        <View ref={anchor} collapsable={false}>
           <Button
-            label="Tag while they play"
-            icon={<TagIcon color={theme.colors.textPrimary} />}
-            onPress={onStart}
-            testID="tags-untagged-start"
+            label="Tag them"
+            icon={<Sparkle />}
+            onPress={tag}
+            active={choosing}
+            testID="tags-untagged-tag"
           />
         </View>
+        {menu}
       </View>
     )
   }
   return (
-    <View>
+    <View ref={anchor} collapsable={false}>
       <Press
         depth="row"
-        onPress={onStart}
+        onPress={tag}
         accessibilityRole="button"
-        accessibilityLabel={`${title}. ${line}`}
+        accessibilityLabel={line ? `${title}. ${line}` : title}
         accessibilityHint={UNTAGGED_HINT}
         testID="tags-untagged"
         style={styles.untagged}
@@ -482,7 +462,7 @@ function UntaggedCard({
         {words}
         <ChevronRight size={iconSize.item} tone="textMuted" />
       </Press>
-      {onSuggest ? <View style={styles.untaggedSuggest}>{suggest('text')}</View> : null}
+      {menu}
     </View>
   )
 }
@@ -743,18 +723,8 @@ const styles = StyleSheet.create(theme => ({
   untaggedText: textColumn,
   // Wraps rather than squeezing the words to nothing: under about 220 px for
   // them, the buttons take a row of their own.
-  untaggedWide: { flexWrap: 'wrap' },
-  untaggedTextWide: { flexBasis: 220 },
-  untaggedButtons: { flexDirection: 'row', gap: space.md, marginLeft: 'auto' },
-  untaggedSuggest: { flexDirection: 'row', justifyContent: 'flex-end' },
   untaggedTitle: rowTitle(theme.colors),
   untaggedSub: { color: theme.colors.textSecondary, fontSize: type.sub },
-  artistLink: {
-    color: theme.colors.textPrimary,
-    fontWeight: '500',
-    textDecorationLine: 'underline',
-    textDecorationColor: theme.colors.borderStrong,
-  },
   runs: { gap: ROW_GAP },
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },

@@ -10,10 +10,10 @@ import { untaggedSongs, type TagStanding } from '../tag/tag.model'
  * words, and how the page lays the tags out.
  */
 
-/** "8 tags · most played first", under the title, or what to say when there are none. */
+/** "8 tags", under the title, or what to say when there are none. */
 export function tagsHeadline(count: number): string {
   if (count === 0) return 'No tags yet'
-  return `${plural(count, 'tag', 'tags')} · most played first`
+  return plural(count, 'tag', 'tags')
 }
 
 /** A tag with this many songs or fewer waits at the end, under "Just started". */
@@ -172,26 +172,18 @@ function mostUsed(spellings: ReadonlyMap<string, number>): string {
 }
 
 /** The untagged card's line with nobody to name. */
-export const UNTAGGED_HINT = 'Tag them one at a time, while they play'
+export const UNTAGGED_HINT = 'Suggest tags, or tag them one at a time while they play'
 
 /**
- * The untagged card's line as words: "73 by 周杰倫 · 10 by 薛之谦 · and 24
- * more", or "· and others" where the card names fewer than it could. What a
- * screen reader says on a phone, where the card is one button, and the same
- * names a computer draws as links.
+ * The untagged card's line, in a word, who the songs are by: "Mostly
+ * Yorushika" when one artist has half of them or more; else the two with the
+ * most, "Yorushika, ZUTOMAYO and others". Null with nobody to name. The
+ * counts per artist were a list ("58 by Yorushika · 3 by ヨルシカ · 1 by
+ * ZUTOMAYO") that a phone cut off mid-name (I1, 2026-10-25).
  */
-export function waitingLine(
-  named: readonly WaitingArtist[],
-  rest: number,
-  restWords: 'count' | 'others',
-): string {
-  if (named.length === 0) return UNTAGGED_HINT
-  const names = named.map(artist => `${artist.count.toLocaleString()} by ${artist.name}`)
-  const tail =
-    rest <= 0
-      ? ''
-      : restWords === 'count'
-        ? ` · and ${rest.toLocaleString()} more`
-        : ' · and others'
-  return names.join(' · ') + tail
+export function waitingLine(artists: readonly WaitingArtist[], count: number): string | null {
+  const [first, second] = artists
+  if (!first) return null
+  if (first.count * 2 >= count || !second) return `Mostly ${first.name}`
+  return `${first.name}, ${second.name}${artists.length > 2 || first.count + second.count < count ? ' and others' : ''}`
 }

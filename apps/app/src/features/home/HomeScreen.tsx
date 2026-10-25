@@ -30,7 +30,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useLayoutValue } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Bone, Skeleton } from '../../ui/components/Skeleton'
@@ -146,14 +146,17 @@ function HomePage({
 }): ReactNode {
   const { wide } = useLayout()
   const beside = useCardsBeside(wide)
+  const roomy = useLayoutValue(roomyPhone)
   const router = useRouter()
   const now = useNow()
   const bottom = useBottomInset()
   const { data: library } = useLibrary()
+  // Three by two wherever the tiles go three across.
+  const many = wide || roomy
   const tiles = useMemo(
     () =>
-      library ? homeTiles(library.tags, library.songs, wide ? HOME_TILES_WIDE : HOME_TILES) : [],
-    [library, wide],
+      library ? homeTiles(library.tags, library.songs, many ? HOME_TILES_WIDE : HOME_TILES) : [],
+    [library, many],
   )
   const recentLists = useRecentLists()
   // Rooms listened in together, for a few days after they end (features/room).
@@ -430,10 +433,11 @@ function PhoneHeader(): ReactNode {
 }
 
 /**
- * The tiles, two across on a phone; on a computer as many as fit a tile of
- * `WIDE_TILE_MIN`, two to three, so a page narrowed by Up next drops a column
- * rather than cutting the names (M1); more on a very wide page, where three
- * would each grow past `WIDE_TILE_MAX`. A tile opens its tag's page.
+ * The tiles, two across on a phone and three on an iPad held upright; on a
+ * computer as many as fit a tile of `WIDE_TILE_MIN`, two to three, so a page
+ * narrowed by Up next drops a column rather than cutting the names (M1); more
+ * on a very wide page, where three would each grow past `WIDE_TILE_MAX`. A
+ * tile opens its tag's page.
  */
 function Tiles({
   tiles,
@@ -447,6 +451,7 @@ function Tiles({
 }): ReactNode {
   const openTag = useOpenTag()
   const art = useArt()
+  const roomy = useLayoutValue(roomyPhone)
   // As many tiles of `WIDE_TILE_MIN` as fit, two to three (`C03` draws
   // three), more once three would outgrow `WIDE_TILE_MAX`; a page narrowed
   // by Up next drops a column rather than cutting the names (M1). The number
@@ -458,6 +463,7 @@ function Tiles({
     maxColumns: 3,
     maxTile: WIDE_TILE_MAX,
     reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
+    phoneColumns: roomy ? 3 : 2,
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
   if (loading) return <TilesWaiting columns={columns} />
@@ -916,6 +922,13 @@ const RECENTS_LEAST = 12
 const SMALL_TILE = 140
 /** The narrowest a computer's tile gets before the grid drops a column. */
 const WIDE_TILE_MIN = 190
+/**
+ * The phone's layout at a tablet's width — an iPad held upright, 744 and up
+ * (AI1) — has room for three tiles across; a phone, 440 at most, has two.
+ */
+const ROOMY_PHONE = 600
+const roomyPhone = (layout: { wide: boolean; width: number }): boolean =>
+  !layout.wide && layout.width >= ROOMY_PHONE
 /** And the widest, past which a very wide page takes another column. */
 const WIDE_TILE_MAX = 360
 

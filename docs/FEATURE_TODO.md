@@ -22,7 +22,8 @@ portrait, a finger gets no select circle or hover play in a row (holding a row s
 crossing 820 keeps the page (`Shell.tsx` is one tree at every width;
 `verify/flows/navigation.spec.ts` checks 1194 → 507 → 1194 in a browser). Checked on the
 iPad Pro 11-inch simulator in portrait (`.maestro/tablet.yaml`) and at 1194, 678, 507 and
-320 in a browser. What is left:
+320 in a browser. Since 2026-10-25 (AI1) an iPad held upright has the phone's layout at
+every width, and `tablet.yaml` turns it on its side for the sidebar. What is left:
 
 - **Split View on the simulator, by hand, once more.** Landscape was checked on the iPad
   Pro 11-inch on 2026-09-19 (Home as `T06`, a tag page, Now Playing). Split View on

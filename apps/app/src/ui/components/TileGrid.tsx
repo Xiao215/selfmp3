@@ -39,6 +39,7 @@ export function useTileGrid({
   maxColumns = Infinity,
   maxTile = Infinity,
   reserve = 0,
+  phoneColumns = PHONE_COLUMNS,
 }: {
   /** The narrowest a computer's tile gets before the grid drops a column. */
   minTile: number
@@ -52,6 +53,8 @@ export function useTileGrid({
   maxTile?: number
   /** What stands beside the grid on a computer: Home's card column. */
   reserve?: number
+  /** How many across on the phone's layout: two, or three on an iPad held upright (AI1). */
+  phoneColumns?: number
 }): { columns: number; tileWidth: number } {
   // The app's own width, not the window's: an iPad in Split View is handed
   // half the screen and told about the whole of it (`shell/rootWidth.ts`).
@@ -64,7 +67,7 @@ export function useTileGrid({
       : Math.floor(column - space.gutterWide * 2 - reserve)
   const fit = Math.floor((rowWidth + gap) / (minTile + gap))
   const columns = !wide
-    ? PHONE_COLUMNS
+    ? phoneColumns
     : rowWidth <= 0
       ? Number.isFinite(maxColumns)
         ? maxColumns

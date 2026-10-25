@@ -108,14 +108,30 @@ describe('now playing', () => {
   })
 
   it('grows the cover, the title and the words on a very wide page, and only there', () => {
-    expect(stageGeometry(2000, 1100)).toMatchObject({ cover: 400, title: 30, lyric: 32 })
+    expect(stageGeometry(1800, 1000)).toMatchObject({
+      column: 400,
+      cover: 400,
+      title: 30,
+      lyric: 32,
+    })
     const wide = stageGeometry(2800, 1116)
     expect(wide.cover).toBe(560)
-    expect(wide.title).toBe(35)
+    expect(wide.title).toBe(43.75)
     expect(wide.lyric).toBeCloseTo(37.8)
     // A short window still keeps the cover clear of the bar.
     expect(stageGeometry(2800, 700).cover).toBe(410)
-    expect(stageGeometry(3600, 1400)).toMatchObject({ cover: 600, title: 40, lyric: 44 })
+    expect(stageGeometry(3600, 1400)).toMatchObject({ cover: 700, title: 50, lyric: 44 })
+  })
+
+  it('gives the song a third of a 2560 window, its cover half the height (AJ1)', () => {
+    const screen = stageGeometry(2560, 1212)
+    expect(screen.column).toBeCloseTo(2560 / 3 - 72)
+    expect(screen.cover).toBe(606)
+    expect(screen.title).toBe(40)
+    // Halfway there at 2100.
+    const between = stageGeometry(2100, 1100)
+    expect(between.cover).toBeGreaterThan(420)
+    expect(between.cover).toBeLessThan(550)
   })
 
   it('stacks a page taller than wide, as an iPad in portrait (T05)', () => {

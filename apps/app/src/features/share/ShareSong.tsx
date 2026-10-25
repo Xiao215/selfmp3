@@ -183,7 +183,7 @@ function SongStage(props: SongProps): ReactNode {
       </View>
 
       <View style={[styles.stageBody, sides, { gap: geometry.gutter }]}>
-        <View style={[styles.side, { width: geometry.cover }]}>
+        <View style={[styles.side, { width: geometry.column }]}>
           <View style={styles.art}>
             <Cover uri={cover} title={song.title} size={geometry.cover} hue={tileHue} />
           </View>

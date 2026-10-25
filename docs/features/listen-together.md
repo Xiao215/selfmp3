@@ -67,7 +67,9 @@ The room's own Add sheet, with its Mine / In the room / A link tabs, is gone.
 **Start**. Nothing on it looks pressable that is not: the empty seats are gone. Where it plays
 is not asked: a room starts on the host's own device. Under Start is *Have a code? Join*,
 which turns into the code field in place. Return reads Join; a code that cannot be one says so
-under the field. A press on the sheet away from the field, or a pull, puts the keyboard away,
+under the field. A link to `/join/<code>` whose code cannot be one is a centred dead end like a
+gone link's (AK1, 2026-10-25): *That isn't a room code*, how a code looks, the six boxes filled
+with what came in (a letter no code uses in red) and Join once it is a code. A press on the sheet away from the field, or a pull, puts the keyboard away,
 as on every sheet. Pressing Start keeps the sheet up, and it grows into
 the room's sheet (M1): your face springs into its seat, the code rolls in a letter at a time,
 and the rest rises in after it. A friend who joins later springs into the row with a ring of

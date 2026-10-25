@@ -558,7 +558,7 @@ function Stage({
               : {
                   left: geometry.pad,
                   top: box.top + box.size + 24,
-                  width: Math.max(geometry.cover, 280),
+                  width: Math.max(geometry.column, 280),
                 },
           ]}
         >

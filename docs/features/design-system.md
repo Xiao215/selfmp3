@@ -431,8 +431,8 @@ something is still happening.
 ## The toast row
 
 Toasts are one layer of the app shell (`Toasts` in `shell/Shell.tsx`): centred near the foot of
-the content, with the resume offer and every message raised with `showToast` (`ui/toast.ts`),
-drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
+the content, with the resume offer (on a phone; a computer's waits at the foot of the sidebar,
+`ResumeCard`) and every message raised with `showToast` (`ui/toast.ts`), drawn by `ToastHost`. The layer takes no touches itself, and on a phone it lifts above the
 floating selection bar rather than covering its buttons; each toast is dismissible. Put new
 transient messages in that row rather than positioning them by hand.
 

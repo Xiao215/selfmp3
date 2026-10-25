@@ -60,6 +60,7 @@ import { label as labelText, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Bone, Skeleton } from '../ui/components/Skeleton'
+import { ResumeCard } from '../features/devices/ResumeToast'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
@@ -652,6 +653,8 @@ function Foot(): ReactNode {
           {notice.body}
         </NoticeCard>
       ) : null}
+      {/* Another device's song, waiting to be picked up here (AE1). */}
+      <ResumeCard />
       <Press
         feedback="wash"
         style={[styles.status, pathname === '/profile' && styles.itemOn]}

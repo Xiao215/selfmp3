@@ -31,13 +31,18 @@ export const CLOUD_FILES_CACHE = 'selfmp3-cloud-files-v1'
 
 /**
  * What the page and the worker say to each other with `postMessage`: the
- * worker telling every page the bucket refused for the day, and a page asking
- * the worker to take it over after a hard reload.
+ * worker telling every page the bucket refused for the day, and that it kept
+ * another played song (`PLAYED_CACHE` changed), and a page asking the worker
+ * to take it over after a hard reload.
  */
 export const SW_MESSAGE = {
   bucketCapped: 'BUCKET_CAPPED',
+  played: 'PLAYED',
   claim: 'CLAIM',
 } as const
+
+/** Where the worker keeps a played song, under its scope: `played/<bucket key>`. */
+export const PLAYED_PREFIX = 'played/'
 
 /**
  * The IndexedDB database the page keeps small things in (src/ports/idbStore.web.ts)

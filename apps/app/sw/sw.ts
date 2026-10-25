@@ -49,6 +49,7 @@ import {
   DB_STORE,
   DB_VERSION,
   PLAYED_CACHE,
+  PLAYED_PREFIX,
   SW_MESSAGE,
 } from './names'
 
@@ -348,6 +349,10 @@ class Arriving {
     for (const old of names.slice(0, Math.max(0, names.length - PLAYED_KEPT))) {
       await cache.delete(old)
     }
+    // The pages count a kept song as on this browser (src/ports/playedCopies.web.ts):
+    // with the bucket refusing for the day, it is one of the few that still play.
+    const clients = await self.clients.matchAll({ type: 'window' })
+    for (const client of clients) client.postMessage({ type: SW_MESSAGE.played })
   }
 
   /** The bucket's own answer when it would not give the song: a cap's 502, say. */
@@ -439,7 +444,7 @@ class Arriving {
 
 /** Where a played song is kept: under the worker's own scope, by its bucket key. */
 function playedName(key: string): string {
-  return new URL(`played/${key}`, self.registration.scope).href
+  return new URL(`${PLAYED_PREFIX}${key}`, self.registration.scope).href
 }
 
 /**

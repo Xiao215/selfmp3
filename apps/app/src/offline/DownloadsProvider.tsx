@@ -37,6 +37,7 @@ import {
   promoteRecent,
   recentUri,
 } from '../ports/recentCopies'
+import { onPlayedKeys, playedKeys } from '../ports/playedCopies'
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
 import { useConnectionKind } from './connectionKind'
@@ -156,6 +157,11 @@ interface DownloadsContextValue {
    * the day. Rows fade such songs, rather than a tap finding out.
    */
   readonly streamBlocked: boolean
+  /**
+   * Songs a browser's service worker kept for having played them: not
+   * downloads, but on this browser, so they play while the bucket refuses.
+   */
+  readonly playedIds: ReadonlySet<number>
   /** True when the song can start; otherwise the reason is put to the person, with `retry`. */
   checkPlay: (songId: number, retry: () => void) => boolean
   readonly question: DownloadQuestion | null
@@ -296,7 +302,9 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   // starts until the hold lifts. The first download after it asks again, so a
   // bucket still refusing costs one request each time the hold runs out.
   const held = useBucketHold('read') !== null && fromCloud
-  const streamBlocked = installedApp && fromCloud && (held || network === 'none')
+  // A browser too, on the bucket's day: it has nothing else to stream from.
+  // Offline it fades nothing, since its worker may answer more than it lists.
+  const streamBlocked = fromCloud && (held || (installedApp && network === 'none'))
   useEffect(() => {
     if (!held) return undefined
     const timer = setTimeout(() => {
@@ -443,6 +451,19 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   // The player's commands are made once; they read the latest rules through this.
   const songsById = useSongsById()
+  const played = useSyncExternalStore(onPlayedKeys, playedKeys)
+  // The same set until its songs change: a like makes a new library, and a new
+  // set here would draw every row again.
+  const playedList = useSameArray(
+    useMemo(
+      () =>
+        played.size === 0
+          ? []
+          : [...songsById.values()].filter(song => played.has(song.path)).map(song => song.id),
+      [played, songsById],
+    ),
+  )
+  const playedIds = useMemo(() => new Set(playedList), [playedList])
   const rules = useRef({
     network,
     prefs,
@@ -465,14 +486,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   /*
    * A file here the player would use: a download first, then a copy kept
    * because it was played. Asked the way the player asks (`localUri`, with the
-   * song's rev), so a kept file the player would not use counts as none.
+   * song's rev), so a kept file the player would not use counts as none. In a
+   * browser the kept copy is the service worker's, answered at the song's
+   * ordinary address, and read at the moment of asking like the bucket's hold.
    */
-  const hereNow = useCallback(
-    (songId: number): boolean =>
-      downloadQueue.localUri(songId, rules.current.songsById.get(songId)?.rev) !== null ||
-      recentUri(rules.current.songsById.get(songId)) !== null,
-    [],
-  )
+  const hereNow = useCallback((songId: number): boolean => {
+    const song = rules.current.songsById.get(songId)
+    return (
+      downloadQueue.localUri(songId, song?.rev) !== null ||
+      recentUri(song) !== null ||
+      (song !== undefined && playedKeys().has(song.path))
+    )
+  }, [])
 
   /** The song, when a copy of it may be kept for having been (or being about to be) played. */
   const keepable = useCallback(
@@ -630,6 +655,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepAhead,
       mayPlay,
       streamBlocked,
+      playedIds,
       checkPlay,
       question,
       answer,
@@ -656,6 +682,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepAhead,
       mayPlay,
       streamBlocked,
+      playedIds,
       checkPlay,
       question,
       answer,

@@ -120,6 +120,48 @@
   gap: 8px;
 }
 
+.account-in .account-hint {
+  font-size: var(--type-small);
+  line-height: var(--leading-small);
+  color: var(--text-muted);
+}
+
+/* "Connect by address instead": a quiet line that opens onto the address. */
+.by-address > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--type-sub);
+  color: var(--text-muted);
+}
+
+.by-address > summary::-webkit-details-marker {
+  display: none;
+}
+
+.by-address > summary::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.by-address[open] > summary::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
+}
+
+.by-address > summary:hover {
+  color: var(--text-secondary);
+}
+
 .setting {
   display: flex;
   align-items: center;

@@ -99,15 +99,54 @@ export function tagMatchCount(song: Pick<Song, 'tagIds'>, tagIds: readonly numbe
   return matched
 }
 
-/** Sort options offered in the UI — the app's list, in the app's order. */
-export const SORT_OPTIONS: { field: SongSortField; label: string }[] = [
-  { field: 'addedAt', label: 'Recently added' },
-  { field: 'title', label: 'Title' },
-  { field: 'artist', label: 'Artist' },
-  { field: 'album', label: 'Album' },
-  { field: 'duration', label: 'Length' },
-  { field: 'playCount', label: 'Most played' },
-  { field: 'lastPlayedAt', label: 'Recently played' },
+/** One way round a sort goes, named for its field: "Newest first", and "newest" beside the field. */
+export interface SortOrder {
+  readonly descending: boolean
+  readonly label: string
+  readonly short: string
+}
+
+const order = (descending: boolean, label: string, short = label.toLowerCase()): SortOrder => ({
+  descending,
+  label,
+  short,
+})
+
+const BY_NAME = [order(false, 'A–Z', 'A–Z'), order(true, 'Z–A', 'Z–A')] as const
+
+/**
+ * Sort options offered in the UI — the app's list, in the app's order — each
+ * with its two ways round, named for the field rather than as an arrow. The
+ * first is the field's own: what choosing the field starts on.
+ */
+export const SORT_OPTIONS: {
+  field: SongSortField
+  label: string
+  orders: readonly [SortOrder, SortOrder]
+}[] = [
+  {
+    field: 'addedAt',
+    label: 'Recently added',
+    orders: [order(true, 'Newest first', 'newest'), order(false, 'Oldest first', 'oldest')],
+  },
+  { field: 'title', label: 'Title', orders: BY_NAME },
+  { field: 'artist', label: 'Artist', orders: BY_NAME },
+  { field: 'album', label: 'Album', orders: BY_NAME },
+  {
+    field: 'duration',
+    label: 'Length',
+    orders: [order(true, 'Longest'), order(false, 'Shortest')],
+  },
+  {
+    field: 'playCount',
+    label: 'Most played',
+    orders: [order(true, 'Most'), order(false, 'Fewest')],
+  },
+  {
+    field: 'lastPlayedAt',
+    label: 'Recently played',
+    orders: [order(true, 'Newest'), order(false, 'Oldest')],
+  },
 ]
 
 type PreparedNames = ReturnType<typeof preparedNamesFor<Song>>

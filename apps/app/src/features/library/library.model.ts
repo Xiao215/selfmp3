@@ -11,6 +11,7 @@ import {
   isDownloaded,
   SORT_OPTIONS,
   tagFiltered,
+  type SortOrder,
   toggleTag,
   usedTags,
   useLibrary,
@@ -64,16 +65,20 @@ interface LibraryModel {
    * only when the songs carrying all of them are some but not all of the list.
    */
   matchNote: string | null
+  /** The field and its way round: "Recently added · newest". */
   sortLabel: string
   sortOptions: typeof SORT_OPTIONS
+  /** The current field's two ways round, named for it: Newest first, Oldest first. */
+  sortOrders: readonly SortOrder[]
   loading: boolean
   /** The server did not answer; what is shown is the kept copy. */
   unreachable: boolean
   /** Why the library did not answer, for the card that says so; null while it has. */
   failure: unknown
   emptyReason: LibraryEmptyReason
+  /** Sort by a field, its own way round first. */
   setSort: (field: SongSortField) => void
-  toggleDirection: () => void
+  setDescending: (descending: boolean) => void
   /** Turn a tag on or off. Every chosen tag adds its songs to the list. */
   toggleTag: (tagId: number) => void
   clearTags: () => void
@@ -109,13 +114,19 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
    * a state setter, so none of these ever needs remaking.
    */
   const setSort = useCallback(
-    (sort: SongSortField) => setFilter(current => ({ ...current, sort })),
+    (sort: SongSortField) =>
+      setFilter(current => ({
+        ...current,
+        sort,
+        descending: optionFor(sort)?.orders[0].descending ?? current.descending,
+      })),
     [setFilter],
   )
-  const toggleDirection = useCallback(
-    () => setFilter(current => ({ ...current, descending: !current.descending })),
+  const setDescending = useCallback(
+    (descending: boolean) => setFilter(current => ({ ...current, descending })),
     [setFilter],
   )
+  const sortOption = optionFor(filter.sort)
   const toggleTagId = useCallback(
     (tagId: number) => setFilter(current => toggleTag(current, tagId)),
     [setFilter],
@@ -140,14 +151,15 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       chosenTags,
       subtitle: isPending ? 'Loading…' : plural(visible.length, 'song', 'songs'),
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
-      sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
+      sortLabel: orderLabel(sortOption, filter.descending),
       sortOptions: SORT_OPTIONS,
+      sortOrders: sortOption?.orders ?? [],
       loading: isPending,
       unreachable: isError,
       failure: error,
       emptyReason: emptyReason({ isError, total: songs.length, shown: visible.length }),
       setSort,
-      toggleDirection,
+      setDescending,
       toggleTag: toggleTagId,
       clearTags,
       toggleDownloadedOnly,
@@ -167,12 +179,26 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       isError,
       error,
       setSort,
-      toggleDirection,
+      setDescending,
+      sortOption,
       toggleTagId,
       clearTags,
       toggleDownloadedOnly,
     ],
   )
+}
+
+const optionFor = (field: SongSortField): (typeof SORT_OPTIONS)[number] | undefined =>
+  SORT_OPTIONS.find(option => option.field === field)
+
+/** "Recently added · newest": the field, and which way round it goes. */
+export function orderLabel(
+  option: (typeof SORT_OPTIONS)[number] | undefined,
+  descending: boolean,
+): string {
+  if (!option) return 'Sort'
+  const way = option.orders.find(order => order.descending === descending)
+  return way ? `${option.label} · ${way.short}` : option.label
 }
 
 /**

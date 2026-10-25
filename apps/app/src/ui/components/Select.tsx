@@ -43,6 +43,8 @@ export function Select<T extends string | number>({
   label,
   testID,
   size = 'normal',
+  shown,
+  foot,
 }: {
   value: T
   options: readonly SelectOption<T>[]
@@ -51,6 +53,13 @@ export function Select<T extends string | number>({
   label: string
   testID?: string
   size?: 'normal' | 'small' | 'inline'
+  /** What the button says, when it says more than the chosen option: "Recently added · newest". */
+  shown?: string
+  /**
+   * Under the options, a control that goes with them — Library's way round
+   * for its sort. Changing it leaves the list open.
+   */
+  foot?: ReactNode
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   const [open, setOpen] = useState(false)
@@ -110,7 +119,7 @@ export function Select<T extends string | number>({
         // current value as its content.
         accessibilityRole="combobox"
         accessibilityLabel={label}
-        accessibilityValue={{ text: current?.label ?? '' }}
+        accessibilityValue={{ text: shown ?? current?.label ?? '' }}
         accessibilityState={{ expanded: open }}
       >
         <Text
@@ -122,7 +131,7 @@ export function Select<T extends string | number>({
           ]}
           numberOfLines={1}
         >
-          {current?.label ?? label}
+          {shown ?? current?.label ?? label}
         </Text>
         <Animated.View style={chevron}>
           <ChevronDown
@@ -140,6 +149,7 @@ export function Select<T extends string | number>({
         titleTone="label"
       >
         {options.map(item)}
+        {foot ? <View style={styles.foot}>{foot}</View> : null}
       </Popover>
     </>
   )
@@ -194,6 +204,7 @@ const styles = StyleSheet.create(theme => ({
   controlPressed: {
     backgroundColor: theme.colors.surface3,
   },
+  foot: { paddingHorizontal: space.sm, paddingTop: space.tight, paddingBottom: space.xs },
   /* Every option keeps the room, so the labels line up whether ticked or not. */
   checkSlot: { width: 14, alignItems: 'center' },
   value: {

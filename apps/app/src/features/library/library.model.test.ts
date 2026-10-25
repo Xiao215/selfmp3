@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@selfmp3/client'
+import { ApiError, SORT_OPTIONS } from '@selfmp3/client'
 
 import {
   emptyReason,
@@ -7,6 +7,7 @@ import {
   footSummary,
   matchNote,
   noMatchesTitle,
+  orderLabel,
   stripTags,
   unreachableCopy,
   unreachableLabel,
@@ -200,5 +201,22 @@ describe('the tag strip', () => {
   it('stops at its limit, but never hides a chosen tag', () => {
     expect(stripTags(tags, [], [], 2)).toHaveLength(2)
     expect(stripTags(tags, [1, 2, 3], [], 2)).toHaveLength(3)
+  })
+})
+
+describe('naming the order', () => {
+  const option = (field: string) => SORT_OPTIONS.find(each => each.field === field)
+
+  it('says the field and which way round, in the field’s own words', () => {
+    expect(orderLabel(option('addedAt'), true)).toBe('Recently added · newest')
+    expect(orderLabel(option('addedAt'), false)).toBe('Recently added · oldest')
+    expect(orderLabel(option('title'), false)).toBe('Title · A–Z')
+    expect(orderLabel(option('playCount'), false)).toBe('Most played · fewest')
+  })
+
+  it('starts each field its own way round', () => {
+    expect(option('addedAt')?.orders[0].descending).toBe(true)
+    expect(option('artist')?.orders[0].descending).toBe(false)
+    expect(option('duration')?.orders[0].label).toBe('Longest')
   })
 })

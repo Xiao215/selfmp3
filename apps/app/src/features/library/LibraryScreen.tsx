@@ -5,7 +5,7 @@ import type { Song } from '@selfmp3/shared'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { HIT_TARGET, isDownloaded, radius, space, type, textStyle, iconSize } from '@selfmp3/client'
+import { HIT_TARGET, isDownloaded, space, type, iconSize } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
@@ -17,6 +17,7 @@ import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongRows } from '../../ui/components/useSongRows'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
+import { Segmented } from '../../ui/components/Segmented'
 import { Select } from '../../ui/components/Select'
 import { SongList } from '../../ui/components/SongList'
 import { useSongRowHeight } from '../../ui/components/SongRow'
@@ -43,7 +44,6 @@ import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
-import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 
 /**
@@ -80,6 +80,19 @@ export function LibraryScreen(): ReactNode {
 
   // The phone's order, chosen from a sheet.
   const [sorting, setSorting] = useState(false)
+  // Which way round, named for the field: in the computer's sort list and the phone's sheet.
+  const sortOrder = (
+    <Segmented
+      label="Order"
+      size="small"
+      value={filter.descending ? 'down' : 'up'}
+      onChange={way => model.setDescending(way === 'down')}
+      options={model.sortOrders.map(order => ({
+        value: order.descending ? 'down' : 'up',
+        label: order.label,
+      }))}
+    />
+  )
   // A mouse drags the tag strip along; a finger already flicks it.
   const stripDrag = useDragScroll()
   // Which tags to listen to — a different job from the row's tag window,
@@ -337,6 +350,7 @@ export function LibraryScreen(): ReactNode {
           {wide ? (
             <View style={[styles.actions, headWide && styles.actionsWide]}>
               <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
+                {/* The way round is in the list, named for the field, not an arrow beside it. */}
                 <Select
                   value={filter.sort}
                   options={model.sortOptions.map(option => ({
@@ -345,21 +359,11 @@ export function LibraryScreen(): ReactNode {
                   }))}
                   onChange={model.setSort}
                   label="Sort by"
+                  shown={model.sortLabel}
+                  foot={sortOrder}
                   testID="library-sort"
                 />
               </View>
-              <Press
-                style={({ pressed }) => [
-                  styles.direction,
-                  dense && styles.directionDense,
-                  pressed && styles.sortButtonPressed,
-                ]}
-                onPress={model.toggleDirection}
-                accessibilityRole="button"
-                accessibilityLabel={filter.descending ? 'Sort ascending' : 'Sort descending'}
-              >
-                <Text style={styles.directionArrow}>{filter.descending ? '↓' : '↑'}</Text>
-              </Press>
 
               {/*
               With no tags on, Shuffle alone — a click on a row plays that song
@@ -469,7 +473,8 @@ export function LibraryScreen(): ReactNode {
           ))}
           <Chip
             testID="library-add-tag"
-            label={choosingTags ? 'Done' : 'More tags'}
+            // The panel's own Done, at the strip's end, closes it: this stays its name.
+            label="More tags"
             icon={<Plus color={theme.colors.textSecondary} />}
             selected={false}
             dashed
@@ -482,7 +487,6 @@ export function LibraryScreen(): ReactNode {
       {!wide && songs.length > 0 ? (
         <Text style={styles.orderLabel} testID="library-order-label">
           {model.sortLabel}
-          {filter.descending ? '' : ' · reversed'}
         </Text>
       ) : null}
       <Sheet
@@ -503,14 +507,7 @@ export function LibraryScreen(): ReactNode {
             }}
           />
         ))}
-        <SheetItem
-          label={filter.descending ? 'Reverse the order' : 'Put the order back'}
-          icon={<Text style={styles.directionArrow}>{filter.descending ? '↑' : '↓'}</Text>}
-          onPress={() => {
-            model.toggleDirection()
-            setSorting(false)
-          }}
-        />
+        <View style={styles.sheetOrder}>{sortOrder}</View>
       </Sheet>
 
       {/*
@@ -608,15 +605,13 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'flex-end',
     gap: space.sm,
   },
-  /* With a mouse, the arrow 34 wide. */
-  directionDense: { width: 34, height: 36 },
   searchWide: { flexGrow: 0, flexShrink: 1, flexBasis: 300, minWidth: 130 },
-  // Never narrower than sort, direction and Shuffle: the search is what gives
+  // Never narrower than sort and Shuffle: the search is what gives
   // up width, and with this shrinking too it held 300 while these ran off the
   // page's edge (a narrow window, or Up next open beside a long subline).
   actionsWide: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', flexWrap: 'nowrap' },
-  /* Enough for the longest option: "Recentl…" would tell you nothing. */
-  sortSlotWide: { flex: 0, minWidth: 152 },
+  /* Enough for the field and its way round: "Recently added · newest". */
+  sortSlotWide: { flex: 0, minWidth: 204 },
   transportWide: { marginLeft: 'auto' },
   actions: {
     flexDirection: 'row',
@@ -628,21 +623,7 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
   },
-  sortButtonPressed: {
-    backgroundColor: theme.colors.surface3,
-  },
-  direction: {
-    width: HIT_TARGET,
-    height: HIT_TARGET,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-  },
-  directionArrow: {
-    color: theme.colors.textPrimary,
-    ...textStyle('title'),
-  },
+  sheetOrder: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.xs },
   transport: {
     flexDirection: 'row',
     gap: space.sm,

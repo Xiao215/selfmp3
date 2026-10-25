@@ -181,6 +181,7 @@ export function Guide({
   const host = useRef<View>(null)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
 
+  // Each step starts its own round: moving on stops the last one (`useGuide`).
   useEffect(() => {
     if (!guide.shown || reduced) return undefined
     guide.demo.setValue(0)
@@ -197,7 +198,7 @@ export function Guide({
       round.stop()
       guide.demo.setValue(0)
     }
-  }, [guide.shown, guide.demo, reduced])
+  }, [guide.shown, guide.step, guide.demo, reduced])
 
   const close = (): void => {
     if (guide.step + 1 < steps.length) guide.next(steps.length)

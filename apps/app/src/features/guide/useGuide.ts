@@ -107,19 +107,33 @@ export function useGuide(
   }, [lit, window.width, window.height])
 
   const shown = box !== null && step >= 0
+  /*
+   * The hand stopped and put back at the start before the step changes, while
+   * the row it moves is still joined to it. A row lets go of the hand on that
+   * render, and on a phone a row let go mid-pull stayed where the hand had it:
+   * React's own props for it already said "not moved", so nothing put it back
+   * (the swipe guide's row sat half off its red Remove, and a finger could not
+   * swipe it home). `Guide` starts the next step's round itself.
+   */
+  const settle = useCallback(() => {
+    demo.stopAnimation()
+    demo.setValue(0)
+  }, [demo])
   const dismiss = useCallback(() => {
+    settle()
     setStep(-1)
     releaseGuide(name)
-  }, [name])
+  }, [name, settle])
   const next = useCallback(
     (steps: number) => {
+      settle()
       setStep(now => {
         if (now + 1 < steps) return now + 1
         releaseGuide(name)
         return -1
       })
     },
-    [name],
+    [name, settle],
   )
 
   // A screen left with its guide up gives the turn back.

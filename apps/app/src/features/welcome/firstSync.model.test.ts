@@ -51,6 +51,8 @@ describe('Keep every song', () => {
   it('names the device it keeps songs on', () => {
     expect(keepEverySongCopy(false, null).label).toBe('Keep every song on this phone')
     expect(keepEverySongCopy(true, null).label).toBe('Keep every song on this computer')
+    expect(keepEverySongCopy(true, null, true).label).toBe('Keep every song on this iPad')
+    expect(keepEverySongCopy(true, null, true).hint).toMatch(/^An iPad usually has the room/)
   })
 
   it('says how much it would hold once the library is known', () => {

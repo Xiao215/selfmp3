@@ -123,8 +123,8 @@ export function syncHeader(situation: SyncSituation): SyncHeader {
 /** The header in words: what it says, and the one thing it offers. */
 export function syncHeaderText(
   header: SyncHeader,
-  /** Where this device keeps songs: "40 not on this phone". */
-  place: 'phone' | 'computer' | 'browser',
+  /** Where this device keeps songs: "40 not on this phone", "40 not on this iPad". */
+  place: 'phone' | 'iPad' | 'computer' | 'browser',
 ): { text: string; action: string | null } {
   switch (header.kind) {
     case 'none':

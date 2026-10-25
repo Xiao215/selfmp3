@@ -14,7 +14,16 @@ import Reanimated, {
   type SharedValue,
 } from 'react-native-reanimated'
 import type { Song } from '@selfmp3/shared'
-import { hitSlopFor, leading, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import {
+  hitSlopFor,
+  leading,
+  motion,
+  radius,
+  space,
+  type,
+  iconSize,
+  type ThemePalette,
+} from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
@@ -221,25 +230,17 @@ export function ToastCard({
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const swipe = useSwipeAway(onDismiss)
   const close = finePointer ? 32 : 40
-  const ground =
-    tone === 'good'
-      ? theme.colors.toastGood
-      : tone === 'warn'
-        ? theme.colors.toastWarn
-        : tone === 'error'
-          ? theme.colors.toastError
-          : null
+  // The tone's ground is a variant of the stylesheet, not a colour beside it:
+  // on a theme change (a new accent) Unistyles writes its own entry back
+  // natively, over any inline colour, and a failure turned grey.
+  styles.useVariants({ tone })
   const capsule = !art && !words.over && !words.under && !children
   return (
     <Animated.View
       {...swipe.handlers}
       // One stylesheet entry beside the drag: an animated view flattens its
       // styles into one object, which Unistyles cannot follow two of.
-      style={[
-        capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst,
-        ground && { backgroundColor: ground },
-        swipe.style,
-      ]}
+      style={[capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst, swipe.style]}
       pointerEvents={answered ? 'box-only' : 'auto'}
       role={tone === 'error' ? 'alert' : 'status'}
       accessibilityActions={DISMISS_ACTIONS}
@@ -498,6 +499,16 @@ function useSwipeAway(onAway: () => void): {
   return { handlers: responder.panHandlers, style }
 }
 
+/** A message's ground by its tone: good, warning and failed have their own; news has none. */
+function grounds(colors: ThemePalette) {
+  return {
+    info: {},
+    good: { backgroundColor: colors.toastGood },
+    warn: { backgroundColor: colors.toastWarn },
+    error: { backgroundColor: colors.toastError },
+  }
+}
+
 const styles = StyleSheet.create(theme => ({
   slot: { width: '100%', alignItems: 'center' },
   card: {
@@ -512,6 +523,7 @@ const styles = StyleSheet.create(theme => ({
     // A drag on it is a swipe, not a selection of its words.
     userSelect: 'none',
     ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
   },
   /** With no picture to start it, the words keep off the rounded edge. */
   cardWordsFirst: {
@@ -527,6 +539,7 @@ const styles = StyleSheet.create(theme => ({
     // A drag on it is a swipe, not a selection of its words.
     userSelect: 'none',
     ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
   },
   capsule: {
     flexDirection: 'row',
@@ -539,6 +552,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.toast,
     ...floating(theme.colors),
+    variants: { tone: grounds(theme.colors) },
   },
 
   words: { flexShrink: 1, flexGrow: 1, gap: 1 },

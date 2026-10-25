@@ -275,7 +275,8 @@ export function TagsScreen(): ReactNode {
                   <>
                     {layout.main.length > 0 ? (
                       <Text style={styles.runLabel}>
-                        Just started <Text style={styles.runLabelSub}>a song or two so far</Text>
+                        Just started{' '}
+                        <Text style={styles.runLabelSub}>two songs or fewer so far</Text>
                       </Text>
                     ) : null}
                     {grid(layout.justStarted)}

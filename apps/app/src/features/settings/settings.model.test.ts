@@ -79,6 +79,8 @@ describe('settings', () => {
     })
     expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
     expect(devicePlace('phone', true)).toBe('phone')
+    expect(devicePlace('phone', true, true)).toBe('iPad')
+    expect(devicePlace('phone', false, true)).toBe('browser')
     expect(devicePlace('other', true)).toBe('computer')
     // A tab keeps what it has in the browser, not on the device it runs on.
     expect(devicePlace('desktop', false)).toBe('browser')

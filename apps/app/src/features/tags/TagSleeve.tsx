@@ -153,6 +153,8 @@ export const TagSleeve = memo(function TagSleeve({
         <Cover
           uri={song ? art(song) : null}
           title={song ? song.album || song.title : name}
+          // An empty tag's sleeve is in the tag's own colour, like its record's label.
+          hue={song ? undefined : hue}
           size={height}
           radius={radius.cover}
         />

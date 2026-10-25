@@ -429,6 +429,9 @@ export function modelHop(check: AiCheck): Hop {
   if (check.ok) {
     return { ok: true, line: `Your server reached the model (${check.model}) in ${took(check.ms)}` }
   }
+  // No model at all: the address above already says where one is set, and the
+  // server's detail only says "off" again.
+  if (check.failure === 'off') return { ok: false, line: check.message }
   return { ok: false, line: check.message, detail: check.detail }
 }
 

@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
 import { radius, shareLinkUrl, space, type } from '@selfmp3/client'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
@@ -70,6 +71,8 @@ export function LinksScreen(): ReactNode {
   const router = useRouter()
   const wide = useLayoutValue(layout => layout.wide)
   const { data: links, isLoading } = useSentLinks()
+  // Links are kept with a self.mp3 sign-in; a server address alone has none to list.
+  const { fromCloud } = useConnection()
   const act = useShareAct()
   const now = useMinute()
   const coverOf = useOwnCover(ROW_COVER_SIZE)
@@ -263,7 +266,12 @@ export function LinksScreen(): ReactNode {
               ))}
             </View>
           ) : null}
-          {links && links.length === 0 ? (
+          {!fromCloud ? (
+            <Text style={[styles.text, styles.empty, wide && styles.asksWide]} testID="links-none">
+              Share links need a self.mp3 sign-in. This app is connected straight to a server, so
+              there are none to show.
+            </Text>
+          ) : links && links.length === 0 ? (
             <Text style={[styles.text, styles.empty, wide && styles.asksWide]}>
               Links you share are kept here. Share link is in a song’s ⋯ menu, and on a tag’s or a
               playlist’s page.

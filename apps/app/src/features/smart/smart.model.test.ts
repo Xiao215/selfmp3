@@ -245,6 +245,17 @@ describe('Settings’ Test', () => {
       detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
     })
   })
+
+  it('says no model once, not twice', () => {
+    expect(
+      modelHop({
+        ok: false,
+        failure: 'off',
+        message: 'Smart features aren’t set up on your server.',
+        detail: 'Smart features are off: set SELFMP3_AI_BASE_URL on the server',
+      }),
+    ).toEqual({ ok: false, line: 'Smart features aren’t set up on your server.' })
+  })
 })
 
 describe('Tidy up', () => {

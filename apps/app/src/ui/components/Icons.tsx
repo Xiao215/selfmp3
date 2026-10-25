@@ -309,8 +309,6 @@ export const Sparkle = icon(
 export const X = icon(() => <Path d="M18 6 6 18M6 6l12 12" />)
 
 export const Check = icon(() => <Path d="M20 6 9 17l-5-5" />)
-/** "Mind this": a warning's or a failure's mark. */
-export const Bang = icon(() => <Path d="M12 6.5v7M12 17.5h.01" />)
 
 /** Three lines, each shorter: an order (docs/ui-mock `P12`). */
 export const SortLines = icon(() => <Path d="M4 7h16M7 12h10M10 17h4" />)

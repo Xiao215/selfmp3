@@ -29,7 +29,7 @@ import {
 } from '../toast'
 import { Cover } from './Cover'
 import { IconButton } from './IconButton'
-import { Bang, Check, X } from './Icons'
+import { X } from './Icons'
 import { Press } from './Press'
 import { floating } from '../surfaces'
 import { ease, motionMs, nativeDriver, spring, timing } from '../motion'
@@ -138,6 +138,7 @@ function ToastItem({
           <ToastButton
             key={action.label}
             label={action.label}
+            tone={toast.tone}
             filled={index === last}
             clock={index === last ? clock : null}
             onPress={() => {
@@ -156,14 +157,12 @@ function ToastItem({
 const SWIPE_AWAY = 72
 
 /**
- * One message as it is drawn (the notifications restyle, A with C's button):
- * one calm card for every message, a step lighter than anything under it,
- * with what it is about at its start — a song's cover, a friend's face — then
- * its words, then what you can do. A good, warning or failed message without
- * a picture of its own starts with its tone instead: a small round badge, ✓
- * or !, in that colour. A whole ground of amber or red read as heavy, and the
- * amber as brown. A message with nothing but a few words is a capsule its own
- * width.
+ * One message as it is drawn (the notifications restyle, C): a card a step
+ * lighter than anything under it, with what it is about at its start — a
+ * song's cover, a friend's face — then its words, then what you can do. Its
+ * tone is its ground: a good, warning or failed message sits on its tone's
+ * own dark (or light) ground, so it is told apart before it is read. A
+ * message with nothing but a few words is a capsule its own width.
  *
  * Every one ends in a ✕. One that goes by itself shows its time: its button
  * empties (`ToastButton`), or, with no button, a ring round its ✕ does. A
@@ -194,20 +193,31 @@ export function ToastCard({
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const swipe = useSwipeAway(onDismiss)
   const close = finePointer ? 32 : 40
-  const lead = art ?? (tone === 'info' ? null : <ToneBadge tone={tone} />)
-  const capsule = !lead && !words.over && !words.under && !children
+  const ground =
+    tone === 'good'
+      ? theme.colors.toastGood
+      : tone === 'warn'
+        ? theme.colors.toastWarn
+        : tone === 'error'
+          ? theme.colors.toastError
+          : null
+  const capsule = !art && !words.over && !words.under && !children
   return (
     <Animated.View
       {...swipe.handlers}
       // One stylesheet entry beside the drag: an animated view flattens its
       // styles into one object, which Unistyles cannot follow two of.
-      style={[capsule ? styles.capsule : lead ? styles.card : styles.cardWordsFirst, swipe.style]}
+      style={[
+        capsule ? styles.capsule : art ? styles.card : styles.cardWordsFirst,
+        ground && { backgroundColor: ground },
+        swipe.style,
+      ]}
       role={tone === 'error' ? 'alert' : 'status'}
       accessibilityActions={DISMISS_ACTIONS}
       onAccessibilityAction={onDismiss}
       onAccessibilityEscape={onDismiss}
     >
-      {lead}
+      {art}
       <View style={styles.words}>
         {words.over ? (
           <Text style={styles.over} numberOfLines={1}>
@@ -243,44 +253,25 @@ export function ToastCard({
 
 const DISMISS_ACTIONS = [{ name: 'dismiss', label: 'Dismiss' }]
 
-/** A toned message's mark where a picture would be: ✓ for good, ! for a warning or a failure. */
-function ToneBadge({ tone }: { tone: Exclude<ToastTone, 'info'> }): ReactNode {
-  const { theme } = useUnistyles()
-  const ink =
-    tone === 'good'
-      ? theme.colors.good
-      : tone === 'warn'
-        ? theme.colors.warning
-        : theme.colors.danger
-  const ground =
-    tone === 'good'
-      ? theme.colors.goodWash
-      : tone === 'warn'
-        ? theme.colors.warningWash
-        : theme.colors.dangerWash
-  return (
-    <View style={[styles.badge, { backgroundColor: ground }]}>
-      {tone === 'good' ? <Check size={18} color={ink} /> : <Bang size={18} color={ink} />}
-    </View>
-  )
-}
-
 /**
  * A word on a message. The last of them is the answer most people want —
  * Undo — and is filled; one before it (Open) is the words alone.
  *
  * With `clock` the filled one is the message's timer too: its fill empties
  * towards its start as the time runs out, so the one thing to press says how
- * long it can be pressed (the restyle's C).
+ * long it can be pressed (the restyle's C). On a toned ground the fill is the
+ * ink's own, since the accent on green or red reads as a third colour.
  */
 export function ToastButton({
   label,
+  tone,
   filled,
   clock = null,
   onPress,
   children,
 }: {
   label: string
+  tone: ToastTone
   filled: boolean
   clock?: { since: number; ms: number } | null
   onPress: () => void
@@ -290,6 +281,11 @@ export function ToastButton({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const pill = filled && !children
+  const plain = tone === 'info'
+  // The label's ink, the time gone, and the time left a clear step above it.
+  const ink = plain ? accent.accent : theme.colors.textPrimary
+  const gone = clock ? `${ink}12` : plain ? accent.accentPill : theme.colors.veil
+  const left = plain ? `${ink}3d` : `${ink}26`
   return (
     <Press
       feedback="wash"
@@ -297,20 +293,11 @@ export function ToastButton({
       hitSlop={hitSlopFor(BUTTON_HEIGHT)}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={[
-        children ? styles.round : styles.button,
-        pill && { backgroundColor: clock ? `${accent.accent}12` : accent.accentPill },
-      ]}
+      style={[children ? styles.round : styles.button, pill && { backgroundColor: gone }]}
     >
-      {pill && clock ? (
-        // The time left a clear step above the time gone: the accent's own
-        // pill was too near the empty part to tell apart.
-        <Draining since={clock.since} ms={clock.ms} color={`${accent.accent}3d`} />
-      ) : null}
+      {pill && clock ? <Draining since={clock.since} ms={clock.ms} color={left} /> : null}
       {children ?? (
-        <Text
-          style={[styles.buttonLabel, { color: filled ? accent.accent : theme.colors.textPrimary }]}
-        >
+        <Text style={[styles.buttonLabel, { color: filled ? ink : theme.colors.textPrimary }]}>
           {label}
         </Text>
       )}
@@ -532,13 +519,6 @@ const styles = StyleSheet.create(theme => ({
   say: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
   subject: { fontWeight: '500' },
   under: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  badge: {
-    width: ART,
-    height: ART,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   draining: { position: 'absolute', left: 0, top: 0, bottom: 0 },
   button: {
     height: BUTTON_HEIGHT,

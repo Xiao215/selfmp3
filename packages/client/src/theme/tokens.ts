@@ -255,6 +255,14 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
      * was not — it read as part of the list under it.
      */
     toast: '#262b3a',
+    /**
+     * A good, warning or failed message's ground: the tone mixed into the
+     * dark itself, a step brighter than a wash over the grey card, which made
+     * amber read as brown (the notifications restyle, C).
+     */
+    toastGood: '#1c4430',
+    toastWarn: '#45380f',
+    toastError: '#4d1f28',
     /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
     cardShadow: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
@@ -314,6 +322,9 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     glass: '#ffffffe6',
     glassSolid: '#ffffff',
     toast: '#ffffff',
+    toastGood: '#dcefe3',
+    toastWarn: '#f5e6c4',
+    toastError: '#f6d9d8',
     cardShadow: '#1b1a170f',
     floatShadow: '#1b1a1724',
     coverShade: '#0a08108c',

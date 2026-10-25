@@ -56,6 +56,9 @@ import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
 
+/** More squares than a month's, and the strip closes its gaps up. */
+const STRIP_TIGHT = 31
+
 /**
  * Stats (`P32`, `C15`): Listened, Peak hour and Streak as cards, each one big
  * number with a small picture of where it came from, then one ranked module of
@@ -105,7 +108,7 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
   const fill = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.wideFill)
   const listened = useMemo(() => listenedCard(stats), [stats])
   const peak = useMemo(() => peakCard(stats.hourly), [stats])
-  // Today is read once per answer: the dots move on when the numbers do.
+  // Today is read once per answer: the squares move on when the numbers do.
   const streak = useMemo(() => streakCard(stats, new Date()), [stats])
 
   const listenedView = (
@@ -158,18 +161,26 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
       testID="stats-streak"
     >
       <Text style={styles.cardLabel}>Streak</Text>
-      <View style={styles.dots}>
-        {streak.dots.map(dot => (
-          <View
-            key={dot.date}
-            style={[
-              styles.dot,
-              dot.played && styles.dotPlayed,
-              // Today is white whichever it is: where the run stands now.
-              dot.today && styles.dotToday,
-            ]}
-          />
-        ))}
+      {/* The window as one strip: the run in the accent, other days with music
+          filled, today ringed, and where it starts and ends under its ends. */}
+      <View>
+        <View style={[styles.strip, streak.squares.length > STRIP_TIGHT && styles.stripTight]}>
+          {streak.squares.map(square => (
+            <View
+              key={square.date}
+              style={[
+                styles.square,
+                square.played && styles.squarePlayed,
+                square.inRun && styles.squareRun,
+                square.today && styles.squareToday,
+              ]}
+            />
+          ))}
+        </View>
+        <View style={styles.stripEnds}>
+          <Text style={styles.stripEnd}>{streak.from}</Text>
+          <Text style={styles.stripEnd}>today</Text>
+        </View>
       </View>
       <View style={styles.cardFoot}>
         <Text style={styles.midNumber}>{streak.value}</Text>
@@ -551,8 +562,8 @@ function RankedLine({
     ) : row.kind === 'artist' ? (
       <RankedArtistFace name={row.name} known={row.known} cover={cover} />
     ) : (
-      <View style={styles.tagSquare}>
-        <TagDot hue={tag?.hue} size={10} />
+      <View style={styles.tagMark}>
+        <TagDot hue={tag?.hue} size={9} />
       </View>
     )
 
@@ -622,10 +633,22 @@ const styles = StyleSheet.create(theme => ({
   // An hour with plays is the raised tone; the busiest is the accent.
   hour: { flex: 1, borderRadius: 2, backgroundColor: theme.colors.surface3 },
   hourPeak: { backgroundColor: theme.colors.accent },
-  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.surface3 },
-  dotPlayed: { backgroundColor: theme.colors.accent },
-  dotToday: { backgroundColor: theme.colors.textPrimary },
+  strip: { flexDirection: 'row', gap: 2 },
+  // A year's 52 weeks: the gaps would take more room than the squares.
+  stripTight: { gap: 1 },
+  square: {
+    flex: 1,
+    aspectRatio: 1,
+    maxHeight: 22,
+    borderRadius: 2,
+    backgroundColor: theme.colors.surface3,
+  },
+  squarePlayed: { backgroundColor: theme.colors.textMuted },
+  squareRun: { backgroundColor: theme.colors.accent },
+  // A ring round today, whichever it is: where the run stands now.
+  squareToday: { borderWidth: 1.5, borderColor: theme.colors.textPrimary },
+  stripEnds: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.tight },
+  stripEnd: { color: theme.colors.textMuted, fontSize: type.tiny },
   cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: space.sm },
   midNumber: serif(theme.colors, 'page'),
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
@@ -669,14 +692,8 @@ const styles = StyleSheet.create(theme => ({
   leadNames: { flex: 1, minWidth: 0 },
   leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
-  tagSquare: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.cover,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface3,
-  },
+  // A tag's own dot and nothing round it, as everywhere else it stands for a tag.
+  tagMark: { width: 12, alignItems: 'center' },
   lineBody: { flex: 1, minWidth: 0, gap: 5 },
   lineTop: { flexDirection: 'row', justifyContent: 'space-between', gap: space.sm },
   // The name takes what is left and ellipsises; the figure beside it never

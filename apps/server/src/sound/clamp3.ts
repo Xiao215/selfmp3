@@ -58,6 +58,12 @@ export class Clamp3 implements SoundModel {
   constructor(dir: string, threads: number) {
     this.#dir = dir
     this.#threads = threads
+    // The runtime's telemetry uploader posts to Microsoft from a thread of its
+    // own; on macOS its NSURLSession, in a process with no app bundle, crashed
+    // the whole server about fifteen seconds after the model loaded. Read from
+    // the environment when the runtime starts; on a worker thread this changes
+    // only the thread's copy, so Clamp3Worker sets it before starting one.
+    process.env['ORT_DISABLE_TELEMETRY'] = '1'
     // Loaded here rather than imported at the top: a platform with no build of
     // the runtime (musl, for one) leaves sound off rather than the server down.
     this.#ort = import('onnxruntime-node')

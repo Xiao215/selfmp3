@@ -121,6 +121,9 @@ export class Clamp3Worker implements SoundModel {
   }
 
   #start(): Running {
+    // Read by the runtime when it starts, from the process's environment, which
+    // a worker shares but cannot write (clamp3.ts says why it must be off).
+    process.env['ORT_DISABLE_TELEMETRY'] = '1'
     const worker = new Worker(this.#script, {
       workerData: this.#data satisfies Clamp3WorkerData,
       execArgv: this.#execArgv,

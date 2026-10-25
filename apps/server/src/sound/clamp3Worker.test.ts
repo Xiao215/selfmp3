@@ -7,7 +7,8 @@ import { Clamp3Worker } from './clamp3Worker.js'
 /**
  * A stand-in for clamp3.worker.ts, speaking its messages. Hearing holds its
  * thread for a second, as a pass on a Pi does; reading "crash" ends the
- * thread, and reading "throw" throws out of it.
+ * thread, reading "throw" throws out of it, and reading "telemetry" answers
+ * whether the runtime's telemetry would be off.
  */
 const FAKE = new URL(
   `data:text/javascript,${encodeURIComponent(`
@@ -16,6 +17,10 @@ const FAKE = new URL(
       if (request.op === 'close') return parentPort.postMessage({ op: 'closed' })
       if (request.op === 'read' && request.text === 'crash') process.exit(3)
       if (request.op === 'read' && request.text === 'throw') throw new Error('boom')
+      if (request.op === 'read' && request.text === 'telemetry') {
+        const off = process.env.ORT_DISABLE_TELEMETRY === '1' ? 1 : 0
+        return parentPort.postMessage({ id: request.id, vector: new Float32Array([off]) })
+      }
       if (request.op === 'read' && request.text === 'fail') {
         return parentPort.postMessage({ id: request.id, error: 'no such word' })
       }
@@ -71,6 +76,19 @@ describe('Clamp3Worker', () => {
     await expect(model.readText(text)).rejects.toThrow(says)
     expect(Array.from(await waiting)).toEqual([4])
     expect(Array.from(await model.readText('again'))).toEqual([5])
+  })
+
+  it('starts the worker with the runtime’s telemetry off', async () => {
+    // Its uploader's NSURLSession segfaulted the whole server on macOS.
+    const before = process.env['ORT_DISABLE_TELEMETRY']
+    delete process.env['ORT_DISABLE_TELEMETRY']
+    try {
+      model = new Clamp3Worker('unused', 2, { script: FAKE, execArgv: [] })
+      expect(Array.from(await model.readText('telemetry'))).toEqual([1])
+    } finally {
+      if (before === undefined) delete process.env['ORT_DISABLE_TELEMETRY']
+      else process.env['ORT_DISABLE_TELEMETRY'] = before
+    }
   })
 
   it('runs the real worker, which says what is missing', async () => {

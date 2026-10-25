@@ -494,6 +494,8 @@ function Tags(): ReactNode {
 /**
  * One tag in the sidebar: a click opens its page, which lights the row while
  * you are on it, and the ⋯ the pointer reveals edits it, as a right-click does.
+ * A finger has no hover to reveal it with, so it gets no ⋯ at all and holds
+ * the row instead, as it holds a tag on the phone's Tags (AH1).
  */
 function TagRow({
   tag,
@@ -505,20 +507,22 @@ function TagRow({
   onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  // A pointer can hover, so the row's controls wait for it; a finger cannot,
-  // so they are simply there. Asked of the pointer and not of the platform —
-  // a touch-screen browser never hovers, and an iPad with a trackpad does.
+  // A pointer can hover, so the row's ⋯ waits for it; a finger cannot, so it
+  // holds the row. Asked of the pointer and not of the platform — a
+  // touch-screen browser never hovers, and an iPad with a trackpad does.
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
+  const rowRef = useRef<View>(null)
   const moreRef = useRef<View>(null)
-  const revealed = !finePointer || hovered || editing
+  const revealed = hovered || editing
   // The ⋯ fades in as the pointer arrives and out as it leaves, on the same
   // clocks as a song row's controls (`M3`, 3).
   const reveal = useFade(revealed, MOVE_MS.hoverIn, MOVE_MS.hoverOut)
 
   return (
     <View
+      ref={rowRef}
       style={[styles.tagRow, hovered && styles.tagRowHovered, active && styles.itemOn]}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
@@ -529,6 +533,8 @@ function TagRow({
         feedback="dim"
         style={styles.tagMain}
         onPress={onOpen}
+        onLongPress={finePointer ? undefined : () => setEditing(true)}
+        delayLongPress={MOVE_MS.hold}
         accessibilityRole="link"
         accessibilityLabel={tag.name}
         accessibilityState={{ selected: active }}
@@ -540,21 +546,27 @@ function TagRow({
         <Text style={styles.count}>{tag.songCount}</Text>
       </Press>
 
-      <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
-        <Press
-          feedback="dim"
-          style={[styles.tagAction, styles.tagActionLast]}
-          onPress={() => setEditing(isOpen => !isOpen)}
-          accessibilityRole="button"
-          accessibilityLabel={`Edit tag ${tag.name}`}
-          {...tip('Rename, recolour or delete')}
-          accessibilityState={{ expanded: editing }}
-        >
-          <More size={iconSize.sub} color={theme.colors.textMuted} />
-        </Press>
-      </Animated.View>
+      {finePointer ? (
+        <Animated.View ref={moreRef} collapsable={false} style={{ opacity: reveal }}>
+          <Press
+            feedback="dim"
+            style={[styles.tagAction, styles.tagActionLast]}
+            onPress={() => setEditing(isOpen => !isOpen)}
+            accessibilityRole="button"
+            accessibilityLabel={`Edit tag ${tag.name}`}
+            {...tip('Rename, recolour or delete')}
+            accessibilityState={{ expanded: editing }}
+          >
+            <More size={iconSize.sub} color={theme.colors.textMuted} />
+          </Press>
+        </Animated.View>
+      ) : null}
 
-      <TagEditor tag={editing ? tag : null} anchorRef={moreRef} onClose={() => setEditing(false)} />
+      <TagEditor
+        tag={editing ? tag : null}
+        anchorRef={finePointer ? moreRef : rowRef}
+        onClose={() => setEditing(false)}
+      />
     </View>
   )
 }

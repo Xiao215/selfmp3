@@ -419,11 +419,14 @@ export const SongRow = memo(function SongRow({
 
   // --- desktop width ---------------------------------------------------------
 
-  // With a mouse these wait for the pointer; a tablet at this width shows them.
+  // With a mouse these wait for the pointer; a tablet at this width shows the ⋯.
   const revealed = !dense || hovered || menuOpen || keyed
   const albumColumn = showAlbum && (room & ROOM_FOR_ALBUM) !== 0
   const tagChips = (room & ROOM_FOR_CHIPS) !== 0
   const controlSize = dense ? 34 : HIT_TARGET
+  // A finger at this width (an iPad in landscape) gets no tag button: with
+  // nothing to hover it stood in every row, and the ⋯ has Tags… (AH1).
+  const tagButton = onEditTags !== undefined && dense
 
   return (
     <Animated.View style={press.style}>
@@ -499,11 +502,11 @@ export const SongRow = memo(function SongRow({
         {/* Only where the list shows tags: inside a tag, an artist or a
             playlist the slot would stand empty, 180 px of nothing in every
             row while titles and albums beside it were cut short. */}
-        {allTags !== undefined || onEditTags ? (
+        {allTags !== undefined || tagButton ? (
           <View style={[styles.tags, albumColumn && styles.tagsColumn]}>
             {/* Below the width for chips they go; the button stays. */}
-            {tagChips ? chips(chipBudget({ hasAddButton: onEditTags !== undefined })) : null}
-            {onEditTags ? (
+            {tagChips ? chips(chipBudget({ hasAddButton: tagButton })) : null}
+            {onEditTags && tagButton ? (
               <Reveal shown={revealed}>
                 <Pressable
                   ref={tagAddRef}

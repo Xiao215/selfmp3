@@ -221,9 +221,18 @@ takes that turn off the page and puts its words back in the field. ‹ goes back
 and the conversation is not kept after it (so there is no "new chat" button). When the
 keyboard rises, the thread's foot moves up with it, as a messages app keeps it. On a phone the page owns the display, as Search does; on a computer
 it opens in the main column, and the palette's Ask row closes the palette and opens it.
-Asked while Search adds to a room (`?to=room`), song answers go to the room. A proposal
-acted on or put aside (Apply, Close, Not now) folds to the line it was answered with; an
-answer you play from stays. A review's keys work from the field while it is empty.
+Asked while Search adds to a room (`?to=room`), song answers go to the room. A review's keys
+work from the field while it is empty.
+
+Reviews in the thread (Xiao picked R3 T1 S1, 2026-10-24): nothing in the conversation
+scrolls on its own. A review is a card (`Review` with `card`): up to five changes whole, a
+longer one its first three and "Review all", which opens the whole list on a sheet with
+the buttons at its foot, ticked as one with the card. The model's own words are drawn as
+the answer above it (T1; tidy's `reply` used to sit among the grey notes); grey is only
+the app's small print, under the rows. Done with (Fix, Close, Not now), a proposal says
+what came of it ("Fixed 31 songs", "Closed. Nothing changed."), and the turn keeps the
+model's words and that line (S1), which the next follow-up is told too. An answer you play
+from stays as it is.
 
 Words answers (`explore`, `none`, `open`) can be selected in part: on iOS they are a
 read-only system text view (`ports/selectableText.tsx`), since a selectable `Text` there

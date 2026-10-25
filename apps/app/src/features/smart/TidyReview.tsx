@@ -16,6 +16,7 @@ import { gapWords, tidyCovers, tidyEdits, tidyHere, tidyParts, type TidyHere } f
 import { useSmartServer } from './useSmartServer'
 import { useTakeCovers } from './useTakeCovers'
 import { AnswerLine, AnswerNote } from './AnswerParts'
+import { SelectableText } from '../../ports/selectableText'
 
 const FIELD: Record<TidyField, string> = {
   title: 'Title',
@@ -50,11 +51,15 @@ export function TidyReview({
   onClose,
   onKeys,
   onAsk,
+  card = false,
 }: {
   result: TidyResult
   /** How tall the list may grow before it scrolls. */
   height: number
-  onClose?: () => void
+  /** Done with: what was fixed, or that nothing changed. */
+  onClose?: (outcome?: string) => void
+  /** Ask's card (`Review`). */
+  card?: boolean
   /** Given the keys while this is drawn, and null when it goes. */
   onKeys?: (keys: AnswerKeys | null) => void
   /** Asks something else in the same box: the checkup's "Fill them in". */
@@ -91,9 +96,9 @@ export function TidyReview({
     return (
       <View style={{ gap: space.sm }}>
         {result.reply ? (
-          <Text style={reviewText.reply} selectable testID="tidy-reply">
+          <SelectableText style={reviewText.reply} testID="tidy-reply">
             {result.reply}
-          </Text>
+          </SelectableText>
         ) : null}
         <AnswerLine testID="tidy-nothing">
           {result.asked !== null
@@ -109,7 +114,7 @@ export function TidyReview({
   const apply = async (
     approved: readonly TidyHere[],
     leftOut: ReadonlySet<string>,
-  ): Promise<boolean> => {
+  ): Promise<boolean | string> => {
     const edits = tidyEdits(approved, leftOut)
     const covers = tidyCovers(approved, leftOut)
     if (edits.length === 0 && covers.length === 0) return false
@@ -144,7 +149,7 @@ export function TidyReview({
         { tone: missed > 0 ? 'warn' : 'good' },
       )
     }
-    return true
+    return said
   }
 
   const meta = (each: TidyHere, state: ReviewRowState): string => {
@@ -162,105 +167,115 @@ export function TidyReview({
     return `${field} · ${plural(each.songIds.length, 'song', 'songs')}`
   }
 
+  // The model's words are the answer, above what it proposes (T1); the
+  // review's own small print stays under its rows.
   return (
-    <Review
-      changes={here}
-      sectionOf={each => each.change.why}
-      head={
-        result.asked !== null
-          ? `${plural(here.length, 'change', 'changes')} to ${songCount(result.looked)}`
-          : `${plural(here.length, 'thing', 'things')} to fix in ${songCount(result.looked)}`
-      }
-      tickedText={(approved, leftOut) =>
-        `${approved.length} ticked, on ${plural(songsIn(approved, leftOut), 'song', 'songs')}.`
-      }
-      notes={[result.reply, result.note].filter(note => note !== null)}
-      foot={fill}
-      bandText={{
-        rule:
+    <View style={{ gap: space.md }}>
+      {result.reply ? (
+        <SelectableText style={reviewText.reply} testID="tidy-reply">
+          {result.reply}
+        </SelectableText>
+      ) : null}
+      <Review
+        card={card}
+        changes={here}
+        sectionOf={each => each.change.why}
+        head={
           result.asked !== null
-            ? {
-                title: 'From the catalogues',
-                note: 'What a catalogue lists for the same recording (same artist, same length), so they start ticked.',
-              }
-            : { title: 'Sure fixes', note: 'Found by plain rules, so they start ticked.' },
-        model: {
-          title: 'Worth a look',
-          note: 'Suggestions. Nothing here changes unless you tick it.',
-        },
-      }}
-      drawChange={(each, state) => {
-        const { change } = each
-        const parts = tidyParts(change.from, change.to)
-        // Filled in where there was nothing: only what it adds.
-        const words =
-          change.from === '' ? (
-            change.field === 'cover' ? null : (
+            ? `${plural(here.length, 'change', 'changes')} to ${songCount(result.looked)}`
+            : `${plural(here.length, 'thing', 'things')} to fix in ${songCount(result.looked)}`
+        }
+        tickedText={(approved, leftOut) =>
+          `${approved.length} ticked, on ${plural(songsIn(approved, leftOut), 'song', 'songs')}.`
+        }
+        notes={result.note ? [result.note] : []}
+        foot={fill}
+        bandText={{
+          rule:
+            result.asked !== null
+              ? {
+                  title: 'From the catalogues',
+                  note: 'What a catalogue lists for the same recording (same artist, same length), so they start ticked.',
+                }
+              : { title: 'Sure fixes', note: 'Found by plain rules, so they start ticked.' },
+          model: {
+            title: 'Worth a look',
+            note: 'Suggestions. Nothing here changes unless you tick it.',
+          },
+        }}
+        drawChange={(each, state) => {
+          const { change } = each
+          const parts = tidyParts(change.from, change.to)
+          // Filled in where there was nothing: only what it adds.
+          const words =
+            change.from === '' ? (
+              change.field === 'cover' ? null : (
+                <Text style={reviewText.name} numberOfLines={2}>
+                  <Text style={reviewText.new}>{change.to}</Text>
+                </Text>
+              )
+            ) : parts ? (
               <Text style={reviewText.name} numberOfLines={2}>
+                {parts.map((part, index) =>
+                  part.kind === 'same' ? (
+                    part.text
+                  ) : (
+                    <Text key={index} style={reviewText.gone}>
+                      {part.text}
+                    </Text>
+                  ),
+                )}
+              </Text>
+            ) : (
+              <Text style={reviewText.name} numberOfLines={2}>
+                <Text style={reviewText.gone}>{change.from}</Text>
+                <Text style={reviewText.arrow}>{'  →  '}</Text>
                 <Text style={reviewText.new}>{change.to}</Text>
               </Text>
             )
-          ) : parts ? (
-            <Text style={reviewText.name} numberOfLines={2}>
-              {parts.map((part, index) =>
-                part.kind === 'same' ? (
-                  part.text
-                ) : (
-                  <Text key={index} style={reviewText.gone}>
-                    {part.text}
-                  </Text>
-                ),
-              )}
-            </Text>
-          ) : (
-            <Text style={reviewText.name} numberOfLines={2}>
-              <Text style={reviewText.gone}>{change.from}</Text>
-              <Text style={reviewText.arrow}>{'  →  '}</Text>
-              <Text style={reviewText.new}>{change.to}</Text>
-            </Text>
+          // A cover to be taken is the picture it adds; a change on one song
+          // shows that song, as an opened change shows each of its songs.
+          const one = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
+          const cover =
+            change.field === 'cover' && change.from === '' ? (
+              <Cover uri={change.to} title={change.why} size={COVER_SHOWN} />
+            ) : one ? (
+              <Cover uri={artFor(one)} title={one.album || one.title} size={coverSize.line} />
+            ) : null
+          const text = (
+            <>
+              {words}
+              <Text style={reviewText.meta} numberOfLines={1}>
+                {meta(each, state)}
+              </Text>
+            </>
           )
-        // A cover to be taken is the picture it adds; a change on one song
-        // shows that song, as an opened change shows each of its songs.
-        const one = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
-        const cover =
-          change.field === 'cover' && change.from === '' ? (
-            <Cover uri={change.to} title={change.why} size={COVER_SHOWN} />
-          ) : one ? (
-            <Cover uri={artFor(one)} title={one.album || one.title} size={coverSize.line} />
-          ) : null
-        const text = (
-          <>
-            {words}
-            <Text style={reviewText.meta} numberOfLines={1}>
-              {meta(each, state)}
-            </Text>
-          </>
-        )
-        if (!cover) return text
-        return (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-            {cover}
-            <View style={{ flex: 1, minWidth: 0 }}>{text}</View>
-          </View>
-        )
-      }}
-      labelOf={each =>
-        each.change.from === ''
-          ? `${FIELD[each.change.field]}: add ${each.change.field === 'cover' ? `the cover ${each.change.why.toLowerCase()}` : each.change.to}`
-          : `${FIELD[each.change.field]}: ${each.change.from} to ${each.change.to}`
-      }
-      songLine={(song, each) => songLine(song, each.change.field)}
-      applyLabel={(approved, leftOut) => {
-        const count = songsIn(approved, leftOut)
-        return count === 0 ? 'Fix' : `Fix ${plural(count, 'song', 'songs')}`
-      }}
-      keyWord="fix"
-      onApply={apply}
-      height={height}
-      onClose={onClose}
-      onKeys={onKeys}
-      testID="tidy"
-    />
+          if (!cover) return text
+          return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+              {cover}
+              <View style={{ flex: 1, minWidth: 0 }}>{text}</View>
+            </View>
+          )
+        }}
+        labelOf={each =>
+          each.change.from === ''
+            ? `${FIELD[each.change.field]}: add ${each.change.field === 'cover' ? `the cover ${each.change.why.toLowerCase()}` : each.change.to}`
+            : `${FIELD[each.change.field]}: ${each.change.from} to ${each.change.to}`
+        }
+        songLine={(song, each) => songLine(song, each.change.field)}
+        applyLabel={(approved, leftOut) => {
+          const count = songsIn(approved, leftOut)
+          return count === 0 ? 'Fix' : `Fix ${plural(count, 'song', 'songs')}`
+        }}
+        keyWord="fix"
+        onApply={apply}
+        height={height}
+        onClose={onClose}
+        onKeys={onKeys}
+        testID="tidy"
+      />
+    </View>
   )
 }
 

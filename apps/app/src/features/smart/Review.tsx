@@ -25,7 +25,8 @@ import type { AnswerKeys } from './answerKeys'
 import { keptSongs, leftOutKey, reviewBands, tickedAtFirst, type Reviewed } from './smart.model'
 import { SongLine } from '../../ui/components/SongLine'
 import { ScrollView } from '../../ui/components/Scroll'
-import { AnswerActions, AnswerNote } from './AnswerParts'
+import { AnswerActions, AnswerNote, CLOSED } from './AnswerParts'
+import { Sheet } from '../../ui/components/Sheet'
 import { Press } from '../../ui/components/Press'
 
 /**
@@ -38,6 +39,10 @@ const CHANGE_TEXT = BAND_TEXT + 18 + 12
 
 /** The round that opens a change's songs. */
 const OPEN = 26
+
+/** As a card in Ask, a review this long shows whole; a longer one shows its first few. */
+const CARD_WHOLE = 5
+const CARD_SHOWS = 3
 
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
@@ -75,8 +80,17 @@ export interface ReviewRowState {
  * ticked, and the model's guesses with the sparkle, waiting for a yes. A
  * change on many songs opens to its songs, and any of them can be left out.
  *
- * Drawn by the Search box's Ask, which hands it the keys (`onKeys`), and in
- * sheets. What a change looks like and what applying does are the caller's.
+ * Drawn by Ask, which hands it the keys (`onKeys`), and in sheets. What a
+ * change looks like and what applying does are the caller's.
+ *
+ * In Ask it is a `card` (R3, Xiao 2026-10-24): nothing in it scrolls on its
+ * own. Up to five changes show whole; a longer review shows its first three
+ * and "Review all", which opens the whole list on a sheet with the buttons at
+ * its foot. Card and sheet are one review, ticked alike. The small print
+ * comes under the rows, after what the review is.
+ *
+ * Closing says what happened, for the conversation to keep: what applying
+ * did (the words `onApply` gives back), or that nothing changed.
  */
 export function Review<T extends Reviewed>({
   changes,
@@ -97,6 +111,7 @@ export function Review<T extends Reviewed>({
   testID,
   openAtFirst = [],
   foot,
+  card = false,
 }: {
   changes: readonly T[]
   /** The heading a change is listed under in its band. */
@@ -117,11 +132,15 @@ export function Review<T extends Reviewed>({
   applyLabel: (approved: readonly T[], leftOut: ReadonlySet<string>) => string
   /** The key hint's word for applying: "fix", "apply". */
   keyWord: string
-  /** Makes the ticked changes; true when they were made. */
-  onApply: (approved: readonly T[], leftOut: ReadonlySet<string>) => Promise<boolean>
-  /** How tall the list may grow before it scrolls. */
+  /**
+   * Makes the ticked changes: false when they were not made, else true or,
+   * better, what was done in words ("Fixed 31 songs").
+   */
+  onApply: (approved: readonly T[], leftOut: ReadonlySet<string>) => Promise<boolean | string>
+  /** How tall the list may grow before it scrolls: the sheet's, or the whole review's. */
   height: number
-  onClose?: () => void
+  /** Done with: what applying did, or `CLOSED` from Close. */
+  onClose?: (outcome?: string) => void
   /** Given the keys while this is drawn, and null when it goes. */
   onKeys?: (keys: AnswerKeys | null) => void
   /** The start of each part's test id: `${testID}-change`, `${testID}-apply`, … */
@@ -130,6 +149,8 @@ export function Review<T extends Reviewed>({
   openAtFirst?: readonly string[]
   /** Drawn under the list, above the buttons. */
   foot?: ReactNode
+  /** Ask's card: no list scrolling within it, a long one whole on a sheet. */
+  card?: boolean
 }): ReactNode {
   const songsById = useSongsById()
   const artFor = useArt(ROW_COVER_SIZE)
@@ -148,6 +169,8 @@ export function Review<T extends Reviewed>({
   /** Where the keys are; none until an arrow is pressed. */
   const [at, setAt] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
+  /** The card's whole list, on its sheet. */
+  const [whole, setWhole] = useState(false)
 
   const chosen = ticked ?? tickedAtFirst(changes)
   const bands = reviewBands(changes, sectionOf)
@@ -206,10 +229,12 @@ export function Review<T extends Reviewed>({
     if (approved.length === 0 || applying) return
     setApplying(true)
     try {
-      if (await onApply(approved, leftOut)) {
+      const done = await onApply(approved, leftOut)
+      if (done !== false) {
         setTicked(new Set())
         setLeftOut(new Set())
-        onClose?.()
+        setWhole(false)
+        onClose?.(typeof done === 'string' ? done : undefined)
       }
     } finally {
       setApplying(false)
@@ -331,7 +356,7 @@ export function Review<T extends Reviewed>({
     else nodes.current.delete(id)
   }
 
-  const drawRow = (each: T): ReactNode => {
+  const drawRow = (each: T, flat = false): ReactNode => {
     const { change } = each
     const id = `change:${change.key}`
     const on = isOn(each)
@@ -351,7 +376,7 @@ export function Review<T extends Reviewed>({
             flip([each], !full)
           }}
           feedback="dim"
-          style={[styles.change, at === id && styles.at]}
+          style={[styles.change, flat && styles.flatChange, at === id && styles.at]}
           testID={`${testID}-change`}
         >
           <Checkbox checked={full} mixed={on && !full} />
@@ -384,7 +409,7 @@ export function Review<T extends Reviewed>({
           ) : null}
         </CheckRow>
         {opened ? (
-          <View style={styles.songs}>
+          <View style={[styles.songs, flat && styles.flatSongs]}>
             {songs.map(songId => {
               const song = songsById.get(songId)
               if (!song) return null
@@ -431,97 +456,164 @@ export function Review<T extends Reviewed>({
     )
   }
 
+  const ticks = (
+    <AnswerNote>
+      {approved.length === 0 ? 'Nothing ticked yet.' : tickedText(approved, leftOut)}
+      {waiting ? ' The ✦ ones wait for you.' : ''}
+    </AnswerNote>
+  )
+  const small = (notes ?? []).map(note => <AnswerNote key={note}>{note}</AnswerNote>)
+  const bandsDrawn = bands.map(band => {
+    const list = band.sections.flatMap(section => section.changes)
+    const on = list.filter(isOn).length
+    const all = list.every(fullyOn)
+    const id = `band:${band.by}`
+    const model = band.by === 'model'
+    const text = bandText[band.by]
+    return (
+      <View key={band.by} style={styles.band} testID={`${testID}-band-${band.by}`}>
+        <CheckRow
+          ref={place(id)}
+          checked={all}
+          mixed={on > 0}
+          label={`${text.title}, ${on} of ${list.length} ticked`}
+          onPress={() => {
+            setAt(null)
+            flip(list, !all)
+          }}
+          feedback="dim"
+          style={[styles.bandHead, at === id && styles.at]}
+          testID={`${testID}-section`}
+        >
+          <Checkbox checked={all} mixed={on > 0 && !all} />
+          {model ? <Sparkle size={iconSize.field} /> : null}
+          <Text style={styles.bandTitle}>{text.title}</Text>
+          <Text style={styles.count}>
+            {on} of {list.length} ticked
+          </Text>
+        </CheckRow>
+        <Text style={styles.bandNote}>{text.note}</Text>
+        {band.sections.map(section => {
+          const shown = allOf.has(section.title)
+            ? section.changes
+            : section.changes.slice(0, SECTION_SHOWS)
+          return (
+            <View key={section.title}>
+              <View style={styles.section}>
+                <Text style={styles.sectionText} numberOfLines={1}>
+                  {section.title}
+                </Text>
+                <Text style={[styles.sectionText, styles.sectionCount]}>
+                  {section.changes.length}
+                </Text>
+              </View>
+              {shown.map(each => drawRow(each))}
+              {shown.length < section.changes.length ? (
+                <More
+                  stop={`section:${section.title}`}
+                  indent={CHANGE_TEXT}
+                  at={at}
+                  place={place}
+                  text={`${section.changes.length - shown.length} more`}
+                  onPress={() => setAllOf(toggle(allOf, section.title))}
+                />
+              ) : null}
+            </View>
+          )
+        })}
+      </View>
+    )
+  })
+  // Scrolls within itself only up to `height`: on a sheet, or a review that is one.
+  const scrolling = (
+    <ScrollView
+      style={{ maxHeight: height }}
+      contentContainerStyle={styles.list}
+      testID={`${testID}-list`}
+    >
+      {bandsDrawn}
+    </ScrollView>
+  )
+  const buttons = (
+    <>
+      {onClose ? <Button label="Close" onPress={() => onClose(CLOSED)} /> : null}
+      <Button
+        label={applyLabel(approved, leftOut)}
+        variant="primary"
+        disabled={approved.length === 0}
+        busy={applying}
+        onPress={() => void apply()}
+        testID={`${testID}-apply`}
+      />
+    </>
+  )
+
+  if (card) {
+    const first =
+      changes.length > CARD_WHOLE
+        ? bands
+            .flatMap(band => band.sections.flatMap(section => section.changes))
+            .slice(0, CARD_SHOWS)
+        : null
+    return (
+      <View style={[styles.body, styles.card]} testID={`${testID}-review`}>
+        <View style={styles.top}>
+          <Text style={styles.head}>{head}</Text>
+          {ticks}
+        </View>
+        {first ? (
+          <View testID={`${testID}-list`}>{first.map(each => drawRow(each, true))}</View>
+        ) : (
+          <View style={styles.list} testID={`${testID}-list`}>
+            {bandsDrawn}
+          </View>
+        )}
+        {small}
+        {foot}
+        <View style={styles.cardFoot}>
+          {first ? (
+            <Button
+              label={`Review all ${changes.length}`}
+              variant="text"
+              size="small"
+              onPress={() => setWhole(true)}
+              testID={`${testID}-all`}
+            />
+          ) : (
+            <View />
+          )}
+          <View style={styles.cardButtons}>{buttons}</View>
+        </View>
+        {first ? (
+          <Sheet
+            open={whole}
+            onClose={() => setWhole(false)}
+            title={head}
+            width={760}
+            testID={`${testID}-sheet`}
+          >
+            <View style={styles.sheetBody}>
+              {ticks}
+              {scrolling}
+              {small}
+              <AnswerActions>{buttons}</AnswerActions>
+            </View>
+          </Sheet>
+        ) : null}
+      </View>
+    )
+  }
+
   return (
     <View style={styles.body} testID={`${testID}-review`}>
       <View style={styles.top}>
         <Text style={styles.head}>{head}</Text>
-        <AnswerNote>
-          {approved.length === 0 ? 'Nothing ticked yet.' : tickedText(approved, leftOut)}
-          {waiting ? ' The ✦ ones wait for you.' : ''}
-        </AnswerNote>
-        {(notes ?? []).map(note => (
-          <AnswerNote key={note}>{note}</AnswerNote>
-        ))}
+        {ticks}
+        {small}
       </View>
-      <ScrollView
-        style={{ maxHeight: height }}
-        contentContainerStyle={styles.list}
-        testID={`${testID}-list`}
-      >
-        {bands.map(band => {
-          const list = band.sections.flatMap(section => section.changes)
-          const on = list.filter(isOn).length
-          const all = list.every(fullyOn)
-          const id = `band:${band.by}`
-          const model = band.by === 'model'
-          const text = bandText[band.by]
-          return (
-            <View key={band.by} style={styles.band} testID={`${testID}-band-${band.by}`}>
-              <CheckRow
-                ref={place(id)}
-                checked={all}
-                mixed={on > 0}
-                label={`${text.title}, ${on} of ${list.length} ticked`}
-                onPress={() => {
-                  setAt(null)
-                  flip(list, !all)
-                }}
-                feedback="dim"
-                style={[styles.bandHead, at === id && styles.at]}
-                testID={`${testID}-section`}
-              >
-                <Checkbox checked={all} mixed={on > 0 && !all} />
-                {model ? <Sparkle size={iconSize.field} /> : null}
-                <Text style={styles.bandTitle}>{text.title}</Text>
-                <Text style={styles.count}>
-                  {on} of {list.length} ticked
-                </Text>
-              </CheckRow>
-              <Text style={styles.bandNote}>{text.note}</Text>
-              {band.sections.map(section => {
-                const shown = allOf.has(section.title)
-                  ? section.changes
-                  : section.changes.slice(0, SECTION_SHOWS)
-                return (
-                  <View key={section.title}>
-                    <View style={styles.section}>
-                      <Text style={styles.sectionText} numberOfLines={1}>
-                        {section.title}
-                      </Text>
-                      <Text style={[styles.sectionText, styles.sectionCount]}>
-                        {section.changes.length}
-                      </Text>
-                    </View>
-                    {shown.map(drawRow)}
-                    {shown.length < section.changes.length ? (
-                      <More
-                        stop={`section:${section.title}`}
-                        indent={CHANGE_TEXT}
-                        at={at}
-                        place={place}
-                        text={`${section.changes.length - shown.length} more`}
-                        onPress={() => setAllOf(toggle(allOf, section.title))}
-                      />
-                    ) : null}
-                  </View>
-                )
-              })}
-            </View>
-          )
-        })}
-      </ScrollView>
+      {scrolling}
       {foot}
-      <AnswerActions>
-        {onClose ? <Button label="Close" onPress={onClose} /> : null}
-        <Button
-          label={applyLabel(approved, leftOut)}
-          variant="primary"
-          disabled={approved.length === 0}
-          busy={applying}
-          onPress={() => void apply()}
-          testID={`${testID}-apply`}
-        />
-      </AnswerActions>
+      <AnswerActions>{buttons}</AnswerActions>
     </View>
   )
 }
@@ -585,6 +677,21 @@ const styles = StyleSheet.create(theme => ({
   top: { gap: 2 },
   head: { color: theme.colors.textPrimary, fontSize: type.title, fontWeight: '600' },
   list: { gap: space.sm },
+  // Ask's card: the band's tint around the whole review, so it reads as one thing.
+  card: {
+    backgroundColor: withAlpha(theme.colors.textPrimary, 0.035),
+    borderRadius: radius.cardLg,
+    padding: space.md,
+  },
+  cardFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.sm,
+    marginTop: space.xs,
+  },
+  cardButtons: { flexDirection: 'row', gap: space.sm },
+  sheetBody: { gap: space.sm, paddingHorizontal: space.md, paddingBottom: space.sm },
   // Tints rather than surfaces: the palette is surface1 and the sheet surface2.
   band: {
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.035),
@@ -628,6 +735,9 @@ const styles = StyleSheet.create(theme => ({
     paddingRight: space.xs,
     borderRadius: radius.coverSm,
   },
+  // A card's first few, under no band: the tick at the card's own edge.
+  flatChange: { paddingLeft: space.xs },
+  flatSongs: { paddingLeft: BAND_TEXT },
   at: { backgroundColor: withAlpha(theme.colors.textPrimary, 0.07) },
   words: textColumn,
   open: {

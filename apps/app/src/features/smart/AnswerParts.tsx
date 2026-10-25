@@ -12,6 +12,9 @@ import { rowTitle, lineSub, hint } from '../../ui/surfaces'
  * styles out.
  */
 
+/** What a proposal closed without doing anything says it came to (S1). */
+export const CLOSED = 'Closed. Nothing changed.'
+
 /** What the answer is, in a word or a sentence. */
 export function AnswerHead({
   children,

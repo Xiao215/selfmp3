@@ -48,7 +48,8 @@ export function AnswerBody({
 }: {
   answer: Answer
   text: string
-  onDone: () => void
+  /** Done with the answer: a proposal says what came of it ("Fixed 31 songs", `CLOSED`). */
+  onDone: (outcome?: string) => void
   onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
@@ -79,11 +80,18 @@ export function AnswerBody({
       )
     case 'tags':
       return (
-        <TagsReview review={answer.review} height={listHeight} onClose={onDone} onKeys={onKeys} />
+        <TagsReview
+          card
+          review={answer.review}
+          height={listHeight}
+          onClose={onDone}
+          onKeys={onKeys}
+        />
       )
     case 'tidy':
       return (
         <TidyReview
+          card
           result={answer.tidy}
           height={listHeight}
           onClose={onDone}
@@ -93,7 +101,13 @@ export function AnswerBody({
       )
     case 'copies':
       return (
-        <CopiesReview result={answer.copies} height={listHeight} onClose={onDone} onKeys={onKeys} />
+        <CopiesReview
+          card
+          result={answer.copies}
+          height={listHeight}
+          onClose={onDone}
+          onKeys={onKeys}
+        />
       )
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />

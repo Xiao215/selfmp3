@@ -164,11 +164,11 @@ describe('the Up next rail', () => {
   })
 
   it('has nothing to clear when every other song has played', async () => {
-    // Enabled, it took only the played history.
+    // Offered, it took only the played history; over "Nothing next" it is not drawn (w23).
     mockSet({ current: song(2), queue: queue([1, 2], 1), ranOut: false })
     await draw()
-    expect(screen.getByText('Nothing after this one')).toBeTruthy()
-    expect(screen.getByTestId('queue-clear-rest')).toBeDisabled()
+    expect(screen.getByText('Nothing next', { exact: false })).toBeTruthy()
+    expect(screen.queryByTestId('queue-clear-rest')).toBeNull()
   })
 
   it('takes its Undo away once another song has started, rather than offering one that does nothing', async () => {

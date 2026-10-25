@@ -12,7 +12,7 @@ import { ListMusic, Live } from '../../ui/components/Icons'
 import { isLive, mosaicCovers } from './playlists.model'
 
 /**
- * A playlist's cover: the covers of its first songs.
+ * A playlist's cover: the covers of its songs, from the top.
  *
  * Music is found by its artwork everywhere else in the app, so a playlist is
  * too — four covers in a square when four of its songs have different art, the first
@@ -42,7 +42,7 @@ export function PlaylistCover({
 
   const songIds = given ?? data?.songIds
   const covers = useMemo(() => {
-    const songs = (songIds ?? []).slice(0, 24).flatMap(id => {
+    const songs = (songIds ?? []).flatMap(id => {
       const song = byId.get(id)
       return song ? [song] : []
     })

@@ -295,6 +295,24 @@ describe('the covers a mosaic is made of', () => {
     expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 2, 3, 4])
   })
 
+  it('looks past a long run of one picture, asking only of new ones', () => {
+    // Forty tracks of one soundtrack, then three other pictures, then more.
+    const songs = [
+      ...Array.from({ length: 40 }, (_, i) => song(i + 1, 0.5, 'Stellar Moments')),
+      song(41, 0.3),
+      song(42, 0.7),
+      song(43, 0.9),
+      song(44, 0.1),
+    ]
+    const asked: number[] = []
+    const covers = mosaicCovers(songs, s => {
+      asked.push(s.id)
+      return true
+    })
+    expect(covers.map(s => s.id)).toEqual([1, 41, 42, 43])
+    expect(asked).toEqual([1, 41, 42, 43])
+  })
+
   it('shows the first cover alone when fewer than four pictures differ', () => {
     const songs = [song(1, 0.5), song(2, 0.5), song(3, 0.5), song(4, 0.6)]
     expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1])

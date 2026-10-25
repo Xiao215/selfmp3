@@ -42,7 +42,7 @@ import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
-import { ChevronRight, Download, Plus, Sparkle } from '../../ui/components/Icons'
+import { ChevronRight, Download, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -227,7 +227,12 @@ function HomePage({
         <View style={beside ? styles.columns : styles.stack}>
           <View style={beside ? styles.mainColumn : styles.stack}>
             {empty ? (
-              <FirstSong onPress={() => router.navigate('/import')} />
+              <>
+                <FirstSong onPress={() => router.navigate('/import')} />
+                <Text style={styles.weekLater} testID="home-week-later">
+                  Your week shows here once you’ve played something.
+                </Text>
+              </>
             ) : (
               <>
                 {/* The count is the head's own action, as Recently played's Library
@@ -248,7 +253,9 @@ function HomePage({
               </>
             )}
           </View>
-          {wide ? (
+          {/* A new library has no week to show: no card of zeros, no second
+              Import beside the first (Z1). */}
+          {wide && !empty ? (
             <ThisWeek
               stats={stats}
               beside={beside}
@@ -351,23 +358,30 @@ function ToneWash({ color }: { color: string }): ReactNode {
 }
 
 /**
- * The first thing on an empty library's Home: one card washed with the
- * accent, the way the New playlist tile is, saying where the library starts,
- * and the one button that starts it.
+ * The first thing on an empty library's Home, and the only way in it offers:
+ * one card washed with the accent, the way the New playlist tile is, saying
+ * where the library starts and where songs come from, and the one button
+ * that starts it.
  */
 function FirstSong({ onPress }: { onPress: () => void }): ReactNode {
   const accent = useAccent()
   return (
-    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]}>
-      <View style={styles.firstMark}>
-        <Plus size={iconSize.large} color={accent.accent} />
-      </View>
+    <View style={[styles.firstCard, { backgroundColor: accent.accentPill }]} testID="home-first">
       <Text style={styles.firstTitle} accessibilityRole="header">
         Your library starts with one song
         <Text style={styles.greetingDot}>.</Text>
       </Text>
+      <Text style={styles.firstLine}>
+        Paste a link from YouTube, 网易云音乐 or Spotify, or search for a song.
+      </Text>
       <View style={styles.firstAction}>
-        <Button label="Import" variant="primary" onPress={onPress} testID="home-first-song" />
+        <Button
+          label="Import a song"
+          variant="primary"
+          icon={<Download tone="onAccent" />}
+          onPress={onPress}
+          testID="home-first-song"
+        />
       </View>
     </View>
   )
@@ -977,16 +991,9 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     alignItems: 'flex-start',
   },
-  firstMark: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: space.tight,
-  },
   firstTitle: serif(theme.colors, 'page'),
+  firstLine: { color: theme.colors.textSecondary, ...textStyle('sub') },
+  weekLater: { color: theme.colors.textMuted, ...textStyle('sub') },
   firstAction: { marginTop: space.tight },
   recents: { paddingRight: 20 },
   recentBadge: {

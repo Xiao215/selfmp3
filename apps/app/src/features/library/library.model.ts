@@ -138,7 +138,11 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
-      subtitle: isPending ? 'Loading…' : plural(visible.length, 'song', 'songs'),
+      subtitle: isPending
+        ? 'Loading…'
+        : songs.length === 0 && !isError
+          ? 'No songs yet'
+          : plural(visible.length, 'song', 'songs'),
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: SORT_OPTIONS.find(option => option.field === filter.sort)?.label ?? 'Sort',
       sortOptions: SORT_OPTIONS,

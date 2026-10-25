@@ -12,6 +12,7 @@ import { useOpenSearch } from '../../shell/palette'
 import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronRight,
@@ -36,13 +37,7 @@ import { tip } from '../../ui/tip'
 import { noteTagUsed } from '../library/recentTags.store'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
-import {
-  noTagsLine,
-  tagLine,
-  tagsMostPlayed,
-  untaggedCardTitle,
-  type TagStanding,
-} from '../tag/tag.model'
+import { tagLine, tagsMostPlayed, untaggedCardTitle, type TagStanding } from '../tag/tag.model'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
@@ -219,7 +214,8 @@ export function TagsScreen(): ReactNode {
       >
         <PageHeader
           title="Tags"
-          subtitle={library ? tagsHeadline(tags.length) : undefined}
+          // With no tags the empty state below says so; the head says it once (Z1).
+          subtitle={library && tags.length > 0 ? tagsHeadline(tags.length) : undefined}
           back={{ to: '/', testID: 'tags-back' }}
           actions={actions}
         />
@@ -252,7 +248,22 @@ export function TagsScreen(): ReactNode {
         {!library ? (
           <Text style={styles.hint}>Tags load with your library.</Text>
         ) : standings.length === 0 ? (
-          <Text style={styles.hint}>{noTagsLine()}</Text>
+          // The form above is already the way out while it is open.
+          adding ? null : (
+            <EmptyState
+              testID="tags-empty"
+              icon={<TagIcon size={30} tone="textMuted" />}
+              title="No tags yet"
+              line="Your own words for songs: night, gym, from 2014."
+            >
+              <Button
+                label="New tag"
+                icon={<Plus tone="textPrimary" />}
+                onPress={() => setAdding(true)}
+                testID="tags-empty-new"
+              />
+            </EmptyState>
+          )
         ) : (
           <View style={styles.runs}>
             {tileWidth > 0 ? (

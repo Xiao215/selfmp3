@@ -10,7 +10,15 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
-import { Downloaded, Play, Plus, Shuffle, SortLines } from '../../ui/components/Icons'
+import {
+  Download,
+  Downloaded,
+  Music,
+  Play,
+  Plus,
+  Shuffle,
+  SortLines,
+} from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
@@ -45,6 +53,7 @@ import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { useRouter } from 'expo-router'
 
 /**
  * The library, at every width.
@@ -69,12 +78,15 @@ export function LibraryScreen(): ReactNode {
   const player = usePlayerCommands()
   const { state: downloads, installed } = useDownloads()
   const openSearch = useOpenSearch()
+  const router = useRouter()
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
   const model = useLibraryModel(downloads.index)
   const pull = usePullToRefresh()
   const { filter, songs, visible, songIds } = model
+  // Until a library has songs, sort, direction and Shuffle have nothing to act on.
+  const hasSongs = songs.length > 0 || model.loading
   // The scrollbar's bubble names the part of the sort the list is at.
   const scrollLabel = useMemo(() => sortLabel(filter.sort), [filter.sort])
 
@@ -209,9 +221,19 @@ export function LibraryScreen(): ReactNode {
       </View>
     ) : model.emptyReason === 'no-library' ? (
       <EmptyState
+        testID="library-empty"
+        icon={<Music size={30} color={theme.colors.textMuted} />}
         title="Nothing here yet"
-        line="Import a song and it turns up here once it’s downloaded."
-      />
+        line="Songs you import land here."
+      >
+        <Button
+          label="Import a song"
+          variant="primary"
+          icon={<Download tone="onAccent" />}
+          onPress={() => router.navigate('/import')}
+          testID="library-empty-import"
+        />
+      </EmptyState>
     ) : (
       <EmptyState testID="library-no-matches" title={noMatchesTitle(model.tagFiltered)}>
         {model.tagFiltered ? (
@@ -267,7 +289,8 @@ export function LibraryScreen(): ReactNode {
             // A phone's order, as a round button beside the title (docs/ui-mock
             // `P12`); a computer has it in its head row. No button for
             // choosing: holding a row starts it, everywhere (Xiao, 2026-09-20).
-            wide ? undefined : (
+            // A library with no songs has nothing to order or shuffle (Z1).
+            wide || !hasSongs ? undefined : (
               <>
                 <IconButton
                   label="Sort"
@@ -334,7 +357,7 @@ export function LibraryScreen(): ReactNode {
           />
 
           {/* A phone's library is the search and the list: order and play live on a computer. */}
-          {wide ? (
+          {wide && hasSongs ? (
             <View style={[styles.actions, headWide && styles.actionsWide]}>
               <View style={[styles.sortSlot, headWide && styles.sortSlotWide]}>
                 <Select

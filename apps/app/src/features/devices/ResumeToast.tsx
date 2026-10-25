@@ -109,7 +109,6 @@ export function ResumeToast(): ReactNode {
       >
         <ToastButton
           label={`Continue ${song.title} by ${artistOr(song.artist)}, from ${from}`}
-          tone="info"
           filled
           onPress={() => {
             const target = heard ? handoffTarget(candidate, heard, Date.now()) : null

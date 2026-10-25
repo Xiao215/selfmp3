@@ -119,3 +119,31 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
   ])
   expect(net.songs[0]).toMatchObject({ album: '', year: null, hasArt: false })
 })
+
+it('draws a change on one song with that song’s cover, as an opened change draws each', async () => {
+  fakeLibrary([
+    songOf(1, '盗作', { artist: 'Yorushika', album: 'Spell' }),
+    songOf(2, '又三郎', { artist: 'Yorushika', album: 'Wanderer' }),
+    songOf(3, '修羅', { artist: 'Yorushika', album: 'Wanderer' }),
+  ])
+  const rename = (key: string, songIds: number[]): TidyResult['changes'][number] => ({
+    key,
+    field: 'artist',
+    from: 'Yorushika',
+    to: 'ヨルシカ',
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds,
+  })
+  await drawReview(
+    <TidyReview
+      result={{ ...FILL, changes: [rename('one', [1]), rename('two', [2, 3])] }}
+      height={600}
+    />,
+  )
+
+  await screen.findAllByTestId('tidy-change')
+  // The letter tile of the one song's album; the two songs' stay folded away.
+  expect(screen.getByText('S')).toBeTruthy()
+  expect(screen.queryByText('W')).toBeNull()
+})

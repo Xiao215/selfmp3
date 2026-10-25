@@ -2,7 +2,9 @@ import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { artistOr, plural, type Song, type TidyField, type TidyResult } from '@selfmp3/shared'
-import { useBulkEditSongs, space, iconSize } from '@selfmp3/client'
+import { useBulkEditSongs, coverSize, space, iconSize } from '@selfmp3/client'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { useArt } from '../../offline/useArt'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { Sparkle } from '../../ui/components/Icons'
@@ -62,6 +64,7 @@ export function TidyReview({
   const save = useBulkEditSongs()
   const takeCovers = useTakeCovers()
   const songsById = useSongsById()
+  const artFor = useArt(ROW_COVER_SIZE)
   const here = useMemo(
     () => tidyHere(result.changes, server.onDevice, songsById),
     [result.changes, server.onDevice, songsById],
@@ -190,50 +193,55 @@ export function TidyReview({
         const { change } = each
         const parts = tidyParts(change.from, change.to)
         // Filled in where there was nothing: only what it adds.
-        if (change.from === '') {
-          return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
-              {change.field === 'cover' ? (
-                <Cover uri={change.to} title={change.why} size={COVER_SHOWN} />
-              ) : null}
-              <View style={{ flex: 1, minWidth: 0 }}>
-                {change.field === 'cover' ? null : (
-                  <Text style={reviewText.name} numberOfLines={2}>
-                    <Text style={reviewText.new}>{change.to}</Text>
-                  </Text>
-                )}
-                <Text style={reviewText.meta} numberOfLines={1}>
-                  {meta(each, state)}
-                </Text>
-              </View>
-            </View>
-          )
-        }
-        return (
-          <>
-            {parts ? (
+        const words =
+          change.from === '' ? (
+            change.field === 'cover' ? null : (
               <Text style={reviewText.name} numberOfLines={2}>
-                {parts.map((part, index) =>
-                  part.kind === 'same' ? (
-                    part.text
-                  ) : (
-                    <Text key={index} style={reviewText.gone}>
-                      {part.text}
-                    </Text>
-                  ),
-                )}
-              </Text>
-            ) : (
-              <Text style={reviewText.name} numberOfLines={2}>
-                <Text style={reviewText.gone}>{change.from}</Text>
-                <Text style={reviewText.arrow}>{'  →  '}</Text>
                 <Text style={reviewText.new}>{change.to}</Text>
               </Text>
-            )}
+            )
+          ) : parts ? (
+            <Text style={reviewText.name} numberOfLines={2}>
+              {parts.map((part, index) =>
+                part.kind === 'same' ? (
+                  part.text
+                ) : (
+                  <Text key={index} style={reviewText.gone}>
+                    {part.text}
+                  </Text>
+                ),
+              )}
+            </Text>
+          ) : (
+            <Text style={reviewText.name} numberOfLines={2}>
+              <Text style={reviewText.gone}>{change.from}</Text>
+              <Text style={reviewText.arrow}>{'  →  '}</Text>
+              <Text style={reviewText.new}>{change.to}</Text>
+            </Text>
+          )
+        // A cover to be taken is the picture it adds; a change on one song
+        // shows that song, as an opened change shows each of its songs.
+        const one = each.songIds.length === 1 ? songsById.get(each.songIds[0]!) : undefined
+        const cover =
+          change.field === 'cover' && change.from === '' ? (
+            <Cover uri={change.to} title={change.why} size={COVER_SHOWN} />
+          ) : one ? (
+            <Cover uri={artFor(one)} title={one.album || one.title} size={coverSize.line} />
+          ) : null
+        const text = (
+          <>
+            {words}
             <Text style={reviewText.meta} numberOfLines={1}>
               {meta(each, state)}
             </Text>
           </>
+        )
+        if (!cover) return text
+        return (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.sm }}>
+            {cover}
+            <View style={{ flex: 1, minWidth: 0 }}>{text}</View>
+          </View>
         )
       }}
       labelOf={each =>

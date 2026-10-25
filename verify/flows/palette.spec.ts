@@ -65,8 +65,8 @@ test.describe('command palette', () => {
   })
 
   /**
-   * One search, many doors (`P20`): on a computer Home's field, the sidebar's
-   * row and Library's field all open the same palette, and it finds artists
+   * One search, many doors (`P20`): on a computer the sidebar's row and
+   * Library's field both open the same palette, and it finds artists
    * and tags as well as songs.
    */
   test('every door opens the same search, and it finds an artist', async ({ page }, info) => {
@@ -74,7 +74,7 @@ test.describe('command palette', () => {
     const box = page.getByRole('combobox', { name: /Search songs, playlists and tags/ })
 
     await page.goto('/')
-    await page.getByTestId('home-search').click()
+    await page.getByTestId('nav-search').click()
     await expect(box).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press('Escape')
     await expect(box).toBeHidden()

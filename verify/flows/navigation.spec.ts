@@ -15,7 +15,8 @@ import { libraryReady, openLibrary } from './helpers.js'
 test.describe('navigation', () => {
   /**
    * The app opens on Home (docs/ui-mock `P04`, `C03`): a greeting, one search
-   * field, and Library one tap away. On a phone the bar is Home · Library ·
+   * (Home's field on a phone, the sidebar's row on a computer), and Library
+   * one tap away. On a phone the bar is Home · Library ·
    * Playlists with a search circle beside it.
    */
   test('a fresh launch lands on Home, and Library is one tap away', async ({ page }, info) => {
@@ -24,7 +25,10 @@ test.describe('navigation', () => {
     await expect(
       page.getByRole('heading', { name: /^Good (morning|afternoon|evening|night)\.$/ }),
     ).toBeVisible()
-    await expect(page.getByTestId('home-search')).toBeVisible()
+    // A computer's one search is the sidebar's row; Home's field is a phone's.
+    await expect(
+      page.getByTestId(info.project.name === 'phone' ? 'home-search' : 'nav-search'),
+    ).toBeVisible()
 
     if (info.project.name === 'phone') {
       for (const tab of ['Home', 'Library', 'Playlists']) {

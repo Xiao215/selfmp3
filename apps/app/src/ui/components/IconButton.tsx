@@ -29,6 +29,8 @@ export function IconButton({
   active = false,
   filled = false,
   caption,
+  onFocus,
+  onBlur,
 }: {
   children: ReactNode
   testID?: string
@@ -43,6 +45,9 @@ export function IconButton({
   active?: boolean
   /** On the control surface, for a button standing on its own in a header; or white, or the accent. */
   filled?: boolean | 'primary' | 'accent'
+  /** For a button that only shows itself on hover or keyboard focus. */
+  onFocus?: () => void
+  onBlur?: () => void
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   const size = sizeProp ?? (dense ? (filled ? 36 : 34) : filled ? 40 : HIT_TARGET)
@@ -58,6 +63,8 @@ export function IconButton({
       depth="control"
       wrap={{ width: size, height: size }}
       onPress={onPress}
+      onFocus={onFocus}
+      onBlur={onBlur}
       disabled={disabled}
       hitSlop={hitSlopFor(size)}
       testID={testID}

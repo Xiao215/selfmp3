@@ -154,6 +154,15 @@ export function sectionTitle(colors: ThemePalette) {
   } as const
 }
 
+/**
+ * A quiet heading over a group, in sentence case: the sidebar's "Playlists",
+ * Settings' "On this page", a sheet's group. It names a group; it is not a
+ * section's title (`sectionTitle`).
+ */
+export function quietLabel(colors: ThemePalette) {
+  return { color: colors.textMuted, fontSize: type.sub, fontWeight: '600' } as const
+}
+
 /** The small uppercase heading over a group: 11, tracked, quiet. */
 export function label(colors: ThemePalette) {
   return {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
-import type { ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useRouter } from 'expo-router'
@@ -95,7 +94,8 @@ import { COLUMN_WIDTH } from '../../shell/widths'
  * A greeting and one quiet line, one search field, the tags you play most as
  * tiles, and what you played last. On a phone the header carries Import's
  * download arrow and the avatar that opens Profile; a computer has those in
- * its sidebar, and adds this week's numbers beside the tiles. No date line: the
+ * its sidebar, and its search too, so its Home has no field of its own (A1,
+ * Xiao 2026-10-25); it adds this week's numbers beside the tiles instead. No date line: the
  * greeting under it already says what time of day it is (Xiao, 2026-09-20).
  *
  * Stats come from the server, as they do on the Stats page: a cloud library has
@@ -212,15 +212,14 @@ function HomePage({
             same numbers already were (`F`, Xiao 2026-10-04). */}
         {sunday && !wide ? <SundayLead card={sunday} song={sundaySong} onOpen={openWeek} /> : null}
 
-        {/* A door to the one Search, not a second place to type. */}
-        {empty ? null : (
+        {/* A door to the one Search, not a second place to type. A computer's
+            is the sidebar's row, right beside this page. */}
+        {empty || wide ? null : (
           <SearchField
             testID="home-search"
             onPress={openSearch}
             accessibilityLabel="Search"
-            placeholder={
-              wide ? 'One song, a tag, an artist, a lyric…' : 'One song, an artist, a lyric…'
-            }
+            placeholder="One song, an artist, a lyric…"
           />
         )}
 
@@ -230,15 +229,15 @@ function HomePage({
               <FirstSong onPress={() => router.navigate('/import')} />
             ) : (
               <>
-                {/* The count is the head's own action, as Recently played's Library
-                    is, rather than a link under the tiles (Xiao, 2026-09-20). */}
+                {/* The head's own action, as Recently played's is, rather than a
+                    link under the tiles (Xiao, 2026-09-20). */}
                 <SectionHead
                   testID="home-all-tags"
                   title="Your tags"
                   action={
                     library && library.tags.length > 0
                       ? {
-                          label: `All ${library.tags.length}`,
+                          label: 'See all',
                           onPress: () => router.navigate('/tags'),
                         }
                       : null
@@ -266,7 +265,7 @@ function HomePage({
           <View style={styles.stack}>
             <SectionHead
               title="Recently played"
-              action={{ label: 'Library', onPress: () => router.navigate('/library') }}
+              action={{ label: 'See all', onPress: () => router.navigate('/library') }}
             />
             <Recents recents={recents} rooms={rooms} wide={wide} />
           </View>
@@ -323,8 +322,10 @@ function SundayLead({
 /**
  * A song's colour washed across a card from the left and out to nothing on
  * the right, so the card reads as lit by its cover rather than painted.
+ * `diagonal` runs it from the top corner down into the card, deeper, for a
+ * card the colour is the whole ground of (This week on a computer).
  */
-function ToneWash({ color }: { color: string }): ReactNode {
+function ToneWash({ color, diagonal = false }: { color: string; diagonal?: boolean }): ReactNode {
   // Gradient ids are document ids on the web: two cards must not share one.
   const id = useSvgId('tone')
   return (
@@ -338,9 +339,9 @@ function ToneWash({ color }: { color: string }): ReactNode {
         preserveAspectRatio="none"
       >
         <Defs>
-          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={color} stopOpacity={0.34} />
-            <Stop offset="0.55" stopColor={color} stopOpacity={0.1} />
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2={diagonal ? '1' : '0'}>
+            <Stop offset="0" stopColor={color} stopOpacity={diagonal ? 0.42 : 0.34} />
+            <Stop offset="0.55" stopColor={color} stopOpacity={diagonal ? 0.14 : 0.1} />
             <Stop offset="1" stopColor={color} stopOpacity={0} />
           </LinearGradient>
         </Defs>
@@ -734,34 +735,24 @@ function ThisWeek({
   const column = beside ? styles.sideColumn : styles.stack
   if (!stats) return <View style={column} />
   const figures = statFigures(stats)
-  // Under the tiles the two cards sit abreast, each half the page (`T02`).
-  const cards = beside ? styles.cardsStacked : styles.cardsAbreast
-  const half = beside ? null : styles.cardHalf
   return (
     <View style={column}>
       <SectionHead title="This week" action={null} />
-      <View style={cards}>
-        <View style={[styles.weekCard, half]} testID="home-this-week">
-          {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
-          <View style={styles.weekNumbers}>
-            <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
-            <StatFigure value={figures.plays} caption="plays" />
-            {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
-            <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
-          </View>
-          {sunday ? (
-            <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
-          ) : (
-            <Press
-              feedback="dim"
-              onPress={() => router.navigate('/stats')}
-              accessibilityRole="link"
-            >
-              <Text style={styles.linkSmall}>Stats and report</Text>
-            </Press>
-          )}
+      <View style={styles.weekCard} testID="home-this-week">
+        {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
+        <View style={styles.weekNumbers}>
+          <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
+          <StatFigure value={figures.plays} caption="plays" />
+          {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
+          <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
         </View>
-        <ImportsHint style={half} />
+        {sunday ? (
+          <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
+        ) : (
+          <Press feedback="dim" onPress={() => router.navigate('/stats')} accessibilityRole="link">
+            <Text style={styles.linkSmall}>Stats and report</Text>
+          </Press>
+        )}
       </View>
     </View>
   )
@@ -796,11 +787,12 @@ function WeekReadyHead({
   const lead = card.song
   return (
     <>
-      <ToneWash color={tone.color} />
+      <ToneWash color={tone.color} diagonal />
       <View style={styles.readyHead}>
         {song ? <SundaySong song={song} tone={tone} size={READY_COVER} /> : null}
         <View style={styles.sundayText}>
-          <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text>
+          {/* Plain case: the number one is what the card is about (A1). */}
+          <Text style={styles.readyKicker}>{lead ? 'Song of the week' : card.title}</Text>
           {lead ? (
             <Text style={styles.readyTitle} numberOfLines={1}>
               {lead.title}
@@ -853,27 +845,6 @@ function OpenWeek({
   )
 }
 
-/** A quiet way to Import from the card column; the sidebar has the row as well. */
-function ImportsHint({ style }: { style?: ViewStyle | null }): ReactNode {
-  const router = useRouter()
-  return (
-    <Press
-      onPress={() => router.navigate('/import')}
-      accessibilityRole="link"
-      wrap={style}
-      style={styles.importCard}
-    >
-      <View style={styles.importIcon}>
-        <Download size={iconSize.item} tone="textPrimary" />
-      </View>
-      <View style={styles.importText}>
-        <Text style={styles.importTitle}>Import a link</Text>
-        <Text style={styles.importBody}>A song or a playlist from YouTube</Text>
-      </View>
-    </Press>
-  )
-}
-
 /** The round mark that opens Profile, in the phone's header. */
 const AVATAR = 36
 
@@ -909,9 +880,6 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: pageFrame(false),
   contentWide: pageFrame(true),
   stack: { gap: space.snug },
-  cardsStacked: { gap: space.md },
-  cardsAbreast: { flexDirection: 'row', alignItems: 'stretch', gap: space.md },
-  cardHalf: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
   columns: { flexDirection: 'row', gap: COLUMN_GAP, alignItems: 'flex-start' },
   mainColumn: { flex: 1, minWidth: 0, gap: space.md },
   sideColumn: { width: SIDE_COLUMN, gap: space.md },
@@ -1007,6 +975,7 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   readyHead: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  readyKicker: { color: theme.colors.textSecondary, fontSize: type.sub },
   readyTitle: rowTitle(theme.colors),
   readyButton: {
     height: 36,
@@ -1016,24 +985,4 @@ const styles = StyleSheet.create(theme => ({
   },
   readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
   weekNumbers: { flexDirection: 'row', gap: space.md },
-  importCard: {
-    ...card(theme.colors),
-    // Filling the wrapper the press sinks, which the card beside it stretches.
-    flexGrow: 1,
-    padding: space.roomy,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-  },
-  importIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  importText: { flex: 1, gap: 2 },
-  importTitle: rowTitle(theme.colors),
-  importBody: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

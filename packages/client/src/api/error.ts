@@ -65,6 +65,28 @@ export function failureText(failure: string, error: unknown): string {
 }
 
 /**
+ * `failureText` as a message's two lines: what did not happen in bold, and
+ * the why, when there is one, as a sentence under it. One line holding both
+ * wrapped mid-reason in a toast.
+ */
+export function failureWords(
+  failure: string,
+  error: unknown,
+): { readonly say: string; readonly under?: string } {
+  const why =
+    error instanceof ApiError && error.isOffline
+      ? 'your library isn’t reachable right now'
+      : error instanceof ApiError && error.isBucketCapped
+        ? 'your storage’s allowance for today is used up'
+        : error instanceof ApiError && saidForPeople(error)
+          ? error.message
+          : null
+  if (why === null) return { say: failure }
+  const sentence = why.charAt(0).toLocaleUpperCase() + why.slice(1)
+  return { say: failure, under: /[.!?…]$/.test(sentence) ? sentence : `${sentence}.` }
+}
+
+/**
  * A refusal the server put into words for the person: a 4xx it explained.
  * Not a 400, which is a request it could not read (a zod message), and not
  * one whose body it never sent (`code` left at `error`, the message being

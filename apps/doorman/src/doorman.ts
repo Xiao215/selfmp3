@@ -13,6 +13,7 @@ import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
+import { device } from './device.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
@@ -87,7 +88,14 @@ const ROUTES: Readonly<Record<string, Readonly<Record<string, Route>>>> = {
   [DOORMAN_PATHS.changes]: { GET: files.changes },
 }
 
-const { files: FILES, grants: GRANTS, rooms: ROOMS, shared: SHARED, share: SHARE } = DOORMAN_PATHS
+const {
+  files: FILES,
+  grants: GRANTS,
+  rooms: ROOMS,
+  shared: SHARED,
+  share: SHARE,
+  device: DEVICE,
+} = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
 const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
@@ -174,6 +182,7 @@ async function route(ctx: Context): Promise<Response> {
   if (path === ROOMS || path.startsWith(`${ROOMS}/`)) return rooms(ctx)
   if (path === SHARED || path.startsWith(`${SHARED}/`)) return shared(ctx)
   if (path === SHARE || path.startsWith(`${SHARE}/`)) return share(ctx)
+  if (path === DEVICE || path.startsWith(`${DEVICE}/`)) return device(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

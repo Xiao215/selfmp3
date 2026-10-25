@@ -7,7 +7,6 @@ import { formatRelative, type Device, DeviceNameSchema } from '@selfmp3/shared'
 import {
   clientApi,
   deviceGroups,
-  failureText,
   heardAt,
   queryKeys,
   radius,
@@ -23,7 +22,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Trash } from '../../ui/components/Icons'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { useDeviceContext } from '../devices/DevicesProvider'
 import {
   knownAsDevices,
@@ -131,7 +130,7 @@ async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]
   const refused = results.find(result => result.status === 'rejected')
   if (refused) {
     const what = ids.length > 1 ? 'Couldn’t remove them all' : 'Couldn’t remove that device'
-    showToast(failureText(what, refused.reason), 'error')
+    showFailure(what, refused.reason)
   }
 }
 

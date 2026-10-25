@@ -149,10 +149,9 @@ export function ChangeIt({
  * The field a change is said in: one line with a send button that appears
  * once there are words, and while the change is worked on, what is happening
  * in the same place, so nothing jumps; with `onStop`, the send button's place
- * holds a Stop while it does. "Change it" under a song answer and
- * the follow-up under every other answer (`AskAnswer`) are this field.
+ * holds a Stop while it does. "Change it" under a song answer, and on its page.
  */
-export function ChangeField({
+function ChangeField({
   value,
   onChangeText,
   onSend,
@@ -269,7 +268,7 @@ export function ChangeField({
 }
 
 /** One version in the trail: the answer's name first, then what each change said. */
-export function TrailStep({
+function TrailStep({
   first,
   label,
   current,

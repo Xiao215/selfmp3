@@ -258,19 +258,6 @@ export function copyName(name: string, taken: readonly string[]): string {
 }
 
 /**
- * A playlist's order once songs taken out of it are added back (the Undo of a
- * removal): the songs as they stood before, each in its old place, followed by
- * any song added since. A song that left in the meantime by another hand stays
- * gone; the Undo only puts back what it took.
- */
-export function restoredOrder(before: readonly number[], now: readonly number[]): number[] {
-  const present = new Set(now)
-  const kept = before.filter(id => present.has(id))
-  const placed = new Set(kept)
-  return [...kept, ...now.filter(id => !placed.has(id))]
-}
-
-/**
  * The songs whose covers make a mosaic (a playlist's, a place's): four with
  * different pictures where the songs have them, else the first cover alone.
  *
@@ -280,18 +267,24 @@ export function restoredOrder(before: readonly number[], now: readonly number[])
  * it: the same art, encoded again for another file, reads within a hair of
  * the same. Songs of one named album count as one picture too, whose covers
  * can be cropped a little differently. A cover not read yet counts as its own.
+ *
+ * The whole list is searched, not its head: a tag that opens on forty tracks
+ * of one soundtrack still has other pictures further down. `hasArt` can fetch
+ * a cover (`useArt`), so it is asked only of a song whose picture is not
+ * already in, and the search ends at the fourth.
  */
 export function mosaicCovers<T extends Pick<Song, 'id' | 'album' | 'coverTone'>>(
   songs: readonly T[],
   hasArt: (song: T) => boolean,
 ): readonly T[] {
-  const withArt = songs.filter(hasArt)
   const different: T[] = []
-  for (const song of withArt) {
-    if (!different.some(kept => samePicture(kept, song))) different.push(song)
+  for (const song of songs) {
+    if (different.some(kept => samePicture(kept, song))) continue
+    if (!hasArt(song)) continue
+    different.push(song)
+    if (different.length === 4) return different
   }
-  if (different.length >= 4) return different.slice(0, 4)
-  return (withArt.length > 0 ? withArt : songs).slice(0, 1)
+  return different.length > 0 ? different.slice(0, 1) : songs.slice(0, 1)
 }
 
 /** How far apart two palettes may be and still be one picture. */

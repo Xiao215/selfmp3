@@ -206,10 +206,43 @@ command palette), the Search page on a phone. Letters stay a search, matched on 
 as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
 row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
 otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
-the keyboard away. Asking answers in place of the results, and Esc goes back
-to them. The box is not held while Ask works: new words drop the question and bring the
-results back, and Stop does the same without them. One request, one answer you act on: a
-command box, not a chat.
+the keyboard away. Asking opens the Ask page (below), so the box keeps only what you typed
+and Back finds it there.
+
+### The Ask page
+
+`/ask?q=…` (`smart/AskScreen.tsx`; Xiao picked A1 B2 C1 D1 E1 F1, 2026-10-24, after the
+in-place answer kept the first question in the search box, shrank follow-ups to a grey
+trail and replaced each answer). It is a conversation: each turn is what you said, in an
+accent-tinted bubble on the right, and its answer under it, drawn as that kind of answer
+always is (`AnswerBody.tsx`). Earlier turns stay, oldest at the top. The field is docked at
+the foot ("Ask a follow-up…"); while a turn is worked on its send is the one Stop, which
+takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
+and the conversation is not kept after it (so there is no "new chat" button). When the
+keyboard rises, the thread's foot moves up with it, as a messages app keeps it. On a phone the page owns the display, as Search does; on a computer
+it opens in the main column, and the palette's Ask row closes the palette and opens it.
+Asked while Search adds to a room (`?to=room`), song answers go to the room. A review's keys
+work from the field while it is empty.
+
+Reviews in the thread (Xiao picked R3 T1 S1, 2026-10-24): nothing in the conversation
+scrolls on its own. A review is a card (`Review` with `card`): up to five changes whole, a
+longer one its first three and "Review all", which opens the whole list on a sheet with
+the buttons at its foot, ticked as one with the card. The model's own words are drawn as
+the answer above it (T1; tidy's `reply` used to sit among the grey notes); grey is only
+the app's small print, under the rows. Done with (Fix, Close, Not now), a proposal says
+what came of it ("Fixed 31 songs", "Closed. Nothing changed."), and the turn keeps the
+model's words and that line (S1), which the next follow-up is told too. An answer you play
+from stays as it is.
+
+Words answers (`explore`, `none`, `open`) can be selected in part: on iOS they are a
+read-only system text view (`ports/selectableText.tsx`), since a selectable `Text` there
+copies only the whole; `explore` also has Copy for all of it.
+
+A song an answer names (`AnswerSongLine`) plays from ▶; while it is the song playing, its
+row is marked as Library's rows are (the cover's colour washing in from the right, the
+title in its tint, the equaliser over the cover) and ▶ is a pause inside a ring that fills
+as the song goes (Xiao picked A1 B1 C1, 2026-10-24). Pressing the playing row opens Now
+Playing; seeking stays there.
 
 Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
 tier) reads the request against rung 2 and chooses one action from a fixed list, filling in
@@ -232,7 +265,7 @@ list as it is: what would change is the loop, not the actions.
 |---|---|---|---|
 | `songs` | "play something calm for reading", "make a playlist of…" | Describe's steps 2–3 (the route *is* the plan) | the pick |
 | `playback` | "skip this song", "go back", "pause", "play the last song in Up next", "play the third song in the queue" | the device carries it out on its own player (Controlling what plays, below) | none |
-| `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index | a pick of at most 5 |
+| `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index; when none of yours is it, `explore` instead, so a song you don't have is told about rather than a dead end | a pick of at most 5 |
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
 | `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
@@ -245,7 +278,7 @@ list as it is: what would change is the loop, not the actions.
 | `open` | "where do I paste a Spotify link", "take me to my stats" | a sentence and a button to the place | none |
 | `none` | anything else | what the box can do instead, and up to two requests it can do, each a press away | none |
 
-Every answer is a proposal with its own button (`AskAnswer.tsx`): a song answer is a card
+Every answer is a proposal with its own button (`AnswerBody.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
 review's Apply, Open Stats, a found song to play, Play these. The one exception is
 `playback`, which is done as it arrives.
@@ -346,14 +379,16 @@ a full-width bar under its head ("Change these songs…").
 ## Looking things up (`explore`)
 
 For a question the fixed actions can't put as filters ("which albums do I have only part of",
-"what is Liyue called in Chinese, and do I have it"), the router chooses `explore`
+"what is Liyue called in Chinese, and do I have it"), and any question about music itself
+(a song, an artist, who sang it), the router chooses `explore`
 (`explore.ts`). The model gets the library's shape and tools, run on the server through
 `llm.ts`'s tool loop (OpenAI `tools` with `response_format`, at most 8 rounds):
 `search_songs` (words in title, artist, album or lyrics; a tag; an artist; an album; a page of
 rows with ids), `library_counts` (songs per artist, album, tag or year), and `search_catalogue`
-(网易云's search). With Settings' "Search the web" on, the call also asks the endpoint for web
-search (`web_search_options`). The answer is a few sentences and the songs it is about; every
-id is checked to be one of yours. Tried 2026-10-04 with the real model through cli-bridge: 9 s
+(网易云's search). The call also asks the endpoint for web search (`web_search_options`).
+About music itself the model answers from what it knows as well, saying when that is from
+memory, and says whether you have it. The answer is a few sentences and the songs it is
+about; every id is checked to be one of yours. Tried 2026-10-04 with the real model through cli-bridge: 9 s
 and 17 s, two to three tool calls each.
 
 ## Getting music (`getMusic`)
@@ -369,8 +404,8 @@ song 网易云 only previews on YouTube instead. No model call beyond the router
 
 ## Searching the web
 
-Settings › Smart features › Search the web, off by default (`smartWeb`). On, two things may
-search: `explore` (the call carries `web_search_options`), and the names pass for songs no
+Part of smart features, with no switch of its own (Xiao, 2026-10-24: smart features on means
+the model may look things up). Two things may search: `explore` (the call carries `web_search_options`), and the names pass for songs no
 catalogue has, a second model call per 15 songs with web search (at most 150 songs), whose
 names are the model's and wait unticked, with a note saying the web was searched. The
 endpoint does the searching: cli-bridge runs Claude Code's WebSearch and WebFetch for that
@@ -385,21 +420,19 @@ the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them u
 words say otherwise)"), so the router and the action read them. Settings › Smart features lists
 them, each with Remove.
 
-## Follow-ups (every other answer)
+## Follow-ups
 
-Every answer that is not a song answer ends in the same quiet field ("Ask a follow-up…",
-`ChangeField` in `ChangeIt.tsx`, drawn by `AskAnswer.tsx`). What you type is asked again with
-everything said before it: the request carries `before` (the earlier words, first ask first),
-and the server reads them as one request (`followed` in `ask.ts`: "They first asked … Then they
-said … Now they say …"), so the router and the action it chooses both see all of it. The new
-answer takes the old one's place, which stays on screen until it lands; what was said is a
-trail above the field, and pressing an earlier step shows its answer again from the cache. A
-song answer keeps Change it, which keeps the songs it already chose.
-
-While a follow-up is worked on, the field gives way to the same steps the first question
-shows, ticked as they finish, and the box that asked holds the one Stop: on a first question
-it lets go of it, on a follow-up it goes back to the answer followed, its words in the field
-again.
+Whatever is typed in the Ask page's field is a new turn, asked after the conversation
+before it: the request carries `before`, each earlier question with what was shown for it
+(`AskTurn`). A words answer is its words; a list or a review is a line the device writes
+(`answerRecap` in `smart.model.ts`: "Offered 12 songs (“…”): …", "Proposed 8 name
+changes: …"). The server sets them out as turns and asks for the newest
+(`followed` in `ask.ts`: "Earlier in this conversation: They asked … You answered … Now
+they say …"), so the model neither looks everything up again nor re-answers it, and "only
+the albums" after a song list is still that request changed. Until 2026-10-24 only the
+earlier questions were sent, as one request to "answer all of it together": a third
+question got its answer in the last sentence of a re-answer of all three. A song answer
+keeps its own Change it, which keeps the songs it already chose.
 
 A tidy answer that changes nothing still answers: the model says which song it took them to
 mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change
@@ -783,7 +816,7 @@ Six switches, kept in the server's settings (`smartAsk`, `smartTidy`, `smartTags
 also covers New playlist's Describe it and Up next), Tidy up (with filling in what's missing
 and copies), Tags (Suggest tags, and Ask's tag changes), the Report in words, Fix song info's
 Suggested card, and Names at import, which has a switch of its own because it runs by itself
-whenever a review opens. A seventh, Search the web (`smartWeb`), is off by default, and the
+whenever a review opens. Searching the web has no switch: it is part of smart features. The
 remembered preferences are listed under them. Each
 says what of the library it shows the model, in a line, because "the model sees your
 library" is too vague to agree to and each sees less than that. Settings reads and writes them

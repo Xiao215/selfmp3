@@ -17,7 +17,6 @@ import {
 } from '@selfmp3/client'
 import { doormanUrl } from '../../ports/doormanUrl'
 import { prefs } from '../../ports/prefs'
-import { markGuideSeen } from '../guide/guideMemory'
 import { isHost } from './room.model'
 import { connectionKind } from '../../offline/connectionKind'
 import { showToast } from '../../ui/toast'
@@ -338,8 +337,6 @@ function forgetRoom(): void {
 
 function enter(pass: RoomPass, state: RoomState): void {
   prefs.set(PASS_KEY, JSON.stringify(pass))
-  // Been in a room: Home's card that points at Listen together is done.
-  markGuideSeen('together-card')
   samples = []
   set({ pass, state, offset: 0 })
   connectRoom()
@@ -356,7 +353,10 @@ function enter(pass: RoomPass, state: RoomState): void {
 async function sayIfMobileData(state: RoomState): Promise<void> {
   if (state.mode !== 'everyone' && !isHost(state)) return
   if ((await connectionKind()) === 'cellular') {
-    showToast('You’re on mobile data. A room streams every song, about 5 MB each.')
+    showToast({
+      say: 'You’re on mobile data',
+      under: 'A room streams every song, about 5 MB each.',
+    })
   }
 }
 

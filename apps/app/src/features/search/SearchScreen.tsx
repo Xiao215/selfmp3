@@ -36,9 +36,7 @@ import { useSongRows } from '../../ui/components/useSongRows'
 import { PlaceLine } from '../../ui/components/PlaceLine'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
-import { AskAnswer } from '../smart/AskAnswer'
 import { ASK_SUB, askable } from '../smart/smart.model'
-import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { useLibrarySearch } from './useLibrarySearch'
 import {
@@ -86,7 +84,8 @@ const NO_SONGS: readonly Song[] = []
  * 2026-10-14), from Up next's Add songs, on every device: a bar says where
  * songs go, a song's line adds it, Ask's songs are added rather than played,
  * a link pasted in is looked up, and before typing are what the room's people
- * brought. One box to find songs and ask for them, in a room as everywhere.
+ * brought. One box to find songs and ask for them, in a room as everywhere:
+ * asking opens the Ask page (`AskScreen`) over this one, for the room too.
  */
 export function SearchScreen(): ReactNode {
   const router = useRouter()
@@ -107,12 +106,6 @@ export function SearchScreen(): ReactNode {
   }, [searching])
   /** The section a "See all" opened alone, or null for All. */
   const [section, setSection] = useState<SearchSection | null>(null)
-  /** What was asked (S1), answered in place of the results until the words change. */
-  const [asking, setAsking] = useState<string | null>(null)
-  /** An answer is on its way, so the field offers Stop where it offers Clear: what it stops. */
-  const [stopping, setStopping] = useState<(() => void) | null>(null)
-  // A function kept as state is set through an updater, or React would call it.
-  const setStop = useCallback((next: (() => void) | null) => setStopping(() => next), [])
   const field = useRef<TextInput>(null)
   // The palette's search too, so the two find the same and Enter decides alike.
   const search = useLibrarySearch(query, {
@@ -130,8 +123,12 @@ export function SearchScreen(): ReactNode {
   const offerAsk = switches.ask && section === null && askable(words)
   // A YouTube or 网易云 link typed while adding: looked up, not searched for.
   const link = adding && youMay(adding, 'addLink') ? playableLink(words) : null
-  const answering = asking !== null && asking === query.trim()
-  const stop = answering ? stopping : null
+  // Ask is a page of its own (A1, 2026-10-24): Search stays under it, words and all, for Back.
+  const ask = useCallback(
+    (text: string) =>
+      router.push({ pathname: '/ask', params: adding ? { q: text, to: 'room' } : { q: text } }),
+    [router, adding],
+  )
 
   const openArtist = useCallback(
     (artist: Artist) => router.navigate(artistLink(artist.name)),
@@ -148,10 +145,10 @@ export function SearchScreen(): ReactNode {
         ? empty.recent
         : section === 'songs'
           ? found.songs
-          : section === null && !answering
+          : section === null
             ? allResults(found).songs
             : NO_SONGS,
-    [typed, section, answering, found, empty.recent],
+    [typed, section, found, empty.recent],
   )
   const rowIds = useMemo(() => rowSongs.map(song => song.id), [rowSongs])
   // The page's one selection, for every song row on it: holding a row starts
@@ -175,18 +172,15 @@ export function SearchScreen(): ReactNode {
                 inputRef={field}
                 autoFocus
                 value={query}
-                // New words leave the question behind: the answer on its way is
-                // dropped with it, and the results for what is typed come back.
                 // A cleared field is a fresh search, back on All.
                 onChangeText={text => {
                   setQuery(text)
-                  setAsking(null)
                   if (text.trim() === '') setSection(null)
                 }}
                 // Enter asks only when nothing matches (I1); with matches it puts
                 // the keyboard away and the results stay where they are.
                 onSubmitEditing={() => {
-                  if (search.enterAsks()) setAsking(query.trim())
+                  if (search.enterAsks()) ask(query.trim())
                   else field.current?.blur()
                 }}
                 placeholder={
@@ -199,9 +193,6 @@ export function SearchScreen(): ReactNode {
                 accessibilityLabel="Search"
                 testID="search-field"
                 style={styles.field}
-                trailing={
-                  stop ? <StopButton onPress={stop} size={26} testID="ask-stop" /> : undefined
-                }
               />
               <Press
                 feedback="dim"
@@ -262,30 +253,12 @@ export function SearchScreen(): ReactNode {
                 adds={adding ? adds : null}
               />
             ) : (
-              <ScrollView
-                contentContainerStyle={[styles.results, bar.listPadding]}
-                // An answer's follow-up field is at its foot: the keyboard it
-                // opens pads the list by its height and scrolls the field above it.
-                automaticallyAdjustKeyboardInsets
-              >
-                {answering ? (
-                  <AskAnswer
-                    text={asking}
-                    onDone={close}
-                    onOpenPage={() => undefined}
-                    onWorking={setStop}
-                    onDrop={() => setAsking(null)}
-                    onAsk={words => {
-                      setQuery(words)
-                      setAsking(words)
-                    }}
-                  />
-                ) : null}
-                {!answering && !link && offerAsk && counts.all === 0 ? (
-                  <AskCard words={words} first onAsk={() => setAsking(words)} />
+              <ScrollView contentContainerStyle={[styles.results, bar.listPadding]}>
+                {!link && offerAsk && counts.all === 0 ? (
+                  <AskCard words={words} first onAsk={() => ask(words)} />
                 ) : null}
                 {adding && link ? <LinkPick state={adding} url={link} /> : null}
-                {answering || link ? null : section === null ? (
+                {link ? null : section === null ? (
                   <AllResults
                     found={found}
                     lyricHits={lyricHits}
@@ -301,11 +274,10 @@ export function SearchScreen(): ReactNode {
                 ) : (
                   <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
                 )}
-                {!answering && !link && offerAsk && counts.all > 0 ? (
-                  <AskCard words={words} first={false} onAsk={() => setAsking(words)} />
+                {!link && offerAsk && counts.all > 0 ? (
+                  <AskCard words={words} first={false} onAsk={() => ask(words)} />
                 ) : null}
-                {!answering &&
-                !link &&
+                {!link &&
                 counts[section ?? 'all'] === 0 &&
                 !(section === 'lyrics' && lyricsAway) ? (
                   <NothingMatches words={shown.trim()} />
@@ -657,7 +629,10 @@ function LyricResults({
               if (!adds) player.playFrom([hit.songId], 0, { source: FROM_SEARCH })
               else if (song) {
                 adds.add(song)
-                showToast(`Added “${hit.title}”`, 'good')
+                showToast({ over: 'Added', say: hit.title }, 'good', {
+                  songs: [song],
+                  group: 'search-added',
+                })
               }
             }}
             accessibilityRole="button"

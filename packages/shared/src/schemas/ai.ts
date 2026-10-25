@@ -167,6 +167,17 @@ export const TagReviewSchema = z.object({
 export type TagReview = z.infer<typeof TagReviewSchema>
 
 /**
+ * One turn of an Ask conversation: what was asked, and what the answer shown
+ * for it said — its words, or a line the device writes for a list or a review
+ * ("Showed 12 songs: …").
+ */
+export const AskTurnSchema = z.object({
+  asked: z.string().trim().min(1).max(500),
+  answered: z.string().trim().max(2000),
+})
+export type AskTurn = z.infer<typeof AskTurnSchema>
+
+/**
  * The Search box's Ask (docs/features/ai.md, "S1"): one request, routed to one
  * of a few things the app can already do, and answered as a proposal.
  */
@@ -177,10 +188,11 @@ export const AskRequestSchema = z.object({
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
   ticket: AskTicketSchema.optional(),
   /**
-   * What was said before this, first ask first, when `text` follows up on an
-   * answer ("only the albums"): the request is all of it together.
+   * The conversation before this, first turn first, when `text` follows up on
+   * an answer: each thing asked with what was shown for it. `text` is what is
+   * answered; these are what it is said after.
    */
-  before: z.array(z.string().trim().min(1).max(500)).max(8).default([]),
+  before: z.array(AskTurnSchema).max(8).default([]),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
 
@@ -417,8 +429,17 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
       }),
     ),
   }),
-  /** An open question looked into with tools: the answer in words, and the songs it is about (server ids). */
-  z.object({ kind: z.literal('explore'), say: z.string(), songIds: z.array(IdSchema) }),
+  /**
+   * An open question looked into with tools: the answer in words, the songs it
+   * is about (server ids), and what to search a catalogue for when it is about
+   * music they don't have.
+   */
+  z.object({
+    kind: z.literal('explore'),
+    say: z.string(),
+    songIds: z.array(IdSchema),
+    get: z.string().nullable(),
+  }),
   /**
    * Playlists to delete or one to rename, as a proposal to approve: the
    * playlists meant, by their exact names (matched on the server, so a

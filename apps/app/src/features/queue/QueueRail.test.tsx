@@ -87,6 +87,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
     state: { index: { version: 1, entries: {} } },
     installed: false,
     streamBlocked: false,
+    playedIds: new Set(),
   }),
 }))
 jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))

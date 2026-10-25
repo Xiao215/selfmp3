@@ -181,10 +181,26 @@ describe('playing a song that is not downloaded', () => {
       expect(playBlock({ ...cloud, bucketHeld: true })).toBe('held')
       // No signal says more than the refusal does.
       expect(playBlock({ ...cloud, bucketHeld: true, network: 'none' })).toBe('offline')
-      // A library on a server does not answer to the bucket's day, and a
-      // browser's service worker may have the song kept.
+      // A library on a server does not answer to the bucket's day.
       expect(playBlock({ ...song, bucketHeld: true })).toBeNull()
-      expect(playBlock({ ...cloud, installed: false, bucketHeld: true })).toBeNull()
+    })
+  })
+
+  /*
+   * A browser has no downloads of its own beyond those saved by hand, and its
+   * service worker's played songs: everything else comes from the bucket, so
+   * on the day it refuses, a tag's songs were each tried, refused, retried and
+   * skipped in turn.
+   */
+  describe('a browser with the bucket refusing for the day', () => {
+    const tab = { ...song, installed: false, fromCloud: true, bucketHeld: true }
+
+    it('does not try a song it would have to fetch', () => {
+      expect(playBlock(tab)).toBe('held')
+    })
+
+    it('still plays what it has: a download, or a song its worker kept', () => {
+      expect(playBlock({ ...tab, downloaded: true })).toBeNull()
     })
   })
 

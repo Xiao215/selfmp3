@@ -5,6 +5,7 @@ import { appPath } from './appPath'
 import { desktop } from './desktop/bridge'
 import { deviceModel } from './device'
 import { doormanUrl } from './doormanUrl'
+import { refreshPlayed } from './playedCopies'
 import { sharedServerUrl } from './sharedServerUrl'
 import { signInReturnUrl } from './signInReturn'
 import {
@@ -59,6 +60,7 @@ const cacheApiTextCache: TextCache = {
   clear: async () => {
     if (typeof caches === 'undefined') return
     await Promise.all([caches.delete(CLOUD_FILES_CACHE), caches.delete(PLAYED_CACHE)])
+    await refreshPlayed()
   },
 }
 

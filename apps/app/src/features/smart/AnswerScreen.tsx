@@ -30,7 +30,7 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { useListActions } from '../../ui/components/useListActions'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
@@ -158,7 +158,7 @@ export function AnswerScreen(): ReactNode {
         ],
       })
     } catch (caught) {
-      showToast(failureText(`Couldn’t save “${input.name}”`, caught), 'error')
+      showFailure(`Couldn’t save “${input.name}”`, caught)
     } finally {
       setSaving(false)
     }

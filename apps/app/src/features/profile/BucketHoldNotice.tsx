@@ -33,7 +33,10 @@ export function BucketHoldNotice(): ReactNode {
     countShownError('bucket-full')
     const place = devicePlace(deviceKind())
     showToast(
-      `Your storage’s allowance for today is used up. Songs not on this ${place} come back in about ${untilCapResets(new Date())}.`,
+      {
+        say: 'Today’s storage allowance is used up',
+        under: `Songs not on this ${place} come back in about ${untilCapResets(new Date())}.`,
+      },
       'warn',
       { autoDismissMs: 12_000 },
     )

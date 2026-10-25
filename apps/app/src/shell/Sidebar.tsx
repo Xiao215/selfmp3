@@ -58,7 +58,7 @@ import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
-import { label as labelText } from '../ui/surfaces'
+import { label as labelText, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Press } from '../ui/components/Press'
@@ -335,7 +335,10 @@ function RailPlaylist({
     enabled: !live,
     onDrop: songIds => {
       addToPlaylist.mutate({ playlistId: playlist.id, songIds })
-      showToast(`Added ${plural(songIds.length, 'song', 'songs')} to ${playlist.name}`, 'good')
+      showToast(
+        { over: `Added to ${playlist.name}`, say: plural(songIds.length, 'song', 'songs') },
+        'good',
+      )
     },
   })
 
@@ -691,11 +694,8 @@ const styles = StyleSheet.create(theme => ({
     gap: space.sm,
     paddingHorizontal: space.sm,
   },
-  wordmark: {
-    color: theme.colors.textPrimary,
-    fontSize: type.title,
-    fontWeight: '700',
-  },
+  // The name in the serif, as the install page and the welcome screen set it.
+  wordmark: serif(theme.colors, 'large'),
   nav: {
     gap: 2,
   },

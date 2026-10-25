@@ -214,7 +214,10 @@ function SongPage({ song }: { song: Song }): ReactNode {
               icon={<Next tone="textPrimary" />}
               onPress={() => {
                 player.playNext([song.id])
-                showToast('Plays next', 'good')
+                showToast({ over: 'Plays next', say: song.title }, 'good', {
+                  songs: [song],
+                  group: 'plays-next',
+                })
               }}
             />
           )}

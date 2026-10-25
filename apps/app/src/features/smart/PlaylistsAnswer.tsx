@@ -3,50 +3,35 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
-import { plural, type AskAnswer, type Playlist } from '@selfmp3/shared'
-import {
-  clientApi,
-  failureText,
-  queryKeys,
-  radius,
-  space,
-  type,
-  useCreatePlaylist,
-  useLibrary,
-} from '@selfmp3/client'
+import { plural, type AskAnswer, type Library } from '@selfmp3/shared'
+import { clientApi, failureText, queryKeys, radius, space, type, useLibrary } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
-import { showToast, showUndoToast } from '../../ui/toast'
+import { ART } from '../../ui/components/ToastHost'
+import { showPendingToast, showUndoToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { FOLLOWS_LABEL, isLive, newPlaylist } from '../playlists/playlists.model'
+import { FOLLOWS_LABEL, isLive } from '../playlists/playlists.model'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
+import { AnswerActions, AnswerHead, AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 import { textColumn } from '../../ui/surfaces'
-
-/** A playlist as it was, so a delete can be undone: its songs in their order, its rules. */
-interface Kept {
-  readonly playlist: Playlist
-  readonly songIds: readonly number[]
-}
 
 /**
  * Ask's answer to "delete…" or "rename…" playlists (docs/features/ai.md): a
  * proposal, like every answer. The playlists it found are listed by their real
  * names, each ticked; nothing changes until the button is pressed, which is
- * the confirmation, and the message after it has Undo — a deleted playlist
- * comes back with its name, its songs in their order and its tags to fill
- * from.
+ * the confirmation, and the message after it has Undo. A delete is not sent
+ * until that Undo has gone, so an Undo has nothing to rebuild.
  */
 export function PlaylistsAnswer({
   answer,
   onDone,
 }: {
   answer: Extract<AskAnswer, { kind: 'playlists' }>
-  onDone: () => void
+  /** Done with: what was done, or that nothing changed. */
+  onDone: (outcome?: string) => void
 }): ReactNode {
   const { data: library } = useLibrary()
   const queryClient = useQueryClient()
-  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const found = answer.names.flatMap(
     name => library?.playlists.filter(playlist => playlist.name === name) ?? [],
   )
@@ -64,51 +49,47 @@ export function PlaylistsAnswer({
     return <AnswerLine>Those playlists are gone already.</AnswerLine>
   }
 
-  const remove = async (): Promise<void> => {
+  const remove = (): void => {
     if (chosen.length === 0 || busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      const api = clientApi()
-      const kept: Kept[] = []
-      for (const playlist of chosen) {
-        const songIds = isLive(playlist) ? [] : (await api.playlistSongs(playlist.id)).songIds
-        kept.push({ playlist, songIds })
-      }
-      for (const { playlist } of kept) await api.deletePlaylist(playlist.id)
-      await refresh()
-      // `restore` says how it went itself.
-      showUndoToast(
-        kept.length === 1
-          ? `Deleted “${kept[0]!.playlist.name}”`
-          : `Deleted ${plural(kept.length, 'playlist', 'playlists')}`,
-        () => restore(kept),
-        { tone: 'good' },
-      )
-      onDone()
-    } catch (caught) {
-      setError(failureText('Couldn’t delete them', caught))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const restore = async (kept: readonly Kept[]): Promise<void> => {
-    try {
-      for (const { playlist, songIds } of kept) {
-        const input = newPlaylist(playlist.kind, playlist.name, {
-          description: playlist.description,
-          rules: playlist.rules ?? undefined,
-        })
-        if (!input) continue
-        // The library is asked once, below, for all of them.
-        await createPlaylist({ input, songIds, refresh: 'none' })
-      }
-      await refresh()
-      showToast(kept.length === 1 ? 'It’s back' : 'They’re back', 'good')
-    } catch (caught) {
-      showToast(failureText('Couldn’t bring them back', caught), 'error')
-    }
+    const gone = new Set(chosen.map(playlist => playlist.id))
+    const [only] = chosen
+    const deleted =
+      chosen.length === 1 && only
+        ? `Deleted “${only.name}”`
+        : `Deleted ${plural(chosen.length, 'playlist', 'playlists')}`
+    // Out of the library drawn here at once; nothing is sent until the Undo
+    // has gone, and asking for the library again brings them back after an
+    // Undo or a delete that failed.
+    queryClient.setQueryData<Library>(
+      queryKeys.library,
+      current =>
+        current && {
+          ...current,
+          playlists: current.playlists.filter(playlist => !gone.has(playlist.id)),
+        },
+      { updatedAt: queryClient.getQueryState(queryKeys.library)?.dataUpdatedAt },
+    )
+    showPendingToast(
+      {
+        over: chosen.length === 1 ? 'Deleted the playlist' : 'Deleted',
+        say:
+          chosen.length === 1 && only ? only.name : plural(chosen.length, 'playlist', 'playlists'),
+      },
+      async () => {
+        try {
+          for (const id of gone) await clientApi().deletePlaylist(id)
+        } finally {
+          await refresh()
+        }
+      },
+      {
+        tone: 'good',
+        failed: 'Couldn’t delete them',
+        undone: () => void refresh(),
+        art: only && chosen.length === 1 ? <PlaylistCover playlist={only} size={ART} /> : undefined,
+      },
+    )
+    onDone(deleted)
   }
 
   const rename = async (): Promise<void> => {
@@ -121,11 +102,11 @@ export function PlaylistsAnswer({
       await clientApi().updatePlaylist(playlist.id, { name: to })
       await refresh()
       showUndoToast(
-        `Renamed to “${to}”`,
+        { over: 'Renamed the playlist', say: to },
         () => clientApi().updatePlaylist(playlist.id, { name: playlist.name }).then(refresh),
         { tone: 'good', failed: 'Couldn’t undo that' },
       )
-      onDone()
+      onDone(`Renamed “${playlist.name}” to “${to}”`)
     } catch (caught) {
       setError(failureText('Couldn’t rename it', caught))
     } finally {
@@ -201,7 +182,7 @@ export function PlaylistsAnswer({
       ) : null}
       {error ? <StatusLine>{error}</StatusLine> : null}
       <AnswerActions>
-        <Button label="Cancel" onPress={onDone} />
+        <Button label="Cancel" onPress={() => onDone(CLOSED)} />
         {renaming ? (
           <Button
             label="Rename"
@@ -220,7 +201,7 @@ export function PlaylistsAnswer({
             variant="danger"
             disabled={chosen.length === 0}
             busy={busy}
-            onPress={() => void remove()}
+            onPress={remove}
             testID="playlists-answer-delete"
           />
         )}

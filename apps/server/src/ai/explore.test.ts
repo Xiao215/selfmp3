@@ -59,7 +59,7 @@ describe('explore', () => {
         { name: 'library_counts', args: { by: 'album', tag: '原神纯音乐', artist: null } },
         { name: 'search_catalogue', args: { words: 'Liyue' } },
       ],
-      { say: 'Liyue is 璃月 in Chinese.', songs: [5, 5, 999] },
+      { say: 'Liyue is 璃月 in Chinese.', songs: [5, 5, 999], get: null },
     )
     const steps: string[] = []
     const answer = await explore(deps(llm), 'what is Liyue called in Chinese?', {
@@ -68,7 +68,12 @@ describe('explore', () => {
       done: () => undefined,
     })
 
-    expect(answer).toEqual({ kind: 'explore', say: 'Liyue is 璃月 in Chinese.', songIds: [5] })
+    expect(answer).toEqual({
+      kind: 'explore',
+      say: 'Liyue is 璃月 in Chinese.',
+      songIds: [5],
+      get: null,
+    })
     const [byTitle, byLyrics, albums, catalogue] = seen.map(each => each.result) as [
       { total: number; songs: { id: number; tags: string[] }[] },
       { songs: { id: number }[] },
@@ -86,8 +91,8 @@ describe('explore', () => {
     expect(asked[0]!.system).not.toContain('search the web')
   })
 
-  it('may search the web when Settings allows it', async () => {
-    const { llm, asked } = lookingLlm([], { say: 'From the web.', songs: [] })
+  it('may search the web when the server lets it', async () => {
+    const { llm, asked } = lookingLlm([], { say: 'From the web.', songs: [], get: null })
     await explore(deps(llm, true), 'what game is this from?')
     expect(asked[0]!.webSearch).toBe(true)
     expect(asked[0]!.system).toContain('search the web')

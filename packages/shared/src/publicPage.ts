@@ -6,6 +6,19 @@
  * `apps/app/scripts/pages.mjs`.
  */
 
+/**
+ * The plain pages beside the web app, by the address GitHub Pages answers
+ * with or without `.html`: written by apps/app/scripts/pages.mjs, and left
+ * alone by the app's service worker, which would otherwise keep one as the
+ * app's offline index.
+ */
+export const PLAIN_PAGES = ['privacy', 'bucket', 'install'] as const
+
+/** The app's icon, for a plain page's tab and home-screen tile. */
+export const PAGE_ICONS = `<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">`
+
 const ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
   '<': '&lt;',
@@ -30,6 +43,7 @@ export function renderPublicPage(title: string, body: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · self.mp3</title>
+${PAGE_ICONS}
 <style>
 :root {
   color-scheme: dark;
@@ -74,7 +88,8 @@ main {
   body { padding: 16px; }
   main { padding: 20px; }
 }
-.brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+@font-face { font-family: 'Instrument Serif'; src: url(fonts/InstrumentSerif-Regular.ttf); font-display: swap; }
+.brand { margin: 0 0 16px; color: var(--text); font: 400 28px/1 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
 h1 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
 h2 { margin: 24px 0 8px; font-size: 17px; line-height: 1.3; }
 p, li { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }

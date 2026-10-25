@@ -93,7 +93,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     await fireEvent.press(apply)
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Fixed 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Fixed 1 song')
   expect(net.sent).toEqual([
     {
       at: 'POST /api/songs/bulk/edit',
@@ -107,7 +107,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     pressToast('Undo')
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Put back 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Put back 1 song')
 
   // Exactly as before the fill: no album, no year, no cover.
   expect(net.sent.slice(2)).toEqual([
@@ -146,4 +146,44 @@ it('draws a change on one song with that song’s cover, as an opened change dra
   // The letter tile of the one song's album; the two songs' stay folded away.
   expect(screen.getByText('S')).toBeTruthy()
   expect(screen.queryByText('W')).toBeNull()
+})
+
+it('as Ask’s card, shows a long review’s first few, puts the model’s words first, and says what Fix did', async () => {
+  fakeLibrary([1, 2, 3, 4, 5, 6, 7].map(id => songOf(id, `Song ${id}`)))
+  const title = (id: number): TidyResult['changes'][number] => ({
+    key: `title-${id}`,
+    field: 'title',
+    from: `Song ${id}`,
+    to: `歌 ${id}`,
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds: [id],
+  })
+  const closed: (string | undefined)[] = []
+  await drawReview(
+    <TidyReview
+      card
+      result={{
+        ...FILL,
+        changes: [1, 2, 3, 4, 5, 6, 7].map(title),
+        looked: 7,
+        reply: 'I used the names 网易云 lists.',
+        note: '2 songs were looked up on the web.',
+      }}
+      height={600}
+      onClose={outcome => closed.push(outcome)}
+    />,
+  )
+
+  // Three of seven in the card, the rest one press away.
+  expect(await screen.findAllByTestId('tidy-change')).toHaveLength(3)
+  expect(screen.getByTestId('tidy-all')).toBeTruthy()
+  // The model's words are the answer, not small print among the review's notes.
+  expect(screen.getByTestId('tidy-reply')).toBeTruthy()
+
+  await act(async () => {
+    await fireEvent.press(screen.getAllByTestId('tidy-apply')[0]!)
+    await settle()
+  })
+  expect(closed).toEqual(['Fixed 7 songs'])
 })

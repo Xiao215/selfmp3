@@ -17,7 +17,7 @@ import {
 import { Button } from '../../ui/components/Button'
 import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
 import { useSmartSwitches } from './useSmartSwitches'
 import { reachedConnection, viaKey } from '../../connection/via'
@@ -51,7 +51,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
       queryClient.setQueryData(key, await server.api.written(range, true))
     } catch (caught) {
       // The card keeps what it had; the press is told why nothing changed.
-      showToast(failureText('Couldn’t write it again', caught), 'error')
+      showFailure('Couldn’t write it again', caught)
     } finally {
       setAgain(false)
     }

@@ -1,7 +1,7 @@
-import { clientApi, failureText } from '@selfmp3/client'
+import { clientApi } from '@selfmp3/client'
 import type { Song } from '@selfmp3/shared'
 import type { PlayerApi } from '../../player/PlayerProvider'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { playSimilarOrder } from './song.model'
 
 /**
@@ -28,7 +28,5 @@ export function playSimilar(
         },
       ),
     )
-    .catch((caught: unknown) =>
-      showToast(failureText('Couldn’t find similar songs', caught), 'error'),
-    )
+    .catch((caught: unknown) => showFailure('Couldn’t find similar songs', caught))
 }

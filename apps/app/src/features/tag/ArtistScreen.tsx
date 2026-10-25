@@ -81,7 +81,10 @@ function useMakeTag(artist: Artist | null): MenuItem {
       const tag = await createTag.mutateAsync({ name: artist.name })
       await bulkTag.mutateAsync({ songIds: [...artist.songIds], tagId: tag.id, action: 'add' })
       const count = artist.songIds.length
-      showToast(`Made the tag “${tag.name}” from ${plural(count, 'song', 'songs')}`, 'good')
+      showToast(
+        { over: `Made a tag from ${plural(count, 'song', 'songs')}`, say: tag.name },
+        'good',
+      )
       openTag(tag)
     } catch {
       // The mutations say what failed themselves.

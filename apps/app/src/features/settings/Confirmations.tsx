@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
-import { failureText, useStartAnalysis } from '@selfmp3/client'
+import { useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerApi } from '../../connection/useServerApi'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { showToast } from '../../ui/toast'
+import { showFailure } from '../../ui/toast'
 import { SignOutDialog } from './SignOutDialog'
 import { devicePlace, type Confirming } from './settings.model'
 import { deviceKind } from '../../ports/device'
@@ -57,7 +57,7 @@ export function Confirmations({
             router.replace(STORAGE_ROUTE)
           } catch (caught) {
             // The dialog has closed already: the toast is the only place to say so.
-            showToast(failureText('Couldn’t disconnect your storage', caught), 'error')
+            showFailure('Couldn’t disconnect your storage', caught)
           }
         })(),
     },

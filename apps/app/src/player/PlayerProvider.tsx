@@ -61,7 +61,7 @@ import { useVolumeControls } from './useVolumeControls'
 import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
-import { dismissToast, showToast } from '../ui/toast'
+import { currentToasts, dismissToast, showToast, type ToastWords } from '../ui/toast'
 import { devicePlace } from '../features/settings/settings.model'
 import { deviceKind } from '../ports/device'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
@@ -889,12 +889,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const recovery = recoveryRef.current
       const title =
         songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
-      // One message about skipping at a time: each replaces the last. A run of
-      // songs that would not play would otherwise stack a toast apiece up the
-      // screen, which reads as the app falling apart.
-      const say = (text: string, tone: 'warn' | 'error'): void => {
-        if (recovery.toastId !== null) dismissToast(recovery.toastId)
-        recovery.toastId = showToast(text, tone)
+      // One message about skipping at a time. A run of songs that would not
+      // play folds into it ("Skipped, they wouldn't play · 3 songs") rather
+      // than stacking a toast apiece up the screen, which reads as the app
+      // falling apart; anything else said replaces it.
+      const say = (message: string | ToastWords, tone: 'warn' | 'error', fold?: string): void => {
+        const folding =
+          fold !== undefined &&
+          currentToasts().some(toast => toast.id === recovery.toastId && toast.group === fold)
+        if (recovery.toastId !== null && !folding) dismissToast(recovery.toastId)
+        const song = songsRef.current.get(songId)
+        recovery.toastId = showToast(message, tone, {
+          group: fold,
+          songs: fold && song ? [song] : [],
+        })
       }
       // Failed because it cannot play here now — the bucket refusing reads
       // for the day, found out by this very failure (ports/engine.ts). Not a
@@ -930,7 +938,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       if (recovering === 'skip') {
         recovery.skippedInARow += 1
-        say(`Skipped “${title}”, it wouldn’t play`, 'warn')
+        say({ over: 'Skipped, wouldn’t play', say: title }, 'warn', 'playback-skipped')
         const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
         if (stop) {
           engine.pause()

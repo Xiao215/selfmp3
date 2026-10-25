@@ -17,6 +17,26 @@ const { NATIVE_BACKGROUND, DEEP_LINK_SCHEME } = require('@selfmp3/shared')
 /** The version is the package's, as the desktop app's and the extension's are. */
 const { version } = require('./package.json')
 
+/*
+ * The iPhone build number is the commit count, so a later commit is always a
+ * larger number: an installed app compares its own with the shared build's
+ * (packages/shared/src/iosApp.ts) to offer the newer one. Outside a checkout,
+ * or in a shallow one, it is whatever git says, and 1 without git at all.
+ */
+const buildNumber = (() => {
+  try {
+    return require('node:child_process')
+      .execSync('git rev-list --count HEAD', {
+        cwd: __dirname,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+      .toString()
+      .trim()
+  } catch {
+    return '1'
+  }
+})()
+
 /** @type {import('@expo/config-types').ExpoConfig} */
 const config = {
   name: 'self.mp3',
@@ -37,6 +57,7 @@ const config = {
 
   ios: {
     bundleIdentifier: 'com.selfmp3.app',
+    buildNumber,
     supportsTablet: true,
     // The same mark as layers (an Icon Composer file: the notes over a
     // ground), so the home screen's Dark, Clear and Tinted looks are drawn on

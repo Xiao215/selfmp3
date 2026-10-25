@@ -337,16 +337,26 @@ describe('ask', () => {
     expect(all).toMatchObject({ kind: 'tidy', tidy: { looked: 3, note: null } })
   })
 
-  it('reads a follow-up together with what was said before it', async () => {
+  it('reads a follow-up after the conversation before it, answers and all', async () => {
     const d = deps({
       'ask-route': [route({ action: 'tidy', tidy: { what: 'change', lookUp: false } })],
       'tidy-asked': [{ edits: [], say: '' }],
     })
-    const first = 'give the 原神纯音乐 songs their official Chinese names'
+    const first = {
+      asked: 'give the 原神纯音乐 songs their official Chinese names',
+      answered: 'Proposed 8 name changes.',
+    }
     await ask(d, 'only the albums', null, undefined, undefined, [first])
     const request = followed('only the albums', [first])
     expect(request).toBe(
-      `They first asked: ${first}\nNow they say: only the albums\n(Answer all of it together: the latest words change what was asked before.)`,
+      [
+        'Earlier in this conversation:',
+        `They asked: ${first.asked}`,
+        'You answered: Proposed 8 name changes.',
+        '',
+        'Now they say: only the albums',
+        '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
+      ].join('\n'),
     )
     // The router and the action it chose both read all of it.
     expect(d.llm.asked[0]!.prompt).toContain(`The request:\n${request}`)
@@ -467,6 +477,39 @@ describe('ask', () => {
       picks: [{ songId: 15, why: 'about a grandmother' }],
     })
     expect(d.llm.asked[1]!.prompt).toContain('lyric: 外婆的家')
+  })
+
+  it('looks up a song that is none of theirs, so they hear what it is', async () => {
+    const d = deps({
+      'ask-route': [
+        route({ action: 'find', find: { terms: ['小さな恋のうた'], brief: 'a song' } }),
+      ],
+      'ask-explore': [
+        {
+          say: 'MONGOL800’s song; not in your library.',
+          songs: [],
+          get: ' 小さな恋のうた MONGOL800 ',
+        },
+      ],
+    })
+    expect(await ask(d, 'chiisana koi no uta')).toEqual({
+      kind: 'explore',
+      say: 'MONGOL800’s song; not in your library.',
+      songIds: [],
+      // What to search for, to get it.
+      get: '小さな恋のうた MONGOL800',
+    })
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'ask-explore'])
+  })
+
+  it('looks it up too when none of the songs that matched is the one', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'find', find: { terms: ['外婆'], brief: 'grandma' } })],
+      'ask-find': [{ picks: [] }],
+      'ask-explore': [{ say: 'Not one of yours.', songs: [], get: null }],
+    })
+    expect(await ask(d, 'that grandma song')).toMatchObject({ kind: 'explore' })
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route', 'ask-find', 'ask-explore'])
   })
 
   it('answers a listening question from the plays, not from the model', async () => {

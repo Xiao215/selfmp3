@@ -1,6 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { currentToasts, dismissToast, sendPending, showPendingToast, showUndoToast } from './toast'
+import type { Song } from '@selfmp3/shared'
+import { ApiError } from '@selfmp3/client'
+import {
+  currentToasts,
+  dismissToast,
+  sendPending,
+  showFailure,
+  showPendingToast,
+  showToast,
+  showUndoToast,
+} from './toast'
 
 function pressUndo(): void {
   const undo = currentToasts()
@@ -27,13 +37,13 @@ describe('an undo toast', () => {
       tone: 'good',
       after: 'Put back 3 songs',
     })
-    expect(currentToasts().at(-1)).toMatchObject({ text: 'Fixed 3 songs', tone: 'good' })
+    expect(currentToasts().at(-1)).toMatchObject({ say: 'Fixed 3 songs', tone: 'good' })
     pressUndo()
     await settle()
-    expect(currentToasts().map(toast => toast.text)).not.toContain('Put back 3 songs')
+    expect(currentToasts().map(toast => toast.say)).not.toContain('Put back 3 songs')
     finish()
     await settle()
-    expect(currentToasts().at(-1)).toMatchObject({ text: 'Put back 3 songs', tone: 'info' })
+    expect(currentToasts().at(-1)).toMatchObject({ say: 'Put back 3 songs', tone: 'info' })
   })
 
   it('says it failed when asked to, and stays quiet when the edit said so itself', async () => {
@@ -42,7 +52,7 @@ describe('an undo toast', () => {
     })
     pressUndo()
     await settle()
-    expect(currentToasts().at(-1)).toMatchObject({ text: 'Couldn’t undo that', tone: 'error' })
+    expect(currentToasts().at(-1)).toMatchObject({ say: 'Couldn’t undo that', tone: 'error' })
 
     showUndoToast('Sorted', () => Promise.reject(new Error('down')))
     const before = currentToasts().length
@@ -70,13 +80,13 @@ describe('a pending toast', () => {
     vi.useFakeTimers()
     const send = vi.fn()
     showPendingToast('Deleted the extra copy', send, { tone: 'good' })
-    expect(currentToasts().at(-1)).toMatchObject({ text: 'Deleted the extra copy', tone: 'good' })
+    expect(currentToasts().at(-1)).toMatchObject({ say: 'Deleted the extra copy', tone: 'good' })
 
     await vi.advanceTimersByTimeAsync(4900)
     expect(send).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(100)
     expect(send).toHaveBeenCalledTimes(1)
-    expect(currentToasts().map(toast => toast.text)).not.toContain('Deleted the extra copy')
+    expect(currentToasts().map(toast => toast.say)).not.toContain('Deleted the extra copy')
   })
 
   it('sends nothing at all after Undo, and puts back what was set aside', async () => {
@@ -100,7 +110,7 @@ describe('a pending toast', () => {
     await settle()
     expect(send).toHaveBeenCalledTimes(1)
     // The message goes with it: its Undo can no longer be kept.
-    expect(currentToasts().map(toast => toast.text)).not.toContain('Deleted 2 extra copies')
+    expect(currentToasts().map(toast => toast.say)).not.toContain('Deleted 2 extra copies')
     sendPending()
     await settle()
     expect(send).toHaveBeenCalledTimes(1)
@@ -112,6 +122,74 @@ describe('a pending toast', () => {
     })
     sendPending()
     await settle()
-    expect(currentToasts().at(-1)).toMatchObject({ text: 'Couldn’t delete it', tone: 'error' })
+    expect(currentToasts().at(-1)).toMatchObject({ say: 'Couldn’t delete it', tone: 'error' })
+  })
+})
+
+/** Messages of one kind raised while the last is up fold into it (E2). */
+describe('a folded message', () => {
+  const song = (id: number, title: string): Song => ({ id, title }) as Song
+
+  it('counts its songs, keeps one id, and undoes all of them newest first', async () => {
+    const order: string[] = []
+    showUndoToast({ over: 'Removed from Up next', say: 'One' }, () => order.push('one'), {
+      songs: [song(1, 'One')],
+      group: 'removed',
+    })
+    const first = currentToasts().at(-1)
+    showUndoToast({ over: 'Removed from Up next', say: 'Two' }, () => order.push('two'), {
+      songs: [song(2, 'Two')],
+      group: 'removed',
+    })
+    expect(currentToasts()).toHaveLength(1)
+    const folded = currentToasts().at(-1)
+    expect(folded).toMatchObject({ id: first?.id, over: 'Removed from Up next', say: '2 songs' })
+    expect(folded?.actions.map(action => action.label)).toEqual(['Undo all'])
+    folded?.actions[0]?.onPress()
+    await settle()
+    expect(order).toEqual(['two', 'one'])
+  })
+
+  it('counts what folded in even when it has no songs to show', () => {
+    showToast({ over: 'Skipped, wouldn’t play', say: 'A' }, 'warn', { group: 'skipped' })
+    showToast({ over: 'Skipped, wouldn’t play', say: 'B' }, 'warn', { group: 'skipped' })
+    showToast({ over: 'Skipped, wouldn’t play', say: 'C' }, 'warn', { group: 'skipped' })
+    expect(currentToasts()).toHaveLength(1)
+    expect(currentToasts().at(-1)).toMatchObject({ say: '3 songs', count: 3 })
+  })
+
+  it('waits as long as its newest says, then sends every one', async () => {
+    vi.useFakeTimers()
+    const send = vi.fn()
+    showPendingToast('A', () => send('a'), { group: 'gone', songs: [song(1, 'A')] })
+    await vi.advanceTimersByTimeAsync(4000)
+    showPendingToast('B', () => send('b'), { group: 'gone', songs: [song(2, 'B')] })
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(send).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(send.mock.calls).toEqual([['a'], ['b']])
+  })
+
+  it('undoes every send folded into it', async () => {
+    vi.useFakeTimers()
+    const send = vi.fn()
+    const undone = vi.fn()
+    showPendingToast('A', send, { group: 'gone', undone })
+    showPendingToast('B', send, { group: 'gone', undone })
+    currentToasts().at(-1)?.actions[0]?.onPress()
+    expect(undone).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('a failure', () => {
+  it('puts the reason under what did not happen', () => {
+    showFailure('Couldn’t save it', new ApiError(0, 'offline', 'offline'))
+    expect(currentToasts().at(-1)).toMatchObject({
+      say: 'Couldn’t save it',
+      under: 'Your library isn’t reachable right now.',
+      tone: 'error',
+    })
   })
 })

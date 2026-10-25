@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react-native'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Song } from '@selfmp3/shared'
 
 import { OverlayProvider } from '../../shell/Overlay'
+import { sendPending } from '../toast'
 import { SongMenu } from './SongMenu'
 
 /**
@@ -24,6 +26,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: mockNavigate }) 
 const mockDeleteSong = jest.fn()
 const mockForgetSongs = jest.fn()
 const mockRemoveByHand = jest.fn(() => Promise.resolve())
+const mockHoldLeaving = jest.fn()
 const mockDropDownloads = jest.fn(() => Promise.resolve())
 let mockIndex: { version: 1; entries: Record<string, unknown> }
 
@@ -46,6 +49,7 @@ jest.mock('../../offline/DownloadsProvider', () => ({
     installed: true,
     requestDownload: jest.fn(),
     removeByHand: mockRemoveByHand,
+    holdLeaving: mockHoldLeaving,
     dropDownloads: mockDropDownloads,
   }),
   useDownloadProgress: () => ({ activeSongId: null, bytesWritten: 0, totalBytes: 0 }),
@@ -101,11 +105,14 @@ const draw = (
   } = {},
 ) =>
   render(
-    <SafeAreaProvider initialMetrics={METRICS}>
-      <OverlayProvider>
-        <SongMenu song={song} onClose={onClose} context={context} extras={extras} />
-      </OverlayProvider>
-    </SafeAreaProvider>,
+    // A removal reads the library from the cache as it is made.
+    <QueryClientProvider client={new QueryClient()}>
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <OverlayProvider>
+          <SongMenu song={song} onClose={onClose} context={context} extras={extras} />
+        </OverlayProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>,
   )
 
 /** The words inside an element, as a reader would hear its name. */
@@ -267,7 +274,11 @@ describe('removing a song where the copy goes with it', () => {
     await draw()
 
     await fireEvent.press(screen.getByRole('menuitem', { name: 'Remove from this phone' }))
-    expect(mockRemoveByHand).toHaveBeenCalledWith([4])
+    // Drawn gone at once, and only removed once its Undo has gone.
+    expect(mockHoldLeaving).toHaveBeenCalledWith([4], true)
+    expect(mockRemoveByHand).not.toHaveBeenCalled()
+    sendPending()
+    await waitFor(() => expect(mockRemoveByHand).toHaveBeenCalledWith([4]))
     expect(mockDeleteSong).not.toHaveBeenCalled()
   })
 })

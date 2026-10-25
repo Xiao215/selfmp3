@@ -10,7 +10,7 @@ describe('SettingsRepository', () => {
     const db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     const settings = new SettingsRepository(db)
-    settings.update({ smartWeb: true, importConcurrency: 3 })
+    settings.update({ smartTidy: false, importConcurrency: 3 })
 
     const write = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
     write.run('ytCookieSource', JSON.stringify('netscape'))
@@ -19,7 +19,7 @@ describe('SettingsRepository', () => {
     write.run('crossfadeSeconds', JSON.stringify(4))
 
     const read = settings.get()
-    expect(read.smartWeb).toBe(true)
+    expect(read.smartTidy).toBe(false)
     expect(read.importConcurrency).toBe(3)
     expect(read.ytCookieSource).toBe(DEFAULT_SETTINGS.ytCookieSource)
     expect(read.watchLibrary).toBe(DEFAULT_SETTINGS.watchLibrary)

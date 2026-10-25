@@ -139,7 +139,7 @@ describe('the room’s line', () => {
     await inRoom()
     await vi.runOnlyPendingTimersAsync()
     expect(mocks.toasts).toEqual([
-      'You’re on mobile data. A room streams every song, about 5 MB each.',
+      { say: 'You’re on mobile data', under: 'A room streams every song, about 5 MB each.' },
     ])
   })
 

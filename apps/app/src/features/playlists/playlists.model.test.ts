@@ -11,7 +11,6 @@ import {
   playlistsToAddTo,
   playlistTileLine,
   relativeDay,
-  restoredOrder,
   sortPlaylists,
 } from './playlists.model'
 
@@ -219,17 +218,6 @@ describe('making a playlist', () => {
   })
 })
 
-describe('restoredOrder', () => {
-  it('puts removed songs back in their places', () => {
-    expect(restoredOrder([1, 2, 3, 4, 5], [1, 3, 5, 2, 4])).toEqual([1, 2, 3, 4, 5])
-  })
-
-  it('keeps a song added since at the end, and one removed since out', () => {
-    expect(restoredOrder([1, 2, 3], [2, 3, 9, 1])).toEqual([1, 2, 3, 9])
-    expect(restoredOrder([1, 2, 3], [1, 2])).toEqual([1, 2])
-  })
-})
-
 describe('the covers a mosaic is made of', () => {
   const tone = (l: number) => ({ hue: 0, chroma: 0.1, palette: [{ l, c: 0.1, h: 20, share: 1 }] })
   const song = (id: number, l: number | null, album = '') => ({
@@ -293,6 +281,24 @@ describe('the covers a mosaic is made of', () => {
   it('counts a cover not read yet as its own', () => {
     const songs = [song(1, null), song(2, null), song(3, 0.5), song(4, 0.6)]
     expect(mosaicCovers(songs, all).map(s => s.id)).toEqual([1, 2, 3, 4])
+  })
+
+  it('looks past a long run of one picture, asking only of new ones', () => {
+    // Forty tracks of one soundtrack, then three other pictures, then more.
+    const songs = [
+      ...Array.from({ length: 40 }, (_, i) => song(i + 1, 0.5, 'Stellar Moments')),
+      song(41, 0.3),
+      song(42, 0.7),
+      song(43, 0.9),
+      song(44, 0.1),
+    ]
+    const asked: number[] = []
+    const covers = mosaicCovers(songs, s => {
+      asked.push(s.id)
+      return true
+    })
+    expect(covers.map(s => s.id)).toEqual([1, 41, 42, 43])
+    expect(asked).toEqual([1, 41, 42, 43])
   })
 
   it('shows the first cover alone when fewer than four pictures differ', () => {

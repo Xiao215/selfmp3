@@ -1,19 +1,18 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
-import { space, type, useLibrary, iconSize } from '@selfmp3/client'
+import { space, type, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
-import { Play } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { songCount, SONGS_MORE, SONGS_SHOW } from './Review'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-import { SongLine } from '../../ui/components/SongLine'
+import { AnswerSongLine } from './AnswerSongLine'
 import { ScrollView } from '../../ui/components/Scroll'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
 import { Press } from '../../ui/components/Press'
@@ -33,7 +32,6 @@ export function LibraryAnswer({
   height: number
   onDone: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayerCommands()
   const { data: library } = useLibrary()
@@ -107,16 +105,13 @@ export function LibraryAnswer({
       ) : (
         <ScrollView style={{ maxHeight: height }}>
           {shown.map((song, index) => (
-            <SongLine
+            <AnswerSongLine
               key={song.id}
-              onPress={() => play(index)}
-              accessibilityLabel={`Play ${song.title}`}
+              song={song}
+              onPlay={() => play(index)}
               testID="ask-library-song"
               artUri={artFor(song)}
-              coverTitle={song.album || song.title}
-              title={song.title}
               sub={artistOr(song.artist)}
-              trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
             />
           ))}
           {shown.length < songs.length ? (

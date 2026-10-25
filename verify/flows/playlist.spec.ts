@@ -163,7 +163,7 @@ test.describe('a song taken out of a playlist', () => {
     await page.getByRole('button', { name: `More actions for ${title}` }).click()
     await page.getByRole('menuitem', { name: 'Remove from this playlist' }).click()
 
-    await expect(page.getByText(`Removed “${title}” from ${name}`)).toBeVisible()
+    await expect(page.getByText(`Removed from ${name}`)).toBeVisible()
     await expect.poll(async () => (await order(page)).includes(title)).toBe(false)
 
     await page.getByRole('button', { name: 'Undo', exact: true }).click()

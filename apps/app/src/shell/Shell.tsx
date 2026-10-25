@@ -17,6 +17,7 @@ import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
+import { IosUpdateNotice } from '../features/settings/IosUpdate'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
@@ -26,6 +27,7 @@ import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
+import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
@@ -446,6 +448,8 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
   // rise and sink (`selectionBarLift`), a transform because the value moves
   // on the native side and a `bottom` cannot.
   const chrome = useFloatingChrome()
+  // And above a field docked at the page's foot (Ask's), whatever the device.
+  const foot = usePageFoot()
   const [lift] = useState(() => ({
     transform: [
       {
@@ -460,10 +464,11 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
     <Animated.View
       // Centred in the page that can be seen: it starts where the sidebar over
       // it ends, and stops where Up next lying over it begins.
-      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome }, lift]}
+      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome + foot }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
+      <IosUpdateNotice />
       <ToastHost />
     </Animated.View>
   )

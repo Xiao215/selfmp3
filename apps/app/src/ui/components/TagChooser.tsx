@@ -110,9 +110,7 @@ export function TagChooser({
         add={{ onPress: () => setOpen(true), accessibilityLabel: title }}
       />
       <Sheet open={open} onClose={() => setOpen(false)} title={title} titleTone="label">
-        {open ? (
-          <TagSearchList selected={selected} onChange={onChange} from={from} autoFocus />
-        ) : null}
+        {open ? <TagSearchList selected={selected} onChange={onChange} from={from} /> : null}
       </Sheet>
     </>
   )

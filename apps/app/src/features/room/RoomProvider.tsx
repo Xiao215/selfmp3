@@ -32,6 +32,8 @@ import { holdPictures, keepLent } from '../../offline/covers'
 import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
 import { lightTap } from '../../ports/haptics'
 import { showToast } from '../../ui/toast'
+import { ART } from '../../ui/components/ToastHost'
+import { RoomFaces } from './RoomFace'
 import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
@@ -137,7 +139,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     seen.current = { code: state.code, ids: new Set(state.members.map(member => member.id)) }
     if (came.length === 0) return
     lightTap()
-    showToast(`${namesOf(came.map(member => member.name))} joined`, 'info')
+    showToast(`${namesOf(came.map(member => member.name))} joined`, 'info', {
+      art: <RoomFaces people={came.slice(0, 3)} size={came.length === 1 ? ART : 32} />,
+    })
   }, [state])
 
   // Back into the room this device was in when the app last closed.

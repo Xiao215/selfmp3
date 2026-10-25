@@ -1004,6 +1004,12 @@ const MIGRATIONS: readonly Migration[] = [
       ) WITHOUT ROWID;
     `,
   },
+  {
+    // 47. Searching the web is part of smart features, not a switch of its
+    // own (2026-10-24): its row goes with the switch.
+    name: 'web search is part of smart features',
+    sql: `DELETE FROM settings WHERE key = 'smartWeb';`,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -24,9 +24,8 @@ A **room** is a shared Up next. You press **Listen together**, and your Up next 
 - **On the player.** A People button sits in the phone's Now Playing head and in a computer's
   player bar, beside Devices. It is there when a friend asks what is playing.
 - **On Home.** A People button sits in the phone's header, beside Import, so a room needs
-  nothing playing first. There is also a **Listen together** card until this device has been in
-  a room or was told *Not now*. The card is kept with the guides (`together-card`), so Show tips
-  again brings it back.
+  nothing playing first. (The **Listen together** card under it was removed 2026-10-24: the
+  header button is enough, and rooms aren't something Home pushes.)
 - **On a list.** A tag's, an artist's, a playlist's or an Ask answer's ⋯ has **Listen
   together**. In a room, that item reads **Add to Xiao's room** instead.
 - **From Ask.** "Start a room with something chill" picks the songs and offers **Start a

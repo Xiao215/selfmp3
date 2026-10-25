@@ -51,6 +51,7 @@ import {
   TidyResultSchema,
   ImportNamesSchema,
   type ImportNamesRequest,
+  type AskTurn,
   WrittenReportSchema,
   DescribeResultSchema,
   TagReviewSchema,
@@ -387,8 +388,8 @@ export function createApi({ context, fetch }: ApiOptions) {
       text: string,
       playing: number | null = null,
       ticket?: string,
-      /** What was said before, when this follows up on an answer. */
-      before: readonly string[] = [],
+      /** The conversation before this, when it follows up on an answer. */
+      before: readonly AskTurn[] = [],
       signal?: ClientSignal,
     ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }, signal),
 

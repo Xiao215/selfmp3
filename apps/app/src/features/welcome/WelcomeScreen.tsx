@@ -26,7 +26,7 @@ import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { CoverLight } from '../../ui/components/CoverLight'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
-import { floating, sectionTitle, bodyText } from '../../ui/surfaces'
+import { floating, serif, bodyText } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create(theme => ({
   },
   words: { gap: space.snug },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  brandName: sectionTitle(theme.colors),
+  brandName: serif(theme.colors, 'large'),
   body: bodyText(theme.colors),
   bodyWide: { ...textStyle('title'), maxWidth: 420 },
   spinner: { alignSelf: 'flex-start', marginTop: space.sm },

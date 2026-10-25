@@ -8,14 +8,17 @@ package-lock.json
 # Built by `npm run build:sw`, and minified. Ignored by apps/app/.gitignore,
 # which Prettier does not read: it consults the root .gitignore only.
 apps/app/public/sw.js
-# Written by `npm run build:pages` from packages/shared/src/privacy.ts and bucketGuide.ts;
-# git-ignored the same way.
+# Written by `npm run build:pages` from packages/shared/src/privacy.ts, bucketGuide.ts and
+# installPage.ts; git-ignored the same way.
 apps/app/public/privacy.html
 apps/app/public/bucket.html
+apps/app/public/install.html
 
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios
 apps/app/android
+# xcodebuild's output for a device build and the iPhone release (docs/MOBILE.md), the same way
+apps/app/build
 # What Gradle builds of a local module's Android half, the same way
 apps/app/modules/*/android/build
 apps/app/modules/*/android/.cxx

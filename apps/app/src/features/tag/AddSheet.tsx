@@ -8,7 +8,7 @@ import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
 import { ArtistFace } from './ArtistFace'
 import { Button } from '../../ui/components/Button'
-import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
+import { Checkbox, CheckRow, TagCheck } from '../../ui/components/Checkbox'
 import { Chip } from '../../ui/components/Chip'
 import { User } from '../../ui/components/Icons'
 import { Segmented } from '../../ui/components/Segmented'
@@ -28,7 +28,6 @@ import { EmptyState } from '../../ui/components/EmptyState'
 import { SearchField } from '../../ui/components/SearchField'
 import { FlatList } from '../../ui/components/Scroll'
 import { SideScroll } from '../../ui/components/Shelf'
-import { TagDot } from '../../ui/components/TagDot'
 
 /**
  * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
@@ -106,9 +105,11 @@ function AddSheetBody({
         label={`${placeName(place)}, ${plural(placeSize(place), 'song', 'songs')}`}
         style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
+        {/* A tag's ring is its tick (one mark a row); an artist's face is a
+            picture, so the artist keeps a checkbox at the end. */}
         {place.kind === 'tag' ? (
           <View style={styles.mark}>
-            <TagDot hue={place.tag.hue} />
+            <TagCheck hue={place.tag.hue} checked={on} />
           </View>
         ) : (
           <ArtistFace
@@ -117,11 +118,11 @@ function AddSheetBody({
             size={FACE}
           />
         )}
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, on && styles.nameOn]} numberOfLines={1}>
           {placeName(place)}
         </Text>
         <Text style={styles.size}>{placeSize(place)}</Text>
-        <Checkbox checked={on} />
+        {place.kind === 'artist' ? <Checkbox checked={on} /> : null}
       </CheckRow>
     )
   }
@@ -211,7 +212,7 @@ function AddSheetBody({
   )
 }
 
-/** A row's mark, a tag's dot tile or an artist's face. */
+/** A row's mark: the room a tag's ring sits in, or an artist's face. */
 const FACE = 32
 
 const styles = StyleSheet.create(theme => ({
@@ -240,15 +241,9 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.lg,
   },
   rowPressed: { backgroundColor: theme.colors.surface2 },
-  mark: {
-    width: FACE,
-    height: FACE,
-    borderRadius: 8,
-    backgroundColor: theme.colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  mark: { width: FACE, height: FACE, alignItems: 'center', justifyContent: 'center' },
   name: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '500' },
+  nameOn: { fontWeight: '700' },
   size: { color: theme.colors.textMuted, fontSize: type.sub, fontVariant: ['tabular-nums'] },
   foot: { flexDirection: 'row', paddingHorizontal: space.lg, paddingTop: space.tight },
 }))

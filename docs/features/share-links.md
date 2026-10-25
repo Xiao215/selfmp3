@@ -223,7 +223,11 @@ You reach it from Profile, under Report. Each link's ⋯ holds:
   gone. When all of a link's songs are gone, the link ends: *Xiao removed this song*, with no
   Ask again.
 - **Your bucket hits its daily cap.** The audio read is refused for the day, as any read is.
-  The link does not end because of it.
+  The link does not end because of it. Whoever opens it is told *Whoever sent it has run out
+  of their daily quota* (`lender_cap_exceeded`, not `bucket_cap_exceeded`, so their own bucket
+  is not held), and its cover is a letter in the page's colour. Your own Links you shared and
+  From friends draw your own copy's cover when you have the song (`coverSong`), so they need
+  no read of the bucket.
 - **Who can open it.** Anyone with the whole link: a 16-character id and a 16-character key.
   The id alone opens nothing. **End now** is how you take it back.
 - **Counting guests.** A signed-out device sends its own device id, so it counts as one guest

@@ -7,6 +7,7 @@ import { plural, type ShareSummary } from '@selfmp3/shared'
 import { space } from '@selfmp3/client'
 import { lineSub } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
 import { NavRow } from '../../ui/components/NavRow'
 import { SectionHead } from '../../ui/components/SectionHead'
@@ -17,6 +18,7 @@ import { AskCard } from './LinksScreen'
 import { receivedLine, shareStage } from './share.model'
 import { shareApi, useReceivedLinks, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
+import { useOwnCover } from './useOwnCover'
 
 /**
  * Share links on Home (docs/features/share-links.md): the songs friends sent
@@ -31,6 +33,8 @@ export function FromFriends({ wide }: { wide: boolean }): ReactNode {
   const act = useShareAct()
   const [menu, setMenu] = useState<ShareSummary | null>(null)
   const now = useMinute()
+  // A song you have yourself draws your own copy's cover: no read of its sender's bucket.
+  const coverOf = useOwnCover(ROW_COVER_SIZE)
   if (!links || links.length === 0) return null
   const size = wide ? 132 : 92
   return (
@@ -53,7 +57,10 @@ export function FromFriends({ wide }: { wide: boolean }): ReactNode {
               cover={
                 <View style={ended ? styles.faded : undefined}>
                   <Cover
-                    uri={link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null}
+                    uri={coverOf(
+                      link.coverSong,
+                      link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null,
+                    )}
                     title={link.name}
                     size={size}
                   />

@@ -1,6 +1,11 @@
-import type { DoormanErrorCode, RoomRefusal } from '@selfmp3/shared'
+import {
+  DOORMAN_ERROR,
+  DoormanError,
+  type DoormanErrorCode,
+  type RoomRefusal,
+} from '@selfmp3/shared'
 import { z } from 'zod'
-import { Bucket } from './bucket.js'
+import { Bucket, BucketError } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
 import { json, notFound } from './http.js'
@@ -50,18 +55,32 @@ type BucketFile = z.infer<typeof BucketFileSchema>
 
 /**
  * A song's file, lent: read from its owner's bucket the way a device reads its
- * own (`relayRead`), and counted as lent. `ownerGone` is what to say when its
- * owner has no bucket connected any more.
+ * own (`relayRead`), and counted as lent. `owner` is who that is, as the
+ * friend asking would put it ("whoever sent it"): what is said when they have
+ * no bucket connected any more, or their bucket's allowance for the day is
+ * used up. That second is said as the friend's own news, not Backblaze's
+ * (raise it under Caps & Alerts…), which is the owner's to act on — and under
+ * a code of its own, so the friend's device does not take its own bucket for
+ * capped.
  */
 export async function readLent(
   ctx: Context,
   file: BucketFile,
   method: 'GET' | 'HEAD',
-  ownerGone: string,
+  owner: string,
 ): Promise<Response> {
   const target = await ctx.accounts.bucket(file.sub)
-  if (!target) throw notFound(ownerGone)
-  return relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method, 'lent')
+  if (!target) throw notFound(`${owner} has no bucket connected any more`)
+  try {
+    return await relayRead(ctx, new Bucket(target, ctx.bucketDeps), file.key, method, 'lent')
+  } catch (error) {
+    if (!(error instanceof BucketError) || error.kind !== 'cap') throw error
+    throw new DoormanError(
+      502,
+      DOORMAN_ERROR.lenderCapExceeded,
+      `${owner.charAt(0).toUpperCase()}${owner.slice(1)} has run out of their daily quota`,
+    )
+  }
 }
 
 /**

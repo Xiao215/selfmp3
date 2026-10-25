@@ -410,8 +410,9 @@ class NativeEngine implements PlaybackEngine {
   async #explainFailure(songId: number | null, said: string): Promise<void> {
     const url = songId === null ? null : (this.#hub.wiring.streamUrl?.(songId) ?? null)
     const headers = songId === null ? null : (this.#hub.wiring.streamHeaders?.(songId) ?? null)
-    // Only an address behind the doorman: a file here has nothing to ask.
-    const why = url && headers && /^https?:/.test(url) ? await askWhyRefused(url, headers) : null
+    // Only an address on the network: a file here has nothing to ask. A lent
+    // song's needs no header — its link's key is in the address.
+    const why = url && /^https?:/.test(url) ? await askWhyRefused(url, headers ?? {}) : null
     // Another song was loaded while this was asked: its own state stands.
     if (this.#destroyed || this.#currentSongId !== null) return
     this.#hub.patch({ error: why ?? said })

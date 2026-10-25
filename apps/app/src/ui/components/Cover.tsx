@@ -33,6 +33,7 @@ export function Cover({
   title,
   size = 44,
   radius: cornerRadius,
+  hue,
 }: {
   /** The picture; null for none to show, undefined for one on its way (`offline/useArt.ts`). */
   uri: string | null | undefined
@@ -40,6 +41,12 @@ export function Cover({
   size?: number
   /** The corners, when the size's own choice is wrong: 0 inside a mosaic. */
   radius?: number
+  /**
+   * The letter tile's hue, where the page is already washed in the picture's
+   * colour without the picture: a link's song whose cover its sender's bucket
+   * would not lend. The title's own hue would sit on it as another song's.
+   */
+  hue?: number
 }): ReactNode {
   // The address that failed, so a new one gets its own chance: the server may be back.
   const [failedUri, setFailedUri] = useState<string | null>(null)
@@ -88,7 +95,7 @@ export function Cover({
   // in the dark, a pale tint with dark ink on Paper — so a song with no
   // picture sits among the tag tiles as one of them, and its row's tint
   // (`tileTone`) is worked out from the same colour.
-  const tile = lettered ? tagColors(hueFromString(title)) : null
+  const tile = lettered ? tagColors(hue ?? hueFromString(title)) : null
   return (
     <View style={[styles.cover, dimensions, tile && { backgroundColor: tile.tile }]}>
       {tile ? (

@@ -72,7 +72,7 @@ function link(changes: Partial<ShareLink> = {}): ShareLink {
 
 function summary(changes: Partial<ShareSummary> = {}): ShareSummary {
   const { entries: _entries, ...rest } = link()
-  return { ...rest, songs: 1, cover: null, yours: true, ...changes }
+  return { ...rest, songs: 1, cover: null, coverSong: null, yours: true, ...changes }
 }
 
 describe('a share link’s words', () => {

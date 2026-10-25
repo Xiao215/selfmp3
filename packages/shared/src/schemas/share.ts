@@ -134,6 +134,11 @@ export const ShareSummarySchema = ShareLinkSchema.omit({ entries: true }).extend
   songs: z.number().int().nonnegative(),
   /** The entry whose cover the tile shows; null when none of them has one. */
   cover: RoomIdSchema.nullable(),
+  /**
+   * That entry's song: a device that has its own copy draws its own copy's
+   * cover, which needs no read of the sender's bucket. Null with `cover`.
+   */
+  coverSong: RoomSongSchema.nullable(),
 })
 export type ShareSummary = z.infer<typeof ShareSummarySchema>
 

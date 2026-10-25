@@ -215,12 +215,7 @@ export async function share(ctx: Context): Promise<Response> {
     const file = BucketFileSchema.parse(await lent.json())
     let response: Response
     try {
-      response = await readLent(
-        ctx,
-        file,
-        method,
-        'whoever sent it has no bucket connected any more',
-      )
+      response = await readLent(ctx, file, method, 'whoever sent it')
     } catch (error) {
       // The song left its sender's library: the link says so from now on.
       if (part === 'audio' && error instanceof DoormanError && error.status === 404) {

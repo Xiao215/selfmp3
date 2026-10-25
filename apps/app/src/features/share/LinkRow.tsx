@@ -44,8 +44,8 @@ export const LinkRow = memo(function LinkRow({
   onMore,
 }: {
   link: ShareSummary
-  /** Its cover's address, or none. */
-  cover: string | null
+  /** Its cover's address, none, or undefined for one on its way (`useOwnCover`). */
+  cover: string | null | undefined
   now: number
   selected: boolean
   /** Choosing is on, so every row shows its circle. */

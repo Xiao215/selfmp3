@@ -10,6 +10,7 @@ import {
   type LoadOptions,
   type PlaybackEngine,
 } from '@selfmp3/client'
+import { noteLenderCap } from './bucketRefusal'
 import { cannotPlayYet, notHere, streamFailureMessage } from './streamFailure.model'
 import { devicePlace } from '../features/settings/settings.model'
 import { deviceKind } from './device'
@@ -431,7 +432,9 @@ class AudioEngine implements PlaybackEngine {
     try {
       const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
       if (!response.ok && response.status !== 206) {
-        message = streamFailureMessage(response.status, await response.text(), place)
+        const body = await response.text()
+        message = streamFailureMessage(response.status, body, place)
+        noteLenderCap(body, message)
       }
     } catch {
       // No answer at all: the plain wording stands.

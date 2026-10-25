@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
 import { radius, shareLinkUrl, space, type } from '@selfmp3/client'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
 import { openInNewTab } from '../../ports/newTab'
@@ -45,6 +46,7 @@ import {
 } from './share.model'
 import { shareApi, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
+import { useOwnCover } from './useOwnCover'
 
 const LINK_NOUN = { one: 'link', many: 'links' } as const
 // Where a row's own edge falls on a computer: its margin and its padding.
@@ -70,6 +72,7 @@ export function LinksScreen(): ReactNode {
   const { data: links, isLoading } = useSentLinks()
   const act = useShareAct()
   const now = useMinute()
+  const coverOf = useOwnCover(ROW_COVER_SIZE)
   const [menu, setMenu] = useState<ShareSummary | null>(null)
   // What a confirmation is asking about: ending one link, ending or removing many.
   const [ending, setEnding] = useState<readonly ShareSummary[] | null>(null)
@@ -158,7 +161,10 @@ export function LinksScreen(): ReactNode {
       <LinkRow
         key={link.id}
         link={link}
-        cover={link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null}
+        cover={coverOf(
+          link.coverSong,
+          link.cover ? shareApi.fileUrl(link, link.cover, 'cover') : null,
+        )}
         now={now}
         selected={selection.has(link.id)}
         picking={selection.active}

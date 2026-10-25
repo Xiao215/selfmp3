@@ -65,7 +65,7 @@ export function shareHeadLine(link: ShareLink, now: number): { from: string; tim
   if (link.yours) {
     return {
       from: 'Your link',
-      time: sentLine({ ...link, songs: link.entries.length, cover: null }, now),
+      time: sentLine({ ...link, songs: link.entries.length, cover: null, coverSong: null }, now),
     }
   }
   return { from: shareFromLine(link), time: shareTimeLine(link, now) }

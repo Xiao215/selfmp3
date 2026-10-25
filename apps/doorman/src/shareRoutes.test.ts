@@ -118,6 +118,21 @@ describe('a share link', () => {
     expect(await (await file(s, made, 'audio')).text()).toBe('song 1')
   })
 
+  it('says its sender is out of their daily quota when their bucket is capped', async () => {
+    const s = await setup()
+    const made = await make(s)
+    s.h.bucket.capped = true
+    for (const part of ['audio', 'cover'] as const) {
+      const answer = await file(s, made, part)
+      expect(answer.status).toBe(502)
+      // Not the sender's Backblaze advice, and not the code that holds a device's own bucket.
+      expect(await answer.json()).toMatchObject({
+        code: 'lender_cap_exceeded',
+        error: 'Whoever sent it has run out of their daily quota',
+      })
+    }
+  })
+
   it('upgrades a link kept before its guests were counted the first time it is read', async () => {
     const s = await setup()
     const made = await make(s)
@@ -153,6 +168,8 @@ describe('a share link', () => {
     expect(sent.map(item => [item.name, item.songs, item.cover])).toEqual([
       ['Song 1', 1, made.entries[0]?.id],
     ])
+    // The song too, so a device that has it draws its own copy's cover.
+    expect(sent[0]?.coverSong).toEqual(song(1))
     const received = ShareSummariesSchema.parse(
       await (await s.h.call('/v1/share/received', { token: s.mia })).json(),
     )

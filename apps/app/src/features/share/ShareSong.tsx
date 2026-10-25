@@ -59,6 +59,8 @@ interface SongProps {
   /** The player's id for it. */
   songId: number
   cover: string | null
+  /** The letter tile's hue, the page's own colour's, for a cover that would not come. */
+  tileHue: number
   lyrics: SongLyrics
   /** The link lends words for it, so there are words to turn to. */
   lent: boolean
@@ -136,7 +138,7 @@ function bylineOf(song: RoomSong): string {
  * Playing's does (`C10`), so the page is laid out the same either way.
  */
 function SongStage(props: SongProps): ReactNode {
-  const { song, track, cover, lyrics, lent, loaded, back, from, ways, foot } = props
+  const { song, track, cover, tileHue, lyrics, lent, loaded, back, from, ways, foot } = props
   const { theme } = useUnistyles()
   const layout = useLayout()
   const windowHeight = useWindowValue(window => window.height)
@@ -183,7 +185,7 @@ function SongStage(props: SongProps): ReactNode {
       <View style={[styles.stageBody, sides, { gap: geometry.gutter }]}>
         <View style={[styles.side, { width: geometry.cover }]}>
           <View style={styles.art}>
-            <Cover uri={cover} title={song.title} size={geometry.cover} />
+            <Cover uri={cover} title={song.title} size={geometry.cover} hue={tileHue} />
           </View>
           <View style={styles.stageNames}>
             <Text
@@ -255,7 +257,7 @@ function SongStage(props: SongProps): ReactNode {
  * only the cover and the words pass each other and the controls never move.
  */
 function SongPhone(props: SongProps): ReactNode {
-  const { song, cover, lyrics, lent, loaded, back, from, ways, foot } = props
+  const { song, cover, tileHue, lyrics, lent, loaded, back, from, ways, foot } = props
   const { wordsOpen, onWords } = props
   const { width } = useLayout()
   const height = useWindowValue(window => window.height)
@@ -326,7 +328,7 @@ function SongPhone(props: SongProps): ReactNode {
                   onPress={() => onWords(true)}
                   accessibilityLabel={lent ? 'Show the lyrics' : undefined}
                 >
-                  <Cover uri={cover} title={song.title} size={side} />
+                  <Cover uri={cover} title={song.title} size={side} hue={tileHue} />
                 </Press>
               </View>
               <View style={styles.phoneNames}>
@@ -386,16 +388,18 @@ function SongPhone(props: SongProps): ReactNode {
 export function SongStill({
   song,
   cover,
+  tileHue,
   size,
 }: {
   song: RoomSong
   cover: string | null
+  tileHue: number
   size: number
 }): ReactNode {
   return (
     <View style={styles.still}>
       <View style={[styles.art, styles.faded]}>
-        <Cover uri={cover} title={song.title} size={size} />
+        <Cover uri={cover} title={song.title} size={size} hue={tileHue} />
       </View>
       <View style={styles.phoneNames}>
         <Text style={styles.phoneTitle} accessibilityRole="header" numberOfLines={3}>

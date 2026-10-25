@@ -1,4 +1,4 @@
-import { BUCKET_CAP_CODE, parseDoormanRefusal } from '@selfmp3/shared'
+import { BUCKET_CAP_CODE, LENDER_CAP_CODE, parseDoormanRefusal } from '@selfmp3/shared'
 import { bucketHold, holdBucket } from '@selfmp3/replica'
 import { streamFailureMessage } from './streamFailure.model'
 import { deviceKind } from './device'
@@ -30,9 +30,28 @@ export async function askWhyRefused(
     const body = await response.text()
     const message = streamFailureMessage(response.status, body, devicePlace(deviceKind()))
     if (parseDoormanRefusal(body)?.code === BUCKET_CAP_CODE) holdBucket(message, 'read')
+    noteLenderCap(body, message)
     return message
   } catch {
     // No answer at all: nothing to add to what failed.
     return null
   }
+}
+
+/** The words of every lent song's refusal for its owner's day (`LENDER_CAP_CODE`) heard this session. */
+const lenderCaps = new Set<string>()
+
+/**
+ * Remember a refusal that is a friend's bucket out of reads for the day: the
+ * player says its words as they are ("Whoever sent it has run out of their
+ * daily quota"), rather than its own "Couldn't play", and does not try again.
+ * Nothing is held: it is their bucket, not this device's.
+ */
+export function noteLenderCap(body: string, message: string): void {
+  if (parseDoormanRefusal(body)?.code === LENDER_CAP_CODE) lenderCaps.add(message)
+}
+
+/** Whether an engine's error is a lent song's owner out of reads for the day. */
+export function isLenderCap(error: string | null): error is string {
+  return error !== null && lenderCaps.has(error)
 }

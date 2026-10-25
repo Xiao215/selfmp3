@@ -110,7 +110,7 @@ export async function rooms(ctx: Context): Promise<Response> {
     return lentAnswer(
       'listen' in file
         ? await listenThrough(ctx, file.listen, method)
-        : await readLent(ctx, file, method, 'that song’s owner has no bucket connected any more'),
+        : await readLent(ctx, file, method, 'that song’s owner'),
     )
   }
   if (action === 'vectors' && entry === undefined) {

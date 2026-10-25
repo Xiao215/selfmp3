@@ -5,6 +5,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   DoormanError,
+  hasColour,
   plural,
   type CoverTone,
   RoomMemberNameSchema,
@@ -29,6 +30,7 @@ import { prefs } from '../../ports/prefs'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayout } from '../../shell/useLayout'
 import { artShadow, heroTitle, lineSub } from '../../ui/surfaces'
+import { useAccent } from '../../ui/accent'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { useShownScheme } from '../../ui/theme/unistyles'
@@ -54,6 +56,7 @@ import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
+import { useOwnCover } from './useOwnCover'
 
 /** The links this device asked for again while signed out: a guest's ask is remembered here. */
 const ASKED_KEY = 'share.asked'
@@ -120,6 +123,8 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const ended = stage === 'ended'
   const getSongs = useGetSongs({ enabled: signedIn && !link.yours })
   const { wide, width } = useLayout()
+  const ownCover = useOwnCover()
+  const accent = useAccent()
 
   // Its songs as tracks, for their covers now and for playing them; kept
   // while anything plays them, so they are not taken from under the player,
@@ -136,9 +141,12 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const ids = entries.map(entry => roomTrackId(entry.id))
   const first = link.entries[0]
   const firstId = first ? roomTrackId(first.id) : 0
-  // From the link itself, not the player's tracks: those are filled after this first draw.
-  const coverOf = (entry: ShareLink['entries'][number]): string | null =>
-    entry.song.cover ? shareApi.fileUrl(link, entry.id, 'cover') : null
+  // From the link itself, not the player's tracks: those are filled after this
+  // first draw. Your own copy's where you have the song, as the player plays it.
+  const coverOf = (entry: ShareLink['entries'][number]): string | null => {
+    const lent = entry.song.cover ? shareApi.fileUrl(link, entry.id, 'cover') : null
+    return ownCover(entry.song, lent) ?? lent
+  }
   const cover = first ? coverOf(first) : null
   const toGet = gettable(link, index)
   const source = first?.song.sourceUrl ?? null
@@ -154,6 +162,10 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const light = useSongColor(lead, cover, !ended)
   const tone = first?.song.coverTone ?? null
   const wash = ended ? (tone ? neutralWash(tone) : theme.colors.surface2) : light.color
+  // A cover that would not come — its sender's bucket out of reads for the
+  // day — is a letter in the wash's hue: the cover's colour, which the link
+  // carries, or the accent where it has none.
+  const tileHue = tone && hasColour(tone) ? tone.hue : accent.hue
 
   // Its words: as the page opens on a computer, where they are half the page;
   // on a phone once it is loaded or its words view is opened.
@@ -220,6 +232,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             track={lead}
             songId={firstId}
             cover={cover}
+            tileHue={tileHue}
             lyrics={lyrics}
             lent={first.song.lyrics !== null}
             loaded={loaded}
@@ -240,7 +253,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             {from}
 
             {link.kind === 'song' && first ? (
-              <SongStill song={first.song} cover={cover} size={coverSide} />
+              <SongStill song={first.song} cover={cover} tileHue={tileHue} size={coverSide} />
             ) : (
               <View style={styles.listHead}>
                 <View style={[styles.mosaic, ended && styles.faded]}>

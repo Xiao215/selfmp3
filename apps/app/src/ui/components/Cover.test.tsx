@@ -1,4 +1,7 @@
+import { StyleSheet } from 'react-native'
 import { fireEvent, render, screen } from '@testing-library/react-native'
+import { hueFromString } from '@selfmp3/shared'
+import { tagColors } from '@selfmp3/client'
 
 import { Cover } from './Cover'
 
@@ -37,5 +40,16 @@ describe('Cover', () => {
 
     expect(drawn(view)).toEqual([])
     expect(screen.getByText('S')).toBeTruthy()
+  })
+
+  it('draws the letter in the hue it is given, the page’s colour, not the title’s', async () => {
+    const view = await render(<Cover uri="a.jpg" title="Answer" hue={300} />)
+    await fireEvent(picture(view, 'a.jpg'), 'error')
+
+    const fills = view.container
+      .queryAll(node => typeof node.type === 'string')
+      .map(node => StyleSheet.flatten(node.props['style'] ?? {}).backgroundColor)
+    expect(fills).toContain(tagColors(300).tile)
+    expect(fills).not.toContain(tagColors(hueFromString('Answer')).tile)
   })
 })

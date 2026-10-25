@@ -230,9 +230,11 @@ export function shareSummary(
   input: { key: string; yours: boolean; asked: boolean; now: number },
 ): ShareSummary {
   const { entries, ...view } = shareView(doc, input)
+  const cover = entries.find(entry => entry.song.cover !== null && !entry.gone) ?? null
   return {
     ...view,
     songs: entries.length,
-    cover: entries.find(entry => entry.song.cover !== null && !entry.gone)?.id ?? null,
+    cover: cover?.id ?? null,
+    coverSong: cover?.song ?? null,
   }
 }

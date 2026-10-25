@@ -54,6 +54,12 @@ export const DOORMAN_ERROR = {
   bucketUnreachable: 'bucket_unreachable',
   /** Backblaze's daily allowance used up: held for a while (`BUCKET_HOLD_MS`). */
   bucketCapExceeded: 'bucket_cap_exceeded',
+  /**
+   * A lent song's owner's bucket is past its day's allowance: a link's, a
+   * room's or a shared playlist's song. Not `bucketCapExceeded`, which holds
+   * every read of the device's own bucket — the friend's bucket is fine.
+   */
+  lenderCapExceeded: 'lender_cap_exceeded',
   bucketError: 'bucket_error',
 
   // Listening rooms and shared playlists (`RoomRefusal`, and their own).
@@ -95,6 +101,9 @@ export type DoormanErrorCode = (typeof DOORMAN_ERROR)[keyof typeof DOORMAN_ERROR
 
 /** The doorman's word for a bucket past its day's allowance (docs/SYNC.md, "Caps"). */
 export const BUCKET_CAP_CODE = DOORMAN_ERROR.bucketCapExceeded
+
+/** The same, for a song lent from someone else's bucket. */
+export const LENDER_CAP_CODE = DOORMAN_ERROR.lenderCapExceeded
 
 /**
  * How long a cap's refusal is believed before the bucket is asked again: ten

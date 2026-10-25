@@ -48,6 +48,7 @@ import {
   type MediaSources,
 } from '../api/mediaAddress.model'
 import { mediaSourcesFor } from '../api/mediaSources'
+import { isLenderCap } from '../ports/bucketRefusal'
 import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { recentUri } from '../ports/recentCopies'
@@ -857,6 +858,16 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // a media error's code) are for whoever is debugging; the toast says
       // which song, and what happened to it.
       console.warn(`Playback failed for song ${songId}:`, state.error)
+
+      // A friend's song whose bucket is out of reads for the day: their news,
+      // in the doorman's words. Trying it again, or their next song, is only
+      // another refusal.
+      if (roomTrack(songId) && isLenderCap(state.error)) {
+        if (recovery.toastId !== null) dismissToast(recovery.toastId)
+        recovery.toastId = showToast(state.error, 'error')
+        engine.pause()
+        return
+      }
 
       // A room's song that stops may be the connection rather than the song.
       // The room is asked whether it can still hear this device: while it

@@ -88,9 +88,7 @@ export async function shared(ctx: Context): Promise<Response> {
     const lent = await object.fetch(`https://shared/file?${query.toString()}`)
     if (!lent.ok) return relayed(lent)
     const file = BucketFileSchema.parse(await lent.json())
-    return lentAnswer(
-      await readLent(ctx, file, method, 'that song’s owner has no bucket connected any more'),
-    )
+    return lentAnswer(await readLent(ctx, file, method, 'that song’s owner'))
   }
 
   const session = await requireSession(ctx)

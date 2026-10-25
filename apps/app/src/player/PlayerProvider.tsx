@@ -62,8 +62,6 @@ import { useSleepTimer } from './useSleepTimer'
 import { usePlayReporting } from './usePlayReporting'
 import { useConnection } from '../connection/ConnectionProvider'
 import { currentToasts, dismissToast, showToast, type ToastWords } from '../ui/toast'
-import { devicePlace } from '../features/settings/settings.model'
-import { deviceKind } from '../ports/device'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
 import { handleRemoteCommands } from './remoteCommands'
 import { useNowPlaying } from './useNowPlaying'
@@ -83,6 +81,7 @@ import { useValueStore } from '../state/useValueStore'
 import { useSongsById } from '../ui/songsById'
 import { roomTrack, useRoomTracks, withRoomSongs } from './roomTracks'
 import { checkRoomLink, currentRoom, subscribeRoom } from '../features/room/room.store'
+import { thisPlace } from '../ports/place'
 
 /**
  * The React glue between the queue rules and whatever makes a sound.
@@ -914,7 +913,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         // Passed over quietly: its row is faded, which says the same thing
         // without a word. Only running out of songs that can play is said.
         if (stop) {
-          say(`Nothing after this is on this ${devicePlace(deviceKind())}`, 'warn')
+          say(`Nothing after this is on this ${thisPlace()}`, 'warn')
           engine.pause()
           return
         }

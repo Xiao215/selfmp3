@@ -19,8 +19,8 @@ import { Toggle } from '../../ui/components/Toggle'
 import { ButtonRow, Panel, partStyles, Row, Stats } from './SettingsParts'
 import { ProgressBar } from '../../ui/components/ProgressBar'
 import { NoticeCard } from '../../ui/components/NoticeCard'
-import { devicePlace, type Confirming } from './settings.model'
-import { deviceKind } from '../../ports/device'
+import type { Confirming } from './settings.model'
+import { thisPlace } from '../../ports/place'
 
 /**
  * What this device keeps: whether songs download by themselves, whether one
@@ -39,7 +39,7 @@ export function OfflinePanel({
   const { fromCloud } = useConnection()
   const library = useLibrary()
   const manifest = useManifest()
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   const {
     state: downloads,
     queue,

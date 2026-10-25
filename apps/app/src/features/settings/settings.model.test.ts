@@ -75,11 +75,14 @@ describe('settings', () => {
     ])
     const computer = sectionsFor({
       shell: true,
-      place: devicePlace('desktop'),
+      place: devicePlace('desktop', true),
     })
     expect(computer.find(section => section.id === 'offline')?.label).toBe('On this computer')
-    expect(devicePlace('phone')).toBe('phone')
-    expect(devicePlace('other')).toBe('computer')
+    expect(devicePlace('phone', true)).toBe('phone')
+    expect(devicePlace('other', true)).toBe('computer')
+    // A tab keeps what it has in the browser, not on the device it runs on.
+    expect(devicePlace('desktop', false)).toBe('browser')
+    expect(devicePlace('phone', false)).toBe('browser')
   })
 
   it('puts what runs the server under one Advanced chip at the end (O1)', () => {

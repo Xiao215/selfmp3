@@ -2,10 +2,9 @@ import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useBucketHold } from './useBucketHold'
 import { showToast } from '../../ui/toast'
-import { deviceKind } from '../../ports/device'
 import { untilCapResets } from '../library/library.model'
-import { devicePlace } from '../settings/settings.model'
 import { countShownError } from '../usage/usage'
+import { thisPlace } from '../../ports/place'
 
 /**
  * Says, once, that the bucket has refused for the day (docs/SYNC.md, "Caps").
@@ -31,7 +30,7 @@ export function BucketHoldNotice(): ReactNode {
     if (saidAt.current !== null && now - saidAt.current < SAY_AGAIN_AFTER_MS) return
     saidAt.current = now
     countShownError('bucket-full')
-    const place = devicePlace(deviceKind())
+    const place = thisPlace()
     showToast(
       {
         say: 'Today’s storage allowance is used up',

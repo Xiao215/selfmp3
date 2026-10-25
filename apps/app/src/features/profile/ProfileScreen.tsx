@@ -13,9 +13,7 @@ import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
-import { deviceKind } from '../../ports/device'
 import { card, label, pageFrame, serif, lineSub } from '../../ui/surfaces'
-import { devicePlace } from '../settings/settings.model'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
   MONTH_CARD_TITLE,
@@ -38,6 +36,7 @@ import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
+import { thisPlace } from '../../ports/place'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -80,7 +79,7 @@ function ProfilePage({
   const { data: links } = useSentLinks()
   const now = useMinute()
   const rows = profileRows({
-    place: devicePlace(deviceKind()),
+    place: thisPlace(),
     linksHint: fromCloud ? sentLinksHint(links, now) : null,
   })
 

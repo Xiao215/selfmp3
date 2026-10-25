@@ -13,7 +13,6 @@ import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
 import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
-import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { useContentWidthValue } from '../../shell/contentWidth'
 import { PageHeader } from '../../ui/components/PageHeader'
@@ -45,7 +44,6 @@ import { SmartModelPanel, SmartPanel } from './SmartPanel'
 import {
   activeSection,
   crossfadeLabel,
-  devicePlace,
   healthLine,
   indexIdFor,
   landingOffset,
@@ -60,6 +58,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { UsageRow } from '../usage/UsageRow'
+import { thisPlace } from '../../ports/place'
 
 /** The index column itself, and the gutter on either side of it. */
 const INDEX_WIDTH = 172
@@ -120,7 +119,7 @@ export function SettingsScreen(): ReactNode {
   // iPad's while a keyboard is attached, which comes and goes. A tab on a Mac
   // is the one place the desktop app is offered from.
   const shortcuts = useMenuCommands()
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   const sections = sectionsFor({
     crossfade: engineCapabilities.crossfade,
     installed: installedApp,

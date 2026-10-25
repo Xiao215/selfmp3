@@ -9,8 +9,8 @@ import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { showFailure } from '../../ui/toast'
 import { SignOutDialog } from './SignOutDialog'
-import { devicePlace, type Confirming } from './settings.model'
-import { deviceKind } from '../../ports/device'
+import type { Confirming } from './settings.model'
+import { thisPlace } from '../../ports/place'
 
 export function Confirmations({
   confirming,
@@ -25,7 +25,7 @@ export function Confirmations({
   // Redo all is the server's pass, asked of it as Settings › Advanced › Library asks.
   const server = useServerApi()
   const startAnalysis = useStartAnalysis(server.api, server.via?.baseUrl ?? null)
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
 
   const dialogs: Record<
     Exclude<Confirming, 'sign-out' | null>,

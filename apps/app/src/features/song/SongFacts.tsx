@@ -20,11 +20,11 @@ import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
-import { deviceKind } from '../../ports/device'
 import { useLayout } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
-import { devicePlace, onThisDevice } from '../settings/settings.model'
+import { onThisDevice } from '../settings/settings.model'
 import { Press } from '../../ui/components/Press'
+import { thisPlace } from '../../ports/place'
 
 /**
  * Everything the app knows about one song, in plain words: the quiet end of
@@ -58,7 +58,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
       ? Math.min(1, progress.bytesWritten / progress.totalBytes)
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
-  const place = devicePlace(deviceKind())
+  const place = thisPlace()
   const { finePointer } = useLayout()
 
   return (

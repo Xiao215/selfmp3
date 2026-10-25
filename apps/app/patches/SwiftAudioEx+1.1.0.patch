@@ -1,0 +1,52 @@
+--- a/Sources/SwiftAudioEx/AVPlayerWrapper/AVPlayerWrapper.swift
++++ b/Sources/SwiftAudioEx/AVPlayerWrapper/AVPlayerWrapper.swift
+@@ -37,6 +37,11 @@
+         label: "AVPlayerWrapper.stateQueue",
+         attributes: .concurrent
+     )
++    // State changes are announced here, after the barrier that stored them has
++    // finished. The delegate takes QueueManager's lock, and a thread holding
++    // that lock (a skip) reads `state` through stateQueue.sync: announcing
++    // inside the barrier deadlocked the two. Serial, so changes arrive in order.
++    fileprivate let stateChangeQueue = DispatchQueue(label: "AVPlayerWrapper.stateChangeQueue")
+ 
+     public init() {
+         playerTimeObserver = AVPlayerTimeObserver(periodicObserverTimeInterval: timeEventFrequency.getTime())
+@@ -69,7 +74,9 @@
+                 let currentState = self._state
+                 if (currentState != newValue) {
+                     self._state = newValue
+-                    self.delegate?.AVWrapper(didChangeState: newValue)
++                    self.stateChangeQueue.async { [weak self] in
++                        self?.delegate?.AVWrapper(didChangeState: newValue)
++                    }
+                 }
+             }
+         }
+--- a/Sources/SwiftAudioEx/QueueManager.swift
++++ b/Sources/SwiftAudioEx/QueueManager.swift
+@@ -17,18 +17,18 @@
+ 
+     fileprivate let recursiveLock = NSRecursiveLock()
+ 
++    // `defer`: a throwing action (a stale index) used to return with the lock
++    // still held, and the next caller on another thread waited forever.
+     fileprivate func synchronizeThrows<T>(action: () throws -> T) throws -> T {
+         recursiveLock.lock()
+-        let result = try action()
+-        recursiveLock.unlock()
+-        return result
++        defer { recursiveLock.unlock() }
++        return try action()
+     }
+ 
+     fileprivate func synchronize <T>(action: () -> T) -> T {
+         recursiveLock.lock()
+-        let result = action()
+-        recursiveLock.unlock()
+-        return result
++        defer { recursiveLock.unlock() }
++        return action()
+     }
+     
+     weak var delegate: QueueManagerDelegate? = nil

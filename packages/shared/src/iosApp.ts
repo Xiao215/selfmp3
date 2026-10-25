@@ -32,7 +32,7 @@ export const IOS_INSTALL_LINK = `itms-services://?action=download-manifest&url=$
 )}`
 
 /** The page a friend opens on their iPhone, published beside the web app. */
-export const IOS_INSTALL_PAGE_URL = `${DEFAULT_APP_URL}/install`
+export const IOS_INSTALL_PAGE_URL = `${DEFAULT_APP_URL}/install/`
 
 /** What `ios.json` says about the build on the release. */
 export const iosLatestSchema = z.object({

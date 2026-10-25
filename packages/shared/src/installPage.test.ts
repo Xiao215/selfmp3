@@ -11,7 +11,7 @@ describe('the iPhone install page', () => {
 
   it('loads only what sits beside it: its fonts and the icon, from nowhere else', () => {
     const page = renderInstallPage()
-    for (const font of Object.keys(INSTALL_PAGE_FONTS)) expect(page).toContain(`fonts/${font}`)
+    for (const font of Object.keys(INSTALL_PAGE_FONTS)) expect(page).toContain(`../fonts/${font}`)
     expect(page).not.toMatch(/(?:src|href)="https?:\/\/(?!selfmp3-doorman)/)
     expect(page).not.toMatch(/url\(https?:/)
   })

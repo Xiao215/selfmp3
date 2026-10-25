@@ -12,7 +12,7 @@ apps/app/public/sw.js
 # installPage.ts; git-ignored the same way.
 apps/app/public/privacy.html
 apps/app/public/bucket.html
-apps/app/public/install.html
+apps/app/public/install/
 
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios

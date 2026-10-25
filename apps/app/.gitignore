@@ -24,7 +24,7 @@ public/sw.js
 # `npm run build:pages`.
 public/privacy.html
 public/bucket.html
-public/install.html
+public/install/
 public/fonts/
 
 # The widget's asset catalog, written by `expo prebuild` from the colours in

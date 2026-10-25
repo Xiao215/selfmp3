@@ -7,17 +7,26 @@
  */
 
 /**
- * The plain pages beside the web app, by the address GitHub Pages answers
- * with or without `.html`: written by apps/app/scripts/pages.mjs, and left
- * alone by the app's service worker, which would otherwise keep one as the
+ * The plain pages beside the web app, by name, and the file each is written
+ * to by apps/app/scripts/pages.mjs. GitHub Pages answers `privacy` for
+ * privacy.html and `install/` for install/index.html. The app's service worker
+ * leaves every form of these addresses alone, or it would keep one as the
  * app's offline index.
  */
-export const PLAIN_PAGES = ['privacy', 'bucket', 'install'] as const
+export const PLAIN_PAGES = {
+  privacy: 'privacy.html',
+  bucket: 'bucket.html',
+  install: 'install/index.html',
+} as const
 
-/** The app's icon, for a plain page's tab and home-screen tile. */
-export const PAGE_ICONS = `<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-180.png">`
+/**
+ * The app's icon, for a plain page's tab and home-screen tile, from a page
+ * `up` folders below the app (`'../'` for one in its own folder).
+ */
+export const pageIcons = (up = ''): string =>
+  `<link rel="icon" type="image/svg+xml" href="${up}icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="${up}icons/icon-192.png">
+<link rel="apple-touch-icon" href="${up}icons/icon-180.png">`
 
 const ESCAPES: Readonly<Record<string, string>> = {
   '&': '&amp;',
@@ -43,7 +52,7 @@ export function renderPublicPage(title: string, body: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} · self.mp3</title>
-${PAGE_ICONS}
+${pageIcons()}
 <style>
 :root {
   color-scheme: dark;

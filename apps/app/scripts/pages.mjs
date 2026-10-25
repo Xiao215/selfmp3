@@ -13,7 +13,7 @@ import {
 /**
  * The plain pages published beside the app — public/privacy.html from the
  * policy in packages/shared/src/privacy.ts, public/bucket.html from the guide
- * in packages/shared/src/bucketGuide.ts, public/install.html from the iPhone
+ * in packages/shared/src/bucketGuide.ts, public/install/index.html from the iPhone
  * app's install page in packages/shared/src/installPage.ts, with the app's
  * fonts copied into public/fonts for it: written before every web export and
  * every web dev start, and ignored by git, so the pages and the words never
@@ -27,9 +27,10 @@ const pages = {
   bucket: renderBucketGuidePage,
   install: renderInstallPage,
 }
-for (const name of PLAIN_PAGES) {
-  const out = resolve(pub, `${name}.html`)
+for (const [name, file] of Object.entries(PLAIN_PAGES)) {
+  const out = resolve(pub, file)
   const page = pages[name]()
+  mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, page)
   console.log(`wrote ${out}`)
 }

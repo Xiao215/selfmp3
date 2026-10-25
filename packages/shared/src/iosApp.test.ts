@@ -24,7 +24,7 @@ describe('the iPhone app for friends', () => {
     expect(iosAssetUrl('selfmp3.ipa')).toBe(
       'https://github.com/Xiao215/selfmp3/releases/download/ios/selfmp3.ipa',
     )
-    expect(IOS_INSTALL_PAGE_URL).toBe('https://xiao215.github.io/selfmp3/install')
+    expect(IOS_INSTALL_PAGE_URL).toBe('https://xiao215.github.io/selfmp3/install/')
   })
 
   it('installs through the manifest, its address encoded whole', () => {

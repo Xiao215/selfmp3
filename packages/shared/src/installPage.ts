@@ -1,12 +1,12 @@
 import { DEFAULT_DOORMAN_URL } from './cloud.js'
 import { DOORMAN_PATHS } from './doormanWire.js'
 import { IOS_INSTALL_LINK, IOS_INSTALL_PAGE_URL } from './iosApp.js'
-import { PAGE_ICONS, escapeHtml } from './publicPage.js'
+import { escapeHtml, pageIcons } from './publicPage.js'
 
 /**
- * The iPhone app's install page, published beside the web app as install.html
- * and linked as `/install`, which GitHub Pages answers with that file
- * (apps/app/scripts/pages.mjs).
+ * The iPhone app's install page, published beside the web app in its own
+ * folder, install/index.html, so its address is `/install/` with no file name
+ * (apps/app/scripts/pages.mjs). What it loads is one folder up.
  *
  * Not in `publicPage.ts`'s plain look: this one is the app's front door, so it
  * wears the app's faces (Instrument Serif and Bricolage Grotesque, copied next
@@ -18,7 +18,7 @@ import { PAGE_ICONS, escapeHtml } from './publicPage.js'
  * where to open it instead of letting the Install button fail silently.
  */
 
-/** The fonts pages.mjs copies into `fonts/`, by the name the stylesheet uses. */
+/** The fonts pages.mjs copies into the app's `fonts/`, by the name the stylesheet uses. */
 export const INSTALL_PAGE_FONTS = {
   'InstrumentSerif-Regular.ttf': 'instrument-serif/400Regular/InstrumentSerif_400Regular.ttf',
   'InstrumentSerif-Italic.ttf':
@@ -49,10 +49,10 @@ const QUESTIONS: readonly (readonly [string, string])[] = [
 ]
 
 const STYLE = `
-@font-face { font-family: 'Instrument Serif'; src: url(fonts/InstrumentSerif-Regular.ttf); font-display: swap; }
-@font-face { font-family: 'Instrument Serif'; font-style: italic; src: url(fonts/InstrumentSerif-Italic.ttf); font-display: swap; }
-@font-face { font-family: 'Bricolage'; font-weight: 400; src: url(fonts/BricolageGrotesque-Regular.ttf); font-display: swap; }
-@font-face { font-family: 'Bricolage'; font-weight: 600; src: url(fonts/BricolageGrotesque-SemiBold.ttf); font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; src: url(../fonts/InstrumentSerif-Regular.ttf); font-display: swap; }
+@font-face { font-family: 'Instrument Serif'; font-style: italic; src: url(../fonts/InstrumentSerif-Italic.ttf); font-display: swap; }
+@font-face { font-family: 'Bricolage'; font-weight: 400; src: url(../fonts/BricolageGrotesque-Regular.ttf); font-display: swap; }
+@font-face { font-family: 'Bricolage'; font-weight: 600; src: url(../fonts/BricolageGrotesque-SemiBold.ttf); font-display: swap; }
 :root {
   color-scheme: dark;
   --ground: #0b0a10;
@@ -195,14 +195,14 @@ export function renderInstallPage(doormanUrl: string = DEFAULT_DOORMAN_URL): str
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0a10">
 <title>Get self.mp3 for iPhone</title>
-${PAGE_ICONS}
-<link rel="preload" href="fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
+${pageIcons('../')}
+<link rel="preload" href="../fonts/InstrumentSerif-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <style>${STYLE}</style>
 </head>
 <body>
 <main>
 <header class="hero">
-<img class="icon" src="icons/icon-180.png" alt="" width="96" height="96">
+<img class="icon" src="../icons/icon-180.png" alt="" width="96" height="96">
 <h1>self.mp3</h1>
 <p class="lede">Your music, on <em>your iPhone.</em></p>
 </header>

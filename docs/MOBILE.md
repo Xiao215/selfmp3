@@ -339,7 +339,7 @@ membership year, so each friend's iPhone ID goes onto the team once. (The App St
 even unlisted, is not an option: guideline 5.2.3 refuses apps that download media from
 other services.)
 
-**A friend** opens `/install` beside the web app (`install.html`, which GitHub Pages also answers without the extension), in Safari
+**A friend** opens `/install/` beside the web app (`install/index.html`), in Safari
 (`packages/shared/src/installPage.ts`; opened anywhere else — WeChat's browser, Chrome,
 a computer — it says where to open it instead):
 

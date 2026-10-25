@@ -171,11 +171,12 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // The plain pages published beside the app (PLAIN_PAGES, with or without
-  // `.html`) are not the app. Left to the browser, so loading one is never
-  // kept as the app's offline index.
-  const page = url.pathname.slice(BASE.length).replace(/\.html$/, '')
-  if ((PLAIN_PAGES as readonly string[]).includes(page)) return
+  // The plain pages published beside the app (PLAIN_PAGES, by any of their
+  // addresses: `privacy` or `privacy.html`, `install/` or its index file)
+  // are not the app. Left to the browser, so loading one is never kept as the
+  // app's offline index.
+  const page = url.pathname.slice(BASE.length).replace(/(?:\/index)?\.html$|\/$/, '')
+  if (Object.hasOwn(PLAIN_PAGES, page)) return
 
   event.respondWith(handleShell(request, url))
 })

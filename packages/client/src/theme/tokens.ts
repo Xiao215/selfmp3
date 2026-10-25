@@ -257,6 +257,13 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
     toast: '#262b3a',
     /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
     cardShadow: '#00000000',
+    /**
+     * A cover's own edge, a shade just inside it, and the soft drop under it:
+     * on Paper a pale cover vanished into the cream round it. In the dark the
+     * ground is darker than any cover, and they are drawn as nothing.
+     */
+    coverEdge: '#00000000',
+    coverDrop: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
     floatShadow: '#00000073',
     /**
@@ -315,6 +322,8 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     glassSolid: '#ffffff',
     toast: '#ffffff',
     cardShadow: '#1b1a170f',
+    coverEdge: '#1b1a171a',
+    coverDrop: '#1b1a1714',
     floatShadow: '#1b1a1724',
     coverShade: '#0a08108c',
     backdrop: backdropFor(hue),

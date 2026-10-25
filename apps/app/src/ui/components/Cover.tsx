@@ -6,6 +6,7 @@ import { hueFromString } from '@selfmp3/shared'
 import { motion, radius, tagColors } from '@selfmp3/client'
 import { ease, timing } from '../motion'
 import { MOVE_MS } from '../motion.model'
+import { useShownScheme } from '../theme/unistyles'
 
 /**
  * Cover art, and what stands in for it.
@@ -90,6 +91,8 @@ export function Cover({
     [size, cornerRadius],
   )
 
+  // A cell of a mosaic (`radius` 0) leaves its edge to the mosaic's.
+  const edged = cornerRadius !== 0
   const lettered = uri === null || failed
   // The letter tile is a tag's tile in the title's hue — deep with light ink
   // in the dark, a pale tint with dark ink on Paper — so a song with no
@@ -97,7 +100,14 @@ export function Cover({
   // (`tileTone`) is worked out from the same colour.
   const tile = lettered ? tagColors(hue ?? hueFromString(title)) : null
   return (
-    <View style={[styles.cover, dimensions, tile && { backgroundColor: tile.tile }]}>
+    <View
+      style={[
+        styles.cover,
+        dimensions,
+        edged && styles.dropped,
+        tile && { backgroundColor: tile.tile },
+      ]}
+    >
       {tile ? (
         <Text
           style={[styles.letter, { color: tile.tileInk, fontSize: size * 0.4 }]}
@@ -124,8 +134,21 @@ export function Cover({
           accessibilityIgnoresInvertColors
         />
       ) : null}
+      {edged ? <CoverEdge radius={dimensions.borderRadius} /> : null}
     </View>
   )
+}
+
+/**
+ * On Paper, a cover's edge (docs/features/design-system.md, "No hairlines"):
+ * a shade a point inside the picture, the way a printed sleeve has one, so a
+ * white cover still has a shape on cream. Laid over whatever the cover is —
+ * one picture, or a mosaic's four — and drawn only in the light theme.
+ */
+export function CoverEdge({ radius: cornerRadius }: { radius: number }): ReactNode {
+  const scheme = useShownScheme()
+  if (scheme !== 'light') return null
+  return <View pointerEvents="none" style={[styles.edge, { borderRadius: cornerRadius }]} />
 }
 
 const styles = StyleSheet.create(theme => ({
@@ -137,5 +160,16 @@ const styles = StyleSheet.create(theme => ({
   },
   // Over the letter, filling the tile, so the corners are the tile's own.
   picture: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // A drop as soft as the edge: transparent in the dark, so it casts none.
+  dropped: { boxShadow: `0 1px 2px ${theme.colors.coverDrop}` },
+  edge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 1,
+    borderColor: theme.colors.coverEdge,
+  },
   letter: { fontWeight: '600' },
 }))

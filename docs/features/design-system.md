@@ -296,6 +296,9 @@ The rules from `S2`, as the code keeps them:
   cream have no tone to separate them, so a card casts a soft shadow there (`card()` in
   `apps/app/src/ui/surfaces.ts`); in the dark it casts none. Only floating things (sheets,
   menus, the bars, a lifted row) cast a shadow in both (`floating()`).
+  A cover on Paper has a shade a point inside its own edge and a drop as soft, so a
+  white cover still has a shape on cream (`CoverEdge` in `Cover.tsx`, once round a
+  mosaic); in the dark it has neither.
 - **Shapes** are named: `radius.pill` for buttons, search fields, chips and segments; `field`
   12 for a text field that is not a search; `item` 12 for a menu's line or a caption; `card`
   18 and `cardLg` 22; `sheet` 26; `mini` 16; `row` 14; covers `cover` 10 and `coverSm` 8.

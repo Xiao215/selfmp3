@@ -12,6 +12,7 @@ import {
   useLibrary,
   type ServerConnection,
   space,
+  deepWash,
   withAlpha,
 } from '@selfmp3/client'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
@@ -322,8 +323,10 @@ function RankedList({
 
 /**
  * The most-played artist, as a card rather than a line: their round picture
- * beside the rank, blurred across the card behind it (Xiao chose A,
- * 2026-10-24). Without a picture it is the cover they wear in the lines below.
+ * beside the rank (Xiao chose A, 2026-10-24), and behind it the cover they
+ * are most played for, blurred, in its colour (A1, 2026-10-25). Their own
+ * picture is not the light: it may be a logo on black (HOYO-MiX), which
+ * blurs to nothing. Without a picture the cover stands beside the rank too.
  */
 function ArtistLead({
   row,
@@ -342,14 +345,11 @@ function ArtistLead({
   // picture that replaces it.
   const art =
     picture === undefined ? undefined : (picture?.portrait ?? (cover ? artFor(cover) : null))
-  const backdrop =
-    picture === undefined ? null : (picture?.portrait ?? (cover ? backdropFor(cover) : null))
   return (
     <LeadCard
       art={art}
-      backdrop={backdrop}
-      // A portrait has no tone of its own; the cover standing in for one does.
-      tone={picture?.portrait ? null : (cover?.coverTone ?? null)}
+      backdrop={cover ? backdropFor(cover) : null}
+      tone={cover?.coverTone ?? null}
       round
       rank={row.rank}
       name={row.name}
@@ -399,10 +399,11 @@ const LEAD_PICTURE = 84
 
 /**
  * First place as a card: the serif rank, the picture sharp beside it and the
- * name, over that picture blurred to fill the card and veiled in the card's
- * tone so the words read on any cover. Without a picture it is the card's
- * raised tone and the picture's letter tile. The bar is left out: the first
- * one is always full.
+ * name, over a cover blurred to fill the card and veiled in that cover's own
+ * colour taken deep (`deepWash`), so the words read on any cover and a pale
+ * one stays its colour rather than going grey. Without a cover it is the
+ * card's raised tone and the picture's letter tile. The bar is left out: the
+ * first one is always full.
  */
 function LeadCard({
   art,
@@ -417,7 +418,7 @@ function LeadCard({
   testID,
 }: {
   art: string | null | undefined
-  /** The same picture, small: blurred, a 128 looks the same and costs far less on iOS. */
+  /** A cover, small: blurred, a 128 looks the same and costs far less on iOS. */
   backdrop: string | null | undefined
   tone: Song['coverTone']
   round: boolean
@@ -432,9 +433,11 @@ function LeadCard({
   const scheme = useShownScheme()
   const [loaded, setLoaded] = useState<string | null>(null)
   const shown = useFade(!!backdrop && loaded === backdrop, motion.base, motion.base)
-  // Without a tone to judge by (an artist's own picture), the veil a light
-  // picture would need, so a white portrait still leaves the name readable.
-  const veil = backdropVeil(tone, scheme, tone ? 0.5 : 0.72)
+  // Thicker over a cover close to the text, as Now Playing's; in the cover's
+  // colour it stays that colour however thick. A cover not yet read is veiled
+  // in the card's own tone, as thickly as a pale one would need.
+  const veil = backdropVeil(tone, scheme, tone ? 0.6 : 0.8)
+  const veilColor = tone ? deepWash(tone, scheme) : theme.colors.surface3
 
   return (
     <Press
@@ -456,9 +459,7 @@ function LeadCard({
             onLoad={() => setLoaded(backdrop)}
             accessibilityIgnoresInvertColors
           />
-          <View
-            style={[styles.leadLight, { backgroundColor: withAlpha(theme.colors.surface3, veil) }]}
-          />
+          <View style={[styles.leadLight, { backgroundColor: withAlpha(veilColor, veil) }]} />
         </Animated.View>
       ) : null}
       <View style={styles.leadWords}>

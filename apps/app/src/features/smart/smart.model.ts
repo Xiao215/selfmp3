@@ -864,3 +864,38 @@ export function playlistEditHere(
   const adding = answer.op === 'add'
   return { songIds: mapped.filter(id => inIt.has(id) !== adding), why }
 }
+
+/** "One tag to add", "3 tags to add": a short review's title, from what its changes do (AD1). */
+export function shortTagsTitle(ops: readonly TagChange['op'][]): string {
+  const count = ops.length
+  const what = ops.every(op => op === 'add')
+    ? ['tag to add', 'tags to add']
+    : ops.every(op => op === 'remove')
+      ? ['tag to take off', 'tags to take off']
+      : ['change to your tags', 'changes to your tags']
+  return count === 1 ? `One ${what[0]}` : `${count} ${what[1]}`
+}
+
+/**
+ * The button under a short review, naming what it does to the `ticked` of
+ * them: "Add it", "Add 3 tags". What it does is read from all of them, so
+ * the button keeps its verb while nothing is ticked.
+ */
+export function shortTagsApply(ops: readonly TagChange['op'][], ticked: number): string {
+  if (ops.every(op => op === 'add')) {
+    return ticked === 0 ? 'Add' : ticked === 1 ? 'Add it' : `Add ${ticked} tags`
+  }
+  if (ops.every(op => op === 'remove')) {
+    return ticked === 0 ? 'Take off' : ticked === 1 ? 'Take it off' : `Take off ${ticked} tags`
+  }
+  return ticked === 0 ? 'Apply' : ticked === 1 ? 'Make the change' : `Make ${ticked} changes`
+}
+
+/** "One thing to fix", "3 things to fix", and its button: "Fix it", "Fix 3 things" (AD1). */
+export function shortTidyTitle(count: number): string {
+  return count === 1 ? 'One thing to fix' : `${count} things to fix`
+}
+
+export function shortTidyApply(count: number): string {
+  return count === 0 ? 'Fix' : count === 1 ? 'Fix it' : `Fix ${count} things`
+}

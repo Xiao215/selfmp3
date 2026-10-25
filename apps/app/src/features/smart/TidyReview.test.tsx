@@ -187,3 +187,43 @@ it('as Ask’s card, shows a long review’s first few, puts the model’s words
   })
   expect(closed).toEqual(['Fixed 7 songs'])
 })
+
+it('as Ask’s card, lists a handful one line each, under a title that counts them (AD1)', async () => {
+  fakeLibrary([1, 2].map(id => songOf(id, `Song ${id}`)))
+  const title = (id: number): TidyResult['changes'][number] => ({
+    key: `title-${id}`,
+    field: 'title',
+    from: `Song ${id}`,
+    to: `歌 ${id}`,
+    why: 'The name on 网易云',
+    by: 'rule',
+    songIds: [id],
+  })
+  const closed: (string | undefined)[] = []
+  await drawReview(
+    <TidyReview
+      card
+      result={{ ...FILL, changes: [1, 2].map(title), looked: 2 }}
+      height={600}
+      onClose={outcome => closed.push(outcome)}
+    />,
+  )
+
+  expect(await screen.findAllByTestId('tidy-change')).toHaveLength(2)
+  expect(screen.getByText('2 things to fix')).toBeTruthy()
+  // No bands, no ticked count: a handful is just the handful.
+  expect(screen.queryByTestId('tidy-band-rule')).toBeNull()
+  expect(screen.queryByText(/ticked/)).toBeNull()
+  expect(screen.getAllByText('The name on 网易云')).toHaveLength(2)
+
+  // Leaving one out renames the button with it.
+  await act(async () => {
+    await fireEvent.press(screen.getAllByTestId('tidy-change')[1]!)
+  })
+  expect(screen.getByTestId('tidy-apply')).toHaveTextContent('Fix it')
+  await act(async () => {
+    await fireEvent.press(screen.getByTestId('tidy-apply'))
+    await settle()
+  })
+  expect(closed).toEqual(['Fixed 1 song'])
+})

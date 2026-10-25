@@ -49,12 +49,13 @@ POST /api/library/analyze          { "force": false }   start / resume
 GET  /api/library/analyze                               progress
 ```
 
-**A song's facts** (`apps/app/src/features/song/SongFacts.tsx`: the foot of the song's own
-page, and the Details tab of Now Playing on a computer) start with how it sounds: the tempo
-as `♩ = 130`, the way a score marks it, and in words; a small waveform drawn straight from
-the 0–1 energy value, taller and denser as a song gets more intense, with no steps or level
-names (`energyWavePath` in `packages/client/src/songs/facts.ts`, drawn by
-`apps/app/src/ui/components/EnergyWave.tsx`); and the key. Song rows show none of it.
+**A song's sound** (`SoundStrip` in `apps/app/src/features/song/SongFacts.tsx`: on the song's
+own page under its buttons, and at the head of the Details tab of Now Playing on a computer)
+is three tiles across: Tempo ("120 bpm"), Key, and Energy, its number beside a small
+waveform drawn straight from the 0–1 energy value, taller and denser as a song gets more
+intense, with no steps or level names (`energyWavePath` in `packages/client/src/songs/facts.ts`,
+drawn by `apps/app/src/ui/components/EnergyWave.tsx`). Each is said once. Song rows show none
+of it.
 
 **Ask** narrows by energy and tempo ranges when the words call for them ("something calm",
 "fast songs"), and a song not analysed yet does not pass an energy range. The rule engine in

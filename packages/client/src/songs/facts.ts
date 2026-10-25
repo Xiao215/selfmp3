@@ -3,32 +3,11 @@ import { clamp01, fromSqliteTime } from '@selfmp3/shared'
 /**
  * The facts about a song, put into words and drawings.
  *
- * Shared so the phone and the desktop describe a song the same way: a tempo
- * written like a score, the energy as a wave, the file format as a name
- * rather than a MIME type. Pure, and compiled without a DOM, so a URL is
- * parsed by hand rather than with `URL`.
+ * Shared so the phone and the desktop describe a song the same way: the
+ * energy as a wave, the file format as a name rather than a MIME type. Pure,
+ * and compiled without a DOM, so a URL is parsed by hand rather than with
+ * `URL`.
  */
-
-/**
- * No-break spaces: the marking never splits across a wrap. Full width rather
- * than thin, because the ♩ often comes from a fallback font and a thin space
- * beside it all but disappears.
- */
-const NBSP = ' '
-
-/** ♩ = 130, set like a metronome marking. */
-export function tempoMark(bpm: number): string {
-  return `♩${NBSP}=${NBSP}${Math.round(bpm)}`
-}
-
-/** A plain word for the pace, not an Italian one. */
-export function tempoWords(bpm: number): string {
-  if (bpm < 70) return 'slow'
-  if (bpm < 100) return 'relaxed'
-  if (bpm < 125) return 'moderate'
-  if (bpm < 150) return 'fast'
-  return 'very fast'
-}
 
 interface WaveShape {
   /** Peak distance from the centre line, in the drawing's own units. */

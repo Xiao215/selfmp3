@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { ReactNode } from 'react'
 import { Linking, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -8,8 +9,7 @@ import {
   isDownloaded,
   sourceName,
   space,
-  tempoMark,
-  tempoWords,
+  textStyle,
   type,
 } from '@selfmp3/client'
 import { useDownloadProgress, useDownloads } from '../../offline/DownloadsProvider'
@@ -19,38 +19,158 @@ import { useSongColor } from '../../ui/useSongColor'
 import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
-import { label as labelText } from '../../ui/surfaces'
+import { card, serif } from '../../ui/surfaces'
 import { useLayout } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { onThisDevice } from '../settings/settings.model'
-import { Press } from '../../ui/components/Press'
 import { thisPlace } from '../../ports/place'
 
 /**
- * Everything the app knows about one song, in plain words: the quiet end of
- * the song's own page, and the Details tab on a computer's Now Playing page.
- *
- * Grouped by what you would want the fact for: how it sounds, whether it is on
- * this device, your history with it, and the file itself.
- *
- * "On this phone" (or computer) is the download queue's answer. The file's path and "Show
- * in Finder" belong to the server, and are left out.
- *
- * The song's page says the play count in a sentence of its own above, so it
- * asks for the facts without it (`plays={false}`); the Details tab has no such
- * sentence and keeps it.
+ * How a song sounds, as three tiles across: Tempo ("120 bpm"), Key and
+ * Energy with its wave (F1, 2026-10-25). The tempo was said three times
+ * ("tempo 120", "♩ = 120", "120 beats a minute — moderate"); this is the
+ * once. Nothing at all for a song the analyser has not reached.
  */
-export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean }): ReactNode {
+export function SoundStrip({ song }: { song: Song }): ReactNode {
   const artFor = useArt()
-  // The energy wave and the source link are drawn in the song's own colour —
-  // the one its cover gives the page around them — rather than this device's
-  // accent, which would read as a stray blue against the wash of the cover.
+  // The wave is drawn in the song's own colour, the one its cover gives the
+  // page around it, rather than this device's accent.
   const songColor = useSongColor(song, artFor(song))
-  const { state: downloads, queue, installed } = useDownloads()
+  const { wide, finePointer } = useLayout()
+  const features = song.audioFeatures
+  if (!features || (features.bpm == null && features.energy == null && !features.key)) return null
+  const figure = wide ? styles.figure : styles.figureSmall
+  return (
+    <View style={styles.strip} accessibilityLabel="Sound" testID="song-sound">
+      {features.bpm != null ? (
+        <SoundTile label="Tempo">
+          <View style={styles.withUnit}>
+            <Text style={figure}>{Math.round(features.bpm)}</Text>
+            <Text style={styles.unit}>bpm</Text>
+          </View>
+        </SoundTile>
+      ) : null}
+      {features.key ? (
+        <SoundTile label="Key" caption={finePointer ? KEY_TIP : null}>
+          <Text style={figure} numberOfLines={1}>
+            {features.key}
+          </Text>
+        </SoundTile>
+      ) : null}
+      {features.energy != null ? (
+        <SoundTile label="Energy" caption={finePointer ? ENERGY_TIP : null}>
+          <View style={styles.inline}>
+            <Text style={figure}>{Math.round(features.energy * 100)}</Text>
+            <EnergyWave
+              energy={features.energy}
+              width={wide ? 56 : 36}
+              height={18}
+              color={songColor.color}
+            />
+          </View>
+        </SoundTile>
+      ) : null}
+    </View>
+  )
+}
+
+function SoundTile({
+  label,
+  caption = null,
+  children,
+}: {
+  label: string
+  /** A hover caption on the label, on a computer. */
+  caption?: string | null
+  children: ReactNode
+}): ReactNode {
+  return (
+    <View style={styles.tile}>
+      <Text style={styles.tileLabel} {...tip(caption)}>
+        {label}
+      </Text>
+      {children}
+    </View>
+  )
+}
+
+/**
+ * The rest of what the app knows about a song, as one quiet line: "AAC · 4:26
+ * · From YouTube Music · Timed lyrics · Added Sep 14, 2026", with `end` (Fix
+ * song info…) beside it. It was two tables, History and File, for one or two
+ * facts each (F1). The end of the song's own page, and of the Details tab on
+ * a computer's Now Playing.
+ *
+ * "On this phone" (or computer) is the download queue's answer, in a line of
+ * its own above, where an installed app keeps songs. The file's path and
+ * "Show in Finder" belong to the server, and are left out.
+ *
+ * The song's page says the plays elsewhere, so it asks for the line without
+ * them (`plays={false}`); the Details tab has nowhere else and keeps them.
+ */
+export function SongFacts({
+  song,
+  plays = true,
+  end,
+}: {
+  song: Song
+  plays?: boolean
+  end?: ReactNode
+}): ReactNode {
+  const artFor = useArt()
+  // The source link is in the song's own colour, as the wave is.
+  const songColor = useSongColor(song, artFor(song))
+  const { installed } = useDownloads()
+  const parts: ReactNode[] = [
+    `${formatName(song.mime, song.path)} · ${formatDuration(song.duration)}`,
+    song.sourceUrl ? (
+      <Text key="source">
+        From{' '}
+        <Text
+          accessibilityRole="link"
+          style={{ color: songColor.color }}
+          onPress={() => void Linking.openURL(song.sourceUrl ?? '')}
+        >
+          {sourceName(song.sourceUrl)}
+        </Text>
+      </Text>
+    ) : (
+      'From your library folder'
+    ),
+    song.lyricsKind === 'none' ? null : song.lyricsKind === 'synced' ? 'Timed lyrics' : 'Lyrics',
+    `Added ${formatAddedDate(song.addedAt)}`,
+    plays
+      ? song.playCount === 0
+        ? 'Not played yet'
+        : `Played ${plural(song.playCount, 'time', 'times')} · last ${formatRelative(song.lastPlayedAt)}`
+      : null,
+  ].filter(part => part !== null)
+
+  return (
+    <View style={styles.facts} testID="song-facts">
+      {/* A browser streams; only an installed app keeps songs. */}
+      {installed ? <OnThisDevice song={song} /> : null}
+      <View style={styles.lineRow}>
+        <Text style={styles.line}>
+          {parts.map((part, index) => (
+            <Fragment key={index}>
+              {index > 0 ? ' · ' : null}
+              {part}
+            </Fragment>
+          ))}
+        </Text>
+        {end}
+      </View>
+    </View>
+  )
+}
+
+/** Whether the song is kept here, and the button that changes it. */
+function OnThisDevice({ song }: { song: Song }): ReactNode {
+  const { state: downloads, queue } = useDownloads()
   // The same removal as the song's menu: by hand, with an Undo.
   const removeDownloads = useDownloadRemoval()
   const progress = useDownloadProgress()
-  const features = song.audioFeatures
   const held = isDownloaded(downloads.index, song.id)
   const downloading = downloads.activeSongId === song.id
   const fraction =
@@ -59,140 +179,30 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
   const place = thisPlace()
-  const { finePointer } = useLayout()
-
   return (
-    <View>
-      {/* A song not listened to yet has no Sound at all, rather than a sentence saying so. */}
-      {features && (features.bpm != null || features.energy != null || features.key) ? (
-        <Group title="Sound">
-          {features.bpm != null ? (
-            <Fact label="Tempo">
-              <Text style={styles.strong}>{tempoMark(features.bpm)}</Text>
-              <Text style={styles.note}>
-                {Math.round(features.bpm)} beats a minute — {tempoWords(features.bpm)}.
-              </Text>
-            </Fact>
-          ) : null}
-          {features.energy != null ? (
-            <Fact label="Energy" caption={finePointer ? ENERGY_TIP : null}>
-              <View style={styles.inline}>
-                <EnergyWave
-                  energy={features.energy}
-                  width={44}
-                  height={18}
-                  color={songColor.color}
-                />
-                <Text style={styles.strong}>{Math.round(features.energy * 100)} of 100</Text>
-              </View>
-            </Fact>
-          ) : null}
-          {features.key ? (
-            <Fact label="Key" caption={finePointer ? KEY_TIP : null}>
-              <Text style={styles.strong}>{features.key}</Text>
-            </Fact>
-          ) : null}
-        </Group>
-      ) : null}
-
-      {/* A browser streams; only an installed app keeps songs. */}
-      {installed ? (
-        <Group title={onThisDevice(place)}>
-          <Fact label="Status">
-            {downloading ? (
-              <Text style={styles.strong}>
-                {fraction === null
-                  ? 'Downloading…'
-                  : `Downloading · ${Math.round(fraction * 100)}%`}
-              </Text>
-            ) : held ? (
-              <>
-                <Text style={styles.strong}>
-                  On this {place} · {formatBytes(song.sizeBytes)}
-                </Text>
-                <Text style={styles.note}>Plays with no connection.</Text>
-                <View style={styles.action}>
-                  {/* The cloud, not a bare word: this undoes the download, and
-                      the icon says which of the two it is at a glance. */}
-                  <Button
-                    label={`Remove from this ${place}`}
-                    icon={<CloudRemove tone="textPrimary" />}
-                    onPress={() => removeDownloads([song.id])}
-                  />
-                </View>
-              </>
-            ) : (
-              <>
-                <Text style={styles.strong}>
-                  Not on this {place} · {formatBytes(song.sizeBytes)}
-                </Text>
-                <Text style={styles.note}>
-                  {queued ? 'Waiting to download.' : 'Plays only while your library is reachable.'}
-                </Text>
-                {queued ? null : (
-                  <View style={styles.action}>
-                    <Button label="Download" onPress={() => queue.enqueue([song.id])} />
-                  </View>
-                )}
-              </>
-            )}
-          </Fact>
-        </Group>
-      ) : null}
-
-      <Group title="History">
-        {plays ? (
-          <Fact label="Played">
-            <Text style={styles.strong}>
-              {song.playCount === 0
-                ? 'Not yet'
-                : `${plural(song.playCount, 'time', 'times')} · last ${formatRelative(song.lastPlayedAt)}`}
-            </Text>
-          </Fact>
-        ) : null}
-        <Fact label="Added">
-          <Text style={styles.strong}>{formatAddedDate(song.addedAt)}</Text>
-        </Fact>
-      </Group>
-
-      <Group title="File">
-        <Fact label="Format">
-          <Text style={styles.strong}>
-            {formatName(song.mime, song.path)} · {formatDuration(song.duration)}
-          </Text>
-        </Fact>
-        <Fact label="Source">
-          {song.sourceUrl ? (
-            <Press
-              feedback="dim"
-              accessibilityRole="link"
-              onPress={() => void Linking.openURL(song.sourceUrl ?? '')}
-            >
-              <Text style={[styles.strong, { color: songColor.color }]}>
-                {sourceName(song.sourceUrl)}
-              </Text>
-            </Press>
-          ) : (
-            <Text style={styles.strong}>Your library folder</Text>
-          )}
-        </Fact>
-        {song.lyricsKind !== 'none' ? (
-          <Fact label="Lyrics">
-            <Text style={styles.strong}>
-              {song.lyricsKind === 'synced' ? 'Timed' : 'Plain text'}
-            </Text>
-          </Fact>
-        ) : null}
-      </Group>
-    </View>
-  )
-}
-
-function Group({ title, children }: { title: string; children: ReactNode }): ReactNode {
-  return (
-    <View style={styles.group} accessibilityLabel={title}>
-      <Text style={styles.groupTitle}>{title.toUpperCase()}</Text>
-      {children}
+    <View style={styles.lineRow} accessibilityLabel={onThisDevice(place)}>
+      <Text style={styles.line}>
+        {downloading
+          ? fraction === null
+            ? 'Downloading…'
+            : `Downloading · ${Math.round(fraction * 100)}%`
+          : held
+            ? `On this ${place} · ${formatBytes(song.sizeBytes)} · plays with no connection`
+            : queued
+              ? `Waiting to download · ${formatBytes(song.sizeBytes)}`
+              : `Not on this ${place} · ${formatBytes(song.sizeBytes)}`}
+      </Text>
+      {downloading || queued ? null : held ? (
+        // The cloud, not a bare word: this undoes the download, and the icon
+        // says which of the two it is at a glance.
+        <Button
+          label={`Remove from this ${place}`}
+          icon={<CloudRemove tone="textPrimary" />}
+          onPress={() => removeDownloads([song.id])}
+        />
+      ) : (
+        <Button label="Download" onPress={() => queue.enqueue([song.id])} />
+      )}
     </View>
   )
 }
@@ -205,41 +215,23 @@ function Group({ title, children }: { title: string; children: ReactNode }): Rea
 const ENERGY_TIP = 'How loud, busy and driving it feels. The wave grows with it.'
 const KEY_TIP = 'Auto-mix uses it to pick songs that blend into this one.'
 
-function Fact({
-  label,
-  caption = null,
-  children,
-}: {
-  label: string
-  /** A hover caption on the label, on a computer. */
-  caption?: string | null
-  children: ReactNode
-}): ReactNode {
-  return (
-    <View style={styles.fact}>
-      <Text style={styles.factLabel} {...tip(caption)}>
-        {label}
-      </Text>
-      <View style={styles.factValue}>{children}</View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
-  // No side padding: the page it sits in has its own gutter.
-  group: { gap: space.snug, paddingTop: space.md, paddingBottom: space.lg },
-  // The groups are told apart by their labels and the room between them.
-  groupTitle: labelText(theme.colors),
-  fact: { flexDirection: 'row', gap: space.md },
-  factLabel: { width: 76, color: theme.colors.textMuted, fontSize: type.sub },
-  factValue: { flex: 1, minWidth: 0, gap: 2, alignItems: 'flex-start' },
-  strong: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '500',
-    fontVariant: ['tabular-nums'],
-  },
-  note: { color: theme.colors.textMuted, fontSize: type.small },
+  strip: { flexDirection: 'row', gap: space.snug },
+  tile: { ...card(theme.colors), flex: 1, minWidth: 0, gap: 2, padding: space.roomy },
+  tileLabel: { color: theme.colors.textSecondary, fontSize: type.small },
+  figure: serif(theme.colors, 'page'),
+  figureSmall: serif(theme.colors, 'large'),
+  withUnit: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
+  unit: { color: theme.colors.textSecondary, fontSize: type.sub },
   inline: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  action: { marginTop: space.tight },
+  facts: { gap: space.md },
+  // The line and what sits beside it; a phone wraps the button under the words.
+  lineRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+  },
+  line: { flexShrink: 1, color: theme.colors.textMuted, ...textStyle('sub') },
 }))

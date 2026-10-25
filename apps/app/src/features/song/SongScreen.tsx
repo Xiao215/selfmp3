@@ -26,7 +26,7 @@ import { TagPicker } from '../../ui/components/TagPicker'
 import {
   artShadow,
   card,
-  label as labelText,
+  quietLabel,
   pageFrame,
   serif,
   bodyText,
@@ -39,12 +39,13 @@ import { SimilarShelf } from './SimilarShelf'
 import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
 import { useOpenTag } from '../tag/useOpenTag'
 import { SongAbout } from './SongAbout'
+import { SoundStrip } from './SongFacts'
 import {
   bylineRest,
   playStrip,
   songPlays,
   songStory,
-  soundWords,
+  unplayedLine,
   type PlayStrip,
 } from './song.model'
 import { goBack } from '../../ui/useBackTo'
@@ -55,9 +56,11 @@ import { ScrollView } from '../../ui/components/Scroll'
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
  *
  * Lit by its cover, with the song's cover, name, artists and tags at the top;
- * Play, Lyrics and Play next under them; then what you and the song have done
- * together, and songs that sound like it. The song's facts follow at the end,
- * in quiet groups, with Fix metadata beside the facts it fixes.
+ * Play, Lyrics and Play next under them, and beside them "Not played yet ·
+ * added a month ago" until it has been; then, once it has plays, what you and
+ * the song have done together; its Sound as three tiles; and songs that sound
+ * like it. The song's facts follow at the end as one quiet line, with Fix
+ * song info… beside it (F1, 2026-10-25).
  *
  * On a computer it is the same page at the window's width, inside the shell:
  * there is no board for it, and the page reads as well wide (docs/UI-MIGRATION.md,
@@ -106,6 +109,7 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
+  const unplayed = useMemo(() => unplayedLine(song, new Date()), [song])
 
   return (
     <View style={styles.screen}>
@@ -221,19 +225,23 @@ function SongPage({ song }: { song: Song }): ReactNode {
               }}
             />
           )}
+          {unplayed ? (
+            <Text style={[styles.unplayed, wide && styles.unplayedWide]} testID="song-unplayed">
+              {unplayed}
+            </Text>
+          ) : null}
         </View>
 
-        <YouAndThisSong song={song} />
+        {/* The listening card only once there are plays to draw. */}
+        {unplayed ? null : <YouAndThisSong song={song} />}
+
+        <SoundStrip song={song} />
 
         {similarSongs.length > 0 ? (
-          <SimilarShelf
-            songs={similarSongs}
-            heading="Sounds like"
-            aside={soundWords(song.audioFeatures) ?? ''}
-          />
+          <SimilarShelf songs={similarSongs} heading="Sounds like" />
         ) : null}
 
-        <SongAbout song={song} plays={false} style={styles.facts} />
+        <SongAbout song={song} plays={false} sound={false} style={styles.facts} />
       </ScrollView>
 
       <SongMenu
@@ -359,7 +367,7 @@ const styles = StyleSheet.create(theme => ({
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
-  cardLabel: labelText(theme.colors),
+  cardLabel: quietLabel(theme.colors),
   story: bodyText(theme.colors),
   count: serif(theme.colors, 'large'),
   bright: { color: theme.colors.textPrimary },
@@ -371,5 +379,8 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: withAlpha(theme.colors.textPrimary, 0.12),
   },
   barPeak: { backgroundColor: theme.colors.accent },
-  facts: { maxWidth: 600, paddingTop: space.sm },
+  // Beside the buttons on a computer, at the row's far end; under them on a phone.
+  unplayed: { color: theme.colors.textMuted, fontSize: type.sub, flexBasis: '100%' },
+  unplayedWide: { flexBasis: 'auto', marginLeft: 'auto' },
+  facts: { paddingTop: space.sm },
 }))

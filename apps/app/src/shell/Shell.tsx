@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { ReactNode } from 'react'
-import { router, usePathname } from 'expo-router'
+import { type Href, router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet } from 'react-native-unistyles'
@@ -29,6 +29,7 @@ import { Sidebar } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
 import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
+import { closeLayers } from './layers'
 import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
@@ -386,6 +387,7 @@ function DeepLinkRoutes(): ReactNode {
   useEffect(
     () =>
       onDeepLinkRoute(route => {
+        closeLayers()
         if (route.kind === 'now-playing') router.navigate('/now-playing')
         else router.navigate(`/playlists/${route.id}`)
       }),
@@ -404,11 +406,17 @@ function DeepLinkRoutes(): ReactNode {
  */
 function MenuCommands(): ReactNode {
   const player = usePlayerCommands()
+  // A page chosen from the menu bar closes whatever was open over this one:
+  // left open, a song's menu went on working over Settings.
+  const open = (path: Href): void => {
+    closeLayers()
+    router.navigate(path)
+  }
   useCommands({
-    library: () => router.navigate('/library'),
-    playlists: () => router.navigate('/playlists'),
-    'now-playing': () => router.navigate('/now-playing'),
-    settings: () => router.navigate('/settings'),
+    library: () => open('/library'),
+    playlists: () => open('/playlists'),
+    'now-playing': () => open('/now-playing'),
+    settings: () => open('/settings'),
     'play-pause': () => player.toggle(),
     next: () => player.next(),
     previous: () => player.previous(),
@@ -522,8 +530,11 @@ const styles = StyleSheet.create(theme => ({
     width: SIDEBAR_WIDTH,
     flexDirection: 'row',
     zIndex: 1,
+    // The app's chrome, not words to copy: a press-drag across it selected
+    // its labels in blue. The bar's and Up next's do the same.
+    userSelect: 'none',
   },
   sidebarGone: { display: 'none' },
-  barSlot: { overflow: 'hidden' },
+  barSlot: { overflow: 'hidden', userSelect: 'none' },
   barInSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

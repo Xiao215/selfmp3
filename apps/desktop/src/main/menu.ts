@@ -22,8 +22,14 @@ import { check } from './updates.js'
  * acts on any key a text field leaves unhandled — so such an item also ignores
  * being chosen by its key, and only the pointer sends its command
  * (`menuClickSends`).
+ *
+ * File and View › Reload are the shell's own. On a Mac the red button hides the
+ * window rather than closing it, so File › New Window (⌘N) is how it comes back
+ * without reaching for the Dock, and Close Window (⌘W) is the red button's key.
+ * Reload is for a page that has got itself stuck; it is the window's, not the
+ * page's, so it works however stuck the page is.
  */
-export function buildMenu(window_: () => BrowserWindow | null): void {
+export function buildMenu(window_: () => BrowserWindow | null, showWindow: () => void): void {
   const mac = process.platform === 'darwin'
 
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -59,6 +65,16 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
         ]
       : []),
     {
+      label: 'File',
+      submenu: mac
+        ? [
+            { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => showWindow() },
+            { type: 'separator' as const },
+            { role: 'close' as const },
+          ]
+        : [{ role: 'close' as const }, { type: 'separator' as const }, { role: 'quit' as const }],
+    },
+    {
       label: 'Edit',
       submenu: [
         { role: 'undo' },
@@ -84,7 +100,12 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
           },
         })),
         ...(section.title === 'View'
-          ? [{ type: 'separator' as const }, { role: 'togglefullscreen' as const }]
+          ? [
+              { type: 'separator' as const },
+              { role: 'reload' as const },
+              { type: 'separator' as const },
+              { role: 'togglefullscreen' as const },
+            ]
           : []),
       ],
     })),

@@ -1,4 +1,5 @@
 import { parseServerEventData, type ServerEventStream } from '@selfmp3/client'
+import type { ServerEvent } from '@selfmp3/shared'
 
 /**
  * The phone's half: the same HTTP stream, framed by hand.
@@ -27,8 +28,8 @@ const MAX_RETRY_MS = 30_000
  *
  * XHR keeps the whole response since the stream opened — `responseText` in
  * JS and the bytes behind it natively — and nothing frees either until the
- * connection ends. The server sends every device's state on every heartbeat,
- * every ten seconds from each device, and the stream stays up all the while
+ * connection ends. The server sends every device's state whenever one of them
+ * changes, and at least once a minute for each, and the stream stays up all the while
  * music plays in a pocket, so a long evening's listening grew it by megabytes
  * an hour and made each event's scan longer than the last: the lag that came
  * with a long session, and memory iOS kills a background app for. A new
@@ -36,6 +37,16 @@ const MAX_RETRY_MS = 30_000
  * current state to it as its first frames, so nothing is missed.
  */
 export const RECYCLE_AFTER_CHARS = 128 * 1024
+
+/**
+ * How long a connection is kept before it may be recycled, however much it
+ * carried. The replay a new connection starts with is the whole device list,
+ * and once that alone passed the limit every connection was recycled the
+ * moment it opened: about a hundred a second, each downloading the list again.
+ * The replay is not counted against the limit either (`replayed` below); this
+ * is the floor under both, so no list, however big, can make it spin.
+ */
+export const MIN_CONNECTION_MS = 10_000
 
 export const serverEvents: ServerEventStream = {
   open({ url, onEvent, onOpen, onClose }) {
@@ -53,6 +64,11 @@ export const serverEvents: ServerEventStream = {
       // hands over the whole response so far each time, not the new part.
       let consumed = 0
       let opened = false
+      // Where the replay ended: the server opens every connection with the
+      // device list and then the library version, and those are what any new
+      // connection would carry again, so only what came after them counts.
+      let replayed: number | null = null
+      const startedAt = Date.now()
 
       /*
        * Once per connection, and only for the one this stream is reading. A
@@ -91,8 +107,9 @@ export const serverEvents: ServerEventStream = {
         // partial frame still arriving, and waits for the next tick.
         let boundary = text.indexOf('\n\n', consumed)
         while (boundary !== -1) {
-          emit(text.slice(consumed, boundary))
+          const type = emit(text.slice(consumed, boundary))
           consumed = boundary + 2
+          if (replayed === null && type === 'library') replayed = consumed
           boundary = text.indexOf('\n\n', consumed)
         }
 
@@ -103,7 +120,10 @@ export const serverEvents: ServerEventStream = {
         // Long enough: open a fresh one now and let this one go, without a
         // close in between — the stream never went down, so nobody falls back
         // to polling for the moment it takes.
-        if (consumed >= RECYCLE_AFTER_CHARS) {
+        if (
+          consumed - (replayed ?? consumed) >= RECYCLE_AFTER_CHARS &&
+          Date.now() - startedAt >= MIN_CONNECTION_MS
+        ) {
           xhr.onreadystatechange = null
           xhr.onerror = null
           xhr.ontimeout = null
@@ -119,7 +139,8 @@ export const serverEvents: ServerEventStream = {
       xhr.onerror = scheduleRetry
       xhr.ontimeout = scheduleRetry
 
-      const emit = (frame: string): void => {
+      /** Hand one frame over; what kind of event it was, or null for none. */
+      const emit = (frame: string): ServerEvent['type'] | null => {
         // `data:` is the only field the server sends that matters here;
         // comments (`:` keep-alives) and `retry:` are skipped by this test.
         const data = frame
@@ -127,9 +148,11 @@ export const serverEvents: ServerEventStream = {
           .filter(line => line.startsWith('data:'))
           .map(line => line.slice(5).trim())
           .join('\n')
-        if (!data) return
+        if (!data) return null
         const event = parseServerEventData(data)
-        if (event) onEvent(event)
+        if (!event) return null
+        onEvent(event)
+        return event.type
       }
 
       try {

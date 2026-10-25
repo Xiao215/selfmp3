@@ -18,6 +18,7 @@ import {
   type ServerEvent,
 } from '@selfmp3/shared'
 import {
+  ApiError,
   STALE,
   clientApi,
   handoffTarget,
@@ -35,9 +36,16 @@ import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerSongIds } from '../../connection/useServerSongIds'
 import { noServer } from '../../connection/via'
-import { deviceKind, getDeviceId, getDeviceName, setDeviceName } from '../../ports/device'
+import {
+  deviceKind,
+  getDeviceName,
+  presenceDeviceId,
+  presenceDeviceName,
+  setDeviceName,
+} from '../../ports/device'
 import { usePresenceServer } from './usePresenceServer'
 import { PresenceConnection } from './presenceConnection'
+import { useStreamWanted } from './useStreamWanted'
 
 /**
  * Presence and handoff.
@@ -113,6 +121,30 @@ interface DevicesContextValue {
 
 const DevicesContext = createContext<DevicesContextValue | null>(null)
 
+/**
+ * How often a library that failed is asked for again while its server answers
+ * heartbeats. A server that answers those but not the library — a 503 while it
+ * starts, a proxy's error page, half an answer — was otherwise asked once and
+ * never again, and the screen said "can't reach" for good while it was fine.
+ */
+const RETRY_FAILED_MS = 30_000
+
+/**
+ * Ask again for whatever is on screen and failed: the library, Stats, a
+ * playlist's songs. Nothing else refetched them — most queries here do not
+ * refetch on focus — so a page that failed while the server was away kept its
+ * error after it came back, though it promised to fill in.
+ */
+function refetchFailed(client: ReturnType<typeof useQueryClient>): void {
+  void client.refetchQueries({
+    type: 'active',
+    // A refusal is an answer (a song with no words, a page that is not there),
+    // and asking again would only hear it again.
+    predicate: ({ state }) =>
+      state.status === 'error' && !(state.error instanceof ApiError && !state.error.isUnanswered),
+  })
+}
+
 export function useDeviceContext(): DevicesContextValue {
   const context = useContext(DevicesContext)
   if (!context) throw new Error('useDeviceContext must be used inside <DevicesProvider>')
@@ -127,13 +159,15 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   const { fromCloud } = useConnection()
   const client = useQueryClient()
 
-  const [deviceId] = useState(getDeviceId)
+  // This tab's, in a browser with several open (`presenceDeviceId`).
+  const [deviceId] = useState(presenceDeviceId)
   const [kind] = useState(deviceKind)
   const [name, setName] = useState(getDeviceName)
   const [streamOpen, setStreamOpen] = useState(false)
 
   const presence = usePresenceServer({ playing: player.isPlaying, streaming: streamOpen })
   const server = presence.connection
+  const streamWanted = useStreamWanted(player.isPlaying)
 
   // Derived rather than stored: with no server there is nothing to be connected
   // to, and saying so in an effect would be a setState during one.
@@ -179,8 +213,42 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   }, [player])
 
   useEffect(() => {
-    identityRef.current = { deviceId, name, kind }
+    identityRef.current = { deviceId, name: presenceDeviceName(name), kind }
   }, [deviceId, name, kind])
+
+  const fromCloudRef = useRef(fromCloud)
+  useEffect(() => {
+    fromCloudRef.current = fromCloud
+  }, [fromCloud])
+
+  /*
+   * Whether the server is answering, as the heartbeats find it — for a device
+   * whose library is that server. An outage was otherwise noticed only by the
+   * library's next fetch, which comes on focus or on news from the stream, so
+   * the sidebar kept its green dot for a minute or more while nothing could be
+   * saved. A heartbeat that goes unanswered asks for the library again, whose
+   * failure is what the screens say; the first one answered after asks again
+   * for everything that failed meanwhile.
+   */
+  const answeringRef = useRef(true)
+  const retriedAtRef = useRef(0)
+  const heardBack = useCallback(
+    (answered: boolean): void => {
+      if (fromCloudRef.current) return
+      const was = answeringRef.current
+      answeringRef.current = answered
+      if (!answered) {
+        if (was) void client.invalidateQueries({ queryKey: queryKeys.library })
+        return
+      }
+      const now = Date.now()
+      if (!was || now - retriedAtRef.current >= RETRY_FAILED_MS) {
+        retriedAtRef.current = now
+        refetchFailed(client)
+      }
+    },
+    [client],
+  )
 
   useEffect(() => {
     apiRef.current = api
@@ -209,13 +277,17 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       if (!sending) return
       void sending
         .heartbeat({ ...identity, state: translateState(state, outboundRef.current) })
-        .then(list => client.setQueryData(devicesKey, list))
-        .catch(() => {
-          // The server is asleep, or this phone is on a train. The next beat will
-          // do; nothing here is worth surfacing.
+        .then(list => {
+          client.setQueryData(devicesKey, list)
+          heardBack(true)
+        })
+        .catch((error: unknown) => {
+          // The server is asleep, or this phone is on a train. The next beat
+          // will do; what the screens say is the library's (`heardBack`).
+          if (error instanceof ApiError && error.isUnanswered) heardBack(false)
         })
     },
-    [client, devicesKey],
+    [client, devicesKey, heardBack],
   )
 
   /*
@@ -261,6 +333,14 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
     })
   }, [server, subscribeProgress, beat])
 
+  // A new name goes out at once, not at the next scheduled beat.
+  const namedRef = useRef(name)
+  useEffect(() => {
+    if (namedRef.current === name) return
+    namedRef.current = name
+    if (server) beat(snapshot(playerRef.current, playerRef.current.getPosition()))
+  }, [name, server, beat])
+
   useEffect(() => {
     if (!server) return undefined
     const timer = setInterval(
@@ -293,7 +373,9 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
 
   // The library version the stream last said. Every new connection says it
   // first thing, and a phone in a pocket reconnects often: the same number
-  // again is nothing new, and refetching the whole library for it was.
+  // again is nothing new, and refetching the whole library for it was. The
+  // server starts each boot's numbers from its clock, so a restart never says
+  // a number this device saw before for a different library.
   const libraryVersion = useRef<number | null>(null)
   const onEvent = useCallback(
     (event: ServerEvent): void => {
@@ -306,6 +388,13 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
           return
         case 'library':
           if (libraryVersion.current === event.version) return
+          // A playlist page open here holds its members apart from the library,
+          // and kept another device's adds and reorders off it until it was
+          // opened again. Not for the first number heard, as the app opens:
+          // every list on screen is being asked for then anyway.
+          if (libraryVersion.current !== null) {
+            void client.invalidateQueries({ queryKey: queryKeys.playlists })
+          }
           libraryVersion.current = event.version
           void client.invalidateQueries({ queryKey: queryKeys.library })
           // What automatic downloads keep follows the library.
@@ -317,14 +406,17 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   )
 
   useEffect(() => {
-    if (!server) return undefined
+    if (!server || !streamWanted) return undefined
     return serverEvents.open({
       url: mediaUrlFor(server).events(deviceId),
       onEvent,
-      onOpen: () => setStreamOpen(true),
+      onOpen: () => {
+        setStreamOpen(true)
+        heardBack(true)
+      },
       onClose: () => setStreamOpen(false),
     })
-  }, [server, deviceId, onEvent])
+  }, [server, streamWanted, deviceId, onEvent, heardBack])
 
   /*
    * One query, two ways of staying fresh: the stream writes into its cache

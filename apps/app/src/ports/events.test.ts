@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServerEventSchema, type ServerEvent } from '@selfmp3/shared'
 
-import { RECYCLE_AFTER_CHARS, serverEvents } from './events'
+import { MIN_CONNECTION_MS, RECYCLE_AFTER_CHARS, serverEvents } from './events'
 
 /**
  * The phone's server-sent-events reader, without a phone.
@@ -194,6 +194,9 @@ describe('the phone reading the server’s event stream', () => {
     const event = validEvent()
     current().respond()
     const first = current()
+    first.push(frame({ type: 'library', version: 7 }))
+    events.length = 0
+    vi.advanceTimersByTime(MIN_CONNECTION_MS)
     const ping = ': ping\n\n'
     first.push(ping.repeat(Math.ceil(RECYCLE_AFTER_CHARS / ping.length)))
     expect(first.aborted).toBe(true)
@@ -208,6 +211,36 @@ describe('the phone reading the server’s event stream', () => {
     current().respond()
     current().push(frame(event))
     expect(events).toEqual([event])
+  })
+
+  it('does not count the replay a connection opens with, however big the device list', () => {
+    current().respond()
+    const first = current()
+    // The device list alone past the limit, then the version: the replay.
+    const devices = {
+      type: 'devices',
+      devices: [],
+      now: 1,
+      padding: 'x'.repeat(RECYCLE_AFTER_CHARS),
+    }
+    first.push(frame(devices) + frame({ type: 'library', version: 7 }))
+    vi.advanceTimersByTime(MIN_CONNECTION_MS)
+    first.push(': ping\n\n')
+    expect(first.aborted).toBe(false)
+    expect(FakeXhr.instances).toHaveLength(1)
+  })
+
+  it('keeps a young connection however much it carried, so it can never spin', () => {
+    current().respond()
+    const first = current()
+    first.push(frame({ type: 'library', version: 7 }))
+    const ping = ': ping\n\n'
+    first.push(ping.repeat(Math.ceil((2 * RECYCLE_AFTER_CHARS) / ping.length)))
+    expect(first.aborted).toBe(false)
+    vi.advanceTimersByTime(MIN_CONNECTION_MS)
+    first.push(ping)
+    expect(first.aborted).toBe(true)
+    expect(FakeXhr.instances).toHaveLength(2)
   })
 
   it('stops for good when closed: aborts the request and never reconnects', () => {

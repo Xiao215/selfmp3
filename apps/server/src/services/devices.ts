@@ -1,4 +1,11 @@
-import { DAY_MS, type DeviceCommand, type DeviceHeartbeat, type DeviceList } from '@selfmp3/shared'
+import {
+  DAY_MS,
+  playbackStateChanged,
+  sharedQueue,
+  type DeviceCommand,
+  type DeviceHeartbeat,
+  type DeviceList,
+} from '@selfmp3/shared'
 import type { DeviceRepository } from '../repositories/devices.js'
 import type { Logger } from '../logger.js'
 import type { EventHub, EventSink } from './events.js'
@@ -27,6 +34,19 @@ const VERSION_MS = 1_500
 const FORGET_AFTER_MS = 7 * DAY_MS
 /** How often to look for devices to forget, besides at boot. */
 const FORGET_EVERY_MS = 60 * 60 * 1000
+/**
+ * The most devices kept: the least recently seen go past this. Nothing else
+ * bounded the list, and every listing goes to every stream — a flood of
+ * made-up ids made each heartbeat's answer megabytes. A household has a few.
+ */
+export const MAX_DEVICES = 50
+/**
+ * A heartbeat that changes nothing anyone would act on — the same song, still
+ * playing, at the position the clock says — goes to the other streams at most
+ * this often. Each device beats every ten seconds; telling every stream every
+ * time was most of what the streams carried.
+ */
+export const QUIET_BROADCAST_MS = 60_000
 
 export class DeviceService {
   readonly #devices: DeviceRepository
@@ -39,6 +59,8 @@ export class DeviceService {
   #versionWatch: ReturnType<typeof setInterval> | null = null
   #forgetting: ReturnType<typeof setInterval> | null = null
   #lastOnline = ''
+  /** When each device's state last went out to the streams. */
+  readonly #lastTold = new Map<string, number>()
   #lastVersion = -1
   #started = false
 
@@ -90,10 +112,30 @@ export class DeviceService {
   }
 
   heartbeat(heartbeat: DeviceHeartbeat): DeviceList {
-    this.#devices.upsert(heartbeat, this.#now())
+    const now = this.#now()
+    const before = this.#devices.byId(heartbeat.deviceId, now)
+    const state = sharedQueue(heartbeat.state)
+    this.#devices.upsert({ ...heartbeat, state }, now)
+    if (!before && this.#devices.keepNewest(MAX_DEVICES) > 0) {
+      this.#logger.info('forgot the least recently seen devices', { kept: MAX_DEVICES })
+    }
     const list = this.list()
-    this.#hub.broadcast({ type: 'devices', ...list })
-    this.#lastOnline = onlineKey(list)
+    const news =
+      !before ||
+      !before.online ||
+      before.name !== heartbeat.name ||
+      before.kind !== heartbeat.kind ||
+      playbackStateChanged(before.state, state) ||
+      now - (this.#lastTold.get(heartbeat.deviceId) ?? 0) >= QUIET_BROADCAST_MS
+    if (this.#lastTold.size > MAX_DEVICES) {
+      const kept = new Set(list.devices.map(device => device.id))
+      for (const id of this.#lastTold.keys()) if (!kept.has(id)) this.#lastTold.delete(id)
+    }
+    if (news) {
+      this.#lastTold.set(heartbeat.deviceId, now)
+      this.#hub.broadcast({ type: 'devices', ...list })
+      this.#lastOnline = onlineKey(list)
+    }
     return list
   }
 
@@ -109,6 +151,7 @@ export class DeviceService {
   }
 
   forget(deviceId: string): boolean {
+    this.#lastTold.delete(deviceId)
     const removed = this.#devices.remove(deviceId)
     if (removed) this.#hub.broadcast({ type: 'devices', ...this.list() })
     return removed

@@ -369,7 +369,14 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     }),
   })
 
-  let version = 1
+  // Where the version starts: the clock, not 1. It lives in memory, and
+  // starting each boot at 1 meant a tab that saw version 3 before a restart,
+  // and 3 again after it from two different edits, took the second for
+  // nothing new and showed the old library until a reload — and a restored
+  // backup could even read as the library it replaced. Milliseconds since the
+  // epoch are past any count the last boot reached, unless it bumped more than
+  // once a millisecond for its whole life.
+  let version = Date.now()
   let stopped = false
   let closed = false
   const bump = (): void => {

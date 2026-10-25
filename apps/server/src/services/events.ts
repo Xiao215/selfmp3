@@ -25,7 +25,22 @@ export interface EventSink {
    * string buffer, which has nothing to end.
    */
   end?(): void
+  /**
+   * What is written but not yet sent, where the sink can say — a response's
+   * `writableLength`. A reader that stopped reading (a tab frozen in the
+   * background, a phone gone to sleep with its socket held open) keeps every
+   * frame queued in this process, and with many of them the server's memory
+   * climbed by hundreds of megabytes.
+   */
+  readonly writableLength?: number
 }
+
+/**
+ * How much may wait to go to one stream before it is dropped. The client
+ * reconnects on its own and the replay brings it up to date, so dropping costs
+ * a reader that was not reading nothing.
+ */
+export const MAX_QUEUED_BYTES = 1024 * 1024
 
 interface Subscriber {
   readonly sink: EventSink
@@ -139,6 +154,16 @@ export class EventHub {
   }
 
   #safeWrite(subscriber: Subscriber, chunk: string): boolean {
+    if ((subscriber.sink.writableLength ?? 0) > MAX_QUEUED_BYTES) {
+      this.#subscribers.delete(subscriber)
+      this.#logger.debug('event stream not reading; dropped', { deviceId: subscriber.deviceId })
+      try {
+        subscriber.sink.end?.()
+      } catch {
+        // Already gone.
+      }
+      return false
+    }
     try {
       subscriber.sink.write(chunk)
       return true

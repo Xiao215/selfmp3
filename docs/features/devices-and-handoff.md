@@ -51,7 +51,10 @@ commands a handoff needs.
 
 Every app or tab has a `deviceId` — generated once and kept on the device (`ports/device.ts`;
 `localStorage` in a browser) — and a name guessed from the user agent (`iPhone · Safari`,
-`Mac · Chrome`), editable in Settings.
+`Mac · Chrome`), editable in Settings. Every tab of one browser reads the same stored id, so
+each open tab holds a numbered slot on a lease (`ports/tabSlots.model.ts`): the first tab is
+the browser's own id, a second goes by the id with `-2` after it and `· tab 2` after its name.
+Two tabs sharing one id flipped its state with each beat and both played a `playSong`.
 
 It posts to `POST /api/devices/heartbeat` every 10 seconds (`DEVICE_HEARTBEAT_MS`), and
 immediately whenever the playback state materially changes — a play, a pause, a track change,
@@ -62,7 +65,10 @@ a beat.
 The payload is the whole playback state: song, position, playing, queue, queue index,
 shuffle, repeat, and the client's clock (`updatedAt`, which only that same device's later
 states are compared with). The state is captured as the beat is sent, and the server stamps
-the row's `lastSeenAt` with *its* clock when the beat arrives.
+the row's `lastSeenAt` with *its* clock when the beat arrives. The server keeps only the part
+of the queue around the song playing — a hundred before it, four hundred after
+(`sharedQueue`) — since every state goes to every stream, and a whole library shuffled was
+megabytes a minute. It keeps the fifty devices seen most recently (`MAX_DEVICES`).
 
 Heartbeats land in a `devices` table in the account's workspace on the server, so a state
 survives a server restart and a phone that has been asleep since last night can still be
@@ -83,14 +89,23 @@ Three event types travel over it, all as JSON in the `data:` line:
 
 | type | meaning |
 |---|---|
-| `devices` | the full device list, whenever presence or any state changes |
+| `devices` | the full device list, whenever presence or a state materially changes, and at least once a minute for a device still beating (`QUIET_BROADCAST_MS`) |
 | `command` | a handoff command addressed to one device |
 | `library` | the server's library version changed |
 
 SSE rather than WebSockets: it is one-directional (clients already talk back over plain
 HTTP), it reconnects by itself, it survives Tailscale Funnel and any proxy without special
 handling, and it needs no dependency. The compression middleware skips `/api/events`, since a
-buffered stream is not a stream.
+buffered stream is not a stream. A stream that stops reading — more than a megabyte waiting to
+go to it — is dropped (`MAX_QUEUED_BYTES`); its client reconnects and the replay catches it up.
+
+The library version starts each boot from the server's clock, so a device reconnecting after
+a restart is never told a number it saw before for a different library. A browser replaces a
+stream it gave up on (a 502 while the server restarted closes an `EventSource` for good), and a
+tab hidden for thirty seconds that is not playing closes its stream until it is looked at: a
+browser allows six connections to one address over plain HTTP, and six tabs' streams took them
+all. The phone's reader opens a fresh connection once one has carried 128 KB past the replay,
+and never sooner than ten seconds after it opened.
 
 Polling `GET /api/devices` (every 15 seconds) is the fallback, and switches itself off while
 the stream is up.

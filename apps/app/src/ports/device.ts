@@ -22,6 +22,16 @@ export function getDeviceId(): string {
   return storedDeviceId(length => Crypto.getRandomBytes(length))
 }
 
+/** The id this device goes by in presence and handoff: an app has no tabs, so its own. */
+export function presenceDeviceId(): string {
+  return getDeviceId()
+}
+
+/** Its name in other devices' lists, as given. */
+export function presenceDeviceName(name: string): string {
+  return name
+}
+
 export function getDeviceName(): string {
   return storedDeviceName() ?? defaultName()
 }

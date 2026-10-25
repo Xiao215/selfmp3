@@ -29,6 +29,7 @@ export class DeviceRepository {
   readonly #upsert
   readonly #delete
   readonly #prune
+  readonly #keepNewest
 
   constructor(db: Db) {
     this.#all = db.prepare<[], DeviceRow>('SELECT * FROM devices ORDER BY last_seen_at DESC')
@@ -44,6 +45,11 @@ export class DeviceRepository {
     `)
     this.#delete = db.prepare('DELETE FROM devices WHERE id = ?')
     this.#prune = db.prepare('DELETE FROM devices WHERE last_seen_at < ?')
+    this.#keepNewest = db.prepare(`
+      DELETE FROM devices WHERE id NOT IN (
+        SELECT id FROM devices ORDER BY last_seen_at DESC LIMIT ?
+      )
+    `)
   }
 
   upsert(heartbeat: DeviceHeartbeat, now: number): void {
@@ -63,6 +69,11 @@ export class DeviceRepository {
   /** Forget devices not seen since `before` (ms epoch). */
   prune(before: number): number {
     return this.#prune.run(before).changes
+  }
+
+  /** Forget all but the `count` most recently seen. How many were forgotten. */
+  keepNewest(count: number): number {
+    return this.#keepNewest.run(count).changes
   }
 
   byId(id: string, now: number): Device | null {

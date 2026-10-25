@@ -4,6 +4,9 @@ import {
   isDeviceOnline,
   pickResumeState,
   playbackStateChanged,
+  sharedQueue,
+  SHARED_QUEUE_AHEAD,
+  SHARED_QUEUE_BEHIND,
 } from './devices.js'
 import {
   DeviceCommandSchema,
@@ -147,6 +150,38 @@ describe('playbackStateChanged', () => {
     expect(playbackStateChanged(state(), state({ playing: true }))).toBe(true)
     expect(playbackStateChanged(state(), state({ songId: 2 }))).toBe(true)
     expect(playbackStateChanged(null, state())).toBe(true)
+  })
+})
+
+describe('sharedQueue', () => {
+  const ids = (count: number): number[] => Array.from({ length: count }, (_, i) => i + 1)
+
+  it('leaves a queue that fits as it is', () => {
+    const short = state({ queueIds: ids(50), queueIndex: 10 })
+    expect(sharedQueue(short)).toBe(short)
+  })
+
+  it('cuts a long queue around the song playing, keeping the index on it', () => {
+    const long = state({ queueIds: ids(10_000), queueIndex: 5_000, songId: 5_001 })
+    const shared = sharedQueue(long)
+    expect(shared.queueIds).toHaveLength(SHARED_QUEUE_BEHIND + 1 + SHARED_QUEUE_AHEAD)
+    expect(shared.queueIds[shared.queueIndex]).toBe(5_001)
+    expect(shared.queueIndex).toBe(SHARED_QUEUE_BEHIND)
+  })
+
+  it('keeps the full length near either end', () => {
+    const atStart = sharedQueue(state({ queueIds: ids(10_000), queueIndex: 3 }))
+    expect(atStart.queueIds[0]).toBe(1)
+    expect(atStart.queueIds[atStart.queueIndex]).toBe(4)
+    const atEnd = sharedQueue(state({ queueIds: ids(10_000), queueIndex: 9_998 }))
+    expect(atEnd.queueIds.at(-1)).toBe(10_000)
+    expect(atEnd.queueIds[atEnd.queueIndex]).toBe(9_999)
+    expect(atEnd.queueIds).toHaveLength(SHARED_QUEUE_BEHIND + 1 + SHARED_QUEUE_AHEAD)
+  })
+
+  it('keeps nothing playing as nothing playing', () => {
+    const idle = sharedQueue(state({ queueIds: ids(10_000), queueIndex: -1 }))
+    expect(idle.queueIndex).toBe(-1)
   })
 })
 

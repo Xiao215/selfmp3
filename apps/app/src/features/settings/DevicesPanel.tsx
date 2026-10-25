@@ -138,6 +138,10 @@ function DevicesList({
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
   const [showOlder, setShowOlder] = useState(false)
   const shown = draft && draft.from === name ? draft.text : name
+  const save = (): void => {
+    if (draft && draft.text.trim() && draft.text.trim() !== name) rename(draft.text.trim())
+    setDraft(null)
+  }
   const live = reach === 'reachable'
 
   // The last real answer, kept for the day there is none. Read once, as the
@@ -183,10 +187,10 @@ function DevicesList({
           limit={DeviceNameSchema}
           accessibilityLabel="This device’s name"
           onChangeText={text => setDraft({ text, from: name })}
-          onEndEditing={() => {
-            if (draft && draft.text.trim() && draft.text !== name) rename(draft.text.trim())
-            setDraft(null)
-          }}
+          // Blur and Return, not `onEndEditing`: a browser's text field never
+          // sends that, and a new name typed on a computer was never kept.
+          onBlur={save}
+          onSubmitEditing={save}
         />
       </Row>
       <View style={styles.devices}>
@@ -213,8 +217,11 @@ function DevicesList({
                   ? 'online'
                   : `last seen ${formatRelative(device.lastSeenAt)}`}
             </Text>
-            {/* Forgetting is the server's to do, so only while it answers. */}
-            {live ? (
+            {/*
+              Forgetting is the server's to do, so only while it answers — and
+              never this device, which its next heartbeat would bring back.
+            */}
+            {live && device.id !== deviceId ? (
               <IconButton
                 onPress={() => onForget(ids)}
                 label={

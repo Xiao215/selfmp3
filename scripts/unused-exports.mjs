@@ -89,6 +89,7 @@ const ALLOWED = new Map([
   ['SecretStore', 'the secrets port'],
   ['UpdatesPort', 'the updates port'],
   ['MacAppPort', 'the macApp port'],
+  ['IosUpdatePort', 'the iosUpdate port'],
   ['CommandHandlers', 'the useCommands hook, both twins'],
   ['EscapeOptions', 'the useEscape hook, both twins'],
   ['HotkeyOptions', 'the useHotkeys hook, both twins'],

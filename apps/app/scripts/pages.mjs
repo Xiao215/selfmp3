@@ -1,12 +1,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { renderBucketGuidePage, renderPrivacyPage } from '@selfmp3/shared'
+import { renderBucketGuidePage, renderInstallPage, renderPrivacyPage } from '@selfmp3/shared'
 
 /**
  * The plain pages published beside the app — public/privacy.html from the
  * policy in packages/shared/src/privacy.ts, public/bucket.html from the guide
- * in packages/shared/src/bucketGuide.ts: written before every web export and
+ * in packages/shared/src/bucketGuide.ts, public/install.html from the iPhone
+ * app's steps in packages/shared/src/iosApp.ts: written before every web export and
  * every web dev start, and ignored by git, so the pages and the words never
  * drift apart. Needs the packages built first (`npm run build:packages`), as
  * everything importing them does.
@@ -16,6 +17,7 @@ mkdirSync(pub, { recursive: true })
 for (const [name, page] of [
   ['privacy.html', renderPrivacyPage()],
   ['bucket.html', renderBucketGuidePage()],
+  ['install.html', renderInstallPage()],
 ]) {
   const out = resolve(pub, name)
   writeFileSync(out, page)

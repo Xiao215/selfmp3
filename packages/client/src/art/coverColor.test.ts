@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pickCoverTone, rgbToOklch } from '@selfmp3/shared'
-import { neutralWash, songColors, tileTone, withAlpha } from './coverColor.js'
+import { deepWash, neutralWash, songColors, tileTone, withAlpha } from './coverColor.js'
 
 /** RGBA pixels of one colour. */
 const solid = (r: number, g: number, b: number): number[] =>
@@ -9,6 +9,11 @@ const solid = (r: number, g: number, b: number): number[] =>
 const lightnessOf = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
   return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).l
+}
+
+const chromaOf = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
+  return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).c
 }
 
 describe('songColors', () => {
@@ -24,15 +29,21 @@ describe('songColors', () => {
   })
 })
 
+describe('deepWash', () => {
+  it('keeps a pale cover its colour, deep on the dark theme and pale on the light', () => {
+    const pink = pickCoverTone(solid(245, 200, 210))!
+    const dark = deepWash(pink, 'dark')
+    expect(lightnessOf(dark)).toBeLessThan(0.35)
+    expect(chromaOf(dark)).toBeGreaterThan(0.04)
+    expect(lightnessOf(deepWash(pink, 'light'))).toBeGreaterThan(0.85)
+  })
+})
+
 describe('neutralWash', () => {
   it('is a grey as light as the cover, lifted on the dark theme and lowered on the light', () => {
     const pale = pickCoverTone(solid(235, 235, 235))!
     const dark = pickCoverTone(solid(40, 40, 40))!
     expect(pale.chroma).toBe(0)
-    const chromaOf = (hex: string): number => {
-      const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
-      return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).c
-    }
     expect(chromaOf(neutralWash(pale, 'dark'))).toBeLessThan(0.01)
     expect(lightnessOf(neutralWash(pale, 'dark'))).toBeGreaterThan(
       lightnessOf(neutralWash(dark, 'dark')),

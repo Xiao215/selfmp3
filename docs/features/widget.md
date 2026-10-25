@@ -2,9 +2,11 @@
 
 Two iOS widgets (docs/ui-mock `P28`), both medium:
 
-- **Your tags** — Home's first four tags as tiles in their own colours, each with a small
-  cover when one is small enough to hand over. Tapping a tile opens the app on that tag and
-  plays it (`selfmp3://tag/<name>?play=1`). On the Clear and Tinted home screens, which
+- **Your tags** — Home's first four tags filling the widget, two by two, with no header (iOS
+  names the widget under it). Each is drawn as Home's tile is: its colour and ink, its name,
+  "7 songs", and its cover peeking from the lower right, turned a little, when one is small
+  enough to hand over. Tapping a tile opens the app on that tag and plays it
+  (`selfmp3://tag/<name>?play=1`). On the Clear and Tinted home screens, which
   draw a widget in one tint, a tile is a faint pane with a record mark instead of its
   colour and cover.
 - **Now playing** — the song, and "Paused · 1:52 left" or a countdown the system keeps by

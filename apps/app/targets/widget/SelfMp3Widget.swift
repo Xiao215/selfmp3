@@ -119,20 +119,16 @@ struct TagsView: View {
   @Environment(\.widgetRenderingMode) private var renderingMode
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack {
-        Image(systemName: "music.note").foregroundStyle(Color("$accent")).widgetAccentable()
-        Text("self.mp3").font(.system(size: 13, weight: .semibold)).foregroundStyle(inkPrimary)
-        Spacer()
-        Text("Tap a tag to play it").font(.system(size: 11)).foregroundStyle(inkSecond)
-      }
+    // No header: iOS names the widget under it, and the tiles say what they
+    // are. Four tiles fill it, two by two, as Home's do (AN1).
+    Group {
       if let tiles = entry.snapshot?.tiles, !tiles.isEmpty {
         // Always two by two, as P28 draws it: fewer tags leave a slot empty
         // rather than stretching one tile across the widget.
         let slots = Array(tiles.prefix(4)).map { Optional($0) } + Array(repeating: nil, count: max(0, 4 - tiles.count))
-        VStack(spacing: 8) {
+        VStack(spacing: tileGap) {
           ForEach(0..<2, id: \.self) { row in
-            HStack(spacing: 8) {
+            HStack(spacing: tileGap) {
               ForEach(0..<2, id: \.self) { column in
                 slot(slots[row * 2 + column])
               }
@@ -140,16 +136,20 @@ struct TagsView: View {
           }
         }
       } else {
-        Spacer()
         Text("Tag a few songs in self.mp3 and they turn up here.")
           .font(.system(size: 13))
           .foregroundStyle(inkSecond)
-        Spacer()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
+    .padding(tileGap + 4)
     .containerBackground(for: .widget) { Color("$widgetBackground") }
   }
 }
+
+/// Between the tiles, and (a little more) round them: the widget's own margins
+/// are off, so the tiles reach as near its edge as Home's reach the page's.
+private let tileGap: CGFloat = 8
 
 extension TagsView {
   @ViewBuilder
@@ -163,36 +163,49 @@ extension TagsView {
   }
 }
 
+/// Home's tag tile, smaller: the tag's tile colour and ink, its name at the
+/// top, how many songs at the foot, and its cover peeking from the lower
+/// right, turned a little, inside the tile's edge (HomeScreen's `tileCover`).
 struct TileView: View {
   let tile: Tile
   let accented: Bool
 
   var body: some View {
-    // The name sits low, under the cover in the top corner. A cover this
-    // small is a grey smudge without its colour, so in the accented mode the
-    // corner holds the Tags page's record instead, in the tint.
-    ZStack(alignment: .bottomLeading) {
+    let ink = accented ? Color.white : Color(hex: tile.ink)
+    ZStack(alignment: .bottomTrailing) {
       RoundedRectangle(cornerRadius: 14, style: .continuous)
         .fill(accented ? accentedPane : Color(hex: tile.fill))
+      // A cover this small is a grey smudge without its colour, so in the
+      // accented mode its corner holds the Tags page's record, in the tint.
       if accented {
         RecordMark()
-          .frame(width: 50, height: 50)
-          .offset(x: 14, y: -14)
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+          .frame(width: 44, height: 44)
+          .offset(x: 10, y: 12)
       } else if let image = coverImage(tile.cover) {
         coverPicture(image)
           .scaledToFill()
-          .frame(width: 30, height: 30)
-          .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+          .frame(width: 40, height: 40)
+          .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+          .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
           .rotationEffect(.degrees(8))
-          .offset(x: 6, y: -6)
-          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+          .offset(x: 6, y: 8)
       }
-      Text(tile.name)
-        .font(.system(size: 15, weight: .semibold, design: .rounded))
-        .foregroundStyle(accented ? Color.white : Color(hex: tile.ink))
-        .lineLimit(1)
-        .padding(10)
+      VStack(alignment: .leading, spacing: 0) {
+        Text(tile.name)
+          .font(.system(size: 16, weight: .semibold, design: .rounded))
+          .lineLimit(1)
+          .minimumScaleFactor(0.8)
+          .padding(.trailing, 4)
+        Spacer(minLength: 0)
+        Text(tile.songs == 1 ? "1 song" : "\(tile.songs) songs")
+          .font(.system(size: 11, weight: .medium))
+          .opacity(0.8)
+          .lineLimit(1)
+      }
+      .foregroundStyle(ink)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 8)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -244,6 +257,7 @@ struct TagsWidget: Widget {
     .configurationDisplayName("Your tags")
     .description("Four of your tags. Tap one to play it.")
     .supportedFamilies([.systemMedium])
+    .contentMarginsDisabled()
   }
 }
 

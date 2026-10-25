@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, type TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
-import { artistOr, formatDuration, plural } from '@selfmp3/shared'
+import { artistOr, clipText, formatDuration, plural } from '@selfmp3/shared'
 import {
   clientApi,
   radius,
@@ -497,7 +497,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         {trimmed && rows.length === 0 ? (
           <EmptyState
             compact
-            title={`Nothing matches “${trimmed}”`}
+            title={`Nothing matches “${clipText(trimmed)}”`}
             // Lyrics are searched on your library's computer, out of reach now.
             line={
               search.lyricsAway ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'

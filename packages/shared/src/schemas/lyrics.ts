@@ -47,6 +47,9 @@ export const LyricsSearchHitSchema = z.object({
 })
 export type LyricsSearchHit = z.infer<typeof LyricsSearchHitSchema>
 
+/** The longest words lyric search looks for; a longer search asks with its start. */
+export const LYRICS_QUERY_MAX = 200
+
 export const LyricsSearchResponseSchema = z.object({
   hits: z.array(LyricsSearchHitSchema),
 })

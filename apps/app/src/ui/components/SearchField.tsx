@@ -3,6 +3,7 @@ import type { ReactNode, Ref } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import type { StyleProp, TextInputProps, ViewStyle } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { ASK_TEXT_MAX } from '@selfmp3/shared'
 import { HIT_TARGET, hitSlopFor, iconSize, radius, space, type } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
@@ -86,6 +87,8 @@ export function SearchField({
       <TextInput
         {...NO_AUTOFILL}
         ref={inputRef}
+        // A search is words, not a page: as much as Search may ask.
+        maxLength={ASK_TEXT_MAX}
         {...input}
         value={value}
         onChangeText={onChangeText}

@@ -109,6 +109,7 @@ import {
   type RemovedFromPlaylist,
   API_ERROR,
   BULK_IDS_MAX,
+  LYRICS_QUERY_MAX,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -357,7 +358,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     lyricsSearch: (query: string, limit = 8) =>
       request(
         'GET',
-        `/api/lyrics/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+        `/api/lyrics/search?q=${encodeURIComponent(query.trim().slice(0, LYRICS_QUERY_MAX))}&limit=${limit}`,
         LyricsSearchResponseSchema,
       ),
 

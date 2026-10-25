@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { LyricsSearchHit, RoomState, Song, Tag, Artist } from '@selfmp3/shared'
+import {
+  clipText,
+  type LyricsSearchHit,
+  type RoomState,
+  type Song,
+  type Tag,
+  type Artist,
+} from '@selfmp3/shared'
 import {
   hitSlopFor,
   leading,
@@ -502,7 +509,7 @@ function NothingMatches({ words }: { words: string }): ReactNode {
     <EmptyState
       compact
       testID="search-nothing"
-      title={`Nothing matches “${words}”`}
+      title={`Nothing matches “${clipText(words)}”`}
       // Fewer letters than two is nothing left to search with.
       line={[...words].length > 2 ? 'Try fewer letters.' : 'Try other words.'}
     />

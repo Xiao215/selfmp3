@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BULK_IDS_MAX, LibrarySchema, type Library } from '@selfmp3/shared'
+import { BULK_IDS_MAX, LYRICS_QUERY_MAX, LibrarySchema, type Library } from '@selfmp3/shared'
 import { createApi } from './api.js'
 
 /**
@@ -120,5 +120,27 @@ describe('a bulk edit bigger than one request may be', () => {
 
     expect(await api.bulkDeleteSongs({ songIds: [1, 2] })).toEqual({ removed: 2, failed: [] })
     expect(sent).toHaveLength(1)
+  })
+})
+
+describe('lyric search', () => {
+  it('asks with the start of a search longer than the server reads', async () => {
+    const paths: string[] = []
+    const api = createApi({
+      context: () => ({
+        transport: null,
+        fromCloud: true,
+        cloudRequest: (_method, path) => {
+          paths.push(path)
+          return Promise.resolve({ hits: [] })
+        },
+      }),
+      fetch: () => Promise.reject(new Error('no server in a cloud library')),
+    })
+
+    await api.lyricsSearch('阿'.repeat(5000))
+
+    const q = new URL(paths[0] ?? '', 'http://x').searchParams.get('q') ?? ''
+    expect(q).toBe('阿'.repeat(LYRICS_QUERY_MAX))
   })
 })

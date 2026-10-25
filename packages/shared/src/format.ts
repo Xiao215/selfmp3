@@ -81,6 +81,15 @@ export function formatRelative(at: string | number | null, now = new Date()): st
 }
 
 /**
+ * What someone typed, cut to `max` characters with an ellipsis, for saying it
+ * back ("Nothing matches “…”"): a pasted page of text filled the screen.
+ */
+export function clipText(text: string, max = 40): string {
+  const chars = [...text]
+  return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : text
+}
+
+/**
  * Strip characters that are illegal or awkward in filenames on macOS, Linux
  * and Windows, collapse whitespace, and keep the result short enough that the
  * full path stays under typical limits even in a deeply nested library.

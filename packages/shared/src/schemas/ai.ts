@@ -72,8 +72,11 @@ export const UnderstandingSchema = z.object({
 })
 export type Understanding = z.infer<typeof UnderstandingSchema>
 
+/** The longest question Ask takes — and so what a search box takes, since Search asks too. */
+export const ASK_TEXT_MAX = 500
+
 export const DescribeRequestSchema = z.object({
-  text: z.string().trim().min(1).max(500),
+  text: z.string().trim().min(1).max(ASK_TEXT_MAX),
   /**
    * Given when the parts were changed on the device: the words are not read
    * again, the songs are only picked again from what the parts now let in.
@@ -97,7 +100,7 @@ export const AskTicketSchema = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
  */
 export const RefineRequestSchema = z.object({
   /** What was first asked. */
-  text: z.string().trim().min(1).max(500),
+  text: z.string().trim().min(1).max(ASK_TEXT_MAX),
   understanding: UnderstandingSchema,
   /** What to change, in their words. */
   change: z.string().trim().min(1).max(300),
@@ -166,8 +169,6 @@ export const TagReviewSchema = z.object({
 })
 export type TagReview = z.infer<typeof TagReviewSchema>
 
-/** The longest question Ask takes. */
-export const ASK_TEXT_MAX = 500
 /** The longest line a turn's answer is told back in. */
 export const ASK_ANSWERED_MAX = 2000
 /** The most earlier turns a follow-up is asked after: a longer conversation sends its newest. */

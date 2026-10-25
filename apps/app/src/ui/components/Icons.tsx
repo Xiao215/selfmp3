@@ -391,6 +391,11 @@ export const More = icon(color => (
   </>
 ))
 
+/** Two links of a chain: a link you shared. */
+export const Link = icon(() => (
+  <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+))
+
 /** An arrow out of a box: sending a link to someone. */
 export const ShareOut = icon(() => (
   <>

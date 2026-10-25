@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
-import { radius, shareLinkUrl, space, type } from '@selfmp3/client'
+import { iconSize, radius, shareLinkUrl, space, type } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
@@ -19,7 +19,8 @@ import { lineSub, pageFrame } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Trash } from '../../ui/components/Icons'
+import { Link, Trash } from '../../ui/components/Icons'
+import { EmptyState } from '../../ui/components/EmptyState'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Press } from '../../ui/components/Press'
@@ -263,11 +264,14 @@ export function LinksScreen(): ReactNode {
               ))}
             </View>
           ) : null}
-          {links && links.length === 0 ? (
-            <Text style={[styles.text, styles.empty, wide && styles.asksWide]}>
-              Links you share are kept here. Share link is in a song’s ⋯ menu, and on a tag’s or a
-              playlist’s page.
-            </Text>
+          {/* Nothing shared yet — or no storage to lend from, which shares nothing either. */}
+          {!isLoading && (links ?? []).length === 0 ? (
+            <EmptyState
+              icon={<Link size={iconSize.large} tone="textMuted" />}
+              title="No links yet"
+              line="Share a song or playlist from its ⋯ menu."
+              testID="links-empty"
+            />
           ) : null}
 
           <LinkSection
@@ -503,7 +507,6 @@ const styles = StyleSheet.create(theme => ({
   // Room under the last row for a phone's selection bar, which floats over the foot.
   pageUnderBar: { paddingBottom: SELECTION_BAR_SPACE },
   text: lineSub(theme.colors),
-  empty: { paddingHorizontal: space.gutter, paddingTop: space.sm },
   asks: { gap: space.md, paddingHorizontal: space.gutter, paddingBottom: space.sm },
   asksWide: { paddingHorizontal: ROW_EDGE_WIDE },
   sectionWide: {

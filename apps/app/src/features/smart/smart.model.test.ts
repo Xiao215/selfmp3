@@ -11,6 +11,7 @@ import type {
 } from '@selfmp3/shared'
 import {
   answerSongs,
+  askSuggestions,
   askable,
   asksOnEnter,
   describeNotes,
@@ -496,5 +497,24 @@ describe('playlist edits', () => {
   it('says an order the way a person would', () => {
     expect(sortWords('energy', 'asc')).toBe('calmest first')
     expect(sortWords('addedAt', 'desc')).toBe('newest first')
+  })
+})
+
+describe('askSuggestions', () => {
+  it('asks for the tag played most, last month, and the untagged songs', () => {
+    expect(
+      askSuggestions([{ name: 'night' }, { name: 'focus' }], 'Yorushika', 'Yorushika'),
+    ).toEqual([
+      'Something for night',
+      'What did I play most last month?',
+      'Tag my untagged Yorushika songs',
+    ])
+  })
+
+  it('asks for more of an artist once every song has a tag, and leaves out what it cannot make', () => {
+    expect(askSuggestions([], null, 'YOASOBI')).toEqual([
+      'What did I play most last month?',
+      'More like YOASOBI',
+    ])
   })
 })

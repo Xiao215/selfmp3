@@ -19,6 +19,8 @@ import { label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
 import { showFailure, showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
+import { EmptyState } from '../../ui/components/EmptyState'
+import { openRoomSheet } from './roomSheets.store'
 import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -161,22 +163,34 @@ export function JoinScreen(): ReactNode {
  * browser sees, and where anyone lands after joining.
  */
 export function RoomScreen(): ReactNode {
-  const router = useRouter()
   const { state, link } = useRoom()
   const { status } = useConnection()
   const { wide } = useLayout()
   // The room owns the display, so this is the home indicator's room on a phone.
   const foot = useFootInset()
   if (!state) {
+    // Not in one: what a room is for, and the way into a friend's (L1).
     return (
-      <MissingPage
-        title="You are not in a room"
-        line="A room is Up next, shared: open one with Listen together beside the song playing, or join with a friend’s code."
-        back={status === 'ready' ? '/' : undefined}
-        action={
-          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
-        }
-      />
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <View style={[styles.page, pageFrame(wide)]}>
+          {status === 'ready' ? <BackButton to="/" /> : null}
+          <EmptyState
+            icon={<People size={iconSize.large} tone="textMuted" />}
+            title="Listen together"
+            line="Start a room from the player, or join a friend’s."
+            testID="room-none"
+          >
+            {status === 'ready' ? (
+              <Button
+                label="Join with a code"
+                active
+                onPress={() => openRoomSheet()}
+                testID="room-none-join"
+              />
+            ) : null}
+          </EmptyState>
+        </View>
+      </SafeAreaView>
     )
   }
   return (

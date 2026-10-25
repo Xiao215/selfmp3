@@ -864,3 +864,27 @@ export function playlistEditHere(
   const adding = answer.op === 'add'
   return { songIds: mapped.filter(id => inIt.has(id) !== adding), why }
 }
+
+/**
+ * Three things to ask before the first question, made from this library (L1,
+ * 2026-10-25): music for the tag played most, the month's most played, and the
+ * songs still without a tag by whoever has most of them — or, with every song
+ * tagged, more like the artist with most songs. Fewer when the library has
+ * nothing to make one from.
+ */
+export function askSuggestions(
+  tags: readonly Pick<Tag, 'name'>[],
+  untaggedBy: string | null,
+  topArtist: string | null,
+): string[] {
+  const [tag] = tags
+  return [
+    tag ? `Something for ${tag.name}` : null,
+    'What did I play most last month?',
+    untaggedBy
+      ? `Tag my untagged ${untaggedBy} songs`
+      : topArtist
+        ? `More like ${topArtist}`
+        : null,
+  ].filter((line): line is string => line !== null)
+}

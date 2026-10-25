@@ -335,9 +335,9 @@ export function PlaylistDetailScreen(): ReactNode {
     <EmptyState
       icon={
         live ? (
-          <Live size={30} color={theme.colors.textMuted} />
+          <Live size={iconSize.large} color={theme.colors.textMuted} />
         ) : (
-          <ListMusic size={30} color={theme.colors.textMuted} />
+          <ListMusic size={iconSize.large} color={theme.colors.textMuted} />
         )
       }
       title={live ? 'No songs have these tags yet' : 'Nothing here yet'}

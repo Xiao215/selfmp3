@@ -79,7 +79,8 @@ type HoldRef = (tagId: number, node: View | null) => void
  * A tile opens the tag's page. With a pointer, the tag's record slides out
  * and Play waits on its label, and a ⋯ and right-click open the tag's editor
  * (G, H); on a phone a tap opens and holding edits. A tag every one
- * of whose songs another tag carries is drawn inside that tag (E), and tags
+ * of whose songs another tag carries hangs off that tag's tile as a chip
+ * (AG1), and tags
  * with a song or two wait at the end (L), so the page opens on the ones in
  * use. Picking tags to combine is not here: a tag's page has Add for that.
  *
@@ -174,8 +175,6 @@ export function TagsScreen(): ReactNode {
       gap={GAP}
       rowGap={ROW_GAP}
       keyOf={entry => entry.standing.tag.id}
-      // A tag that holds others stands with its panel beside it, a tile wide.
-      spanOf={entry => (entry.inside.length > 0 ? 2 : 1)}
       renderItem={entry => (
         <Entry
           entry={entry}
@@ -522,7 +521,7 @@ function UntaggedCard({
   )
 }
 
-/** One tag in the grid: its tile, and, when it holds other tags, the panel listing them beside it. */
+/** One tag in the grid: its tile, and, when it holds other tags, a chip for each under it. */
 function Entry({
   entry,
   order,
@@ -557,17 +556,10 @@ function Entry({
   )
   if (inside.length === 0) return tile
   return (
-    <View style={styles.holder}>
+    // The tile's width, so a long name's chip is cut at the tile's edge.
+    <View style={{ width }}>
       {tile}
-      <InsidePanel
-        holder={standing}
-        inside={inside}
-        order={order}
-        width={width}
-        rowRef={rowRef}
-        onOpen={onOpen}
-        onEdit={onEdit}
-      />
+      <InsideChips inside={inside} order={order} rowRef={rowRef} onOpen={onOpen} onEdit={onEdit} />
     </View>
   )
 }
@@ -655,82 +647,56 @@ const TagTile = memo(function TagTile({
 })
 
 /**
- * What a holder holds (E), beside its tile and as tall as its record: each
- * inside tag as a row that opens it, holds or right-clicks to edit it, and
- * scrolls when there are more than fit. Under it, the one line that says why
- * they are here.
+ * What a holder holds (AG1): each tag whose songs are all in this one, as a
+ * small chip under the holder's tile — "Inside: ● late night drives… 3" — so
+ * it reads as part of the tag it is in rather than as a tag beside it. A chip
+ * opens its tag, and holding it or a right-click edits it, as a tile does.
  */
-function InsidePanel({
-  holder,
+function InsideChips({
   inside,
   order,
-  width,
   rowRef,
   onOpen,
   onEdit,
 }: {
-  holder: TagStanding
   inside: readonly TagStanding[]
   order: ReadonlyMap<number, number>
-  width: number
   rowRef: HoldRef
   onOpen: (standing: TagStanding) => void
   onEdit: EditTag
 }): ReactNode {
-  const height = Math.round(width / SLEEVE_ASPECT)
-  const compact = width < COMPACT_PANEL
-  const art = useArt(INSIDE_COVER)
   return (
-    <View style={{ width }}>
-      <View style={[styles.inside, compact && styles.insideCompact, { height }]}>
-        {compact ? null : <Text style={styles.insideLabel}>Inside it</Text>}
-        <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          {inside.map(standing => {
-            const { tag } = standing
-            const lead = leadSong(standing.songs)
-            const index = order.get(tag.id) ?? 0
-            return (
-              <View key={tag.id} ref={node => rowRef(tag.id, node)} collapsable={false}>
-                <Press
-                  feedback="wash"
-                  onPress={() => onOpen(standing)}
-                  onLongPress={() => onEdit(tag)}
-                  delayLongPress={MOVE_MS.hold}
-                  accessibilityRole="link"
-                  accessibilityLabel={`${tag.name}, ${tagLine(standing)}`}
-                  testID={`tags-row-${index}`}
-                  style={({ hovered }: { pressed: boolean; hovered?: boolean }) => [
-                    styles.insideRow,
-                    compact && styles.insideRowCompact,
-                    hovered && styles.insideRowOn,
-                  ]}
-                  {...rightClick(() => onEdit(tag))}
-                >
-                  <Cover
-                    uri={lead ? art(lead) : null}
-                    title={lead ? lead.album || lead.title : tag.name}
-                    size={compact ? 20 : INSIDE_COVER}
-                    radius={compact ? 5 : 7}
-                  />
-                  <TagDot hue={tag.hue} />
-                  <Text
-                    style={[styles.insideName, compact && styles.insideNameCompact]}
-                    numberOfLines={1}
-                  >
-                    {tag.name}
-                  </Text>
-                  <Text style={[styles.insideCount, compact && styles.insideCountCompact]}>
-                    {standing.songs.length.toLocaleString()}
-                  </Text>
-                </Press>
-              </View>
-            )
-          })}
-        </ScrollView>
-      </View>
-      <Text style={styles.insideNote} numberOfLines={2}>
-        Every song in these is also in {holder.tag.name}.
-      </Text>
+    <View style={styles.insideChips}>
+      {inside.map((standing, at) => {
+        const { tag } = standing
+        return (
+          <View
+            key={tag.id}
+            ref={node => rowRef(tag.id, node)}
+            collapsable={false}
+            style={styles.insideSlot}
+          >
+            <Press
+              feedback="dim"
+              onPress={() => onOpen(standing)}
+              onLongPress={() => onEdit(tag)}
+              delayLongPress={MOVE_MS.hold}
+              accessibilityRole="link"
+              accessibilityLabel={`${tag.name}, ${tagLine(standing)}, inside the tag above`}
+              testID={`tags-row-${order.get(tag.id) ?? 0}`}
+              style={styles.insideChip}
+              {...rightClick(() => onEdit(tag))}
+            >
+              {at === 0 ? <Text style={styles.insideLabel}>Inside:</Text> : null}
+              <TagDot hue={tag.hue} size={7} />
+              <Text style={styles.insideName} numberOfLines={1}>
+                {tag.name}
+              </Text>
+              <Text style={styles.insideCount}>{standing.songs.length.toLocaleString()}</Text>
+            </Press>
+          </View>
+        )
+      })}
     </View>
   )
 }
@@ -739,10 +705,6 @@ function InsidePanel({
 const COVER_STACK = 40
 /** A tile's ⋯, round on its glass. */
 const MORE_BUTTON = 30
-/** The side of an inside tag's cover in a holder's panel. */
-const INSIDE_COVER = 30
-/** A holder's panel narrower than this (a phone's) drops its label and tightens its rows. */
-const COMPACT_PANEL = 200
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
@@ -793,7 +755,6 @@ const styles = StyleSheet.create(theme => ({
   runs: { gap: ROW_GAP },
   runLabel: { ...label(theme.colors), marginBottom: -space.sm },
   runLabelSub: { fontSize: type.small, fontWeight: '400', letterSpacing: 0, textTransform: 'none' },
-  holder: { flexDirection: 'row', gap: GAP },
   playZone: { position: 'absolute', top: 0, borderRadius: radius.pill },
   more: { position: 'absolute', top: 8, right: 8 },
   moreButton: {
@@ -804,38 +765,33 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
     backgroundColor: theme.colors.glass,
   },
-  inside: {
-    borderRadius: radius.card,
-    backgroundColor: theme.colors.surface1,
-    padding: space.md,
-    gap: space.xs,
+  insideChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.tight,
+    marginTop: space.sm,
   },
-  insideCompact: { padding: space.tight, gap: 0, justifyContent: 'center' },
-  insideLabel: { ...label(theme.colors), paddingHorizontal: space.xs, paddingBottom: 2 },
-  insideRow: {
+  // No wider than the tile: a long name is cut, and the chip stays its tag's.
+  insideSlot: { maxWidth: '100%' },
+  insideChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: space.tight,
     paddingVertical: space.xs,
-    paddingHorizontal: space.xs,
-    borderRadius: 10,
+    paddingHorizontal: space.snug,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.surface2,
   },
-  insideRowCompact: { gap: 7, paddingVertical: 2 },
-  insideRowOn: { backgroundColor: theme.colors.surface2 },
+  insideLabel: { color: theme.colors.textMuted, fontSize: type.small },
   insideName: {
-    flex: 1,
-    minWidth: 0,
-    ...rowTitle(theme.colors),
+    flexShrink: 1,
+    color: theme.colors.textPrimary,
+    fontSize: type.sub,
+    fontWeight: '500',
   },
-  insideNameCompact: { fontSize: type.sub },
   insideCount: {
     color: theme.colors.textMuted,
     fontSize: type.small,
     fontVariant: ['tabular-nums'],
-  },
-  insideCountCompact: { fontSize: type.tiny },
-  insideNote: {
-    marginTop: 11,
-    ...hint(theme.colors),
   },
 }))

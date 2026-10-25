@@ -87,8 +87,8 @@ Every tag as a place to go, most played first (`P07`), laid out as records rathe
 square covers Playlists uses: a tile is the tag's covers, its name, its songs and time. A
 tile opens the tag's own page (`/tag/<name>`). With a pointer, the record slides out and
 **Play** waits on its label; on a phone a tap opens and holding edits. A tag all of whose
-songs another tag carries is drawn inside that tag, and tags with only a song or two wait at
-the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
+songs another tag carries hangs off that tag's tile as a small chip ("Inside: ● late night
+drives… 3"), which opens it, and tags with only a song or two wait at the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
 a name field, the colours and **Create**, which stays open after each one because tags
 arrive in handfuls. The sidebar shows the four tags used last; its TAGS header opens this
 page.

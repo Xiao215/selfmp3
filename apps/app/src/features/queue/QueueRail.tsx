@@ -99,8 +99,8 @@ export function useQueueRailRoom(): number {
 
 /**
  * How much of the page's right edge the rail covers: its width while it lies
- * over the page (a window too narrow for it beside), none otherwise. What a
- * part centred in the page, like the toast row, keeps clear of.
+ * over the page (a window too narrow for it beside), none otherwise. The toast
+ * row is drawn over it then, rather than squeezed beside it (`Shell`).
  */
 export function useQueueRailCover(): number {
   const shown = useUpNextShown(true)

@@ -133,6 +133,8 @@ const config = {
     // Android blocks cleartext HTTP in release builds; the server is a
     // Tailscale host on plain HTTP. See the plugin for the reasoning.
     './plugins/withCleartextTraffic',
+    // Fixes to the player's iOS code (a deadlock that stopped every animation).
+    './plugins/withPlayerPatches',
     // The month as a page, saved as an image, goes out through the share sheet.
     'expo-sharing',
     // The home-screen widget's Xcode target, from targets/widget (docs/ui-mock `P28`).

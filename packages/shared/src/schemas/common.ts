@@ -49,6 +49,12 @@ export const OptionalTextSchema = z
   .transform(tidyText)
   .pipe(z.string().max(500))
 
+/**
+ * The most songs one bulk request names. A selection bigger than this — all
+ * of a large library — is sent as several (the client's `inChunks`).
+ */
+export const BULK_IDS_MAX = 2000
+
 export const OkSchema = z.object({ ok: z.literal(true) })
 export type Ok = z.infer<typeof OkSchema>
 

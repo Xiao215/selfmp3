@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IdSchema, NameSchema, OptionalTextSchema } from './common.js'
+import { BULK_IDS_MAX, IdSchema, NameSchema, OptionalTextSchema } from './common.js'
 import { AudioFeaturesSchema } from './audioFeatures.js'
 import { DAY_MS } from '../math.js'
 
@@ -127,7 +127,7 @@ export type ChangeSongTags = z.infer<typeof ChangeSongTagsSchema>
  * "keep the file" — the server keeps no copy to keep.
  */
 export const BulkDeleteSongsSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
 })
 export type BulkDeleteSongs = z.infer<typeof BulkDeleteSongsSchema>
 
@@ -176,7 +176,7 @@ export type BulkDeleteResult = z.infer<typeof BulkDeleteResultSchema>
 
 /** Love or unlove many songs at once, so the UI needs one request, not N. */
 export const BulkLovedSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   loved: z.boolean(),
 })
 export type BulkLoved = z.infer<typeof BulkLovedSchema>

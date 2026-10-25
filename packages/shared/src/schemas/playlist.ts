@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IdSchema, NameSchema } from './common.js'
+import { BULK_IDS_MAX, IdSchema, NameSchema } from './common.js'
 import { SmartRulesSchema } from './smart.js'
 
 export const PlaylistKindSchema = z.enum(['manual', 'live'])
@@ -125,7 +125,7 @@ export const UpdatePlaylistSchema = z
 export type UpdatePlaylist = z.infer<typeof UpdatePlaylistSchema>
 
 export const AddToPlaylistSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   /** Insert position; appends when omitted. */
   position: z.number().int().nonnegative().optional(),
 })
@@ -139,7 +139,7 @@ export type AddToPlaylist = z.infer<typeof AddToPlaylistSchema>
  * version once instead of once per song.
  */
 export const RemoveFromPlaylistSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
 })
 export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { HueSchema, IdSchema, tidyText } from './common.js'
+import { BULK_IDS_MAX, HueSchema, IdSchema, tidyText } from './common.js'
 
 /**
  * Tags are the primary way the library is organised — they replace folders,
@@ -45,7 +45,7 @@ export type RenameTag = z.infer<typeof RenameTagSchema>
 
 /** Apply or remove one tag across many songs at once. */
 export const BulkTagSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   tagId: IdSchema,
   action: z.enum(['add', 'remove']),
 })

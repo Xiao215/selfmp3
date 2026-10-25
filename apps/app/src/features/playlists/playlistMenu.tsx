@@ -10,6 +10,7 @@ import { Copy, Pencil, Trash } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
 import { useListActions } from '../../ui/components/useListActions'
 import { showFailure, showToast } from '../../ui/toast'
+import { PlaylistCover } from './PlaylistCover'
 import { copyName, isLive, newPlaylist } from './playlists.model'
 
 /**
@@ -133,9 +134,11 @@ export function DeletePlaylistDialog({
   return (
     <ConfirmDialog
       open={playlist !== null}
-      title={`Delete the playlist “${named?.name ?? 'Playlist'}”?`}
+      title="Delete this playlist?"
+      name={named?.name ?? 'Playlist'}
+      picture={named ? <PlaylistCover playlist={named} size={52} /> : null}
       body="Your songs are kept."
-      confirmLabel="Delete playlist"
+      confirmLabel="Delete"
       danger
       onCancel={onClose}
       onConfirm={() => {

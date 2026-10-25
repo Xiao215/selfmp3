@@ -1,26 +1,15 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { View } from 'react-native'
+import { StyleSheet } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
-import {
-  failureText,
-  HIT_TARGET,
-  space,
-  type,
-  useBulkDeleteSongs,
-  textStyle,
-  radius,
-} from '@selfmp3/client'
+import { failureText, radius, useBulkDeleteSongs } from '@selfmp3/client'
+import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayoutValue } from '../../shell/useLayout'
 import { showToast } from '../toast'
-import { Button } from './Button'
-import { Dialog, DialogHead } from './Dialog'
-import { lineSub, dialogPanel } from '../surfaces'
-import { Trash } from './Icons'
-import { ScrollView } from './Scroll'
+import { ConfirmDialog } from './ConfirmDialog'
+import { Cover, CoverEdge } from './Cover'
 
 /**
  * Deleting songs from the library, from the question to the word afterwards:
@@ -82,6 +71,7 @@ export function RemoveSongs({
   return (
     <ConfirmRemoveSongs
       songs={songs}
+      picture={<SongsPicture songs={songs} />}
       pending={bulkDelete.isPending}
       error={error}
       onCancel={onCancel}
@@ -91,7 +81,8 @@ export function RemoveSongs({
 }
 
 /**
- * The confirmation for deleting a selection from the library.
+ * The confirmation for deleting a selection from the library: the shared
+ * confirm dialog, asking "Delete this song?" with the song pictured and named.
  *
  * One question, one answer. Removing a song is removing it everywhere: the
  * row leaves the library on every device, whatever this device downloaded of
@@ -105,125 +96,91 @@ export function RemoveSongs({
  */
 export function ConfirmRemoveSongs({
   songs,
+  picture,
   pending = false,
   error = null,
   onCancel,
   onConfirm,
 }: {
   songs: readonly Song[]
+  /** The songs pictured beside the question (`SongsPicture`). */
+  picture?: ReactNode
   pending?: boolean
   /** Why the last attempt failed, if it did. */
   error?: string | null
   onCancel: () => void
   onConfirm: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
-  const wide = useLayoutValue(layout => layout.wide)
-
   const count = songs.length
-  const songWord = count === 1 ? 'song' : 'songs'
-  // One song is named in the question, so the list under it would only repeat it.
   const only = count === 1 ? songs[0] : undefined
-  const named = only ? [] : songs.slice(0, 3).map(song => song.title)
-  const rest = count - named.length
   const cancel = (): void => {
     if (!pending) onCancel()
   }
 
   return (
-    <Dialog
-      onDismiss={cancel}
-      dismissLabel="Cancel"
+    <ConfirmDialog
+      open
+      title={only ? 'Delete this song?' : `Delete ${count} songs?`}
+      name={songNames(songs)}
+      picture={picture}
+      body={
+        only
+          ? 'It goes from every device, with its tags and plays. There’s no undo.'
+          : 'They go from every device, with their tags and plays. There’s no undo.'
+      }
+      confirmLabel="Delete"
+      danger
+      busy={pending}
+      error={error}
+      onConfirm={onConfirm}
+      onCancel={cancel}
       testID="confirm-remove-songs"
-      style={styles.dialog}
-    >
-      <DialogHead
-        title={`${only ? `Delete “${only.title}”` : `Delete ${count} ${songWord}`} from your library?`}
-        onClose={cancel}
-        closeLabel="Cancel"
-        style={styles.head}
-        titleStyle={styles.title}
-      />
-
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.lede}>
-          {count === 1
-            ? 'It leaves your library on every device, with its tags and plays.'
-            : 'They leave your library on every device, with their tags and plays.'}{' '}
-          <Text style={[styles.strong, styles.strongDestructive]}>This can’t be undone.</Text>
-        </Text>
-
-        {named.length === 0 ? null : (
-          <View style={styles.list}>
-            {named.map((title, index) => (
-              <Text key={`${title}-${index}`} style={styles.listItem} numberOfLines={1}>
-                {title}
-              </Text>
-            ))}
-            {rest > 0 ? (
-              <Text style={[styles.listItem, styles.listRest]}>
-                and {plural(rest, 'more song', 'more songs')}
-              </Text>
-            ) : null}
-          </View>
-        )}
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </ScrollView>
-
-      <View style={[styles.actions, !wide && styles.actionsCompact]}>
-        <Button label="Cancel" onPress={cancel} disabled={pending} grow={!wide} />
-        <Button
-          label={pending ? 'Working…' : only ? 'Delete song' : `Delete ${count} ${songWord}`}
-          icon={<Trash color={theme.colors.danger} />}
-          variant="danger"
-          onPress={onConfirm}
-          disabled={pending}
-          grow={!wide}
-        />
-      </View>
-    </Dialog>
+    />
   )
 }
 
+/** "Song 1", "Song 1 and Song 2", "Song 1, Song 2, Song 3 and 4 more". */
+function songNames(songs: readonly Pick<Song, 'title'>[]): string {
+  const titles = songs.map(song => song.title)
+  if (titles.length <= 1) return titles[0] ?? ''
+  if (titles.length <= 3) return `${titles.slice(0, -1).join(', ')} and ${titles.at(-1)}`
+  return `${titles.slice(0, 3).join(', ')} and ${titles.length - 3} more`
+}
+
+/** The question's picture: one song's cover, or four songs' as a mosaic. */
+function SongsPicture({ songs }: { songs: readonly Song[] }): ReactNode {
+  const artFor = useArt(PICTURE)
+  const first = songs[0]
+  if (!first) return null
+  if (songs.length < 4) {
+    return <Cover uri={artFor(first)} title={first.album || first.title} size={PICTURE} />
+  }
+  return (
+    <View style={styles.mosaic}>
+      {songs.slice(0, 4).map(song => (
+        <Cover
+          key={song.id}
+          uri={artFor(song)}
+          title={song.album || song.title}
+          size={PICTURE / 2}
+          radius={0}
+        />
+      ))}
+      <CoverEdge radius={radius.cover} />
+    </View>
+  )
+}
+
+const PICTURE = 52
+
 const styles = StyleSheet.create(theme => ({
-  dialog: { ...dialogPanel(theme.colors, 'form'), maxHeight: 620 },
-  head: {
-    alignItems: 'flex-start',
-    gap: space.md,
-    paddingTop: space.lg,
-    paddingRight: space.md,
-    paddingBottom: space.md,
-    paddingLeft: 18,
-  },
-  title: {
-    flex: 1,
-    color: theme.colors.textPrimary,
-    ...textStyle('title'),
-    fontWeight: '700',
-    paddingTop: space.sm,
-  },
-  body: { paddingVertical: space.lg, paddingHorizontal: 18, gap: space.md },
-  lede: lineSub(theme.colors),
-  strong: { color: theme.colors.textPrimary, fontWeight: '600' },
-  strongDestructive: { color: theme.colors.danger },
-  list: {
-    paddingVertical: space.sm,
-    paddingHorizontal: space.snug,
-    backgroundColor: theme.colors.surface0,
-    borderRadius: radius.item,
-    gap: 2,
-  },
-  listItem: { color: theme.colors.textSecondary, fontSize: type.small },
-  listRest: { color: theme.colors.textMuted, fontStyle: 'italic' },
-  error: { color: theme.colors.danger, ...textStyle('small') },
-  actions: {
+  mosaic: {
+    width: PICTURE,
+    height: PICTURE,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.sm,
-    paddingTop: space.md,
-    paddingHorizontal: 18,
-    paddingBottom: space.lg,
+    flexWrap: 'wrap',
+    overflow: 'hidden',
+    borderRadius: radius.cover,
+    backgroundColor: theme.colors.surface2,
   },
-  actionsCompact: { flexDirection: 'column-reverse', minHeight: HIT_TARGET },
 }))

@@ -99,9 +99,9 @@ test.describe('selecting songs', () => {
     await page
       .getByRole('menuitem', { name: new RegExp(`^Delete ${total} songs from library`) })
       .click()
-    await expect(page.getByText(`Delete ${total} songs from your library?`)).toBeVisible()
+    await expect(page.getByText(`Delete ${total} songs?`)).toBeVisible()
     await page.getByRole('button', { name: 'Cancel', exact: true }).last().click()
-    await expect(page.getByText(`Delete ${total} songs from your library?`)).toHaveCount(0)
+    await expect(page.getByText(`Delete ${total} songs?`)).toHaveCount(0)
 
     await page.getByRole('button', { name: /^Done selecting/ }).click()
     await expect(page.getByText(/^\d+ selected$/)).toHaveCount(0)

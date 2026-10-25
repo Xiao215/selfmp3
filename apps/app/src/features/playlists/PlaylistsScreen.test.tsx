@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native'
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { configureClient, queryKeys, type Api } from '@selfmp3/client'
@@ -209,9 +209,10 @@ describe('a playlist tile’s menu', () => {
     await act(async () => {
       await fireEvent.press(screen.getByText('Delete playlist…'))
     })
-    expect(screen.getByText('Delete the playlist “Evening”?')).toBeTruthy()
+    expect(screen.getByText('Delete this playlist?')).toBeTruthy()
+    expect(within(screen.getByTestId('confirm-dialog')).getByText('Evening')).toBeTruthy()
     await act(async () => {
-      await fireEvent.press(screen.getByText('Delete playlist'))
+      await fireEvent.press(screen.getByText('Delete'))
     })
     expect(deletePlaylist).toHaveBeenCalledWith(7)
   })

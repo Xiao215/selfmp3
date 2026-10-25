@@ -29,6 +29,7 @@ import { forgetPastRoom, pastRoomFaces, usePastRooms } from './pastRooms.store'
 import { usePastRoomCovers } from './usePastRoomCovers'
 import { FacesCover } from './RoomFace'
 import { GetIt } from './GetIt'
+import { BadRoomCode } from './BadRoomCode'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
@@ -96,16 +97,7 @@ export function JoinScreen(): ReactNode {
 
   if (!code.success) {
     // A guest in a browser has nowhere in the app to go back to.
-    return (
-      <MissingPage
-        title="That is not a room code"
-        line="A code is six letters and digits, like KQ7 482."
-        back={status === 'ready' ? '/' : undefined}
-        action={
-          status === 'ready' ? { label: 'Home', onPress: () => router.replace('/') } : undefined
-        }
-      />
-    )
+    return <BadRoomCode key={given} given={given ?? ''} back={status === 'ready'} />
   }
 
   return (

@@ -45,7 +45,7 @@ import { thisPlace } from '../../ports/place'
 import { onThisDevice } from '../settings/settings.model'
 import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
-import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
+import { linkedSort, noMatchesTitle, stripTags, useLibraryModel } from './library.model'
 import { noteTagUsed, useRecentTagIds } from './recentTags.store'
 import { libraryListSource, playAlone } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
@@ -59,7 +59,7 @@ import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { FOCUS_INSIDE } from '../../shell/tabbing'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useSteadyOrder } from '../../ui/useSteadyOrder'
 
 const tagKey = (tag: { readonly id: number }): number => tag.id
@@ -98,7 +98,16 @@ export function LibraryScreen(): ReactNode {
 
   // Everything this screen knows is in the model, which draws nothing and is
   // tested without a simulator. What is left here is drawing.
-  const model = useLibraryModel(downloads.index)
+  // A link may open Library in an order of its own for this visit (G1).
+  const params = useLocalSearchParams<{ sort?: string }>()
+  const linked = useMemo(
+    () => ({
+      sort: linkedSort(params.sort),
+      release: () => router.setParams({ sort: undefined }),
+    }),
+    [params.sort, router],
+  )
+  const model = useLibraryModel(downloads.index, linked)
   const pull = usePullToRefresh()
   const { filter, songs, visible, songIds } = model
   // Until a library has songs, sort, direction and Shuffle have nothing to act on.

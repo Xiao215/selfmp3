@@ -5,6 +5,7 @@ import {
   emptyReason,
   footNotice,
   footSummary,
+  linkedSort,
   matchNote,
   noMatchesTitle,
   orderLabel,
@@ -250,5 +251,15 @@ describe('naming the order', () => {
     expect(option('addedAt')?.orders[0].descending).toBe(true)
     expect(option('artist')?.orders[0].descending).toBe(false)
     expect(option('duration')?.orders[0].label).toBe('Longest')
+  })
+})
+
+describe('an order a link opens Library in', () => {
+  it('is a sort Library has, read from the address; anything else is none', () => {
+    expect(linkedSort('lastPlayedAt')).toBe('lastPlayedAt')
+    expect(linkedSort(['playCount', 'title'])).toBe('playCount')
+    expect(linkedSort(undefined)).toBeNull()
+    expect(linkedSort('random')).toBeNull()
+    expect(linkedSort('loudest')).toBeNull()
   })
 })

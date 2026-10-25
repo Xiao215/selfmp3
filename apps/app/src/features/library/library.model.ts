@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { plural } from '@selfmp3/shared'
+import { plural, SongSortFieldSchema } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
 import type { DevicePlace } from '../settings/settings.model'
 import {
@@ -91,10 +91,55 @@ interface LibraryModel {
   retry: () => void
 }
 
-export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
+/**
+ * A sort a link opened Library in (`/library?sort=lastPlayedAt`, Home's Recently
+ * played, G1), or null for an address that names none or no sort there is.
+ */
+export function linkedSort(value: string | string[] | undefined): SongSortField | null {
+  const parsed = SongSortFieldSchema.safeParse(Array.isArray(value) ? value[0] : value)
+  return parsed.success && parsed.data !== 'random' ? parsed.data : null
+}
+
+export function useLibraryModel(
+  downloads: DownloadIndex,
+  /**
+   * The order a link asked for, shown while this visit lasts without
+   * becoming the one Library remembers (G1): choosing an order here takes it
+   * over, and lets the link's go (`release`).
+   */
+  linked: { readonly sort: SongSortField | null; readonly release: () => void } = NO_LINK,
+): LibraryModel {
   const library = useLibrary()
   // Kept above the screen, so the strip and the order are still set on coming back.
-  const [filter, setFilter] = useLibraryFilter()
+  const [kept, setKept] = useLibraryFilter()
+  const linkedSortField = linked.sort
+  const filter = useMemo(
+    () =>
+      linkedSortField === null
+        ? kept
+        : {
+            ...kept,
+            sort: linkedSortField,
+            descending: optionFor(linkedSortField)?.orders[0].descending ?? true,
+          },
+    [kept, linkedSortField],
+  )
+  // The tags and the rest change what Library keeps, under a linked order as
+  // well. An order chosen over a linked one starts from what is shown and is
+  // kept, and the link's own order goes.
+  const setFilter = setKept
+  const { release } = linked
+  const setOrder = useCallback(
+    (change: (current: LibraryFilter) => LibraryFilter) => {
+      if (linkedSortField === null) {
+        setKept(change)
+        return
+      }
+      setKept(current => change({ ...current, sort: filter.sort, descending: filter.descending }))
+      release()
+    },
+    [setKept, filter.sort, filter.descending, linkedSortField, release],
+  )
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const allTags = useMemo(() => library.data?.tags ?? [], [library.data])
@@ -115,20 +160,21 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
   /*
    * The actions, made once: a row is handed `toggleTag` for its chips, so a
    * new one each render would redraw every row of the library. `setFilter` is
-   * a state setter, so none of these ever needs remaking.
+   * a state setter, so none of these ever needs remaking, and `setOrder` only
+   * when a link's order comes or goes.
    */
   const setSort = useCallback(
     (sort: SongSortField) =>
-      setFilter(current => ({
+      setOrder(current => ({
         ...current,
         sort,
         descending: optionFor(sort)?.orders[0].descending ?? current.descending,
       })),
-    [setFilter],
+    [setOrder],
   )
   const setDescending = useCallback(
-    (descending: boolean) => setFilter(current => ({ ...current, descending })),
-    [setFilter],
+    (descending: boolean) => setOrder(current => ({ ...current, descending })),
+    [setOrder],
   )
   const sortOption = optionFor(filter.sort)
   const toggleTagId = useCallback(
@@ -208,6 +254,8 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     ],
   )
 }
+
+const NO_LINK = { sort: null, release: () => undefined } as const
 
 const optionFor = (field: SongSortField): (typeof SORT_OPTIONS)[number] | undefined =>
   SORT_OPTIONS.find(option => option.field === field)

@@ -219,6 +219,11 @@ Play (Xiao, 2026-10-04): a tag's, an artist's, a playlist's, tags combined, an A
 An answer is kept with its own answer, so its page opens again after a reload. Songs with no
 page of their own (similar ones, ones you picked) play.
 
+The row's **See all** opens Library sorted by Recently played (G1, 2026-10-25):
+`/library?sort=lastPlayedAt`, an order for that visit only (`linkedSort`). The order Library
+keeps for itself is untouched, so Library opened any other way is as it was; choosing an
+order there takes the shown one over and keeps it.
+
 ## Motion
 
 When something plays from a page that cannot show Up next, its first covers lift and land on

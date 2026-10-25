@@ -307,7 +307,10 @@ describe('tidy, with names looked up', () => {
   it('looks on the web for songs no catalogue has, and leaves those unticked', async () => {
     const llm = scriptedLlm({
       'tidy-web': [
-        { edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }], say: '' },
+        {
+          edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }],
+          say: 'Found on a game wiki.',
+        },
       ],
     })
     const result = await tidy({ llm, songs: () => [], findNames, web: () => true }, undefined, {
@@ -325,6 +328,8 @@ describe('tidy, with names looked up', () => {
       }),
     ])
     expect(result.note).toMatch(/the web was searched instead/)
+    // The names pass said nothing, so the web pass's words are the one thing said.
+    expect(result.reply).toBe('Found on a game wiki.')
     expect(llm.asked.map(each => each.task)).toEqual(['tidy-web'])
     expect(llm.asked[0]!.webSearch).toBe(true)
   })

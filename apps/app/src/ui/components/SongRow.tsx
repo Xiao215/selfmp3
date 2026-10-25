@@ -794,7 +794,7 @@ function RowTag({
  * fades in just behind the wash (`M2`, 5), over the last two thirds of the
  * wash's move, and goes with it.
  */
-function Waking({
+export function Waking({
   progress,
   style,
   children,
@@ -824,7 +824,13 @@ function Waking({
  * right it never leaves the row's rounded edge, and the edge that moves is the
  * clear one.
  */
-function RowWash({ color, progress }: { color: string; progress: Animated.Value }): ReactNode {
+export function RowWash({
+  color,
+  progress,
+}: {
+  color: string
+  progress: Animated.Value
+}): ReactNode {
   // Its own id per row. A screen the router keeps hidden behind this one (a
   // playlist listing the same song) holds a wash too; with one shared id, the
   // visible row's url() would land on the hidden, zero-size gradient and draw nothing.

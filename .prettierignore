@@ -16,6 +16,8 @@ apps/app/public/bucket.html
 # Native projects `expo run:*` generates (git-ignored in apps/app/.gitignore, which prettier does not read)
 apps/app/ios
 apps/app/android
+# What a Release build for a phone leaves (`-derivedDataPath build/ddp`, docs/MOBILE.md), the same way
+apps/app/build
 # What Gradle builds of a local module's Android half, the same way
 apps/app/modules/*/android/build
 apps/app/modules/*/android/.cxx

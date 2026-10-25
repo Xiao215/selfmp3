@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dock is its own field, its send turning into Stop in place, as ChangeField's does
-import { KeyboardAvoidingView, Text, TextInput, View, useWindowDimensions } from 'react-native'
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Text,
+  // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dock is its own field, its send turning into Stop in place, as ChangeField's does
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -19,7 +26,7 @@ import { useAccent } from '../../ui/accent'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Pencil, Sparkle } from '../../ui/components/Icons'
+import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { Kbd } from '../../ui/components/Kbd'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView, type ScrollView as ScrollNode } from '../../ui/components/Scroll'
@@ -100,7 +107,7 @@ const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
  * server hears each earlier question with what was shown for it, and answers
  * the newest). While one is worked on its send is a Stop, which takes the
  * turn back off the page and its words back into the field. ‹ goes back to
- * Search with the question still typed; the pencil starts over.
+ * Search with the question still typed; a conversation is not kept after it.
  *
  * `?to=room` asks for the room you are in, as Search does when adding to it
  * (A2): songs answered are added there rather than played.
@@ -115,7 +122,6 @@ export function AskScreen(): ReactNode {
   const server = useSmartServer()
   const player = usePlayer()
   const songsById = useSongsById()
-  const accent = useAccent()
 
   const playingNow = (): number | null => {
     const id = player.current?.id
@@ -138,6 +144,22 @@ export function AskScreen(): ReactNode {
   const scroll = useRef<ScrollNode>(null)
   /** Where the newest turn starts in the thread, to show an answer from its top. */
   const latestTop = useRef(0)
+  /** How far the thread is scrolled, and how tall it is, to keep its foot in view as it shrinks. */
+  const scrolled = useRef(0)
+  const threadHeight = useRef(0)
+  /** The thread's last shrink: by how much, and where it was scrolled to then. */
+  const shrank = useRef<{ by: number; at: number } | null>(null)
+  // The keyboard takes room from the thread's foot. Once it is up, what was at
+  // the foot is moved up by that room, as a messages app keeps it; moved while
+  // the keyboard still rises, the scroll was lost to the page's own move.
+  useEffect(() => {
+    const risen = Keyboard.addListener('keyboardDidShow', () => {
+      const lost = shrank.current
+      shrank.current = null
+      if (lost) scroll.current?.scrollTo({ y: lost.at + lost.by, animated: true })
+    })
+    return () => risen.remove()
+  }, [])
 
   const latest = turns.at(-1)
   const working = latest !== undefined && latest.answered === null
@@ -156,12 +178,6 @@ export function AskScreen(): ReactNode {
     if (!latest || !working) return
     setTurns(was => was.slice(0, -1))
     setDraft(latest.asked)
-    field.current?.focus()
-  }
-  const startOver = (): void => {
-    setTurns([])
-    setKeys(null)
-    setDraft('')
     field.current?.focus()
   }
   const answered = useCallback((id: number, recap: string) => {
@@ -230,13 +246,8 @@ export function AskScreen(): ReactNode {
                   {adding ? `Ask for ${roomTitle(adding)}` : 'Ask'}
                 </Text>
               </View>
-              <View style={[styles.headSide, styles.headRight]}>
-                {turns.length > 0 ? (
-                  <IconButton label="New question" filled onPress={startOver} testID="ask-new">
-                    <Pencil size={iconSize.field} color={accent.accent} />
-                  </IconButton>
-                ) : null}
-              </View>
+              {/* Balances the ‹, so the title sits in the middle. */}
+              <View style={styles.headSide} />
             </View>
 
             {server.reach.state !== 'reachable' ? (
@@ -250,6 +261,17 @@ export function AskScreen(): ReactNode {
                 contentContainerStyle={styles.turns}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
+                onScroll={event => {
+                  scrolled.current = event.nativeEvent.contentOffset.y
+                }}
+                scrollEventThrottle={16}
+                onLayout={event => {
+                  const height = event.nativeEvent.layout.height
+                  if (height < threadHeight.current) {
+                    shrank.current = { by: threadHeight.current - height, at: scrolled.current }
+                  }
+                  threadHeight.current = height
+                }}
               >
                 {turns.length === 0 ? (
                   <Text style={styles.empty}>
@@ -524,7 +546,6 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.sm,
   },
   headSide: { width: 48, flexDirection: 'row' },
-  headRight: { justifyContent: 'flex-end' },
   title: {
     flex: 1,
     flexDirection: 'row',

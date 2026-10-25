@@ -217,8 +217,9 @@ trail and replaced each answer). It is a conversation: each turn is what you sai
 accent-tinted bubble on the right, and its answer under it, drawn as that kind of answer
 always is (`AnswerBody.tsx`). Earlier turns stay, oldest at the top. The field is docked at
 the foot ("Ask a follow-up…"); while a turn is worked on its send is the one Stop, which
-takes that turn off the page and puts its words back in the field. ‹ goes back to Search;
-the pencil starts over. On a phone the page owns the display, as Search does; on a computer
+takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
+and the conversation is not kept after it (so there is no "new chat" button). When the
+keyboard rises, the thread's foot moves up with it, as a messages app keeps it. On a phone the page owns the display, as Search does; on a computer
 it opens in the main column, and the palette's Ask row closes the palette and opens it.
 Asked while Search adds to a room (`?to=room`), song answers go to the room. A proposal
 acted on or put aside (Apply, Close, Not now) folds to the line it was answered with; an
@@ -227,6 +228,12 @@ answer you play from stays. A review's keys work from the field while it is empt
 Words answers (`explore`, `none`, `open`) can be selected in part: on iOS they are a
 read-only system text view (`ports/selectableText.tsx`), since a selectable `Text` there
 copies only the whole; `explore` also has Copy for all of it.
+
+A song an answer names (`AnswerSongLine`) plays from ▶; while it is the song playing, its
+row is marked as Library's rows are (the cover's colour washing in from the right, the
+title in its tint, the equaliser over the cover) and ▶ is a pause inside a ring that fills
+as the song goes (Xiao picked A1 B1 C1, 2026-10-24). Pressing the playing row opens Now
+Playing; seeking stays there.
 
 Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
 tier) reads the request against rung 2 and chooses one action from a fixed list, filling in

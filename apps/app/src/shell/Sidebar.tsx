@@ -56,7 +56,7 @@ import { useSlidingHighlight } from '../ui/components/SlidingHighlight'
 import { useFade } from '../ui/motion'
 import { EASE_OUT_CSS, MOVE_MS } from '../ui/motion.model'
 import { setPaletteOpen } from './palette'
-import { quietLabel, serif } from '../ui/surfaces'
+import { label, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Press } from '../ui/components/Press'
@@ -854,7 +854,7 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'space-between',
     paddingRight: space.sm,
   },
-  groupTitleText: quietLabel(theme.colors),
+  groupTitleText: label(theme.colors),
   groupTitleOn: { color: theme.colors.textPrimary },
   moreTags: { paddingVertical: space.tight, paddingHorizontal: space.snug },
   tagForm: {

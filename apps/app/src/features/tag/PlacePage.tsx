@@ -43,7 +43,7 @@ import {
   togglePlace,
   type Place,
 } from './tag.model'
-import { nameTitle, rowTitle } from '../../ui/surfaces'
+import { rowTitle } from '../../ui/surfaces'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useShownScheme } from '../../ui/theme/unistyles'
 
@@ -63,8 +63,8 @@ import { useShownScheme } from '../../ui/theme/unistyles'
  * selection bar acts on what is ticked. Nothing here is saved: what is played
  * from it is Up next, and Up next's Save keeps it (docs/features/lists.md).
  *
- * An artist's page is the same page with a figure where a tag has its dot,
- * its name in the serif, and its songs by album.
+ * An artist's page is the same page with its name alone where a tag has its
+ * dot, and its songs by album.
  */
 export function PlacePage({
   places,
@@ -298,7 +298,7 @@ export function PlacePage({
           <View style={listHeadText.nameRow}>
             {only?.kind === 'tag' ? <TagDot hue={only.tag.hue} size={wide ? 14 : 10} /> : null}
             <Text
-              style={[listHeadText.name, listHeadText.nameShrink, artistAlone && styles.nameSerif]}
+              style={[listHeadText.name, listHeadText.nameShrink]}
               numberOfLines={2}
               accessibilityRole="header"
               testID="place-name"
@@ -499,7 +499,6 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  nameSerif: nameTitle(theme.colors),
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {

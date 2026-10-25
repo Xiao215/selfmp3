@@ -412,7 +412,7 @@ function namesOf(links: readonly ShareSummary[]): string | null {
 }
 
 /**
- * Playing, or Ended: the small uppercase head and the count, and at its other
+ * Playing, or Ended: the quiet head and the count, and at its other
  * end "Select 3" — which with a mouse waits for the pointer over the section,
  * or for choosing to be on (H1); a finger always has it.
  */

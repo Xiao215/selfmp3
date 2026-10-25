@@ -117,9 +117,10 @@ The same part looks the same wherever it is. A screen uses these; it does not dr
 | `SongLine` | The compact song line: a 36 cover (`coverSize.line`), the title, a line under it, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, the song picker, Profile, a room, Ask's answers, Tidy up's review |
 
 `SongLine` is not `SongRow`. A list of songs — Library, a playlist, a tag, Search's Songs, the
-phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The small uppercase
-label (`label()`) is not a section heading either: it names a group of settings or a card's
-figure.
+phone's Up next — draws `SongRow`; `SongLine` names a song somewhere else. The quiet label
+(`label()`, sentence case: "Playlists", "On this page", "Last 30 days") is not a section
+heading either: it names a group. Small spaced capitals are kept for one thing, a figure's
+name on a stat card (`figureLabel()`: LISTENED, PEAK HOUR, STREAK).
 
 **Chips** come in two kinds: the filter pill (`Chip`: a tag strip, Search's tags before
 typing, Settings' sections on a phone) and the row label (`SongRow`'s tag chips, `rowTags`).
@@ -267,7 +268,7 @@ on every build (`apps/extension/scripts/theme.mjs`).
 
 | Token | Size | `leading` | For |
 |---|---|---|---|
-| `type.tiny` | 11 | 15 | counts, times, the small uppercase label |
+| `type.tiny` | 11 | 15 | counts, times, a stat card's figure name |
 | `type.small` | 12 | 17 | captions and hints |
 | `type.sub` | 13 | 19 | the line under a title, a chip, secondary words |
 | `type.body` | 15 | 21 | body text, a song row's title, a button, a field |
@@ -300,9 +301,11 @@ The rules from `S2`, as the code keeps them:
   12 for a text field that is not a search; `item` 12 for a menu's line or a caption; `card`
   18 and `cardLg` 22; `sheet` 26; `mini` 16; `row` 14; covers `cover` 10 and `coverSm` 8.
 - **Type**: the system font for rows and body; `fonts.display` (Bricolage Grotesque 600) for
-  page titles at `type.page` and sections at `type.section`; `fonts.serif` (Instrument Serif)
-  for greetings and big numbers. Neither face takes a `fontWeight`: the weight is in the file.
-  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `heroTitle()`, `label()` and `serif()`,
+  page titles at `type.page` and sections at `type.section` — Profile's name, an artist's and
+  "Where it lives." included; `fonts.serif` (Instrument Serif) for greetings and big numbers
+  only. Neither face takes a `fontWeight`: the weight is in the file.
+  `surfaces.ts` has `pageTitle()`, `sectionTitle()`, `heroTitle()`, `label()`, `figureLabel()`
+  and `serif()`,
   and `card()`, `floating()`, `dialogPanel()` and `menuItem` for the shapes around them.
 - **Buttons** come in four shapes (`Button.tsx`): the round white `PlayButton`, at most one
   per page; the tonal pill; the text action; the accent pill, kept for the one button that

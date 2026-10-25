@@ -259,7 +259,7 @@ export function MetadataDialog({
               <View style={styles.candidateMeta}>
                 <View style={[styles.badge, { backgroundColor: ground }]}>
                   <Text style={[styles.badgeText, { color: ink }]}>
-                    {SOURCE_LABELS[candidate.source].toUpperCase()}
+                    {SOURCE_LABELS[candidate.source]}
                   </Text>
                 </View>
                 <Text style={styles.score}>{scorePercent(candidate.score)}</Text>
@@ -314,7 +314,7 @@ export function MetadataDialog({
                         wide ? styles.diffLabelWide : styles.diffLabelNarrow,
                       ]}
                     >
-                      {wide ? FIELD_LABELS[diff.field] : FIELD_LABELS[diff.field].toUpperCase()}
+                      {FIELD_LABELS[diff.field]}
                     </Text>
                     {diff.field === 'artwork' ? (
                       <View style={styles.coverChange}>
@@ -501,7 +501,7 @@ function SuggestedCard({
           {notes.length > 0 ? <Text style={styles.candidateSub}>{notes.join(' ')}</Text> : null}
         </View>
         <View style={[styles.badge, { backgroundColor: SOURCE_TONE.ai[0] }]}>
-          <Text style={[styles.badgeText, { color: SOURCE_TONE.ai[1] }]}>SUGGESTED</Text>
+          <Text style={[styles.badgeText, { color: SOURCE_TONE.ai[1] }]}>Suggested</Text>
         </View>
       </Press>
       <Text

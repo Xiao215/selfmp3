@@ -156,15 +156,16 @@ export function sectionTitle(colors: ThemePalette) {
 
 /**
  * A quiet heading over a group, in sentence case: the sidebar's "Playlists",
- * Settings' "On this page", a sheet's group. It names a group; it is not a
- * section's title (`sectionTitle`).
+ * Settings' "On this page", "Recently added", a sheet's group. It names a
+ * group; it is not a section's title (`sectionTitle`). Capitals are kept for
+ * one thing only, a figure's name on a stat card (`figureLabel`, N1).
  */
-export function quietLabel(colors: ThemePalette) {
+export function label(colors: ThemePalette) {
   return { color: colors.textMuted, fontSize: type.sub, fontWeight: '600' } as const
 }
 
-/** The small uppercase heading over a group: 11, tracked, quiet. */
-export function label(colors: ThemePalette) {
+/** A figure's name on a stat card — LISTENED, PEAK HOUR, STREAK: 11, tracked, quiet capitals. */
+export function figureLabel(colors: ThemePalette) {
   return {
     color: colors.textMuted,
     fontSize: type.tiny,

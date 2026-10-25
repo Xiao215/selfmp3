@@ -23,7 +23,7 @@ import { Press } from './Press'
  * - `collapsible`: the name folds the section away and back, with a chevron
  *   that says which, as Forgotten gems does.
  * - `end`: buttons in place of the link, at the far end.
- * - `look="label"`: the small uppercase name (`label()` in surfaces), for a
+ * - `look="label"`: the quiet sentence-case name (`label()` in surfaces), for a
  *   quiet group inside a sheet or a list — Import's lists, a room's shelves —
  *   rather than a section of a page.
  */

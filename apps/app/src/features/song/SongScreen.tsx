@@ -23,15 +23,7 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
-import {
-  artShadow,
-  card,
-  quietLabel,
-  pageFrame,
-  serif,
-  bodyText,
-  heroTitle,
-} from '../../ui/surfaces'
+import { artShadow, card, label, pageFrame, serif, bodyText, heroTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
@@ -367,7 +359,7 @@ const styles = StyleSheet.create(theme => ({
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
-  cardLabel: quietLabel(theme.colors),
+  cardLabel: label(theme.colors),
   story: bodyText(theme.colors),
   count: serif(theme.colors, 'large'),
   bright: { color: theme.colors.textPrimary },

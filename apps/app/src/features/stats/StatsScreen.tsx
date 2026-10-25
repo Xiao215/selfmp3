@@ -23,7 +23,7 @@ import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
 import { useFade } from '../../ui/motion'
-import { card, label, serif, rowTitle } from '../../ui/surfaces'
+import { card, figureLabel, serif, rowTitle } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { songLink } from '../song/song.model'
 import { artistLink } from '../tag/placeLinks'
@@ -611,7 +611,7 @@ const styles = StyleSheet.create(theme => ({
   listenedWords: { gap: space.xs, flex: 1, minWidth: 0 },
   listenedWordsHug: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' },
   sparkFill: { flex: 1, height: SPARK.height, marginLeft: space.gutterWide },
-  cardLabel: label(theme.colors),
+  cardLabel: figureLabel(theme.colors),
   // Big numbers are the serif, which has one weight (`S2`), on the scale's
   // line height, which has room for its tall figures.
   bigNumber: serif(theme.colors),

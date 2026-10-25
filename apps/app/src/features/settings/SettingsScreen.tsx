@@ -20,7 +20,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
 import { engineCapabilities } from '../../ports/engine'
 import { CROSSFADE_MAX, setCrossfadeSeconds, useCrossfadeSeconds } from '../../player/crossfadePref'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, quietLabel } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, label } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -608,7 +608,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 1,
   },
   indexTitle: {
-    ...quietLabel(theme.colors),
+    ...label(theme.colors),
     paddingTop: space.xs,
     paddingHorizontal: space.snug,
     paddingBottom: space.tight,

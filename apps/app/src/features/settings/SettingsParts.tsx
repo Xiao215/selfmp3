@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, type, space, iconSize } from '@selfmp3/client'
 import { ChevronDown, ChevronRight } from '../../ui/components/Icons'
 import { Slider } from '../../ui/components/Slider'
-import { card, quietLabel, serif, hint } from '../../ui/surfaces'
+import { card, label, serif, hint } from '../../ui/surfaces'
 import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
@@ -241,7 +241,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: space.xs,
   },
   groupMark: { alignSelf: 'center', marginRight: -4 },
-  groupLabel: quietLabel(theme.colors),
+  groupLabel: label(theme.colors),
   // The first row brings its own space above it; the last needs the card's below.
   panel: {
     ...card(theme.colors),

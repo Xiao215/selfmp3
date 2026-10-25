@@ -13,7 +13,7 @@ import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { NavRow } from '../../ui/components/NavRow'
 import { useAccount } from './useAccount'
-import { card, label, pageFrame, serif, lineSub } from '../../ui/surfaces'
+import { card, label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import {
   MONTH_CARD_TITLE,
@@ -223,7 +223,8 @@ const styles = StyleSheet.create(theme => ({
   contentNarrow: pageFrame(false),
   person: { flexDirection: 'row', alignItems: 'center', gap: space.roomy },
   personWords: { flex: 1, minWidth: 0, gap: 3 },
-  name: serif(theme.colors, 'page'),
+  // The page's title, in the display face: the serif is for greetings and big numbers (N1).
+  name: pageTitle(theme.colors),
   line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },

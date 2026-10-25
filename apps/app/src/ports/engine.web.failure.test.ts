@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * next song loads. The element is a stand-in that records what it was told.
  */
 
-vi.mock('./device', () => ({ deviceKind: () => 'desktop' }))
+vi.mock('./device', () => ({ deviceKind: () => 'desktop', deviceModel: () => 'browser' }))
 
 class FakeAudio extends EventTarget {
   preload = 'auto'

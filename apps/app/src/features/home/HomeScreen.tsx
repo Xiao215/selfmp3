@@ -70,7 +70,7 @@ import {
 import { useRecentLists } from '../lists/recentLists.store'
 import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { useStatsFor } from '../stats/statsSource'
+import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import { statFigures } from '../stats/stats.model'
 import { StatFigure } from '../../ui/components/StatFigure'
 import {
@@ -110,8 +110,10 @@ import { COLUMN_WIDTH } from '../../shell/widths'
 export function HomeScreen(): ReactNode {
   // A shared playlist's invite opened before signing in (features/shared).
   useResumeSharedJoin()
-  const { data: stats } = useStatsFor(useVia(), '7d')
-  return <HomePage stats={stats} />
+  const via = useVia()
+  const { data: stats } = useStatsFor(via, '7d')
+  const songFor = useStatsSongs(via)
+  return <HomePage stats={stats} songFor={songFor} />
 }
 
 /**
@@ -133,7 +135,14 @@ function useNow(): Date {
   return now
 }
 
-function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
+function HomePage({
+  stats,
+  songFor,
+}: {
+  stats: Stats | undefined
+  /** The song a stats id names, as this device knows it: the server's ids are not this library's. */
+  songFor: (songId: number) => Song | undefined
+}): ReactNode {
   const { wide } = useLayout()
   const beside = useCardsBeside(wide)
   const router = useRouter()
@@ -166,8 +175,8 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
   const sunday = sundayCard(now, stats)
   const sundayId = sunday?.song?.songId
   const sundaySong = useMemo(
-    () => (sundayId === undefined ? null : (library?.songs.find(s => s.id === sundayId) ?? null)),
-    [library, sundayId],
+    () => (sundayId === undefined ? null : (songFor(sundayId) ?? null)),
+    [songFor, sundayId],
   )
   const openWeek = (): void =>
     router.navigate({ pathname: '/stats/report', params: { range: 'week' } })

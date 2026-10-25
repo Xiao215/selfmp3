@@ -198,7 +198,7 @@ export function heroTitle(colors: ThemePalette, step: keyof typeof HERO_TRACKING
  * lifts the baseline, and 中文流行 drew flat-topped on a phone (2026-10-24).
  * The text's box is all it may draw in; the padding is part of it.
  */
-function headroom(step: TypeStep) {
+export function headroom(step: TypeStep) {
   const room = Math.ceil(type[step] / 4)
   return { paddingTop: room, marginTop: -room } as const
 }

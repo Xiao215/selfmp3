@@ -14,7 +14,7 @@ import { usePageBack } from '../../ui/useBackTo'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
-import { ListHead, listHeadText } from '../../ui/components/ListHead'
+import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
 import { Plus, User } from '../../ui/components/Icons'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
@@ -49,7 +49,7 @@ import {
   togglePlace,
   type Place,
 } from './tag.model'
-import { nameTitle, rowTitle } from '../../ui/surfaces'
+import { rowTitle } from '../../ui/surfaces'
 import { MOVE_MS } from '../../ui/motion.model'
 
 /**
@@ -308,14 +308,7 @@ export function PlacePage({
             )}
             <Text style={listHeadText.kindText}>{kindLabel}</Text>
           </View>
-          <Text
-            style={[listHeadText.name, artistAlone && styles.nameSerif]}
-            numberOfLines={2}
-            accessibilityRole="header"
-            testID="place-name"
-          >
-            {title}
-          </Text>
+          <ListHeadName name={title} face={artistAlone ? 'serif' : 'display'} testID="place-name" />
           <Text style={listHeadText.summary}>{summary}</Text>
           {combining ? (
             <Chips
@@ -509,7 +502,6 @@ function AlbumHeading({
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   listArea: { flex: 1, minHeight: 0 },
-  nameSerif: nameTitle(theme.colors),
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },
   album: {

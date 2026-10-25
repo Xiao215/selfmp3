@@ -27,7 +27,7 @@ import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { SongRowsSkeleton } from '../../ui/components/Skeleton'
 import { useSongRowHeight } from '../../ui/components/SongRow'
-import { ListHead, listHeadText } from '../../ui/components/ListHead'
+import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
 import { ListMusic, Live, Plus } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
@@ -209,9 +209,8 @@ export function PlaylistDetailScreen(): ReactNode {
           accessibilityRole="header"
           {...(finePointer ? tip('Rename') : {})}
         >
-          <Text style={listHeadText.name} numberOfLines={2}>
-            {name}
-          </Text>
+          {/* The press around it is the header, and says so. */}
+          <ListHeadName name={name} header={false} />
         </Press>
       )}
       {describing ? (

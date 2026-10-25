@@ -4,7 +4,7 @@ import { coverFiles } from '../ports/coverFiles'
 import { namesDigest } from './coverPacks'
 import {
   createCoverStore,
-  isPicture,
+  fanOfCovers,
   parseServedName,
   type CoverPlatform,
   type PackSink,
@@ -176,8 +176,7 @@ export async function keptCovers(limit: number): Promise<readonly string[]> {
   const files = coverFiles
   if (!files) return []
   try {
-    const names = (await files.list()).filter(isPicture)
-    return names.slice(0, limit).map(name => files.uriFor(name))
+    return fanOfCovers(await files.list(), limit).map(name => files.uriFor(name))
   } catch {
     return []
   }

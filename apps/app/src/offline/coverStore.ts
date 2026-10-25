@@ -164,6 +164,27 @@ export function parseServedName(name: string): { songId: number; rev: string } |
   return match ? { songId: Number(match[1]), rev: match[2] ?? '' } : null
 }
 
+/**
+ * Up to `limit` of a folder's covers for Welcome's fan, in the order given,
+ * one per song: a song's art kept at several revisions (or a song deleted and
+ * imported again) fanned the same picture out three times.
+ */
+export function fanOfCovers(names: readonly string[], limit: number): readonly string[] {
+  const songs = new Set<number>()
+  const fan: string[] = []
+  for (const name of names) {
+    if (fan.length >= limit) break
+    if (!isPicture(name)) continue
+    const served = parseServedName(name)
+    if (served) {
+      if (songs.has(served.songId)) continue
+      songs.add(served.songId)
+    }
+    fan.push(name)
+  }
+  return fan
+}
+
 /** A cover's file, whatever the bucket's picture was: a cloud cover keeps its own extension. */
 export function isPicture(name: string): boolean {
   return /\.(jpe?g|png|webp|gif)$/i.test(name)
@@ -474,6 +495,9 @@ export function createCoverStore(platform: CoverPlatform): CoverStore {
         if (!uri) return
         served.set(songId, { rev: revision, uri })
         changes.changed(songId)
+        // The art it replaces is never asked for again: it would only sit in
+        // the folder, and in Welcome's fan beside its successor.
+        if (have && have.rev !== revision) await platform.removeCloud(servedName(songId, have.rev))
       } catch {
         // The server is away. The address is drawn for now, and asked for again
         // next launch; there is a letter tile behind it either way.

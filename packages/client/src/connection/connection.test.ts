@@ -56,6 +56,23 @@ describe('normaliseBaseUrl', () => {
     )
   })
 
+  it("drops the server's own /api from a copied address", () => {
+    expect(normaliseBaseUrl('http://localhost:4646/api')).toBe('http://localhost:4646')
+    expect(normaliseBaseUrl('mac.local/music/api/')).toBe('https://mac.local/music')
+    expect(normaliseBaseUrl('127.0.0.1:4645/api/health')).toBe('http://127.0.0.1:4645')
+  })
+
+  it('refuses a port past the last one there is', () => {
+    expect(normaliseBaseUrl('127.0.0.1:99999')).toBeNull()
+    expect(normaliseBaseUrl('127.0.0.1:65535')).toBe('http://127.0.0.1:65535')
+  })
+
+  it('refuses a scheme that is not the web', () => {
+    expect(normaliseBaseUrl('ftp://localhost:4646')).toBeNull()
+    expect(normaliseBaseUrl('file:///Users/me')).toBeNull()
+    expect(normaliseBaseUrl('htp://127.0.0.1:4645')).toBeNull()
+  })
+
   it('discards a query string or fragment', () => {
     // Nobody types these on purpose, but a pasted address can carry one, and
     // joining it with `/api/...` would produce nonsense.

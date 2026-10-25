@@ -19,6 +19,7 @@ import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
+import { useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
@@ -27,6 +28,7 @@ import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell } from '../src/shell/Shell'
+import { TitleBarRoom } from '../src/shell/TitleBarRoom'
 import { addressOf, fullScreenSwipeAllowed, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
@@ -36,7 +38,7 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { useLayout } from '../src/shell/useLayout'
+import { useLayoutFlags } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
@@ -44,9 +46,11 @@ import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { onAppLeaving } from '../src/ports/appLeaving'
+import { sendingAsLeaving } from '../src/api/client'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
-import { singularPlaces } from '../src/ports/singularPlaces'
+import { singularPage, singularPlaces, singularSearch } from '../src/ports/singularPlaces'
+import { useHistoryStepsOnLiveKeys } from '../src/ports/historySteps'
 import { AccentProvider } from '../src/ui/accent'
 import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
@@ -71,8 +75,15 @@ hideScrollbars()
 // Coming back to the app is focus, for the queries that refetch on it.
 listenForAppFocus()
 
-// Leaving it sends what was waiting on its Undo, so closing the app loses none of it.
-onAppLeaving(sendPending)
+// Leaving it sends what was waiting on its Undo, so closing the app loses none
+// of it: as requests that outlive the page, since a closing tab cancels the rest.
+onAppLeaving(
+  () => {
+    sendingAsLeaving(true)
+    sendPending()
+  },
+  () => sendingAsLeaving(false),
+)
 
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds
@@ -136,6 +147,13 @@ const PLACES = [
 ] as const
 
 /**
+ * The pages of one thing, which a browser keeps one of each of: the same tag,
+ * artist, playlist or song opened again brings its page back up
+ * (`singularPage`).
+ */
+const PAGES = ['tag/[name]', 'artist/[name]', 'playlists/[id]', 'song/[id]'] as const
+
+/**
  * Now Playing comes up from the foot of the display and goes back down
  * (docs/ui-mock `M2`, 1). The board has the mini player's card growing into
  * the page with the cover travelling in it; that needs shared elements the
@@ -174,42 +192,45 @@ export default function RootLayout(): ReactNode {
       onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
     >
       <SafeAreaProvider>
-        <ThemedStatusBar />
-        {/* Outermost of the app's own providers: everything below draws with it. */}
-        <AccentProvider>
-          <QueryClientProvider client={queryClient}>
-            <ConnectionProvider>
-              <DownloadsProvider>
-                <PlayerProvider>
-                  {/*
+        {/* A narrow desktop window's traffic lights, as a phone's status bar. */}
+        <TitleBarRoom>
+          <ThemedStatusBar />
+          {/* Outermost of the app's own providers: everything below draws with it. */}
+          <AccentProvider>
+            <QueryClientProvider client={queryClient}>
+              <ConnectionProvider>
+                <DownloadsProvider>
+                  <PlayerProvider>
+                    {/*
                     Inside the player, not around it: devices reads the player to
                     build a heartbeat and calls back into it to execute a handoff,
                     and the player has no idea other devices exist.
                   */}
-                  {/* Listening together: the room's songs, and the host's player playing them. */}
-                  <RoomProvider>
-                    <DevicesProvider>
-                      <CarProvider>
-                        {/* Around the shell: the sidebar and the library share it. */}
-                        <LibraryFilterProvider>
-                          <RootRoutes />
-                          {/* What is kept in step behind the pages: drawn as nothing. */}
-                          <Keeping />
-                          {/* The home-screen widget's snapshot, where there is one. */}
-                          <WidgetSync />
-                          {/* The bucket refusing for the day, said once. */}
-                          <BucketHoldNotice />
-                          {/* Yesterday's feature counts, sent to the server once. */}
-                          <UsageReporter />
-                        </LibraryFilterProvider>
-                      </CarProvider>
-                    </DevicesProvider>
-                  </RoomProvider>
-                </PlayerProvider>
-              </DownloadsProvider>
-            </ConnectionProvider>
-          </QueryClientProvider>
-        </AccentProvider>
+                    {/* Listening together: the room's songs, and the host's player playing them. */}
+                    <RoomProvider>
+                      <DevicesProvider>
+                        <CarProvider>
+                          {/* Around the shell: the sidebar and the library share it. */}
+                          <LibraryFilterProvider>
+                            <RootRoutes />
+                            {/* What is kept in step behind the pages: drawn as nothing. */}
+                            <Keeping />
+                            {/* The home-screen widget's snapshot, where there is one. */}
+                            <WidgetSync />
+                            {/* The bucket refusing for the day, said once. */}
+                            <BucketHoldNotice />
+                            {/* Yesterday's feature counts, sent to the server once. */}
+                            <UsageReporter />
+                          </LibraryFilterProvider>
+                        </CarProvider>
+                      </DevicesProvider>
+                    </RoomProvider>
+                  </PlayerProvider>
+                </DownloadsProvider>
+              </ConnectionProvider>
+            </QueryClientProvider>
+          </AccentProvider>
+        </TitleBarRoom>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )
@@ -231,6 +252,8 @@ function Keeping(): ReactNode {
   useRecordRecentLists()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
+  // Edits made while the library was out of reach, kept through a reload.
+  useKeepWaitingEdits()
   return null
 }
 
@@ -240,12 +263,14 @@ function RootRoutes(): ReactNode {
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const reduced = useMotionReduced()
   // A face that failed to load is not a reason to keep the app shut: the system
   // font stands in, and nothing else depends on it.
   const [fontsLoaded, fontError] = useFonts(FONTS)
   const fontsReady = fontsLoaded || fontError !== null
+  // A browser's Back and Forward keep the app mounted, and the music playing.
+  useHistoryStepsOnLiveKeys()
 
   // In a browser: the manifest, and the service worker, told whether there is a
   // bucket to fetch songs from. Nothing on a phone.
@@ -349,7 +374,14 @@ function RootRoutes(): ReactNode {
       <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
         <Stack.Screen name="now-playing" options={nowPlaying} />
         {PLACES.map(name => (
-          <Stack.Screen key={name} name={name} dangerouslySingular={singularPlaces} />
+          <Stack.Screen
+            key={name}
+            name={name}
+            dangerouslySingular={name === 'search' ? singularSearch : singularPlaces}
+          />
+        ))}
+        {PAGES.map(name => (
+          <Stack.Screen key={name} name={name} dangerouslySingular={singularPage} />
         ))}
       </Stack>
       {/*

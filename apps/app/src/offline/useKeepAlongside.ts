@@ -271,16 +271,20 @@ export function useKeepAlongside(): void {
     let cancelled = false
 
     void (async () => {
-      for (const playlist of library.playlists) {
-        if (cancelled) return
-        try {
-          const songs = await api.playlistSongs(playlist.id)
-          playlistCache.write(songs.playlistId, songs)
-        } catch {
-          // No answer, or the server went away mid-pass: the next pass asks again.
-        }
+      // One request for all of them: asked one at a time, a library of 618
+      // playlists was 622 requests at launch, and as many after any edit.
+      if (library.playlists.length === 0) {
+        playlistsDone.current = listsKey
+        return
       }
-      if (!cancelled) playlistsDone.current = listsKey
+      try {
+        const { playlists } = await api.allPlaylistSongs()
+        if (cancelled) return
+        for (const songs of playlists) playlistCache.write(songs.playlistId, songs)
+        playlistsDone.current = listsKey
+      } catch {
+        // No answer, or the server went away: the next pass asks again.
+      }
     })()
 
     return () => {

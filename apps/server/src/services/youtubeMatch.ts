@@ -1,7 +1,7 @@
 import { pinyin } from 'pinyin-pro'
 import { clamp01, cleanTitle, editDistance, type ImportFound } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
-import type { ListedTrack } from './trackLists.js'
+import { swapped, type ListedTrack } from './trackLists.js'
 import type { ProbedTrack } from './ytdlp.js'
 import type { YouTubeMusicLists } from './youtubeMusicLists.js'
 
@@ -263,6 +263,25 @@ export function bestMatch(
   return best && best.confidence >= FOUND ? best : null
 }
 
+/**
+ * The best of YouTube Music's answers, for the song as it was written or read
+ * the other way round. "Never Gonna Give You Up - Rick Astley" is as likely
+ * as "Rick Astley - Never Gonna Give You Up", and a list too short to tell
+ * (`guessOrder`) reads it as the second; the search is the same words either
+ * way, and whichever reading its answers fit better is the song.
+ */
+export function bestReading(
+  source: ListedTrack,
+  results: readonly ProbedTrack[],
+): { track: ProbedTrack; confidence: number; reversed: boolean } | null {
+  const asWritten = bestMatch(source, results)
+  const written = asWritten && { ...asWritten, reversed: false }
+  if (!source.artist.trim()) return written
+  const reversed = bestMatch(swapped(source), results)
+  if (!reversed || (asWritten && reversed.confidence <= asWritten.confidence)) return written
+  return { ...reversed, reversed: true }
+}
+
 /** The query sent to YouTube. Artist first: it narrows results better. */
 export function searchQuery(source: ListedTrack): string {
   return [source.artist, cleanTitle(source.title)]
@@ -300,8 +319,8 @@ export class YouTubeMatcher {
       this.#logger.debug('YouTube Music did not answer', { title: source.title })
       return null
     }
-    const best = bestMatch(source, results)
+    const best = bestReading(source, results)
     if (!best) return null
-    return { ...best.track, sure: best.confidence >= SURE }
+    return { ...best.track, sure: best.confidence >= SURE, reversed: best.reversed }
   }
 }

@@ -13,7 +13,7 @@ import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
 import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useContentWidthValue } from '../../shell/contentWidth'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Chip } from '../../ui/components/Chip'
@@ -109,7 +109,7 @@ const LINKED_HOLD_MS = 2500
 export function SettingsScreen(): ReactNode {
   const pinyinOn = useRomanizationOn('zh')
   const romajiOn = useRomanizationOn('ja')
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const health = useHealth()
   // The bucket refusing for the day, which the health cannot see: in the cloud
   // it is the doorman's, and the doorman answers while the bucket will not.

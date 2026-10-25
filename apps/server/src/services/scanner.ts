@@ -41,6 +41,8 @@ export class ScannerService {
    * rather than an event emitter, the same shape the player engine uses.
    */
   onIngested: ((songId: number, change: 'added' | 'updated') => void) | null = null
+  /** Whether a removed song's copy at this path is still being deleted (`SongRemovalService.isLeaving`). */
+  isLeaving: ((key: string) => boolean) | null = null
   /** Called once a full sweep finishes, whatever it found. */
   onScanComplete: ((result: ScanResult) => void) | null = null
 
@@ -85,6 +87,8 @@ export class ScannerService {
      * leaves no gap at all: everything from here on is synchronous.
      */
     const existing = this.#songs.byPath(key)
+    // A song just removed whose copy has not been deleted yet: not a new one.
+    if (!existing && this.isLeaving?.(key)) throw new Error(`song being removed: ${key}`)
 
     if (existing) {
       this.#songs.updateScanned({
@@ -101,6 +105,10 @@ export class ScannerService {
       this.onIngested?.(existing.id, 'updated')
       return existing.id
     }
+
+    // Tags read but no audio found: an empty file, text or noise with an audio
+    // extension. Not a song, so not a row every device then fails to play.
+    if (!(metadata.duration > 0)) throw new Error(`no audio found in ${key}`)
 
     const id = this.#songs.insert({
       path: key,
@@ -161,6 +169,7 @@ export class ScannerService {
          */
         try {
           const existing = known.get(key)
+          if (!existing && this.isLeaving?.(key)) continue
           if (existing) {
             const stat = await this.#storage.stat(key)
             const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0

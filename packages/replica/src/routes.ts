@@ -18,7 +18,7 @@ import {
   RenameTagSchema,
   SetArtistNamesSchema,
   ReorderPlaylistSchema,
-  SetSongTagsSchema,
+  ChangeSongTagsSchema,
   SimilarQuerySchema,
   SongPatchSchema,
   UpdatePlaylistSchema,
@@ -204,6 +204,7 @@ export function createCloudRoutes(
     cloudManifest,
     cloudMotion,
     cloudPlaylistSongs,
+    cloudAllPlaylistSongs,
     loadCloudLibrary,
     markPlaylistPlayed,
     peekCloudLibrary,
@@ -221,6 +222,20 @@ export function createCloudRoutes(
       async ({ session, query }) => {
         await loadCloudLibrary(session)
         return cloudManifest(query.get('scope') === 'playlists' ? 'playlists' : 'library')
+      },
+    ],
+    [
+      'GET',
+      '/api/playlists/songs',
+      async ({ session }) => {
+        const view = await loadCloudLibrary(session)
+        const all = await cloudAllPlaylistSongs()
+        return {
+          playlists: view.library.playlists.map(playlist => ({
+            playlistId: playlist.id,
+            songIds: [...(all[playlist.id] ?? [])],
+          })),
+        }
       },
     ],
     [
@@ -342,12 +357,12 @@ export function createCloudRoutes(
       },
     ],
     [
-      'PUT',
+      'PATCH',
       '/api/songs/:id/tags',
       ({ session, params, body }) => {
-        const { tagIds } = parseInput(SetSongTagsSchema, body)
+        const { add, remove } = parseInput(ChangeSongTagsSchema, body)
         return recordChanges(session, ctx => ({
-          changes: edits.setSongTags(ctx, id(params), tagIds),
+          changes: edits.changeSongTags(ctx, id(params), add, remove),
           answer: view => songOf(view, id(params)),
         }))
       },
@@ -377,14 +392,12 @@ export function createCloudRoutes(
       ({ session, body }) => {
         const input = parseInput(BulkDeleteSongsSchema, body)
         return recordChanges(session, ctx => {
-          const asked = [...new Set(input.songIds)]
-          const removed = asked.filter(songId => ctx.view.uids.songs.has(songId)).length
-          const failed = asked
-            .filter(songId => !ctx.view.uids.songs.has(songId))
-            .map(songId => ({ songId, reason: `no song with id ${songId}`, removed: false }))
+          // A song not here is gone already, which is what was asked (the
+          // server's `songRemoval.remove`).
+          const removed = new Set(input.songIds).size
           return {
             changes: edits.removeSongs(ctx, input.songIds),
-            answer: () => ({ removed, failed }),
+            answer: () => ({ removed, failed: [] }),
           }
         })
       },

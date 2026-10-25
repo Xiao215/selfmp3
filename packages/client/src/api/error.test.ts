@@ -22,6 +22,17 @@ describe('failureText', () => {
     )
   })
 
+  it('keeps why the model did not answer, whatever its status', () => {
+    const unreachable = new ApiError(502, 'Your server couldn’t reach the model.', 'ai_unreachable')
+    expect(failureText('Couldn’t answer that', unreachable)).toBe(
+      'Couldn’t answer that: Your server couldn’t reach the model.',
+    )
+    const off = new ApiError(503, 'Smart features aren’t set up on your server.', 'ai_off')
+    expect(failureText('Couldn’t write it', off)).toBe(
+      'Couldn’t write it: Smart features aren’t set up on your server.',
+    )
+  })
+
   it('stops at the failure for a server error, a bad shape or a thrown exception', () => {
     const failures = [
       new ApiError(500, 'POST /api/playlists failed (500)'),

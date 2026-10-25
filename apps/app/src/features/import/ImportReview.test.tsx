@@ -30,7 +30,10 @@ jest.mock('expo-router', () => ({
 }))
 
 // The floating chrome's room reads the player; there is no player here.
-jest.mock('../../shell/bottomInset', () => ({ useFootInset: () => 0 }))
+jest.mock('../../shell/bottomInset', () => ({
+  useFootInset: () => 0,
+  useFloatingChrome: () => 0,
+}))
 
 const mockClose = jest.fn()
 // One set of handlers for every render, as the real hook's keep their identity.
@@ -76,6 +79,10 @@ jest.mock('./importSource', () => {
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importAlreadyHave: () => mockAlreadyHave(),
           importNames: (request: unknown) => mockImportNames(request),
+        },
+        // Look-ups go to the same server, given longer to answer.
+        get lookUp() {
+          return (this as { api: unknown }).api
         },
         library: { songs: [], tags: mockTags, playlists: [] },
         createTag: (name: string) => mockCreateTag(name),
@@ -164,6 +171,7 @@ describe('Import review, on a phone', () => {
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
@@ -215,6 +223,25 @@ describe('Import review, on a phone', () => {
     expect(screen.getByLabelText('Deselect 群青')).toBeTruthy()
     expect(screen.queryByLabelText(/アイドル$/)).toBeNull()
     expect(screen.getByLabelText('Deselect all')).toBeTruthy()
+  })
+
+  it('says over the songs which pasted links it could not read, and why', async () => {
+    const review = draftFor('own').review!
+    patchDraft('own', {
+      review: {
+        ...review,
+        unread: [
+          { url: 'https://youtu.be/zzzzzzzzzzz', why: 'This video isn’t on YouTube any more.' },
+        ],
+      },
+    })
+    await draw()
+    expect(screen.getByText('Couldn’t read 1 link')).toBeTruthy()
+    expect(
+      within(screen.getByTestId('import-unread')).getByText(/isn’t on YouTube any more/),
+    ).toBeTruthy()
+    // The songs of the links it read are still there to import.
+    expect(screen.getByText('Import 2 songs')).toBeTruthy()
   })
 
   it('asks the server again what is yours, since the kept review may be old', async () => {
@@ -319,6 +346,7 @@ describe('Import review, on a phone', () => {
     // review is keyed by the server, not by whichever address won this time.
     patchDraft('cloud', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
@@ -357,10 +385,14 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByRole('checkbox', { name: 'jpop' }))
     })
     // The chip is the button; the row in the picker above it is the checkbox.
-    expect(screen.getByRole('button', { name: 'jpop' })).toBeTruthy()
+    // The chip is on the page under the open picker, which hides the page
+    // from a screen reader while it is up.
+    expect(screen.getByRole('button', { name: 'jpop', includeHiddenElements: true })).toBeTruthy()
 
+    // Import, on the page under the picker (which a press on it straight
+    // after opening would not put away, `BACKDROP_SETTLE_MS`).
     await act(async () => {
-      await fireEvent.press(screen.getByTestId('import-commit'))
+      await fireEvent.press(screen.getByTestId('import-commit', { includeHiddenElements: true }))
     })
     expect(mockEnqueue.mock.calls[0][0].tagIds).toEqual([7])
     // The tags were for these songs: the next link starts with none.
@@ -380,7 +412,10 @@ describe('Import review, on a phone', () => {
       await fireEvent.press(screen.getByLabelText('Create citypop'))
     })
     expect(mockCreateTag).toHaveBeenCalledWith('citypop')
-    expect(screen.getByRole('button', { name: 'citypop' })).toBeTruthy()
+    // On the page, under the picker that hides it from a screen reader.
+    expect(
+      screen.getByRole('button', { name: 'citypop', includeHiddenElements: true }),
+    ).toBeTruthy()
   })
 
   it('opens a song to rename it, album and all, and sends the new names with no playlist', async () => {

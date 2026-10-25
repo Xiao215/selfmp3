@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { QueueState, Song } from '@selfmp3/shared'
 
 import { OverlayProvider } from '../../shell/Overlay'
+import { currentToasts, dismissToast } from '../../ui/toast'
 import { closeQueueSheet, isQueueSheetOpen, openQueueSheet } from './queueSheet.store'
 import { QueueRail } from './QueueRail'
 
@@ -104,6 +105,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: true, dense: true, compact: false, finePointer: true, width: 1400 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 1400, height: 900, scale: 2, fontScale: 1 }),
@@ -134,7 +136,10 @@ describe('the Up next rail', () => {
     jest.clearAllMocks()
     openQueueSheet()
   })
-  afterEach(() => closeQueueSheet())
+  afterEach(() => {
+    closeQueueSheet()
+    for (const toast of currentToasts()) dismissToast(toast.id)
+  })
 
   it('clears the rest, as the phone’s sheet does, and lists what played', async () => {
     mockSet({ current: song(2), queue: queue([1, 2, 3], 1), ranOut: false })
@@ -156,6 +161,30 @@ describe('the Up next rail', () => {
     expect(screen.getByText('That was the only song')).toBeTruthy()
     // Nothing follows it, so there is no rest to clear.
     expect(screen.queryByTestId('queue-clear-rest')).toBeNull()
+  })
+
+  it('has nothing to clear when every other song has played', async () => {
+    // Enabled, it took only the played history.
+    mockSet({ current: song(2), queue: queue([1, 2], 1), ranOut: false })
+    await draw()
+    expect(screen.getByText('Nothing after this one')).toBeTruthy()
+    expect(screen.getByTestId('queue-clear-rest')).toBeDisabled()
+  })
+
+  it('takes its Undo away once another song has started, rather than offering one that does nothing', async () => {
+    mockSet({ current: song(2), queue: queue([1, 2, 3, 4], 1), ranOut: false })
+    await draw()
+    await fireEvent.press(screen.getByTestId('queue-clear-rest'))
+    const cleared = (): boolean =>
+      currentToasts().some(toast => toast.over === 'Cleared from Up next')
+    expect(cleared()).toBe(true)
+
+    // The same song still playing, it can still be undone.
+    await act(async () => mockSet({ current: song(2), queue: queue([2, 9], 0), ranOut: false }))
+    expect(cleared()).toBe(true)
+
+    await act(async () => mockSet({ current: song(9), queue: queue([2, 9], 1), ranOut: false }))
+    expect(cleared()).toBe(false)
   })
 
   it('puts itself away when nothing is left, rather than coming back with the next song', async () => {

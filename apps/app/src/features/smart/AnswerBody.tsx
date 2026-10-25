@@ -45,6 +45,7 @@ export function AnswerBody({
   listHeight,
   onKeys,
   onAsk,
+  onCarriedOut,
 }: {
   answer: Answer
   text: string
@@ -54,6 +55,8 @@ export function AnswerBody({
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
   onAsk?: (text: string) => void
+  /** A playback answer, once done: what it came to, in its line. */
+  onCarriedOut?: (said: string) => void
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
@@ -112,7 +115,7 @@ export function AnswerBody({
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />
     case 'playback':
-      return <PlaybackAnswer answer={answer} />
+      return <PlaybackAnswer answer={answer} onCarriedOut={onCarriedOut} />
     case 'getMusic':
       return <GetMusicAnswer answer={answer} onDone={onDone} />
     case 'playlists':
@@ -179,7 +182,10 @@ export function AnswerBody({
                   style={styles.try}
                   testID="ask-try"
                 >
-                  <Sparkle size={iconSize.sub} />
+                  {/* Its own size, however long the words beside it wrap. */}
+                  <View style={styles.tryIcon}>
+                    <Sparkle size={iconSize.sub} />
+                  </View>
                   <Text style={styles.tryText} numberOfLines={2}>
                     {each}
                   </Text>
@@ -320,5 +326,6 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.surface2,
   },
+  tryIcon: { flexShrink: 0 },
   tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
 }))

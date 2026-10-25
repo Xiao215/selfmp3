@@ -3,7 +3,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { formatDuration } from '@selfmp3/shared'
 import { type, space } from '@selfmp3/client'
-import { usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerProgress, usePlayingSongId } from '../../player/PlayerProvider'
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { Scrubber } from './Scrubber'
 
@@ -34,6 +34,8 @@ export function SeekBar({
 }): ReactNode {
   const progress = usePlayerProgress()
   const seekTo = usePlayerCommands().seekTo
+  // A drag held as the song changes is dropped, not let go on the next one.
+  const songId = usePlayingSongId()
   const position = waiting === undefined ? progress.position : 0
   const duration = waiting ?? progress.duration
   const onSeek = waiting === undefined ? seekTo : () => undefined
@@ -42,9 +44,11 @@ export function SeekBar({
       value={position}
       max={duration}
       onCommit={onSeek}
+      of={songId}
       hold={waiting === undefined}
       label="Seek"
       step={SEEK_STEP_SECONDS}
+      valueText={at => `${formatDuration(at)} of ${formatDuration(duration)}`}
       size={inline ? 'small' : 'large'}
       color={color}
       around={(bar, shown) =>

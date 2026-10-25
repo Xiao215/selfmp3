@@ -373,6 +373,7 @@ function VolumeSlider({
       label="Volume"
       step={VOLUME_STEP}
       spokenScale={100}
+      valueText={at => `${Math.round(at * 100)}%`}
       vertical={vertical}
       size={vertical ? 'large' : 'small'}
       thumb={vertical}

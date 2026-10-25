@@ -13,7 +13,6 @@ import {
   STALE,
   type,
   useDevices,
-  type Api,
   iconSize,
   space,
 } from '@selfmp3/client'
@@ -22,7 +21,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Trash } from '../../ui/components/Icons'
-import { showFailure } from '../../ui/toast'
+import { forgetEach } from './forgetDevices'
 import { useDeviceContext } from '../devices/DevicesProvider'
 import {
   knownAsDevices,
@@ -112,19 +111,6 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
   )
 }
 
-/**
- * Forgets each device, all of them tried even when one is refused, and says
- * so when any was: Remove is pressed, and a row that stays put is no answer.
- */
-async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]): Promise<void> {
-  const results = await Promise.allSettled(ids.map(id => api.forgetDevice(id)))
-  const refused = results.find(result => result.status === 'rejected')
-  if (refused) {
-    const what = ids.length > 1 ? 'Couldn’t remove them all' : 'Couldn’t remove that device'
-    showFailure(what, refused.reason)
-  }
-}
-
 /** The panel itself, whichever way its list arrived. */
 function DevicesList({
   anchor,
@@ -140,6 +126,10 @@ function DevicesList({
   const { deviceId, name, rename, heard } = useDeviceContext()
   const [draft, setDraft] = useState<{ text: string; from: string } | null>(null)
   const shown = draft && draft.from === name ? draft.text : name
+  const save = (): void => {
+    if (draft && draft.text.trim() && draft.text.trim() !== name) rename(draft.text.trim())
+    setDraft(null)
+  }
   const live = reach === 'reachable'
 
   // The last real answer, kept for the day there is none. Read once, as the
@@ -190,10 +180,10 @@ function DevicesList({
           limit={DeviceNameSchema}
           accessibilityLabel="This device’s name"
           onChangeText={text => setDraft({ text, from: name })}
-          onEndEditing={() => {
-            if (draft && draft.text.trim() && draft.text !== name) rename(draft.text.trim())
-            setDraft(null)
-          }}
+          // Blur and Return, not `onEndEditing`: a browser's text field never
+          // sends that, and a new name typed on a computer was never kept.
+          onBlur={save}
+          onSubmitEditing={save}
         />
       </Row>
       <View style={styles.devices}>
@@ -217,9 +207,18 @@ function DevicesList({
                   ? 'online'
                   : `last seen ${formatRelative(device.lastSeenAt)}`}
             </Text>
-            {/* Forgetting is the server's to do, so only while it answers. */}
-            {live ? (
-              <IconButton onPress={() => onForget(ids)} label={`Remove ${device.name}`} size={28}>
+            {/*
+              Forgetting is the server's to do, so only while it answers — and
+              never this device, which its next heartbeat would bring back.
+            */}
+            {live && device.id !== deviceId ? (
+              <IconButton
+                onPress={() => onForget(ids)}
+                label={
+                  ids.length > 1 ? `Remove ${device.name} (${ids.length})` : `Remove ${device.name}`
+                }
+                size={28}
+              >
                 <Trash size={iconSize.field} tone="textMuted" />
               </IconButton>
             ) : null}

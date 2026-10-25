@@ -34,6 +34,8 @@ import { noServer, viaKey } from '../../connection/via'
 interface Answer<T> {
   readonly data: T | undefined
   readonly isLoading: boolean
+  /** Ask again, for a page that is showing it could not be answered. */
+  readonly refetch: () => void
 }
 
 /**
@@ -54,7 +56,11 @@ function useOwnOrVia<T>(
     staleTime: STALE.minute,
   })
   const chosen = via ? server : own
-  return { data: chosen.data, isLoading: chosen.isLoading }
+  return {
+    data: chosen.data,
+    isLoading: chosen.isLoading,
+    refetch: () => void chosen.refetch(),
+  }
 }
 
 export function useStatsFor(via: ServerConnection | undefined, range: StatsRange): Answer<Stats> {

@@ -29,6 +29,35 @@ describe('a playlist being played', () => {
   })
 })
 
+describe('a playlist made with its songs', () => {
+  let db: Database.Database
+  let playlists: PlaylistRepository
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.exec("INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A'), (2, 'b.m4a', 'B');")
+    playlists = new PlaylistRepository(db)
+  })
+
+  it('has them from the moment it exists, in the order they were picked', () => {
+    const made = playlists.create(
+      { name: 'Picked', description: '', kind: 'manual', rules: null },
+      [2, 1],
+    )
+    expect(made.songCount).toBe(2)
+    expect(playlists.songIds(made)).toEqual([2, 1])
+  })
+
+  it('is not made at all when its songs cannot be put in', () => {
+    // A song that is not there breaks the insert: the playlist goes with it.
+    expect(() =>
+      playlists.create({ name: 'Broken', description: '', kind: 'manual', rules: null }, [1, 99]),
+    ).toThrow()
+    expect(playlists.all()).toEqual([])
+  })
+})
+
 /**
  * A playlist that follows tags, put in an order by hand.
  *

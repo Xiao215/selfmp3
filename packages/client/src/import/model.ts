@@ -4,7 +4,9 @@ import {
   fromSqliteTime,
   isNeteaseUrl,
   isYouTubeUrl,
+  linklessLines,
   neteaseLink,
+  plural,
   spotifyLink,
   youtubeChannel,
   youtubeMusicAlbum,
@@ -12,6 +14,7 @@ import {
   youtubePlaylistId,
   youtubeVideoId,
   IMPORT_STEP_LABELS,
+  importFailure,
   type ImportEnqueue,
   type ImportEnqueueItem,
   type ImportFound,
@@ -20,8 +23,8 @@ import {
   type ImportPreview,
   type ImportPreviewItem,
   type ImportSource,
+  type UnreadLink,
 } from '@selfmp3/shared'
-import { importFailure } from './failure.js'
 
 /**
  * Importing, without the screen.
@@ -129,6 +132,8 @@ export interface Review {
   readonly playlistTitle: string | null
   /** What listed the songs: a YouTube link, a 网易云 one, a Spotify one, or a list of names. */
   readonly from: ImportFrom
+  /** Links pasted with the others that could not be read, and why: said over the songs. */
+  readonly unread: readonly UnreadLink[]
 }
 
 /**
@@ -148,6 +153,7 @@ export function reviewFrom(preview: ImportPreview): Review {
     ),
     playlistTitle: preview.kind === 'playlist' ? preview.playlistTitle : null,
     from: preview.from,
+    unread: preview.unread,
   }
 }
 
@@ -172,7 +178,8 @@ export function lookingFor(review: Review): number[] {
  * What YouTube said for some of a review's rows, written into them: the link
  * to download and how sure the match is, and the album and cover where the
  * row had none. A row nothing was found for loses its tick — there is nothing
- * to import — and a row that was found keeps whatever tick it had.
+ * to import — and so does one YouTube is not sure of, to be listened to
+ * before it is ticked; a row found for sure keeps whatever tick it had.
  */
 export function withFound(
   review: Review,
@@ -189,8 +196,11 @@ export function withFound(
       return { ...item, url: item.source === 'youtube' ? '' : item.url, youtube: none }
     }
     const youtube = { url: match.url, match: match.sure ? ('sure' as const) : ('unsure' as const) }
+    if (!match.sure && item.source === 'youtube') chosen.delete(index)
     return {
       ...item,
+      // Found read the other way round: its title was its artist ("Lemon - 米津玄師").
+      ...(match.reversed ? { title: item.artist, artist: item.title } : {}),
       ...(item.source === 'youtube' ? { url: match.url } : {}),
       album: item.album || match.album,
       thumbnail: item.thumbnail ?? match.thumbnail,
@@ -323,6 +333,14 @@ export function describePaste(text: string): string | null {
   if (!text.trim()) return null
   const urls = extractUrls(text)
   if (urls.length === 0) return searchQuery(text) ? 'Search' : 'A list of song names'
+  // Names pasted with the links are looked up too (importPreview.ts), and said so.
+  const names = linklessLines(text).length
+  const links = describeLinks(urls)
+  return names > 0 ? `${links} and ${plural(names, 'song name', 'song names')}` : links
+}
+
+/** What the links pasted are: one by its kind, several by how many. */
+function describeLinks(urls: readonly string[]): string {
   if (urls.length > 1) return `${urls.length} links`
   const url = urls[0] as string
   const netease = neteaseLink(url)

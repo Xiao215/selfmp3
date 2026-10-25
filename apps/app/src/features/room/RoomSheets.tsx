@@ -229,7 +229,7 @@ function Start(): ReactNode {
           picture={me?.picture ?? null}
           size={START_FACE}
         />
-        <Text style={styles.startTitle} accessibilityRole="header">
+        <Text style={styles.startTitle} accessibilityRole="header" aria-level={2}>
           Listen together
         </Text>
         <Text style={styles.centred}>

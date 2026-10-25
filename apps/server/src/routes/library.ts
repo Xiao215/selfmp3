@@ -19,9 +19,9 @@ import { route } from '../http/route.js'
  * play being counted — would look like a new library to anything that keys on
  * it, and the phone's keep-alongside pass (useKeepAlongside) would walk every
  * song and playlist again for nothing. The version moves on every edit that
- * changes what the library holds; a restart starts the version again, and the
- * first answer after it gets a new time, so two different libraries never
- * share a stamp.
+ * changes what the library holds, and starts each boot from the clock, so the
+ * first answer after a restart gets a new time and two different libraries
+ * never share a stamp.
  */
 export function answeredAt(
   version: () => number,

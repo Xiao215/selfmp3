@@ -47,6 +47,10 @@ jest.mock('./importSource', () => {
       dismissImport: (id: string) => mockDismissImport(id),
       importNext: (id: string) => mockImportNext(id),
     },
+    // Look-ups go to the same server, given longer to answer.
+    get lookUp() {
+      return (this as { api: unknown }).api
+    },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),

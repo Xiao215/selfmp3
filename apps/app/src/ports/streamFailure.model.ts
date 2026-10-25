@@ -25,6 +25,18 @@ export function streamFailureMessage(status: number, body: string, place: Device
   return plain
 }
 
+/**
+ * Nothing answered at all: no server, no doorman, no connection. Said apart
+ * from a refusal, because the next song would get no answer either — the
+ * player stops on it rather than skipping down the queue (`isUnreachable`).
+ */
+export const LOST_CONNECTION = 'Lost connection to the library'
+
+/** Whether a song failed because nothing answered, by the words its engine said. */
+export function isUnreachable(error: string | null): boolean {
+  return error === LOST_CONNECTION
+}
+
 /** A song with no copy here and no way to fetch one. */
 export function notHere(place: DevicePlace): string {
   return `This song isn’t on this ${place}`

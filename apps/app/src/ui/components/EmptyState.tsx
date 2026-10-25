@@ -36,7 +36,7 @@ export function EmptyState({
   return (
     <View style={[styles.empty, compact && styles.compact, style]} testID={testID}>
       {icon ? <View style={styles.icon}>{icon}</View> : null}
-      <Text style={styles.title} accessibilityRole="header">
+      <Text style={styles.title} accessibilityRole="header" aria-level={2}>
         {title}
       </Text>
       {line ? <Text style={styles.line}>{line}</Text> : null}

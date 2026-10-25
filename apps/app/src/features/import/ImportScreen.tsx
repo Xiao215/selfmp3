@@ -49,7 +49,7 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
@@ -129,7 +129,7 @@ export function ImportScreen({
 } = {}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   /*
    * What the paragraph over the box used to say, shown once on the first
    * visit, pointing at the box (D1, 2026-10-13); the sources row under the
@@ -161,7 +161,7 @@ export function ImportScreen({
   const tags = library?.tags ?? []
 
   const preview = useMutation({
-    mutationFn: (input: string) => api.importPreview(input),
+    mutationFn: (input: string) => source.lookUp.importPreview(input),
     onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
@@ -216,9 +216,22 @@ export function ImportScreen({
       .catch((err: unknown) => failed(err instanceof Error ? err : new Error(String(err))))
       .finally(() => void source.invalidateQueue())
   }
+  /*
+   * The same press on the same row while the first is on its way is that
+   * press again, not a second request: a double click on Remove sent two, and
+   * the second, for a job already gone, came back as a red card.
+   */
+  const sending = useRef(new Set<string>())
   const act = (change: QueueChange, request: () => Promise<unknown>): void => {
+    const key = `${change.kind}:${change.id ?? 'all'}`
+    if (sending.current.has(key)) return
+    sending.current.add(key)
     source.editQueue(change)
-    send(request())
+    send(
+      request().finally(() => {
+        sending.current.delete(key)
+      }),
+    )
   }
 
   const pasted = describePaste(links)
@@ -848,7 +861,7 @@ function JobRow({
   /** "Import next", while it would move the song (`canImportNext`). */
   onNext: (() => void) | null
 }): ReactNode {
-  const { wide, dense } = useLayout()
+  const { wide, dense } = useLayoutFlags()
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = jobTone(job)
@@ -1036,6 +1049,9 @@ function RowMore({
   )
 }
 
+/** The queue row swiped open, if any: opening another closes it, as Mail's rows do. */
+let swipedOpen: SwipeableMethods | null = null
+
 /**
  * A phone's way to take an import off the queue: swipe the row left and press
  * Remove behind it, as Mail and Messages do. A song waiting behind others has
@@ -1063,6 +1079,13 @@ function SwipeActions({
   children: ReactNode
 }): ReactNode {
   const swipeable = useRef<SwipeableMethods>(null)
+  // A row gone (imported, removed) is not the one open.
+  useEffect(() => {
+    const mine = swipeable.current
+    return () => {
+      if (swipedOpen === mine) swipedOpen = null
+    }
+  }, [])
   useOpenWith(
     guide ?? null,
     () => swipeable.current?.openRight(),
@@ -1074,6 +1097,14 @@ function SwipeActions({
       friction={1.6}
       rightThreshold={40}
       overshootRight={false}
+      onSwipeableWillOpen={() => {
+        const opening = swipeable.current
+        if (swipedOpen !== opening) swipedOpen?.close()
+        swipedOpen = opening
+      }}
+      onSwipeableClose={() => {
+        if (swipedOpen === swipeable.current) swipedOpen = null
+      }}
       renderRightActions={(_progress, _translation, swipeable) => (
         <View style={styles.swipeActions}>
           {onNext ? (

@@ -118,4 +118,37 @@ describe('Scrubber', () => {
     await fireEvent(bar, 'accessibilityAction', { nativeEvent: { actionName: 'increment' } })
     expect(onCommit).toHaveBeenLastCalledWith(30)
   })
+
+  it('calls off a drag still held when the song changes, rather than seeking the next one', async () => {
+    const onCommit = jest.fn()
+    const bar = (of: number) => (
+      <Scrubber
+        value={10}
+        max={100}
+        onCommit={onCommit}
+        hold
+        label="Seek"
+        step={10}
+        testID="s"
+        of={of}
+      />
+    )
+    const view = await render(bar(1))
+    const track = screen.getByTestId('s')
+    await fireEvent(track, 'layout', layout(200, 34))
+    await fireEvent(track, 'responderGrant', touch(60))
+    expect(track.props['aria-valuenow']).toBe(30)
+
+    // The song ends under the finger; the next one starts from its top.
+    await view.rerender(bar(2))
+    expect(screen.getByTestId('s').props['aria-valuenow']).toBe(10)
+    await fireEvent(track, 'responderMove', touch(160))
+    await fireEvent(track, 'responderRelease', touch(160))
+    expect(onCommit).not.toHaveBeenCalled()
+
+    // A drag begun on the new song lands as ever.
+    await fireEvent(track, 'responderGrant', touch(100))
+    await fireEvent(track, 'responderRelease', touch(100))
+    expect(onCommit).toHaveBeenCalledWith(50)
+  })
 })

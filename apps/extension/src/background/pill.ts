@@ -1,6 +1,11 @@
-import { importFailure } from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
-import { sameLink, youtubeVideoId, youtubeWatchUrl, type ImportJob } from '@selfmp3/shared'
+import {
+  importFailure,
+  sameLink,
+  youtubeVideoId,
+  youtubeWatchUrl,
+  type ImportJob,
+} from '@selfmp3/shared'
 import type { Handlers, PageRequest, PillState } from '../bridge.js'
 import type { Route } from './connection.js'
 

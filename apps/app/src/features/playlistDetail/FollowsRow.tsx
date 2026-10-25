@@ -41,13 +41,20 @@ export function FollowsRow({
   const stop = useStopFollowing()
   const [choosing, setChoosing] = useState(false)
 
-  const tagIds = followedTagIds(playlist.rules)
+  /*
+   * The tags as last chosen here, until the library has the answer. The rules
+   * go to the server whole, so a second tap worked out from the playlist as it
+   * was before the first one's answer sent the first one's tag back off.
+   */
+  const [sent, setSent] = useState<readonly number[] | null>(null)
+  const tagIds = sent && update.isPending ? sent : followedTagIds(playlist.rules)
   const chosen = tagsWithIds(tagIds, tags)
 
   const setTags = (next: readonly number[]): void => {
     // The last tag cannot go: a playlist following nothing is empty, which
     // looks exactly like something having gone wrong. Stop following instead.
     if (next.length === 0) return
+    setSent(next)
     update.mutate({ id: playlist.id, patch: { rules: withFollowedTags(playlist.rules, next) } })
   }
 

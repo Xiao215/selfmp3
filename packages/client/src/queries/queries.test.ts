@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { Library, Playlist, PlaylistSongs, Song } from '@selfmp3/shared'
+import type { Library, Playlist, PlaylistSongs, Settings, Song } from '@selfmp3/shared'
 import type { Api } from '../api/api.js'
 import { configureClient } from '../runtime.js'
 import {
@@ -11,7 +11,8 @@ import {
   useBulkDeleteSongs,
   useCreateTag,
   useLibrary,
-  useSetSongTags,
+  useChangeSongTags,
+  useUpdateSettings,
 } from './queries.js'
 
 /*
@@ -83,7 +84,9 @@ const savedCopies: Library[] = []
 configureClient({
   api: {
     library: () => slowAnswer ?? Promise.resolve(serverLibrary),
-    setSongTags: (id: number, tagIds: number[]) => Promise.resolve(song(id, { tagIds })),
+    // The song had tag 10; what the change leaves it with.
+    changeSongTags: (id: number, change: { add: number[]; remove: number[] }) =>
+      Promise.resolve(song(id, { tagIds: change.add })),
     bulkDeleteSongs: () => Promise.resolve({ removed: 1, failed: [] }),
     createTag: ({ name }: { name: string }) =>
       Promise.resolve({ id: 12, name, hue: 0, songCount: 0 }),
@@ -137,12 +140,12 @@ function mount<T>(client: QueryClient, hook: () => T): () => T {
 const invalidated = (client: QueryClient, key: readonly unknown[]): boolean =>
   client.getQueryState(key)?.isInvalidated === true
 
-describe('useSetSongTags', () => {
+describe('useChangeSongTags', () => {
   it('asks for the members again when a live playlist follows a tag that moved', async () => {
     const client = seeded([live, manual])
-    const mutation = mount(client, useSetSongTags)
+    const mutation = mount(client, useChangeSongTags)
 
-    await act(() => mutation().mutateAsync({ songId: 1, tagIds: [11] }))
+    await act(() => mutation().mutateAsync({ songId: 1, add: [11], remove: [10] }))
 
     expect(invalidated(client, queryKeys.playlistSongs(live.id))).toBe(true)
     expect(invalidated(client, queryKeys.playlistSongs(manual.id))).toBe(true)
@@ -154,9 +157,9 @@ describe('useSetSongTags', () => {
   it('leaves the members alone when no live playlist follows a tag that moved', async () => {
     const other = following(22, 12)
     const client = seeded([other, manual])
-    const mutation = mount(client, useSetSongTags)
+    const mutation = mount(client, useChangeSongTags)
 
-    await act(() => mutation().mutateAsync({ songId: 1, tagIds: [11] }))
+    await act(() => mutation().mutateAsync({ songId: 1, add: [11], remove: [10] }))
 
     expect(invalidated(client, queryKeys.playlistSongs(other.id))).toBe(false)
     expect(client.getQueryData<Library>(queryKeys.library)?.songs[0]?.tagIds).toEqual([11])
@@ -165,9 +168,9 @@ describe('useSetSongTags', () => {
 
   it('leaves the members alone when no playlist is live', async () => {
     const client = seeded([manual])
-    const mutation = mount(client, useSetSongTags)
+    const mutation = mount(client, useChangeSongTags)
 
-    await act(() => mutation().mutateAsync({ songId: 1, tagIds: [11] }))
+    await act(() => mutation().mutateAsync({ songId: 1, add: [11], remove: [10] }))
 
     expect(invalidated(client, queryKeys.playlistSongs(manual.id))).toBe(false)
     // The cheap path, untouched: the answer went in, and nothing was asked for.
@@ -255,5 +258,86 @@ describe('useLibrary', () => {
     mount(client, useLibrary)
     await vi.waitFor(() => expect(savedCopies).toHaveLength(1))
     expect(savedCopies[0]?.playlists[0]?.id).toBe(live.id)
+  })
+})
+
+describe('useUpdateSettings', () => {
+  /** A server that holds each answer until the test lets it go, and records what it was sent. */
+  function heldSettings(start: Partial<Settings>) {
+    let server = start as Settings
+    const sent: unknown[] = []
+    const answers: (() => void)[] = []
+    const fail: (() => void)[] = []
+    const api = {
+      updateSettings: (patch: Partial<Settings>) =>
+        new Promise<Settings>((resolve, reject) => {
+          sent.push(patch)
+          answers.push(() => {
+            server = { ...server, ...patch }
+            resolve(server)
+          })
+          fail.push(() => reject(new Error('timed out')))
+        }),
+      settings: () => Promise.resolve(server),
+    } as unknown as Api
+    return { api, sent, answers, fail, server: () => server }
+  }
+  const BASE = 'http://pi:4600'
+
+  it('moves the switch at once, and two quick taps leave it where it started', async () => {
+    const server = heldSettings({ smartTags: true })
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    client.setQueryData(queryKeys.settings(BASE), server.server())
+    const held = () => client.getQueryData<Settings>(queryKeys.settings(BASE))
+    const mutation = mount(client, () => useUpdateSettings(server.api, BASE))
+
+    await act(async () => mutation().mutate({ smartTags: !held()?.smartTags }))
+    expect(held()?.smartTags).toBe(false)
+    await act(async () => mutation().mutate({ smartTags: !held()?.smartTags }))
+    expect(held()?.smartTags).toBe(true)
+
+    // One at a time, and the first answer does not put the switch back.
+    await vi.waitFor(() => expect(server.answers).toHaveLength(1))
+    await act(async () => server.answers[0]?.())
+    expect(held()?.smartTags).toBe(true)
+    await vi.waitFor(() => expect(server.answers).toHaveLength(2))
+    await act(async () => server.answers[1]?.())
+    expect(server.sent).toEqual([{ smartTags: false }, { smartTags: true }])
+    expect(held()?.smartTags).toBe(true)
+    expect(server.server().smartTags).toBe(true)
+  })
+
+  it('removes two notes pressed quickly, the second from what the first left', async () => {
+    const server = heldSettings({ smartNotes: ['one', 'two', 'three'] })
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    client.setQueryData(queryKeys.settings(BASE), server.server())
+    const held = () => client.getQueryData<Settings>(queryKeys.settings(BASE))
+    const mutation = mount(client, () => useUpdateSettings(server.api, BASE))
+    const without = (note: string) => ({
+      smartNotes: (held()?.smartNotes ?? []).filter(each => each !== note),
+    })
+
+    await act(async () => mutation().mutate(without('one')))
+    await act(async () => mutation().mutate(without('two')))
+    expect(held()?.smartNotes).toEqual(['three'])
+    await vi.waitFor(() => expect(server.answers).toHaveLength(1))
+    await act(async () => server.answers[0]?.())
+    await vi.waitFor(() => expect(server.answers).toHaveLength(2))
+    await act(async () => server.answers[1]?.())
+    expect(server.server().smartNotes).toEqual(['three'])
+  })
+
+  it('puts back what was held when a change fails', async () => {
+    const server = heldSettings({ smartTags: true })
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    client.setQueryData(queryKeys.settings(BASE), server.server())
+    const held = () => client.getQueryData<Settings>(queryKeys.settings(BASE))
+    const mutation = mount(client, () => useUpdateSettings(server.api, BASE))
+
+    await act(async () => mutation().mutate({ smartTags: false }))
+    expect(held()?.smartTags).toBe(false)
+    await vi.waitFor(() => expect(server.fail).toHaveLength(1))
+    await act(async () => server.fail[0]?.())
+    expect(held()?.smartTags).toBe(true)
   })
 })

@@ -5,6 +5,15 @@ import { queryKeys, useRemoveManyFromPlaylist } from '@selfmp3/client'
 import { showPendingToast } from '../../ui/toast'
 
 /**
+ * The kind of message a playlist's removals fold into, which is also how what
+ * waits on its Undo is found to be sent before the playlist is added to
+ * (`beforeAddingTo`).
+ */
+export function removedFrom(playlistId: number): string {
+  return `playlist-removed-${playlistId}`
+}
+
+/**
  * Songs out of a playlist at once, with an Undo for five seconds
  * (docs/features/multi-select.md). The song's menu and the selection bar both
  * remove this way.
@@ -51,7 +60,7 @@ export function usePlaylistRemoval(): (
           ),
         {
           songs: library?.songs.filter(song => gone.has(song.id)) ?? [],
-          group: `playlist-removed-${playlist.id}`,
+          group: removedFrom(playlist.id),
           undone: () => {
             if (before) client.setQueryData(key, before)
           },

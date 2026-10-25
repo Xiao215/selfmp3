@@ -48,11 +48,12 @@ export class SpellingService {
   /** The spellings of the names the library has now: what the snapshot and the library carry. */
   current(): Record<string, string[]> {
     const wanted = this.#wanted()
-    const spelt: Record<string, string[]> = {}
-    for (const [name, spellings] of this.#names.spellings()) {
-      if (wanted.has(name) && spellings.length > 0) spelt[name] = spellings
-    }
-    return spelt
+    // Entries, not assignments: a name like "__proto__" is an own key that way.
+    return Object.fromEntries(
+      [...this.#names.spellings()].filter(
+        ([name, spellings]) => wanted.has(name) && spellings.length > 0,
+      ),
+    )
   }
 
   #wanted(): Set<string> {

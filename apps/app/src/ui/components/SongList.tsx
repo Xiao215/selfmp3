@@ -1,5 +1,5 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement, ReactNode, RefObject } from 'react'
 import {
   Animated,
@@ -150,6 +150,19 @@ export function SongList({
   const wide = useLayoutValue(layout => layout.wide)
   const ownRef = useRef<FlatList<Song>>(null)
   const listRef = givenRef ?? ownRef
+
+  /*
+   * A new answer starts at its first row. The offset the old one was scrolled
+   * to meant nothing in the new: a filter narrowing a list scrolled far down
+   * clamped it to the new end, with row 1 hidden and its arrival played off
+   * screen, and a new order opened in its middle.
+   */
+  const answered = useRef(arrivalKey)
+  useLayoutEffect(() => {
+    if (answered.current === arrivalKey) return
+    answered.current = arrivalKey
+    listRef.current?.scrollToOffset({ offset: 0, animated: false })
+  }, [arrivalKey, listRef])
   const scrollbar = useListScrollbar({
     list: listRef,
     songs,

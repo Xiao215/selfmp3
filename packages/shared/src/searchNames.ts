@@ -17,6 +17,19 @@ export type LibraryNames = Pick<Library, 'artistNames' | 'spellings'>
 
 export const NO_NAMES: LibraryNames = { artistNames: {}, spellings: {} }
 
+/**
+ * A name's entry in `artistNames` or `spellings`. The records come as JSON, so
+ * a name that is also an object's own key ("constructor", "__proto__") must
+ * not find what every object inherits: search read a function as a list and
+ * every device's Search crashed on such a song.
+ */
+export function namesFor(
+  record: Readonly<Record<string, readonly string[]>>,
+  name: string,
+): readonly string[] {
+  return Object.hasOwn(record, name) ? (record[name] ?? []) : []
+}
+
 /** Chinese or Japanese: what pinyin and romaji spell. Korean has neither here. */
 const SPELT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u
 
@@ -33,7 +46,7 @@ export function needsSpelling(name: string): boolean {
 function withSpelling(name: string, names: LibraryNames, into: string[]): void {
   if (!name) return
   into.push(name)
-  for (const spelt of names.spellings[name] ?? []) {
+  for (const spelt of namesFor(names.spellings, name)) {
     into.push(spelt)
     const joined = spelt.replace(/\s+/g, '')
     if (joined !== spelt) into.push(joined)
@@ -44,7 +57,7 @@ function withSpelling(name: string, names: LibraryNames, into: string[]): void {
 export function artistSearchNames(name: string, names: LibraryNames): string[] {
   const found: string[] = []
   withSpelling(name, names, found)
-  for (const other of names.artistNames[artistKey(name)] ?? []) {
+  for (const other of namesFor(names.artistNames, artistKey(name))) {
     withSpelling(other, names, found)
   }
   return found

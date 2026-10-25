@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { EMPTY_SMART_RULES, playlistRules, type Playlist, type SmartRules } from '@selfmp3/shared'
 
 import {
+  addedToPlaylist,
   copyName,
   listedPlaylists,
   mosaicCovers,
@@ -185,16 +186,54 @@ describe('the playlists a song can be added to', () => {
   it('leaves out live playlists, and lists the one played last first', () => {
     const rules: SmartRules = EMPTY_SMART_RULES
     const choices = playlistsToAddTo([
-      playlist('Alpha'),
-      playlist('Long songs', { kind: 'live', rules, lastPlayedAt: '2026-09-13 10:00:00' }),
-      playlist('Zulu', { lastPlayedAt: '2026-09-12 10:00:00' }),
+      playlist('Alpha', { songCount: 1 }),
+      playlist('Long songs', {
+        kind: 'live',
+        rules,
+        songCount: 9,
+        lastPlayedAt: '2026-09-13 10:00:00',
+      }),
+      playlist('Zulu', { songCount: 1, lastPlayedAt: '2026-09-12 10:00:00' }),
     ])
     expect(names(choices)).toEqual(['Zulu', 'Alpha'])
   })
 
   it('leaves out the playlist it was opened from', () => {
-    const here = playlist('Here')
-    expect(names(playlistsToAddTo([playlist('Alpha'), here], here.id))).toEqual(['Alpha'])
+    const here = playlist('Here', { songCount: 1 })
+    expect(names(playlistsToAddTo([playlist('Alpha', { songCount: 1 }), here], here.id))).toEqual([
+      'Alpha',
+    ])
+  })
+
+  it('leaves out an empty playlist, which no other page lists', () => {
+    const choices = playlistsToAddTo([
+      playlist('Filled', { songCount: 2 }),
+      playlist('Emptied', { lastPlayedAt: '2026-09-13 10:00:00' }),
+    ])
+    expect(names(choices)).toEqual(['Filled'])
+  })
+})
+
+describe('what adding to a playlist says', () => {
+  it('counts the songs added', () => {
+    expect(addedToPlaylist('Evening', 2, 5, 7)).toEqual({
+      over: 'Added to Evening',
+      say: '2 songs',
+    })
+  })
+
+  it('says a song already there was not added again', () => {
+    expect(addedToPlaylist('Evening', 1, 5, 5)).toEqual({
+      over: 'Already in Evening',
+      say: '1 song',
+    })
+  })
+
+  it('counts only the new ones when some were there', () => {
+    expect(addedToPlaylist('Evening', 2, 5, 6)).toEqual({
+      over: 'Added to Evening',
+      say: '1 song · 1 already there',
+    })
   })
 })
 

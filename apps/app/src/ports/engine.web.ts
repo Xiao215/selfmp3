@@ -11,7 +11,12 @@ import {
   type PlaybackEngine,
 } from '@selfmp3/client'
 import { noteRefusal } from './bucketRefusal'
-import { cannotPlayYet, notHere, streamFailureMessage } from './streamFailure.model'
+import {
+  cannotPlayYet,
+  LOST_CONNECTION,
+  notHere,
+  streamFailureMessage,
+} from './streamFailure.model'
 import { clamp } from '@selfmp3/shared'
 import { thisPlace } from './place'
 
@@ -39,6 +44,14 @@ const PRELOAD_LEAD = 20
 const FADE_TICK_MS = 50
 /** `HTMLMediaElement.HAVE_METADATA`: the element knows the duration and can seek. */
 const HAVE_METADATA = 1
+/** `HTMLMediaElement.HAVE_NOTHING`: not a byte of the song has come. */
+const HAVE_NOTHING = 0
+/**
+ * How long a song asked to play may go without a byte of it arriving before
+ * that counts as a failure. A server that has frozen, or a bucket read that
+ * stalls, never answers and never errors: the element waits on it forever.
+ */
+const START_GIVES_UP_MS = 15_000
 
 /**
  * A single `<audio>` element cannot do gapless or crossfade — by the time the
@@ -87,6 +100,16 @@ class AudioEngine implements PlaybackEngine {
   #preloadedId: number | null = null
   /** Counts loads, so one overtaken by a newer load stops after its await. */
   #loadGeneration = 0
+  /**
+   * The load whose failure has been told. One failure is told once: the
+   * element's `error` event, the rejected `play()` and the reason asked of
+   * the address all come from the same failed load, and each told was taken
+   * as another song failing — which restarted the run the player stops after
+   * three skips.
+   */
+  #failedGeneration = -1
+  /** Gives up on a song that never starts arriving (`START_GIVES_UP_MS`). */
+  #startWatch: ReturnType<typeof setTimeout> | null = null
   /**
    * Where a song loaded to sit paused should start from once it is played.
    *
@@ -153,6 +176,7 @@ class AudioEngine implements PlaybackEngine {
   async load(songId: number, options: LoadOptions = {}): Promise<void> {
     const { autoplay = true } = options
     const generation = ++this.#loadGeneration
+    this.#stopStartWatch()
     // Cleared before anything is awaited, so a failure of this load is a
     // change the provider hears even when it says what the last one did.
     this.#hub.patch({ error: null })
@@ -174,7 +198,8 @@ class AudioEngine implements PlaybackEngine {
     this.#stopFade()
     this.#handoverArmed = false
 
-    if (this.#preloadedId === songId && startAt === 0) {
+    // A preload that failed has nothing to hand over, and no error event left to say so.
+    if (this.#preloadedId === songId && startAt === 0 && this.#secondary.error === null) {
       this.#swap()
     } else {
       const url = this.#urlFor(songId)
@@ -211,7 +236,14 @@ class AudioEngine implements PlaybackEngine {
     this.#preloadedId = null
     this.#secondary.removeAttribute('src')
     this.#primary.volume = audibleLevel(this.#hub.state)
-    this.#hub.patch({ error: null, currentTime: startAt })
+    // The length too: the song before's stood under this one's title until
+    // its metadata came, and the bar's fallback (the library's) never showed.
+    const duration = this.#primary.duration
+    this.#hub.patch({
+      error: null,
+      currentTime: startAt,
+      duration: Number.isFinite(duration) ? duration : 0,
+    })
 
     if (autoplay) await this.play()
   }
@@ -224,14 +256,16 @@ class AudioEngine implements PlaybackEngine {
     const startAt = this.#startWhenPlayed
     this.#startWhenPlayed = null
     if (startAt !== null) void this.#startFrom(startAt)
+    if (this.#primary.readyState === HAVE_NOTHING) this.#watchStart()
     try {
       await this.#primary.play()
     } catch (error) {
       // Autoplay policies reject before any user gesture. That is expected and
-      // is not worth showing as an error.
+      // is not worth showing as an error. A source that failed is the
+      // element's `error` event's to tell, which it already has.
       const name = error instanceof Error ? error.name : ''
-      if (name !== 'NotAllowedError' && name !== 'AbortError') {
-        this.#hub.patch({ error: error instanceof Error ? error.message : 'playback failed' })
+      if (name !== 'NotAllowedError' && name !== 'AbortError' && this.#primary.error === null) {
+        this.#fail(error instanceof Error ? error.message : 'playback failed')
       }
     }
   }
@@ -319,6 +353,7 @@ class AudioEngine implements PlaybackEngine {
   /** Free both elements. Called when the app unmounts. */
   destroy(): void {
     this.#stopFade()
+    this.#stopStartWatch()
     for (const element of [this.#primary, this.#secondary]) {
       element.pause()
       element.removeAttribute('src')
@@ -382,14 +417,51 @@ class AudioEngine implements PlaybackEngine {
       void this.#explainSource(this.#primary.src)
       return
     }
-    const message =
+    this.#fail(
       code === MediaError.MEDIA_ERR_NETWORK
-        ? 'Lost connection to the library'
+        ? LOST_CONNECTION
         : code === MediaError.MEDIA_ERR_DECODE
           ? 'This file could not be decoded'
-          : 'Could not play this song'
+          : 'Could not play this song',
+    )
+  }
+
+  /**
+   * The song loaded as `generation` failed: told once, and not at all once a
+   * newer load has the element. Asking for it again builds it afresh.
+   */
+  #fail(message: string, generation = this.#loadGeneration): void {
+    if (generation !== this.#loadGeneration || generation === this.#failedGeneration) return
+    this.#failedGeneration = generation
+    this.#stopStartWatch()
     this.#currentId = null
     this.#hub.patch({ error: message, playing: false, stalled: false })
+  }
+
+  /**
+   * Gives a song asked to play a while to start arriving, and then lets it go
+   * as failed: the request is called off, and the provider retries, skips or
+   * stops as for any failure — rather than a spinner turning forever.
+   */
+  #watchStart(): void {
+    this.#stopStartWatch()
+    const generation = this.#loadGeneration
+    this.#startWatch = setTimeout(() => {
+      this.#startWatch = null
+      const element = this.#primary
+      if (generation !== this.#loadGeneration || element.paused) return
+      if (element.readyState !== HAVE_NOTHING || element.error !== null) return
+      element.pause()
+      element.removeAttribute('src')
+      element.load()
+      this.#fail(LOST_CONNECTION, generation)
+    }, START_GIVES_UP_MS)
+  }
+
+  #stopStartWatch(): void {
+    if (this.#startWatch === null) return
+    clearTimeout(this.#startWatch)
+    this.#startWatch = null
   }
 
   /**
@@ -423,6 +495,7 @@ class AudioEngine implements PlaybackEngine {
    * has moved on to another song meanwhile.
    */
   async #explainSource(src: string): Promise<void> {
+    const generation = this.#loadGeneration
     const place = thisPlace()
     let message = notHere(place)
     try {
@@ -433,11 +506,11 @@ class AudioEngine implements PlaybackEngine {
         noteRefusal(body, message)
       }
     } catch {
-      // No answer at all: the plain wording stands.
+      // No answer at all: the next song would get none either.
+      message = LOST_CONNECTION
     }
-    if (this.#primary.src !== src) return
-    this.#currentId = null
-    this.#hub.patch({ error: message, playing: false, stalled: false })
+    // The player may have moved on, or asked for this song again, meanwhile.
+    this.#fail(message, generation)
   }
 
   readonly #onTimeUpdate = (): void => {
@@ -479,11 +552,14 @@ class AudioEngine implements PlaybackEngine {
    * The order behind this song changed. A song already fetched for the
    * handover that no longer comes next is let go, so a crossfade never fades
    * into it; the one that does is fetched in its place on the next tick, if
-   * its moment has come. A fade already under way is left to finish.
+   * its moment has come. A fade already under way into a song that is no
+   * longer next is called off: left to finish, a song removed from Up next
+   * faded all the way in and was then cut off for the real one.
    */
   refreshLookahead(): void {
-    if (this.#preloadedId === null || this.#fadeTimer !== null) return
+    if (this.#preloadedId === null) return
     if ((this.#hub.wiring.nextTrackId?.() ?? null) === this.#preloadedId) return
+    this.#abortCrossfade()
     this.#preloadedId = null
     this.#secondary.removeAttribute('src')
   }

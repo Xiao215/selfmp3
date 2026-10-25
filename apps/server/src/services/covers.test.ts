@@ -40,6 +40,26 @@ describe('CoverService.save', () => {
     expect(setArt).toHaveBeenLastCalledWith(7, true, '.png')
   })
 
+  it('keeps no cover at all from a picture too big to read', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const setArt = vi.fn()
+    const covers = new CoverService(
+      { dataDir } as Config,
+      { setArt, artExt: () => null } as unknown as SongRepository,
+      createLogger('silent'),
+    )
+    const huge = await sharp({
+      create: { width: 4200, height: 4200, channels: 3, background: { r: 0, g: 0, b: 0 } },
+    })
+      .png({ compressionLevel: 9 })
+      .toBuffer()
+
+    await covers.save(7, huge, '.png')
+
+    expect(fs.readdirSync(path.join(dataDir, 'covers'))).toEqual([])
+    expect(setArt).not.toHaveBeenCalled()
+  })
+
   it('looks only for the format the row recorded', async () => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
     const covers = new CoverService(

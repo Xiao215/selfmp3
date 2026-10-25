@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Stats } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Download, Settings, ShareOut, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -74,7 +74,7 @@ function ProfilePage({
   loading: boolean
   via: ServerConnection | undefined
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { fromCloud } = useConnection()
   const { data: links } = useSentLinks()
   const now = useMinute()

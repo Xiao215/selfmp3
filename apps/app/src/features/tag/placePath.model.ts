@@ -5,14 +5,17 @@
 
 /**
  * Whether `pathname` is this tag's page, `/tag/<name>`. The name in an
- * address may arrive encoded ("night%20drive") or not, and a tag's name is
- * compared the way a new tag is checked for a twin: trimmed, case ignored.
+ * address may arrive encoded ("night%20drive", or "%25" for a "%" and "%2E"
+ * for a dot, `placeParam`) or not, and a tag's name is compared the way a new
+ * tag is checked for a twin: trimmed, case ignored. Everything after
+ * `/tag/` is the name, a "/" in it too: the router hands the address over
+ * decoded, so "a/b" arrives as "/tag/a/b", and had never lit its row.
  */
 export function onTagPage(pathname: string, name: string): boolean {
   const prefix = '/tag/'
   if (!pathname.startsWith(prefix)) return false
   const raw = pathname.slice(prefix.length)
-  if (raw === '' || raw.includes('/')) return false
+  if (raw === '') return false
   let decoded = raw
   try {
     decoded = decodeURIComponent(raw)

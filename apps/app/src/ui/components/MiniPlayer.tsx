@@ -254,6 +254,8 @@ const styles = StyleSheet.create(theme => ({
     left: EDGE,
     right: EDGE,
     height: MINI_PLAYER_HEIGHT,
+    // Chrome, as the computer's player bar is: nothing in it to select.
+    userSelect: 'none',
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,

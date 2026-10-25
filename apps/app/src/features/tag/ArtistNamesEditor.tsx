@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { ARTIST_NAMES_MAX, tidyArtistNames, type Artist } from '@selfmp3/shared'
+import { ARTIST_NAMES_MAX, namesFor, tidyArtistNames, type Artist } from '@selfmp3/shared'
 import { failureText, space, type, useLibrary, useSetArtistNames, iconSize } from '@selfmp3/client'
 import { useAccent } from '../../ui/accent'
 import { Button } from '../../ui/components/Button'
@@ -52,7 +52,7 @@ function namesTyped(text: string): string[] {
 function Editor({ artist }: { artist: Artist }): ReactNode {
   const accent = useAccent()
   const { data: library } = useLibrary()
-  const saved = library?.artistNames[artist.key] ?? []
+  const saved = library ? namesFor(library.artistNames, artist.key) : []
   const [text, setText] = useState(saved.join(', '))
   const save = useSetArtistNames()
 

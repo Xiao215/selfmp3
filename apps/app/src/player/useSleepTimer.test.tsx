@@ -71,4 +71,19 @@ describe('the sleep timer', () => {
     expect(engine.state.muted).toBe(true)
     expect(result.current.endsAt).toBeNull()
   })
+
+  it('lets a level chosen during the fade win: the fade stops, and the music plays on at it', async () => {
+    const engine = fakeEngine()
+    const { result } = await renderHook(() => useSleepTimer(engine))
+    await act(() => result.current.set(1))
+    await act(() => jest.advanceTimersByTime(60_000 + 1_000))
+    expect(engine.state.volume).toBeLessThan(0.8)
+
+    // The volume slider, pressed at half.
+    await act(() => engine.setVolume(0.5))
+    await act(() => jest.advanceTimersByTime(5_000))
+    expect(engine.pause).not.toHaveBeenCalled()
+    expect(engine.state.volume).toBe(0.5)
+    expect(result.current.endsAt).toBeNull()
+  })
 })

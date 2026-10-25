@@ -149,11 +149,15 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
       heading: filterHeading(filter, allTags),
       tagFiltered: tagFiltered(filter),
       chosenTags,
+      // Nothing to count when the library never came: "0 songs" over the
+      // can't-reach card read as an empty library.
       subtitle: isPending
         ? 'Loading…'
-        : songs.length === 0 && !isError
-          ? 'No songs yet'
-          : plural(visible.length, 'song', 'songs'),
+        : isError && songs.length === 0
+          ? ''
+          : songs.length === 0
+            ? 'No songs yet'
+            : plural(visible.length, 'song', 'songs'),
       matchNote: isPending ? null : matchNote(filter.tagIds.length, allMatched, visible.length),
       sortLabel: orderLabel(sortOption, filter.descending),
       sortOptions: SORT_OPTIONS,
@@ -227,12 +231,23 @@ export function untilCapResets(now: Date, short = false): string {
 }
 
 /**
+ * Whether the library was reached and answered with an error rather than an
+ * answer: a 5xx, a proxy's error page, half an answer, a Wi-Fi sign-in page
+ * where the library should be. Not "can't reach": the device is online and
+ * something answered, and checking the connection would be the wrong advice.
+ */
+function answeredWithError(error: unknown): boolean {
+  return error instanceof ApiError && error.status >= 500 && !error.isBucketCapped
+}
+
+/**
  * The few words for a library that did not come: the profile's line, the
  * settings' status. Where the library lives — a server, a bucket — is for
  * the screens that set it up; everywhere else it is just your library.
  */
 export function unreachableLabel(error: unknown): string {
   if (bucketCapped(error)) return 'Storage allowance used up for today'
+  if (answeredWithError(error)) return 'Your library ran into a problem'
   return 'Can’t reach your library'
 }
 
@@ -281,6 +296,16 @@ export function unreachableCopy({
       why: `Your storage stopped downloads until its daily allowance resets. Nothing is wrong with your connection. To get your library back now, raise the cap under Caps & Alerts at backblaze.com.`,
     }
   }
+  if (answeredWithError(error)) {
+    const title = 'Your library ran into a problem'
+    return {
+      title,
+      body: compact
+        ? 'It answered with an error. It’s asked again by itself.'
+        : 'It answered with an error rather than your library. self.mp3 asks again by itself, or you can try now.',
+      why: null,
+    }
+  }
   const title = 'Can’t reach your library'
   if (compact) return { title, body: 'Check that you’re online, then try again.', why: null }
   if (fromCloud) return { title, body: 'Check that this device is online.', why: null }
@@ -298,15 +323,19 @@ export function unreachableCopy({
  * foot is only the person and a green dot.
  *
  * `held` is the storage refusing for the day, known before any read fails
- * (`useBucketHold`). `unsent` counts the edits a cloud library is still
- * holding, which go out on their own once it can reach its storage; a
- * server library keeps no such outbox, so its edits cannot be made at all.
- * `keepsSongs` is false in a browser tab, which streams and keeps nothing,
- * so it has no songs of its own that would still play.
+ * (`useBucketHold`). `offline` is the device itself saying it has no network:
+ * nothing is even asked then, so no error ever arrives to say so, and the foot
+ * kept a green dot and "All saved" over an edit that had not gone. `unsent`
+ * counts the edits held back to send later — a cloud library's outbox, or a
+ * server library's edits made offline (`waitingEdits.ts`), which go out on
+ * their own once it is back. `keepsSongs` is false in a browser tab, which
+ * streams and keeps nothing, so it has no songs of its own that would still
+ * play.
  */
 export function footNotice({
   error,
   held,
+  offline = false,
   fromCloud,
   keepsSongs,
   place,
@@ -316,6 +345,7 @@ export function footNotice({
   /** Why the library did not come; null while it has. */
   error: unknown
   held: boolean
+  offline?: boolean
   fromCloud: boolean
   keepsSongs: boolean
   place: DevicePlace
@@ -329,19 +359,26 @@ export function footNotice({
       body: `${stillPlay}The rest come back in about ${untilCapResets(now)}.`,
     }
   }
-  if (!error) return null
-  if (!fromCloud) {
-    return {
-      title: 'Can’t reach your library',
-      body: `${stillPlay}Changes can’t be saved until it’s back. Check that you’re online.`,
-    }
-  }
   const changes =
     unsent === 0
       ? 'Changes send when you’re back.'
       : unsent === 1
         ? 'Your change sends when you’re back.'
         : `Your ${unsent} changes send when you’re back.`
+  if (offline) return { title: 'Offline', body: `${stillPlay}${changes}` }
+  if (!error) return null
+  if (answeredWithError(error)) {
+    return {
+      title: 'Your library ran into a problem',
+      body: `${stillPlay}It answered with an error; it’s asked again by itself.`,
+    }
+  }
+  if (!fromCloud) {
+    return {
+      title: 'Can’t reach your library',
+      body: `${stillPlay}Changes can’t be saved until it’s back. Check that you’re online.`,
+    }
+  }
   return { title: 'Offline', body: `${stillPlay}${changes}` }
 }
 
@@ -355,12 +392,16 @@ export function footSummary({
   songs,
   here,
   place,
+  unsent = 0,
 }: {
   songs: number
   here: number
   place: DevicePlace
+  /** Edits not sent yet: never "All saved" over one. */
+  unsent?: number
 }): string {
-  const parts = ['All saved', plural(songs, 'song', 'songs')]
+  const saved = unsent === 0 ? 'All saved' : `Saving ${plural(unsent, 'change', 'changes')}…`
+  const parts = [saved, plural(songs, 'song', 'songs')]
   if (here > 0) parts.push(`${here} on this ${place}`)
   return parts.join(' · ')
 }

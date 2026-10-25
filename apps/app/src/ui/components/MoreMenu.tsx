@@ -102,6 +102,7 @@ export function Menu({
       onClose={onClose}
       anchorRef={anchorRef}
       title={title}
+      role="menu"
       width={MENU_WIDTH}
       align={align}
       testID={testID}

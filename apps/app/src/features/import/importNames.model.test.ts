@@ -26,6 +26,7 @@ const item = (title: string, over: Partial<ImportPreviewItem> = {}): ImportPrevi
 })
 
 const review = reviewFrom({
+  unread: [],
   kind: 'playlist',
   playlistTitle: 'YOASOBI hits',
   from: 'youtube',

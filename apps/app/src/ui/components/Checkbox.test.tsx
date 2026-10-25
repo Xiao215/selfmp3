@@ -34,7 +34,7 @@ describe('Checkbox', () => {
     expect(mockPressed.at(-1)?.['aria-checked']).toBe('mixed')
 
     await fireEvent.press(box)
-    expect(onChange).toHaveBeenCalledWith(true)
+    expect(onChange).toHaveBeenCalledWith(true, expect.anything())
   })
 
   it('says a ticked box is ticked', async () => {

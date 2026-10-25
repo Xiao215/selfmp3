@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { ReactNode } from 'react'
-import { router, usePathname } from 'expo-router'
+import { type Href, router, usePathname } from 'expo-router'
 import { Animated, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -31,6 +31,7 @@ import { SkipToPage } from './SkipToPage'
 import { useFloatingChrome } from './bottomInset'
 import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
+import { closeLayers } from './layers'
 import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
@@ -207,7 +208,7 @@ function Frame({
         {/* Tab's first stop on a computer, before the sidebar's rows (AF1). */}
         {wide ? <SkipToPage pageRef={pageRef} /> : null}
         {wide ? <SidebarSlot shown={sidebar} /> : null}
-        <View ref={pageRef} style={styles.content} {...pageTap}>
+        <View ref={pageRef} style={styles.content} role="main" {...pageTap}>
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
@@ -399,6 +400,7 @@ function DeepLinkRoutes(): ReactNode {
   useEffect(
     () =>
       onDeepLinkRoute(route => {
+        closeLayers()
         if (route.kind === 'now-playing') router.navigate('/now-playing')
         else router.navigate(`/playlists/${route.id}`)
       }),
@@ -420,18 +422,23 @@ function MenuCommands(): ReactNode {
   const playingId = usePlayingSongId()
   const { data: library } = useLibrary()
   const toggleLoved = useToggleLoved()
+  // A page chosen from the menu bar closes whatever was open over this one:
+  // left open, a song's menu went on working over Settings.
+  const open = (path: Href): void => {
+    closeLayers()
+    router.navigate(path)
+  }
   useCommands({
-    home: () => router.navigate('/'),
-    library: () => router.navigate('/library'),
-    import: () => router.navigate('/import'),
-    stats: () => router.navigate('/stats'),
-    playlists: () => router.navigate('/playlists'),
-    'now-playing': () => router.navigate('/now-playing'),
-    settings: () => router.navigate('/settings'),
+    home: () => open('/'),
+    library: () => open('/library'),
+    import: () => open('/import'),
+    stats: () => open('/stats'),
+    playlists: () => open('/playlists'),
+    'now-playing': () => open('/now-playing'),
+    settings: () => open('/settings'),
     // File › Import…: the page, with its field ready to paste into. A new
     // value each time, so the field takes the focus again on the page itself.
-    'start-import': () =>
-      router.navigate({ pathname: '/import', params: { focus: String(Date.now()) } }),
+    'start-import': () => open({ pathname: '/import', params: { focus: String(Date.now()) } }),
     // The playing song, as the heart beside it does; a friend's song in a room has none.
     like: () => {
       if (playingId === null || isRoomTrackId(playingId)) return
@@ -549,6 +556,8 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
 
 /** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
 const TOASTS_BOTTOM = 10
+/** Above the sheets the shell draws beside them (their rows lift at 2). */
+const TOASTS_LAYER = 10
 
 const styles = StyleSheet.create(theme => ({
   toasts: {
@@ -559,6 +568,13 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.lg,
+    /*
+     * Over Up next's sheet for the finger as well as the eye. Drawn after it
+     * was enough to be seen on top, not to be pressed: a toast's ✕ over the
+     * sheet played the row under it instead.
+     */
+    zIndex: TOASTS_LAYER,
+    elevation: TOASTS_LAYER,
   },
   root: {
     flex: 1,
@@ -595,8 +611,11 @@ const styles = StyleSheet.create(theme => ({
     width: SIDEBAR_WIDTH,
     flexDirection: 'row',
     zIndex: 1,
+    // The app's chrome, not words to copy: a press-drag across it selected
+    // its labels in blue. The bar's and Up next's do the same.
+    userSelect: 'none',
   },
   sidebarGone: { display: 'none' },
-  barSlot: { overflow: 'hidden' },
+  barSlot: { overflow: 'hidden', userSelect: 'none' },
   barInSlot: { position: 'absolute', top: 0, left: 0, right: 0 },
 }))

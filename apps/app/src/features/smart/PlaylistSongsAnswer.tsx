@@ -65,8 +65,9 @@ export function PlaylistSongsAnswer({
   const name = playlist.name
 
   // The edit that failed says so itself.
-  const undoToast = (text: string, undo: () => Promise<unknown>): void =>
+  const undoToast = (text: string, undo: () => Promise<unknown>): void => {
     showUndoToast(text, undo, { tone: 'good', after: `Put ${name} back` })
+  }
 
   if (answer.op === 'sort') {
     const before = [...current]

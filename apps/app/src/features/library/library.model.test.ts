@@ -66,6 +66,21 @@ describe('saying the library cannot be reached', () => {
     ).toBe('Can’t reach your library')
   })
 
+  it('says a library that answered with an error ran into a problem, not that it is out of reach', () => {
+    const broken = new ApiError(500, 'Unexpected answer from /api/library', 'contract_mismatch')
+    const copy = unreachableCopy({
+      fromCloud: false,
+      address: 'http://a:1',
+      compact: false,
+      error: broken,
+    })
+    expect(copy.title).toBe('Your library ran into a problem')
+    expect(copy.body).not.toMatch(/online|switched on/)
+    expect(unreachableLabel(new ApiError(503, 'Service Unavailable'))).toBe(
+      'Your library ran into a problem',
+    )
+  })
+
   it('counts down to midnight GMT, in minutes for the last hour', () => {
     expect(untilCapResets(new Date('2026-10-08T00:00:00Z'))).toBe('24 hours')
     expect(untilCapResets(new Date('2026-10-08T22:31:00Z'))).toBe('1 hour')
@@ -119,6 +134,20 @@ describe('the sidebar foot', () => {
     })
   })
 
+  it('says offline when the device is, though nothing has failed yet, with what waits', () => {
+    expect(footNotice({ ...base, fromCloud: false, offline: true, unsent: 2 })).toEqual({
+      title: 'Offline',
+      body: 'Songs on this computer still play. Your 2 changes send when you’re back.',
+    })
+  })
+
+  it('says a server that answered with an error ran into a problem', () => {
+    const broken = new ApiError(503, 'Service Unavailable')
+    expect(footNotice({ ...base, fromCloud: false, error: broken })?.title).toBe(
+      'Your library ran into a problem',
+    )
+  })
+
   it('says a used-up allowance, and when it comes back, even before a read fails', () => {
     expect(footNotice({ ...base, held: true })).toEqual({
       title: 'Storage allowance used up',
@@ -131,6 +160,9 @@ describe('the sidebar foot', () => {
       'All saved · 109 songs · 12 on this computer',
     )
     expect(footSummary({ songs: 1, here: 0, place: 'computer' })).toBe('All saved · 1 song')
+    expect(footSummary({ songs: 1, here: 0, place: 'computer', unsent: 2 })).toBe(
+      'Saving 2 changes… · 1 song',
+    )
   })
 })
 

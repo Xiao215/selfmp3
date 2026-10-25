@@ -97,6 +97,27 @@ export function playlistHeadLine(
   return parts.join(' · ')
 }
 
+/**
+ * What adding songs to a playlist says, once the server has taken them:
+ * `before` and `after` are its counts either side. A song already in it is
+ * not added again, so a drop of one already there had said "Added · 1 song"
+ * over a playlist that had not changed.
+ */
+export function addedToPlaylist(
+  name: string,
+  tried: number,
+  before: number,
+  after: number,
+): { readonly over: string; readonly say: string } {
+  const added = Math.max(0, Math.min(tried, after - before))
+  if (added === 0) return { over: `Already in ${name}`, say: songsWord(tried) }
+  const there = tried - added
+  return {
+    over: `Added to ${name}`,
+    say: there > 0 ? `${songsWord(added)} · ${there} already there` : songsWord(added),
+  }
+}
+
 /** The line under the page's title: how many. The order is the dropdown's beside it. */
 export function playlistsSubline(count: number): string {
   return plural(count, 'playlist', 'playlists')
@@ -222,13 +243,19 @@ export function listedPlaylists(
  * only the ones you keep (a live playlist's rules decide its songs), the one
  * played last first, because that is the one you are most likely reaching for.
  * `except` is the playlist the list was opened from, which is not offered.
+ *
+ * Only the ones with a song, as everywhere else (`listedPlaylists`): the menu
+ * had listed every emptied playlist, which no other page shows and so nothing
+ * could open, rename or delete, until it ran taller than the window.
  */
 export function playlistsToAddTo(
   playlists: readonly Playlist[],
   except?: number,
 ): readonly Playlist[] {
   return sortPlaylists(
-    playlists.filter(playlist => !isLive(playlist) && playlist.id !== except),
+    playlists.filter(
+      playlist => !isLive(playlist) && playlist.id !== except && playlist.songCount > 0,
+    ),
     'recent',
   )
 }

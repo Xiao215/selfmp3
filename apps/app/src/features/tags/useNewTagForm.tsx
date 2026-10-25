@@ -5,6 +5,7 @@ import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
 import { useCreateTag } from '@selfmp3/client'
 import { autoTagHue } from '../../ui/components/HueSwatches'
 import { TextField } from '../../ui/components/TextField'
+import { isComposing } from '../../shell/composing'
 import { existingTag } from '../tag/tag.model'
 import { useArtistNudge } from '../tag/useArtistNudge'
 
@@ -99,10 +100,12 @@ export function useNewTagForm({
 /**
  * A new tag's name: a `TextField` that stops where the server would refuse
  * (`TAG_NAME_MAX`) and makes the tag on Enter while keeping the field, as
- * tags arrive in handfuls.
+ * tags arrive in handfuls. Escape is `onEscape`'s: in a browser a field keeps
+ * its keys from the page, so the form's own `useEscape` never hears it here.
  */
 export function TagNameField({
   form,
+  onEscape,
   ...field
 }: { form: NewTagForm } & Pick<
   TextInputProps,
@@ -110,18 +113,27 @@ export function TagNameField({
 > & {
     action?: ReactNode
     size?: 'regular' | 'small'
+    /** Escape pressed in the field: put the form away. */
+    onEscape?: () => void
   }): ReactNode {
   return (
     <TextField
       {...field}
+      onKeyPress={event => {
+        if (event.nativeEvent.key !== 'Escape') return
+        if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
+        onEscape?.()
+      }}
       value={form.name}
       onChangeText={form.setName}
       onSubmitEditing={form.submit}
       maxLength={TAG_NAME_MAX}
       autoCapitalize="none"
       // Enter makes the tag and stays in the field: dismissing the keyboard
-      // after each one costs a tap to get it back.
+      // after each one costs a tap to get it back. react-native-web reads
+      // only the older prop, and without it Enter left focus on nothing.
       submitBehavior="submit"
+      blurOnSubmit={false}
       returnKeyType="done"
       accessibilityLabel="New tag name"
     />

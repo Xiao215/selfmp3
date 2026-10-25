@@ -66,6 +66,7 @@ import { previewFound } from './services/importPreview.js'
 import { LocalEdits, SyncClock } from './services/localEdits.js'
 import { SongRemovalService } from './services/songRemoval.js'
 import { SongMerge } from './services/songMerge.js'
+import { TagRemoval } from './services/tagRemoval.js'
 import { PlaysArchive } from './services/playsArchive.js'
 import type { ServerMetrics } from './services/metrics.js'
 
@@ -133,6 +134,8 @@ export interface Container {
   readonly songRemoval: SongRemovalService
   /** A song held twice folded into the copy kept, before the copy is removed. */
   readonly songMerge: SongMerge
+  /** A tag deleted, and the playlists that follow it let go of it. */
+  readonly tagRemoval: TagRemoval
   /** What this server stamps its own edits with (docs/SYNC.md). */
   readonly clock: SyncClock
   readonly analysis: AnalysisService
@@ -258,6 +261,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     latest: () => latestStamp(syncRepo.latestStamp(), names.latestStamp()),
   })
   const edits = new LocalEdits({ db, sync: syncRepo, clock })
+  const tagRemoval = new TagRemoval({ db, tags, playlists, edits })
   // A song held twice, folded into the copy kept: when this server is asked
   // (`POST /api/songs/merge`), and when another device's log says so.
   const songMerge = new SongMerge({
@@ -369,7 +373,14 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     }),
   })
 
-  let version = 1
+  // Where the version starts: the clock, not 1. It lives in memory, and
+  // starting each boot at 1 meant a tab that saw version 3 before a restart,
+  // and 3 again after it from two different edits, took the second for
+  // nothing new and showed the old library until a reload — and a restored
+  // backup could even read as the library it replaced. Milliseconds since the
+  // epoch are past any count the last boot reached, unless it bumped more than
+  // once a millisecond for its whole life.
+  let version = Date.now()
   let stopped = false
   let closed = false
   const bump = (): void => {
@@ -461,7 +472,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const songRemoval = new SongRemovalService({
     storage,
     songs,
-    tags,
+    tags: { all: () => tags.all(), delete: id => void tagRemoval.remove(id) },
     cloud: cloudRepo,
     lyrics,
     covers,
@@ -540,6 +551,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   }
 
   scanner.onScanComplete = () => analysis.kick()
+  scanner.isLeaving = key => songRemoval.isLeaving(key)
 
   // Other devices' changes, applied during a cloud pass. The pass publishes
   // what they changed itself, so this only moves the version clients watch —
@@ -606,6 +618,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     lyricsIndex,
     songRemoval,
     songMerge,
+    tagRemoval,
     clock,
     analysis,
     sound,

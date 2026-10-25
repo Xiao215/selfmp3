@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bestMatch,
+  bestReading,
   durationScore,
   foldForMatch,
   normalizeForMatch,
@@ -264,6 +265,42 @@ describe('bestMatch', () => {
   it('finds nothing when no answer is the song', () => {
     expect(bestMatch(getLucky, [song({ title: 'Hey Jude', artist: 'The Beatles' })])).toBeNull()
     expect(bestMatch(getLucky, [])).toBeNull()
+  })
+})
+
+describe('bestReading', () => {
+  const answers = [
+    song({ title: 'The Dino Soars', artist: 'Never Gonna Give You Up', duration: 268 }),
+    song({ title: 'Never Gonna Give You Up', artist: 'Rick Astley', duration: 213 }),
+  ]
+
+  it('reads "Title - Artist" the right way round when the answers fit that better', () => {
+    const written = {
+      title: 'Rick Astley',
+      artist: 'Never Gonna Give You Up',
+      album: '',
+      duration: 0,
+    }
+    const found = bestReading(written, answers)
+    expect(found?.track.artist).toBe('Rick Astley')
+    expect(found?.confidence).toBeGreaterThanOrEqual(0.7)
+    expect(found?.reversed).toBe(true)
+  })
+
+  it('keeps "Artist - Title" as written', () => {
+    const written = {
+      title: 'Never Gonna Give You Up',
+      artist: 'Rick Astley',
+      album: '',
+      duration: 0,
+    }
+    expect(bestReading(written, answers)).toMatchObject({
+      track: { artist: 'Rick Astley' },
+      reversed: false,
+    })
+    expect(
+      bestReading(getLucky, [song({ title: 'Get Lucky', artist: 'Daft Punk' })])?.track.title,
+    ).toBe('Get Lucky')
   })
 })
 

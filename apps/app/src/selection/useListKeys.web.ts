@@ -58,6 +58,9 @@ const RETRY_FRAMES = 30
  * - **⌘A** selects every song in the list — but not from a text field, where it
  *   selects the words, nor under an open sheet, menu or dialog.
  *
+ * None of these while a sheet, menu or dialog is open: focus is in it, and
+ * it walks its own items (`shell/layerFocus.web.ts`).
+ *
  * One listener on the window, in the capture phase, so it answers before the
  * row's own button: React Native for web's buttons take Space and Enter
  * themselves, and Space reaching the row's button would play the song.
@@ -103,6 +106,10 @@ export function useListKeys(actions: ListKeyActions): string {
           if (latest.current.selectAll()) event.preventDefault()
           return
         }
+
+        // An open menu, sheet or dialog has the keys: a row's menu opened with
+        // ⇧F10 walks its own items, and the list under it stays where it is.
+        if (layerOpen()) return
 
         const key = event.key
         if (key === 'Tab') {

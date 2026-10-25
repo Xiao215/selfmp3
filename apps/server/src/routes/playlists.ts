@@ -8,6 +8,7 @@ import {
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
+  type AllPlaylistSongs,
   type Ok,
   type RemovedFromPlaylist,
 } from '@selfmp3/shared'
@@ -33,10 +34,27 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists',
     route({ body: CreatePlaylistSchema }, ({ body }) => {
-      const created = container.playlists.create(body)
+      // Its first songs in the same transaction: a playlist made with them, or
+      // not made at all. Ids that are not real songs are dropped, as an add drops them.
+      const songIds = body.kind === 'manual' ? (body.songIds ?? []) : []
+      const present = container.songs.existingIds(songIds)
+      const valid = songIds.filter(id => present.has(id))
+      const created = container.playlists.create(body, valid)
+      if (valid.length > 0) container.edits.playlistSongs(created.id, valid)
       container.bumpLibraryVersion()
-      return created
+      return container.playlists.byId(created.id) ?? created
     }),
+  )
+
+  /** Every playlist's ordered song ids, in one answer (`AllPlaylistSongs`). */
+  router.get(
+    '/playlists/songs',
+    route({}, (): AllPlaylistSongs => ({
+      playlists: container.playlists.all().map(playlist => ({
+        playlistId: playlist.id,
+        songIds: container.playlists.songIds(playlist),
+      })),
+    })),
   )
 
   /** Ordered song ids. Live playlists resolve their rules on every read. */

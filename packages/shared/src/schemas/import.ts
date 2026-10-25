@@ -124,11 +124,16 @@ export type ImportPreviewItem = z.infer<typeof ImportPreviewItemSchema>
 export const ImportFromSchema = z.enum(['youtube', 'netease', 'spotify', 'list', 'search'])
 export type ImportFrom = z.infer<typeof ImportFromSchema>
 
+/** A link of several pasted that could not be read, and why, in words: the others are still offered. */
+export const UnreadLinkSchema = z.object({ url: z.string(), why: z.string() })
+export type UnreadLink = z.infer<typeof UnreadLinkSchema>
+
 export const ImportPreviewSchema = z.object({
   kind: z.enum(['single', 'playlist']),
   playlistTitle: z.string().nullable(),
   items: z.array(ImportPreviewItemSchema),
   from: ImportFromSchema,
+  unread: z.array(UnreadLinkSchema).default([]),
 })
 
 /**
@@ -159,6 +164,12 @@ export const ImportFoundSchema = z.object({
   duration: z.number().nonnegative(),
   thumbnail: z.string().nullable(),
   sure: z.boolean(),
+  /**
+   * The song was found read the other way round: what was asked as its title
+   * is its artist, and its artist its title ("Lemon - 米津玄師"). The row's names
+   * swap to match.
+   */
+  reversed: z.boolean().default(false),
 })
 export type ImportFound = z.infer<typeof ImportFoundSchema>
 

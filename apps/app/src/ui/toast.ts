@@ -147,6 +147,9 @@ const undoing = new Map<number, readonly (() => unknown)[]>()
  * so ("Put your tags back"); if it fails, `failed` says that ("Couldn't undo
  * that, …"), or nothing does when the edit that failed has said so itself.
  * `also` goes before Undo: Open, beside a playlist just saved.
+ *
+ * Hands back the message's id, for one whose Undo can stop being possible
+ * before its time is up.
  */
 export function showUndoToast(
   message: string | ToastWords,
@@ -159,7 +162,7 @@ export function showUndoToast(
     songs?: readonly Song[]
     group?: string
   } = {},
-): void {
+): number {
   const { tone = 'info', after, failed, also = [], songs, group } = options
   const earlier = upIn(group)
   const undos = [...((earlier && undoing.get(earlier.id)) ?? []), undo]
@@ -185,17 +188,23 @@ export function showUndoToast(
     actions: [...also, { label: undoLabel(undos.length), onPress: run }],
   })
   undoing.set(id, undos)
+  return id
 }
 
 /** A send waiting on its Undo. */
 interface Waiting {
-  readonly go: () => void
+  /** Sends it now, unless it was sent or undone already: what it sent, or nothing. */
+  readonly go: () => Promise<void>
   timer: ReturnType<typeof setTimeout>
   readonly undone?: () => void
 }
 
-/** What `showPendingToast` has said is done and not sent yet: each sends itself when called. */
-const pending = new Set<() => void>()
+/**
+ * What `showPendingToast` has said is done and not sent yet, each by the kind
+ * of message it was raised with: each sends itself when called. Its message
+ * may have been dismissed already; the send still waits its time.
+ */
+const pending = new Map<() => Promise<void>, string | undefined>()
 /** Each pending message's sends, so a fold can wait for all of them and undo all of them. */
 const waiting = new Map<number, readonly Waiting[]>()
 
@@ -231,7 +240,7 @@ export function showPendingToast(
   // are still sent first.
   for (const each of together) {
     clearTimeout(each.timer)
-    each.timer = setTimeout(() => each.go(), UNDO_MS)
+    each.timer = setTimeout(() => void each.go(), UNDO_MS)
   }
   let id = 0
   /** Takes it out of the waiting; false when it was sent or undone already. */
@@ -241,20 +250,25 @@ export function showPendingToast(
     return true
   }
   const entry: Waiting = {
-    go: () => {
+    go: async () => {
       if (!settle(entry)) return
       // Its Undo would be a promise broken: the message goes as it is sent.
       dismissToast(id)
-      Promise.resolve()
-        .then(send)
-        .catch((caught: unknown) => {
-          if (failed) showFailure(failed, caught)
-        })
+      /*
+       * Started here, in the same turn, not a tick later: a tab closing gets
+       * one event to send from, and a request begun after it has returned is
+       * begun on a page already gone (`appLeaving`).
+       */
+      try {
+        await send()
+      } catch (caught: unknown) {
+        if (failed) showFailure(failed, caught)
+      }
     },
-    timer: setTimeout(() => entry.go(), UNDO_MS),
+    timer: setTimeout(() => void entry.go(), UNDO_MS),
     undone,
   }
-  pending.add(entry.go)
+  pending.set(entry.go, group)
   const all = [...together, entry]
   id = showToast(message, tone, {
     autoDismissMs: UNDO_MS,
@@ -275,7 +289,19 @@ export function showPendingToast(
 
 /** Sends everything still waiting on its Undo, now: the app is going to the background or closing. */
 export function sendPending(): void {
-  for (const go of [...pending]) go()
+  for (const go of [...pending.keys()]) void go()
+}
+
+/**
+ * Sends now what waits on the Undo of the message of kind `group`, and
+ * settles once it has been sent: for an edit that has to come after it.
+ * Songs taken out of a playlist and added straight back were added to a
+ * playlist the server had not yet heard they had left, and then taken out
+ * when the Undo's time ran out.
+ */
+export function sendPendingIn(group: string): Promise<void> {
+  const sends = [...pending].flatMap(([go, kind]) => (kind === group ? [go()] : []))
+  return Promise.all(sends).then(() => undefined)
 }
 
 export function dismissToast(id: number): void {

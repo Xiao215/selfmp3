@@ -38,8 +38,10 @@ import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags, useWindowValue } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
+import { thisPlace } from '../../ports/place'
+import { onThisDevice } from '../settings/settings.model'
 import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
@@ -57,6 +59,15 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { FOCUS_INSIDE } from '../../shell/tabbing'
 import { useRouter } from 'expo-router'
+import { useSteadyOrder } from '../../ui/useSteadyOrder'
+
+const tagKey = (tag: { readonly id: number }): number => tag.id
+
+/**
+ * How tall a window is before the head scrolls with the songs: a 720p laptop's
+ * browser at 200% is 360, at 150% 480; a phone held upright is 640 and more.
+ */
+const SHORT_WINDOW = 520
 
 /**
  * The library, at every width.
@@ -70,7 +81,8 @@ import { useRouter } from 'expo-router'
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
-  const { wide, dense, finePointer } = useLayout()
+  const { wide, dense, finePointer } = useLayoutFlags()
+  const shortWindow = useWindowValue(window => window.height < SHORT_WINDOW)
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
   // sidebar is 590, so there it stacks as a phone's does. Before the column is
@@ -140,9 +152,16 @@ export function LibraryScreen(): ReactNode {
     () => (installed ? songs.filter(song => downloaded(song.id)).length : 0),
     [installed, songs, downloaded],
   )
-  const strip = useMemo(
-    () => stripTags(model.tags, filter.tagIds, recentTagIds),
-    [model.tags, filter.tagIds, recentTagIds],
+  // In the order it had when the page opened, while it is open: turning a
+  // tag on makes it the one used last, and a chip that jumped to the front
+  // slid another under the pointer for the press that meant to undo it.
+  const strip = useSteadyOrder(
+    useMemo(
+      () => stripTags(model.tags, filter.tagIds, recentTagIds),
+      [model.tags, filter.tagIds, recentTagIds],
+    ),
+    tagKey,
+    true,
   )
 
   const rowHeight = useSongRowHeight()
@@ -271,21 +290,27 @@ export function LibraryScreen(): ReactNode {
       </EmptyState>
     )
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
+  /*
+   * Everything above the songs: the title and its tools, the tag picker, the
+   * gems. In a short window — a laptop's browser zoomed to 200%, a phone on
+   * its side — it scrolls away with the songs rather than standing over them:
+   * held still, it left one song in view at 640 by 360 and none at 400%.
+   */
+  const head = (
+    <>
       {/*
-        On a phone: the title, then the search on a line of its own, then order
-        and play. At desktop width it is one row — the title on the left, and
-        search, order and play along from it, with the search giving up width
-        before the row wraps.
-      */}
+          On a phone: the title, then the search on a line of its own, then order
+          and play. At desktop width it is one row — the title on the left, and
+          search, order and play along from it, with the search giving up width
+          before the row wraps.
+        */}
       <View style={[styles.head, wide && styles.headGutterWide, headWide && styles.headWide]}>
         {/*
-          "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
-          many songs, how long, and on an installed app how many are here.
-          The tags picked to narrow it are the strip below, not the title: a
-          tag you want as a place has its own page now.
-        */}
+            "Library" and one line under it (docs/ui-mock `P12`, `C04`): how
+            many songs, how long, and on an installed app how many are here.
+            The tags picked to narrow it are the strip below, not the title: a
+            tag you want as a place has its own page now.
+          */}
         <PageHeader
           title="Library"
           subtitleLoading={model.loading}
@@ -318,7 +343,7 @@ export function LibraryScreen(): ReactNode {
                   <SortLines tone="textPrimary" />
                 </IconButton>
                 {/* A row plays one song, so the whole list starts here. With
-                    tags on, the transport row under the head does it. */}
+                      tags on, the transport row under the head does it. */}
                 {model.tagFiltered ? null : (
                   <IconButton
                     label="Shuffle"
@@ -336,37 +361,13 @@ export function LibraryScreen(): ReactNode {
           }
         />
 
-        {/*
-          A phone's library keeps Shuffle with its tools in the title row — a
-          tap on a row plays that song alone. But tags turn this list into an
-          idea, and an idea is worth starting, so the two controls a computer
-          keeps in its header take a row of their own here.
-        */}
-        {!wide && model.tagFiltered ? (
-          <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
-            <PlayButton
-              label="Play these tags"
-              icon={<Play color={theme.colors.onPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => playTags(false)}
-              testID="library-play-tags"
-            />
-            <Button
-              accessibilityLabel="Shuffle these tags"
-              icon={<Shuffle color={theme.colors.textPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => playTags(true)}
-            />
-          </View>
-        ) : null}
-
         <View style={[styles.controls, headWide && styles.controlsWide]}>
           {/*
-            Not a second search: a door to the one Search (docs/ui-mock `P19`,
-            `C05`), which it opens on Songs — the page on a phone, the palette
-            over this page on a computer. The tag strip below stays: that is a
-            filter, not a search.
-          */}
+              Not a second search: a door to the one Search (docs/ui-mock `P19`,
+              `C05`), which it opens on Songs — the page on a phone, the palette
+              over this page on a computer. The tag strip below stays: that is a
+              filter, not a search.
+            */}
           <SearchField
             onPress={openSearch}
             placeholder="Search songs"
@@ -394,14 +395,14 @@ export function LibraryScreen(): ReactNode {
               </View>
 
               {/*
-              With no tags on, Shuffle alone — a click on a row plays that song
-              alone, and "play 1,204 songs alphabetically" is not a thing
-              anybody wants a button for.
+                With no tags on, Shuffle alone — a click on a row plays that song
+                alone, and "play 1,204 songs alphabetically" is not a thing
+                anybody wants a button for.
 
-              With tags on this list is an idea rather than a library, so it is
-              worth a Play. Keeping it is Up next's Save, once it has been
-              heard (docs/features/lists.md).
-            */}
+                With tags on this list is an idea rather than a library, so it is
+                worth a Play. Keeping it is Up next's Save, once it has been
+                heard (docs/features/lists.md).
+              */}
               <View
                 ref={transportRef}
                 collapsable={false}
@@ -445,12 +446,12 @@ export function LibraryScreen(): ReactNode {
       </View>
 
       {/*
-        The strip (docs/ui-mock `P12`, `C04`): All, then tags as a filter —
-        every one turned on adds its songs — the chosen ones first, then the
-        ones used lately, then the biggest. The + at its end searches every
-        tag, for a library with more than a strip holds. On an installed
-        phone, "On this phone" narrows to what is here.
-      */}
+          The strip (docs/ui-mock `P12`, `C04`): All, then tags as a filter —
+          every one turned on adds its songs — the chosen ones first, then the
+          ones used lately, then the biggest. The + at its end searches every
+          tag, for a library with more than a strip holds. On an installed
+          phone, "On this phone" narrows to what is here.
+        */}
       {songs.length > 0 ? (
         <ScrollView
           horizontal
@@ -477,7 +478,8 @@ export function LibraryScreen(): ReactNode {
           {!wide && installed ? (
             <Chip
               testID="library-on-this-phone"
-              label="On this phone"
+              // A narrow desktop window wears the phone's layout, not its name.
+              label={onThisDevice(thisPlace())}
               selected={filter.downloadedOnly}
               icon={
                 <Downloaded
@@ -501,16 +503,44 @@ export function LibraryScreen(): ReactNode {
               onPress={() => chooseTag(tag.id)}
             />
           ))}
+          {/* Lit while the chooser is open, which has its own Done: the chip
+              had read "+ Done" beside it. */}
           <Chip
             testID="library-add-tag"
-            // The panel's own Done, at the strip's end, closes it: this stays its name.
+            // The panel's own Done, at the strip's end, closes it: this keeps its name.
             label="More tags"
-            icon={<Plus color={theme.colors.textSecondary} />}
-            selected={false}
+            icon={choosingTags ? undefined : <Plus color={theme.colors.textSecondary} />}
+            selected={choosingTags}
             dashed
             onPress={() => setChoosingTags(open => !open)}
           />
         </ScrollView>
+      ) : null}
+
+      {/*
+        A phone's library keeps Shuffle with its tools in the title row — a
+        tap on a row plays that song alone. But tags turn this list into an
+        idea, and an idea is worth starting, so the two controls a computer
+        keeps in its header take a row of their own here: under the strip, so
+        the chip just tapped stays under the finger. Above it, the row pushed
+        the strip down, and a second tap on the chip opened Search.
+      */}
+      {!wide && model.tagFiltered ? (
+        <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
+          <PlayButton
+            label="Play these tags"
+            icon={<Play color={theme.colors.onPrimary} />}
+            disabled={visible.length === 0}
+            onPress={() => playTags(false)}
+            testID="library-play-tags"
+          />
+          <Button
+            accessibilityLabel="Shuffle these tags"
+            icon={<Shuffle color={theme.colors.textPrimary} />}
+            disabled={visible.length === 0}
+            onPress={() => playTags(true)}
+          />
+        </View>
       ) : null}
 
       {/* On a phone the list is headed by its order: "RECENTLY ADDED" (`P12`). */}
@@ -541,9 +571,9 @@ export function LibraryScreen(): ReactNode {
       </Sheet>
 
       {/*
-        The picker, in the page rather than over it: the head grows, the songs
-        move down, and nothing is drawn across the sidebar.
-      */}
+          The picker, in the page rather than over it: the head grows, the songs
+          move down, and nothing is drawn across the sidebar.
+        */}
       <View style={[styles.chooser, wide && styles.gutterWide]}>
         <ListenTags
           open={choosingTags}
@@ -554,12 +584,20 @@ export function LibraryScreen(): ReactNode {
         />
       </View>
 
-      {model.tagFiltered ? null : <GemsRow />}
+      {/* Not over a library that never came: songs to play above "can't reach" read as a library that half works. */}
+      {model.tagFiltered || model.emptyReason === 'unreachable' ? null : <GemsRow />}
 
       <SyncStatus />
 
       {/* Links asked of the server, until what they bring is published. */}
       {fromCloud ? <PendingImports /> : null}
+    </>
+  )
+  const inList = shortWindow && !model.loading
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
+      {inList ? null : head}
 
       {/* The selection bar takes a lane above the list, so it covers no row. */}
       <View style={styles.listArea}>
@@ -574,7 +612,9 @@ export function LibraryScreen(): ReactNode {
             label={`${model.heading} songs`}
             renderSong={renderSong}
             listRef={rows.listRef}
-            rowHeight={rowHeight}
+            header={inList ? head : undefined}
+            // Rows placed by arithmetic start at the first row, which a header is above.
+            rowHeight={inList ? null : rowHeight}
             scrollLabel={scrollLabel}
             onRefresh={pull.onRefresh}
             refreshing={pull.refreshing}
@@ -630,7 +670,13 @@ function LibraryMore(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   /* Play first, the white round one: it is what picking tags was for. */
-  phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  phoneTransport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.gutter,
+    paddingTop: space.xs,
+  },
   chooser: { paddingHorizontal: space.gutter },
   screen: {
     flex: 1,

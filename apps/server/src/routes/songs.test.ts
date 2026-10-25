@@ -194,9 +194,9 @@ describe('POST /api/songs/merge', () => {
       sourceUrl: null,
     })
 
-  const post = (url: string, body: unknown) =>
+  const post = (url: string, body: unknown, method = 'POST') =>
     fetch(`${origin}${url}`, {
-      method: 'POST',
+      method,
       headers: {
         Authorization: `Bearer ${container.config.authToken ?? ''}`,
         'Content-Type': 'application/json',
@@ -241,6 +241,87 @@ describe('POST /api/songs/merge', () => {
     expect(plays).toEqual([{ id: kept }, { id: kept }])
     // The tag stayed: the copy was not its last song.
     expect(container.tags.all().map(tag => tag.name)).toEqual(['rain'])
+  })
+
+  /*
+   * Another device put alpha on while this one's picker was open, or while it
+   * was offline: the tick sends beta alone, and alpha stays.
+   */
+  it('changes only the tags an edit names, keeping one another device put on', async () => {
+    const song = insert('夜に駆ける')
+    const alpha = container.tags.create('alpha', 10).id
+    const beta = container.tags.create('beta', 30).id
+    container.tags.setSongTags(song, [alpha])
+
+    const on = await post(`/api/songs/${song}/tags`, { add: [beta], remove: [] }, 'PATCH')
+    expect(on.status).toBe(200)
+    expect(((await on.json()) as { tagIds: number[] }).tagIds.sort()).toEqual([alpha, beta].sort())
+
+    const off = await post(`/api/songs/${song}/tags`, { add: [], remove: [beta] }, 'PATCH')
+    expect(((await off.json()) as { tagIds: number[] }).tagIds).toEqual([alpha])
+  })
+
+  it('counts a song already gone as deleted, for a delete asked again', async () => {
+    const song = insert('Gone')
+    const first = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await first.json()).toEqual({ removed: 1, failed: [] })
+    const again = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await again.json()).toEqual({ removed: 1, failed: [] })
+  })
+
+  const playsOf = (id: number): number =>
+    (
+      container.db.prepare('SELECT COUNT(*) AS n FROM play_events WHERE song_id = ?').get(id) as {
+        n: number
+      }
+    ).n
+
+  const played = (id: number, times: number) => {
+    for (let i = 0; i < times; i++) {
+      const at = `2026-08-0${i + 1} 10:00:00`
+      container.stats.record(id, 60_000, true, at, null)
+      container.songs.recordPlay(id, at)
+    }
+  }
+
+  it('keeps one song with every play when two merges cross', async () => {
+    const a = insert('Crossed')
+    const b = insert('Crossed')
+    played(a, 2)
+    played(b, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: a, songIds: [b] }),
+      post('/api/songs/merge', { keep: b, songIds: [a] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+
+    const left = [a, b].map(id => container.songs.byId(id)).filter(song => song !== null)
+    expect(left).toHaveLength(1)
+    expect(left[0]!.playCount).toBe(5)
+    expect(playsOf(left[0]!.id)).toBe(5)
+  })
+
+  it('folds a copy once when the same merge is sent twice at once', async () => {
+    const kept = insert('Twice')
+    const extra = insert('Twice')
+    played(kept, 3)
+    played(extra, 3)
+
+    const answers = await Promise.all([
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+      post('/api/songs/merge', { keep: kept, songIds: [extra] }),
+    ])
+    const merged = await Promise.all(
+      answers.map(async r => ((await r.json()) as { merged: number }).merged),
+    )
+    expect(merged.sort()).toEqual([0, 1])
+    expect(container.songs.byId(extra)).toBeNull()
+    expect(container.songs.byId(kept)!.playCount).toBe(6)
+    expect(playsOf(kept)).toBe(6)
   })
 
   it('folds nothing into a song that is not there, and nothing into itself', async () => {

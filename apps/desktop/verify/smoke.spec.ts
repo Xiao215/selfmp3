@@ -928,6 +928,78 @@ test.describe('an application, not a page', () => {
     }
   })
 
+  /*
+   * The router changes pages with `pushState`, which Electron reports as a
+   * load that starts and never finishes. Links were held from the first such
+   * change until the next reload: the window came forward and the page never
+   * moved, a sign-in return included.
+   */
+  test('a link reaches the page after the page has changed pages', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('load')
+      await page.evaluate(() => {
+        const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+        const seen: string[] = []
+        ;(window as unknown as { seen: string[] }).seen = seen
+        desktop.onDeepLink(url => seen.push(url))
+        history.pushState(null, '', '/playlists')
+        history.replaceState(null, '', '/library')
+      })
+
+      // As macOS hands a running app a link: `open-url`.
+      await app.evaluate(({ app: electronApp }) => {
+        electronApp.emit('open-url', { preventDefault: () => {} }, 'selfmp3://now-playing')
+      })
+      await expect
+        .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
+        .toEqual(['selfmp3://now-playing'])
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * On a Mac the red button hides the window, so ⇧⌘N is how it comes back
+   * without the Dock; ⌘W is the red button's key, and Reload is the way out
+   * of a page that has got itself stuck.
+   */
+  test('has a File menu that brings the window back, and a Reload', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const items = await app.evaluate(({ Menu }) => {
+        const menu = Menu.getApplicationMenu()
+        const of = (section: string) =>
+          menu?.items
+            .find(one => one.label === section)
+            ?.submenu?.items.filter(item => item.type === 'normal')
+            .map(item => ({ label: item.label, role: item.role ?? null })) ?? []
+        return { file: of('File'), view: of('View') }
+      })
+      expect(items.view.map(item => item.role)).toContain('reload')
+      expect(items.file.map(item => item.role)).toContain('close')
+      if (process.platform !== 'darwin') return
+
+      const shown = await app.evaluate(({ BrowserWindow, Menu }) => {
+        const window_ = BrowserWindow.getAllWindows()[0]
+        if (!window_) return 'no window'
+        window_.hide()
+        const newWindow = Menu.getApplicationMenu()
+          ?.items.find(one => one.label === 'File')
+          ?.submenu?.items.find(one => one.label === 'New Window')
+        if (!newWindow) return 'missing'
+        ;(newWindow.click as unknown as () => void)()
+        return BrowserWindow.getAllWindows().length === 1 && window_.isVisible()
+      })
+      expect(shown).toBe(true)
+    } finally {
+      await app.close()
+    }
+  })
+
   test('holds the machine awake only while something is playing', async () => {
     const app = await launchApp()
     try {
@@ -1335,6 +1407,7 @@ test.describe('connects and plays', () => {
 /** Only what these tests call, so the page evaluations can be typed at all. */
 interface DesktopForTest {
   info: Record<string, unknown>
+  onDeepLink(listener: (url: string) => void): () => void
   mediaUrl(kind: string, name: string): string
   bucket: {
     use(session: { doormanUrl: string; token: string } | null): Promise<void>

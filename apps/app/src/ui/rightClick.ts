@@ -41,3 +41,41 @@ export function rightClick(open: ((at: PopoverAnchor) => void) | undefined): {
     },
   }
 }
+
+/** What marks a view laid over the page to catch the pointer, so a right-click passed on skips it. */
+export const CATCHER = { dataSet: { catcher: 'true' } } as const
+
+/**
+ * A right-click on what catches the pointer round an open menu: the menu
+ * closes, and the right-click then goes on to whatever is under the pointer,
+ * as it would with no menu open. Only closing it, a right-click on another
+ * song's row had to be made twice to open that row's menu. The views that
+ * catch are spread with `CATCHER`, so the one under the pointer is found past them.
+ */
+export function rightClickThrough(close: () => void): {
+  onContextMenu: (event: ContextMenuEvent) => void
+} {
+  return {
+    onContextMenu: event => {
+      event.preventDefault()
+      close()
+      const { clientX, clientY } = event.nativeEvent
+      if (typeof document === 'undefined' || typeof requestAnimationFrame === 'undefined') return
+      // Once the close has been drawn, so the catchers may be gone already.
+      requestAnimationFrame(() => {
+        const under = document
+          .elementsFromPoint(clientX, clientY)
+          .find(element => !element.closest('[data-catcher]'))
+        under?.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX,
+            clientY,
+            button: 2,
+          }),
+        )
+      })
+    },
+  }
+}

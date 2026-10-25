@@ -41,7 +41,7 @@ import { GUEST_NAME_KEY } from './room.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useFootInset } from '../../shell/bottomInset'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
@@ -157,7 +157,7 @@ export function JoinScreen(): ReactNode {
 export function RoomScreen(): ReactNode {
   const { state, link } = useRoom()
   const { status } = useConnection()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   // The room owns the display, so this is the home indicator's room on a phone.
   const foot = useFootInset()
   if (!state) {
@@ -219,7 +219,7 @@ export function RoomScreen(): ReactNode {
 export function PastRoomScreen(): ReactNode {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { code } = useLocalSearchParams<{ code: string }>()
   const past = usePastRooms().find(room => room.code === code)
   const index = useLibraryIndex()

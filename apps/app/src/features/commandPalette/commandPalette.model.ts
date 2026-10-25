@@ -88,6 +88,8 @@ export interface PaletteResults {
   readonly commands: readonly PaletteCommand[]
   readonly artists: readonly Artist[]
   readonly songs: Songs
+  /** How many songs matched, of which `songs` are the best few. */
+  readonly songsFound: number
   readonly playlists: Playlists
   readonly tags: Tags
 }
@@ -132,6 +134,7 @@ export function paletteResults(
       commands: paletteCommands(songs.length, fromCloud, untaggedCount(songs), context.pathname),
       artists: [],
       songs: [],
+      songsFound: 0,
       playlists: [],
       tags: [],
     }
@@ -150,6 +153,7 @@ export function paletteResults(
     // artists and tags, songs, and the palette's extra, playlists.
     artists: found.artists.slice(0, 3),
     songs: found.songs.slice(0, 8),
+    songsFound: found.songs.length,
     playlists: top(library?.playlists ?? [], playlist => playlist.name, 4),
     tags: found.tags.slice(0, 4),
   }

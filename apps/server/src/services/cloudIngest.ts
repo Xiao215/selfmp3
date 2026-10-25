@@ -25,7 +25,7 @@ import type { SongRepository } from '../repositories/songs.js'
 import type { StatsRepository } from '../repositories/stats.js'
 import type { SyncRepository } from '../repositories/sync.js'
 import type { TagRepository } from '../repositories/tags.js'
-import { sqliteTime } from '../repositories/stats.js'
+import { heardMs, sqliteTime } from '../repositories/stats.js'
 import type { SyncClock } from './localEdits.js'
 import type { SongMerge } from './songMerge.js'
 
@@ -198,7 +198,7 @@ export class CloudIngest {
         const playedAt = sqliteTime(change.playedAt)
         const counted = this.#stats.record(
           id,
-          change.msPlayed,
+          heardMs(change.msPlayed, this.#songs.byId(id)?.duration ?? 0),
           change.completed,
           playedAt,
           change.playId,

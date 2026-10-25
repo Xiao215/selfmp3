@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
@@ -29,6 +29,16 @@ import { useShownScheme } from '../theme/unistyles'
  * drawn from the file after that — keeps the picture it had under the new one
  * until the new one has drawn, rather than going back to empty in between.
  */
+/**
+ * A picture that failed is asked for again after this, then twice as long,
+ * and given up on after `COVER_RETRIES`. One that failed for a moment — a
+ * server restarting, a 503 — otherwise stayed a letter for the rest of the
+ * session, since a row kept drawn never asks again and an image cannot say
+ * whether it failed with a 404 or a 503.
+ */
+export const COVER_RETRY_MS = 15_000
+export const COVER_RETRIES = 3
+
 export function Cover({
   uri,
   title,
@@ -52,6 +62,21 @@ export function Cover({
   // The address that failed, so a new one gets its own chance: the server may be back.
   const [failedUri, setFailedUri] = useState<string | null>(null)
   const failed = !!uri && failedUri === uri
+  // How often this address has been asked for again, which is also what makes
+  // the picture a new one to the platform when it is.
+  const [tries, setTries] = useState({ uri, count: 0 })
+  const tried = tries.uri === uri ? tries.count : 0
+  useEffect(() => {
+    if (!failed || tried >= COVER_RETRIES) return undefined
+    const timer = setTimeout(
+      () => {
+        setTries({ uri, count: tried + 1 })
+        setFailedUri(null)
+      },
+      COVER_RETRY_MS * 2 ** tried,
+    )
+    return () => clearTimeout(timer)
+  }, [failed, tried, uri])
   // The address that last decoded. While it is not this one, it is the picture
   // left under the one loading.
   const [loadedUri, setLoadedUri] = useState<string | null>(null)
@@ -93,7 +118,8 @@ export function Cover({
 
   // A cell of a mosaic (`radius` 0) leaves its edge to the mosaic's.
   const edged = cornerRadius !== 0
-  const lettered = uri === null || failed
+  // A picture asked for again keeps its letter under it until it draws.
+  const lettered = uri === null || failed || (tried > 0 && loadedUri !== uri)
   // The letter tile is a tag's tile in the title's hue — deep with light ink
   // in the dark, a pale tint with dark ink on Paper — so a song with no
   // picture sits among the tag tiles as one of them, and its row's tint
@@ -126,6 +152,7 @@ export function Cover({
       ) : null}
       {uri && !failed ? (
         <Animated.Image
+          key={tried}
           source={{ uri }}
           style={[styles.picture, { opacity: shown }]}
           resizeMode="cover"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, useWindowDimensions } from 'react-native'
+import { Animated } from 'react-native'
 import type { View } from 'react-native'
+import { useWindowValue } from '../../shell/useLayout'
 import type { Box, GuideName } from './guide.model'
 import {
   claimGuide,
@@ -62,9 +63,18 @@ export function useGuide(
   const [visitOk] = useState(
     () => afterVisits === 0 || guideSeen(name) || countVisit(name) > afterVisits,
   )
-  const window = useWindowDimensions()
   const seen = guideSeen(name)
   const want = ready && visitOk && !seen && box === null
+  const lit = box !== null
+  /*
+   * The window's size, only while the guide is waiting to come up or is up.
+   * Every screen asks for its guides, and nearly all of them have long been
+   * seen: each was drawn again for every pixel a window was dragged, the
+   * pages under the top one too (bug bash F056).
+   */
+  const watching = want || lit
+  const windowWidth = useWindowValue(window => (watching ? window.width : 0))
+  const windowHeight = useWindowValue(window => (watching ? window.height : 0))
 
   useEffect(() => {
     if (!want) return undefined
@@ -80,7 +90,7 @@ export function useGuide(
         // Off screen, or not laid out yet: give the turn back and try the next
         // time the screen is ready, rather than lighting nothing.
         const visible =
-          width > 0 && height > 0 && y + height > 0 && y < window.height && x < window.width
+          width > 0 && height > 0 && y + height > 0 && y < windowHeight && x < windowWidth
         if (cancelled || !visible) {
           releaseGuide(name)
           if (!cancelled && attempt < RETRIES) setAttempt(now => now + 1)
@@ -94,17 +104,16 @@ export function useGuide(
       cancelled = true
       clearTimeout(timer)
     }
-  }, [want, name, attempt, window.height, window.width])
+  }, [want, name, attempt, windowHeight, windowWidth])
 
   // A window resized under a guide (a computer's) moves what it lights; the
   // spotlight follows rather than glowing round an empty patch.
-  const lit = box !== null
   useEffect(() => {
     if (!lit) return
     node.current?.measureInWindow((x, y, width, height) => {
       if (width > 0 && height > 0) setBox(now => (now === null ? now : { x, y, width, height }))
     })
-  }, [lit, window.width, window.height])
+  }, [lit, windowWidth, windowHeight])
 
   const shown = box !== null && step >= 0
   /*

@@ -29,6 +29,17 @@ export function extractUrls(text: string, limit = 20): string[] {
   return urls
 }
 
+/**
+ * The lines of `text` with no link in them: song names pasted alongside
+ * links, looked up by their names as a list of them is.
+ */
+export function linklessLines(text: string): string[] {
+  return text
+    .split(/\r?\n|\r/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0 && !/https?:\/\//i.test(line))
+}
+
 /** True for any YouTube / YouTube Music link, in either of the two hosts and the short form. */
 export function isYouTubeUrl(url: string): boolean {
   try {

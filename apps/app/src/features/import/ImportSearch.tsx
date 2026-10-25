@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { pageFrame, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
@@ -49,7 +49,7 @@ export function ImportSearch({
   /** As ImportScreen's: the server this page was pointed at stopped answering. */
   onUnreachable?: () => void
 } = {}): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey
@@ -58,9 +58,9 @@ export function ImportSearch({
   /** The words in the field: what Import's box sent, or the search this page was left with. */
   const [words, setWords] = useState(() => params.q ?? search?.query ?? '')
   const query = words.trim() || null
-  const searching = useSongSearch(source.api, key, query, search?.query ?? null)
+  const searching = useSongSearch(source.lookUp, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
-  const finder = useFindSongs(source.api, key, search?.review ?? null, 'search')
+  const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
 

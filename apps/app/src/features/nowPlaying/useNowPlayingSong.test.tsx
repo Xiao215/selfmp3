@@ -48,6 +48,8 @@ jest.mock('../../offline/DownloadsProvider', () => ({
 let mockAnswer: ((result: { removed: number; failed: number[] }) => void) | null = null
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
+  // The dialog watches its songs leave the library; nothing leaves it here.
+  useLibrary: () => ({ data: undefined }),
   useBulkDeleteSongs: () => ({
     isPending: false,
     mutate: (
@@ -62,6 +64,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: true, dense: true, compact: false, finePointer: true, width: 1280 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 1280, height: 800, scale: 2, fontScale: 1 }),
@@ -105,8 +108,9 @@ describe('removing the song Now Playing is the page of', () => {
     expect(await screen.findByText('Delete this song?')).toBeTruthy()
     await fireEvent.press(screen.getByRole('button', { name: 'Delete' }))
 
-    // The player has let the song go; the server has not answered yet.
-    expect(screen.getByText('Nothing playing')).toBeTruthy()
+    // The player has let the song go; the server has not answered yet. The
+    // page is under the dialog still asking, hidden from a screen reader.
+    expect(screen.getByText('Nothing playing', { includeHiddenElements: true })).toBeTruthy()
     expect(mockPutAway).not.toHaveBeenCalled()
 
     await act(async () => mockAnswer?.({ removed: 1, failed: [] }))

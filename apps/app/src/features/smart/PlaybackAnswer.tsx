@@ -24,8 +24,11 @@ const carriedOut = new WeakMap<object, PlaybackStep>()
  */
 export function PlaybackAnswer({
   answer,
+  onCarriedOut,
 }: {
   answer: Extract<AskAnswer, { kind: 'playback' }>
+  /** What it came to, said once it is done: the Ask page tells the follow-ups that. */
+  onCarriedOut?: (said: string) => void
 }): ReactNode {
   const { queue, isPlaying } = usePlayer()
   const player = usePlayerCommands()
@@ -37,6 +40,10 @@ export function PlaybackAnswer({
       carriedOut.get(answer) ??
       playbackStep(answer, queue, isPlaying, id => songsById.get(id)?.title ?? null),
   )
+
+  useEffect(() => {
+    onCarriedOut?.(step.say)
+  }, [onCarriedOut, step])
 
   useEffect(() => {
     if (carriedOut.has(answer)) return

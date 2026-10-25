@@ -1,4 +1,4 @@
-import sharp, { type Sharp } from 'sharp'
+import sharp, { type ResizeOptions, type Sharp } from 'sharp'
 
 /**
  * A cover made square, the shape every place draws one, and a JPEG.
@@ -26,28 +26,39 @@ import sharp, { type Sharp } from 'sharp'
  *
  * A JPEG already square is handed back as it was, byte for byte: nothing is
  * re-encoded that need not be, and its hash — the bucket's name for it — stays.
+ * Unless it is bigger than a cover is kept (`COVER_MAX_SIDE`), and then it is
+ * made smaller; past `COVER_MAX_PIXELS` it is refused unread.
  */
 export async function squareCover(
   data: Buffer,
   extension: string,
 ): Promise<{ data: Buffer; extension: string }> {
+  // The header alone: nothing is decoded until the size is known to be sane.
   const meta = await sharp(data).metadata()
   // EXIF orientation 5–8 is a quarter turn: the stored width is the height drawn.
   const turned = (meta.orientation ?? 1) >= 5
   const width = turned ? meta.height : meta.width
   const height = turned ? meta.width : meta.height
   if (!width || !height) return { data, extension }
+  if (width * height > COVER_MAX_PIXELS) throw new CoverTooBig(width, height)
   if (width === height) {
-    if (meta.format === 'jpeg') return { data, extension: '.jpg' }
-    return { data: await asJpeg(sharp(data).rotate()), extension: '.jpg' }
+    if (meta.format === 'jpeg' && width <= COVER_MAX_SIDE) return { data, extension: '.jpg' }
+    return {
+      data: await asJpeg(
+        cover(data)
+          .rotate()
+          .resize(...fitted(width)),
+      ),
+      extension: '.jpg',
+    }
   }
 
-  const upright = await sharp(data).rotate().toBuffer()
+  const upright = await cover(data).rotate().toBuffer()
   let source = upright
   let w = width
   let h = height
   try {
-    const trimmed = await sharp(upright)
+    const trimmed = await cover(upright)
       .trim({ background: '#000000', threshold: TRIM_THRESHOLD })
       .toBuffer({ resolveWithObject: true })
     const tw = trimmed.info.width
@@ -61,9 +72,36 @@ export async function squareCover(
     // Nothing to trim, or nothing left if it did: the picture as it is.
   }
 
-  const side = Math.min(w, h)
-  const pipeline = sharp(source).resize(side, side, { fit: 'cover', position: 'centre' })
+  const pipeline = cover(source).resize(...fitted(Math.min(w, h)))
   return { data: await asJpeg(pipeline), extension: '.jpg' }
+}
+
+/**
+ * The most pixels a cover may have: a 4096-pixel square. sharp decodes about
+ * four bytes a pixel, and an 800 KB PNG 16383 pixels on a side held 1.6 GB of
+ * the server for twenty seconds — a few at once would take a Pi down.
+ */
+const COVER_MAX_PIXELS = 4096 * 4096
+
+/** The largest side a kept cover has: every device keeps every cover, and none draws one bigger. */
+export const COVER_MAX_SIDE = 2048
+
+/** A picture too big to be read as a cover (`COVER_MAX_PIXELS`): refused, not kept as it came. */
+export class CoverTooBig extends Error {
+  constructor(width: number, height: number) {
+    super(`a ${width}×${height} picture is too big for a cover`)
+  }
+}
+
+/** A picture to work on, which sharp refuses to decode past the cover's limit. */
+export function cover(input: Buffer | string): Sharp {
+  return sharp(input, { limitInputPixels: COVER_MAX_PIXELS })
+}
+
+/** A square of `side`, no bigger than a kept cover, cropped to the centre. */
+function fitted(side: number): [number, number, ResizeOptions] {
+  const kept = Math.min(side, COVER_MAX_SIDE)
+  return [kept, kept, { fit: 'cover', position: 'centre' }]
 }
 
 /** Sharp enough that a cover drawn the size of a window shows nothing lost. */

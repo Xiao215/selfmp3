@@ -41,8 +41,15 @@ let menuState: MenuState = MENU_STATE_AT_START
  * Shuffle, Repeat's modes and Like carry checkmarks, kept as the page last
  * said (`setMenuState`): each is found by its command as its id and ticked in
  * place, so the menu is not rebuilt as the music plays.
+ *
+ * File's window items and View › Reload are the shell's own. On a Mac the red
+ * button hides the window rather than closing it, so File › New Window (⇧⌘N;
+ * ⌘N is New Playlist) is how it comes back without reaching for the Dock, and
+ * Close Window (⌘W) is the red button's key. Reload is for a page that has got
+ * itself stuck; it is the window's, not the page's, so it works however stuck
+ * the page is.
  */
-export function buildMenu(window_: () => BrowserWindow | null): void {
+export function buildMenu(window_: () => BrowserWindow | null, showWindow: () => void): void {
   const mac = process.platform === 'darwin'
 
   const commandItem = (item: MenuCommand): Electron.MenuItemConstructorOptions => ({
@@ -71,10 +78,21 @@ export function buildMenu(window_: () => BrowserWindow | null): void {
       : 'submenu' in one
         ? { label: one.label, submenu: one.submenu.map(commandItem) }
         : commandItem(one)
-  // The operating system's own items, after a section's: File's Close Window, View's Full Screen.
+  // The operating system's own items, after a section's: File's New and Close Window, View's Reload and Full Screen.
   const roles: Readonly<Record<string, Electron.MenuItemConstructorOptions[]>> = {
-    File: [{ type: 'separator' }, { role: 'close' }],
-    View: [{ type: 'separator' }, { role: 'togglefullscreen' }],
+    File: mac
+      ? [
+          { type: 'separator' },
+          { label: 'New Window', accelerator: 'Shift+CmdOrCtrl+N', click: () => showWindow() },
+          { role: 'close' },
+        ]
+      : [{ type: 'separator' }, { role: 'close' }, { type: 'separator' }, { role: 'quit' }],
+    View: [
+      { type: 'separator' },
+      { role: 'reload' },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ],
   }
   const section = (one: (typeof MENU_SECTIONS)[number]): Electron.MenuItemConstructorOptions => ({
     label: one.title,

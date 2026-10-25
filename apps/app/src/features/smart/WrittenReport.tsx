@@ -65,7 +65,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     <View style={styles.card} testID="report-written">
       <View style={styles.head}>
         <Sparkle size={iconSize.small} />
-        <Text style={styles.label} accessibilityRole="header">
+        <Text style={styles.label} accessibilityRole="header" aria-level={2}>
           In words
         </Text>
       </View>

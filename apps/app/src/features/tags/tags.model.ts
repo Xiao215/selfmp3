@@ -40,12 +40,14 @@ export interface TagEntry {
  * by side: neither is the bigger. An empty tag is inside nothing.
  *
  * What is left is split by size: tags with a song or two wait at the end, so
- * the page opens on the ones in use. `standings` keeps its order in both runs
- * and inside each holder.
+ * the page opens on the ones in use, and tags with none after them, on their
+ * own: an empty tag had been filed as "a song or two so far". `standings`
+ * keeps its order in every run and inside each holder.
  */
 export function tagsLayout(standings: readonly TagStanding[]): {
   readonly main: readonly TagEntry[]
   readonly justStarted: readonly TagEntry[]
+  readonly empty: readonly TagEntry[]
 } {
   const sets = new Map(standings.map(s => [s.tag.id, new Set(s.songs.map(song => song.id))]))
   const holderOf = new Map<number, number>()
@@ -70,13 +72,15 @@ export function tagsLayout(standings: readonly TagStanding[]): {
   }
   const main: TagEntry[] = []
   const justStarted: TagEntry[] = []
+  const empty: TagEntry[] = []
   for (const standing of standings) {
     if (holderOf.has(standing.tag.id)) continue
     const entry = { standing, inside: inside.get(standing.tag.id) ?? [] }
-    if (standing.songs.length <= JUST_STARTED_MAX) justStarted.push(entry)
+    if (standing.songs.length === 0) empty.push(entry)
+    else if (standing.songs.length <= JUST_STARTED_MAX) justStarted.push(entry)
     else main.push(entry)
   }
-  return { main, justStarted }
+  return { main, justStarted, empty }
 }
 
 /**

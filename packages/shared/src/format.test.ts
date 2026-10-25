@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clipText,
   plural,
   formatBytes,
   formatDuration,
@@ -126,5 +127,15 @@ describe('plural', () => {
   it('takes both words, for the ones English does not make by adding an s', () => {
     expect(plural(1, 'is', 'are')).toBe('1 is')
     expect(plural(2, 'is', 'are')).toBe('2 are')
+  })
+})
+
+describe('clipText', () => {
+  it('says back a short search as it is, and a pasted page as its start', () => {
+    expect(clipText('yoasobi')).toBe('yoasobi')
+    expect(clipText('x'.repeat(5000))).toBe(`${'x'.repeat(40)}…`)
+    // By character, so a CJK or emoji search is not cut through a character.
+    expect(clipText('阿'.repeat(41))).toBe(`${'阿'.repeat(40)}…`)
+    expect(clipText('🎵'.repeat(41), 2)).toBe('🎵🎵…')
   })
 })

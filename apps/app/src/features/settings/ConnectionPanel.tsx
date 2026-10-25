@@ -7,7 +7,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
 import { untilCapResets } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
@@ -58,7 +58,7 @@ export function ConnectionPanel({
   const storage = me.isPending ? undefined : (me.data?.storage ?? null)
   // The bucket refusing for the day: said for as long as it is left alone.
   const hold = useBucketHold()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const where = storage ? whereItIs(storage) : null
   return (
     <Panel title="Account" anchor={anchor}>

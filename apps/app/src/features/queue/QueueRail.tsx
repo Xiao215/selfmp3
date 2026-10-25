@@ -125,7 +125,12 @@ interface Drag {
 interface RowActions {
   readonly play: (index: number) => void
   readonly remove: (index: number) => void
-  readonly menu: (anchor: View | null, row: QueueRow) => void
+  /** Delete or Backspace on a focused row: removed, and the focus handed on. */
+  readonly removeFocused: (index: number) => void
+  /** A row's right-click menu; `played` for one in the rail's history rather than to come. */
+  readonly menu: (anchor: View | null, row: QueueRow, played: boolean) => void
+  /** One place up or down Up next, from the keyboard; where it went, or null if it could not. */
+  readonly step: (index: number, by: 1 | -1) => number | null
   /** The hold has begun on a row, or it is over: the row's swell (`useLiftScale`). */
   readonly holding: (songId: number, holding: boolean) => void
   readonly dragStart: (row: QueueRow, node: View | null, x: number) => void
@@ -178,7 +183,7 @@ function Rail({
   // Its made-once parts on their own, so the row actions below can be made once
   // too: `lift` itself is remade whenever the row wearing the scale changes.
   const { lift: liftScale, holding: holdRow, start: liftRow, drop: dropRow } = lift
-  const [menuRow, setMenuRow] = useState<QueueRow | null>(null)
+  const [menuRow, setMenuRow] = useState<(QueueRow & { played: boolean }) | null>(null)
   const menuAnchor = useRef<View | null>(null)
 
   /*
@@ -192,6 +197,8 @@ function Rail({
     rail: { left: 0, right: 0 },
     startX: 0,
     out: false,
+    /** Escape called the drag off: what is left of it does nothing. */
+    cancelled: false,
     player,
     remove,
   })
@@ -206,9 +213,32 @@ function Rail({
     () => ({
       play: index => latest.current.player.jumpTo(index),
       remove: index => latest.current.remove(index),
-      menu: (anchor, row) => {
+      removeFocused: index => {
+        latest.current.remove(index)
+        /*
+         * The row with the focus has gone, and the focus with it, to the page:
+         * a second Delete did nothing. It goes on to the row that took the
+         * removed one's place, or the one above it at the end. A browser's
+         * rows are elements, found by the index they are drawn with.
+         */
+        requestAnimationFrame(() => {
+          const rail = railRef.current as unknown as HTMLElement | null
+          const row = (at: number): HTMLElement | null | undefined =>
+            rail?.querySelector?.<HTMLElement>(`[data-testid="queue-row-${at}"]`)
+          ;(row(index) ?? row(index - 1))?.focus()
+        })
+      },
+      step: (index, by) => {
+        const now = latest.current
+        if (index < now.first || index > now.last) return null
+        const to = dragTarget(index, by * ROW_HEIGHT, ROW_HEIGHT, now)
+        if (to === index) return null
+        now.player.reorderQueue(index, to)
+        return to
+      },
+      menu: (anchor, row, played) => {
         menuAnchor.current = anchor
-        setMenuRow(row)
+        setMenuRow({ ...row, played })
       },
       holding: holdRow,
       dragStart: (row, node, x) => {
@@ -216,6 +246,7 @@ function Rail({
         now.startX = x
         liftRow(row.song.id)
         now.out = false
+        now.cancelled = false
         // Nothing is out until the rail's edges are known, a moment from now.
         now.rail = { left: -Infinity, right: Infinity }
         dx.setValue(0)
@@ -231,6 +262,7 @@ function Rail({
       },
       dragMove: (index, moveX, moveY) => {
         const now = latest.current
+        if (now.cancelled) return
         dx.setValue(moveX)
         dy.setValue(moveY)
         const out = draggedOut(now.startX + moveX, now.rail)
@@ -247,6 +279,10 @@ function Rail({
       },
       dragEnd: (index, moveX, moveY) => {
         const now = latest.current
+        if (now.cancelled) {
+          now.cancelled = false
+          return
+        }
         const outcome = dragOutcome({
           out: draggedOut(now.startX + moveX, now.rail),
           from: index,
@@ -289,6 +325,21 @@ function Rail({
       },
     ],
   }))
+
+  /*
+   * Escape calls a drag off: the row goes back to its place, and letting go
+   * afterwards does nothing — out past the edge, it is not removed.
+   */
+  useEscape(
+    drag !== null,
+    () => {
+      latest.current.cancelled = true
+      setDrag(null)
+      spring(outness, 0)
+      dropRow()
+    },
+    { layer: true },
+  )
 
   // The row being dragged, drawn over everything so it can leave the rail.
   useOverlay(
@@ -498,13 +549,15 @@ function Rail({
                     actions={actions}
                   />
                 )
-                // The first song to come is the one the guide lights and drags out.
-                if (kind !== 'next' || row.index !== rows.next[0]?.index) return railRow
+                // The first song to come is the one the guide lights and drags
+                // out. Every row has the same wrapper, so the row that becomes
+                // first as the one above it goes is not remounted mid-drag.
+                const first = kind === 'next' && row.index === rows.next[0]?.index
                 return (
                   <Animated.View
-                    ref={firstTarget}
+                    ref={first ? firstTarget : undefined}
                     collapsable={false}
-                    style={hint.shown ? slideWith(hint, 120) : null}
+                    style={first && hint.shown ? slideWith(hint, 120) : null}
                   >
                     {railRow}
                   </Animated.View>
@@ -531,7 +584,8 @@ function Rail({
             },
             {
               key: 'remove',
-              label: 'Remove from Up next',
+              // A played song is in the rail's history, not still to come.
+              label: menuRow?.played ? 'Remove from Played' : 'Remove from Up next',
               onPress: () => {
                 if (menuRow) actions.remove(menuRow.index)
               },
@@ -586,6 +640,17 @@ function PlayingDrop({
 
 /** The key a focused row answers with removal. */
 const REMOVE_KEYS = new Set(['Delete', 'Backspace'])
+
+/**
+ * Focus the rail's row at `index` once the rail has drawn its move: a row
+ * moved from the keyboard is drawn anew in its new place, and the next ⌥↓
+ * would otherwise go nowhere. Only a browser has keys to press.
+ */
+function focusRowSoon(index: number): void {
+  requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>(`[data-testid="queue-row-${index}"]`)?.focus()
+  })
+}
 
 /**
  * A song still to come, or one that has played (greyed, no grip). A click
@@ -661,14 +726,25 @@ const RailRow = memo(function RailRow({
     [actions, index],
   )
   const web = {
-    onKeyDown: (event: { nativeEvent: { key: string }; preventDefault: () => void }) => {
-      if (!REMOVE_KEYS.has(event.nativeEvent.key)) return
+    onKeyDown: (event: {
+      nativeEvent: { key: string; altKey: boolean }
+      preventDefault: () => void
+    }) => {
+      const { key, altKey } = event.nativeEvent
+      // ⌥↑ and ⌥↓ move a song still to come, as dragging it does.
+      if (altKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        event.preventDefault()
+        const to = actions.step(index, key === 'ArrowDown' ? 1 : -1)
+        if (to !== null) focusRowSoon(to)
+        return
+      }
+      if (!REMOVE_KEYS.has(key)) return
       event.preventDefault()
-      actions.remove(index)
+      actions.removeFocused(index)
     },
     onContextMenu: (event: { preventDefault: () => void }) => {
       event.preventDefault()
-      actions.menu(rowRef.current, { song, index })
+      actions.menu(rowRef.current, { song, index }, kind === 'played')
     },
   }
 
@@ -781,6 +857,8 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     // A step up from the page, told apart by tone and not by a line (`S2`).
     backgroundColor: theme.colors.surface1,
+    // Chrome, as the sidebar is: a drag in it moves a song, not a selection.
+    userSelect: 'none',
   },
   railOver: {
     // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.

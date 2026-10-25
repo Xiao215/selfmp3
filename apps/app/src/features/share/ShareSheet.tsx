@@ -141,6 +141,7 @@ export function ShareSheet(): ReactNode {
       subtitle="Anyone with the link can listen."
       testID="share-sheet"
       width={420}
+      scroll
     >
       <View style={styles.body}>
         {left > 0 ? (

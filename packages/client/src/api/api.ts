@@ -17,6 +17,7 @@
  */
 import {
   AffectedSchema,
+  AllPlaylistSongsSchema,
   AnalysisStatusSchema,
   ArtistBackdropSchema,
   SetArtistNamesSchema,
@@ -97,11 +98,18 @@ import {
   type OfflineScope,
   type PlayEvent,
   type SongPatch,
+  type ChangeSongTags,
   type StatsRange,
   type WrappedRange,
   type UpdatePlaylist,
   type UpdateSettings,
+  type Affected,
+  type BulkDeleteResult,
+  type Playlist,
+  type RemovedFromPlaylist,
   API_ERROR,
+  BULK_IDS_MAX,
+  LYRICS_QUERY_MAX,
 } from '@selfmp3/shared'
 import type { z } from 'zod'
 import {
@@ -122,6 +130,27 @@ import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../pla
  * check: every refetch with nothing new put thousands of songs through zod.
  */
 const checkedAnswers = new WeakMap<object, Map<z.ZodTypeAny, unknown>>()
+
+/**
+ * A bulk request for a selection bigger than one may name (`BULK_IDS_MAX`),
+ * as several, one after another: select-all over a big library failed whole
+ * with a 400. Each part is told how many came before it. Always at least one
+ * part, so a request for nothing is still the server's to refuse.
+ */
+async function inChunks<T>(
+  ids: readonly number[],
+  send: (part: number[], offset: number) => Promise<T>,
+): Promise<T[]> {
+  const answers: T[] = []
+  for (let offset = 0; offset === 0 || offset < ids.length; offset += BULK_IDS_MAX) {
+    answers.push(await send(ids.slice(offset, offset + BULK_IDS_MAX), offset))
+  }
+  return answers
+}
+
+const affectedIn = (parts: readonly Affected[]): Affected => ({
+  affected: parts.reduce((sum, part) => sum + part.affected, 0),
+})
 
 /**
  * The bucket answering instead of a server.
@@ -310,8 +339,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     patchSong: (id: number, patch: SongPatch) =>
       request('PATCH', `/api/songs/${id}`, SongSchema, patch),
 
-    setSongTags: (id: number, tagIds: number[]) =>
-      request('PUT', `/api/songs/${id}/tags`, SongSchema, { tagIds }),
+    changeSongTags: (id: number, change: ChangeSongTags) =>
+      request('PATCH', `/api/songs/${id}/tags`, SongSchema, change),
 
     setLoved: (id: number, loved: boolean) =>
       request('POST', `/api/songs/${id}/loved`, SongSchema, { loved }),
@@ -329,7 +358,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     lyricsSearch: (query: string, limit = 8) =>
       request(
         'GET',
-        `/api/lyrics/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+        `/api/lyrics/search?q=${encodeURIComponent(query.trim().slice(0, LYRICS_QUERY_MAX))}&limit=${limit}`,
         LyricsSearchResponseSchema,
       ),
 
@@ -337,8 +366,15 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
 
     /** The multi-select delete. */
-    bulkDeleteSongs: (input: BulkDeleteSongs) =>
-      request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, input),
+    bulkDeleteSongs: async (input: BulkDeleteSongs): Promise<BulkDeleteResult> => {
+      const results = await inChunks(input.songIds, songIds =>
+        request('POST', '/api/songs/bulk/delete', BulkDeleteResultSchema, { songIds }),
+      )
+      return {
+        removed: results.reduce((sum, result) => sum + result.removed, 0),
+        failed: results.flatMap(result => result.failed),
+      }
+    },
 
     /** Copies of one song folded into the one kept, then out of the library (`MergeSongs`). */
     mergeSongs: (input: MergeSongs) =>
@@ -347,8 +383,12 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkEditSongs: (input: BulkEditSongs) =>
       request('POST', '/api/songs/bulk/edit', AffectedSchema, input),
 
-    bulkLoved: (input: BulkLoved) =>
-      request('POST', '/api/songs/bulk/loved', AffectedSchema, input),
+    bulkLoved: async (input: BulkLoved): Promise<Affected> =>
+      affectedIn(
+        await inChunks(input.songIds, songIds =>
+          request('POST', '/api/songs/bulk/loved', AffectedSchema, { ...input, songIds }),
+        ),
+      ),
 
     // --- metadata polish ------------------------------------------------------
 
@@ -453,7 +493,12 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     deleteTag: (id: number) => request('DELETE', `/api/tags/${id}`, OkSchema),
 
-    bulkTag: (input: BulkTag) => request('POST', '/api/tags/bulk', AffectedSchema, input),
+    bulkTag: async (input: BulkTag): Promise<Affected> =>
+      affectedIn(
+        await inChunks(input.songIds, songIds =>
+          request('POST', '/api/tags/bulk', AffectedSchema, { ...input, songIds }),
+        ),
+      ),
 
     // --- playlists ----------------------------------------------------------
 
@@ -472,11 +517,31 @@ export function createApi({ context, fetch }: ApiOptions) {
     playlistSongs: (id: number) =>
       request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
 
-    addToPlaylist: (id: number, input: AddToPlaylist) =>
-      request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, input),
+    /** Every playlist's songs in one request. */
+    allPlaylistSongs: () => request('GET', '/api/playlists/songs', AllPlaylistSongsSchema),
 
-    removeManyFromPlaylist: (id: number, songIds: number[]) =>
-      request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, { songIds }),
+    /** A selection past `BULK_IDS_MAX` goes in parts, each after the last. */
+    addToPlaylist: async (id: number, input: AddToPlaylist): Promise<Playlist> => {
+      const parts = await inChunks(input.songIds, (songIds, offset) =>
+        request('POST', `/api/playlists/${id}/songs`, PlaylistSchema, {
+          songIds,
+          ...(input.position === undefined ? {} : { position: input.position + offset }),
+        }),
+      )
+      return parts[parts.length - 1]!
+    },
+
+    removeManyFromPlaylist: async (id: number, songIds: number[]): Promise<RemovedFromPlaylist> => {
+      const parts = await inChunks(songIds, part =>
+        request('POST', `/api/playlists/${id}/songs/remove`, RemovedFromPlaylistSchema, {
+          songIds: part,
+        }),
+      )
+      return {
+        removed: parts.reduce((sum, part) => sum + part.removed, 0),
+        playlist: parts[parts.length - 1]!.playlist,
+      }
+    },
 
     reorderPlaylist: (id: number, songIds: number[]) =>
       request('PUT', `/api/playlists/${id}/order`, OkSchema, { songIds }),

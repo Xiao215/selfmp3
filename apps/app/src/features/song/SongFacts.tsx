@@ -20,7 +20,7 @@ import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { card, serif } from '../../ui/surfaces'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { onThisDevice } from '../settings/settings.model'
 import { thisPlace } from '../../ports/place'
@@ -36,7 +36,7 @@ export function SoundStrip({ song }: { song: Song }): ReactNode {
   // The wave is drawn in the song's own colour, the one its cover gives the
   // page around it, rather than this device's accent.
   const songColor = useSongColor(song, artFor(song))
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const features = song.audioFeatures
   if (!features || (features.bpm == null && features.energy == null && !features.key)) return null
   const figure = wide ? styles.figure : styles.figureSmall

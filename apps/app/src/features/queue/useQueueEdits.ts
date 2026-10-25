@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import type { Href } from 'expo-router'
-import { plural } from '@selfmp3/shared'
+import { plural, type QueueState } from '@selfmp3/shared'
 import { useLibrary } from '@selfmp3/client'
 import { usePlayer, type PlayerApi } from '../../player/PlayerProvider'
-import { showUndoToast } from '../../ui/toast'
+import { dismissToast, showUndoToast } from '../../ui/toast'
 import { useOpenTag } from '../tag/useOpenTag'
 import { closeQueueSheet } from './queueSheet.store'
-import { queueRows, removalOf, restoreMoves } from './queue.model'
+import { queueRows, removalOf, restoreMoves, stillRestorable } from './queue.model'
 import { songsById } from '../../ui/songsById'
 
 /** No rows: what a shut Up next is handed, so it does not resolve the whole queue for nothing. */
@@ -47,8 +47,20 @@ export function useQueueEdits(
    * stay mounted (drawing nothing while shut) so this is always current.
    */
   const latest = useRef(player)
+  /*
+   * The Clear the rest message up, and the queue it cleared. Its Undo puts the
+   * songs back only while the same song plays (`stillRestorable`); once
+   * another has started, Undo was still offered and did nothing at all, so the
+   * message goes instead.
+   */
+  const cleared = useRef<{ id: number; before: QueueState } | null>(null)
   useEffect(() => {
     latest.current = player
+    const up = cleared.current
+    if (up && !stillRestorable(player.queue, up.before)) {
+      cleared.current = null
+      dismissToast(up.id)
+    }
   })
 
   const rows = useMemo(
@@ -82,19 +94,23 @@ export function useQueueEdits(
   const clearRest = useCallback(() => {
     const now = latest.current
     const before = now.clearRest()
-    const cleared = before.items.length - 1
-    if (cleared <= 0) return
+    const count = before.items.length - 1
+    if (count <= 0) return
     // The covers of the songs that were next, the first of them in front.
     const next = before.items
       .slice(before.index + 1, before.index + 4)
       .reverse()
       .flatMap(id => now.songs.find(song => song.id === id) ?? [])
     // Put back through the player as it is at the press, as a single removal is.
-    showUndoToast(
-      { over: 'Cleared from Up next', say: plural(cleared, 'song', 'songs') },
-      () => latest.current.restoreRest(before),
+    const id = showUndoToast(
+      { over: 'Cleared from Up next', say: plural(count, 'song', 'songs') },
+      () => {
+        cleared.current = null
+        latest.current.restoreRest(before)
+      },
       { songs: next },
     )
+    cleared.current = { id, before }
   }, [])
 
   // Up next is one of the lists that shows a song's tags (`S3`); a chip opens the tag.

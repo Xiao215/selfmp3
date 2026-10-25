@@ -120,7 +120,7 @@ describe('import review', () => {
   })
 
   it('keeps no playlist name for a single link', () => {
-    expect(reviewFrom({ ...preview, kind: 'single' }).playlistTitle).toBeNull()
+    expect(reviewFrom({ unread: [], ...preview, kind: 'single' }).playlistTitle).toBeNull()
   })
 
   it('imports only the ticked tracks, as the server expects them', () => {
@@ -461,6 +461,7 @@ describe('a kept review told again what the library has', () => {
     inQueue: false,
   })
   const review = reviewFrom({
+    unread: [],
     kind: 'playlist',
     playlistTitle: 'Top songs',
     items: [item(1, true), item(2, false), item(3, false)],
@@ -580,6 +581,15 @@ describe('what the box holds', () => {
     expect(describePaste('Daft Punk - Get Lucky\nRadiohead - Creep')).toBe('A list of song names')
     expect(describePaste('孤勇者')).toBe('Search')
   })
+
+  it('counts song names pasted alongside a link, which are looked up too', () => {
+    expect(describePaste('Lemon 米津玄師\nhttps://youtu.be/jNQXAC9IVRw')).toBe(
+      'YouTube song and 1 song name',
+    )
+    expect(
+      describePaste('https://youtu.be/a\n夜に駆ける YOASOBI\nhttps://youtu.be/b\nGet Lucky'),
+    ).toBe('2 links and 2 song names')
+  })
 })
 
 describe('songs found by their names', () => {
@@ -598,7 +608,7 @@ describe('songs found by their names', () => {
     youtube: { url: null, match: 'looking' },
     ...patch,
   })
-  const found = (n: number, sure = true) => ({
+  const found = (n: number, sure = true, reversed = false) => ({
     url: `https://www.youtube.com/watch?v=${n}`,
     title: `Song ${n}`,
     artist: 'Someone',
@@ -606,9 +616,10 @@ describe('songs found by their names', () => {
     duration: 201,
     thumbnail: `https://lh3.googleusercontent.com/${n}=w544-h544`,
     sure,
+    reversed,
   })
   const review = (...items: ImportPreviewItem[]): Review =>
-    reviewFrom({ kind: 'playlist', playlistTitle: 'Mix', items, from: 'spotify' })
+    reviewFrom({ unread: [], kind: 'playlist', playlistTitle: 'Mix', items, from: 'spotify' })
 
   it('are ticked while they are looked for, and not imported until found', () => {
     const start = review(byName(1), byName(2))
@@ -618,17 +629,29 @@ describe('songs found by their names', () => {
   })
 
   it('take the link, album and cover found, and lose the tick when nothing was', () => {
-    const next = withFound(review(byName(1), byName(2), byName(3)), [0, 1], [found(1, false), null])
+    const next = withFound(review(byName(1), byName(2), byName(3)), [0, 1], [found(1), null])
     expect(next.items[0]).toMatchObject({
       url: 'https://www.youtube.com/watch?v=1',
       album: 'An Album',
       thumbnail: 'https://lh3.googleusercontent.com/1=w544-h544',
-      youtube: { url: 'https://www.youtube.com/watch?v=1', match: 'unsure' },
+      youtube: { url: 'https://www.youtube.com/watch?v=1', match: 'sure' },
     })
     expect(next.items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'none' } })
     expect([...next.chosen]).toEqual([0, 2])
     expect(lookingFor(next)).toEqual([2])
     expect(chosenItems(next).map(each => each.url)).toEqual(['https://www.youtube.com/watch?v=1'])
+  })
+
+  it('take their names the other way round when that is how they were found', () => {
+    const lemon = byName(1, { title: '米津玄師', artist: 'Lemon' })
+    const next = withFound(review(lemon), [0], [found(1, true, true)])
+    expect(next.items[0]).toMatchObject({ title: 'Lemon', artist: '米津玄師' })
+  })
+
+  it('lose the tick when YouTube is not sure of the song, to be listened to first', () => {
+    const next = withFound(review(byName(1), byName(2)), [0, 1], [found(1, false), found(2)])
+    expect(next.items[0]?.youtube).toMatchObject({ match: 'unsure' })
+    expect([...next.chosen]).toEqual([1])
   })
 
   it('switch between 网易云 and YouTube, looking for it on YouTube the first time', () => {

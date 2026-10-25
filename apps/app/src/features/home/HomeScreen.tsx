@@ -30,7 +30,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout, useLayoutValue } from '../../shell/useLayout'
+import { useLayout, useLayoutFlags, useLayoutValue } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Bone, Skeleton } from '../../ui/components/Skeleton'
@@ -88,6 +88,7 @@ import { useSvgId } from '../../ui/useSvgId'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { CantReach } from '../library/CantReach'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -144,13 +145,14 @@ function HomePage({
   /** The song a stats id names, as this device knows it: the server's ids are not this library's. */
   songFor: (songId: number) => Song | undefined
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const beside = useCardsBeside(wide)
   const roomy = useLayoutValue(roomyPhone)
   const router = useRouter()
   const now = useNow()
   const bottom = useBottomInset()
-  const { data: library } = useLibrary()
+  const libraryQuery = useLibrary()
+  const library = libraryQuery.data
   // Three by two wherever the tiles go three across.
   const many = wide || roomy
   const tiles = useMemo(
@@ -252,7 +254,15 @@ function HomePage({
                       : null
                   }
                 />
-                <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
+                {/* No library and no copy of one: say why, as Library does, not an empty space. */}
+                {library === undefined && libraryQuery.isError ? (
+                  <CantReach
+                    error={libraryQuery.error}
+                    onRetry={() => void libraryQuery.refetch()}
+                  />
+                ) : (
+                  <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
+                )}
               </>
             )}
           </View>
@@ -583,7 +593,7 @@ function Tile({
   artUri: string | null | undefined
   onPress: () => void
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const arrival = useArrival(index, arrive, count)
   const colours = tagColors(tile.tag.hue)
   const ref = useRef<View>(null)

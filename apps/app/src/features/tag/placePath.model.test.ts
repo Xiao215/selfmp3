@@ -17,6 +17,17 @@ describe('which tag page an address is', () => {
     expect(onTagPage('/tag/100%', '100%')).toBe(true)
   })
 
+  it('reads a name with a slash, a question mark or a hash in it', () => {
+    expect(onTagPage('/tag/a/b', 'a/b')).toBe(true)
+    expect(onTagPage('/tag/bash/lib?x#y %25', 'bash/lib?x#y %')).toBe(true)
+  })
+
+  it('reads the dots and the percent signs a link escaped', () => {
+    expect(onTagPage('/tag/%2E%2E', '..')).toBe(true)
+    expect(onTagPage('/tag/%252F', '%2F')).toBe(true)
+    expect(onTagPage('/tag/%2E%2E', '.')).toBe(false)
+  })
+
   it('is no other page', () => {
     expect(onTagPage('/tags', 'tags')).toBe(false)
     expect(onTagPage('/tag/', '')).toBe(false)

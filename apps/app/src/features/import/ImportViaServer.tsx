@@ -1,7 +1,7 @@
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import type { ReactNode } from 'react'
 import { StyleSheet } from 'react-native-unistyles'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -37,7 +37,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 export function ImportViaServer({
   page = 'import',
 }: { page?: 'import' | 'review' | 'search' } = {}): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const reach = useServerDirect()
   if (reach.state === 'reachable') {
     if (page === 'review')

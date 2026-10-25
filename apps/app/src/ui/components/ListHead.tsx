@@ -149,7 +149,19 @@ export function ListHead({
         style={[styles.hero, besideWide && [styles.heroWide, wideOverrides?.hero], heroStyle]}
       >
         {cover ? <View style={styles.mosaic}>{cover}</View> : null}
-        <View style={[styles.titles, besideWide && [styles.titlesWide, wideOverrides?.titles]]}>
+        {/*
+          The words let presses through where they draw nothing, and over an
+          opening picture each line is only as wide as it reads: a name laid
+          the head's whole width took every tap on the banner beside it.
+        */}
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.titles,
+            open && styles.titlesOverArt,
+            besideWide && [styles.titlesWide, wideOverrides?.titles],
+          ]}
+        >
           <HeadCrowded.Provider
             value={besideWide && cover ? () => setCrowdedAt(crowdKey) : NOT_BESIDE}
           >
@@ -414,6 +426,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.card,
   },
   titles: { gap: space.tight, flexShrink: 1, minWidth: 0 },
+  titlesOverArt: { alignItems: 'flex-start' },
   titlesWide: { flexGrow: 1, flexBasis: 220 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },

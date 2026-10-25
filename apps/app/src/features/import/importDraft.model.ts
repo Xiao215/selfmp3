@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   ImportFromSchema,
   ImportPreviewItemSchema,
+  UnreadLinkSchema,
   linkIdentity,
   type ImportPreviewItem,
 } from '@selfmp3/shared'
@@ -80,6 +81,7 @@ export function withSearchResults(
       chosen: new Set(kept.map((_, index) => index)),
       playlistTitle: query,
       from: 'search',
+      unread: [],
     },
   }
 }
@@ -106,6 +108,7 @@ const StoredReviewSchema = z.object({
   chosen: z.array(z.number().int().nonnegative()),
   playlistTitle: z.string().nullable(),
   from: ImportFromSchema,
+  unread: z.array(UnreadLinkSchema).default([]),
 })
 type StoredReview = z.infer<typeof StoredReviewSchema>
 
@@ -164,6 +167,7 @@ function readReview(review: StoredReview): Review {
     chosen: new Set(review.chosen.filter(index => index < review.items.length)),
     playlistTitle: review.playlistTitle,
     from: review.from,
+    unread: review.unread,
   }
 }
 
@@ -173,6 +177,7 @@ function writeReview(review: Review): StoredReview {
     chosen: [...review.chosen],
     playlistTitle: review.playlistTitle,
     from: review.from,
+    unread: [...review.unread],
   }
 }
 

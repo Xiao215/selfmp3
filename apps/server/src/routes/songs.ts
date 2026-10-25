@@ -8,11 +8,12 @@ import {
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
-  SetSongTagsSchema,
+  ChangeSongTagsSchema,
   SimilarQuerySchema,
   similarSongs,
   SongPatchSchema,
   tagFlips,
+  tagsAfter,
   type Affected,
   type BulkDeleteResult,
   type MergeSongsResult,
@@ -28,7 +29,7 @@ import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { transact } from '../db/index.js'
-import { sqliteTime } from '../repositories/stats.js'
+import { heardMs, sqliteTime } from '../repositories/stats.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
 /** The fields a patch sets, in `SONG_FIELDS` order: what an edit to it is stamped with. */
@@ -94,8 +95,8 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/bulk/delete',
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
-      const { removed, failed } = await container.songRemoval.remove(body.songIds)
-      return { removed: removed.length, failed }
+      const { removed, alreadyGone, failed } = await container.songRemoval.remove(body.songIds)
+      return { removed: removed.length + alreadyGone.length, failed }
     }),
   )
 
@@ -109,11 +110,16 @@ export function songRoutes(container: Container): Router {
     '/songs/merge',
     route({ body: MergeSongsSchema }, async ({ body }): Promise<MergeSongsResult> => {
       const hlc = container.clock.tick()
-      const merged = container.db.transaction(() =>
-        [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+      // The copies' rows go in the same transaction as the fold: left alive
+      // while their files are tidied, a second merge of them (a double tap, or
+      // the other direction) would fold them again, or delete the kept song.
+      const taken = container.db.transaction(() =>
+        container.songRemoval.take(
+          [...new Set(body.songIds)].filter(id => container.songMerge.merge(id, body.keep, hlc)),
+        ),
       )()
-      if (merged.length > 0) await container.songRemoval.remove(merged)
-      return { merged: merged.length }
+      await container.songRemoval.settle(taken)
+      return { merged: taken.songs.length }
     }),
   )
 
@@ -167,13 +173,13 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
-  router.put(
+  router.patch(
     '/songs/:id/tags',
-    route({ params: ParamsWithId, body: SetSongTagsSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: ChangeSongTagsSchema }, ({ params, body }) => {
       const song = songOrThrow(params.id)
       // Silently drop ids for tags that no longer exist rather than 400ing —
       // a phone working from a stale library should not hit an error wall.
-      const valid = container.tags.exists(body.tagIds)
+      const valid = container.tags.exists(tagsAfter(song.tagIds, body.add, body.remove))
       transact(container.db, () => container.tags.setSongTags(params.id, valid))
       // Stamped: the tags that went on, and the ones that came off.
       const { on, off } = tagFlips(song.tagIds, valid)
@@ -205,14 +211,14 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/:id/played',
     route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }): PlayRecorded => {
-      songOrThrow(params.id)
+      const song = songOrThrow(params.id)
       // A play sent late carries when it happened; one sent twice carries the
       // same client id both times, and the second changes nothing.
       const playedAt = sqliteTime(body.playedAt)
       const recorded = transact(container.db, () => {
         const inserted = container.stats.record(
           params.id,
-          body.msPlayed,
+          heardMs(body.msPlayed, song.duration),
           body.completed,
           playedAt,
           body.clientId ?? null,

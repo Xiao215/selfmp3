@@ -5,6 +5,7 @@ import { space, textStyle } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
+import { holdPresses } from '../../shell/Overlay'
 import { lineSub, dialogPanel, textColumn } from '../surfaces'
 
 /**
@@ -124,7 +125,7 @@ function Question({
       <View style={styles.lead}>
         {picture}
         <View style={styles.question}>
-          <Text style={styles.title} accessibilityRole="header">
+          <Text style={styles.title} accessibilityRole="header" aria-level={2}>
             {title}
           </Text>
           {name ? (
@@ -143,7 +144,12 @@ function Question({
         <Button
           label={confirmLabel}
           variant={danger ? 'danger' : 'primary'}
-          onPress={onConfirm}
+          onPress={() => {
+            // What is confirmed often takes the page with it, and the second
+            // press of a double tap landed on the next one (`holdPresses`).
+            holdPresses()
+            onConfirm()
+          }}
           busy={busy}
           grow={!wide}
         />

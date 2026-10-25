@@ -31,6 +31,11 @@ import { searchSongs } from '@selfmp3/client'
 /** A section of the results, which "See all" opens alone. */
 export type SearchSection = 'places' | 'songs' | 'lyrics'
 
+/** Whether an address's `?section=` names one of them. */
+export function isSearchSection(value: unknown): value is SearchSection {
+  return value === 'places' || value === 'songs' || value === 'lyrics'
+}
+
 /** What a section is called, on its head in All and on the way back from it. */
 export const SECTION_TITLES: Readonly<Record<SearchSection, string>> = {
   places: 'Artists and tags',

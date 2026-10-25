@@ -41,7 +41,7 @@ import {
   type TextField,
 } from './metadata.model'
 import { useArt } from '../../offline/useArt'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { hint, textColumn, dialogPanel } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -111,7 +111,7 @@ export function MetadataDialog({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const artFor = useArt()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   // Full screen on a phone, so the head clears the status bar and the foot the home bar.
   const insets = useSafeAreaInsets()
   const { lookup, apply } = useMetadataSource(via, askFor, song.id)

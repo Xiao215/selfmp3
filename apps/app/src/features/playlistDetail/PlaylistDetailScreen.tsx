@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { plural, type Song, NameSchema } from '@selfmp3/shared'
+import { plural, type Song, NAME_MAX } from '@selfmp3/shared'
 import {
   space,
   useLibrary,
@@ -17,7 +17,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
@@ -73,7 +73,7 @@ import { NO_AUTOFILL } from '../../ui/noAutofill'
 export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const rowHeight = useSongRowHeight()
   const params = useLocalSearchParams<{ id: string; rename?: string; describe?: string }>()
   const playlistId = Number(params.id)
@@ -199,7 +199,7 @@ export function PlaylistDetailScreen(): ReactNode {
             onBlur={saveName}
             selectTextOnFocus
             autoFocus
-            maxLength={NameSchema.maxLength ?? undefined}
+            maxLength={NAME_MAX}
             accessibilityLabel="Playlist name"
           />
         ) : (

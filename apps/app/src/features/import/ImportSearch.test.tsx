@@ -34,6 +34,7 @@ jest.mock('expo-router', () => ({
 jest.mock('../../shell/bottomInset', () => ({
   useFootInset: () => 0,
   useBottomInset: () => 0,
+  useFloatingChrome: () => 0,
 }))
 
 const mockClose = jest.fn()
@@ -60,6 +61,10 @@ jest.mock('./importSource', () => {
           importFind: () => Promise.resolve({ found: [] }),
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importPreview: () => Promise.reject(new Error('not looked up here')),
+        },
+        // Look-ups go to the same server, given longer to answer.
+        get lookUp() {
+          return (this as { api: unknown }).api
         },
         library: { songs: [], tags: [], playlists: [] },
         createTag: () => Promise.reject(new Error('no tags here')),

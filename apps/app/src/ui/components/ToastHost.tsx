@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, PanResponder, StyleSheet as RNStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -97,6 +97,9 @@ function ToastItem({
     return () => clearTimeout(timer)
   }, [toast.id, toast.autoDismissMs, toast.since, leaving])
 
+  // When it was answered by a press: its ✕, or one of its buttons.
+  const answeredAt = useRef<number | null>(null)
+
   useEffect(() => {
     const animation = Animated.timing(shown, {
       toValue: leaving ? 0 : 1,
@@ -104,13 +107,26 @@ function ToastItem({
       easing: ease.out,
       useNativeDriver: nativeDriver,
     })
+    let held: ReturnType<typeof setTimeout> | undefined
     animation.start(({ finished }) => {
-      if (finished && leaving) onGone(toast.id)
+      if (!finished || !leaving) return
+      // Answered by a press, it stays a moment past its fade, unseen and still
+      // taking the pointer, for the rest of a double tap (`answered`).
+      const at = answeredAt.current
+      const left = at === null ? 0 : ANSWERED_CATCH_MS - (Date.now() - at)
+      if (left <= 0) onGone(toast.id)
+      else held = setTimeout(() => onGone(toast.id), left)
     })
-    return () => animation.stop()
+    return () => {
+      animation.stop()
+      clearTimeout(held)
+    }
   }, [leaving, shown, onGone, toast.id])
 
-  const dismiss = useCallback(() => dismissToast(toast.id), [toast.id])
+  const dismiss = useCallback(() => {
+    answeredAt.current = Date.now()
+    dismissToast(toast.id)
+  }, [toast.id])
   const last = toast.actions.length - 1
   const clock = toast.autoDismissMs > 0 ? { since: toast.since, ms: toast.autoDismissMs } : null
   return (
@@ -124,7 +140,7 @@ function ToastItem({
           ],
         },
       ]}
-      pointerEvents={leaving ? 'none' : 'box-none'}
+      pointerEvents="box-none"
     >
       <ToastCard
         tone={toast.tone}
@@ -133,6 +149,7 @@ function ToastItem({
         // With a button to press, the button runs the clock and the ✕ is plain.
         timed={last < 0 ? clock : null}
         onDismiss={dismiss}
+        answered={leaving}
       >
         {toast.actions.map((action, index) => (
           <ToastButton
@@ -152,6 +169,9 @@ function ToastItem({
     </Animated.View>
   )
 }
+
+/** How long a message answered by a press goes on taking the pointer: a slow double tap's length. */
+const ANSWERED_CATCH_MS = 400
 
 /** Past this, a message let go of goes; short of it, it springs back. */
 const SWIPE_AWAY = 72
@@ -178,6 +198,7 @@ export function ToastCard({
   art,
   timed,
   onDismiss,
+  answered = false,
   children,
 }: {
   tone: ToastTone
@@ -186,6 +207,13 @@ export function ToastCard({
   /** Its time, for the ring round its ✕: from `since`, `ms` long. Null for one that stays. */
   timed: { since: number; ms: number } | null
   onDismiss: () => void
+  /**
+   * Gone from the store and fading out. The card still takes the pointer then
+   * and does nothing with it: a double tap on Undo put the songs back, and the
+   * second tap, let through a toast already on its way out, played the row
+   * under it — the queue jumped seven songs on, or all of Up next went.
+   */
+  answered?: boolean
   /** Its buttons (`ToastButton`). */
   children?: ReactNode
 }): ReactNode {
@@ -212,6 +240,7 @@ export function ToastCard({
         ground && { backgroundColor: ground },
         swipe.style,
       ]}
+      pointerEvents={answered ? 'box-only' : 'auto'}
       role={tone === 'error' ? 'alert' : 'status'}
       accessibilityActions={DISMISS_ACTIONS}
       onAccessibilityAction={onDismiss}

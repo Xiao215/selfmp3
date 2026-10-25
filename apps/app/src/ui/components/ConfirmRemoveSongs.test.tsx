@@ -15,6 +15,7 @@ jest.mock('../../shell/useLayout', () => {
   const layout = { wide: false, dense: false, compact: true, finePointer: false, width: 390 }
   return {
     useLayout: () => layout,
+    useLayoutFlags: () => layout,
     useLayoutValue: (select: (value: typeof layout) => unknown) => select(layout),
     useWindowValue: (select: (value: object) => unknown) =>
       select({ width: 390, height: 844, scale: 3, fontScale: 1 }),

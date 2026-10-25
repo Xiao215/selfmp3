@@ -391,3 +391,16 @@ printf '%s\\n' "$@" > "${dir}/args.txt"
     expect(asked()).toBe(false)
   })
 })
+
+describe('YtDlpService', () => {
+  it('runs on nothing but YouTube and 网易云 links', async () => {
+    const ytdlp = new YtDlpService(createLogger('silent'), () => ({}) as never, {} as never)
+    for (const url of ['http://127.0.0.1:4646/api/health', 'https://example.com/a.mp3']) {
+      await expect(ytdlp.probe(url)).rejects.toThrow(/only YouTube/)
+      await expect(ytdlp.audioUrl(url)).rejects.toThrow(/only YouTube/)
+      await expect(
+        ytdlp.download({ url, outputTemplate: '/nowhere/%(id)s', hasFfmpeg: false }),
+      ).rejects.toThrow(/only YouTube/)
+    }
+  })
+})

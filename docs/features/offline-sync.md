@@ -14,7 +14,7 @@ Files:
 |---|---|
 | The listening outbox, shared rules | `packages/shared/src/outbox.ts`, `packages/client/src/listens/outbox.ts` |
 | …kept on the device (a JSON file, IndexedDB in a browser) | `apps/app/src/offline/listenOutbox.ts` (+ `.web.ts`) |
-| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts` |
+| Edits made offline | the outbox of this device's copy of the library, `packages/replica/src/library.ts`; a browser's held edits, kept through a reload: `apps/app/src/offline/waitingEdits.ts` (+ `.model.ts`), `editKeys` in `packages/client/src/queries/queries.ts` |
 | Automatic downloads | `apps/app/src/offline/DownloadsProvider.tsx` |
 | Per-device preferences, connection type | `packages/client/src/downloads/syncPolicy.ts`, `apps/app/src/offline/connectionKind.ts` |
 | Download, prune | `packages/client/src/downloads/queue.ts`, `apps/app/src/ports/downloadStorage.ts` (+ `.web.ts`), `apps/app/src/ports/offline.web.ts` |
@@ -53,6 +53,15 @@ bounded — 5,000 events or 400 days — and in practice never trimmed.
 A love, a tag, a playlist change made with no connection is applied to this device's copy of
 the library at once and kept in its outbox, which goes up to the bucket once it answers again
 (docs/SYNC.md, "Editing from anywhere"). Nothing has to be redone by hand.
+
+A browser that says it is offline holds every edit back before any library hears of it, a
+server's or the bucket's. The taps that can wait — a tag, a heart, a song onto or off a
+playlist, a new order (`editKeys`) — are kept on the device while they wait
+(`waitingEdits.ts`), put back when the app opens again on the same library, and sent once it
+is online; the sidebar says "Offline" and how many are waiting, never "All saved". Each says
+only what it changes — a tag edit names the tags it puts on and takes off
+(`PATCH /api/songs/:id/tags`), never the whole set — so one sent late leaves what another
+device did meanwhile.
 
 ## Automatic downloads
 

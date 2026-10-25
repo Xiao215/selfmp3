@@ -77,6 +77,7 @@ export function SleepMenu({
       anchorRef={anchorRef}
       placement="above"
       title="Sleep timer"
+      role="menu"
       subtitle={status}
       panelTitle={status ?? 'Sleep timer'}
       width={200}

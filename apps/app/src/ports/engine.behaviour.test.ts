@@ -130,6 +130,12 @@ interface Rig {
   nearEnd(): void
   /** The song runs out on its own. */
   end(): void
+  /**
+   * The song fails, told as the platform tells it: the phone's player says so
+   * twice and moves on to the song lent behind it; the browser's element
+   * fires its error twice.
+   */
+  fail(): void
   /** What this device is called in the app's words. */
   readonly place: 'phone' | 'computer'
 }
@@ -158,6 +164,15 @@ const rigs: Record<string, () => Promise<Rig>> = {
           player.emit('PlaybackQueueEnded', {})
         }
       },
+      fail() {
+        player.emit('PlaybackError', { message: 'The operation couldn’t be completed' })
+        const next = player.queue[player.active + 1]
+        if (next) {
+          player.active += 1
+          player.emit('PlaybackActiveTrackChanged', { track: next, index: player.active })
+        }
+        player.emit('PlaybackError', { message: 'The operation couldn’t be completed' })
+      },
     }
   },
 
@@ -185,6 +200,14 @@ const rigs: Record<string, () => Promise<Rig>> = {
         element.paused = true
         element.dispatchEvent(new Event('ended'))
       },
+      fail() {
+        const element = elements.find(candidate => candidate.src !== '')
+        if (!element) return
+        element.paused = true
+        element.error = { code: 2 }
+        element.dispatchEvent(new Event('error'))
+        element.dispatchEvent(new Event('error'))
+      },
     }
   },
 }
@@ -207,6 +230,8 @@ beforeEach(() => {
       }
     },
   )
+  // Nothing answers: what a failed song's address is asked comes back with no answer.
+  vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
   vi.stubGlobal('MediaError', {
     MEDIA_ERR_SRC_NOT_SUPPORTED: 4,
     MEDIA_ERR_NETWORK: 2,
@@ -320,5 +345,29 @@ describe.each(Object.keys(rigs))('the %s engine', name => {
 
     expect(engine.state).toMatchObject({ volume: 0, muted: true })
     expect(level()).toBe(0)
+  })
+
+  it('tells a failure once, and never takes the player moving past it as the song ending', async () => {
+    const { engine, fail } = await rig()
+    let ended = 0
+    engine.connect({
+      streamUrl: address,
+      nextTrackId: () => 2,
+      onTrackEnd: () => {
+        ended += 1
+      },
+    })
+    const told: string[] = []
+    engine.subscribe(state => {
+      if (state.error !== null && told.at(-1) !== state.error) told.push(state.error)
+    })
+    await engine.load(1)
+
+    fail()
+
+    // Nothing answered: said in the words that stop the run (`isUnreachable`).
+    await vi.waitFor(() => expect(told).toEqual(['Lost connection to the library']))
+    expect(ended).toBe(0)
+    expect(engine.state.playing).toBe(false)
   })
 })

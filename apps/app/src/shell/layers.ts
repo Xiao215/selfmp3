@@ -6,20 +6,35 @@
  * Kept apart from the hook so that what stands aside for an open layer can
  * ask: a list's ⌘A must not select the songs under an open menu.
  */
-const open: string[] = []
+const open: { readonly id: string; readonly close: () => void }[] = []
 
-export function openLayer(id: string): void {
-  open.push(id)
+/** `close` is what Escape would do: how `closeLayers` takes it away. */
+export function openLayer(id: string, close: () => void = () => {}): void {
+  open.push({ id, close })
 }
 
 export function closeLayer(id: string): void {
-  const index = open.lastIndexOf(id)
-  if (index !== -1) open.splice(index, 1)
+  for (let index = open.length - 1; index >= 0; index--) {
+    if (open[index]?.id !== id) continue
+    open.splice(index, 1)
+    return
+  }
 }
 
 /** Whether `id` is the topmost open layer. */
 export function onTop(id: string): boolean {
-  return open[open.length - 1] === id
+  return open[open.length - 1]?.id === id
+}
+
+/**
+ * Close every open layer, topmost first, as Escape pressed until none is left.
+ *
+ * For whatever takes the person to another page from outside the page — a menu
+ * bar command, a `selfmp3://` link — so a song's menu or the palette does not
+ * stay open, and still working, over a page it has nothing to do with.
+ */
+export function closeLayers(): void {
+  for (const layer of [...open].reverse()) layer.close()
 }
 
 /** Whether anything is drawn over the page. */

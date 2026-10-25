@@ -44,7 +44,7 @@ export function useEscape(
     if (!active) return undefined
 
     if (layer) {
-      openLayer(id)
+      openLayer(id, () => latest.current())
       const onKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Escape' || isComposing(event)) return
         if (!onTop(id)) return

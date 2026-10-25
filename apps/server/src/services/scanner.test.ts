@@ -1,9 +1,14 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from '../repositories/songs.js'
 import type { StorageDriver } from '../storage/index.js'
+import { LocalStorageDriver } from '../storage/local.js'
+import { MetadataService } from './metadata.js'
 import { ScannerService } from './scanner.js'
 
 /**
@@ -150,5 +155,69 @@ describe('a sweep of a folder that has not changed', () => {
     storage.stat = (key: string) =>
       Promise.resolve({ sizeBytes: 100, modifiedAt: new Date(1_700_000_001_000), key })
     expect(await scanner.scan()).toMatchObject({ added: 0, updated: 1 })
+  })
+})
+
+/** A second of silence as a 16-bit mono WAV: the smallest real audio to hand. */
+function wav(): Buffer {
+  const rate = 8000
+  const data = Buffer.alloc(rate * 2)
+  const head = Buffer.alloc(44)
+  head.write('RIFF', 0)
+  head.writeUInt32LE(36 + data.length, 4)
+  head.write('WAVEfmt ', 8)
+  head.writeUInt32LE(16, 16)
+  head.writeUInt16LE(1, 20)
+  head.writeUInt16LE(1, 22)
+  head.writeUInt32LE(rate, 24)
+  head.writeUInt32LE(rate * 2, 28)
+  head.writeUInt16LE(2, 32)
+  head.writeUInt16LE(16, 34)
+  head.write('data', 36)
+  head.writeUInt32LE(data.length, 40)
+  return Buffer.concat([head, data])
+}
+
+describe('a sweep over files that are not audio', () => {
+  it('makes songs of audio only, whatever the extension says', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-junk-'))
+    try {
+      fs.writeFileSync(path.join(root, 'empty.m4a'), '')
+      fs.writeFileSync(path.join(root, 'fake.mp3'), 'this is a text file, not a song\n'.repeat(40))
+      fs.writeFileSync(
+        path.join(root, 'random.flac'),
+        Buffer.from(Array.from({ length: 4096 }, (_, i) => (i * 7919) % 256)),
+      )
+      fs.writeFileSync(path.join(root, 'Real - Song.wav'), wav())
+      const db = new Database(':memory:')
+      const logger = createLogger('silent')
+      migrate(db, logger)
+      const songs = new SongRepository(db)
+      const storage = new LocalStorageDriver(root)
+      const scanner = new ScannerService({
+        storage,
+        songs,
+        metadata: new MetadataService(storage, logger),
+        lyrics: { detectKind: () => Promise.resolve('none') } as never,
+        covers: { save: () => Promise.resolve() } as never,
+        logger,
+      })
+
+      expect(await scanner.scan()).toMatchObject({ added: 1 })
+      expect([...songs.allPaths().keys()]).toEqual(['Real - Song.wav'])
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('a sweep while a removed song’s copy is still being deleted', () => {
+  it('does not bring the song back', async () => {
+    const { songs, scanner } = build(['A - One.m4a', 'B - Two.m4a'])
+    scanner.isLeaving = key => key === 'B - Two.m4a'
+
+    expect(await scanner.scan()).toMatchObject({ added: 1 })
+    expect(songs.byPath('B - Two.m4a')).toBeNull()
+    await expect(scanner.ingest('B - Two.m4a')).rejects.toThrow(/being removed/)
   })
 })

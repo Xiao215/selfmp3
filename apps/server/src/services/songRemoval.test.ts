@@ -83,6 +83,22 @@ describe('SongRemovalService', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
+  const row = {
+    artist: '',
+    album: '',
+    albumArtist: '',
+    trackNo: null,
+    year: null,
+    duration: 180,
+    sizeBytes: 5,
+    mime: 'audio/mp4',
+    mtimeMs: 1_700_000_000_000,
+    hasArt: false,
+    artExt: null,
+    lyricsKind: 'synced' as const,
+    sourceUrl: null,
+  }
+
   /** A song in its own folder, with a sidecar beside it, as an import lays one out. */
   const addSong = (name: string): { id: number; key: string } => {
     const key = `${name}/${name}.m4a`
@@ -90,23 +106,7 @@ describe('SongRemovalService', () => {
     fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(path.join(folder, `${name}.m4a`), 'audio')
     fs.writeFileSync(path.join(folder, `${name}.lrc`), '[00:01.00] la')
-    const id = songs.insert({
-      path: key,
-      title: name,
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 180,
-      sizeBytes: 5,
-      mime: 'audio/mp4',
-      mtimeMs: 1_700_000_000_000,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'synced',
-      sourceUrl: null,
-    })
+    const id = songs.insert({ ...row, path: key, title: name })
     return { id, key }
   }
 
@@ -151,7 +151,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([one.id])
 
-      expect(result).toEqual({ removed: [one.id], failed: [] })
+      expect(result).toEqual({ removed: [one.id], alreadyGone: [], failed: [] })
       expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
@@ -162,7 +162,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(onDisk(key)).toBe(false)
       expect(onDisk('A - One/A - One.lrc')).toBe(false)
       expect(onDisk('A - One')).toBe(false)
@@ -219,27 +219,62 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(songs.byId(id)).toBeNull()
       expect(onDisk('A - One')).toBe(false)
     })
 
-    it('reports ids it does not know without changing anything', async () => {
+    it('counts ids it does not know as gone already, without changing anything', async () => {
       const { id } = addSong('A - One')
 
       const result = await removal.remove([id, 999])
 
       expect(result.removed).toEqual([id])
-      expect(result.failed).toEqual([
-        { songId: 999, reason: 'no song with id 999', removed: false },
-      ])
+      expect(result.alreadyGone).toEqual([999])
+      expect(result.failed).toEqual([])
       expect(changes).toBe(1)
 
-      expect(await removal.remove([999])).toEqual({
-        removed: [],
-        failed: [{ songId: 999, reason: 'no song with id 999', removed: false }],
-      })
+      // Asked again, as after an answer that was lost: nothing failed.
+      expect(await removal.remove([id])).toEqual({ removed: [], alreadyGone: [id], failed: [] })
       expect(changes).toBe(1)
+    })
+  })
+
+  describe('in batches', () => {
+    it('lets the event loop run between batches of a big removal', async () => {
+      // Rows only, already uploaded: what matters here is the database.
+      const ids = Array.from({ length: 101 }, (_, i) =>
+        songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
+      )
+      // Each batch leaves a callback for the loop's next turn; by the next
+      // batch it must have run.
+      let turns = 0
+      const seen: number[] = []
+      const deleteMany = songs.deleteMany.bind(songs)
+      songs.deleteMany = batch => {
+        seen.push(turns)
+        setImmediate(() => turns++)
+        return deleteMany(batch)
+      }
+
+      const result = await removal.remove(ids)
+
+      expect(result.removed).toHaveLength(101)
+      expect(seen).toEqual([0, 1, 2])
+      expect(songs.count()).toBe(0)
+      expect(changes).toBe(1)
+    }, 30_000)
+
+    it('takes the rows at once and calls a copy still being deleted leaving', async () => {
+      const { id, key } = addSong('A - One')
+
+      const taken = removal.take([id])
+
+      expect(songs.byId(id)).toBeNull()
+      expect(removal.isLeaving(key)).toBe(true)
+      expect(await removal.settle(taken)).toEqual({ removed: [id], alreadyGone: [], failed: [] })
+      expect(removal.isLeaving(key)).toBe(false)
+      expect(onDisk(key)).toBe(false)
     })
   })
 

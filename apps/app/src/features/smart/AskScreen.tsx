@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import {
   Keyboard,
@@ -10,10 +10,19 @@ import {
   useWindowDimensions,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { useLocalSearchParams } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { splitArtists, type AskAnswer, type AskTurn } from '@selfmp3/shared'
-import { failureText, iconSize, radius, space, textStyle, type, useLibrary } from '@selfmp3/client'
+import { AI_ERROR, ASK_TEXT_MAX, splitArtists, type AskAnswer } from '@selfmp3/shared'
+import {
+  ApiError,
+  failureText,
+  iconSize,
+  radius,
+  space,
+  textStyle,
+  type,
+  useLibrary,
+} from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -21,8 +30,9 @@ import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
 import { isComposing } from '../../shell/composing'
 import { setPageFoot } from '../../shell/pageFoot'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
+import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -43,6 +53,9 @@ import { AnswerActions, CLOSED } from './AnswerParts'
 import { SelectableText } from '../../ports/selectableText'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
+import { forgetThread, keepThread, keptThread } from './askThread.store'
+import { keepAnswer, useKeptAnswer } from './answers.store'
+import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
 import { answerRecap, askSuggestions } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
@@ -50,22 +63,6 @@ import { StopButton } from './StopButton'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { useSmartServer } from './useSmartServer'
 import { Working } from './Working'
-
-/** One thing asked on the page, and what came of it once it has come. */
-interface Turn {
-  /** Names it among the page's turns: its words can repeat. */
-  readonly id: number
-  readonly asked: string
-  /** The song playing when it was asked, by the server's id: what "this" meant then (A8). */
-  readonly playing: number | null
-  /** What its answer showed, in words, for the turns after it; null until it is answered. */
-  readonly answered: string | null
-  /**
-   * What came of a proposal once it was acted on or put aside ("Fixed 31
-   * songs", `CLOSED`): the turn keeps the model's words and this line (S1).
-   */
-  readonly outcome: string | null
-}
 
 /**
  * An ask's query key: the server it went to, every question of the
@@ -124,7 +121,7 @@ export function AskScreen(): ReactNode {
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const window = useWindowDimensions()
   const server = useSmartServer()
   const player = usePlayer()
@@ -134,20 +131,28 @@ export function AskScreen(): ReactNode {
     const id = player.current?.id
     return id === undefined ? null : (server.onServer(id) ?? null)
   }
-  const turnFor = (asked: string): Turn => ({
+  const turnFor = (asked: string, was: readonly Turn[]): Turn => ({
     id: nextTurn++,
     asked,
     playing: playingNow(),
+    before: beforeTurn(was, was.length),
     answered: null,
     outcome: null,
   })
-  const [turns, setTurns] = useState<readonly Turn[]>(() => {
-    const first = typeof params.q === 'string' ? params.q.trim() : ''
-    return first ? [turnFor(first)] : []
-  })
-  const [draft, setDraft] = useState('')
+  const opened = typeof params.q === 'string' ? params.q.trim() : ''
+  // A page drawn again finds the conversation it had (`askThread.store`).
+  const [turns, setTurns] = useState<readonly Turn[]>(
+    () => keptThread(opened) ?? (opened ? [turnFor(opened, [])] : []),
+  )
+  useEffect(() => keepThread(opened, turns), [opened, turns])
+  const { back } = usePageBack('/search')
+  // The words typed are the field's own (`AskField`): kept here, every key
+  // would draw the whole conversation again. The page only hears whether
+  // there are any.
+  const [typing, setTyping] = useState(false)
   const [keys, setKeys] = useState<AnswerKeys | null>(null)
   const field = useRef<TextInput>(null)
+  const draft = useRef<DraftHandle>(null)
   const scroll = useRef<ScrollNode>(null)
   /** Where the newest turn starts in the thread, to show an answer from its top. */
   const latestTop = useRef(0)
@@ -171,27 +176,42 @@ export function AskScreen(): ReactNode {
   const latest = turns.at(-1)
   const working = latest !== undefined && latest.answered === null
   // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
-  const answerKeys = draft === '' && !working ? keys : null
+  const answerKeys = !typing && !working ? keys : null
 
-  const ask = (words: string): void => {
+  // Words from the field empty it; words from a button (Get it, a Try) leave
+  // whatever was being typed there.
+  const ask = (words: string, fromField = false): void => {
     const asked = words.trim()
     if (!asked || working || !server.api) return
-    setTurns(was => [...was, turnFor(asked)])
+    setTurns(was => [...was, turnFor(asked, was)])
     setKeys(null)
-    setDraft('')
+    if (fromField) draft.current?.write('')
   }
-  // Stop: the turn being worked on comes off the page, its words back in the field to change.
+  // Stop: the turn being worked on comes off the page, its words back in the
+  // field to change, unless something new is typed there already.
   const stop = (): void => {
     if (!latest || !working) return
     setTurns(was => was.slice(0, -1))
-    setDraft(latest.asked)
+    draft.current?.write(afterStop(draft.current.read(), latest.asked))
     field.current?.focus()
   }
+  // The turns are drawn once per change to them, not per key: what they are
+  // handed keeps from draw to draw.
+  const askNow = useRef(ask)
+  useEffect(() => {
+    askNow.current = ask
+  })
+  const askFromAnswer = useCallback((words: string) => askNow.current(words), [])
   const answered = useCallback((id: number, recap: string) => {
     setTurns(was => was.map(turn => (turn.id === id ? { ...turn, answered: recap } : turn)))
   }, [])
   const settle = useCallback((id: number, outcome: string) => {
     setTurns(was => was.map(turn => (turn.id === id ? { ...turn, outcome } : turn)))
+  }, [])
+  // Try again: the turn is worked on again, with its Stop, and the next question waits for it.
+  const retry = useCallback((id: number) => setTurns(was => retried(was, id)), [])
+  const markTop = useCallback((y: number) => {
+    latestTop.current = Math.max(0, y - space.sm)
   }, [])
   const titleOf = useCallback(
     (serverId: number) => {
@@ -218,12 +238,15 @@ export function AskScreen(): ReactNode {
     key: string
     metaKey: boolean
     ctrlKey: boolean
+    target: unknown
     nativeEvent: { isComposing?: boolean }
     preventDefault: () => void
     stopPropagation: () => void
   }): void => {
     // An input method's keys are its own while it composes (pinyin, kana).
     if (isComposing(event.nativeEvent)) return
+    // Another field's keys are its own: an answer's Change it takes Enter and spaces.
+    if (event.target !== field.current && isTextField(event.target)) return
     if (!answerKeys?.press(event.key, event.metaKey || event.ctrlKey)) return
     event.preventDefault()
     event.stopPropagation()
@@ -245,7 +268,16 @@ export function AskScreen(): ReactNode {
           >
             <View style={styles.head}>
               <View style={styles.headSide}>
-                <BackButton to="/search" always testID="ask-back" />
+                <BackButton
+                  to="/search"
+                  always
+                  // ‹ lets the conversation go: the same question asked again starts afresh.
+                  onPress={() => {
+                    forgetThread(opened)
+                    back()
+                  }}
+                  testID="ask-back"
+                />
               </View>
               <View style={styles.title}>
                 <Sparkle size={iconSize.small} />
@@ -285,29 +317,17 @@ export function AskScreen(): ReactNode {
                   <TurnView
                     key={turn.id}
                     turn={turn}
-                    before={turns.slice(0, index).map(each => ({
-                      asked: each.asked,
-                      // What was proposed, and what came of it once it did.
-                      answered: each.outcome
-                        ? `${each.answered ?? ''}\nThen: ${each.outcome}`
-                        : (each.answered ?? ''),
-                    }))}
                     latest={index === turns.length - 1}
                     via={reachedConnection(server.reach)?.baseUrl ?? null}
                     titleOf={titleOf}
                     listHeight={listHeight}
                     onAnswered={answered}
                     onSettle={settle}
+                    onRetry={retry}
                     // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
-                    onAsk={ask}
+                    onAsk={askFromAnswer}
                     onKeys={index === turns.length - 1 ? setKeys : undefined}
-                    onTop={
-                      index === turns.length - 1
-                        ? y => {
-                            latestTop.current = Math.max(0, y - space.sm)
-                          }
-                        : undefined
-                    }
+                    onTop={index === turns.length - 1 ? markTop : undefined}
                   />
                 ))}
               </ScrollView>
@@ -320,9 +340,9 @@ export function AskScreen(): ReactNode {
             >
               <AskField
                 inputRef={field}
-                value={draft}
-                onChangeText={setDraft}
-                onSend={() => ask(draft)}
+                draftRef={draft}
+                onTyping={setTyping}
+                onSend={words => ask(words, true)}
                 onStop={working ? stop : null}
                 placeholder={turns.length === 0 ? 'Ask anything…' : 'Ask a follow-up…'}
                 autoFocus={turns.length === 0}
@@ -388,36 +408,38 @@ function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
  * steps while it is worked on, a way to try again when it failed, the line it
  * was answered with once it is settled.
  */
-function TurnView({
+const TurnView = memo(function TurnView({
   turn,
-  before,
   latest,
   via,
   titleOf,
   listHeight,
   onAnswered,
   onSettle,
+  onRetry,
   onAsk,
   onKeys,
   onTop,
 }: {
   turn: Turn
-  /** The conversation before it, as it was when it was asked. */
-  before: readonly AskTurn[]
   latest: boolean
   via: string | null
   titleOf: (serverId: number) => string | undefined
   listHeight: number
   onAnswered: (id: number, recap: string) => void
   onSettle: (id: number, outcome: string) => void
+  /** Try again, before it is asked again. */
+  onRetry: (id: number) => void
   onAsk: (words: string) => void
   onKeys?: (keys: AnswerKeys | null) => void
   /** Where it starts in the thread, for the newest. */
   onTop?: (y: number) => void
 }): ReactNode {
   const server = useSmartServer()
-  // What it follows on from is fixed when it is asked: a later recap is not a new question.
-  const [said] = useState(before)
+  const router = useRouter()
+  const said = turn.before
+  // More than the server takes is said here rather than sent to be refused.
+  const tooLong = tooLongToAsk(turn.asked)
   // Names the request, so how it is going can be asked after while it runs,
   // and its answer collected if the response is lost (`askKept`). A new one
   // each time: a Stop meant for one request must not reach the next.
@@ -435,15 +457,29 @@ function TurnView({
         signal,
       )
     },
-    enabled: server.api !== null,
+    enabled: server.api !== null && !tooLong,
     retry: false,
     staleTime: Infinity,
   })
   // Asked again after it failed (Try again) is waiting too.
-  const waiting = answer.isPending || (answer.isError && answer.isFetching)
+  const waiting = !tooLong && (answer.isPending || (answer.isError && answer.isFetching))
   const live = useAskProgress(ticket, waiting)
   const data = answer.data
-  const recap = data ? answerRecap(data, titleOf) : answer.isError ? FAILED : null
+  // A list changed in words (Change it) is told as it is now shown, not as it first came.
+  const keptId = data?.kind === 'songs' ? keepAnswer(turn.asked, data.describe) : undefined
+  const kept = useKeptAnswer(keptId)
+  const shown = data?.kind === 'songs' && kept ? { ...data, describe: kept.result } : data
+  // A playback answer is told as what it came to on this device ("Nothing is playing.").
+  const [carried, setCarried] = useState<string | null>(null)
+  const recap = waiting
+    ? null
+    : shown
+      ? shown.kind === 'playback' && carried !== null
+        ? carried
+        : answerRecap(shown, titleOf)
+      : answer.isError || tooLong
+        ? FAILED
+        : null
   useEffect(() => {
     if (recap !== null && recap !== turn.answered) onAnswered(turn.id, recap)
   }, [recap, turn.answered, turn.id, onAnswered])
@@ -466,14 +502,32 @@ function TurnView({
           {turn.asked}
         </Text>
       </View>
-      {waiting ? (
+      {tooLong ? (
+        <StatusLine testID="ask-too-long">
+          {`That’s too long to ask: Ask takes up to ${ASK_TEXT_MAX} characters.`}
+        </StatusLine>
+      ) : waiting ? (
         <Working steps={FIRST_STEPS} live={live} outline={false} testID="ask-waiting" />
       ) : answer.error ? (
         <View style={styles.failed}>
           <StatusLine>{failureText('Couldn’t answer that', answer.error)}</StatusLine>
           {latest ? (
             <AnswerActions>
-              <Button label="Try again" onPress={() => void answer.refetch()} />
+              {settingsHelp(answer.error) ? (
+                <Button
+                  label="Open Settings"
+                  onPress={() =>
+                    router.navigate({ pathname: '/settings', params: { section: 'smart' } })
+                  }
+                />
+              ) : null}
+              <Button
+                label="Try again"
+                onPress={() => {
+                  onRetry(turn.id)
+                  void answer.refetch()
+                }}
+              />
             </AnswerActions>
           ) : null}
         </View>
@@ -491,10 +545,35 @@ function TurnView({
             listHeight={listHeight}
             onKeys={latest && !settled ? onKeys : undefined}
             onAsk={onAsk}
+            onCarriedOut={setCarried}
           />
         </View>
       ) : null}
     </View>
+  )
+})
+
+/**
+ * A model's failure Settings can help with: none set up, not reached, or its
+ * key refused. A busy or muddled model is only a matter of trying again.
+ */
+function settingsHelp(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.code === AI_ERROR.off ||
+      error.code === AI_ERROR.unreachable ||
+      error.code === AI_ERROR.refused)
+  )
+}
+
+/** Whether a key went to a field you type in: the dock's or another (`passToAnswer`). */
+function isTextField(target: unknown): boolean {
+  if (typeof target !== 'object' || target === null) return false
+  const element = target as { tagName?: unknown; isContentEditable?: unknown }
+  return (
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.isContentEditable === true
   )
 }
 
@@ -522,6 +601,12 @@ function Outcome({ answer, outcome }: { answer: AskAnswer; outcome: string }): R
   )
 }
 
+/** The field's words, read and written by the page: Stop puts a question back. */
+interface DraftHandle {
+  read: () => string
+  write: (words: string) => void
+}
+
 /**
  * The field at the foot of the page: one line with a send once there are
  * words, and while an answer is worked on, a Stop where the send was. Enter
@@ -529,17 +614,18 @@ function Outcome({ answer, outcome }: { answer: AskAnswer; outcome: string }): R
  */
 function AskField({
   inputRef,
-  value,
-  onChangeText,
+  draftRef,
+  onTyping,
   onSend,
   onStop,
   placeholder,
   autoFocus,
 }: {
   inputRef: RefObject<TextInput | null>
-  value: string
-  onChangeText: (value: string) => void
-  onSend: () => void
+  draftRef: RefObject<DraftHandle | null>
+  /** Whether anything is typed, each time that changes. */
+  onTyping: (typing: boolean) => void
+  onSend: (words: string) => void
   /** While an answer is worked on: what Stop does. */
   onStop: (() => void) | null
   placeholder: string
@@ -548,6 +634,14 @@ function AskField({
   const { theme } = useUnistyles()
   const accent = useAccent()
   const [focused, setFocused] = useState(false)
+  const [value, setValue] = useState('')
+  const typed = useRef(value)
+  const change = (next: string): void => {
+    typed.current = next
+    setValue(next)
+    onTyping(next !== '')
+  }
+  useImperativeHandle(draftRef, () => ({ read: () => typed.current, write: change }))
   const words = value.trim().length > 0
   return (
     <View style={[styles.field, focused && { borderColor: accent.accent }]}>
@@ -556,8 +650,9 @@ function AskField({
         {...NO_AUTOFILL}
         ref={inputRef}
         value={value}
-        onChangeText={onChangeText}
-        onSubmitEditing={onStop ? undefined : onSend}
+        onChangeText={change}
+        onSubmitEditing={onStop ? undefined : () => onSend(value)}
+        maxLength={ASK_TEXT_MAX}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         autoFocus={autoFocus}
@@ -578,7 +673,7 @@ function AskField({
             label="Send"
             filled="accent"
             size={34}
-            onPress={onSend}
+            onPress={() => onSend(value)}
             testID="ask-follow-up-send"
           >
             <ChevronRight size={iconSize.field} color={theme.colors.onPrimary} />

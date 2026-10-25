@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { plural, type Song } from '@selfmp3/shared'
-import { failureText, radius, useBulkDeleteSongs } from '@selfmp3/client'
+import { failureText, useBulkDeleteSongs, useLibrary, radius } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -36,6 +36,28 @@ export function RemoveSongs({
   const { dropDownloads } = useDownloads()
   const bulkDelete = useBulkDeleteSongs()
   const [error, setError] = useState<string | null>(null)
+  const { data: library } = useLibrary()
+
+  /*
+   * A delete that reached the server but whose answer was lost failed here
+   * while the list behind already showed the songs gone. Once every one of
+   * them has left the library, it worked: say so and close.
+   */
+  const gone =
+    error !== null &&
+    library !== undefined &&
+    !songs.some(song => library.songs.some(held => held.id === song.id))
+  const told = useRef(false)
+  useEffect(() => {
+    if (!gone || told.current) return
+    told.current = true
+    onDone()
+    const only = songs.length === 1 ? songs[0] : undefined
+    showToast(
+      only ? `Deleted “${only.title}”` : `Deleted ${plural(songs.length, 'song', 'songs')}`,
+      'good',
+    )
+  }, [gone, onDone, songs])
 
   const confirm = (): void => {
     const ids = songs.map(song => song.id)

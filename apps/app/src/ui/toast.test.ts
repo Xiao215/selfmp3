@@ -6,6 +6,7 @@ import {
   currentToasts,
   dismissToast,
   sendPending,
+  sendPendingIn,
   showFailure,
   showPendingToast,
   showToast,
@@ -114,6 +115,48 @@ describe('a pending toast', () => {
     sendPending()
     await settle()
     expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts sending in the same turn the app is told it is leaving', () => {
+    // A closing tab runs nothing after the event it was told in.
+    const send = vi.fn()
+    showPendingToast('Removed from Evening', send)
+    sendPending()
+    expect(send).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends one kind now when asked, and settles once that has been sent', async () => {
+    vi.useFakeTimers()
+    let sent: () => void = () => undefined
+    const evening = vi.fn(() => new Promise<void>(done => (sent = done)))
+    const morning = vi.fn()
+    showPendingToast('Removed from Evening', evening, { group: 'playlist-removed-1' })
+    showPendingToast('Removed from Morning', morning, { group: 'playlist-removed-2' })
+    // Its message dismissed, the removal still waits, and is still found.
+    const up = currentToasts().find(toast => toast.say === 'Removed from Evening')
+    if (up) dismissToast(up.id)
+
+    let done = false
+    void sendPendingIn('playlist-removed-1').then(() => (done = true))
+    expect(evening).toHaveBeenCalledTimes(1)
+    expect(morning).not.toHaveBeenCalled()
+    await settle()
+    expect(done).toBe(false)
+    sent()
+    await settle()
+    expect(done).toBe(true)
+
+    // Sent, it is not sent again when its time comes.
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(evening).toHaveBeenCalledTimes(1)
+    expect(morning).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles at once when nothing of that kind waits', async () => {
+    let done = false
+    void sendPendingIn('playlist-removed-9').then(() => (done = true))
+    await settle()
+    expect(done).toBe(true)
   })
 
   it('says it failed when sending does', async () => {

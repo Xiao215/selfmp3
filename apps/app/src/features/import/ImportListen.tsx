@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import type { CoverTone, ImportCoverTone, ImportPreviewItem } from '@selfmp3/shared'
+import {
+  formatDuration,
+  type CoverTone,
+  type ImportCoverTone,
+  type ImportPreviewItem,
+} from '@selfmp3/shared'
 import { radius, withAlpha, type ServerConnection } from '@selfmp3/client'
 import { mediaUrlFor } from '../../api/client'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'
@@ -245,6 +250,7 @@ export function ListenBar({
       hold
       label="Seek"
       step={SEEK_STEP_SECONDS}
+      valueText={at => `${formatDuration(at)} of ${formatDuration(duration)}`}
       color={color}
       testID="listen-bar"
       style={[styles.bar, { height }]}

@@ -7,7 +7,7 @@ import { Pencil, Tag as TagIcon } from '../../ui/components/Icons'
 import type { MenuItem } from '../../ui/components/MoreMenu'
 import { showToast } from '../../ui/toast'
 import { useOpenTag } from './useOpenTag'
-import { PlaceMissing } from './PlaceMissing'
+import { PlaceMissing, PlaceWaiting } from './PlaceMissing'
 import { PlacePage } from './PlacePage'
 import { ArtistNamesEditor } from './ArtistNamesEditor'
 import { existingTag } from './tag.model'
@@ -29,7 +29,7 @@ export function ArtistScreen(): ReactNode {
   // The names editor opens over the same ⋯.
   const anchor = useRef<View>(null)
 
-  if (!library) return null
+  if (!library) return <PlaceWaiting />
   if (!artist) return <PlaceMissing kind="artist" name={name ?? ''} />
   return (
     <>

@@ -1,5 +1,6 @@
 import { hueFromString } from './format.js'
 import type { EditRefusal, PlaylistKind } from './schemas/playlist.js'
+import type { SmartRules } from './schemas/smart.js'
 import { sameTagName } from './sync.js'
 
 /**
@@ -105,6 +106,17 @@ export function tagRenameProblem(
 }
 
 /**
+ * A song's tags after a change: the ones it had, with `add` put on and
+ * `remove` taken off. A tag edit says only what it changes, never the whole
+ * set — a whole set worked out on one device took off whatever another device
+ * had put on meanwhile (a picker left open, an edit made offline).
+ */
+export function tagsAfter<T>(had: readonly T[], add: readonly T[], remove: readonly T[]): T[] {
+  const gone = new Set(remove)
+  return [...new Set([...had, ...add])].filter(tag => !gone.has(tag))
+}
+
+/**
  * A song's tags set all at once, as the tags that go on and the ones that come
  * off — which are what each answerer stamps, or records, one by one.
  */
@@ -115,6 +127,22 @@ export function tagFlips<T>(had: readonly T[], wanted: readonly T[]): { on: T[];
     on: [...after].filter(tag => !before.has(tag)),
     off: [...before].filter(tag => !after.has(tag)),
   }
+}
+
+// --- Removing tags ----------------------------------------------------------------
+
+/**
+ * A live playlist's rules once this tag is deleted: its rules about the tag
+ * go and the rest stay. Undefined when no rule names the tag; null when none
+ * would be left, and the playlist then keeps the songs it shows and stops
+ * following. Left alone, a rule about a tag nobody can see or remove made
+ * "has" playlists empty (and so hidden) and "does not have" ones the whole
+ * library.
+ */
+export function rulesWithoutTag(rules: SmartRules, tagId: number): SmartRules | null | undefined {
+  const kept = rules.rules.filter(rule => rule.field !== 'tag' || rule.tagId !== tagId)
+  if (kept.length === rules.rules.length) return undefined
+  return kept.length > 0 ? { ...rules, rules: kept } : null
 }
 
 // --- Removing songs --------------------------------------------------------------

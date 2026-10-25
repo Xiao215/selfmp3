@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Pressable } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
+import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
 
 /**
  * A ground that answers a tap without being a control: tapping the page
@@ -14,16 +14,24 @@ export function TapAway({
   onPress,
   style,
   children,
+  onLayout,
   testID,
 }: {
   /** What a tap does; absent while there is nothing to close. */
   onPress: (() => void) | undefined
   style?: StyleProp<ViewStyle>
   children?: ReactNode
+  onLayout?: (event: LayoutChangeEvent) => void
   testID?: string
 }): ReactNode {
   return (
-    <Pressable onPress={onPress} accessible={false} style={style} testID={testID}>
+    <Pressable
+      onPress={onPress}
+      accessible={false}
+      style={style}
+      onLayout={onLayout}
+      testID={testID}
+    >
       {children}
     </Pressable>
   )

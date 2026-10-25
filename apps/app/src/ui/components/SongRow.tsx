@@ -41,6 +41,7 @@ import { Downloaded, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 import { CONTROL_SCALE } from '../textScale'
+import { textScale } from '../../ports/textScale'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -128,7 +129,8 @@ export const SongRow = memo(function SongRow({
    */
   selecting?: boolean
   selected?: boolean
-  onToggleSelect?: (song: Song) => void
+  /** The tick pressed: with the press, whose Shift ticks the rows between. */
+  onToggleSelect?: (song: Song, event?: GestureResponderEvent) => void
   /**
    * What dragging this row onto a playlist carries, with a mouse: every
    * ticked song when it is one of them, in the list's order, so the songs you
@@ -337,7 +339,7 @@ export const SongRow = memo(function SongRow({
       <SelectBox
         song={song}
         selected={selected}
-        onToggle={() => onToggleSelect(song)}
+        onToggle={event => onToggleSelect(song, event)}
         phone={phone}
         untabbed={listKey !== undefined}
       />
@@ -555,13 +557,13 @@ const DENSE_ROW_HEIGHT = 7 * 2 + coverSize.rowDense
 
 /**
  * The row height for this layout, or null when it cannot be promised: text
- * enlarged in the system's settings can wrap past the cover, and a list told
- * the wrong number places every row in the wrong spot.
+ * enlarged in the system's settings, or a browser's, can wrap past the cover,
+ * and a list told the wrong number places every row in the wrong spot.
  */
 export function useSongRowHeight(): number | null {
   const wide = useLayoutValue(isWide)
   const dense = useLayoutValue(isDense)
-  const enlarged = useWindowValue(window => window.fontScale > 1)
+  const enlarged = useWindowValue(window => window.fontScale > 1) || textScale > 1
   if (enlarged) return null
   if (!wide) return PHONE_ROW_HEIGHT
   return dense ? DENSE_ROW_HEIGHT : TOUCH_WIDE_ROW_HEIGHT
@@ -676,14 +678,14 @@ function SelectBox({
 }: {
   song: Song
   selected: boolean
-  onToggle: () => void
+  onToggle: (event: GestureResponderEvent) => void
   phone?: boolean
   untabbed: boolean
 }): ReactNode {
   return (
     <Checkbox
       checked={selected}
-      onChange={onToggle}
+      onChange={(_checked, event) => onToggle(event)}
       label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
       {...(untabbed ? UNTABBED : null)}

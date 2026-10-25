@@ -72,7 +72,13 @@ export function FromFriends({ wide }: { wide: boolean }): ReactNode {
           )
         })}
       </Shelf>
-      <Sheet open={menu !== null} onClose={() => setMenu(null)} title={menu?.name ?? ''}>
+      <Sheet
+        open={menu !== null}
+        onClose={() => setMenu(null)}
+        title={menu?.name ?? ''}
+        role="menu"
+        scroll
+      >
         <SheetItem
           label="Take it off Home"
           onPress={() => {

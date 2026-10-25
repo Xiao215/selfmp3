@@ -42,7 +42,7 @@ export function useEscape(
   useEffect(() => {
     if (!active) return undefined
     if (layer) {
-      openLayer(id)
+      openLayer(id, () => latest.current())
       const remove = registerKey({
         combination: 'Escape',
         whileTyping: true,

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { IdSchema, NameSchema } from './common.js'
+import { BULK_IDS_MAX, IdSchema, NameSchema } from './common.js'
 import { SmartRulesSchema } from './smart.js'
 
 export const PlaylistKindSchema = z.enum(['manual', 'live'])
@@ -99,8 +99,16 @@ const CreatePlaylistBaseSchema = z.object({
   description: z.string().trim().max(500).default(''),
 })
 
+/**
+ * A playlist to make. A manual one can come with its first songs, made in the
+ * same request: made in two, a tab closed between them left an empty
+ * playlist and lost the picks, and a second request that failed left one
+ * behind that trying again made twice.
+ */
 export const CreatePlaylistSchema = z.discriminatedUnion('kind', [
-  CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema),
+  CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema).extend({
+    songIds: z.array(IdSchema).max(2000).optional(),
+  }),
   CreatePlaylistBaseSchema.merge(LivePlaylistRulesSchema),
 ])
 export type CreatePlaylist = z.infer<typeof CreatePlaylistSchema>
@@ -117,7 +125,7 @@ export const UpdatePlaylistSchema = z
 export type UpdatePlaylist = z.infer<typeof UpdatePlaylistSchema>
 
 export const AddToPlaylistSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
   /** Insert position; appends when omitted. */
   position: z.number().int().nonnegative().optional(),
 })
@@ -131,7 +139,7 @@ export type AddToPlaylist = z.infer<typeof AddToPlaylistSchema>
  * version once instead of once per song.
  */
 export const RemoveFromPlaylistSchema = z.object({
-  songIds: z.array(IdSchema).min(1).max(2000),
+  songIds: z.array(IdSchema).min(1).max(BULK_IDS_MAX),
 })
 export type RemoveFromPlaylist = z.infer<typeof RemoveFromPlaylistSchema>
 

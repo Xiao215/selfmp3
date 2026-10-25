@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { importFailure } from './failure.js'
+import { importFailure, lookUpFailure } from './importFailure.js'
 
 describe('importFailure', () => {
   it('says the reasons yt-dlp gives in plain words', () => {
@@ -65,5 +65,24 @@ describe('importFailure', () => {
       'Couldn’t download it. Try again later.',
     )
     expect(importFailure(null)).toBe('Couldn’t download it. Try again later.')
+  })
+})
+
+describe('lookUpFailure', () => {
+  it('says why a link could not be read, never in yt-dlp’s words', () => {
+    expect(lookUpFailure('[youtube] zzzzzzzzzzz: This video is unavailable')).toBe(
+      'This video isn’t on YouTube any more.',
+    )
+    expect(
+      lookUpFailure(
+        '[generic] foo: Unable to download webpage: HTTP Error 404: Not Found (caused by <HTTPError 404: Not Found>)',
+      ),
+    ).toBe('There’s nothing to import at that link.')
+    expect(
+      lookUpFailure('[youtube] abc: Private video. Sign in if you’ve been granted access'),
+    ).toBe('This video is private.')
+    expect(lookUpFailure('ERROR: something nobody has seen before')).toBe(
+      'Couldn’t read that link.',
+    )
   })
 })

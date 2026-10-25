@@ -37,6 +37,7 @@ import {
   listenedDelta,
   peekPlayable,
   recoverPlayback,
+  skipFailed,
   useSameArray,
 } from '@selfmp3/client'
 import type { ListSource } from '../features/lists/lists.model'
@@ -49,6 +50,7 @@ import {
 } from '../api/mediaAddress.model'
 import { mediaSourcesFor } from '../api/mediaSources'
 import { isLenderCap } from '../ports/bucketRefusal'
+import { isUnreachable } from '../ports/streamFailure.model'
 import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { recentUri } from '../ports/recentCopies'
@@ -366,7 +368,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     volume: createValueStore(volumeOf(engine.state), sameVolume),
   }))
 
-  const songsById = withRoomSongs(useSongsById(), useRoomTracks())
+  const librarySongs = useSongsById()
+  const songsById = withRoomSongs(librarySongs, useRoomTracks())
 
   // Refs so the engine's callbacks always see current values without being
   // torn down and rewired on every render.
@@ -378,6 +381,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const autoMixRef = useRef(autoMix)
   // Told every engine state; set once the commands it needs exist, below.
   const playbackErrorRef = useRef<(state: EngineState) => void>(() => undefined)
+  /*
+   * Whether sound was asked for and not paused since: a play, a skip while
+   * playing, Play pressed. A song that fails is only retried or skipped while
+   * this holds, so a song put back paused when the app opens never walks the
+   * queue, and a Pause pressed while songs fail one after another sticks.
+   * The engine's own `playing` cannot say it: a failing song is never playing.
+   */
+  const wantsSoundRef = useRef(false)
 
   /*
    * The one way the queue changes: the ref first, then the state.
@@ -545,6 +556,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     (state: QueueState, autoplay: boolean, startAt?: number) => {
       const songId = state.items[state.index]
       if (songId === undefined) return
+      wantsSoundRef.current = autoplay
       trackingRef.current = { songId, listenedSeconds: 0, counted: false }
       // Starting part-way is not listening to the part skipped.
       lastPositionRef.current = startAt ?? 0
@@ -557,6 +569,12 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     },
     [engine, stores, trackingRef],
   )
+
+  /** Paused by the player itself, and nothing to start again until someone presses Play. */
+  const halt = useCallback(() => {
+    wantsSoundRef.current = false
+    engine.pause()
+  }, [engine])
 
   // Everywhere a song's bytes might come from, on this device, right now.
   const sourcesFor = useCallback(
@@ -659,7 +677,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const ended = queueRef.current
         const { state, stop } = advancePlayable(ended, true, mayPlay)
         if (stop) {
-          engine.pause()
+          halt()
           setRanOutIn(ended)
           return
         }
@@ -708,9 +726,32 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     sleepSongEnded,
     trackingRef,
     commitQueue,
+    halt,
   ])
 
   // --- commands ------------------------------------------------------------
+
+  /*
+   * A song that stops with an error: tried again, then skipped, then stopped,
+   * and each said on screen (recoverPlayback), so a dropped connection does
+   * not end the music without a word.
+   */
+  const recoveryRef = useRef({
+    lastError: null as string | null,
+    retriedSongId: null as number | null,
+    retriedFrom: 0,
+    skippedInARow: 0,
+    /** The skip message on screen, replaced rather than stacked. */
+    toastId: null as number | null,
+  })
+  /**
+   * Someone chose what to play: whatever failed before is behind them, and
+   * this song is tried again, and its run of skips counted, afresh.
+   */
+  const freshRun = useCallback(() => {
+    recoveryRef.current.retriedSongId = null
+    recoveryRef.current.skippedInARow = 0
+  }, [])
 
   const play = useCallback(
     (songIds: readonly number[], startIndex: number, options: PlayOptions = {}) => {
@@ -722,6 +763,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const next = mixed(playFrom(from, songIds, startIndex))
         commitQueue(next)
         setSource(options.source ?? null)
+        freshRun()
         loadIndex(next, autoplay, position)
       }
       // A song that cannot play here says why, rather than loading and sitting
@@ -730,7 +772,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, start)) return
       start()
     },
-    [loadIndex, checkPlay, mixed, commitQueue],
+    [loadIndex, checkPlay, mixed, commitQueue, freshRun],
   )
 
   /**
@@ -747,6 +789,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
         commitQueue(next)
         setSource(listSource)
+        freshRun()
         loadIndex(next, true)
       }
       // Start on a song that can play here, when there is one.
@@ -759,7 +802,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, () => begin(start))) return
       begin(start)
     },
-    [loadIndex, checkPlay, mayPlay, commitQueue],
+    [loadIndex, checkPlay, mayPlay, commitQueue, freshRun],
   )
 
   const jumpTo = useCallback(
@@ -767,21 +810,38 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const go = (): void => {
         const next = { ...queueRef.current, index }
         commitQueue(next)
+        freshRun()
         loadIndex(next, true)
       }
       const songId = queueRef.current.items[index]
       if (songId !== undefined && !checkPlay(songId, go)) return
       go()
     },
-    [loadIndex, checkPlay, commitQueue],
+    [loadIndex, checkPlay, commitQueue, freshRun],
   )
 
   const toggle = useCallback(() => {
-    if (engine.state.playing) engine.pause()
+    if (engine.state.playing) {
+      halt()
+      return
+    }
     // An emptied queue has nothing to play, though the engine may still hold
     // the song it last had: one cleared or removed, which must not come back.
-    else if (queueRef.current.index >= 0) void engine.play()
-  }, [engine])
+    const queueNow = queueRef.current
+    const songId = queueNow.items[queueNow.index]
+    if (songId === undefined) return
+    // A song that failed is asked for again, from where it was: played as it
+    // stands, the player sat on its error and nothing was fetched, even with
+    // the library back.
+    if (engine.state.error !== null || engine.currentSongId !== songId) {
+      freshRun()
+      const at = lastPositionRef.current
+      loadIndex(queueNow, true, at > 0 ? at : undefined)
+      return
+    }
+    wantsSoundRef.current = true
+    void engine.play()
+  }, [engine, halt, freshRun, loadIndex])
 
   /*
    * Next and Previous change the song, never whether it is playing: paused,
@@ -795,8 +855,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     const { state, stop } = advancePlayable(queueRef.current, false, mayPlay)
     if (stop) return
     commitQueue(state)
+    freshRun()
     loadIndex(state, engine.state.playing)
-  }, [engine, loadIndex, mayPlay, commitQueue])
+  }, [engine, loadIndex, mayPlay, commitQueue, freshRun])
 
   const previous = useCallback(() => {
     setRanOutIn(null)
@@ -812,8 +873,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       return
     }
     commitQueue(state)
+    freshRun()
     loadIndex(state, engine.state.playing)
-  }, [engine, loadIndex, commitQueue])
+  }, [engine, loadIndex, commitQueue, freshRun])
 
   // The lock screen's and the headphones' Next and Previous, as these buttons.
   useEffect(
@@ -821,19 +883,6 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [next, previous],
   )
 
-  /*
-   * A song that stops with an error: tried again, then skipped, then stopped,
-   * and each said on screen (recoverPlayback), so a dropped connection does
-   * not end the music without a word.
-   */
-  const recoveryRef = useRef({
-    lastError: null as string | null,
-    retriedSongId: null as number | null,
-    retriedFrom: 0,
-    skippedInARow: 0,
-    /** The skip message on screen, replaced rather than stacked. */
-    toastId: null as number | null,
-  })
   /*
    * A room's song waiting out a dropped connection, picked up where it
    * stopped once the room hears this device again. A follower is then put
@@ -852,8 +901,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         recovery.skippedInARow = 0
       }
 
-      // Each load clears the error first, so a second failure is a change too.
-      const failed = state.error !== null && state.error !== recovery.lastError
+      // Each load clears the error first, so a failure is the error arriving.
+      // A second report of the same failure — in other words, or late — is
+      // not another song failing: taken as one, it restarted the run of
+      // skips that is meant to stop at three.
+      const failed = state.error !== null && recovery.lastError === null
       recovery.lastError = state.error
       if (!failed || songId === undefined) return
       // The engine's words ("“Evening” can’t be played on this phone yet",
@@ -867,7 +919,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (roomTrack(songId) && isLenderCap(state.error)) {
         if (recovery.toastId !== null) dismissToast(recovery.toastId)
         recovery.toastId = showToast(state.error, 'error')
-        engine.pause()
+        halt()
         return
       }
 
@@ -875,19 +927,20 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // The room is asked whether it can still hear this device: while it
       // cannot, the song waits where it stopped and goes on once the room is
       // back (below), rather than being skipped down the room's list.
+      const unreachable = isUnreachable(state.error)
       if (roomTrack(songId) && currentRoom().pass) {
         const at = lastPositionRef.current
         void checkRoomLink().then(alive => {
           if (queueRef.current.items[queueRef.current.index] !== songId) return
-          if (alive) recover(songId)
+          if (alive) recover(songId, unreachable)
           else roomWaitRef.current = { songId, at }
         })
         return
       }
-      recover(songId)
+      recover(songId, unreachable)
     }
 
-    const recover = (songId: number): void => {
+    const recover = (songId: number, unreachable = false): void => {
       const recovery = recoveryRef.current
       const title =
         songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
@@ -906,18 +959,21 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
           songs: fold && song ? [song] : [],
         })
       }
+      // Nobody is waiting on it: a song put back paused, or paused since.
+      // It stays where it is until Play is pressed, which asks for it again.
+      if (!wantsSoundRef.current) return
       // Failed because it cannot play here now — the bucket refusing reads
       // for the day, found out by this very failure (ports/engine.ts). Not a
       // broken song: no retry, and not one of the three skips that stop the
       // music, or a refusal would stop it before the songs on this device.
       if (!mayPlay(songId)) {
         recovery.retriedSongId = null
-        const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
+        const { state: after, stop } = skipFailed(queueRef.current, mayPlay)
         // Passed over quietly: its row is faded, which says the same thing
         // without a word. Only running out of songs that can play is said.
         if (stop) {
           say(`Nothing after this is on this ${thisPlace()}`, 'warn')
-          engine.pause()
+          halt()
           return
         }
         commitQueue(after)
@@ -926,10 +982,13 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       }
       const recovering = recoverPlayback({
         songId,
+        wantsSound: wantsSoundRef.current,
         retriedSongId: recovery.retriedSongId,
         skippedInARow: recovery.skippedInARow,
-        hasNext: peekPlayable(queueRef.current, mayPlay) !== null,
+        hasNext: !skipFailed(queueRef.current, mayPlay).stop,
+        unreachable,
       })
+      if (recovering === 'wait') return
       if (recovering === 'retry') {
         // From where it stopped. Asking again also finds a copy downloaded since.
         const at = lastPositionRef.current
@@ -941,20 +1000,22 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (recovering === 'skip') {
         recovery.skippedInARow += 1
         say({ over: 'Skipped, wouldn’t play', say: title }, 'warn', 'playback-skipped')
-        const { state: after, stop } = advancePlayable(queueRef.current, false, mayPlay)
+        const { state: after, stop } = skipFailed(queueRef.current, mayPlay)
         if (stop) {
-          engine.pause()
+          halt()
           return
         }
         commitQueue(after)
         loadIndex(after, true)
         return
       }
-      recovery.skippedInARow = 0
-      engine.pause()
+      // Stopped, and stays stopped: the run is not counted again from nothing
+      // here, or one more report of a failure set it running again. Choosing
+      // something to play starts a fresh run (`freshRun`).
+      halt()
       say(`Couldn’t play “${title}”`, 'error')
     }
-  }, [engine, loadIndex, mayPlay, commitQueue])
+  }, [engine, loadIndex, mayPlay, commitQueue, halt])
 
   useEffect(
     () =>
@@ -966,6 +1027,8 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         if (room.link !== 'live') return
         roomWaitRef.current = null
         if (queueRef.current.items[queueRef.current.index] !== waiting.songId) return
+        // Paused while it waited: it waits on for Play.
+        if (!wantsSoundRef.current) return
         void engine.load(
           waiting.songId,
           waiting.at > 0 ? { autoplay: true, startAt: waiting.at } : { autoplay: true },
@@ -1065,11 +1128,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
 
   const clearQueue = useCallback(() => {
-    engine.pause()
+    halt()
     commitQueue(EMPTY_QUEUE)
     setSource(null)
     engine.refreshLookahead?.()
-  }, [engine, commitQueue])
+  }, [engine, commitQueue, halt])
 
   const clearRest = useCallback(() => {
     const before = queueRef.current
@@ -1098,12 +1161,30 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         return
       }
       // The song playing has gone. Whatever takes its place waits to be asked for.
-      engine.pause()
+      halt()
       if (next.index >= 0) loadIndex(next, false)
       else engine.refreshLookahead?.()
     },
-    [engine, loadIndex, commitQueue],
+    [engine, loadIndex, commitQueue, halt],
   )
+
+  /*
+   * Songs gone from the library by another way than this device's own
+   * delete — another device's, an import that replaced them — leave the
+   * queue the same way (`forgetSongs`). Compared with the library before, so
+   * a library still loading, which has no songs yet, takes nothing away; a
+   * room's songs are the room's, and come and go with it.
+   */
+  const knownSongsRef = useRef(librarySongs)
+  useEffect(() => {
+    const before = knownSongsRef.current
+    knownSongsRef.current = librarySongs
+    if (before === librarySongs || before.size === 0) return
+    const gone = queueRef.current.items.filter(
+      id => before.has(id) && !librarySongs.has(id) && !roomTrack(id),
+    )
+    if (gone.length > 0) forgetSongs(gone)
+  }, [librarySongs, forgetSongs])
 
   const setAutoMix = useCallback(
     (on: boolean) => {

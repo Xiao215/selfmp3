@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import type { DescribeResult, Understanding } from '@selfmp3/shared'
-import { artistOr } from '@selfmp3/shared'
+import { artistOr, plural } from '@selfmp3/shared'
 import { failureText, space, type, useCreatePlaylist, useLibrary, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -145,6 +145,17 @@ export function SongsAnswer({
             </Text>
           ))
         )}
+        {!edited && left.size > 0 ? (
+          // Songs left out are not gone: a × pressed by mistake, or all of them, comes back.
+          <View style={styles.putBack}>
+            <Button
+              label={`Put back ${plural(left.size, 'song', 'songs')}`}
+              variant="text"
+              onPress={() => setLeft(new Set())}
+              testID="songs-answer-put-back"
+            />
+          </View>
+        ) : null}
       </View>
 
       {!edited && picks.length > 0 ? (
@@ -232,6 +243,7 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   brief: { color: theme.colors.textSecondary, fontSize: type.small, fontStyle: 'italic' },
   hint: { color: theme.colors.textMuted, fontSize: type.small, flexShrink: 1 },
+  putBack: { flexDirection: 'row' },
   // Short enough that the buttons under it stay on a laptop's screen.
   list: { maxHeight: 220 },
   row: { paddingHorizontal: 0 },

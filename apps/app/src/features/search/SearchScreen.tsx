@@ -3,7 +3,14 @@ import type { ReactNode } from 'react'
 import { Text, type TextInput, View, type ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { LyricsSearchHit, RoomState, Song, Tag, Artist } from '@selfmp3/shared'
+import {
+  clipText,
+  type LyricsSearchHit,
+  type RoomState,
+  type Song,
+  type Tag,
+  type Artist,
+} from '@selfmp3/shared'
 import {
   hitSlopFor,
   leading,
@@ -18,8 +25,11 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
+import { isComposing } from '../../shell/composing'
+import { focusNextStop } from '../../shell/focusNext'
+import { useEscape } from '../../shell/useEscape'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useAccent } from '../../ui/accent'
 import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
@@ -43,6 +53,7 @@ import {
   ALL_LIMITS,
   allResults,
   beforeTyping,
+  isSearchSection,
   placesOf,
   searchLibrary,
   SECTION_TITLES,
@@ -84,6 +95,9 @@ const SearchedWords = createContext('')
 
 const NO_SONGS: readonly Song[] = []
 
+/** How long typing has to stop before the words go into the address. */
+const WORDS_SETTLE_MS = 400
+
 /**
  * Search (docs/ui-mock `P18`, `P19`): one page, whichever door it was opened
  * from. `?q=` is what it starts with; the rest is this page's own. A computer draws the same search as the palette
@@ -99,12 +113,12 @@ const NO_SONGS: readonly Song[] = []
  */
 export function SearchScreen(): ReactNode {
   const router = useRouter()
-  const params = useLocalSearchParams<{ q?: string; to?: string }>()
+  const params = useLocalSearchParams<{ q?: string; to?: string; section?: string }>()
   const { state: room } = useRoom()
   const adding = params.to === 'room' ? room : null
   const adds = useRoomAdds()
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { data: library } = useLibrary()
   const player = usePlayer()
 
@@ -114,9 +128,43 @@ export function SearchScreen(): ReactNode {
   useEffect(() => {
     if (searching) countUse('search')
   }, [searching])
-  /** The section a "See all" opened alone, or null for All. */
-  const [section, setSection] = useState<SearchSection | null>(null)
+  /**
+   * The section a "See all" opened alone, or null for All. See all is a page
+   * of its own (`?section=`), so Back comes back to All with the words still
+   * there, and a browser's Back did too: it had been this page's own state,
+   * and Back left Search altogether (bug bash F073).
+   */
+  const opened = isSearchSection(params.section) ? params.section : null
+  const [section, setSection] = useState<SearchSection | null>(opened)
+  const seeAll = useCallback(
+    (next: SearchSection) =>
+      router.push({
+        pathname: '/search',
+        params: { ...(params.to ? { to: params.to } : null), q: query.trim(), section: next },
+      }),
+    [router, params.to, query],
+  )
+  // Back to All: the page All was, where See all came from one; a See all
+  // opened from its address becomes All itself.
+  const backToAll = (): void => {
+    if (opened !== null && router.canGoBack()) {
+      router.back()
+      return
+    }
+    setSection(null)
+    if (opened !== null) router.setParams({ section: undefined })
+  }
+  // The words in the address once typing stops, so a reload, or Back to
+  // here, finds them.
+  const typing = query.trim()
+  useEffect(() => {
+    if ((params.q ?? '') === typing) return undefined
+    const timer = setTimeout(() => router.setParams({ q: typing || undefined }), WORDS_SETTLE_MS)
+    return () => clearTimeout(timer)
+  }, [router, params.q, typing])
   const field = useRef<TextInput>(null)
+  // Cancel, the last thing in the head: what ↓ moves on from into the results.
+  const cancelRef = useRef<View>(null)
   // The palette's search too, so the two find the same and Enter decides alike.
   const search = useLibrarySearch(query, {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
@@ -164,6 +212,9 @@ export function SearchScreen(): ReactNode {
   // The page's one selection, for every song row on it: holding a row starts
   // selecting here as it does in Library (D1, 2026-10-08).
   const selection = useSelection(rowIds)
+  // Escape is Cancel, as it closes the palette a computer draws instead; a
+  // selection takes it first, and clears.
+  useEscape(!selection.active, close)
   const bar = useListSelectionBar({
     songs: rowSongs,
     selection,
@@ -188,7 +239,8 @@ export function SearchScreen(): ReactNode {
               <View style={styles.head}>
                 <SearchField
                   inputRef={field}
-                  autoFocus
+                  // A See all page is for reading what was found: no keyboard over it.
+                  autoFocus={opened === null}
                   value={query}
                   // A cleared field is a fresh search, back on All.
                   onChangeText={text => {
@@ -208,12 +260,29 @@ export function SearchScreen(): ReactNode {
                   autoCorrect={false}
                   spellCheck={false}
                   returnKeyType="search"
+                  // ↓ goes from the field down into the results, as the
+                  // palette's does: Tab past Cancel was the only way in.
+                  onKeyPress={event => {
+                    const key = event.nativeEvent.key
+                    if (isComposing(event.nativeEvent as { isComposing?: boolean })) return
+                    // The field keeps its keys from the page, so Escape is
+                    // answered here as well as by the page's own (`useEscape`).
+                    if (key === 'Escape' && !selection.active) close()
+                    if (key !== 'ArrowDown') return
+                    if (focusNextStop(cancelRef.current)) {
+                      ;(event as unknown as { preventDefault: () => void }).preventDefault()
+                    }
+                  }}
                   accessibilityLabel="Search"
                   testID="search-field"
                   style={styles.field}
                 />
-                {wide && !adding ? null : (
+                {wide && !adding ? (
+                  // Where Cancel would be: ↓ from the field goes on from here.
+                  <View ref={cancelRef} collapsable={false} />
+                ) : (
                   <Press
+                    ref={cancelRef}
                     feedback="dim"
                     onPress={close}
                     accessibilityRole="button"
@@ -234,7 +303,7 @@ export function SearchScreen(): ReactNode {
               {typed && section !== null ? (
                 <Press
                   feedback="wash"
-                  onPress={() => setSection(null)}
+                  onPress={backToAll}
                   accessibilityRole="button"
                   accessibilityLabel={`${SECTION_TITLES[section]}, ${counts[section]}. Back to all results`}
                   style={styles.back}
@@ -283,7 +352,7 @@ export function SearchScreen(): ReactNode {
                       found={found}
                       lyricHits={lyricHits}
                       selection={selection}
-                      onSeeAll={setSection}
+                      onSeeAll={seeAll}
                       onArtist={openArtist}
                       adds={adding ? adds : null}
                     />
@@ -523,8 +592,9 @@ function NothingMatches({ words }: { words: string }): ReactNode {
     <EmptyState
       compact
       testID="search-nothing"
-      title={`Nothing matches “${words}”`}
-      line="Try fewer letters."
+      title={`Nothing matches “${clipText(words)}”`}
+      // Fewer letters than two is nothing left to search with.
+      line={[...words].length > 2 ? 'Try fewer letters.' : 'Try other words.'}
     />
   )
 }

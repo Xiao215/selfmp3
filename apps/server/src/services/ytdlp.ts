@@ -6,6 +6,7 @@ import {
   DAY_MS,
   cleanArtist,
   isNeteaseUrl,
+  isYouTubeUrl,
   tidyVideoTitle,
   withoutRepeats,
   withoutTranslation,
@@ -356,6 +357,18 @@ export function asksYouTube(url: string): boolean {
   return !isNeteaseUrl(url)
 }
 
+/**
+ * Refuse a link to anywhere but YouTube or 网易云 before yt-dlp is run on it.
+ * Its generic extractor fetches any page it is given — this server's own
+ * health check, or an address only the tailnet reaches — so a link pasted
+ * into Import must not choose where the server goes.
+ */
+function onlyMusicSites(url: string): void {
+  if (!isYouTubeUrl(url) && !isNeteaseUrl(url)) {
+    throw new Error('only YouTube and 网易云音乐 links can be read')
+  }
+}
+
 export class YtDlpService {
   readonly #logger: Logger
   readonly #cookies: () => YtCookieSettings
@@ -497,6 +510,7 @@ export class YtDlpService {
      */
     wait: 'interactive' | 'patient' | 'paid' = 'interactive',
   ): Promise<{ kind: 'single' | 'playlist'; playlistTitle: string | null; tracks: ProbedTrack[] }> {
+    onlyMusicSites(url)
     if (wait !== 'paid' && asksYouTube(url)) {
       await this.#pace({
         ...(signal ? { signal } : {}),
@@ -557,6 +571,7 @@ export class YtDlpService {
    * it, and for a few hours.
    */
   async audioUrl(url: string, signal?: AbortSignal): Promise<string> {
+    onlyMusicSites(url)
     if (asksYouTube(url)) {
       await this.#pace({ ...(signal ? { signal } : {}), maxWaitMs: INTERACTIVE_WAIT_MS })
     }
@@ -602,6 +617,7 @@ export class YtDlpService {
     /** Its turn was taken already: the queue takes one as it claims a job. */
     paid?: boolean
   }): Promise<void> {
+    onlyMusicSites(input.url)
     if (!input.paid && asksYouTube(input.url)) {
       await this.#pace({ ...(input.signal ? { signal: input.signal } : {}), waitOutPause: false })
     }

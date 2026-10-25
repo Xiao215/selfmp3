@@ -25,6 +25,10 @@ jest.mock('./importSource', () => {
   // and a fresh library every render is a render that never settles.
   const source = {
     api: { importPreview: (input: string) => mockImportPreview(input) },
+    // Look-ups go to the same server, given longer to answer.
+    get lookUp() {
+      return (this as { api: unknown }).api
+    },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),

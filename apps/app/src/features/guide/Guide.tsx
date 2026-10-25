@@ -7,7 +7,7 @@ import { Defs, LinearGradient, Path, Rect, Stop, Svg } from 'react-native-svg'
 import { leading, motion, space, type } from '@selfmp3/client'
 import { useOverlay } from '../../shell/Overlay'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { nativeDriver, useMotionReduced, usePresence } from '../../ui/motion'
 import { Music } from '../../ui/components/Icons'
 import { useSvgId } from '../../ui/useSvgId'
@@ -173,7 +173,7 @@ export function Guide({
   inline?: boolean
 }): ReactNode {
   const window = useWindowDimensions()
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const reduced = useMotionReduced()
   const { mounted, progress } = usePresence(guide.shown, motion.slow, motion.base)
   const [last, setLast] = useState<Box | null>(guide.box)

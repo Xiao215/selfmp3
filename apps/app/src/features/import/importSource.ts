@@ -15,7 +15,7 @@ import {
   type QueueChange,
   type ServerConnection,
 } from '@selfmp3/client'
-import { apiFor } from '../../api/client'
+import { apiFor, apiWithin } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from './useSongsLanding'
@@ -43,8 +43,17 @@ import { noServer, viaKey } from '../../connection/via'
  * with a look at the bucket in front of the answer where the library is the
  * bucket's, and the server's library too where the screen is pointed at one.
  */
+/**
+ * How long a look-up may take: a YouTube mix, several links or a long list
+ * keep the server at it for half a minute and more, and a look-up given up
+ * on is its work thrown away.
+ */
+const LOOK_UP_MS = 120_000
+
 interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
+  /** `api`, waiting as long as a look-up takes: a link's songs, a search, songs found by name. */
+  readonly lookUp: Pick<ReturnType<typeof apiFor>, 'importPreview' | 'importSearch' | 'importFind'>
   readonly library: Library | undefined
   /** Make a tag in the library whose tags this screen offers, and show it there. */
   readonly createTag: (name: string) => Promise<Tag>
@@ -72,6 +81,10 @@ export function useImportSource(
   const token = via?.token ?? null
   const server = useMemo(
     () => (baseUrl === undefined ? null : apiFor({ baseUrl, token })),
+    [baseUrl, token],
+  )
+  const lookUp = useMemo(
+    () => (baseUrl === undefined ? apiWithin(LOOK_UP_MS) : apiFor({ baseUrl, token }, LOOK_UP_MS)),
     [baseUrl, token],
   )
   const keys = useMemo(
@@ -147,6 +160,7 @@ export function useImportSource(
   if (server) {
     return {
       api: server,
+      lookUp,
       library: serverLibrary.library,
       createTag: serverLibrary.createTag,
       tools: serverTools.data,
@@ -160,6 +174,7 @@ export function useImportSource(
   }
   return {
     api: clientApi(),
+    lookUp,
     library: ownLibrary.data,
     createTag: createOnDevice,
     tools: ownTools.data,

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, type TextInput, useWindowDimensions, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { usePathname, useRouter } from 'expo-router'
-import { artistOr, formatDuration, plural } from '@selfmp3/shared'
+import { artistOr, clipText, formatDuration, plural } from '@selfmp3/shared'
 import {
   clientApi,
   radius,
@@ -71,6 +71,8 @@ interface Row {
 interface RowGroup {
   readonly title: string
   readonly rows: readonly Row[]
+  /** What its head counts, where that is more than its rows say: "8 of 93". */
+  readonly count?: string
 }
 
 /**
@@ -104,6 +106,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   const input = useRef<TextInput>(null)
+  // The list's id and its rows' ids, for the field to say which row is lit:
+  // focus stays in the field, so a screen reader hears the row only through
+  // `aria-activedescendant`.
+  const listId = useId()
+  const optionId = (index: number): string => `${listId}-${index}`
 
   const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
@@ -290,21 +297,46 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     },
     {
       title: 'Songs',
-      rows: found.songs.map(song => ({
-        key: `song-${song.id}`,
-        label: `${song.title}, ${artistOr(song.artist)}`,
-        run: () => playSong(song.id),
-        node: (
-          <SongLine
-            style={styles.songLine}
-            artUri={artFor(song)}
-            coverTitle={song.album || song.title}
-            title={song.title}
-            sub={artistOr(song.artist)}
-            trailing={<Text style={styles.hint}>{formatDuration(song.duration)}</Text>}
-          />
-        ),
-      })),
+      count:
+        found.songsFound > found.songs.length
+          ? `${found.songs.length} of ${found.songsFound}`
+          : undefined,
+      rows: [
+        ...found.songs.map(song => ({
+          key: `song-${song.id}`,
+          label: `${song.title}, ${artistOr(song.artist)}`,
+          run: () => playSong(song.id),
+          node: (
+            <SongLine
+              style={styles.songLine}
+              artUri={artFor(song)}
+              coverTitle={song.album || song.title}
+              title={song.title}
+              sub={artistOr(song.artist)}
+              trailing={<Text style={styles.hint}>{formatDuration(song.duration)}</Text>}
+            />
+          ),
+        })),
+        // The rest are on Search's Songs, every one of them.
+        ...(found.songsFound > found.songs.length
+          ? [
+              {
+                key: 'songs-all',
+                label: `See all ${found.songsFound} songs`,
+                run: () =>
+                  router.push({
+                    pathname: '/search',
+                    params: { q: query.trim(), section: 'songs' },
+                  }),
+                node: (
+                  <View style={styles.labelBox}>
+                    <Text style={styles.sub}>See all {found.songsFound} songs</Text>
+                  </View>
+                ),
+              },
+            ]
+          : []),
+      ],
     },
     {
       title: 'Lyrics',
@@ -395,6 +427,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           rowNodes.current.set(index, node)
         }}
         role="option"
+        nativeID={optionId(index)}
         aria-selected={on}
         accessibilityLabel={row.label}
         onHoverIn={() => setHighlighted(index)}
@@ -416,7 +449,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         <View style={styles.group} key={group.title}>
           <View style={styles.groupTitle}>
             <Text style={styles.groupText}>{group.title}</Text>
-            <Text style={[styles.groupText, styles.groupCount]}>{group.rows.length}</Text>
+            <Text style={[styles.groupText, styles.groupCount]}>
+              {group.count ?? group.rows.length}
+            </Text>
           </View>
           {group.rows.map((row, offset) => drawRow(row, first + offset))}
         </View>,
@@ -476,6 +511,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           spellCheck={false}
           role="combobox"
           aria-expanded
+          aria-controls={listId}
+          aria-activedescendant={rows.length > 0 ? optionId(active) : undefined}
+          aria-autocomplete="list"
           accessibilityLabel="Search songs, playlists and tags, or type a command"
           trailing={
             trimmed ? (
@@ -490,14 +528,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
       <ScrollView
         // A listbox, so its options read as one list's choices. React
         // Native's Role type has no "listbox"; react-native-web renders it.
-        {...({ role: 'listbox' } as object)}
+        {...({ role: 'listbox', 'aria-label': 'Results' } as object)}
+        nativeID={listId}
         contentContainerStyle={styles.results}
       >
         {drawnGroups}
         {trimmed && rows.length === 0 ? (
           <EmptyState
             compact
-            title={`Nothing matches “${trimmed}”`}
+            title={`Nothing matches “${clipText(trimmed)}”`}
             // Lyrics are searched on your library's computer, out of reach now.
             line={
               search.lyricsAway ? 'Try fewer letters.' : 'Try fewer letters, or part of a lyric.'
@@ -527,9 +566,10 @@ const styles = StyleSheet.create(theme => ({
   // Near the top rather than the middle, where the eye already is.
   frame: { padding: 0, justifyContent: 'flex-start' },
   panel: dialogPanel(theme.colors),
-  inputRow: { padding: space.md, paddingBottom: space.sm },
+  // Rows to choose, not words to copy; the field keeps its own selection.
+  inputRow: { padding: space.md, paddingBottom: space.sm, userSelect: 'none' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  results: { padding: space.tight },
+  results: { padding: space.tight, userSelect: 'none' },
   group: { marginBottom: space.tight },
   groupTitle: {
     flexDirection: 'row',

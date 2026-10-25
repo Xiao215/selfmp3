@@ -109,6 +109,72 @@ describe('migrate', () => {
     expect(made('Hail')).toBe(11)
   })
 
+  /*
+   * An open page, an Up next source or a recent list holds a playlist's id.
+   * Given out again, it turned into whichever playlist was made next.
+   */
+  it('never gives a playlist’s id out twice, nor one an import still names', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    db.exec(`
+      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
+      INSERT INTO playlists (id, name, pinned) VALUES (1, 'Mix', 1), (4, 'Old', 0);
+      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (4, 1, 0);
+      INSERT INTO import_jobs (id, url, playlist_id) VALUES ('j', 'u', 4);
+    `)
+    const before = db.prepare('SELECT * FROM playlists ORDER BY id').all()
+    db.prepare('DELETE FROM sqlite_sequence WHERE name = ?').run('playlists')
+    db.pragma('user_version = 47')
+    migrate(db, createLogger('silent'))
+
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
+    expect(db.prepare('SELECT * FROM playlists ORDER BY id').all()).toEqual(before)
+    expect(count(db, 'playlist_items')).toBe(1)
+    expect(db.pragma('foreign_key_check')).toEqual([])
+    const made = (name: string) =>
+      Number(db.prepare('INSERT INTO playlists (name) VALUES (?)').run(name).lastInsertRowid)
+    expect(made('New')).toBe(5)
+    db.prepare('DELETE FROM playlists WHERE id = 5').run()
+    expect(made('Newer')).toBe(6)
+    // Deleting still takes its songs and its import's link with it.
+    db.prepare('DELETE FROM playlists WHERE id = 4').run()
+    expect(count(db, 'playlist_items')).toBe(0)
+    expect(db.prepare('SELECT playlist_id FROM import_jobs').get()).toEqual({ playlist_id: null })
+  })
+
+  it('takes rules about deleted tags out of live playlists, and stops one left with none', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    const rules = (...list: object[]) =>
+      JSON.stringify({ match: 'all', rules: list, orderBy: 'title', order: 'asc', limit: null })
+    const has = (tagId: number) => ({ field: 'tag', op: 'has', tagId })
+    const loved = { field: 'loved', op: 'is', value: true }
+    db.prepare("INSERT INTO tags (id, name) VALUES (1, 'Rain')").run()
+    const insert = db.prepare(
+      "INSERT INTO playlists (id, name, kind, rules) VALUES (?, ?, 'live', ?)",
+    )
+    insert.run(1, 'Gone', rules(has(7)))
+    insert.run(2, 'Gone and loved', rules(has(7), loved, has(1)))
+    insert.run(3, 'Rain', rules(has(1)))
+    insert.run(4, 'Everything', rules())
+    insert.run(5, 'Broken', 'not json')
+    db.pragma('user_version = 48')
+    migrate(db, createLogger('silent'))
+
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
+    const rows = db.prepare('SELECT id, kind, rules FROM playlists ORDER BY id').all()
+    expect(rows).toEqual([
+      { id: 1, kind: 'manual', rules: null },
+      { id: 2, kind: 'live', rules: rules(loved, has(1)) },
+      { id: 3, kind: 'live', rules: rules(has(1)) },
+      { id: 4, kind: 'live', rules: rules() },
+      { id: 5, kind: 'live', rules: 'not json' },
+    ])
+  })
+
   it('gives an import job named by another build the queue’s own words, and holds it to them', () => {
     const db = new Database(':memory:')
     migrate(db, createLogger('silent'))

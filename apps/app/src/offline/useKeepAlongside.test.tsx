@@ -27,7 +27,10 @@ const library: Library = {
 let mockLibrary = library
 
 const mockEnsureCover = jest.fn<Promise<string | null>, [number]>()
-const mockPlaylistSongs = jest.fn<Promise<{ playlistId: number; songIds: number[] }>, [number]>()
+const mockAllPlaylistSongs = jest.fn<
+  Promise<{ playlists: { playlistId: number; songIds: number[] }[] }>,
+  []
+>()
 const mockEnsurePicture = jest.fn<Promise<string | null>, [string]>()
 const mockSweep = jest.fn<Promise<number>, [ReadonlySet<string>]>()
 const mockFill = jest.fn<Promise<ReadonlySet<string>>, [() => boolean]>()
@@ -38,7 +41,7 @@ jest.mock('@selfmp3/client', () => ({
   isDownloaded: () => false,
 }))
 jest.mock('../api/client', () => ({
-  api: { playlistSongs: (id: number) => mockPlaylistSongs(id) },
+  api: { allPlaylistSongs: () => mockAllPlaylistSongs() },
   mediaUrlFor: () => ({}),
 }))
 jest.mock('../connection/ConnectionProvider', () => ({
@@ -78,7 +81,9 @@ describe('useKeepAlongside, for a cloud library', () => {
   beforeEach(() => {
     jest.useFakeTimers()
     mockLibrary = library
-    mockPlaylistSongs.mockReset().mockImplementation(async id => ({ playlistId: id, songIds: [1] }))
+    mockAllPlaylistSongs.mockReset().mockImplementation(async () => ({
+      playlists: mockLibrary.playlists.map(playlist => ({ playlistId: playlist.id, songIds: [1] })),
+    }))
     mockEnsureCover.mockReset().mockResolvedValue('file:///cover.jpg')
     mockEnsurePicture.mockReset().mockResolvedValue('file:///picture.jpg')
     mockSweep.mockReset().mockResolvedValue(0)
@@ -143,15 +148,28 @@ describe('useKeepAlongside, for a cloud library', () => {
     const { rerender } = await renderHook(() => useKeepAlongside())
     await settle()
     expect(mockEnsureCover).toHaveBeenCalledTimes(1)
-    expect(mockPlaylistSongs).toHaveBeenCalledTimes(1)
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(1)
 
     // A tag ticked that the live playlist follows: its count moves, no song's files do.
     mockLibrary = { ...library, playlists: [{ ...live, songCount: 2 }] }
     await rerender({})
     await settle()
 
-    expect(mockPlaylistSongs).toHaveBeenCalledTimes(2)
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(2)
     expect(mockEnsureCover).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks for every playlist’s songs in one request, however many there are', async () => {
+    mockLibrary = {
+      ...library,
+      playlists: Array.from(
+        { length: 600 },
+        (_, i) => ({ id: i + 1, songCount: 1, updatedAt: '2026-10-07 00:00:00' }) as Playlist,
+      ),
+    }
+    await renderHook(() => useKeepAlongside())
+    await settle()
+    expect(mockAllPlaylistSongs).toHaveBeenCalledTimes(1)
   })
 
   it('lets the phone draw between songs rather than holding it for the whole pass', async () => {

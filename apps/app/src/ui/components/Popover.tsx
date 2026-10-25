@@ -8,9 +8,9 @@ import { useOverlay } from '../../shell/Overlay'
 import { useLayoutValue, useWindowValue } from '../../shell/useLayout'
 import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
-import { Sheet } from './Sheet'
+import { contentA11y, panelA11y, Sheet, type LayerRole } from './Sheet'
 import { floating } from '../surfaces'
-import { rightClick, type PopoverAnchor } from '../rightClick'
+import { CATCHER, rightClickThrough, type PopoverAnchor } from '../rightClick'
 import { ease, motionMs, nativeDriver } from '../motion'
 import { clamp } from '@selfmp3/shared'
 import { ScrollView } from './Scroll'
@@ -44,6 +44,9 @@ export function Popover({
   width = 240,
   placement = 'auto',
   align = 'end',
+  role = 'dialog',
+  label,
+  scrolls = false,
   testID,
 }: {
   open: boolean
@@ -75,6 +78,12 @@ export function Popover({
    * whatever is to its left.
    */
   align?: 'start' | 'end'
+  /** A menu of actions or a list of choices, rather than a dialog's own content. */
+  role?: LayerRole
+  /** What a screen reader calls it, where no title says: the song a menu is for. */
+  label?: string
+  /** The content scrolls a list of its own, under a field that stays put. */
+  scrolls?: boolean
   testID?: string
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
@@ -87,6 +96,9 @@ export function Popover({
         title={title}
         titleTone={titleTone}
         subtitle={subtitle}
+        role={role}
+        label={label}
+        scroll={!scrolls}
         testID={testID}
       >
         {children}
@@ -102,6 +114,8 @@ export function Popover({
       onClose={onClose}
       anchorRef={anchorRef}
       width={width}
+      role={role}
+      label={label ?? panelTitle ?? title}
       testID={testID}
     >
       {panelTitle ? (
@@ -139,6 +153,8 @@ function AnchoredPopover({
   anchorRef,
   children,
   width,
+  role,
+  label,
   testID,
 }: {
   placement: 'below' | 'above' | 'auto'
@@ -148,6 +164,8 @@ function AnchoredPopover({
   anchorRef: RefObject<PopoverAnchor | null>
   children: ReactNode
   width: number
+  role: LayerRole
+  label?: string
   testID?: string
 }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
@@ -256,19 +274,27 @@ function AnchoredPopover({
           take the pointer off its row, so a row's ⋯ would fade out under the
           mouse; with a hole there the row keeps its hover, and pressing the
           control again reaches the control, which closes what it opened. A
-          right-click outside closes it too, rather than drawing the browser's
-          menu on it.
+          right-click outside closes it too, and is then a right-click on what
+          is under it — another row's menu opens at once — rather than the
+          browser's menu.
         */}
+        {/* One of them is a Close button to a screen reader, the rest are not
+          there to it; none is a Tab stop, the keyboard has Escape. */}
         <Pressable
           style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
           onPress={onClose}
+          accessibilityRole="button"
           accessibilityLabel="Close"
-          {...rightClick(onClose)}
+          tabIndex={-1}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...UNSEEN}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[
@@ -276,7 +302,9 @@ function AnchoredPopover({
             { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
           ]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...UNSEEN}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[
@@ -284,9 +312,12 @@ function AnchoredPopover({
             { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
           ]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...UNSEEN}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Animated.View
+          {...panelA11y(label, onClose)}
           testID={testID}
           onLayout={event => {
             // The panel's natural height, taken once per opening before it is
@@ -320,6 +351,7 @@ function AnchoredPopover({
           <ScrollView
             showsVerticalScrollIndicator={false}
             style={panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 }}
+            {...contentA11y(role)}
           >
             <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
           </ScrollView>
@@ -327,10 +359,14 @@ function AnchoredPopover({
       </>
     ) : null,
     mounted && anchor !== null,
+    open,
   )
 
   return null
 }
+
+/** A click-catcher besides the first: neither a Tab stop nor anything to a screen reader. */
+const UNSEEN = { tabIndex: -1, 'aria-hidden': true } as const
 
 const styles = StyleSheet.create(theme => ({
   panelTitle: {

@@ -16,7 +16,7 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
@@ -47,6 +47,7 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
+import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
@@ -71,14 +72,17 @@ const STRIP_TIGHT = 31
  */
 export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
   const [period, setPeriod] = useState<StatsPeriod>('month')
-  const { data: stats, isLoading } = useStatsFor(via, statsRangeFor(period))
+  const { data: stats, isLoading, refetch } = useStatsFor(via, statsRangeFor(period))
 
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
         <CardsWaiting />
       ) : !stats ? (
-        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
+        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE}>
+          {/* It asks again by itself once the library answers; this is for now. */}
+          <Button label="Try again" onPress={refetch} />
+        </EmptyState>
       ) : stats.totals.plays === 0 ? (
         <EmptyState
           title="Nothing to show yet"
@@ -99,7 +103,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
  * cards will be, and the first few ranked lines under them.
  */
 function CardsWaiting(): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
   const height = wide ? 190 : WAITING_CARD
   const listened = <Bone height={height} radius={radius.cardLg} />
@@ -149,7 +153,7 @@ const WAITING_LINES = ['46%', '38%', '52%'] as const
  * at 1100, a row left Listened's number 64 px beside its line and cut it to "1 …".
  */
 function Cards({ stats }: { stats: Stats }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
   // On a very wide page the line runs across the card from the words, rather
   // than sitting at the card's far end 1000 px from its number (P1 C).

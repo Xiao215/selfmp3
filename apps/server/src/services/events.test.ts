@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { createLogger } from '../logger.js'
-import { encodeSseEvent, encodeSsePreamble, EventHub, type EventSink } from './events.js'
+import {
+  encodeSseEvent,
+  encodeSsePreamble,
+  EventHub,
+  MAX_QUEUED_BYTES,
+  type EventSink,
+} from './events.js'
 
 class BufferSink implements EventSink {
   chunks: string[] = []
@@ -37,6 +43,24 @@ describe('encodeSseEvent', () => {
 
 describe('EventHub', () => {
   const logger = createLogger('silent')
+
+  it('drops a stream that stopped reading, and keeps the rest', () => {
+    const hub = new EventHub(logger)
+    let ended = false
+    const stalled: EventSink = {
+      write: () => undefined,
+      end: () => (ended = true),
+      writableLength: MAX_QUEUED_BYTES + 1,
+    }
+    const reading = new BufferSink()
+    hub.subscribe(stalled, 'stalled-0001')
+    hub.subscribe(reading, 'reading-0001')
+    hub.broadcast({ type: 'library', version: 2 })
+    expect(ended).toBe(true)
+    expect(hub.size).toBe(1)
+    expect(reading.text).toContain('"version":2')
+    hub.stop()
+  })
 
   it('sends the preamble on subscribe and broadcasts to everyone', () => {
     const hub = new EventHub(logger)

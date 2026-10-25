@@ -48,7 +48,7 @@ import {
   type PageMode,
   type StageTab,
 } from './nowPlaying.model'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PLAYER_BAR_HEIGHT } from '../../shell/PlayerBar'
 import { ease, motionMs, nativeDriver, timing, useFade, usePresence } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
@@ -275,7 +275,7 @@ function Stage({
   const { theme } = useUnistyles()
   // Under an iPad's status bar, not behind it; a computer's window has none.
   const { top } = useSafeAreaInsets()
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const player = usePlayer()
   const router = useRouter()
   const artFor = useArt()

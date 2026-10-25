@@ -61,7 +61,8 @@ export function createWindow({
    * The red button hides the window; it does not quit. A player that is playing
    * and has no window is a normal thing to want, and on macOS the app is alive
    * until ⌘Q either way — without this, closing the window stopped the music.
-   * The Dock icon and ⌘N bring it back (`app.on('activate')`).
+   * The Dock icon (`app.on('activate')`) and File › New Window (⌘N, `menu.ts`)
+   * bring it back.
    */
   if (mac) {
     window_.on('close', event => {

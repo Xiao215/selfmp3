@@ -129,7 +129,7 @@ if (!app.requestSingleInstanceLock()) {
       openWindow()
 
       registerIpc({ info, window: currentWindow, stream })
-      buildMenu(currentWindow)
+      buildMenu(currentWindow, showWindow)
       startNowPlaying(currentWindow)
 
       deepLinks.deliver(deepLinkFromArgv(process.argv))

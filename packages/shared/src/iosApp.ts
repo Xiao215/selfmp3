@@ -1,7 +1,5 @@
 import { z } from 'zod'
-import { DEFAULT_APP_URL, DEFAULT_DOORMAN_URL } from './cloud.js'
-import { DOORMAN_PATHS } from './doormanWire.js'
-import { escapeHtml, renderPublicPage } from './publicPage.js'
+import { DEFAULT_APP_URL } from './cloud.js'
 import { RELEASES_URL } from './releases.js'
 
 /**
@@ -11,7 +9,7 @@ import { RELEASES_URL } from './releases.js'
  * Every build goes to one release, `ios`, replaced in place, so its files keep
  * one address each: the app, the manifest Safari's install link reads, and
  * `ios.json`, which the installed app asks to learn whether there is a newer
- * build of itself. The release is never marked latest — the Mac app's updater
+ * build of itself. The page friends install from is installPage.ts. The release is never marked latest — the Mac app's updater
  * reads the latest release (releases.ts), and an iPhone build is not one.
  * `apps/app/scripts/ios-release.mjs` builds and uploads all three; the steps
  * around it are in docs/MOBILE.md, "Sharing the iPhone app".
@@ -109,26 +107,4 @@ export function renderIosManifest(app: {
 </dict>
 </plist>
 `
-}
-
-/** The two steps, in the look `publicPage.ts` gives every page beside the app. */
-export function renderInstallPage(doormanUrl: string = DEFAULT_DOORMAN_URL): string {
-  const go = (href: string, label: string) =>
-    `<p><a class="go" href="${escapeHtml(href)}">${escapeHtml(label)}</a></p>`
-  return renderPublicPage(
-    'Get the iPhone app',
-    [
-      '<h1>Get the iPhone app</h1>',
-      '<p>Open this page in <strong>Safari</strong> on the iPhone. Other browsers cannot install apps.</p>',
-      '<h2>1. Send your iPhone’s ID</h2>',
-      '<p>An app from outside the App Store installs only on iPhones its signer has added, one by one. Tap below, then <strong>Allow</strong>, then open <strong>Settings</strong>, where <strong>Profile Downloaded</strong> is at the top, and tap <strong>Install</strong>. It says <strong>Not Verified</strong>; that is expected. Nothing stays installed: the iPhone hands over its ID and shows it on a page. Send that to whoever shared self.mp3 with you.</p>',
-      go(`${doormanUrl}${DOORMAN_PATHS.device}`, 'Send my iPhone’s ID'),
-      '<h2>2. Install self.mp3</h2>',
-      '<p>Once you hear your iPhone has been added, come back and tap Install, then <strong>Install</strong> again when the iPhone asks. The app lands on the Home Screen; give it a minute.</p>',
-      go(IOS_INSTALL_LINK, 'Install self.mp3'),
-      '<p>If it says it cannot install the app, your iPhone is not added yet, or was added after this build: ask for a new one.</p>',
-      '<h2>Updates</h2>',
-      '<p>The app says when there is a newer build. Its Install button brings the same question as above; your music and settings stay.</p>',
-    ].join('\n'),
-  )
 }

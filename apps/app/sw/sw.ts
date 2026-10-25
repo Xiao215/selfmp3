@@ -169,6 +169,11 @@ self.addEventListener('fetch', event => {
     return
   }
 
+  // The plain pages published beside the app (scripts/pages.mjs: the privacy
+  // policy, the bucket guide, the iPhone install page) are not the app. Left
+  // to the browser, so loading one is never kept as the app's offline index.
+  if (url.pathname.endsWith('.html') && url.pathname !== INDEX) return
+
   event.respondWith(handleShell(request, url))
 })
 

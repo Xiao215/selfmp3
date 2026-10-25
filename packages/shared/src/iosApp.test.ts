@@ -5,7 +5,6 @@ import {
   fetchIosLatest,
   iosAssetUrl,
   isNewerIosBuild,
-  renderInstallPage,
   renderIosManifest,
   type IosLatest,
 } from './iosApp.js'
@@ -59,12 +58,5 @@ describe('the iPhone app for friends', () => {
     expect(manifest).toContain('<string>software-package</string>')
     expect(manifest).toContain('<string>https://example.com/a.ipa?x=1&amp;y=2</string>')
     expect(manifest).toContain('<string>com.selfmp3.app</string>')
-  })
-
-  it('points the install page at the doorman for the ID and at the manifest for the app', () => {
-    const page = renderInstallPage('https://doorman.example')
-    expect(page).toContain('href="https://doorman.example/v1/device"')
-    expect(page).toContain(`href="${IOS_INSTALL_LINK.replace(/&/g, '&amp;')}"`)
-    expect(page).not.toContain('<script')
   })
 })

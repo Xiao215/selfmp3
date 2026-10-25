@@ -339,7 +339,8 @@ even unlisted, is not an option: guideline 5.2.3 refuses apps that download medi
 other services.)
 
 **A friend** opens `install.html` beside the web app, in Safari
-(`renderInstallPage` in `packages/shared/src/iosApp.ts`):
+(`packages/shared/src/installPage.ts`; opened anywhere else — WeChat's browser, Chrome,
+a computer — it says where to open it instead):
 
 1. **Send my iPhone's ID** installs a profile service from the doorman
    (`apps/doorman/src/device.ts`). The iPhone hands over its UDID and Safari shows it on a

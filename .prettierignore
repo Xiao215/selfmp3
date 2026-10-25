@@ -9,7 +9,7 @@ package-lock.json
 # which Prettier does not read: it consults the root .gitignore only.
 apps/app/public/sw.js
 # Written by `npm run build:pages` from packages/shared/src/privacy.ts, bucketGuide.ts and
-# iosApp.ts; git-ignored the same way.
+# installPage.ts; git-ignored the same way.
 apps/app/public/privacy.html
 apps/app/public/bucket.html
 apps/app/public/install.html

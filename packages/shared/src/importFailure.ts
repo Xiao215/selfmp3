@@ -1,5 +1,5 @@
 /**
- * Why an import failed, in a few plain words.
+ * Why an import failed, or a link could not be looked up, in a few plain words.
  *
  * A failed job carries what the server knew: yt-dlp's own last line
  * ("[youtube] FDXohHp9Jso: This video is only available to Music Premium
@@ -32,7 +32,7 @@ const REASONS: readonly (readonly [RegExp, string])[] = [
     'Not available in this country.',
   ],
   [
-    /video unavailable|has been removed|no longer available|account associated with this video has been terminated|copyright claim/,
+    /video unavailable|video is unavailable|has been removed|no longer available|account associated with this video has been terminated|copyright claim/,
     'This video isn’t on YouTube any more.',
   ],
   [/a playlist, not one song/, 'That’s a playlist. Look it up again to pick its songs.'],
@@ -64,4 +64,26 @@ export function importFailure(error: string | null): string {
   if (!error) return IMPORT_FAILED
   const lower = error.toLowerCase()
   return REASONS.find(([pattern]) => pattern.test(lower))?.[1] ?? IMPORT_FAILED
+}
+
+/** When nothing below fits a look-up: the link, not the song, is what could not be read. */
+const LOOK_UP_FAILED = 'Couldn’t read that link.'
+
+/**
+ * A look-up's own reasons, before a download's: a page that is not there is
+ * nothing to import, not a connection to try again.
+ */
+const LOOK_UP_REASONS: readonly (readonly [RegExp, string])[] = [
+  [/http error 404|unsupported url|404: not found/, 'There’s nothing to import at that link.'],
+  ...REASONS,
+]
+
+/**
+ * The plain sentence for a link yt-dlp could not read when it was looked up
+ * ("[youtube] zzzzzzzzzzz: This video is unavailable"): the server sends this
+ * rather than yt-dlp's own words.
+ */
+export function lookUpFailure(error: string): string {
+  const lower = error.toLowerCase()
+  return LOOK_UP_REASONS.find(([pattern]) => pattern.test(lower))?.[1] ?? LOOK_UP_FAILED
 }

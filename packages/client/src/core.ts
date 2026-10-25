@@ -26,7 +26,6 @@ export {
 export * from './connection/reach.js'
 
 export * from './import/model.js'
-export * from './import/failure.js'
 
 export * from './theme/oklch.js'
 export * from './theme/tokens.js'

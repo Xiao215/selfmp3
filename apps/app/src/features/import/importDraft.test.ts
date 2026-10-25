@@ -36,6 +36,7 @@ const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewI
 
 const aReview = () =>
   reviewFrom({
+    unread: [],
     from: 'youtube',
     kind: 'playlist',
     playlistTitle: 'THE BOOK',

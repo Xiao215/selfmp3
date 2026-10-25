@@ -30,6 +30,10 @@ jest.mock('./importSource', () => {
       importPreview: (input: string) => mockImportPreview(input),
       importAlreadyHave: () => Promise.resolve({ have: [] }),
     },
+    // Look-ups go to the same server, given longer to answer.
+    get lookUp() {
+      return (this as { api: unknown }).api
+    },
     library: { songs: [], tags: [], playlists: [] },
     tools: { ytdlp: true, ffmpeg: true },
     refetchTools: () => Promise.resolve(),

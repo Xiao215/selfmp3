@@ -1,6 +1,14 @@
 import { plural } from '@selfmp3/shared'
 import type { ImportEnqueue, ImportPreviewItem } from '@selfmp3/shared'
-import { enqueueRequest, notFound, stillLooking, taken, type Review } from '@selfmp3/client'
+import {
+  ApiError,
+  TIMED_OUT,
+  enqueueRequest,
+  notFound,
+  stillLooking,
+  taken,
+  type Review,
+} from '@selfmp3/client'
 
 /**
  * The review of a link, without the screen (docs/ui-mock `P30`, `C14`).
@@ -175,3 +183,26 @@ export function importRequest(review: Review, tagIds: ReadonlySet<number>): Impo
   }
   return enqueueRequest(coming, { tagIds, playlistId: null, createPlaylist: false })
 }
+
+/**
+ * What went wrong on an Import page, in words. A refusal the server put into
+ * words is its words — a link it could not read, a list it could not make out;
+ * a request that ran out of time says so, and one that never reached the
+ * server says that, not the browser's "Failed to fetch". A server's own
+ * fault is only that it failed.
+ */
+export function importErrorText(error: Error): string {
+  if (!(error instanceof ApiError)) return error.message
+  if (error.isOffline) {
+    return error.message === TIMED_OUT
+      ? `${TIMED_OUT} Try again in a moment.`
+      : 'Your server isn’t reachable right now.'
+  }
+  if (error.status >= 400 && error.status < 500 && error.message && !UNSAID.test(error.message)) {
+    return error.message.charAt(0).toLocaleUpperCase() + error.message.slice(1)
+  }
+  return 'Your server couldn’t do that. Try again.'
+}
+
+/** The client's own line for a refusal that came with no words ("POST /api/… failed (404)"). */
+const UNSAID = /^[A-Z]+ \/\S* failed \(\d+\)$/

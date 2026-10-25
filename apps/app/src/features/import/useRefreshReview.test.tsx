@@ -20,7 +20,13 @@ const item = (n: number) => ({
 })
 
 const review = (...ns: number[]) =>
-  reviewFrom({ from: 'youtube', kind: 'playlist', playlistTitle: null, items: ns.map(item) })
+  reviewFrom({
+    unread: [],
+    from: 'youtube',
+    kind: 'playlist',
+    playlistTitle: null,
+    items: ns.map(item),
+  })
 
 /**
  * The review asks the server what the library has once its songs stop

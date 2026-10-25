@@ -18,6 +18,7 @@
  */
 import {
   REQUEST_TIMEOUT_MS,
+  TIMED_OUT,
   configureClient,
   createApi,
   createMediaUrl,
@@ -111,7 +112,11 @@ function outlivesThePage(init: ClientRequestInit | undefined): boolean {
  */
 export const fetchWithin = (timeoutMs: number) => async (url: string, init?: ClientRequestInit) => {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let late = false
+  const timer = setTimeout(() => {
+    late = true
+    controller.abort()
+  }, timeoutMs)
   // The caller's own stop (Stop pressed, nobody watching) aborts it too.
   // Joined by hand: Hermes has no AbortSignal.any.
   const given = init?.signal as AbortSignal | undefined
@@ -124,6 +129,10 @@ export const fetchWithin = (timeoutMs: number) => async (url: string, init?: Cli
       signal: controller.signal,
       ...(outlivesThePage(init) ? { keepalive: true } : {}),
     })
+  } catch (error) {
+    // The browser's words for its own abort ("signal is aborted without reason") say nothing.
+    if (late) throw new Error(TIMED_OUT)
+    throw error
   } finally {
     clearTimeout(timer)
     given?.removeEventListener('abort', stop)
@@ -132,15 +141,22 @@ export const fetchWithin = (timeoutMs: number) => async (url: string, init?: Cli
 
 const fetchWithTimeout = fetchWithin(REQUEST_TIMEOUT_MS)
 
-export const api = createApi({
-  context: () => ({
-    transport: transport(),
-    fromCloud: current.fromCloud,
-    cloudRequest,
-    onCloudLibraryChanged: cloudLibrary.onCloudLibraryChanged,
-  }),
-  fetch: fetchWithTimeout,
+const context = () => ({
+  transport: transport(),
+  fromCloud: current.fromCloud,
+  cloudRequest,
+  onCloudLibraryChanged: cloudLibrary.onCloudLibraryChanged,
 })
+
+export const api = createApi({ context, fetch: fetchWithTimeout })
+
+/**
+ * This device's client, waiting longer for its answers: for the few a server
+ * takes its time over, as an import's look-up does with a long list.
+ */
+export function apiWithin(timeoutMs: number) {
+  return createApi({ context, fetch: fetchWithin(timeoutMs) })
+}
 
 /*
  * Hand the shared query hooks this client, at import time.

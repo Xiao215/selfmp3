@@ -141,7 +141,7 @@ export function ImportScreen({
   const tags = library?.tags ?? []
 
   const preview = useMutation({
-    mutationFn: (input: string) => api.importPreview(input),
+    mutationFn: (input: string) => source.lookUp.importPreview(input),
     onSuccess: (result, input) => {
       const next = reviewFrom(result)
       // A link named like a tag you already have — an artist's page, a search
@@ -973,6 +973,9 @@ function RowMore({
   )
 }
 
+/** The queue row swiped open, if any: opening another closes it, as Mail's rows do. */
+let swipedOpen: SwipeableMethods | null = null
+
 /**
  * A phone's way to take an import off the queue: swipe the row left and press
  * Remove behind it, as Mail and Messages do. A song waiting behind others has
@@ -1000,6 +1003,13 @@ function SwipeActions({
   children: ReactNode
 }): ReactNode {
   const swipeable = useRef<SwipeableMethods>(null)
+  // A row gone (imported, removed) is not the one open.
+  useEffect(() => {
+    const mine = swipeable.current
+    return () => {
+      if (swipedOpen === mine) swipedOpen = null
+    }
+  }, [])
   useOpenWith(
     guide ?? null,
     () => swipeable.current?.openRight(),
@@ -1011,6 +1021,14 @@ function SwipeActions({
       friction={1.6}
       rightThreshold={40}
       overshootRight={false}
+      onSwipeableWillOpen={() => {
+        const opening = swipeable.current
+        if (swipedOpen !== opening) swipedOpen?.close()
+        swipedOpen = opening
+      }}
+      onSwipeableClose={() => {
+        if (swipedOpen === swipeable.current) swipedOpen = null
+      }}
       renderRightActions={(_progress, _translation, swipeable) => (
         <View style={styles.swipeActions}>
           {onNext ? (

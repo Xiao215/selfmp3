@@ -5,11 +5,13 @@ import { StyleSheet } from 'react-native-unistyles'
 import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
+import { plural } from '@selfmp3/shared'
 import { useLayout } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageFrame, pageTitle, textColumn } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Cover } from '../../ui/components/Cover'
+import { NoticeCard } from '../../ui/components/NoticeCard'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ImportFoot, useImportPage } from './ImportPage'
 import { chooseAllIn } from './importDraft'
@@ -71,7 +73,7 @@ export function ImportReview({
   // A kept review's "In library" is from when the link was looked up.
   useRefreshReview(source.api, key, reviewUrls(review))
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
-  const finder = useFindSongs(source.api, key, review)
+  const finder = useFindSongs(source.lookUp, key, review)
   // A9: the model's names for the rows whose names look wrong, each offered under its row.
   const suggestions = useImportNames(source.api, key, review)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
@@ -173,6 +175,7 @@ export function ImportReview({
         testID="import-review"
       >
         <TapAway onPress={wide || open === null ? undefined : closeRow} style={styles.ground}>
+          {review.unread.length > 0 ? <UnreadLinks review={review} /> : null}
           {wide ? (
             <ReviewGridHead
               leading={<AllBox review={review} onChange={chooseAll} wide />}
@@ -228,6 +231,27 @@ export function ImportReview({
   )
 }
 
+/**
+ * Links pasted with the others that could not be read, each with why: the
+ * songs the others hold are still here to import.
+ */
+function UnreadLinks({ review }: { review: Review }): ReactNode {
+  return (
+    <NoticeCard
+      tone="warn"
+      title={`Couldn’t read ${plural(review.unread.length, 'link', 'links')}`}
+      style={styles.unread}
+      testID="import-unread"
+    >
+      {review.unread.map(link => (
+        <Text key={link.url} style={styles.unreadLine}>
+          <Text style={styles.unreadUrl}>{link.url}</Text> · {link.why}
+        </Text>
+      ))}
+    </NoticeCard>
+  )
+}
+
 /** The head's picture on a computer: four of the list's covers, or its one. */
 function Mosaic({ review }: { review: Review }): ReactNode {
   const covers = mosaicCovers(review)
@@ -272,6 +296,9 @@ const styles = StyleSheet.create(theme => ({
   kicker: { ...groupLabel(theme.colors), fontSize: type.small, color: theme.colors.textSecondary },
   nameWide: pageTitle(theme.colors),
   allPhone: { paddingTop: space.md },
+  unread: { marginTop: space.md },
+  unreadLine: { color: theme.colors.textSecondary, fontSize: type.sub },
+  unreadUrl: { color: theme.colors.textPrimary },
   listPhone: { paddingHorizontal: space.gutter, flexGrow: 1 },
   listWide: { paddingHorizontal: 28 },
 }))

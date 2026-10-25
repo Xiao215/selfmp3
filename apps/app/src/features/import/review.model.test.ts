@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ImportPreviewItem } from '@selfmp3/shared'
-import { reviewFrom } from '@selfmp3/client'
+import { ApiError, TIMED_OUT, reviewFrom } from '@selfmp3/client'
 import {
   chooseAll,
+  importErrorText,
   chosenState,
   comingIn,
   countLabel,
@@ -37,6 +38,7 @@ const item = (n: number, extra: Partial<ImportPreviewItem> = {}): ImportPreviewI
 /** `P30`'s seven: the first is yours already, and everything else is coming in. */
 const theBook = () =>
   reviewFrom({
+    unread: [],
     from: 'youtube',
     kind: 'playlist',
     playlistTitle: 'THE BOOK',
@@ -107,6 +109,7 @@ describe('reviewing a link', () => {
     expect(reviewName(theBook())).toBe('THE BOOK')
     expect(reviewKicker(theBook())).toBe('From this link · playlist')
     const one = reviewFrom({
+      unread: [],
       from: 'youtube',
       kind: 'single',
       playlistTitle: null,
@@ -115,6 +118,7 @@ describe('reviewing a link', () => {
     expect(reviewName(one)).toBe('Song 9')
     expect(reviewKicker(one)).toBe('From this link · song')
     const pasted = reviewFrom({
+      unread: [],
       from: 'youtube',
       kind: 'single',
       playlistTitle: null,
@@ -126,6 +130,7 @@ describe('reviewing a link', () => {
 
   it('draws four different covers at most for the mosaic', () => {
     const review = reviewFrom({
+      unread: [],
       from: 'youtube',
       kind: 'playlist',
       playlistTitle: 'x',
@@ -164,7 +169,7 @@ describe('a list from 网易云', () => {
       },
     })
   const chart = (...items: ImportPreviewItem[]) =>
-    reviewFrom({ from: 'netease', kind: 'playlist', playlistTitle: '热歌榜', items })
+    reviewFrom({ unread: [], from: 'netease', kind: 'playlist', playlistTitle: '热歌榜', items })
 
   it('says where each song comes from, and which match is worth a listen', () => {
     const review = chart(free, vip('sure'))
@@ -181,6 +186,7 @@ describe('a list from 网易云', () => {
 
   it('says where each of a search’s songs comes from, in amber where 网易云 only previews it', () => {
     const search = reviewFrom({
+      unread: [],
       from: 'search',
       kind: 'playlist',
       playlistTitle: '孤勇者',
@@ -211,5 +217,25 @@ describe('a list from 网易云', () => {
     expect(importRequest(review, new Set()).items.map(each => each.url)).toEqual([
       'https://music.163.com/song?id=1',
     ])
+  })
+})
+
+describe('importErrorText', () => {
+  it('keeps what the server said, and says a timeout or an unreachable server plainly', () => {
+    expect(
+      importErrorText(new ApiError(422, 'This video isn’t on YouTube any more.', 'unprocessable')),
+    ).toBe('This video isn’t on YouTube any more.')
+    expect(importErrorText(new ApiError(0, TIMED_OUT, 'offline'))).toBe(
+      'Your server took too long to answer. Try again in a moment.',
+    )
+    expect(importErrorText(new ApiError(0, 'signal is aborted without reason', 'offline'))).toBe(
+      'Your server isn’t reachable right now.',
+    )
+    expect(importErrorText(new ApiError(500, 'POST /api/import/preview failed (500)'))).toBe(
+      'Your server couldn’t do that. Try again.',
+    )
+    expect(importErrorText(new ApiError(404, 'POST /api/import/preview failed (404)'))).toBe(
+      'Your server couldn’t do that. Try again.',
+    )
   })
 })

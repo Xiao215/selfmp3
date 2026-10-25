@@ -501,6 +501,48 @@ describe('buildImportPreview with a Spotify link or a list of songs', () => {
     const { deps } = previewDeps({})
     await expect(buildImportPreview(deps, '   \n  ')).rejects.toThrow(/one song per line/)
   })
+  it('reads "Title - Artist" the right way round when the library has the song', async () => {
+    const { deps } = previewDeps({ have: [{ artist: 'YOASOBI', title: '夜に駆ける' }] })
+    const preview = await buildImportPreview(
+      deps,
+      '夜に駆ける - YOASOBI\nNever Gonna Give You Up - Rick Astley',
+    )
+    expect(preview.items[0]).toMatchObject({
+      title: '夜に駆ける',
+      artist: 'YOASOBI',
+      alreadyHave: true,
+    })
+    expect(preview.items[1]?.alreadyHave).toBe(false)
+  })
+})
+
+describe('buildImportPreview with several links, or names beside them', () => {
+  const video = 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+  const gone = 'https://youtu.be/zzzzzzzzzzz'
+  const playlists = { [video]: [track(video, 'Me at the zoo', 19)] }
+
+  it('offers the songs of the links it read, and says which it could not and why', async () => {
+    const { deps } = previewDeps({ playlists })
+    const preview = await buildImportPreview(deps, `${gone}\n${video}`)
+    expect(preview.items.map(item => item.title)).toEqual(['Me at the zoo'])
+    expect(preview.unread).toEqual([{ url: gone, why: 'Couldn’t read that link.' }])
+  })
+
+  it('says why in words when the one link it was given cannot be read', async () => {
+    const { deps } = previewDeps({ playlists })
+    await expect(buildImportPreview(deps, gone)).rejects.toThrow('Couldn’t read that link.')
+  })
+
+  it('looks up the song names pasted with a link, by their names', async () => {
+    const { deps } = previewDeps({ playlists })
+    const preview = await buildImportPreview(deps, `米津玄師 - Lemon\n${video}`)
+    expect(preview.from).toBe('list')
+    expect(preview.items.map(item => `${item.artist}|${item.title}`)).toEqual([
+      'YOASOBI|Me at the zoo',
+      '米津玄師|Lemon',
+    ])
+    expect(preview.items[1]).toMatchObject({ url: '', youtube: { url: null, match: 'looking' } })
+  })
 })
 
 describe('findLooking and previewFound', () => {

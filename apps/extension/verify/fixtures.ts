@@ -128,6 +128,7 @@ export function previewFor(url: string): {
         kind: 'playlist',
         playlistTitle: 'City pop night drive',
         from: 'youtube',
+        unread: [],
         items: [
           previewItem(
             'https://music.youtube.com/watch?v=aaaaaaaaaa1',
@@ -156,6 +157,7 @@ export function previewFor(url: string): {
         kind: 'single',
         playlistTitle: null,
         from: 'youtube',
+        unread: [],
         items: [previewItem(url, 'Hello', 'Adele', true)],
       },
     }
@@ -166,6 +168,7 @@ export function previewFor(url: string): {
       kind: 'single',
       playlistTitle: null,
       from: 'youtube',
+      unread: [],
       items: [previewItem(url, 'アイドル', 'YOASOBI')],
     },
   }

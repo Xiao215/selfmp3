@@ -22,7 +22,6 @@ export * from './connection/reach.js'
 export * from './connection/serverIds.js'
 // Importing without a screen: review, choices, the queue's words.
 export * from './import/model.js'
-export * from './import/failure.js'
 
 export { configureClient, clientApi } from './runtime.js'
 

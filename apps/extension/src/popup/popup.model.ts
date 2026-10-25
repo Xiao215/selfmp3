@@ -1,12 +1,7 @@
-import {
-  enqueueRequest,
-  importFailure,
-  jobSubtitle,
-  type Review,
-  taken,
-} from '@selfmp3/client/core'
+import { enqueueRequest, jobSubtitle, type Review, taken } from '@selfmp3/client/core'
 import { isPendingRequest, type ImportRequestView } from '@selfmp3/replica'
 import {
+  importFailure,
   plural,
   formatDuration,
   fromSqliteTime,
@@ -399,6 +394,7 @@ export function songRequest(
       chosen: new Set([0]),
       playlistTitle: null,
       from: 'youtube',
+      unread: [],
     },
     { tagIds, playlistId: null, createPlaylist: false },
   )

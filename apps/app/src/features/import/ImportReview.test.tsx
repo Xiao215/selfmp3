@@ -30,7 +30,10 @@ jest.mock('expo-router', () => ({
 }))
 
 // The floating chrome's room reads the player; there is no player here.
-jest.mock('../../shell/bottomInset', () => ({ useFootInset: () => 0 }))
+jest.mock('../../shell/bottomInset', () => ({
+  useFootInset: () => 0,
+  useFloatingChrome: () => 0,
+}))
 
 const mockClose = jest.fn()
 // One set of handlers for every render, as the real hook's keep their identity.
@@ -76,6 +79,10 @@ jest.mock('./importSource', () => {
           importEnqueue: (request: unknown) => mockEnqueue(request),
           importAlreadyHave: () => mockAlreadyHave(),
           importNames: (request: unknown) => mockImportNames(request),
+        },
+        // Look-ups go to the same server, given longer to answer.
+        get lookUp() {
+          return (this as { api: unknown }).api
         },
         library: { songs: [], tags: mockTags, playlists: [] },
         createTag: (name: string) => mockCreateTag(name),
@@ -164,6 +171,7 @@ describe('Import review, on a phone', () => {
     mockTags.length = 1
     patchDraft('own', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',
@@ -215,6 +223,25 @@ describe('Import review, on a phone', () => {
     expect(screen.getByLabelText('Deselect 群青')).toBeTruthy()
     expect(screen.queryByLabelText(/アイドル$/)).toBeNull()
     expect(screen.getByLabelText('Deselect all')).toBeTruthy()
+  })
+
+  it('says over the songs which pasted links it could not read, and why', async () => {
+    const review = draftFor('own').review!
+    patchDraft('own', {
+      review: {
+        ...review,
+        unread: [
+          { url: 'https://youtu.be/zzzzzzzzzzz', why: 'This video isn’t on YouTube any more.' },
+        ],
+      },
+    })
+    await draw()
+    expect(screen.getByText('Couldn’t read 1 link')).toBeTruthy()
+    expect(
+      within(screen.getByTestId('import-unread')).getByText(/isn’t on YouTube any more/),
+    ).toBeTruthy()
+    // The songs of the links it read are still there to import.
+    expect(screen.getByText('Import 2 songs')).toBeTruthy()
   })
 
   it('asks the server again what is yours, since the kept review may be old', async () => {
@@ -319,6 +346,7 @@ describe('Import review, on a phone', () => {
     // review is keyed by the server, not by whichever address won this time.
     patchDraft('cloud', {
       review: reviewFrom({
+        unread: [],
         from: 'youtube',
         kind: 'playlist',
         playlistTitle: 'THE BOOK',

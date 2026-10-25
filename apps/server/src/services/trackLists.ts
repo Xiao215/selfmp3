@@ -241,6 +241,15 @@ export function guessOrder(
 }
 
 /**
+ * A song read the other way round: its title as the artist and its artist as
+ * the title. A list of a song or two cannot say which side of its dash is
+ * which (`guessOrder`), so what it is matched against can.
+ */
+export function swapped(track: ListedTrack): ListedTrack {
+  return { ...track, title: cleanTitle(track.artist), artist: cleanArtist(track.title) }
+}
+
+/**
  * "Hello by Adele" — but not "Stand By Me". Only a lower-case "by" counts,
  * and never one followed by a pronoun, which is how titles use the word.
  */

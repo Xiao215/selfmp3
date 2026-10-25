@@ -58,9 +58,9 @@ export function ImportSearch({
   /** The words in the field: what Import's box sent, or the search this page was left with. */
   const [words, setWords] = useState(() => params.q ?? search?.query ?? '')
   const query = words.trim() || null
-  const searching = useSongSearch(source.api, key, query, search?.query ?? null)
+  const searching = useSongSearch(source.lookUp, key, query, search?.query ?? null)
   // A 网易云 song it only previews, with no YouTube Music answer surely the same, is found as it shows.
-  const finder = useFindSongs(source.api, key, search?.review ?? null, 'search')
+  const finder = useFindSongs(source.lookUp, key, search?.review ?? null, 'search')
   /** "Show more" pressed for these words; new words start short again. */
   const [moreFor, setMoreFor] = useState<string | null>(null)
 

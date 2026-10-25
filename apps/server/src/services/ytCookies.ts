@@ -113,7 +113,7 @@ export function explainCookieError(message: string, settings: YtCookieSettings):
   /*
    * "Video unavailable" and "not available in your country" are not sign-in
    * problems: a removed or region-locked video says them signed in or not, and
-   * left alone they reach the queue's own words for them (failure.ts). A
+   * left alone they reach the queue's own words for them (importFailure.ts). A
    * private playlist, Liked Music included, is "does not exist" to a
    * signed-out yt-dlp. An age check asks to sign in too, but making the video
    * public would not help, so it keeps yt-dlp's words.

@@ -364,6 +364,9 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   and a segmented control's pill are springs, so a second tap turns them rather than
   restarting; a stage exit or a page's own close plays once, however many times it is asked
   (`shell/stageExit.ts`).
+- Liking a song pops its heart — in to 0.82, out past its size to 1.22, home, over
+  `MOVE_MS.likePop` — and one ring in the song's colour goes out from it (`likeRing`);
+  unliking just turns it back (`LikeButton`).
 - Play and pause turn through each other, out on `ease.in` and in on `ease.out`, with a light
   tap on a phone (`ports/haptics.ts`); a spinner that
   replaces the glyph crossfades in and stays at least `MOVE_MS.busyHold`.

@@ -102,6 +102,9 @@ export const MOVE_MS = {
   flightStagger: 40,
   /** The Up next button swelling once as they land. */
   landing: 90,
+  /** The heart popping as a song is liked (squash, overshoot, home), and its ring going out (O1). */
+  likePop: 450,
+  likeRing: 600,
 } as const
 
 /**

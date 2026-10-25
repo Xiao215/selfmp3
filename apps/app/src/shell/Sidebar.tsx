@@ -335,7 +335,10 @@ function RailPlaylist({
     enabled: !live,
     onDrop: songIds => {
       addToPlaylist.mutate({ playlistId: playlist.id, songIds })
-      showToast(`Added ${plural(songIds.length, 'song', 'songs')} to ${playlist.name}`, 'good')
+      showToast(
+        { over: `Added to ${playlist.name}`, say: plural(songIds.length, 'song', 'songs') },
+        'good',
+      )
     },
   })
 

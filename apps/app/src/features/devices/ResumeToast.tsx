@@ -1,28 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { Circle, Svg } from 'react-native-svg'
 import { artistOr, pickResumeState, type Device } from '@selfmp3/shared'
-import {
-  handoffTarget,
-  serverTime,
-  radius,
-  shortDeviceName,
-  type,
-  useLibrary,
-  space,
-  iconSize,
-} from '@selfmp3/client'
+import { handoffTarget, serverTime, shortDeviceName, useLibrary } from '@selfmp3/client'
 import { usePlayer } from '../../player/PlayerProvider'
 import { usePlaybackMemoryState } from '../../player/usePlaybackMemory'
-import { useLayout } from '../../shell/useLayout'
-import { useAccent } from '../../ui/accent'
-import { IconButton } from '../../ui/components/IconButton'
-import { X } from '../../ui/components/Icons'
-import { floating } from '../../ui/surfaces'
+import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
+import { Cover } from '../../ui/components/Cover'
+import { Play } from '../../ui/components/Icons'
+import { ART, ToastButton, ToastCard } from '../../ui/components/ToastHost'
 import { useDeviceContext } from './DevicesProvider'
-import { Press } from '../../ui/components/Press'
 
 /** How long the offer stays before it goes by itself. */
 const RESUME_TOAST_MS = 12_000
@@ -38,21 +27,21 @@ const RESUME_TOAST_MS = 12_000
  *
  * It does not outstay the question. Playing anything here answers it, so it
  * goes the moment playback starts; left alone it goes after twelve seconds,
- * with a thin ring around its ✕ running down so that is not a surprise.
+ * with the bar along its foot running down so that is not a surprise. It is
+ * drawn as a message is (`ToastCard`): the song's cover, where it was playing
+ * over its title, and a play button.
  */
 export function ResumeToast(): ReactNode {
   const { theme } = useUnistyles()
   const { deviceId, devices, heard } = useDeviceContext()
   const player = usePlayer()
   const library = useLibrary()
-  const accent = useAccent()
-  const { finePointer, width, wide } = useLayout()
+  const artFor = useArt(ROW_COVER_SIZE)
   const memory = usePlaybackMemoryState()
-  const [candidate, setCandidate] = useState<Device | null>(null)
-  const [hovered, setHovered] = useState(false)
+  const [offer, setOffer] = useState<{ device: Device; at: number } | null>(null)
   // Playing here is an answer. Adjusted during render, so it never draws a
   // frame beside the song that just started.
-  if (candidate && player.isPlaying) setCandidate(null)
+  if (offer && player.isPlaying) setOffer(null)
 
   // A launch-time decision: re-deciding as devices come and go would pop a
   // toast up an hour into a session.
@@ -89,128 +78,58 @@ export function ResumeToast(): ReactNode {
       if (!picked) return
       if (picked.state.songId === (now.current?.id ?? null)) return
       if (!songs.some(song => song.id === picked.state.songId)) return
-      setCandidate(picked)
+      setOffer({ device: picked, at: Date.now() })
     }, 0)
     return () => clearTimeout(timer)
   }, [devices, heard, library.data, deviceId, memory])
 
   useEffect(() => {
-    if (!candidate) return undefined
-    const timer = setTimeout(() => setCandidate(null), RESUME_TOAST_MS)
+    if (!offer) return undefined
+    const timer = setTimeout(() => setOffer(null), RESUME_TOAST_MS)
     return () => clearTimeout(timer)
-  }, [candidate])
+  }, [offer])
 
+  const decline = useCallback(() => setOffer(null), [])
+
+  const candidate = offer?.device
   const song = candidate
     ? library.data?.songs.find(item => item.id === candidate.state.songId)
     : undefined
-  if (!candidate || !song) return null
+  if (!offer || !candidate || !song) return null
 
+  const from = shortDeviceName(candidate.name)
   return (
-    // Never wider than the window's room for it: in an iPad's Slide Over, 320
-    // wide, it would run past both edges (docs/ui-mock `T08`).
-    <View style={[styles.toast, { maxWidth: Math.min(460, width - 32) }]} role="status">
-      <Press
-        feedback="wash"
-        onPress={() => {
-          const target = heard ? handoffTarget(candidate, heard, Date.now()) : null
-          setCandidate(null)
-          if (!target) return
-          player.playFrom([...target.queueIds], target.index, {
-            shuffle: candidate.state.shuffle,
-            position: target.position,
-            autoplay: false,
-          })
-        }}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-        accessibilityRole="button"
-        accessibilityLabel={`Continue ${song.title} by ${artistOr(song.artist)}, from ${shortDeviceName(candidate.name)}`}
-        style={[styles.main, !finePointer && styles.mainTouch, hovered && styles.mainHovered]}
+    <View style={styles.slot} pointerEvents="box-none">
+      <ToastCard
+        tone="info"
+        words={{ over: `Continue from ${from}`, say: song.title }}
+        art={<Cover uri={artFor(song)} title={song.title} size={ART} />}
+        timed={{ since: offer.at, ms: RESUME_TOAST_MS }}
+        onDismiss={decline}
+        closable={false}
       >
-        {/* The song's title gets the room: on a phone it would be cut to "第七夜 …"
-            behind the artist and the device. The device is said on a computer,
-            which has room for it, and read out everywhere. */}
-        <Text style={[styles.label, { color: accent.accent }]}>Continue</Text>
-        <Text style={styles.song} numberOfLines={1}>
-          {song.title}
-        </Text>
-        {wide ? (
-          <Text style={styles.from} numberOfLines={1}>
-            from {shortDeviceName(candidate.name)}
-          </Text>
-        ) : null}
-      </Press>
-      <View>
-        <IconButton onPress={() => setCandidate(null)} label="Dismiss" size={finePointer ? 32 : 40}>
-          <X size={iconSize.button} color={theme.colors.textMuted} />
-        </IconButton>
-        <CountdownRing size={finePointer ? 32 : 40} color={theme.colors.textMuted} />
-      </View>
+        <ToastButton
+          label={`Continue ${song.title} by ${artistOr(song.artist)}, from ${from}`}
+          tone="info"
+          filled
+          onPress={() => {
+            const target = heard ? handoffTarget(candidate, heard, Date.now()) : null
+            setOffer(null)
+            if (!target) return
+            player.playFrom([...target.queueIds], target.index, {
+              shuffle: candidate.state.shuffle,
+              position: target.position,
+              autoplay: false,
+            })
+          }}
+        >
+          <Play size={16} color={theme.colors.onPrimary} />
+        </ToastButton>
+      </ToastCard>
     </View>
   )
 }
 
-/**
- * The time the offer has left, as a ring around its ✕ that empties clockwise.
- * Mounted with the offer, so its clock starts when the toast appears.
- */
-function CountdownRing({ size, color }: { size: number; color: string }): ReactNode {
-  const [startedAt] = useState(() => Date.now())
-  const [now, setNow] = useState(startedAt)
-  useEffect(() => {
-    // A quarter of a second is smooth enough for a ring this thin.
-    const timer = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(timer)
-  }, [])
-  const left = Math.max(0, 1 - (now - startedAt) / RESUME_TOAST_MS)
-  const radius = size / 2 - 2
-  const circumference = 2 * Math.PI * radius
-  return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Svg width={size} height={size}>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeOpacity={0.55}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={circumference * (1 - left)}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        />
-      </Svg>
-    </View>
-  )
-}
-
-const styles = StyleSheet.create(theme => ({
-  toast: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.tight,
-    paddingVertical: 5,
-    paddingLeft: 5,
-    paddingRight: 7,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
-    ...floating(theme.colors),
-  },
-  main: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: space.sm,
-    minWidth: 0,
-    flexShrink: 1,
-    paddingVertical: 7,
-    paddingHorizontal: space.md,
-    borderRadius: radius.pill,
-  },
-  mainTouch: { paddingVertical: space.snug },
-  mainHovered: { backgroundColor: theme.colors.surface3 },
-  label: { fontSize: type.sub, fontWeight: '600' },
-  song: { color: theme.colors.textPrimary, fontSize: type.sub, flexShrink: 1 },
-  from: { color: theme.colors.textMuted, fontSize: type.tiny, flexShrink: 2, minWidth: 0 },
-}))
+const styles = StyleSheet.create({
+  slot: { width: '100%', alignItems: 'center' },
+})

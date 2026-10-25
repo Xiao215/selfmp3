@@ -356,7 +356,10 @@ function enter(pass: RoomPass, state: RoomState): void {
 async function sayIfMobileData(state: RoomState): Promise<void> {
   if (state.mode !== 'everyone' && !isHost(state)) return
   if ((await connectionKind()) === 'cellular') {
-    showToast('You’re on mobile data. A room streams every song, about 5 MB each.')
+    showToast({
+      say: 'You’re on mobile data',
+      under: 'A room streams every song, about 5 MB each.',
+    })
   }
 }
 

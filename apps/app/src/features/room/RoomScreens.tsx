@@ -12,18 +12,11 @@ import {
   RoomMemberNameSchema,
   type Song,
 } from '@selfmp3/shared'
-import {
-  failureText,
-  iconSize,
-  queryKeys,
-  space,
-  useCreatePlaylist,
-  yoursOf,
-} from '@selfmp3/client'
+import { iconSize, queryKeys, space, useCreatePlaylist, yoursOf } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { prefs } from '../../ports/prefs'
 import { label, pageFrame, pageTitle, lineSub } from '../../ui/surfaces'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
 import { TextField } from '../../ui/components/TextField'
@@ -289,7 +282,7 @@ export function PastRoomScreen(): ReactNode {
         ],
       })
     } catch (error) {
-      showToast(failureText('Couldn’t save it', error), 'error')
+      showFailure('Couldn’t save it', error)
     } finally {
       setSaving(false)
     }

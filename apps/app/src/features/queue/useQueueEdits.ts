@@ -62,24 +62,38 @@ export function useQueueEdits(
     if (!removal) return
     const song = now.songs.find(entry => entry.id === removal.id)
     now.removeFromQueue(index)
-    showUndoToast(song ? `Removed ${song.title}` : 'Removed from Up next', () => {
-      const live = latest.current
-      const moves = restoreMoves(live.queue, removal)
-      if (!moves) return
-      // Both go through the player's own queue edits, which read and write
-      // its queue synchronously, so the move sees the song just put back.
-      live.playNext([removal.id])
-      if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
-    })
+    // Swiped out one after another, they fold into one message whose Undo
+    // puts all of them back, newest first.
+    showUndoToast(
+      { over: 'Removed from Up next', say: song?.title ?? 'A song' },
+      () => {
+        const live = latest.current
+        const moves = restoreMoves(live.queue, removal)
+        if (!moves) return
+        // Both go through the player's own queue edits, which read and write
+        // its queue synchronously, so the move sees the song just put back.
+        live.playNext([removal.id])
+        if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
+      },
+      { songs: song ? [song] : [], group: 'up-next-removed' },
+    )
   }, [])
 
   const clearRest = useCallback(() => {
-    const before = latest.current.clearRest()
+    const now = latest.current
+    const before = now.clearRest()
     const cleared = before.items.length - 1
     if (cleared <= 0) return
+    // The covers of the songs that were next, the first of them in front.
+    const next = before.items
+      .slice(before.index + 1, before.index + 4)
+      .reverse()
+      .flatMap(id => now.songs.find(song => song.id === id) ?? [])
     // Put back through the player as it is at the press, as a single removal is.
-    showUndoToast(`Cleared ${plural(cleared, 'song', 'songs')}`, () =>
-      latest.current.restoreRest(before),
+    showUndoToast(
+      { over: 'Cleared from Up next', say: plural(cleared, 'song', 'songs') },
+      () => latest.current.restoreRest(before),
+      { songs: next },
     )
   }, [])
 

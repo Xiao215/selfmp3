@@ -109,6 +109,12 @@ interface DownloadsContextValue {
   /** Remove these, and keep them removed. */
   removeByHand: (songIds: readonly number[]) => Promise<void>
   /**
+   * Draw these as not on this device, or as on it again, while their removal
+   * waits on its Undo (`useDownloadRemoval`). Only what `state` shows: the
+   * files stay, and nothing else here counts them gone, until it is sent.
+   */
+  holdLeaving: (songIds: readonly number[], leaving: boolean) => void
+  /**
    * These songs are leaving the library: their copies here go with them.
    *
    * Not `removeByHand`, which keeps the song and remembers the removal so the
@@ -570,9 +576,38 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     [question, downloadByHand],
   )
 
+  const [leaving, setLeaving] = useState<ReadonlySet<number>>(() => new Set())
+  const holdLeaving = useCallback((ids: readonly number[], on: boolean) => {
+    setLeaving(current => {
+      const next = new Set(current)
+      for (const id of ids) {
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }, [])
+  // Only the screens' copy leaves them out. The automatic pass reads the
+  // queue's own, so a song waiting to be removed is not fetched again meanwhile.
+  const shown = useMemo(
+    () =>
+      leaving.size === 0
+        ? state
+        : {
+            ...state,
+            index: {
+              ...state.index,
+              entries: Object.fromEntries(
+                Object.entries(state.index.entries).filter(([id]) => !leaving.has(Number(id))),
+              ),
+            },
+          },
+    [state, leaving],
+  )
+
   const value = useMemo<DownloadsContextValue>(
     () => ({
-      state,
+      state: shown,
       queue: downloadQueue,
       installed: installedApp,
       network,
@@ -585,6 +620,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       requestDownload,
       downloadByHand,
       removeByHand,
+      holdLeaving,
       dropDownloads,
       removeFiles,
       removeAll,
@@ -599,7 +635,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       answer,
     }),
     [
-      state,
+      shown,
+      holdLeaving,
       network,
       prefs,
       setPrefs,

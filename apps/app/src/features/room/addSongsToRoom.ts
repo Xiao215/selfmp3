@@ -1,3 +1,4 @@
+import { plural } from '@selfmp3/shared'
 import { library as cloudLibrary } from '../../replica'
 import { showToast } from '../../ui/toast'
 import { sayRoomFailure } from './roomFailure'
@@ -19,7 +20,14 @@ export async function addSongsToRoom(songIds: readonly number[], title: string):
   }
   try {
     for (const song of songs) await roomAct({ type: 'add', song })
-    showToast(`Added to ${title}`, 'good')
+    showToast(
+      {
+        over: `Added to ${title}`,
+        say:
+          songs.length === 1 && songs[0] ? songs[0].title : plural(songs.length, 'song', 'songs'),
+      },
+      'good',
+    )
   } catch (error) {
     sayRoomFailure(error)
   }

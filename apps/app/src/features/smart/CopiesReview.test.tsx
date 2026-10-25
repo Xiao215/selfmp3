@@ -52,7 +52,7 @@ const RESULT: CopiesResult = {
   note: null,
 }
 
-const DELETED = 'Deleted the extra copy; its plays and tags are on the one kept'
+const DELETED = 'Deleted the extra copy'
 
 /** The library as this device holds it now, by song id. */
 const held = (client: Awaited<ReturnType<typeof drawReview>>): number[] =>
@@ -93,7 +93,7 @@ describe('Deleting an extra copy', () => {
 
     expect(onClose).toHaveBeenCalled()
     expect(held(client)).toEqual([1])
-    expect(currentToasts().at(-1)?.text).toBe(DELETED)
+    expect(currentToasts().at(-1)?.say).toBe(DELETED)
     expect(
       currentToasts()
         .at(-1)
@@ -111,7 +111,7 @@ describe('Deleting an extra copy', () => {
     expect(net.songs.map(song => song.id)).toEqual([1])
     expect(mockForgetSongs).toHaveBeenCalledWith([2])
     expect(mockDropDownloads).toHaveBeenCalledWith([2])
-    expect(currentToasts().map(toast => toast.text)).not.toContain(DELETED)
+    expect(currentToasts().map(toast => toast.say)).not.toContain(DELETED)
   })
 
   it('is cancelled by Undo before anything was written, and the copy comes back', async () => {
@@ -139,6 +139,6 @@ describe('Deleting an extra copy', () => {
     })
 
     expect(net.sent).toEqual([{ at: 'POST /api/songs/merge', body: { keep: 1, songIds: [2] } }])
-    expect(currentToasts().map(toast => toast.text)).not.toContain(DELETED)
+    expect(currentToasts().map(toast => toast.say)).not.toContain(DELETED)
   })
 })

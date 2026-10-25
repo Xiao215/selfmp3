@@ -166,7 +166,7 @@ it('copies the server’s token, showing only its address and the token’s end'
 
   await fireEvent.press(copy)
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(TOKEN))
-  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Token copied']))
+  await waitFor(() => expect(currentToasts().map(toast => toast.say)).toEqual(['Token copied']))
   await unmount()
   client.clear()
 })
@@ -179,7 +179,7 @@ it('copies the address it shows, beside the token', async () => {
   const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
   await fireEvent.press(await screen.findByRole('button', { name: 'Copy address' }))
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(ADDRESS))
-  await waitFor(() => expect(currentToasts().map(toast => toast.text)).toEqual(['Address copied']))
+  await waitFor(() => expect(currentToasts().map(toast => toast.say)).toEqual(['Address copied']))
   expect(Clipboard.setStringAsync).not.toHaveBeenCalledWith(TOKEN)
   await unmount()
   client.clear()

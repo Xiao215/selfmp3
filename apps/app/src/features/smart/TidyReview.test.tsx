@@ -93,7 +93,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     await fireEvent.press(apply)
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Fixed 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Fixed 1 song')
   expect(net.sent).toEqual([
     {
       at: 'POST /api/songs/bulk/edit',
@@ -107,7 +107,7 @@ it('takes the filled-in cover off again on Undo, with the album and year', async
     pressToast('Undo')
     await settle()
   })
-  expect(currentToasts().at(-1)?.text).toBe('Put back 1 song')
+  expect(currentToasts().at(-1)?.say).toBe('Put back 1 song')
 
   // Exactly as before the fill: no album, no year, no cover.
   expect(net.sent.slice(2)).toEqual([

@@ -629,7 +629,10 @@ function LyricResults({
               if (!adds) player.playFrom([hit.songId], 0, { source: FROM_SEARCH })
               else if (song) {
                 adds.add(song)
-                showToast(`Added “${hit.title}”`, 'good')
+                showToast({ over: 'Added', say: hit.title }, 'good', {
+                  songs: [song],
+                  group: 'search-added',
+                })
               }
             }}
             accessibilityRole="button"

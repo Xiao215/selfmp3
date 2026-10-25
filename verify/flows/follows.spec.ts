@@ -91,7 +91,7 @@ test.describe('a playlist that fills from tags', () => {
     await page.locator('[data-testid="up-next-save"]:visible').click()
 
     // The message says what happened, and the button says it is done.
-    await expect(page.getByText(/^Saved “/)).toBeVisible()
+    await expect(page.getByText('Saved as a playlist')).toBeVisible()
     await expect(page.locator('[data-testid="up-next-saved"]:visible')).toBeVisible()
 
     const made = await page.request.get(`${appApi}/api/playlists`)

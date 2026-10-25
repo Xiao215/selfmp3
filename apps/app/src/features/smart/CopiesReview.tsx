@@ -188,8 +188,14 @@ function FoldCopies({
     const back = (): void => void client.invalidateQueries({ queryKey: queryKeys.library })
     showPendingToast(
       one
-        ? 'Deleted the extra copy; its plays and tags are on the one kept'
-        : `Deleted ${count} extra copies; their plays and tags are on the ones kept`,
+        ? {
+            say: 'Deleted the extra copy',
+            under: 'Its plays and tags are on the one kept.',
+          }
+        : {
+            say: `Deleted ${count} extra copies`,
+            under: 'Their plays and tags are on the ones kept.',
+          },
       async () => {
         void dropDownloads(ids)
         player.forgetSongs(ids)
@@ -209,6 +215,7 @@ function FoldCopies({
         tone: 'good',
         failed: one ? 'Couldn’t delete it' : 'Couldn’t delete them',
         undone: back,
+        songs: copies.map(each => each.keep).slice(-3),
       },
     )
   }

@@ -249,6 +249,12 @@ export function darkPalette(hue: number = DEFAULT_ACCENT_HUE) {
      * page's own words, still legible, once it is not.
      */
     glassSolid: '#1f222c',
+    /**
+     * A message floating over the page (`ToastHost`): a step lighter than
+     * anything it can sit on, the Up next sheet included, which `surface2`
+     * was not — it read as part of the list under it.
+     */
+    toast: '#262b3a',
     /** The shadow under a card. Dark cards are told apart by tone, and cast none. */
     cardShadow: '#00000000',
     /** The shadow under anything that floats: the bar, the mini player, a sheet. */
@@ -307,6 +313,7 @@ export function lightPalette(hue: number = DEFAULT_ACCENT_HUE): ThemePalette {
     onPrimary: '#f6f2ea',
     glass: '#ffffffe6',
     glassSolid: '#ffffff',
+    toast: '#ffffff',
     cardShadow: '#1b1a170f',
     floatShadow: '#1b1a1724',
     coverShade: '#0a08108c',

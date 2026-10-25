@@ -5,7 +5,6 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { plural, type Song } from '@selfmp3/shared'
 import {
-  failureText,
   isDownloaded,
   isRoomTrackId,
   space,
@@ -31,7 +30,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { deviceKind } from '../../ports/device'
 import type { PopoverAnchor } from '../rightClick'
 import { songActions, type SongAction, type SongActionId } from '../songActions.model'
-import { showToast } from '../toast'
+import { showFailure, showToast } from '../toast'
 import {
   CloudDownload,
   CloudRemove,
@@ -163,7 +162,7 @@ export function SongActionItems({
       onNewPlaylist?.()
       router.push({ pathname: '/playlists/[id]', params: { id: String(created.id), rename: '1' } })
     } catch (caught) {
-      showToast(failureText('Couldn’t make the playlist', caught), 'error')
+      showFailure('Couldn’t make the playlist', caught)
     }
   }
 

@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { linkIdentity, plural, type ImportJob, type RoomSong } from '@selfmp3/shared'
-import { failureText, queryKeys } from '@selfmp3/client'
+import { queryKeys } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { noServer, viaKey } from '../../connection/via'
 import { library as cloudLibrary } from '../../replica'
 import { useSongsLanding } from '../import/useSongsLanding'
 import { useServerDirect } from '../../connection/useServerDirect'
-import { showToast } from '../../ui/toast'
+import { showFailure, showToast } from '../../ui/toast'
 
 /**
  * Get it (docs/features/listen-together.md, G1): a friend's song brought
@@ -77,7 +77,7 @@ export function useGetSongs(
       await api.retryImport(job.id)
       void queryClient.invalidateQueries({ queryKey: viaKey(connection?.baseUrl, 'queue') })
     } catch (error) {
-      showToast(failureText('Couldn’t try it again', error), 'error')
+      showFailure('Couldn’t try it again', error)
     }
   }
 
@@ -118,7 +118,7 @@ export function useGetSongs(
       return true
     } catch (error) {
       setGetting(before => new Set([...before].filter(key => !keys.includes(key))))
-      showToast(failureText('Couldn’t get that', error), 'error')
+      showFailure('Couldn’t get that', error)
       return false
     }
   }

@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import sharp from 'sharp'
@@ -230,5 +232,45 @@ describe('CoverService.thumbnail', () => {
 
     expect(await covers.sweepThumbnails()).toBe(2)
     expect(fs.readdirSync(thumbs)).toEqual([path.basename(current?.path ?? '')])
+  })
+})
+
+describe('CoverService.saveFromUrl', () => {
+  let dataDir = ''
+  let server: http.Server | null = null
+
+  afterEach(() => {
+    server?.close()
+    if (dataDir) fs.rmSync(dataDir, { recursive: true, force: true })
+  })
+
+  it('fetches art from the open web only', async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+    const art = await sharp({
+      create: { width: 64, height: 64, channels: 3, background: '#2040c0' },
+    })
+      .png()
+      .toBuffer()
+    server = http.createServer((_request, response) => {
+      response
+        .writeHead(200, { 'content-type': 'image/png' })
+        .end(Buffer.concat([art, Buffer.alloc(1024)]))
+    })
+    await new Promise<void>(resolve => server?.listen(0, '127.0.0.1', resolve))
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/art.png`
+    const songs = { setArt: vi.fn(), artExt: () => null } as unknown as SongRepository
+
+    // A link to this machine — its API, its admin page — is never fetched.
+    const guarded = new CoverService({ dataDir } as Config, songs, createLogger('silent'))
+    expect(await guarded.saveFromUrl(1, url)).toBe(false)
+    expect(await guarded.saveFromUrl(1, 'file:///etc/passwd')).toBe(false)
+
+    const widened = new CoverService(
+      { dataDir } as Config,
+      songs,
+      createLogger('silent'),
+      address => address === '127.0.0.1',
+    )
+    expect(await widened.saveFromUrl(1, url)).toBe(true)
   })
 })

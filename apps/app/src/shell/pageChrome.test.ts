@@ -21,6 +21,7 @@ describe('pageOwnsScreen', () => {
       '/settings',
       '/links',
       '/search',
+      '/ask',
       '/import',
       '/import/review',
       '/stats',

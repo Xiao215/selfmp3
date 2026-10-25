@@ -36,10 +36,7 @@ import {
   Tag,
 } from '../../ui/components/Icons'
 import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../ui/surfaces'
-import { AskAnswer } from '../smart/AskAnswer'
-import type { AnswerKeys } from '../smart/answerKeys'
 import { ASK_SUB, askable } from '../smart/smart.model'
-import { StopButton } from '../smart/StopButton'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { playAlone } from '../lists/lists.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
@@ -69,8 +66,6 @@ interface Row {
   readonly label: string
   readonly run: () => void
   readonly node: ReactNode
-  /** The palette stays open: the Ask row answers in place. */
-  readonly keepsOpen?: boolean
 }
 
 interface RowGroup {
@@ -108,27 +103,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const switches = useSmartSwitches()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
-  /** What was asked (S1), answered in place of the results until the words change. */
-  const [asking, setAsking] = useState<string | null>(null)
-  /** The keys the answer takes, when it takes any: Tidy up's ticks. */
-  const [answerKeys, setAnswerKeys] = useState<AnswerKeys | null>(null)
-  /**
-   * An answer is on its way: Stop sits where the count does. The box still
-   * takes letters; new words drop the question and bring the results back.
-   */
-  const [stopping, setStopping] = useState<(() => void) | null>(null)
-  // A function kept as state is set through an updater, or React would call it.
-  const setStop = useCallback((next: (() => void) | null) => setStopping(() => next), [])
-  const working = asking !== null && stopping !== null
   const input = useRef<TextInput>(null)
-  /**
-   * Stop (or Escape) while it thinks: a question goes back to the results,
-   * its words there to change; a follow-up, to the answer it followed.
-   */
-  const stop = (): void => {
-    stopping?.()
-    input.current?.focus()
-  }
 
   const openTag = useOpenTag()
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
@@ -229,8 +204,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         {
           key: 'ask',
           label: `Ask: ${words}`,
-          run: () => setAsking(words),
-          keepsOpen: true,
+          // Ask is a page of its own (A1, 2026-10-24): the palette closes, as for any page.
+          run: () => router.push({ pathname: '/ask', params: { q: words } }),
           node: (
             <>
               <View style={styles.figure}>
@@ -407,7 +382,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const activate = (index: number): void => {
     const row = rows[index]
     row?.run()
-    if (!row?.keepsOpen) onClose()
+    onClose()
   }
 
   const drawRow = (row: Row, index: number): ReactNode => {
@@ -454,39 +429,15 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   // never describe a query the list has not caught up with.
   const trimmed = shownQuery.trim()
 
-  const passToAnswer = (event: {
-    key: string
-    metaKey: boolean
-    ctrlKey: boolean
-    nativeEvent: { isComposing?: boolean }
-    preventDefault: () => void
-    stopPropagation: () => void
-  }): void => {
-    if (isComposing(event.nativeEvent)) return
-    if (!answerKeys?.press(event.key, event.metaKey || event.ctrlKey)) return
-    event.preventDefault()
-    event.stopPropagation()
-  }
-
   return (
     <Dialog
       onDismiss={onClose}
-      // Escape stops what is being worked on; from an answer it goes back to the
-      // results; from the results, closes.
-      onEscape={() => (asking === null ? onClose() : working ? stop() : setAsking(null))}
+      onEscape={onClose}
       label="Command palette"
       frameStyle={[styles.frame, { paddingTop: window.height * (finePointer ? 0.14 : 0.06) }]}
-      // An answer that takes keys has them first, Enter included, wherever
-      // the focus is in the box: a click on one of its rows moves it there.
-      // Caught on the way down, so neither the box nor a row acts on it too.
-      onKeyDownCapture={answerKeys && asking !== null ? passToAnswer : undefined}
       style={[
         styles.panel,
-        // An answer gets more room than a list of results: Tidy up is a
-        // review of tens of changes, and every one is a line of names.
-        asking === null
-          ? { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 }
-          : { width: Math.min(760, width * 0.92), maxHeight: window.height * ANSWER_HEIGHT },
+        { width: Math.min(620, width * 0.92), maxHeight: window.height * 0.66 },
       ]}
     >
       <View style={styles.inputRow}>
@@ -498,7 +449,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           onChangeText={text => {
             setQuery(text)
             setHighlighted(0)
-            setAsking(null)
           }}
           onKeyPress={event => {
             const key = event.nativeEvent.key
@@ -510,7 +460,6 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             setHighlighted(stepIndex(active, key === 'ArrowDown' ? 1 : -1, rows.length))
           }}
           onSubmitEditing={() => {
-            if (working) return
             // Enter straight after a letter can beat the deferred results to
             // the screen. It means what was typed, so it takes the first row
             // of that — the highlight is back at the top after any letter.
@@ -518,14 +467,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
             else {
               const first = groupsFor(search.foundNow(), query).flatMap(group => group.rows)[0]
               first?.run()
-              if (!first?.keepsOpen) onClose()
+              onClose()
             }
           }}
-          // Enter on the Ask row keeps the box open, and the answer's keys
-          // come through the box: it must not let go of the focus on Enter.
-          // React Native Web reads only the older blurOnSubmit.
-          submitBehavior="submit"
-          blurOnSubmit={false}
           placeholder="Search songs, playlists, tags — or type a command"
           autoCapitalize="none"
           autoCorrect={false}
@@ -534,9 +478,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
           aria-expanded
           accessibilityLabel="Search songs, playlists and tags, or type a command"
           trailing={
-            working ? (
-              <StopButton onPress={stop} testID="ask-stop" />
-            ) : trimmed && asking === null ? (
+            trimmed ? (
               <Text style={styles.count} accessibilityLiveRegion="polite">
                 {plural(rows.length, 'result', 'results')}
               </Text>
@@ -551,23 +493,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
         {...({ role: 'listbox' } as object)}
         contentContainerStyle={styles.results}
       >
-        {asking !== null ? (
-          <AskAnswer
-            text={asking}
-            onDone={onClose}
-            listHeight={Math.max(240, window.height * ANSWER_HEIGHT - ANSWER_AROUND_LIST)}
-            onKeys={setAnswerKeys}
-            onWorking={setStop}
-            onDrop={() => setAsking(null)}
-            onAsk={words => {
-              setQuery(words)
-              setAsking(words)
-            }}
-          />
-        ) : (
-          drawnGroups
-        )}
-        {asking === null && trimmed && rows.length === 0 ? (
+        {drawnGroups}
+        {trimmed && rows.length === 0 ? (
           <EmptyState
             compact
             title={`Nothing matches “${trimmed}”`}
@@ -581,42 +508,20 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
 
       {finePointer ? (
         <View style={styles.foot}>
-          {asking !== null && answerKeys
-            ? answerKeys.hints.map(([caps, word]) => (
-                <Text key={word} style={styles.footText}>
-                  {caps.map((cap, index) => (
-                    <Text key={cap}>
-                      {index > 0 ? ' ' : ''}
-                      <Kbd>{cap}</Kbd>
-                    </Text>
-                  ))}{' '}
-                  {word}
-                </Text>
-              ))
-            : null}
-          {asking === null || !answerKeys ? (
-            <Text style={styles.footText}>
-              <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
-            </Text>
-          ) : null}
-          {asking === null ? (
-            <Text style={styles.footText}>
-              <Kbd>↵</Kbd> open
-            </Text>
-          ) : null}
           <Text style={styles.footText}>
-            <Kbd>esc</Kbd> {asking === null ? 'close' : working ? 'stop' : 'back to results'}
+            <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
+          </Text>
+          <Text style={styles.footText}>
+            <Kbd>↵</Kbd> open
+          </Text>
+          <Text style={styles.footText}>
+            <Kbd>esc</Kbd> close
           </Text>
         </View>
       ) : null}
     </Dialog>
   )
 }
-
-/** How much of the window an answer may take, against 0.66 for results; the box stays where it was. */
-const ANSWER_HEIGHT = 0.8
-/** The box, the answer's head and its buttons, and the footer: what is around its list. */
-const ANSWER_AROUND_LIST = 250
 
 const styles = StyleSheet.create(theme => ({
   // Near the top rather than the middle, where the eye already is.

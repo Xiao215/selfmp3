@@ -57,7 +57,7 @@ export interface AskDeps extends DescribeDeps {
   readonly notes?: () => readonly string[]
   /** 网易云's search, for looking things up (`explore.ts`). */
   readonly catalogue?: CatalogueSearch
-  /** Settings' web switch: whether looking things up may search the web. */
+  /** Whether looking things up may search the web: always, as the server runs it. */
   readonly web?: () => boolean
   /** 网易云's albums and songs, for music to import (`getMusic.ts`). */
   readonly music?: MusicCatalogue
@@ -249,8 +249,9 @@ const find = action({
       .join(', ')
     steps.begin(`Looking for ${quoted} in titles and lyrics`)
     const found = songsMatching(terms, deps.songs(), deps.lyrics)
-    steps.done(found.length === 0 ? 'Nothing matched' : `${found.length} could be it`)
-    if (found.length === 0) return { kind: 'find', terms, picks: [] }
+    steps.done(found.length === 0 ? 'None of yours matched' : `${found.length} could be it`)
+    // Not one of theirs: what they named is looked up instead, so they hear what it is.
+    if (found.length === 0) return explore(deps, text, steps)
     steps.begin('Choosing the one you mean')
     const table = found.map(each => each.song)
     const lines = songTable(table, deps.tags(), now)
@@ -271,7 +272,8 @@ const find = action({
         ).value,
     )
     steps.done()
-    return { kind: 'find', terms, picks: groundPicks(answer.picks, table, FIND_SIZE) }
+    const picks = groundPicks(answer.picks, table, FIND_SIZE)
+    return picks.length > 0 ? { kind: 'find', terms, picks } : explore(deps, text, steps)
   },
 })
 
@@ -433,7 +435,7 @@ const playlistEdit = action({
 
 const lookInto = action({
   name: 'explore',
-  when: 'a question or request that needs looking through their songs, the music catalogues or the web, and that no action above can do with its filters: which albums they have only part of, what a song or album is called in another language, what game or show a song is from, whether they have something, comparing artists or albums. Nothing else to fill: the request itself is used. Prefer this to "none" whenever looking things up could answer it.',
+  when: 'a question or request that needs looking through their songs, the music catalogues or the web, and that no action above can do with its filters: which albums they have only part of, what a song or album is called in another language, what game or show a song is from, whether they have something, comparing artists or albums; and any question about music itself, a song, an artist or an album, whether or not it is in their library, a name on its own included. Nothing else to fill: the request itself is used. Prefer this to "none" whenever looking things up could answer it.',
   fields: null,
   filters: 'unused',
   run: async ({ deps, text, steps }) => explore(deps, text, steps),
@@ -441,7 +443,7 @@ const lookInto = action({
 
 const getMusicAction = action({
   name: 'getMusic',
-  when: 'they want music they don\'t have yet: an album, the rest of an album, a soundtrack, a song ("get the rest of the Liyue OST", "download 春泥棒", "把千岩旷望下载了"). Fill "getMusic": words are what to search a music catalogue for, the album\'s or song\'s name with its artist as they would be listed (the official name when you know it); kind is album for an album, a soundtrack or "the rest of" one, else song.',
+  when: 'they ask to get music they don\'t have yet: an album, the rest of an album, a soundtrack, a song ("get the rest of the Liyue OST", "download 春泥棒", "把千岩旷望下载了"). Only when they ask for it to be got; a name on its own asks about it, which is "explore". Fill "getMusic": words are what to search a music catalogue for, the album\'s or song\'s name with its artist as they would be listed (the official name when you know it); kind is album for an album, a soundtrack or "the rest of" one, else song.',
   fields: z.object({ words: z.string().min(1).max(120), kind: z.enum(['album', 'song']) }),
   filters: 'unused',
   run: async ({ deps, steps }, wanted) => {

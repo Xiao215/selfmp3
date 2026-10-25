@@ -9,14 +9,15 @@ import { NO_STEPS, type Steps } from './progress.js'
  * Ask's open questions (docs/features/ai.md, "Looking things up"): what the
  * fixed actions cannot say with filters — "which albums do I have only part
  * of", "what is Wordless Cliffs called in Chinese", "do I have anything from
- * Inazuma". The model is given the library's shape and tools to look: its
+ * Inazuma" — and questions about music itself, a song or artist they may not
+ * have, answered from what the model knows too. The model is given the library's shape and tools to look: its
  * songs (`search_songs`), counts of them (`library_counts`), and 网易云
- * (`search_catalogue`); with Settings' web switch on, the web as well. It
+ * (`search_catalogue`); and the web, which the endpoint searches itself. It
  * answers in a few sentences and the songs it is about, and every song it
  * names is checked to be one of yours.
  */
 
-const VERSION = 1
+const VERSION = 3
 /** Rounds of looking before it must answer. */
 const ROUNDS = 8
 const MAX_SONGS = 50
@@ -24,13 +25,17 @@ const MAX_SONGS = 50
 const Out = z.object({
   say: z.string().max(1200),
   songs: z.array(z.number().int()).max(MAX_SONGS),
+  get: z.string().max(120).nullable(),
 })
 
-const SYSTEM = `You answer questions about someone's own music library, in their language. You have tools: search_songs and library_counts look through their library; search_catalogue looks up 网易云, a music catalogue with publishers' own names (Chinese, Japanese and English), albums and track lengths. Use them: never say what is or isn't in the library without looking, and look again with other words when a search finds nothing (another spelling, another language, part of the name).
+const SYSTEM = `You answer someone's questions about music, in their language: about their own library, and about music itself — a song, an artist, an album, who sang it. You have tools: search_songs and library_counts look through their library; search_catalogue looks up 网易云, a music catalogue with publishers' own names (Chinese, Japanese and English), albums and track lengths. Use them: never say what is or isn't in the library without looking, and look again with other words when a search finds nothing (another spelling, another language, part of the name).
+
+About music itself, answer from what you know as well as from what you look up, and tell them what you know even when it isn't in their library or the catalogue. Say so when an answer is from memory and could be out of date. When the question is about a song or an artist, say whether they have it.
 
 Reply with JSON only:
 - say: the answer, plain and short, at most five sentences. Name songs, albums and artists as they are written. When you could not find out, say so.
-- songs: the ids (from search_songs) of their songs the answer is about, best first, at most ${MAX_SONGS}; empty when none.`
+- songs: the ids (from search_songs) of their songs the answer is about, best first, at most ${MAX_SONGS}; empty when none.
+- get: when the answer is about one song or album they don't have, its name and artist as a music catalogue would list them, to search for it; otherwise null.`
 
 const WEB = `
 
@@ -43,7 +48,7 @@ interface ExploreDeps {
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** 网易云's search, as `NeteaseMusic.search` gives it. */
   readonly catalogue?: CatalogueSearch
-  /** Settings' web switch. */
+  /** Whether the model may search the web: always, as the server runs it (`smartFeaturesFor`). */
   readonly web?: () => boolean
   readonly remembered?: Remembered
 }
@@ -201,5 +206,5 @@ export async function explore(
   // Only their songs, once each.
   const ids = new Set(songs.map(song => song.id))
   const songIds = [...new Set(answer.songs)].filter(id => ids.has(id))
-  return { kind: 'explore', say: answer.say.trim(), songIds }
+  return { kind: 'explore', say: answer.say.trim(), songIds, get: answer.get?.trim() || null }
 }

@@ -304,7 +304,7 @@ describe('tidy, with names looked up', () => {
     expect(llm.asked[0]!.system).toContain('Never write a name that is not in what was found')
   })
 
-  it('looks on the web for songs no catalogue has, when Settings allows, and leaves those unticked', async () => {
+  it('looks on the web for songs no catalogue has, and leaves those unticked', async () => {
     const llm = scriptedLlm({
       'tidy-web': [
         { edits: [{ n: 1, field: 'title', to: '无处可寻', why: 'Game wiki' }], say: '' },

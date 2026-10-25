@@ -24,14 +24,7 @@ import { hint, textColumn } from '../../ui/surfaces'
  * each one sees less than that.
  */
 const SWITCHES: readonly {
-  key:
-    | 'smartAsk'
-    | 'smartTidy'
-    | 'smartTags'
-    | 'smartWritten'
-    | 'smartMetadata'
-    | 'smartImport'
-    | 'smartWeb'
+  key: 'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartImport'
   label: string
   sees: string
 }[] = [
@@ -65,11 +58,6 @@ const SWITCHES: readonly {
     label: 'Names at import',
     sees: 'Sends the names of the songs you’re importing.',
   },
-  {
-    key: 'smartWeb',
-    label: 'Search the web',
-    sees: 'Off by default. Sends names to a search engine.',
-  },
 ]
 
 /**
@@ -78,7 +66,7 @@ const SWITCHES: readonly {
  * Advanced (`SmartModelPanel`, O1).
  *
  * The switches are the library's settings, which the server acts on — it
- * refuses a feature that is off, and searches the web or reads the notes per
+ * refuses a feature that is off, and reads the notes with each
  * request — so they are read from and written to the server itself. The
  * switches wait for its answer.
  */

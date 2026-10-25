@@ -197,7 +197,7 @@ interface TidyDeps {
   readonly remembered?: Remembered
   /** The catalogues, for a request that wants names from outside the library. */
   readonly findNames?: FindNames
-  /** Settings' web switch: songs no catalogue has may be looked for on the web. */
+  /** Whether songs no catalogue has may be looked for on the web: always, as the server runs it. */
   readonly web?: () => boolean
 }
 
@@ -441,7 +441,7 @@ Each song may be followed by "found": what music catalogues (网易云, MusicBra
 - Leave off a game's or series' prefix ("原神-千岩旷望 Millelith's Watch" is 千岩旷望 for an album) unless they ask for it.
 - A song with nothing found, or nothing found that fits, is left out. Never write a name that is not in what was found.`
 
-/** Added for songs no catalogue has, when Settings lets the model search the web. */
+/** Added for songs no catalogue has, when the model may search the web. */
 const WEB_RULES = `
 
 None of these songs is in the music catalogues. Search the web for each one's name the way they ask: the artist's or publisher's own pages, stores, wikis. Give a name only when a page you read gives it for this same song, and leave the rest out.`
@@ -699,7 +699,7 @@ async function askedTidy(
     )
   }
 
-  // 3 · The web, for songs no catalogue has, when Settings allows: the model's finds, unticked.
+  // 3 · The web, for songs no catalogue has: the model's finds, unticked.
   const unfound =
     lookingUp && deps.web?.() ? songs.filter(song => !found.has(song.id)).slice(0, MAX_WEB) : []
   if (unfound.length > 0) {

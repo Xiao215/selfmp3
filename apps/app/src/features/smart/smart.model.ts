@@ -277,6 +277,105 @@ export function rangeWords(range: AskStatsRange): string {
   }
 }
 
+/** The most songs a recap names; past that it says how many more. */
+const RECAP_SONGS = 10
+/** As long as a recap may be: what the server takes for one turn's answer. */
+const RECAP_MAX = 2000
+
+/**
+ * What an answer showed, in words, for the follow-ups after it (F1): the
+ * model hears what it said before, so it answers what is asked now rather
+ * than everything again. Words answers are their words; lists and reviews
+ * are a line saying what they offered. `titleOf` names a song by the
+ * server's id, as this device has it.
+ */
+export function answerRecap(
+  answer: AskAnswer,
+  titleOf: (serverId: number) => string | undefined,
+): string {
+  const songs = (ids: readonly number[]): string => {
+    const named = ids.flatMap(id => titleOf(id) ?? [])
+    const shown = named.slice(0, RECAP_SONGS).join('; ')
+    return named.length > RECAP_SONGS ? `${shown}; and ${named.length - RECAP_SONGS} more` : shown
+  }
+  const picked = (result: DescribeResult): string =>
+    `${plural(result.picks.length, 'song', 'songs')} (“${result.understanding.name}”): ${songs(result.picks.map(pick => pick.songId))}`
+  const recap = ((): string => {
+    switch (answer.kind) {
+      case 'songs':
+        return `Offered ${picked(answer.describe)}`
+      case 'together':
+        return answer.describe
+          ? `Offered a listening room with ${picked(answer.describe)}`
+          : 'Offered to open a listening room.'
+      case 'find':
+        return `Found ${songs(answer.picks.map(pick => pick.songId))}`
+      case 'explore':
+        return answer.songIds.length > 0
+          ? `${answer.say}\nSongs of theirs: ${songs(answer.songIds)}`
+          : answer.say
+      case 'tags':
+        return `Proposed ${plural(answer.review.changes.length, 'tag change', 'tag changes')}: ${answer.review.changes
+          .slice(0, RECAP_SONGS)
+          .map(change => `${change.op} ${change.tag}${change.to ? ` → ${change.to}` : ''}`)
+          .join('; ')}`
+      case 'tidy':
+        return [
+          answer.tidy.reply,
+          `Proposed ${plural(answer.tidy.changes.length, 'name change', 'name changes')}: ${answer.tidy.changes
+            .slice(0, RECAP_SONGS)
+            .map(change => `${change.from} → ${change.to}`)
+            .join('; ')}`,
+        ]
+          .filter(Boolean)
+          .join('\n')
+      case 'copies':
+        return `Found ${plural(answer.copies.copies.length, 'song', 'songs')} they have more than once.`
+      case 'remember':
+        return `Offered to remember: ${answer.note}`
+      case 'getMusic':
+        return `Found on 网易云: ${answer.items
+          .map(item => `${item.title} — ${item.artist} (${item.have} of ${item.tracks} theirs)`)
+          .join('; ')}`
+      case 'playlists':
+        return answer.op === 'delete'
+          ? `Proposed deleting the playlists ${answer.names.join(', ')}`
+          : `Proposed renaming ${answer.names.join(', ')} to ${answer.newName ?? ''}`
+      case 'playlistSongs':
+        return answer.op === 'sort'
+          ? `Proposed putting ${answer.playlist} in order by ${answer.sortBy ?? 'name'}`
+          : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}: ${songs(answer.songs.map(pick => pick.songId))}`
+      case 'library': {
+        const listed =
+          answer.show === 'artists'
+            ? answer.artists
+            : answer.show === 'albums'
+              ? answer.albums
+              : answer.show === 'tags'
+                ? answer.tags
+                : null
+        return listed
+          ? `${plural(answer.count, 'song', 'songs')}, by ${answer.show}: ${listed
+              .slice(0, RECAP_SONGS)
+              .map(each => `${each.label} (${each.count})`)
+              .join('; ')}`
+          : `${plural(answer.count, 'song', 'songs')}: ${songs(answer.songIds)}`
+      }
+      case 'stats':
+        return `${plural(answer.plays, 'play', 'plays')}, ${Math.round(answer.minutes)} min in ${rangeWords(answer.range)}: ${answer.items
+          .map(item => `${item.label} (${item.plays})`)
+          .join('; ')}`
+      case 'open':
+        return answer.say
+      case 'playback':
+        return `Did ${answer.op} on what was playing.`
+      case 'none':
+        return answer.say
+    }
+  })()
+  return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
+}
+
 /** One leg of Settings' Test: this device to the server, or the server to the model. */
 export interface Hop {
   readonly ok: boolean

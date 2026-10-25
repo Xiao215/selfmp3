@@ -26,6 +26,7 @@ import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
 import { useFloatingChrome } from './bottomInset'
+import { usePageFoot } from './pageFoot'
 import { stageIdle, subscribeStageIdle } from './stageIdle'
 import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
@@ -446,6 +447,8 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
   // rise and sink (`selectionBarLift`), a transform because the value moves
   // on the native side and a `bottom` cannot.
   const chrome = useFloatingChrome()
+  // And above a field docked at the page's foot (Ask's), whatever the device.
+  const foot = usePageFoot()
   const [lift] = useState(() => ({
     transform: [
       {
@@ -460,7 +463,7 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
     <Animated.View
       // Centred in the page that can be seen: it starts where the sidebar over
       // it ends, and stops where Up next lying over it begins.
-      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome }, lift]}
+      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome + foot }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />

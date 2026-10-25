@@ -16,6 +16,7 @@ import type {
   Song,
   Tag,
   TagReview,
+  AskTurn,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
@@ -104,7 +105,7 @@ export class SmartFeatures {
     playing: number | null = null,
     allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
-    before: readonly string[] = [],
+    before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
   ): Promise<AskAnswer> {
@@ -219,7 +220,7 @@ export function setupFor(config: Pick<Config, 'ai'>): AiSetup {
 /**
  * The smart features over this library, wired the one way the server runs
  * them. `eval.ts` builds them here too, so what it prints is what a device
- * would be answered — catalogues, standing notes and the web switch included.
+ * would be answered — catalogues, standing notes and the web included.
  */
 export function smartFeaturesFor(sources: {
   readonly config: Pick<Config, 'ai'>
@@ -261,7 +262,8 @@ export function smartFeaturesFor(sources: {
       })),
     notes: () => settings.get().smartNotes,
     catalogue,
-    web: () => settings.get().smartWeb,
+    // Smart features include the web: the model looks there when the library and catalogues don't say.
+    web: () => true,
     music: {
       albums: words => netease.searchAlbums(words),
       albumTracks: id => netease.albumTracks(id),

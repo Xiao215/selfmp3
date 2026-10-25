@@ -113,20 +113,16 @@ const draw = async (ui: ReactNode) => {
 
 const anchor = (): void => undefined
 
-it('turns a smart feature off, and the web search on, on the server itself', async () => {
+it('turns a smart feature off on the server itself, with no web switch of its own', async () => {
   const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  const web = await screen.findByRole('switch', { name: 'Search the web' })
-  const ask = screen.getByRole('switch', { name: 'Ask in Search' })
-  expect(screen.getByRole('switch', { name: 'Search the web', checked: false })).toBe(web)
+  const ask = await screen.findByRole('switch', { name: 'Ask in Search' })
   expect(screen.getByRole('switch', { name: 'Ask in Search', checked: true })).toBe(ask)
+  expect(screen.queryByRole('switch', { name: 'Search the web' })).toBeNull()
 
-  await fireEvent.press(web)
   await fireEvent.press(ask)
   await waitFor(() => expect(stored.smartAsk).toBe(false))
-  expect(stored.smartWeb).toBe(true)
   const patches = sent.filter(each => each.method === 'PATCH')
   expect(patches).toEqual([
-    { method: 'PATCH', path: '/api/settings', body: { smartWeb: true }, auth: `Bearer ${TOKEN}` },
     { method: 'PATCH', path: '/api/settings', body: { smartAsk: false }, auth: `Bearer ${TOKEN}` },
   ])
   await unmount()

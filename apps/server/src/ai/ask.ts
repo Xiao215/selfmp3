@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskAnswer, AskTurn } from '@selfmp3/shared'
 import {
   ASK_ACTIONS,
   type AskAction,
@@ -27,13 +27,14 @@ import { NO_STEPS, type Steps } from './progress.js'
  * rather than one shape per action: it is what an OpenAI-style json_schema
  * endpoint takes reliably.
  *
- * A follow-up ("only the albums", "skip the Inazuma ones") is asked again with
- * everything said before it, as one request (`followed`): the router and the
- * action it chooses read the whole of it, so the answer is the earlier one
- * changed, not a new question with nothing before it.
+ * A follow-up is asked after the conversation before it (`followed`): each
+ * earlier question with what was shown for it. The router and the action it
+ * chooses answer the newest words, reading the rest as what they follow on
+ * from — a question about what was just said, or a change to the request
+ * before ("only the albums").
  */
 
-const VERSION = 16
+const VERSION = 17
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), to skip, pause or go back in what is playing, a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'
@@ -46,15 +47,22 @@ type Route = Record<string, unknown> & {
   try: string[] | null
 }
 
-/** Everything said, first ask first, as the one request the router and the actions read. */
-export function followed(text: string, before: readonly string[]): string {
+/**
+ * The request as the router and the actions read it: what they say now, after
+ * the conversation so far. Each earlier turn comes with what was shown for it,
+ * so it is context and not asked again: the newest words are what is answered.
+ */
+export function followed(text: string, before: readonly AskTurn[]): string {
   if (before.length === 0) return text
-  const [first, ...then] = before
   return [
-    `They first asked: ${first}`,
-    ...then.map(said => `Then they said: ${said}`),
+    'Earlier in this conversation:',
+    ...before.flatMap(turn => [
+      `They asked: ${turn.asked}`,
+      `You answered: ${turn.answered || '(nothing)'}`,
+    ]),
+    '',
     `Now they say: ${text}`,
-    '(Answer all of it together: the latest words change what was asked before.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
   ].join('\n')
 }
 
@@ -106,8 +114,8 @@ export async function ask(
   allowed: AskAllowed = { tidy: true, tags: true },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
-  /** What was said before, when this follows up on an answer. */
-  before: readonly string[] = [],
+  /** The conversation before this, when it follows up on an answer. */
+  before: readonly AskTurn[] = [],
 ): Promise<AskAnswer> {
   const request = withNotes(followed(text, before), deps.notes?.() ?? [])
   const remembered = deps.remembered ?? new Remembered()

@@ -158,7 +158,8 @@ describe('migrate', () => {
     migrate(db, createLogger('silent'))
 
     const keys = db.prepare('SELECT key FROM settings ORDER BY key').pluck().all()
-    expect(keys).toEqual(['smartWeb', 'watchLibrary'])
+    // smartWeb went later, with 47.
+    expect(keys).toEqual(['watchLibrary'])
   })
 
   it('keeps every song’s bucket files but the romanized lines’ own, now in the words file', () => {

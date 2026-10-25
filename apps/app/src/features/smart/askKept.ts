@@ -1,5 +1,5 @@
 import { ApiError, type Api } from '@selfmp3/client'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskAnswer, AskTurn } from '@selfmp3/shared'
 import { countUse } from '../usage/usage'
 
 /** One Ask, as `askKept` sends it. */
@@ -7,7 +7,7 @@ export interface AskSent {
   readonly text: string
   readonly playing: number | null
   readonly ticket: string
-  readonly before: readonly string[]
+  readonly before: readonly AskTurn[]
 }
 
 /** How often the server is asked whether the answer is done, while its response is on the way. */

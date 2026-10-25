@@ -25,6 +25,10 @@ import { setTabbing, TABBING_SELECTOR } from './tabbing'
  * focus itself (the library's search turns its border to the accent while its
  * input has focus).
  *
+ * A list that clips what it holds — the sidebar, a shelf, a strip of chips —
+ * cut the ring of whatever was at its edge to one side of it, so anything in
+ * one (`FOCUS_INSIDE`) wears it just inside its own edge instead.
+ *
  * A song row's press target lies under its cover and title only, and a ring
  * round that would stop partway along the row, so the row wears it instead,
  * just inside its edge, where the rows above and below cannot cover it. The
@@ -39,6 +43,8 @@ const ID = 'selfmp3-focus'
 const TEXT_FIELD = 'input:not([type="range"]):not([type="checkbox"]):not([type="radio"])'
 /** A song row's press target, which lies under its cover and title: the ring goes round the row. */
 const ROW_PRESS = '[data-row-press]'
+/** A list that clips what it holds (`FOCUS_INSIDE`). */
+const CLIPPED = '[data-focus-inside]'
 
 function css(accent: string): string {
   return `
@@ -48,6 +54,7 @@ ${TABBING_SELECTOR} ${TEXT_FIELD}:focus-visible, ${TABBING_SELECTOR} textarea:fo
 ${TEXT_FIELD}:focus, textarea:focus { border-color: ${accent} !important; }
 ${TABBING_SELECTOR} ${ROW_PRESS}:focus-visible { outline: none; }
 ${TABBING_SELECTOR} [${SONG_ROW}]:has(${ROW_PRESS}:focus-visible) { outline: 2px solid ${accent}; outline-offset: -2px; }
+${TABBING_SELECTOR} ${CLIPPED} :focus-visible { outline-offset: -2px; }
 `
 }
 

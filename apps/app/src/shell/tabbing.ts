@@ -22,5 +22,12 @@ export function setTabbing(on: boolean): void {
   else document.documentElement.removeAttribute(TABBING)
 }
 
+/**
+ * Spread on a list that clips what it holds (the sidebar, a shelf, a strip of
+ * chips): the focus ring of anything in it is drawn just inside its edge, as
+ * a song row's is, where the clip cannot cut it (AF1).
+ */
+export const FOCUS_INSIDE = { dataSet: { focusInside: 'true' } } as const
+
 /** The selector for rules drawn only while the keyboard moves focus. */
 export const TABBING_SELECTOR = `html[${TABBING}]`

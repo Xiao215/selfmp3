@@ -8,6 +8,7 @@ import { space, type } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { useDragScroll } from '../../ports/dragScroll'
+import { FOCUS_INSIDE } from '../../shell/tabbing'
 import { rightClick, type PopoverAnchor } from '../rightClick'
 import { tip } from '../tip'
 import { Cover } from './Cover'
@@ -42,6 +43,7 @@ export function SideScroll({
       contentContainerStyle={contentStyle}
       testID={testID}
       {...drag}
+      {...FOCUS_INSIDE}
     >
       {children}
     </ScrollView>

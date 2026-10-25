@@ -53,6 +53,7 @@ import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { FOCUS_INSIDE } from '../../shell/tabbing'
 import { useRouter } from 'expo-router'
 
 /**
@@ -454,6 +455,7 @@ export function LibraryScreen(): ReactNode {
           ]}
           testID="library-tag-strip"
           {...stripDrag}
+          {...FOCUS_INSIDE}
         >
           <Chip
             testID="library-tag-all"

@@ -61,6 +61,7 @@ import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
 import { Bone, Skeleton } from '../ui/components/Skeleton'
 import { ResumeCard } from '../features/devices/ResumeToast'
+import { FOCUS_INSIDE } from './tabbing'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
@@ -110,6 +111,7 @@ function SidebarInner(): ReactNode {
     <View
       style={[styles.rail, { paddingTop: space.xl + insets.top + titleBarInset }]}
       testID="sidebar"
+      {...FOCUS_INSIDE}
     >
       {/*
         The installed desktop app's traffic lights sit over this corner. The strip

@@ -110,7 +110,14 @@ export function pageFrame(wide: boolean): typeof FRAME_WIDE | typeof FRAME_PHONE
  * over everything. A component's own stacking (the stage's cover over its
  * words) stays its own.
  */
-export const Z = { pinnedHeader: 10, scrollbar: 11, scrollbarMark: 12, tooltip: 10000 } as const
+export const Z = {
+  pinnedHeader: 10,
+  scrollbar: 11,
+  scrollbarMark: 12,
+  /** "Skip to the page", over the sidebar while it has the focus. */
+  skipLink: 13,
+  tooltip: 10000,
+} as const
 
 /**
  * A line of a menu or a list of choices (`SheetItem`, the tag picker's, the

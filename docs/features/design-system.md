@@ -418,6 +418,10 @@ something is still happening.
   press target, which lies under the cover and title only; with the ring on, it shows its
   controls as the pointer would. Space on such a row is its tick, not play and pause
   ([multi-select.md](multi-select.md)).
+- In a list that clips what it holds (the sidebar, a shelf, Library's tag strip) every ring is
+  drawn just inside its edge, as a song row's is: spread `FOCUS_INSIDE` (`shell/tabbing.ts`) on
+  such a list. On a computer the first Tab stop is "Skip to the page" (`shell/SkipToPage.web.tsx`),
+  out of sight until focused, which moves the focus past the sidebar to the page's first control.
 - A song list is one Tab stop (a roving tabindex, as WAI-ARIA's grid): its rows' controls are
   out of Tab's way, ↑ ↓ move between rows and ← → along a row's controls, and Tab from anywhere
   in a row goes on past the list (`selection/useListKeys.web.ts`). Anything else that draws a

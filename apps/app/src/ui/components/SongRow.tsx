@@ -40,6 +40,7 @@ import { floating, rowTitle } from '../surfaces'
 import { Downloaded, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * One song in a list: one row everywhere (docs/ui-mock `S3`) — cover, title,
@@ -738,7 +739,12 @@ function RowTags({
             )}
             style={styles.rowTag}
           >
-            <Text style={[styles.rowTagText, styles.rowTagMoreText]}>+{hidden}</Text>
+            <Text
+              style={[styles.rowTagText, styles.rowTagMoreText]}
+              maxFontSizeMultiplier={CONTROL_SCALE}
+            >
+              +{hidden}
+            </Text>
           </Pressable>
         </View>
       ) : null}
@@ -773,7 +779,7 @@ function RowTag({
       style={styles.rowTag}
     >
       <TagDot hue={tag.hue} size={CHIP_DOT} />
-      <Text style={styles.rowTagText} numberOfLines={1}>
+      <Text style={styles.rowTagText} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {tag.name}
       </Text>
     </Pressable>

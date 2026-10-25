@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Image, Pressable, Text, View } from 'react-native'
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native'
@@ -6,7 +6,7 @@ import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { leading, motion, radius, space, textStyle, type } from '@selfmp3/client'
+import { motion, radius, space, textStyle, type } from '@selfmp3/client'
 import {
   artShadow,
   headroom,
@@ -18,6 +18,7 @@ import {
 import { useMotionReduced } from '../motion'
 import { useSvgId } from '../useSvgId'
 import { CoverLight } from './CoverLight'
+import { linesAt, useFontScale } from '../textScale'
 
 /** What a page may change of the head's computer layout; a tag's page is the default. */
 interface WideOverrides {
@@ -84,6 +85,18 @@ export function ListHead({
   const { top } = useSafeAreaInsets()
   const [width, setWidth] = useState(0)
   const { open, lightStyle } = useOpenArt(opensArt && !!art, top, width)
+  /*
+   * On a computer the mosaic stands beside the name; a name that needs more
+   * than two lines there even at its smallest step (`ListHeadName`) puts the
+   * mosaic above it, as a phone's head always has it (AM1). Kept for this
+   * width and text size once the name says so: above the mosaic the name has
+   * the width, and would otherwise say the opposite.
+   */
+  const fontScale = useFontScale()
+  const crowdKey = `${width}\u0000${fontScale}`
+  const [crowdedAt, setCrowdedAt] = useState<string | null>(null)
+  const stacked = wide && cover !== null && crowdedAt === crowdKey
+  const besideWide = wide && !stacked
   return (
     <View
       // Measured from the first frame, whether or not there is a picture to
@@ -133,13 +146,17 @@ export function ListHead({
         collapsable={false}
         onLayout={onHeroLayout}
         pointerEvents="box-none"
-        style={[styles.hero, wide && [styles.heroWide, wideOverrides?.hero], heroStyle]}
+        style={[styles.hero, besideWide && [styles.heroWide, wideOverrides?.hero], heroStyle]}
       >
         {cover ? <View style={styles.mosaic}>{cover}</View> : null}
-        <View style={[styles.titles, wide && [styles.titlesWide, wideOverrides?.titles]]}>
-          {titles}
+        <View style={[styles.titles, besideWide && [styles.titlesWide, wideOverrides?.titles]]}>
+          <HeadCrowded.Provider
+            value={besideWide && cover ? () => setCrowdedAt(crowdKey) : NOT_BESIDE}
+          >
+            {titles}
+          </HeadCrowded.Provider>
         </View>
-        <View style={[styles.actions, wide && [styles.actionsWide, wideOverrides?.actions]]}>
+        <View style={[styles.actions, besideWide && [styles.actionsWide, wideOverrides?.actions]]}>
           {actions}
         </View>
       </Animated.View>
@@ -147,6 +164,13 @@ export function ListHead({
     </View>
   )
 }
+
+/**
+ * Told by the name that it needs more than two lines beside the mosaic even
+ * at its smallest step, so the head puts the mosaic above it.
+ */
+const HeadCrowded = createContext<() => void>(() => {})
+const NOT_BESIDE = (): void => {}
 
 /** How tall the opened picture stands, as a share of the head's width: a banner's own shape. */
 const OPEN_ASPECT = 2.4
@@ -271,18 +295,25 @@ export function ListHeadName({
   testID?: string
 }): ReactNode {
   const [width, setWidth] = useState(0)
-  // Copies measured for another name or width say nothing about this one.
-  const key = `${width}\u0000${name}`
+  const fontScale = useFontScale()
+  // Copies measured for another name, width or text size say nothing about this one.
+  const key = `${width}\u0000${fontScale}\u0000${name}`
   const [measured, setMeasured] = useState<{ key: string; lines: Lines }>({ key: '', lines: {} })
   const lines = measured.key === key ? measured.lines : {}
   const measure = (step: NameStep, height: number): void => {
-    const count = Math.max(1, Math.round((height - headroom(step).paddingTop) / leading[step]))
+    const count = linesAt(height, step, fontScale, headroom(step).paddingTop)
     setMeasured(was => ({ key, lines: { ...(was.key === key ? was.lines : {}), [step]: count } }))
   }
   const known = NAME_STEPS.every(step => lines[step] !== undefined)
   const step = known
     ? (NAME_STEPS.find(each => (lines[each] ?? Infinity) <= 2) ?? LAST_STEP)
     : NAME_STEPS[0]
+  // Still more than two lines at the last step: the head may put its mosaic above.
+  const crowded = known && (lines[LAST_STEP] ?? 0) > 2
+  const onCrowded = useContext(HeadCrowded)
+  useEffect(() => {
+    if (crowded) onCrowded()
+  }, [crowded, onCrowded])
   const styleAt = (at: NameStep) =>
     face === 'serif' ? [styles.nameSerif, serifSteps[at]] : nameStyles[at]
   return (

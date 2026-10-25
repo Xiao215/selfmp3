@@ -32,7 +32,8 @@ import { sentLinksHint } from '../share/share.model'
 import { useSentLinks } from '../share/shareLinks'
 import { useMinute } from '../share/useMinute'
 import { SongLine } from '../../ui/components/SongLine'
-import { StatFigure } from '../../ui/components/StatFigure'
+import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
+import { FIT_LINE } from '../../ui/textScale'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
@@ -121,7 +122,8 @@ function Person(): ReactNode {
     <View style={styles.person}>
       <Avatar account={account} size={AVATAR} />
       <View style={styles.personWords}>
-        <Text style={styles.name} accessibilityRole="header" numberOfLines={1}>
+        {/* Set smaller at the largest text sizes rather than cut to "Pro…" (AM1). */}
+        <Text style={styles.name} accessibilityRole="header" {...FIT_LINE}>
           {name}
         </Text>
         <Text style={styles.line} testID="profile-line">
@@ -162,11 +164,11 @@ function Month({
       </View>
       {month ? (
         <>
-          <View style={styles.figures}>
+          <StatFigures>
             <StatFigure value={month.listened} unit={month.listenedUnit} caption="listened" />
             <StatFigure value={month.plays} caption="plays" />
             <StatFigure value={month.streak} unit={month.streakUnit} caption="streak" />
-          </View>
+          </StatFigures>
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
       ) : (
@@ -226,9 +228,15 @@ const styles = StyleSheet.create(theme => ({
   line: lineSub(theme.colors),
   // A big card (`S2`: 22 round) on the ground, told apart by tone.
   month: { ...card(theme.colors, radius.cardLg), padding: space.card, gap: space.roomy },
-  monthHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  // "Stats" goes under the title where large text leaves no room beside it.
+  monthHead: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    columnGap: space.md,
+  },
   monthTitle: label(theme.colors),
   monthLink: { color: theme.colors.accent, fontSize: type.sub, fontWeight: '600' },
-  figures: { flexDirection: 'row', gap: space.md },
   repeat: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
 }))

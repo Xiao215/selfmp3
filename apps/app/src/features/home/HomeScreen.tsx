@@ -72,7 +72,7 @@ import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
 import { statFigures } from '../stats/stats.model'
-import { StatFigure } from '../../ui/components/StatFigure'
+import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
 import {
   greeting,
   HOME_TILES,
@@ -325,10 +325,11 @@ function SundayLead({
       {/* Without a song, the week says itself: the title, then how long and whose. */}
       <View style={styles.sundayText}>
         {lead ? <Text style={[styles.kicker, { color: tone.tint }]}>{card.title}</Text> : null}
-        <Text style={styles.sundayTitle} numberOfLines={1}>
+        {/* Two lines each, so large text wraps them rather than cutting "Song of the wee…" (AM1). */}
+        <Text style={styles.sundayTitle} numberOfLines={2}>
           {lead ? lead.title : card.title}
         </Text>
-        <Text style={styles.sundayLine} numberOfLines={1}>
+        <Text style={styles.sundayLine} numberOfLines={2}>
           {lead ? lead.note : card.line}
         </Text>
       </View>
@@ -800,12 +801,12 @@ function ThisWeek({
       <SectionHead title="This week" action={null} />
       <View style={styles.weekCard} testID="home-this-week">
         {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
-        <View style={styles.weekNumbers}>
+        <StatFigures>
           <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
           <StatFigure value={figures.plays} caption="plays" />
           {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
           <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
-        </View>
+        </StatFigures>
         {sunday ? (
           <OpenWeek card={sunday} tone={tone} onOpen={onOpenWeek} />
         ) : (
@@ -1045,5 +1046,4 @@ const styles = StyleSheet.create(theme => ({
     justifyContent: 'center',
   },
   readyButtonLabel: { color: theme.colors.surface0, fontSize: type.sub, fontWeight: '600' },
-  weekNumbers: { flexDirection: 'row', gap: space.md },
 }))

@@ -8,6 +8,7 @@ import { Check, sizedIcon } from './Icons'
 import { Press } from './Press'
 import { TagDot } from './TagDot'
 import { plural } from '@selfmp3/shared'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * A chip (docs/ui-mock `S2`, "Parts, as drawn"): a neutral pill. A tag carries
@@ -77,7 +78,11 @@ export function Chip({
   const padding = compact ? styles.labelCompact : styles.labelStrip
 
   const name = (
-    <Text style={[styles.label, { color: text }]} numberOfLines={1}>
+    <Text
+      style={[styles.label, { color: text }]}
+      numberOfLines={1}
+      maxFontSizeMultiplier={CONTROL_SCALE}
+    >
       {label}
     </Text>
   )
@@ -119,7 +124,11 @@ export function Chip({
           <Check size={compact ? iconSize.tiny : iconSize.small} color={text} />
         ) : null}
         {name}
-        {count === undefined ? null : <Text style={[styles.count, { color: text }]}>{count}</Text>}
+        {count === undefined ? null : (
+          <Text style={[styles.count, { color: text }]} maxFontSizeMultiplier={CONTROL_SCALE}>
+            {count}
+          </Text>
+        )}
       </Pressable>
       {onRemove ? (
         // Its own press: the chip around it is a separate target with a separate answer.
@@ -131,7 +140,9 @@ export function Chip({
           hitSlop={hitSlopFor(leading.body)}
           style={styles.remove}
         >
-          <Text style={[styles.removeGlyph, { color: text }]}>×</Text>
+          <Text style={[styles.removeGlyph, { color: text }]} maxFontSizeMultiplier={CONTROL_SCALE}>
+            ×
+          </Text>
         </Press>
       ) : null}
     </Animated.View>

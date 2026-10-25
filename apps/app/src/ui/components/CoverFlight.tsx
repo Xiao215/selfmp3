@@ -18,6 +18,7 @@ import {
 } from '../coverFlight'
 import { Cover } from './Cover'
 import { artShadow } from '../surfaces'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * Where flying covers are drawn (`ui/coverFlight.ts`): over everything, under
@@ -165,7 +166,9 @@ export function UpNextTarget({ children }: { children: ReactNode }): ReactNode {
           accessibilityLabel={`${shown} waiting`}
           testID="up-next-count"
         >
-          <Text style={styles.countText}>{shown > 99 ? '99+' : shown}</Text>
+          <Text style={styles.countText} maxFontSizeMultiplier={CONTROL_SCALE}>
+            {shown > 99 ? '99+' : shown}
+          </Text>
         </Animated.View>
       ) : null}
     </Animated.View>

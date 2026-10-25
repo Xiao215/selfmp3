@@ -43,6 +43,7 @@ import {
 import { goBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useStackedTitle } from '../../ui/useStackedTitle'
 
 /**
  * A song's own page, `/song/<id>` (docs/ui-mock `P15`).
@@ -102,6 +103,16 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
   const unplayed = useMemo(() => unplayedLine(song, new Date()), [song])
+  // The cover goes above a title that would take more than two lines beside it (AM1).
+  const coverSize = wide ? 200 : 132
+  const titleStyle = [styles.title, wide && styles.titleWide]
+  const head = useStackedTitle({
+    title: song.title,
+    step: wide ? 'display' : 'page',
+    style: titleStyle,
+    cover: coverSize,
+    gap: wide ? HERO_GAP_WIDE : space.lg,
+  })
 
   return (
     <View style={styles.screen}>
@@ -135,19 +146,24 @@ function SongPage({ song }: { song: Song }): ReactNode {
           </View>
         </View>
 
-        <View style={[styles.hero, wide && styles.heroWide]}>
+        <View
+          onLayout={head.onHeadLayout}
+          style={[styles.hero, wide && styles.heroWide, head.stacked && styles.heroStacked]}
+        >
+          {head.measure}
           <View style={styles.cover}>
             <Cover
               uri={art}
               title={song.album || song.title}
-              size={wide ? 200 : 132}
+              size={coverSize}
               radius={radius.card}
             />
           </View>
-          <View style={styles.titles}>
+          <View style={[styles.titles, head.stacked && styles.titlesStacked]}>
             <Text
-              style={[styles.title, wide && styles.titleWide]}
-              numberOfLines={3}
+              style={titleStyle}
+              // Above its cover the title has the width, and is never cut.
+              numberOfLines={head.stacked ? undefined : 3}
               accessibilityRole="header"
             >
               {song.title}
@@ -328,6 +344,9 @@ function SongMissing(): ReactNode {
   )
 }
 
+/** Between the cover and the title on a computer. */
+const HERO_GAP_WIDE = 28
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   content: { paddingHorizontal: space.gutter, gap: 18 },
@@ -346,12 +365,14 @@ const styles = StyleSheet.create(theme => ({
   },
   topRight: { flexDirection: 'row', gap: space.sm },
   hero: { flexDirection: 'row', alignItems: 'flex-end', gap: space.lg },
-  heroWide: { gap: 28 },
+  heroWide: { gap: HERO_GAP_WIDE },
+  heroStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   cover: {
     borderRadius: radius.card,
     ...artShadow(theme.colors),
   },
   titles: { flex: 1, minWidth: 0, gap: space.tight },
+  titlesStacked: { flex: 0, alignSelf: 'stretch' },
   title: heroTitle(theme.colors, 'page'),
   titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },

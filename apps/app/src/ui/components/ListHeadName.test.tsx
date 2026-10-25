@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
-import { StyleSheet } from 'react-native'
+import { Dimensions, StyleSheet } from 'react-native'
 import { leading, type } from '@selfmp3/client'
 
 import { ListHeadName } from './ListHead'
@@ -8,8 +8,12 @@ const layout = (width: number, height: number) => ({
   nativeEvent: { layout: { x: 0, y: 0, width, height } },
 })
 
-/** Lays the name out at 320 points, its copies taking `lines` lines at display, page and large. */
+/**
+ * Lays the name out at 320 points, its copies taking `lines` lines at display,
+ * page and large — at the window's text size, which grows each line (AM1).
+ */
 async function measure(lines: [number, number, number]): Promise<void> {
+  const scale = Dimensions.get('window').fontScale || 1
   const name = screen.getByTestId('name')
   await act(async () => fireEvent(name.parent!, 'layout', layout(320, 100)))
   const steps = ['display', 'page', 'large'] as const
@@ -19,7 +23,7 @@ async function measure(lines: [number, number, number]): Promise<void> {
       fireEvent(
         copy,
         'layout',
-        layout(320, Math.ceil(type[step] / 4) + lines[at]! * leading[step]),
+        layout(320, Math.ceil(type[step] / 4) + lines[at]! * leading[step] * scale),
       ),
     )
   }

@@ -418,6 +418,26 @@ instead, which is the same picture on every device the app runs on. Looping indi
 spinner, the equaliser — are left alone under Reduce Motion, because they are saying that
 something is still happening.
 
+## Text size
+
+The system's text size (iOS Dynamic Type, Android's font scale) is followed, by these rules
+(`ui/textScale.ts`, AM1). A browser zooms the whole page instead, so a tab never sees them.
+
+- Song titles, page titles and reading text scale fully.
+- Controls stop at about 1.3× (`CONTROL_SCALE`, as `maxFontSizeMultiplier`): tab bar labels,
+  chips, segmented choices, small badges and key caps, and the mini player, whose icons and
+  height do not grow with its words.
+- A big number shrinks to fit its card (`FIT_FIGURE`) and is never cut to "18h…": Stats' cards,
+  This week, You's month. It grows no more than about 1.75×, as iOS's own large titles do. At
+  the Accessibility sizes each Stats card takes the full width, and This week's and You's three
+  figures stand one under another (`StatFigures`).
+- A one-line page title is set smaller rather than cut (`PageHeader`), and at the
+  Accessibility sizes a Settings row puts its control under its words.
+- A head's title that would need more than two lines beside its cover puts the cover above it
+  (`useStackedTitle` on a song's page; a place's name tells `ListHead` the same).
+- The Report's looks are pictures: their print keeps the board's size, and the page around
+  them grows.
+
 ## Focus and interaction
 
 - In a browser, `shell/FocusStyle.web.tsx` turns the browser's own ring off once and draws

@@ -52,6 +52,7 @@ import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
+import { FIT_FIGURE, useLargeText } from '../../ui/textScale'
 
 /** The line beside Listened, in its own box's units. */
 const SPARK = { width: 120, height: 56 }
@@ -157,12 +158,13 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
   const peak = useMemo(() => peakCard(stats.hourly), [stats])
   // Today is read once per answer: the squares move on when the numbers do.
   const streak = useMemo(() => streakCard(stats, new Date()), [stats])
+  const large = useLargeText()
 
   const listenedView = (
     <View style={[styles.card, styles.listened, wide && styles.cardWide]} testID="stats-listened">
       <View style={[styles.listenedWords, fill && styles.listenedWordsHug]}>
         <Text style={styles.cardLabel}>Listened</Text>
-        <Text style={styles.bigNumber} numberOfLines={1}>
+        <Text style={styles.bigNumber} {...FIT_FIGURE}>
           {listened.value}
         </Text>
         <Text style={styles.cardLine}>{listened.line}</Text>
@@ -194,7 +196,9 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
         ))}
       </View>
       <View style={styles.cardFoot}>
-        <Text style={styles.midNumber}>{peak.value ?? '—'}</Text>
+        <Text style={styles.midNumber} {...FIT_FIGURE}>
+          {peak.value ?? '—'}
+        </Text>
         {peak.words ? <Text style={styles.cardNote}>{peak.words}</Text> : null}
       </View>
     </View>
@@ -230,12 +234,25 @@ function Cards({ stats }: { stats: Stats }): ReactNode {
         </View>
       </View>
       <View style={styles.cardFoot}>
-        <Text style={styles.midNumber}>{streak.value}</Text>
+        <Text style={styles.midNumber} {...FIT_FIGURE}>
+          {streak.value}
+        </Text>
         {streak.line ? <Text style={styles.cardNote}>{streak.line}</Text> : null}
       </View>
     </View>
   )
 
+  // At the largest text sizes each card takes the width, so its number is not
+  // shrunk to half a card's (AM1).
+  if (large) {
+    return (
+      <>
+        {listenedView}
+        {peakView}
+        {streakView}
+      </>
+    )
+  }
   if (row) {
     return (
       <View style={styles.cardRow}>
@@ -678,7 +695,9 @@ const styles = StyleSheet.create(theme => ({
   // line height, which has room for its tall figures.
   bigNumber: serif(theme.colors),
   cardLine: { color: theme.colors.textSecondary, fontSize: type.sub },
-  small: { height: 150, padding: space.lg, justifyContent: 'space-between' },
+  // At least this tall, and taller where large text needs it: a set height cut
+  // the streak's number in half.
+  small: { minHeight: 150, padding: space.lg, justifyContent: 'space-between' },
   hours: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 44 },
   hoursWide: { height: 60 },
   // An hour with plays is the raised tone; the busiest is the accent.
@@ -701,7 +720,8 @@ const styles = StyleSheet.create(theme => ({
   stripEnds: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.tight },
   stripEnd: { color: theme.colors.textMuted, fontSize: type.tiny },
   cardFoot: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: space.sm },
-  midNumber: serif(theme.colors, 'page'),
+  // Shrinks to fit the card's width (`FIT_FIGURE`), so it may not grow past it.
+  midNumber: { ...serif(theme.colors, 'page'), flexShrink: 1, maxWidth: '100%' },
   cardNote: { color: theme.colors.textSecondary, fontSize: type.small },
   ranked: {
     paddingTop: space.roomy,

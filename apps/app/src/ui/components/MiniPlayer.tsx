@@ -31,6 +31,7 @@ import { PlayPauseButton } from './PlayPauseButton'
 import { useOpenNowPlaying } from '../useOpenNowPlaying'
 import { ease, session, timing, usePressScale } from '../motion'
 import { MOVE_MS, overshootRange, PRESS } from '../motion.model'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * The mini player: a card floating over the page, above the tab bar
@@ -236,10 +237,11 @@ const WORDS_STEP = 8
 function Words({ song }: { song: Song }): ReactNode {
   return (
     <>
-      <Text style={styles.title} numberOfLines={1}>
+      {/* The card is a control of a set height: its words stop at the controls' size. */}
+      <Text style={styles.title} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {song.title}
       </Text>
-      <Text style={styles.artist} numberOfLines={1}>
+      <Text style={styles.artist} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {artistOr(song.artist)}
       </Text>
     </>

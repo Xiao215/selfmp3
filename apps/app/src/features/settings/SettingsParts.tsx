@@ -9,6 +9,7 @@ import { card, label, serif, hint } from '../../ui/surfaces'
 import { OPACITY } from '../../ui/motion.model'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
+import { useLargeText } from '../../ui/textScale'
 
 /**
  * The pieces every Settings section is made of: one row anatomy — name, a
@@ -73,7 +74,10 @@ export function Row({
   disabled?: boolean
   children?: ReactNode
 }): ReactNode {
-  const stacked = useContext(Stacked) && stack
+  // At the largest text sizes every control goes under its words, which beside
+  // it broke "Library" into "Libra / ry" (AM1).
+  const large = useLargeText()
+  const stacked = (useContext(Stacked) && stack) || large
   return (
     <View style={[styles.row, stacked && styles.rowStacked, last && styles.rowLast]}>
       <View style={[styles.label, disabled && styles.labelDisabled]}>

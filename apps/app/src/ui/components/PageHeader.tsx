@@ -7,6 +7,7 @@ import { usePageBack } from '../useBackTo'
 import { pageTitle, TITLE_UNDER_BACK } from '../surfaces'
 import { BackButton, type BackProps } from './BackButton'
 import { Bone, Skeleton } from './Skeleton'
+import { FIT_LINE } from '../textScale'
 
 /**
  * The head of a page (J1): the way back on its own line, the page's name
@@ -68,7 +69,13 @@ export function PageHeader({
       ) : null}
       <View>
         <View style={styles.row}>
-          <Text style={styles.title} numberOfLines={titleLines} accessibilityRole="header">
+          <Text
+            style={styles.title}
+            // One line is set smaller rather than cut, as the largest text
+            // sizes cut "Library" to "Libra…" (AM1).
+            {...(titleLines === 1 ? FIT_LINE : { numberOfLines: titleLines })}
+            accessibilityRole="header"
+          >
             {title}
           </Text>
           {beside}

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, paperLook } from '../looks.model'
-import { PrintedTag, type LookProps } from './parts'
+import { PrintedTag, type LookProps, LookText } from './parts'
 
 /** `P33`'s card, 350 wide on the phone it was drawn for. */
 export const PAPER_SIZE = { width: 350, height: 600 } as const
@@ -20,18 +20,18 @@ export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
   return (
     <View style={[styles.page, { backgroundColor: ink.ground }]}>
       <View style={styles.head}>
-        <Text style={[styles.label, { color: ink.quiet }]} numberOfLines={1}>
+        <LookText style={[styles.label, { color: ink.quiet }]} numberOfLines={1}>
           {look.head}
-        </Text>
+        </LookText>
       </View>
 
       <View style={styles.figureBlock}>
-        <Text style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
+        <LookText style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
           {look.figure}
-        </Text>
-        <Text style={[styles.figureLine, { color: ink.second }]} numberOfLines={2}>
+        </LookText>
+        <LookText style={[styles.figureLine, { color: ink.second }]} numberOfLines={2}>
           {look.figureLine}
-        </Text>
+        </LookText>
       </View>
 
       {look.onRepeat ? (
@@ -43,13 +43,13 @@ export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
             radius={14}
           />
           <View style={styles.repeatText}>
-            <Text style={[styles.label, { color: ink.quiet }]}>On repeat</Text>
-            <Text style={[styles.repeatTitle, { color: ink.ink }]} numberOfLines={2}>
+            <LookText style={[styles.label, { color: ink.quiet }]}>On repeat</LookText>
+            <LookText style={[styles.repeatTitle, { color: ink.ink }]} numberOfLines={2}>
               {look.onRepeat.title}
-            </Text>
-            <Text style={[styles.repeatLine, { color: ink.second }]} numberOfLines={2}>
+            </LookText>
+            <LookText style={[styles.repeatLine, { color: ink.second }]} numberOfLines={2}>
               {look.onRepeat.line}
-            </Text>
+            </LookText>
           </View>
         </View>
       ) : null}
@@ -57,17 +57,17 @@ export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
       <View style={styles.figures}>
         {look.figures.map(item => (
           <View key={item.label} style={styles.figureCell}>
-            <Text style={[styles.smallFigure, { color: ink.ink }]} numberOfLines={1}>
+            <LookText style={[styles.smallFigure, { color: ink.ink }]} numberOfLines={1}>
               {item.value}
-            </Text>
-            <Text style={[styles.smallLabel, { color: ink.second }]}>{item.label}</Text>
+            </LookText>
+            <LookText style={[styles.smallLabel, { color: ink.second }]}>{item.label}</LookText>
           </View>
         ))}
       </View>
 
       {look.tags.length > 0 ? (
         <View style={styles.tagsBlock}>
-          <Text style={[styles.label, { color: ink.quiet }]}>Top tags</Text>
+          <LookText style={[styles.label, { color: ink.quiet }]}>Top tags</LookText>
           <View style={styles.tags}>
             {look.tags.map(tag => (
               <PrintedTag
@@ -84,9 +84,9 @@ export function PaperLook({ input, hue, art, tagHue }: LookProps): ReactNode {
         </View>
       ) : null}
 
-      <Text style={[styles.traits, { color: ink.second }]} numberOfLines={2}>
+      <LookText style={[styles.traits, { color: ink.second }]} numberOfLines={2}>
         {look.traits}
-      </Text>
+      </LookText>
     </View>
   )
 }

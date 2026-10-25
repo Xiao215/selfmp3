@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { radius } from '@selfmp3/client'
 import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { calendarLook, lookInk } from '../looks.model'
-import { DayDot, mono, type LookProps } from './parts'
+import { DayDot, mono, type LookProps, LookText } from './parts'
 
 /** `P36`'s page. */
 export const CALENDAR_SIZE = { width: 480, height: 720 } as const
@@ -28,19 +28,19 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
   return (
     <View style={[styles.page, { backgroundColor: ink.ground }]}>
       <View style={styles.head}>
-        <Text style={[styles.title, { color: ink.accent }]} numberOfLines={1}>
+        <LookText style={[styles.title, { color: ink.accent }]} numberOfLines={1}>
           {look.title}
-        </Text>
-        <Text style={[styles.label, { color: ink.quiet }]}>self.mp3</Text>
+        </LookText>
+        <LookText style={[styles.label, { color: ink.quiet }]}>self.mp3</LookText>
       </View>
 
       <View>
         {grid.headers.length > 0 ? (
           <View style={styles.row}>
             {grid.headers.map((header, i) => (
-              <Text key={i} style={[styles.weekday, { width: cell, color: ink.quiet }]}>
+              <LookText key={i} style={[styles.weekday, { width: cell, color: ink.quiet }]}>
                 {header}
-              </Text>
+              </LookText>
             ))}
           </View>
         ) : null}
@@ -68,7 +68,7 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
                       ) : null
                     }
                   />
-                  <Text style={[styles.date, { color: ink.quiet }]}>{day.label}</Text>
+                  <LookText style={[styles.date, { color: ink.quiet }]}>{day.label}</LookText>
                 </>
               ) : null}
             </View>
@@ -76,18 +76,18 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
         </View>
       </View>
 
-      <Text style={[styles.caption, { color: ink.second }]}>{look.caption}</Text>
+      <LookText style={[styles.caption, { color: ink.second }]}>{look.caption}</LookText>
 
       <View style={styles.foot}>
         <View style={styles.footFigure}>
-          <Text style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
+          <LookText style={[styles.figure, { color: ink.ink }]} numberOfLines={1}>
             {look.figure}
-          </Text>
-          <Text style={[styles.figureLine, { color: ink.second }]} numberOfLines={1}>
+          </LookText>
+          <LookText style={[styles.figureLine, { color: ink.second }]} numberOfLines={1}>
             {look.figureLine}
-          </Text>
+          </LookText>
         </View>
-        <Text style={[styles.traits, { color: ink.second }]}>{look.traits.join('\n')}</Text>
+        <LookText style={[styles.traits, { color: ink.second }]}>{look.traits.join('\n')}</LookText>
       </View>
     </View>
   )

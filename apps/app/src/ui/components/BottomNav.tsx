@@ -16,6 +16,7 @@ import type { Music } from './Icons'
 import { useSlidingHighlight } from './SlidingHighlight'
 import { singularPlaces } from '../../ports/singularPlaces'
 import { ScrollView } from './Scroll'
+import { CONTROL_SCALE } from '../textScale'
 
 /**
  * The phone's tab bar (docs/ui-mock `P04`): a capsule floating over the page
@@ -120,7 +121,7 @@ function TabInk({
   return (
     <>
       <Icon size={iconSize.nav} tone="textSecondary" />
-      <Text style={styles.label} numberOfLines={1}>
+      <Text style={styles.label} numberOfLines={1} maxFontSizeMultiplier={CONTROL_SCALE}>
         {label}
       </Text>
       <Animated.View
@@ -132,7 +133,11 @@ function TabInk({
         importantForAccessibility="no-hide-descendants"
       >
         <Icon size={iconSize.nav} tone="onPrimary" />
-        <Text style={[styles.label, styles.labelOn]} numberOfLines={1}>
+        <Text
+          style={[styles.label, styles.labelOn]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={CONTROL_SCALE}
+        >
           {label}
         </Text>
       </Animated.View>

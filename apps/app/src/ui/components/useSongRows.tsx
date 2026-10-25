@@ -66,6 +66,7 @@ export function useSongRows({
   withTags = false,
   hideTagIds,
   withAlbum = true,
+  numbered = true,
   playlist,
 }: {
   /** The rows, in the list's order. */
@@ -81,6 +82,11 @@ export function useSongRows({
   hideTagIds?: readonly number[]
   /** Each row's album: off where the list is grouped under album headings. */
   withAlbum?: boolean
+  /**
+   * The position at desktop width: off where it is no rank and no track,
+   * only where a match fell (Search's results, M1).
+   */
+  numbered?: boolean
   /** The playlist these are, for the song menu's "Remove from this playlist". */
   playlist?: { readonly id: number; readonly name: string }
 }): SongRows {
@@ -145,7 +151,7 @@ export function useSongRows({
       song,
       artUri: artFor(song),
       ...availability(song.id),
-      index,
+      index: numbered ? index : undefined,
       onPress: press,
       onMore,
       menuOpen: menuSongId === song.id,
@@ -171,6 +177,7 @@ export function useSongRows({
       dragSongs,
       listKey,
       withAlbum,
+      numbered,
       withTags,
       tagsOf,
       hideTagIds,

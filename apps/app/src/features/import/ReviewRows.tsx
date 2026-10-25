@@ -52,6 +52,7 @@ import {
   type NameSuggestion,
 } from './importNames.model'
 import { TapAway } from '../../ui/components/TapAway'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /**
  * A review's rows (docs/ui-mock `P30` and `C14`): the review's own page
@@ -672,6 +673,7 @@ function NameField({
   const [focused, setFocused] = useState(false)
   const input = (
     <TextInput
+      {...NO_AUTOFILL}
       style={[
         styles.input,
         label === 'Title'

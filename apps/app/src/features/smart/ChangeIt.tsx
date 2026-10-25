@@ -18,6 +18,7 @@ import { StatusLine } from '../../ui/components/StatusLine'
 import { Press } from '../../ui/components/Press'
 import { Spinner } from '../../ui/components/Spinner'
 import { OPACITY } from '../../ui/motion.model'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /**
  * "Change it" (docs/features/ai.md): an answer to Ask changed in your own
@@ -216,6 +217,7 @@ export function ChangeField({
       >
         <Sparkle size={large ? iconSize.button : iconSize.small} />
         <TextInput
+          {...NO_AUTOFILL}
           ref={inputRef}
           value={value}
           onChangeText={onChangeText}

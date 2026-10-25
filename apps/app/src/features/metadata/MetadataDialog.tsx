@@ -53,6 +53,7 @@ import { Check, Sparkle } from '../../ui/components/Icons'
 import { ScrollView } from '../../ui/components/Scroll'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { StatusLine } from '../../ui/components/StatusLine'
+import { NO_AUTOFILL } from '../../ui/noAutofill'
 
 /** A source's badge at one hue, as an OKLCH pair: ground, ink. */
 const badgeTone = (hue: number): [string, string] => [
@@ -169,6 +170,7 @@ export function MetadataDialog({
           <View key={field} style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
             <TextInput
+              {...NO_AUTOFILL}
               value={edits[field] ?? editable(song[field])}
               onChangeText={text => setEdits(previous => ({ ...previous, [field]: text }))}
               placeholder="—"

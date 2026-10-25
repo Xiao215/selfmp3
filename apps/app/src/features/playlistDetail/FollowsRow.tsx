@@ -63,7 +63,10 @@ export function FollowsRow({
 
   return (
     <TagChipRow
-      lead="Fills from"
+      // Songs need every tag when the rules ask for all of them (C1).
+      lead={
+        playlist.rules.match === 'all' && chosen.length > 1 ? 'Fills from all of' : 'Fills from'
+      }
       tags={chosen}
       // The last tag stays: following nothing, it would empty (`setTags`).
       onRemove={chosen.length > 1 ? tag => toggle(tag.id) : undefined}

@@ -35,7 +35,8 @@ import { SideScroll } from '../../ui/components/Shelf'
  *
  * What is chosen sits on one row that scrolls sideways; under it a Tags and an
  * Artists list, searchable together; the song count is on the button and
- * nowhere else. Every tag or artist turned on **adds** its songs. The lists
+ * nowhere else. Every tag or artist turned on **adds** its songs — or, on a
+ * combination switched to All, narrows them, and the count says so. The lists
  * draw only what is on screen, for a library with hundreds of tags.
  *
  * Nothing changes on the page until the button is pressed: the sheet works on
@@ -46,16 +47,19 @@ export function AddSheet({
   chosen,
   onClose,
   onShow,
+  match = 'any',
 }: {
   open: boolean
   chosen: readonly Place[]
   onClose: () => void
   onShow: (places: readonly Place[]) => void
+  /** What the page it opened from counts: songs any of them holds, or all. */
+  match?: 'any' | 'all'
 }): ReactNode {
   // Mounted fresh each opening, so the copy starts from what the page shows.
   return (
     <Sheet open={open} onClose={onClose} title="Combine with…" width={520} testID="add-sheet">
-      {open ? <AddSheetBody chosen={chosen} onShow={onShow} /> : null}
+      {open ? <AddSheetBody chosen={chosen} onShow={onShow} match={match} /> : null}
     </Sheet>
   )
 }
@@ -63,9 +67,11 @@ export function AddSheet({
 function AddSheetBody({
   chosen,
   onShow,
+  match,
 }: {
   chosen: readonly Place[]
   onShow: (places: readonly Place[]) => void
+  match: 'any' | 'all'
 }): ReactNode {
   const window = useWindowDimensions()
   const { data: library } = useLibrary()
@@ -92,7 +98,7 @@ function AddSheetBody({
     [query, tags, artists, recentTagIds, list],
   )
   const onKeys = useMemo(() => new Set(draft.map(placeKey)), [draft])
-  const count = useMemo(() => placeSongs(draft, songs).length, [draft, songs])
+  const count = useMemo(() => placeSongs(draft, songs, match).length, [draft, songs, match])
 
   const renderRow = ({ item }: { item: AddRow }): ReactElement => {
     if (item.kind === 'heading') return <Text style={styles.heading}>{item.title}</Text>

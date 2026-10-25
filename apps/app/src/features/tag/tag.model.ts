@@ -39,9 +39,13 @@ export function placeSize(place: Place): number {
 
 /**
  * Every song any of the places holds, each once, newest first as Library
- * opens.
+ * opens; with `all`, only the songs every one of them holds (C1).
  */
-export function placeSongs<S extends Song>(places: readonly Place[], songs: readonly S[]): S[] {
+export function placeSongs<S extends Song>(
+  places: readonly Place[],
+  songs: readonly S[],
+  match: 'any' | 'all' = 'any',
+): S[] {
   if (places.length === 0) return []
   const tagIds = new Set<number>()
   const artistKeys = new Set<string>()
@@ -49,13 +53,19 @@ export function placeSongs<S extends Song>(places: readonly Place[], songs: read
     if (place.kind === 'tag') tagIds.add(place.tag.id)
     else artistKeys.add(place.artist.key)
   }
-  return songs
-    .filter(
-      song =>
-        song.tagIds.some(id => tagIds.has(id)) ||
-        (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key))),
-    )
-    .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
+  const holds =
+    match === 'all'
+      ? (song: S): boolean => {
+          const keys = artistKeys.size > 0 ? songArtistKeys(song) : []
+          return (
+            [...tagIds].every(id => song.tagIds.includes(id)) &&
+            [...artistKeys].every(key => keys.includes(key))
+          )
+        }
+      : (song: S): boolean =>
+          song.tagIds.some(id => tagIds.has(id)) ||
+          (artistKeys.size > 0 && songArtistKeys(song).some(key => artistKeys.has(key)))
+  return songs.filter(holds).sort((a, b) => b.addedAt.localeCompare(a.addedAt) || b.id - a.id)
 }
 
 /** "12 songs · 46 min", under a place's name. */

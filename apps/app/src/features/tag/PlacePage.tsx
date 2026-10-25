@@ -15,7 +15,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
 import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
-import { Plus, User } from '../../ui/components/Icons'
+import { ListMusic, Plus, User } from '../../ui/components/Icons'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
@@ -29,7 +29,15 @@ import { useSongColor } from '../../ui/useSongColor'
 import { useSelection, type Selection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
-import { combinedLink, combinedName, placesSource, type ListSource } from '../lists/lists.model'
+import {
+  combinedLink,
+  combinedName,
+  placesSource,
+  type ListSource,
+  type TagMatch,
+} from '../lists/lists.model'
+import { Segmented } from '../../ui/components/Segmented'
+import { useKeepPlaces } from './useKeepPlaces'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
@@ -72,6 +80,8 @@ export function PlacePage({
   menuItems = [],
   menuAnchor,
   onChange,
+  match = 'any',
+  onMatch,
 }: {
   /** One tag or artist; or, on `/combined`, the several put together. */
   places: readonly Place[]
@@ -84,6 +94,10 @@ export function PlacePage({
    * to there. Without it the page is one place, and combining opens a new one.
    */
   onChange?: (places: readonly Place[]) => void
+  /** On a combination's page: songs any of them holds, or every one of them (C1). */
+  match?: TagMatch
+  /** Given with `onChange`: the Any / All switch in the head. */
+  onMatch?: (match: TagMatch) => void
 }): ReactNode {
   const router = useRouter()
   const { wide } = useLayoutFlags()
@@ -103,10 +117,10 @@ export function PlacePage({
   const only = !combining && chosen.length === 1 ? chosen[0] : undefined
   const artistAlone = only?.kind === 'artist'
   const songs = useMemo(() => {
-    const found = placeSongs(chosen, library?.songs ?? [])
+    const found = placeSongs(chosen, library?.songs ?? [], match)
     // An artist alone reads by album; a mix reads newest first, as Library does.
     return artistAlone ? albumsOf(found).flatMap(group => group.songs) : found
-  }, [chosen, library, artistAlone])
+  }, [chosen, library, artistAlone, match])
   const ids = useMemo(() => songs.map(song => song.id), [songs])
   const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
@@ -117,10 +131,25 @@ export function PlacePage({
   const backdrop =
     useArtistPicture(only?.kind === 'artist' ? only.artist.name : null)?.banner ?? null
 
-  const title = combinedName(chosen.map(placeName)) || placeName(place)
+  const title = combinedName(chosen.map(placeName), match) || placeName(place)
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)
   // What Up next is called when this plays.
-  const source = useMemo(() => placesSource(chosen), [chosen])
+  const source = useMemo(() => placesSource(chosen, match), [chosen, match])
+  // A combination is kept as a playlist from its ⋯, without playing it first (C1).
+  const kept = useKeepPlaces(chosen, match, ids)
+  const keepItem: MenuItem[] = combining
+    ? [
+        {
+          key: 'keep',
+          label: kept.keeping ? 'Keeping…' : 'Keep as playlist',
+          icon: <ListMusic tone="textSecondary" />,
+          disabled: kept.keeping || (ids.length === 0 && chosen.some(p => p.kind === 'artist')),
+          apart: true,
+          testID: 'place-keep',
+          onPress: kept.keep,
+        },
+      ]
+    : []
   // A tag alone wears its own colour at the head, as its tile on Home does
   // (G1, 2026-10-25): a deep fill in the dark, the pale tile on Paper.
   const scheme = useShownScheme()
@@ -280,7 +309,7 @@ export function PlacePage({
           {backShown ? <BackButton to="/" onPress={back} /> : <View />}
           <MoreMenu
             name={title}
-            items={[...listActions, ...menuItems]}
+            items={[...listActions, ...keepItem, ...menuItems]}
             title={title}
             anchorRef={menuAnchor}
             testID="place-more"
@@ -303,6 +332,17 @@ export function PlacePage({
             </View>
           </View>
           <Text style={listHeadText.summary}>{summary}</Text>
+          {combining && onMatch ? (
+            // One switch, never a third chip state: any of them, or songs that are all of them.
+            <Segmented
+              label="Songs with"
+              size="small"
+              value={match}
+              onChange={onMatch}
+              options={MATCH_OPTIONS}
+              style={styles.match}
+            />
+          ) : null}
           {combining ? (
             <Chips
               chosen={chosen}
@@ -361,7 +401,13 @@ export function PlacePage({
           ) : null
         }
       />
-      <AddSheet open={adding} chosen={chosen} onClose={() => setAdding(false)} onShow={combine} />
+      <AddSheet
+        open={adding}
+        chosen={chosen}
+        match={combining ? match : 'any'}
+        onClose={() => setAdding(false)}
+        onShow={combine}
+      />
     </View>
   )
 }
@@ -508,8 +554,15 @@ function AlbumHeading({
   )
 }
 
+/** Any of the tags, or all of them: the Combined page's one switch. */
+const MATCH_OPTIONS: readonly { value: TagMatch; label: string }[] = [
+  { value: 'any', label: 'Any' },
+  { value: 'all', label: 'All' },
+]
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  match: { alignSelf: 'flex-start', marginTop: space.tight },
   listArea: { flex: 1, minHeight: 0 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   plus: { color: theme.colors.textSecondary, fontSize: type.sub },

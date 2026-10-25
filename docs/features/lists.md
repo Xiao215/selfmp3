@@ -113,7 +113,8 @@ a playlist, Liked or the whole library, which are places of their own, and never
 Nor for songs that need a tag, a chore rather than a list, or Home's Recently played songs,
 which Home already keeps.
 
-- **Tags combined** make a playlist that fills from them (`followRules`), so new songs join.
+- **Tags combined** make a playlist that fills from them (`followRules`), so new songs join,
+  needing any or all of them as the combination did.
 - **Anything else** makes a playlist of the songs in Up next as they are, in the list's own
   order rather than the shuffle (`songsToSave`). A song swiped out of an answer stays out.
 - **Songs added to one song, or to the whole library, make it yours** (B1, 2026-10-25). Play
@@ -145,7 +146,11 @@ as three plain choices, then a name:
 - **Pick songs**: a name (New playlist, made unique), then picking songs (`AddSongsSheet`).
   It is made with the first songs confirmed, so cancelling leaves nothing.
 - **Fills from tags**: the tags, with what they hold now, then a name that starts as theirs.
-  It follows them (`followRules`); **Stop filling** on its page keeps every song as it is.
+  With two or more, **Any of them / All of them** says whether a song needs one or every one
+  (C1); the name joins them with "or" or "&". It follows them (`followRules`, whose `match`
+  the server's rules and the replica's evaluation both read); **Stop filling** on its page
+  keeps every song as it is. Its tile and its Fills from row say "&" / "all of" when it needs
+  all.
 - **Describe it**, only while Ask is on: what you want to hear, then a name that starts as
   those words, then Ask's picks to keep ([ai.md](ai.md), "L2").
 
@@ -157,9 +162,17 @@ A tag's page is always that one tag (B1). **Combine with…** on its head (H1) o
 picker; what is picked opens as a page of its own, `/combined?tags=…&artists=…`, pushed on
 the tag page's own stack — Back comes back to the tag, and the Library tab's own filter is
 never touched (it is shared app-wide). Its chips are its address: one taken off or added
-rewrites it in place, and down to one it becomes that tag's or artist's own page. A
-combination always **widens** (any of them); there is no narrowing to songs that have all of
-them.
+rewrites it in place, and down to one it becomes that tag's or artist's own page.
+
+A combination **widens** (any of them) unless its head's one **Any / All** switch says All
+(C1, 2026-10-25): then it is the songs that carry every one of them (`placeSongs`, the
+address's `match=all`, the source's `match`). The chips keep their two shapes; there is no
+third chip state and no "leave out". An All combination is named with "&" ("night & calm"),
+an Any with "or", and Combine with…'s count follows the switch. Its ⋯ has **Keep as
+playlist**, which makes a playlist that fills from those tags with the same Any / All, without
+playing them first (`useKeepPlaces`); with an artist among them it keeps the songs on show,
+as rules only follow tags. Up next's Save keeps the match too, and so does Recently played,
+where Any and All of the same tags are two lists.
 
 Library's tag strip combines too, as a filter of the library: with tags on, Up next is named
 after them the same way.

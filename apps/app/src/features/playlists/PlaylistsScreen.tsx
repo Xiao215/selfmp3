@@ -206,7 +206,12 @@ export function PlaylistsScreen(): ReactNode {
               ) : (
                 <PlaylistTile
                   playlist={tile.playlist}
-                  line={playlistTileLine(tile.playlist, now, fillsFrom(tile.playlist))}
+                  line={playlistTileLine(
+                    tile.playlist,
+                    now,
+                    fillsFrom(tile.playlist),
+                    tile.playlist.kind === 'live' ? tile.playlist.rules.match : 'any',
+                  )}
                   index={playlists.indexOf(tile.playlist)}
                   width={tileWidth}
                   finePointer={finePointer}

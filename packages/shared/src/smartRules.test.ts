@@ -74,6 +74,23 @@ const run = (r: CloudSmartRules): string[] => livePlaylistSongs(r, LIBRARY, { no
 const ids = (...ns: number[]): string[] => ns.map(uid)
 
 describe('smart playlists on a device', () => {
+  it('fill from tags: songs with any of them, or with all of them', () => {
+    const NIGHT = uid(0x72)
+    const songs = [
+      song(3, { tagUids: [CHILL, NIGHT] }),
+      song(2, { tagUids: [NIGHT] }),
+      song(1, { tagUids: [CHILL] }),
+    ]
+    const both: CloudSmartRule[] = [
+      { field: 'tag', op: 'has', tagUid: CHILL },
+      { field: 'tag', op: 'has', tagUid: NIGHT },
+    ]
+    expect(livePlaylistSongs(rules(both, { match: 'any' }), songs, { now: NOW })).toEqual(
+      ids(3, 2, 1),
+    )
+    expect(livePlaylistSongs(rules(both, { match: 'all' }), songs, { now: NOW })).toEqual(ids(3))
+  })
+
   it('match text ignoring the case of A–Z only, as SQLite does', () => {
     expect(run(rules([{ field: 'title', op: 'contains', value: 'RAIN' }]))).toEqual(ids(5, 4))
     expect(run(rules([{ field: 'title', op: 'equals', value: 'sunny' }]))).toEqual(ids(3))

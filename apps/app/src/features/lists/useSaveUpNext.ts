@@ -68,7 +68,12 @@ export function useSaveUpNext(): {
         const input =
           plan.kind === 'follow'
             ? newPlaylist('live', plan.name, {
-                rules: followRules({ tagIds: plan.tagIds, sort: 'addedAt', descending: true }),
+                rules: followRules({
+                  tagIds: plan.tagIds,
+                  match: plan.match,
+                  sort: 'addedAt',
+                  descending: true,
+                }),
               })
             : newPlaylist('manual', plan.name)
         if (!input) return

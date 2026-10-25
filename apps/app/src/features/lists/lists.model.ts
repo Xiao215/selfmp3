@@ -59,10 +59,12 @@ export type ListSource =
       readonly saved?: boolean
     }
   | {
-      /** Tags and artists together: any song any of them holds. */
+      /** Tags and artists together: any song any of them holds, or with `match` all, every one. */
       readonly kind: 'combined'
       readonly tagIds: readonly number[]
       readonly artistKeys: readonly string[]
+      /** Songs every one of them holds (C1); left out, songs any of them holds. */
+      readonly match?: 'all'
       /** The names as they were, for when one has since gone. */
       readonly name: string
     }
@@ -162,7 +164,12 @@ export interface SourceLine {
 
 /** What Save would make: a playlist filled from tags, or one of these songs. */
 export type SavePlan =
-  | { readonly kind: 'follow'; readonly name: string; readonly tagIds: readonly number[] }
+  | {
+      readonly kind: 'follow'
+      readonly name: string
+      readonly tagIds: readonly number[]
+      readonly match: TagMatch
+    }
   | { readonly kind: 'songs'; readonly name: string; readonly songIds: readonly number[] }
 
 interface Known {
@@ -182,9 +189,20 @@ export function tagsWithIds<T extends { readonly id: number }>(
   })
 }
 
-/** Names joined as a combination reads: "原神纯音乐 or YOASOBI". */
-export function combinedName(names: readonly string[]): string {
-  return names.join(' or ')
+/**
+ * Any of the tags, or all of them (C1, 2026-10-25): a combination widens
+ * unless it is asked to narrow. The same words a rule set says it in.
+ */
+export type TagMatch = 'any' | 'all'
+
+/** Names joined as a combination reads: "原神纯音乐 or YOASOBI", and all of them "night & calm". */
+export function combinedName(names: readonly string[], match: TagMatch = 'any'): string {
+  return names.join(match === 'all' ? ' & ' : ' or ')
+}
+
+/** A combined source's match, read with its default. */
+function sourceMatch(source: { readonly match?: 'all' }): TagMatch {
+  return source.match === 'all' ? 'all' : 'any'
 }
 
 /** A combination's parts as places, read against the library now; ones that have gone are left out. */
@@ -208,7 +226,7 @@ export function combinedPlaces(
 }
 
 /** The source for a set of places: one tag or artist is itself, more are a combination. */
-export function placesSource(places: readonly Place[]): ListSource | null {
+export function placesSource(places: readonly Place[], match: TagMatch = 'any'): ListSource | null {
   const [only] = places
   if (!only) return null
   if (places.length === 1) {
@@ -222,7 +240,9 @@ export function placesSource(places: readonly Place[]): ListSource | null {
     artistKeys: places.flatMap(place => (place.kind === 'artist' ? [place.artist.key] : [])),
     name: combinedName(
       places.map(place => (place.kind === 'tag' ? place.tag.name : place.artist.name)),
+      match,
     ),
+    ...(match === 'all' ? { match } : {}),
   }
 }
 
@@ -273,14 +293,16 @@ export function sourceTagIds(source: ListSource | null): readonly number[] {
   return NO_TAG_IDS
 }
 
-/** Where a combination opens: its tags and artists in the address. */
+/** Where a combination opens: its tags and artists in the address, and `match=all` when it narrows. */
 export function combinedLink(source: {
   readonly tagIds: readonly number[]
   readonly artistKeys: readonly string[]
+  readonly match?: 'all'
 }): SourceLink {
   const params: Record<string, string> = {}
   if (source.tagIds.length > 0) params['tags'] = source.tagIds.join(',')
   if (source.artistKeys.length > 0) params['artists'] = source.artistKeys.join(',')
+  if (source.match === 'all') params['match'] = 'all'
   return { pathname: '/combined', params }
 }
 
@@ -288,7 +310,8 @@ export function combinedLink(source: {
 export function parseCombinedParams(params: {
   tags?: string | string[]
   artists?: string | string[]
-}): { tagIds: number[]; artistKeys: string[] } {
+  match?: string | string[]
+}): { tagIds: number[]; artistKeys: string[]; match: TagMatch } {
   const one = (value: string | string[] | undefined): string =>
     Array.isArray(value) ? value.join(',') : (value ?? '')
   const tagIds = one(params.tags)
@@ -299,7 +322,11 @@ export function parseCombinedParams(params: {
     .split(',')
     .map(part => artistKey(part))
     .filter(key => key.length > 0)
-  return { tagIds: [...new Set(tagIds)], artistKeys: [...new Set(artistKeys)] }
+  return {
+    tagIds: [...new Set(tagIds)],
+    artistKeys: [...new Set(artistKeys)],
+    match: one(params.match) === 'all' ? 'all' : 'any',
+  }
 }
 
 /**
@@ -341,7 +368,9 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
       const whole = names.length === source.tagIds.length
       // An artist's name is not something that changes under it; a tag's is.
       return plain(
-        whole && source.artistKeys.length === 0 ? combinedName(names) : source.name,
+        whole && source.artistKeys.length === 0
+          ? combinedName(names, sourceMatch(source))
+          : source.name,
         combinedLink(source),
       )
     }
@@ -414,10 +443,15 @@ export function savePlan(
         tags.length > 0 &&
         tags.length === source.tagIds.length
       ) {
+        const match = sourceMatch(source)
         return {
           kind: 'follow',
-          name: combinedName(tags.map(tag => tag.name)),
+          name: combinedName(
+            tags.map(tag => tag.name),
+            match,
+          ),
           tagIds: source.tagIds,
+          match,
         }
       }
       return songs(source.name)
@@ -477,7 +511,13 @@ export function parseListSource(value: unknown): ListSource | null {
         ? (v['artistKeys'] as unknown[]).filter((key): key is string => typeof key === 'string')
         : null
       return name !== null && tagIds && artistKeys
-        ? { kind: 'combined', tagIds: tagIds as number[], artistKeys, name }
+        ? {
+            kind: 'combined',
+            tagIds: tagIds as number[],
+            artistKeys,
+            name,
+            ...(v['match'] === 'all' ? { match: 'all' as const } : {}),
+          }
         : null
     }
     case 'answer': {
@@ -543,7 +583,7 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
     case 'playlist':
       return `playlist:${source.playlistId}`
     case 'combined':
-      return `combined:${[...source.tagIds].sort((a, b) => a - b).join(',')}|${[...source.artistKeys].sort().join(',')}`
+      return `combined:${[...source.tagIds].sort((a, b) => a - b).join(',')}|${[...source.artistKeys].sort().join(',')}${source.match === 'all' ? '|all' : ''}`
     case 'answer':
       return `answer:${source.text.trim().toLowerCase()}`
     case 'songs':
@@ -765,7 +805,8 @@ export function recentSongIds(
           ? { tagIds: [], artistKeys: [source.key] }
           : null
   const places = parts ? combinedPlaces(parts, library.tags, library.songs) : []
-  if (places.length > 0) return placeSongs(places, library.songs).map(song => song.id)
+  const match = source.kind === 'combined' ? sourceMatch(source) : 'any'
+  if (places.length > 0) return placeSongs(places, library.songs, match).map(song => song.id)
   const known = new Set(library.songs.map(song => song.id))
   return entry.songIds.filter(id => known.has(id))
 }

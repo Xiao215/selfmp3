@@ -103,6 +103,23 @@ describe('what Save makes', () => {
       kind: 'follow',
       name: '原神纯音乐 or YOASOBI',
       tagIds: [1, 2],
+      match: 'any',
+    })
+  })
+
+  it('makes tags that are all wanted into a playlist that needs all of them', () => {
+    const source: ListSource = {
+      kind: 'combined',
+      tagIds: [1, 2],
+      artistKeys: [],
+      name: 'x',
+      match: 'all',
+    }
+    expect(savePlan(source, queue([5]), known)).toEqual({
+      kind: 'follow',
+      name: '原神纯音乐 & YOASOBI',
+      tagIds: [1, 2],
+      match: 'all',
     })
   })
 
@@ -232,6 +249,7 @@ describe('sources from places and Library', () => {
     expect(parseCombinedParams({ tags: '2,1,x,1', artists: 'Yorushika' })).toEqual({
       tagIds: [2, 1],
       artistKeys: ['yorushika'],
+      match: 'any',
     })
   })
 
@@ -438,5 +456,39 @@ describe('Up next lined up by hand', () => {
 
   it('is not kept as a list of its own by Recently played: its songs are', () => {
     expect(sourceKey(LINED_UP_SOURCE, [1, 2])).toBeNull()
+  })
+})
+
+describe('tags combined: any or all', () => {
+  const places = [
+    { kind: 'tag' as const, tag: TAGS[2]! },
+    { kind: 'tag' as const, tag: TAGS[1]! },
+  ]
+
+  it('names any with “or” and all with “&”, and keeps all in the source and the address', () => {
+    expect(placesSource(places)).not.toHaveProperty('match')
+    const all = placesSource(places, 'all')
+    expect(all).toEqual({
+      kind: 'combined',
+      tagIds: [3, 2],
+      artistKeys: [],
+      name: 'Calm & YOASOBI',
+      match: 'all',
+    })
+    if (all?.kind !== 'combined') throw new Error('combined')
+    expect(describeSource(all, known).label).toBe('Calm & YOASOBI')
+    expect(combinedLink(all).params).toEqual({ tags: '3,2', match: 'all' })
+    expect(parseCombinedParams({ tags: '3,2', match: 'all' }).match).toBe('all')
+    expect(parseCombinedParams({ tags: '3,2' }).match).toBe('any')
+    expect(parseListSource(JSON.parse(JSON.stringify(all)))).toEqual(all)
+  })
+
+  it('remembers any and all as two lists, and plays all again as all', () => {
+    const any = placesSource(places)!
+    const all = placesSource(places, 'all')!
+    expect(sourceKey(any, [])).not.toBe(sourceKey(all, []))
+    const songs = [song(1, { tagIds: [3] }), song(2, { tagIds: [2, 3] })]
+    const entry: RecentList = { key: 'k', source: all, songIds: [], played: [], at: 1 }
+    expect(recentSongIds(entry, { songs, tags: TAGS })).toEqual([2])
   })
 })

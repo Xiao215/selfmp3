@@ -277,6 +277,26 @@ describe('editing playlists', () => {
     expect(view.playlistSongs[id]).toEqual([d.idOf('songs', 'a')])
   })
 
+  it('makes a playlist with its first songs in the same changes', () => {
+    const d = device()
+    const made = edits.createPlaylist(d.ctx(), {
+      name: 'Picked',
+      description: '',
+      kind: 'manual',
+      rules: null,
+      // One the library does not have is left out, as an add leaves it out.
+      songIds: [d.idOf('songs', 'b'), 999_999, d.idOf('songs', 'a')],
+    })
+    expect(made.changes.map(change => change.type)).toEqual([
+      'playlistCreated',
+      'playlistSong',
+      'playlistSong',
+    ])
+    const view = d.apply(made.changes)
+    const id = view.ids.playlists[made.uid] ?? 0
+    expect(view.playlistSongs[id]).toEqual(['b', 'a'].map(c => d.idOf('songs', c)))
+  })
+
   it('puts songs in at a position, as a new order', () => {
     const d = device()
     const mix = d.idOf('playlists', '7')

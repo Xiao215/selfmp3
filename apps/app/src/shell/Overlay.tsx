@@ -11,6 +11,8 @@ import {
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
+import { createValueStore } from '../state/valueStore.model'
+import { useValueStore } from '../state/useValueStore'
 
 /**
  * One place, at the root of the app, where sheets and popovers are drawn.
@@ -78,9 +80,36 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
             </View>
           ))}
         </View>
+        <PressHold />
       </View>
     </OverlayContext.Provider>
   )
+}
+
+/** Whether presses are held, after an answer that takes its own buttons away (`holdPresses`). */
+const held = createValueStore(false)
+let release: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Takes the next presses for `ms`, anywhere: for an answer that takes away
+ * the very thing pressed. Delete playlist in its dialog closed the dialog and
+ * left the page in the same press, and the second press of a double tap
+ * landed on whatever the next page had there — a playlist's tile opened, or
+ * the deleted playlist's own page. A dialog fading out keeps its own buttons;
+ * a page gone takes them with it, so this sits at the root, past every page.
+ */
+export function holdPresses(ms: number = PRESS_HOLD_MS): void {
+  clearTimeout(release)
+  held.set(true)
+  release = setTimeout(() => held.set(false), ms)
+}
+
+/** A slow double tap's length. */
+const PRESS_HOLD_MS = 400
+
+/** A clear pane over everything while presses are held: it takes them, and nothing answers. */
+function PressHold(): ReactNode {
+  return useValueStore(held) ? <View style={StyleSheet.absoluteFill} testID="press-hold" /> : null
 }
 
 const styles = StyleSheet.create({

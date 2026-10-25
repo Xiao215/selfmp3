@@ -13,7 +13,6 @@ import {
   STALE,
   type,
   useDevices,
-  type Api,
   iconSize,
   space,
 } from '@selfmp3/client'
@@ -22,7 +21,7 @@ import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
 import { Trash } from '../../ui/components/Icons'
-import { showFailure } from '../../ui/toast'
+import { forgetEach } from './forgetDevices'
 import { useDeviceContext } from '../devices/DevicesProvider'
 import {
   knownAsDevices,
@@ -119,19 +118,6 @@ function CloudDevices({ anchor }: { anchor: (node: View | null) => void }): Reac
       onForget={forget}
     />
   )
-}
-
-/**
- * Forgets each device, all of them tried even when one is refused, and says
- * so when any was: Remove is pressed, and a row that stays put is no answer.
- */
-async function forgetEach(api: Pick<Api, 'forgetDevice'>, ids: readonly string[]): Promise<void> {
-  const results = await Promise.allSettled(ids.map(id => api.forgetDevice(id)))
-  const refused = results.find(result => result.status === 'rejected')
-  if (refused) {
-    const what = ids.length > 1 ? 'Couldn’t remove them all' : 'Couldn’t remove that device'
-    showFailure(what, refused.reason)
-  }
 }
 
 /** The panel itself, whichever way its list arrived. */

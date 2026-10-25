@@ -33,9 +33,15 @@ export function playlistRoutes(container: Container): Router {
   router.post(
     '/playlists',
     route({ body: CreatePlaylistSchema }, ({ body }) => {
-      const created = container.playlists.create(body)
+      // Its first songs in the same transaction: a playlist made with them, or
+      // not made at all. Ids that are not real songs are dropped, as an add drops them.
+      const songIds = body.kind === 'manual' ? (body.songIds ?? []) : []
+      const present = container.songs.existingIds(songIds)
+      const valid = songIds.filter(id => present.has(id))
+      const created = container.playlists.create(body, valid)
+      if (valid.length > 0) container.edits.playlistSongs(created.id, valid)
       container.bumpLibraryVersion()
-      return created
+      return container.playlists.byId(created.id) ?? created
     }),
   )
 

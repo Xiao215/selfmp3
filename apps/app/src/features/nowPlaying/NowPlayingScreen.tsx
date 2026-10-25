@@ -18,6 +18,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
+import { pageFootNow, setPageFoot, usePageFoot } from '../../shell/pageFoot'
 import { setStageExit } from '../../shell/stageExit'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -27,6 +28,7 @@ import { LikeButton } from '../../ui/components/LikeButton'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
+import { useTouchTravel } from '../../ui/useTouchTravel'
 import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { artShadow, label, heroTitle } from '../../ui/surfaces'
@@ -109,6 +111,9 @@ export function NowPlayingScreen(): ReactNode {
  */
 function OverTheModal(): ReactNode {
   const insets = useSafeAreaInsets()
+  // Above the page's scrubber and transport, which a toast at the foot covered
+  // — a failure, which stays until it is dismissed, kept Next from being pressed.
+  const foot = usePageFoot()
   const router = useRouter()
   const go = useCallback((href: Href) => leaveTo(router, href), [router])
   return (
@@ -116,7 +121,10 @@ function OverTheModal(): ReactNode {
       <QueueSheet go={go} />
       <RoomSheets go={go} />
       <ShareSheet />
-      <View pointerEvents="box-none" style={[styles.toasts, { bottom: insets.bottom + space.sm }]}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.toasts, { bottom: Math.max(insets.bottom, foot) + space.sm }]}
+      >
         <ToastHost />
       </View>
     </>
@@ -227,6 +235,29 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     paddingLeft: space.lg + insets.left,
     paddingRight: space.lg + insets.right,
   }
+
+  /*
+   * The scrubber and the transport are the page's foot, and the toasts keep
+   * above them (`setPageFoot`): at the foot, a message sat over Previous, Play
+   * and Next, and a failure — which stays until it is dismissed — took every
+   * press meant for Next. Each view's own, since the words' transport is smaller.
+   */
+  const [decks, setDecks] = useState({ cover: 0, lyrics: 0 })
+  const coverDeck = useCallback(
+    (height: number) => setDecks(now => (now.cover === height ? now : { ...now, cover: height })),
+    [],
+  )
+  const wordsDeck = useCallback(
+    (height: number) => setDecks(now => (now.lyrics === height ? now : { ...now, lyrics: height })),
+    [],
+  )
+  const deck = decks[view]
+  useEffect(() => {
+    if (deck === 0) return undefined
+    const before = pageFootNow()
+    setPageFoot(insets.bottom + deck)
+    return () => setPageFoot(before)
+  }, [deck, insets.bottom])
 
   // A long pull puts the page away or turns it (`swipeOutcome`). Asked only on
   // a move, so taps, the scrubber (which refuses to let go) and the scrolling
@@ -396,6 +427,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             handed={handed}
             guide={lyricsGuide}
             guideTarget={coverTarget}
+            onDeck={coverDeck}
           />
         </Animated.View>
       ) : null}
@@ -411,6 +443,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             noLyrics={noLyrics}
             onBack={() => setView('cover')}
             fingerOnWords={fingerOnWords}
+            onDeck={wordsDeck}
           />
         </Animated.View>
       ) : null}
@@ -463,10 +496,13 @@ function CoverView({
   handed,
   guide,
   guideTarget,
+  onDeck,
 }: {
   song: Song
   uri: string | null | undefined
   color: string
+  /** How tall the scrubber and the transport are together, so the toasts keep above them. */
+  onDeck: (height: number) => void
   /** The lyrics guide, which lights the cover and lifts it a little as the hand pulls. */
   guide: GuideHandle
   guideTarget: GuideTarget
@@ -570,12 +606,14 @@ function CoverView({
         style={styles.tags}
       />
 
-      <View style={styles.progress}>
-        <SeekBar color={color} />
-      </View>
+      <View onLayout={event => onDeck(event.nativeEvent.layout.height)}>
+        <View style={styles.progress}>
+          <SeekBar color={color} />
+        </View>
 
-      {/* The round white Play (`S2`) is the page's one primary. */}
-      <TransportControls size="page" tint={color} style={styles.controls} />
+        {/* The round white Play (`S2`) is the page's one primary. */}
+        <TransportControls size="page" tint={color} style={styles.controls} />
+      </View>
     </>
   )
 }
@@ -623,6 +661,8 @@ function BreathingCover({
   guideTarget: GuideTarget
 }): ReactNode {
   const playing = usePlayerPlaying()
+  // A swipe across the cover lets go as a press; only a tap opens the words.
+  const touch = useTouchTravel()
   // The app's own width, not the window's (`shell/rootWidth.ts`).
   const { width } = useLayout()
   const window = useWindowDimensions()
@@ -705,11 +745,13 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View style={guide.shown ? riseWith(guide, 24) : null}>
+      <Animated.View style={guide.shown ? riseWith(guide, 24) : null} {...touch.handlers}>
         <Animated.View style={[styles.artShadow, { transform }]}>
           <Press
             depth="row"
-            onPress={onPress}
+            onPress={() => {
+              if (!touch.moved()) onPress()
+            }}
             accessibilityRole="button"
             accessibilityLabel="Show the lyrics"
           >
@@ -738,9 +780,12 @@ function WordsView({
   noLyrics,
   onBack,
   fingerOnWords,
+  onDeck,
 }: {
   song: Song
   uri: string | null | undefined
+  /** How tall the scrubber and the transport are together, so the toasts keep above them. */
+  onDeck: (height: number) => void
   lyrics: ReturnType<typeof useSongWords>
   noLyrics: boolean
   onBack: () => void
@@ -767,14 +812,16 @@ function WordsView({
       />
       <PhoneWordsBody words={lyrics.words} fingerOnWords={fingerOnWords} style={styles.words} />
 
-      <View style={styles.progress}>
-        <SeekBar color={theme.colors.textPrimary} />
+      <View onLayout={event => onDeck(event.nativeEvent.layout.height)}>
+        <View style={styles.progress}>
+          <SeekBar color={theme.colors.textPrimary} />
+        </View>
+        <TransportControls
+          size="words"
+          tint={theme.colors.textPrimary}
+          style={styles.wordsControls}
+        />
       </View>
-      <TransportControls
-        size="words"
-        tint={theme.colors.textPrimary}
-        style={styles.wordsControls}
-      />
     </View>
   )
 }

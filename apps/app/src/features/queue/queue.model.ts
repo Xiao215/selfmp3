@@ -278,8 +278,7 @@ export function withOnlyPlaying(state: QueueState): QueueState {
  * no place to mean.
  */
 export function withRestRestored(now: QueueState, before: QueueState): QueueState | null {
-  const playing = before.items[before.index]
-  if (playing === undefined || now.items[now.index] !== playing) return null
+  if (!stillRestorable(now, before)) return null
   const known = new Set(before.items)
   const added = now.items.filter(id => !known.has(id))
   const original = new Set(before.original)
@@ -290,6 +289,12 @@ export function withRestRestored(now: QueueState, before: QueueState): QueueStat
     items: [...before.items, ...added],
     original: [...before.original, ...added.filter(id => !original.has(id))],
   }
+}
+
+/** Whether Clear the rest's Undo can still put `before` back: the song it left is still the one playing. */
+export function stillRestorable(now: QueueState, before: QueueState): boolean {
+  const playing = before.items[before.index]
+  return playing !== undefined && now.items[now.index] === playing
 }
 
 // --- A song played on its own, ended ----------------------------------------------

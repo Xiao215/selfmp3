@@ -29,6 +29,8 @@ import {
 
 import { cloudRequest, library as cloudLibrary } from '../replica'
 import { libraryCache, lyricsCache, motionCache, playlistCache } from '../offline/caches'
+import { sendPendingIn } from '../ui/toast'
+import { removedFrom } from '../features/playlists/usePlaylistRemoval'
 
 /**
  * Which server answers, and whether the bucket does instead.
@@ -79,6 +81,28 @@ const transport = (): ApiTransport | null =>
   current.connection ? serverTransport(current.connection) : null
 
 /**
+ * Whether the page is going away (`ports/appLeaving`): hidden, or closing.
+ * Writes made meanwhile — what was waiting on its Undo, sent as the tab goes —
+ * are marked `keepalive`, which a browser carries through to the server after
+ * the page has gone; an ordinary request is cancelled with the page, and the
+ * removal it carried was lost. Set by the app's root, which hears the page go.
+ */
+let leaving = false
+
+export function sendingAsLeaving(on: boolean): void {
+  leaving = on
+}
+
+/** What a browser will carry on past the page for a request marked `keepalive`, all of them together. */
+const KEEPALIVE_BYTES = 60_000
+
+/** A write that should outlive the page, small enough for a browser to carry. */
+function outlivesThePage(init: ClientRequestInit | undefined): boolean {
+  if (!leaving || !init?.method || init.method === 'GET') return false
+  return (init.body?.length ?? 0) < KEEPALIVE_BYTES
+}
+
+/**
  * `fetch` with a deadline, which is this device's whole contribution.
  *
  * The abort surfaces as a thrown error, which the package turns into an
@@ -95,7 +119,11 @@ export const fetchWithin = (timeoutMs: number) => async (url: string, init?: Cli
   if (given?.aborted) stop()
   given?.addEventListener('abort', stop)
   try {
-    return await fetch(url, { ...init, signal: controller.signal })
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      ...(outlivesThePage(init) ? { keepalive: true } : {}),
+    })
   } finally {
     clearTimeout(timer)
     given?.removeEventListener('abort', stop)
@@ -148,6 +176,7 @@ configureClient({
     const timer = setTimeout(run, ms)
     return () => clearTimeout(timer)
   },
+  beforeAddingTo: playlistId => sendPendingIn(removedFrom(playlistId)),
 })
 
 /**

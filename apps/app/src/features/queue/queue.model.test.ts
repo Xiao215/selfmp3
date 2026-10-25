@@ -23,6 +23,7 @@ import {
   swipeOffset,
   swipeRemoves,
   withOnlyPlaying,
+  stillRestorable,
   withRestRestored,
 } from './queue.model'
 
@@ -265,6 +266,15 @@ describe('Clear the rest', () => {
   it('does nothing once another song is playing', () => {
     const before = state([1, 2, 3], 1)
     expect(withRestRestored(state([7], 0), before)).toBeNull()
+  })
+
+  it('can be undone while the same song plays, and not once another has started', () => {
+    // What takes the "Cleared" message down, rather than leaving an Undo that does nothing.
+    const before = state([1, 2, 3], 1)
+    expect(stillRestorable(withOnlyPlaying(before), before)).toBe(true)
+    expect(stillRestorable(playNext(withOnlyPlaying(before), [9]), before)).toBe(true)
+    expect(stillRestorable(state([2, 7], 1), before)).toBe(false)
+    expect(stillRestorable(state([7], 0), EMPTY_QUEUE)).toBe(false)
   })
 })
 

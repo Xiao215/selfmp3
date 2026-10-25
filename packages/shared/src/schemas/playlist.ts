@@ -99,8 +99,16 @@ const CreatePlaylistBaseSchema = z.object({
   description: z.string().trim().max(500).default(''),
 })
 
+/**
+ * A playlist to make. A manual one can come with its first songs, made in the
+ * same request: made in two, a tab closed between them left an empty
+ * playlist and lost the picks, and a second request that failed left one
+ * behind that trying again made twice.
+ */
 export const CreatePlaylistSchema = z.discriminatedUnion('kind', [
-  CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema),
+  CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema).extend({
+    songIds: z.array(IdSchema).max(2000).optional(),
+  }),
   CreatePlaylistBaseSchema.merge(LivePlaylistRulesSchema),
 ])
 export type CreatePlaylist = z.infer<typeof CreatePlaylistSchema>

@@ -32,6 +32,12 @@ interface ClientRuntime {
   readonly motionSnapshot?: MotionSnapshotStore
   /** The app's timer, for the work here that has to happen later (librarySnapshotWrites.ts). */
   readonly later?: RunLater
+  /**
+   * What the app still holds back for a playlist — songs taken out of it,
+   * waiting on their Undo — sent before songs are added to it, so an add
+   * straight after a removal comes after it on the server too.
+   */
+  readonly beforeAddingTo?: (playlistId: number) => Promise<void>
 }
 
 let configured: ClientRuntime | null = null
@@ -78,4 +84,9 @@ export function motionSnapshot(): MotionSnapshotStore | null {
 /** The app's timer, or null where it brought none. */
 export function runLater(): RunLater | null {
   return configured?.later ?? null
+}
+
+/** Sends what the app holds back for a playlist before it is added to (`beforeAddingTo`). */
+export function beforeAddingTo(playlistId: number): Promise<void> {
+  return configured?.beforeAddingTo?.(playlistId) ?? Promise.resolve()
 }

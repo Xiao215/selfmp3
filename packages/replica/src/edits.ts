@@ -270,6 +270,8 @@ export function createPlaylist(
   input: CreatePlaylist,
 ): { changes: Change[]; uid: string } {
   const uid = make(ctx)
+  // Its first songs with it, in the same record of changes, as the server makes them.
+  const first = input.kind === 'manual' ? knownSongs(ctx, input.songIds ?? []) : []
   return {
     changes: [
       {
@@ -282,6 +284,13 @@ export function createPlaylist(
         rules: input.kind === 'live' ? cloudRules(ctx, input.rules) : null,
         pinned: false,
       },
+      ...first.map(([, songUid]) => ({
+        type: 'playlistSong' as const,
+        hlc: ctx.stamp(),
+        uid,
+        songUid,
+        on: true,
+      })),
     ],
     uid,
   }

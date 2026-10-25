@@ -45,6 +45,7 @@ import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { onAppLeaving } from '../src/ports/appLeaving'
+import { sendingAsLeaving } from '../src/api/client'
 import { hideScrollbars } from '../src/ports/scrollbars'
 import { registerServiceWorker } from '../src/ports/serviceWorker'
 import { singularPlaces } from '../src/ports/singularPlaces'
@@ -72,8 +73,15 @@ hideScrollbars()
 // Coming back to the app is focus, for the queries that refetch on it.
 listenForAppFocus()
 
-// Leaving it sends what was waiting on its Undo, so closing the app loses none of it.
-onAppLeaving(sendPending)
+// Leaving it sends what was waiting on its Undo, so closing the app loses none
+// of it: as requests that outlive the page, since a closing tab cancels the rest.
+onAppLeaving(
+  () => {
+    sendingAsLeaving(true)
+    sendPending()
+  },
+  () => sendingAsLeaving(false),
+)
 
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds

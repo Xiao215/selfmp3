@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native'
@@ -10,7 +10,7 @@ import { usePresence } from '../motion'
 import { sectionTitle } from '../surfaces'
 import { IconButton } from './IconButton'
 import { X } from './Icons'
-import { DIALOG_RISE } from './Sheet'
+import { BACKDROP_SETTLE_MS, DIALOG_RISE } from './Sheet'
 
 /**
  * A window in the middle of the app, over a dimmed page: the shell every
@@ -88,6 +88,7 @@ function DialogLayer({
   // Only while it is asked for: Escape during an exit would answer a question
   // that has already been answered.
   useEscape(open, onEscape ?? onDismiss, { layer: true })
+  const [shownAt] = useState(() => Date.now())
   // Built once per dialog: the same nodes for its whole life.
   const moving = useMemo(
     () =>
@@ -125,7 +126,10 @@ function DialogLayer({
       <Animated.View style={[styles.dim, moving?.dim]}>
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={onDismiss}
+          onPress={() => {
+            // Not the second click of the double click that opened it (`BACKDROP_SETTLE_MS`).
+            if (Date.now() - shownAt >= BACKDROP_SETTLE_MS) onDismiss()
+          }}
           accessibilityLabel={dismissLabel}
         />
       </Animated.View>

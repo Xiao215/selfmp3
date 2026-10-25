@@ -408,7 +408,16 @@ export function useSheetPull(onClose: () => void): {
   return { pull, gesture }
 }
 
-/** The dim behind a sheet, which closes it when pressed. */
+/**
+ * How long after it appears a sheet's dim does not close it: the second click
+ * of a double click on what opened it. A sheet that opens beside its button
+ * takes that click itself; one centred away from it, as New playlist's is on
+ * a computer, left the click to the dim that had just appeared, and closed
+ * as it opened.
+ */
+export const BACKDROP_SETTLE_MS = 350
+
+/** The dim behind a sheet, which closes it when pressed — once it has been up a moment. */
 export function SheetBackdrop({
   opacity,
   onClose,
@@ -419,9 +428,16 @@ export function SheetBackdrop({
   /** What a screen reader calls it: "Close Up next". */
   label?: string
 }): ReactNode {
+  const [shownAt] = useState(() => Date.now())
   return (
     <Animated.View style={[styles.backdrop, { opacity }]}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel={label} />
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={() => {
+          if (Date.now() - shownAt >= BACKDROP_SETTLE_MS) onClose()
+        }}
+        accessibilityLabel={label}
+      />
     </Animated.View>
   )
 }

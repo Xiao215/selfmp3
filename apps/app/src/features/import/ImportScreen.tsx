@@ -190,9 +190,22 @@ export function ImportScreen({
       .catch((err: unknown) => failed(err instanceof Error ? err : new Error(String(err))))
       .finally(() => void source.invalidateQueue())
   }
+  /*
+   * The same press on the same row while the first is on its way is that
+   * press again, not a second request: a double click on Remove sent two, and
+   * the second, for a job already gone, came back as a red card.
+   */
+  const sending = useRef(new Set<string>())
   const act = (change: QueueChange, request: () => Promise<unknown>): void => {
+    const key = `${change.kind}:${change.id ?? 'all'}`
+    if (sending.current.has(key)) return
+    sending.current.add(key)
     source.editQueue(change)
-    send(request())
+    send(
+      request().finally(() => {
+        sending.current.delete(key)
+      }),
+    )
   }
 
   const pasted = describePaste(links)

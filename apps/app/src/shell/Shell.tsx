@@ -484,6 +484,8 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
 
 /** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
 const TOASTS_BOTTOM = 10
+/** Above the sheets the shell draws beside them (their rows lift at 2). */
+const TOASTS_LAYER = 10
 
 const styles = StyleSheet.create(theme => ({
   toasts: {
@@ -494,6 +496,13 @@ const styles = StyleSheet.create(theme => ({
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.lg,
+    /*
+     * Over Up next's sheet for the finger as well as the eye. Drawn after it
+     * was enough to be seen on top, not to be pressed: a toast's ✕ over the
+     * sheet played the row under it instead.
+     */
+    zIndex: TOASTS_LAYER,
+    elevation: TOASTS_LAYER,
   },
   root: {
     flex: 1,

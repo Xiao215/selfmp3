@@ -5,6 +5,7 @@ import { space, textStyle } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
+import { holdPresses } from '../../shell/Overlay'
 import { lineSub, dialogPanel } from '../surfaces'
 
 /**
@@ -102,7 +103,12 @@ function Question({
         <Button
           label={confirmLabel}
           variant={danger ? 'danger' : 'primary'}
-          onPress={onConfirm}
+          onPress={() => {
+            // What is confirmed often takes the page with it, and the second
+            // press of a double tap landed on the next one (`holdPresses`).
+            holdPresses()
+            onConfirm()
+          }}
           grow={!wide}
         />
       </View>

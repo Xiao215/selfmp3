@@ -10,7 +10,7 @@ import { useEscape } from '../../shell/useEscape'
 import { PanelDenseContext } from './panel'
 import { Sheet } from './Sheet'
 import { floating } from '../surfaces'
-import { rightClick, type PopoverAnchor } from '../rightClick'
+import { CATCHER, rightClickThrough, type PopoverAnchor } from '../rightClick'
 import { ease, motionMs, nativeDriver } from '../motion'
 import { clamp } from '@selfmp3/shared'
 import { ScrollView } from './Scroll'
@@ -256,19 +256,22 @@ function AnchoredPopover({
           take the pointer off its row, so a row's ⋯ would fade out under the
           mouse; with a hole there the row keeps its hover, and pressing the
           control again reaches the control, which closes what it opened. A
-          right-click outside closes it too, rather than drawing the browser's
-          menu on it.
+          right-click outside closes it too, and is then a right-click on what
+          is under it — another row's menu opens at once — rather than the
+          browser's menu.
         */}
         <Pressable
           style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
           onPress={onClose}
           accessibilityLabel="Close"
-          {...rightClick(onClose)}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[
@@ -276,7 +279,8 @@ function AnchoredPopover({
             { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
           ]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Pressable
           style={[
@@ -284,7 +288,8 @@ function AnchoredPopover({
             { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
           ]}
           onPress={onClose}
-          {...rightClick(onClose)}
+          {...rightClickThrough(onClose)}
+          {...CATCHER}
         />
         <Animated.View
           testID={testID}

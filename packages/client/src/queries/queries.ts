@@ -43,6 +43,7 @@ import { API_ERROR } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
 import {
+  beforeAddingTo,
   clientApi,
   librarySnapshot,
   lyricsSnapshot,
@@ -792,9 +793,11 @@ export function useCreatePlaylist() {
       songIds?: readonly number[]
       refresh?: 'background' | 'wait' | 'none'
     }) => {
-      const created = await clientApi().createPlaylist(input)
-      if (songIds.length > 0) await clientApi().addToPlaylist(created.id, { songIds: [...songIds] })
-      return created
+      // With its songs in the same request: in two, a tab closed between them
+      // left an empty playlist, and a retry after a failed second made it twice.
+      return clientApi().createPlaylist(
+        input.kind === 'manual' && songIds.length > 0 ? { ...input, songIds: [...songIds] } : input,
+      )
     },
     onSuccess: (_created, { refresh = 'background' }) => {
       if (refresh === 'none') return undefined
@@ -892,8 +895,13 @@ export function useUpdateSettings(api: Api | null, baseUrl: string | null) {
 export function useAddToPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().addToPlaylist(playlistId, { songIds }),
+    mutationFn: async ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) => {
+      // A removal still waiting on its Undo goes first: added back inside the
+      // Undo's time, a song was added to a playlist that still had it, and
+      // then taken out of it when the time ran out.
+      await beforeAddingTo(playlistId)
+      return clientApi().addToPlaylist(playlistId, { songIds })
+    },
     meta: { failure: 'Couldn’t add to the playlist' },
     onSuccess: (playlist, { playlistId }) => {
       // The answer is the playlist with its new count and length; its members

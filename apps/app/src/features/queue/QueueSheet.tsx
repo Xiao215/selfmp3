@@ -25,6 +25,7 @@ import { SongRow, useSongRowHeight } from '../../ui/components/SongRow'
 import { useRowTagPicker } from '../../ui/components/useRowTagPicker'
 import { sourceTagIds } from '../lists/lists.model'
 import { useSwallowSwipeClick } from '../../ports/swipeClick'
+import { useTouchTravel } from '../../ui/useTouchTravel'
 import { closeQueueSheet } from './queueSheet.store'
 import { UpNextSource } from './UpNextSource'
 import { OnlySongEnd, useOnlySongEndNotice } from './OnlySongEnd'
@@ -275,6 +276,10 @@ function SheetPanel({
         // Dropped: the scale settles back on the spring with a tap, and the
         // row keeps wearing it into its new place.
         dropRow()
+        // No travel is a hold taken away (`HoldToReorder`): the song held may
+        // be the one playing now, outside the rows a move lands among, and
+        // held to them it would have been moved there.
+        if (dy === 0) return
         const to = target(index, dy)
         if (to !== index) latest.current.player.reorderQueue(index, to)
       },
@@ -286,8 +291,9 @@ function SheetPanel({
   }, [dragY, liftScale, holdRow, liftRow, dropRow, editTags])
 
   const playing = rows.playing
-  // Something besides the song playing, to come or played, for Clear the rest to take.
-  const clearable = player.queue.items.length > 1
+  // A song still to come for Clear the rest to take: with none, it would take
+  // only what has played.
+  const clearable = rows.next.length > 0
   const ended = onlySongEnded(player)
   const openNowPlaying = (): void => {
     closeQueueSheet()
@@ -324,9 +330,14 @@ function SheetPanel({
         }
       />
     )
-    if (!movable || entry.index !== first) return sheetRow
+    /*
+     * The same wrapper round every row, and the guide's ref on the first only.
+     * Wrapped only when it was first, a row became something else the moment
+     * the row above it went: remounted mid-swipe, its removal was dropped and
+     * it came back; remounted mid-hold, it was left lifted and every swipe dead.
+     */
     return (
-      <View key={entry.song.id} ref={firstTarget} collapsable={false}>
+      <View ref={movable && entry.index === first ? firstTarget : undefined} collapsable={false}>
         {sheetRow}
       </View>
     )
@@ -499,7 +510,12 @@ const SheetRow = memo(function SheetRow({
   const onMove = useCallback((_dx: number, dy: number) => actions.move(index, dy), [actions, index])
   const onEnd = useCallback((_dx: number, dy: number) => actions.end(index, dy), [actions, index])
   const onRemove = useCallback(() => actions.remove(index), [actions, index])
-  const onPress = useCallback(() => actions.play(index), [actions, index])
+  // A sideways drag the swipe did not take lets go as a press: not a tap, so
+  // the song is not played and Up next keeps its place.
+  const travel = useTouchTravel()
+  const onPress = useCallback(() => {
+    if (!travel.moved()) actions.play(index)
+  }, [actions, index, travel])
   // Wearing the scale without being carried: the hold is still being counted,
   // or the row has just been let go and is settling. Only the scale then —
   // `dragY` is left where the finger put it (see `end`), so a settling row that
@@ -535,7 +551,7 @@ const SheetRow = memo(function SheetRow({
           onEnd={onEnd}
           onLayoutHeight={measures ? actions.measured : undefined}
         >
-          <View style={!movable && styles.played}>
+          <View style={!movable && styles.played} {...travel.handlers}>
             <SongRow
               testID={`queue-row-${index}`}
               song={song}

@@ -1,6 +1,5 @@
 import { plural, type Stats } from '@selfmp3/shared'
 import { unreachableLabel } from '../library/library.model'
-import type { DevicePlace } from '../settings/settings.model'
 import {
   formatHour,
   peakHour,
@@ -36,10 +35,8 @@ export interface ProfileRow {
  * says how many play.
  */
 export function profileRows({
-  place,
   linksHint,
 }: {
-  place: DevicePlace
   /** The line under Links you shared, or null where no link can be sent. */
   linksHint: string | null
 }): readonly ProfileRow[] {
@@ -48,7 +45,7 @@ export function profileRows({
       id: 'import',
       label: 'Import',
       href: '/import',
-      hint: 'Paste a link or share one',
+      hint: 'From a link or a search',
     },
     {
       id: 'report',
@@ -63,7 +60,7 @@ export function profileRows({
       id: 'settings',
       label: 'Settings',
       href: '/settings',
-      hint: `Account, look, on this ${place}, devices`,
+      hint: 'Account, look, devices',
     },
   ]
 }

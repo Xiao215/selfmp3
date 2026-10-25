@@ -154,7 +154,8 @@ describe('the Up next rail', () => {
 
     expect(screen.getByRole('button', { name: 'Played Song 2. Open now playing' })).toBeTruthy()
     expect(screen.getByText('That was the only song')).toBeTruthy()
-    expect(screen.getByTestId('queue-clear-rest')).toBeDisabled()
+    // Nothing follows it, so there is no rest to clear.
+    expect(screen.queryByTestId('queue-clear-rest')).toBeNull()
   })
 
   it('puts itself away when nothing is left, rather than coming back with the next song', async () => {

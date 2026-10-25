@@ -209,9 +209,12 @@ export function stageGeometry(width: number, height: number, inset = 0): StageGe
   }
 }
 
-/** "Playing · 10 of 13", or "Shuffling · …". */
-export function contextLine(shuffle: boolean, index: number, count: number): string {
-  return `${shuffle ? 'Shuffling' : 'Playing'} · ${index + 1} of ${count}`
+/**
+ * Where in Up next the song is, "10 of 13": nothing while it is the only
+ * song, where "1 of 1" said nothing (w1). Shuffle says itself on its button.
+ */
+export function contextLine(index: number, count: number): string | null {
+  return count > 1 && index >= 0 ? `${index + 1} of ${count}` : null
 }
 
 /**

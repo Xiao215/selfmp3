@@ -36,7 +36,6 @@ import { StatFigure } from '../../ui/components/StatFigure'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
-import { thisPlace } from '../../ports/place'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -79,7 +78,6 @@ function ProfilePage({
   const { data: links } = useSentLinks()
   const now = useMinute()
   const rows = profileRows({
-    place: thisPlace(),
     linksHint: fromCloud ? sentLinksHint(links, now) : null,
   })
 

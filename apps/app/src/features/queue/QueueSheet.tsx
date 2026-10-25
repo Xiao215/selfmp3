@@ -286,8 +286,9 @@ function SheetPanel({
   }, [dragY, liftScale, holdRow, liftRow, dropRow, editTags])
 
   const playing = rows.playing
-  // Something besides the song playing, to come or played, for Clear the rest to take.
-  const clearable = player.queue.items.length > 1
+  // Something to come for Clear the rest to take: with nothing after the song
+  // playing it is hidden, where it sat over "Nothing next" (w23).
+  const clearable = rows.next.length > 0
   const ended = onlySongEnded(player)
   const openNowPlaying = (): void => {
     closeQueueSheet()
@@ -386,7 +387,7 @@ function SheetPanel({
                     active={player.queue.shuffle}
                     onPress={player.toggleShuffle}
                   />
-                  <ClearRestButton onPress={clearRest} enabled={clearable} />
+                  {clearable ? <ClearRestButton onPress={clearRest} /> : null}
                 </View>
               </View>
             )}

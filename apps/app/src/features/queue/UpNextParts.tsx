@@ -19,7 +19,6 @@ import { useRoom } from '../room/room.store'
 import { autoMixLine, upNextWindow, type QueueRow } from './queue.model'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
 import { Press } from '../../ui/components/Press'
-import { OPACITY } from '../../ui/motion.model'
 
 /*
  * Up next's parts, for the phone's sheet (`QueueSheet`) and the computer's
@@ -112,29 +111,20 @@ function PlayingClock(): ReactNode {
  * "Clear the rest": every song but the one playing out of Up next, with an
  * Undo (`useQueueEdits`). Outlined, so it is not read as a second mode beside
  * Shuffle, and it says what it leaves: the song playing carries on. As tall as
- * a finger's button, or a mouse's.
+ * a finger's button, or a mouse's. Drawn only while something follows the
+ * song playing: over "Nothing next" it offered to clear nothing (w23).
  */
-export function ClearRestButton({
-  onPress,
-  enabled,
-}: {
-  onPress: () => void
-  /** Something besides the song playing, to come or played, for it to take. */
-  enabled: boolean
-}): ReactNode {
+export function ClearRestButton({ onPress }: { onPress: () => void }): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   return (
     <Press
       onPress={onPress}
-      disabled={!enabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !enabled }}
       testID="queue-clear-rest"
       style={({ pressed }) => [
         styles.clear,
         dense && styles.clearDense,
         pressed && styles.clearPressed,
-        !enabled && styles.clearOff,
       ]}
     >
       <Text style={[styles.clearText, dense && styles.clearTextDense]}>Clear the rest</Text>
@@ -332,7 +322,6 @@ const styles = StyleSheet.create(theme => ({
   },
   clearDense: { height: 28, paddingHorizontal: space.snug },
   clearPressed: { backgroundColor: theme.colors.surface3 },
-  clearOff: { opacity: OPACITY.disabled },
   clearText: smallTitle(theme.colors),
   clearTextDense: { fontSize: type.small },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

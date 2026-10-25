@@ -120,7 +120,7 @@ export function bestStreakHint(longest: number): string | undefined {
 
 interface ListenedCard {
   readonly value: string
-  /** "128 plays · 22 days with music". */
+  /** "128 plays · 22 days". */
   readonly line: string
   /** Minutes per day, oldest first, for the line beside the number. */
   readonly trend: readonly number[]
@@ -135,7 +135,7 @@ export function listenedCard(stats: Stats): ListenedCard {
   const active = stats.daily.filter(day => day.plays > 0).length
   return {
     value: formatListenTime(stats.totals.minutes),
-    line: `${playsLabel(stats.totals.plays)} · ${plural(active, 'day', 'days')} with music`,
+    line: `${playsLabel(stats.totals.plays)} · ${plural(active, 'day', 'days')}`,
     trend: stats.daily.map(day => day.minutes),
   }
 }

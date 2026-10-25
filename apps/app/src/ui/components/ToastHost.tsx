@@ -3,6 +3,14 @@ import type { ReactNode } from 'react'
 import { Animated, PanResponder, StyleSheet as RNStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { Circle, Svg } from 'react-native-svg'
+import Reanimated, {
+  cancelAnimation,
+  Easing,
+  ReduceMotion,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import type { Song } from '@selfmp3/shared'
 import { hitSlopFor, leading, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -324,6 +332,11 @@ export const ART = 44
 /**
  * A message's time left, as a ring round its ✕ that empties clockwise. The
  * clock is `since`, so a message folded into this one fills it again.
+ *
+ * Drawn by Reanimated on the UI thread, every frame: a ring stepped from
+ * React four times a second read as laggy, and on a phone it would stall
+ * whenever the JavaScript side was busy. Linear, and not skipped under
+ * Reduce Motion: it is a clock, not a flourish.
  */
 function TimeRing({
   since,
@@ -336,19 +349,24 @@ function TimeRing({
   size: number
   color: string
 }): ReactNode {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    // A quarter of a second is smooth enough for a ring this thin.
-    const timer = setInterval(() => setNow(Date.now()), 250)
-    return () => clearInterval(timer)
-  }, [])
-  const left = Math.min(1, Math.max(0, 1 - (now - since) / ms))
   const r = size / 2 - 2
   const around = 2 * Math.PI * r
+  const left = useSharedValue(1)
+  useEffect(() => {
+    const already = Math.min(1, Math.max(0, (Date.now() - since) / ms))
+    left.value = 1 - already
+    left.value = withTiming(0, {
+      duration: ms * (1 - already),
+      easing: Easing.linear,
+      reduceMotion: ReduceMotion.Never,
+    })
+    return () => cancelAnimation(left)
+  }, [since, ms, left])
+  const dash = useAnimatedProps(() => ({ strokeDashoffset: around * (1 - left.value) }))
   return (
     <View pointerEvents="none" style={RNStyleSheet.absoluteFill}>
       <Svg width={size} height={size}>
-        <Circle
+        <RunningCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
@@ -358,13 +376,15 @@ function TimeRing({
           strokeWidth={1.5}
           strokeLinecap="round"
           strokeDasharray={`${around} ${around}`}
-          strokeDashoffset={around * (1 - left)}
+          animatedProps={dash}
           transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
     </View>
   )
 }
+
+const RunningCircle = Reanimated.createAnimatedComponent(Circle)
 
 /**
  * A message dragged down or sideways, and let go: past `SWIPE_AWAY` (or

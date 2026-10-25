@@ -11,30 +11,33 @@ import { Row } from './SettingsParts'
 
 /**
  * A newer build of the iPhone app, shared from the `ios` release
- * (packages/shared/src/iosApp.ts): said once per build in a toast, and kept in
- * Settings › About until it is installed. Nothing anywhere else, where
- * `iosUpdate.offered` is false.
+ * (packages/shared/src/iosApp.ts): said once per build in a toast, and in
+ * Settings › About an Updates row, as the Mac app has, that checks on asking
+ * and installs what it finds. Nothing anywhere else, where `iosUpdate.offered`
+ * is false.
  */
 
 /** The build last announced in a toast, so each is announced once. */
 const ANNOUNCED_KEY = 'iosUpdateAnnounced'
 
-function useIosUpdate(): IosLatest | null {
-  const latest = useQuery({
+function useLatestBuild() {
+  return useQuery({
     queryKey: ['github', 'ios-latest'],
     queryFn: () => iosUpdate.latest(),
     enabled: iosUpdate.offered,
     retry: false,
     staleTime: STALE.hour,
-  }).data
-  return latest && isNewerIosBuild(latest, iosUpdate.build) ? latest : null
+  })
 }
+
+const newerThanThis = (latest: IosLatest | null | undefined): IosLatest | null =>
+  latest && isNewerIosBuild(latest, iosUpdate.build) ? latest : null
 
 const install = () => void iosUpdate.install()
 
 /** Mounted with the toasts; draws nothing of its own. */
 export function IosUpdateNotice(): null {
-  const newer = useIosUpdate()
+  const newer = newerThanThis(useLatestBuild().data)
   useEffect(() => {
     if (!newer || prefs.get(ANNOUNCED_KEY) === String(newer.build)) return
     prefs.set(ANNOUNCED_KEY, String(newer.build))
@@ -45,16 +48,32 @@ export function IosUpdateNotice(): null {
   return null
 }
 
-/** Settings › About: this build, and the newer one while there is one. */
+/** Settings › About: where the check has got to, and the one thing to do about it. */
 export function IosUpdateRow(): ReactNode {
-  const newer = useIosUpdate()
-  if (!newer) return null
+  const latest = useLatestBuild()
+  if (!iosUpdate.offered) return null
+  const newer = newerThanThis(latest.data)
+  const hint = latest.isFetching
+    ? 'Looking…'
+    : newer
+      ? `Build ${newer.build} is ready. iOS asks before it replaces this one; your music and settings stay.`
+      : latest.isError
+        ? 'Could not check: no answer from GitHub.'
+        : latest.isSuccess
+          ? 'This is the latest build.'
+          : 'Not checked yet.'
   return (
-    <Row
-      label="Update"
-      hint={`Build ${newer.build} is ready. iOS asks before it replaces this one; your music and settings stay.`}
-    >
-      <Button label="Install" variant="primary" onPress={install} testID="settings-ios-update" />
+    <Row label="Updates" hint={hint}>
+      {newer ? (
+        <Button label="Install" variant="primary" onPress={install} testID="settings-ios-update" />
+      ) : (
+        <Button
+          label={latest.isFetching ? 'Checking…' : 'Check for updates'}
+          onPress={() => void latest.refetch()}
+          disabled={latest.isFetching}
+          testID="settings-ios-update-check"
+        />
+      )}
     </Row>
   )
 }

@@ -37,7 +37,7 @@ import { TagDot } from './TagDot'
 import { usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
-import { Downloaded, More, NotDownloaded, Play, TagPlus } from './Icons'
+import { Downloaded, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 
@@ -79,7 +79,6 @@ export const SongRow = memo(function SongRow({
   artUri,
   active: activeOverride,
   downloaded,
-  notDownloadedMark = false,
   onPress,
   onMore,
   selecting = false,
@@ -104,12 +103,12 @@ export const SongRow = memo(function SongRow({
   artUri: string | null | undefined
   /** Draw as the loaded song. Left out, the row asks the player, which is what a list wants. */
   active?: boolean
-  downloaded: boolean
   /**
-   * Mark a song that is not on this device. An installed app says so, since
-   * such a song may not play; a browser streams, and leaves it unmarked.
+   * Kept on this device, marked before the artist. A song that is not gets no
+   * mark: in a library that lives in its storage that is most songs, and a
+   * mark on most rows is noise. The "On this phone" chip finds the kept ones.
    */
-  notDownloadedMark?: boolean
+  downloaded: boolean
   /**
    * The press event comes through, so a list can read Shift and Cmd on the web.
    * So does the song, so one handler can serve every row.
@@ -319,7 +318,7 @@ export const SongRow = memo(function SongRow({
         <Equalizer paused={!playing} size={size} color={songColor.tint} />
       </Waking>
     ) : null
-  const hereMark = <HereMark downloaded={downloaded} notDownloadedMark={notDownloadedMark} />
+  const hereMark = downloaded ? <Downloaded size={iconSize.sub} tone="good" /> : null
   const chips = (budget: number): ReactNode =>
     tags && tags.length > 0 ? (
       <RowTags
@@ -632,19 +631,6 @@ function usePageRoom(): number {
     fromPage === -1 ? roomFor(layout.width - SIDEBAR_WIDTH) : 0,
   )
   return fromPage === -1 ? fromWindow : fromPage
-}
-
-/** Whether the song is on this device, beside its artist ("On this device"). */
-function HereMark({
-  downloaded,
-  notDownloadedMark,
-}: {
-  downloaded: boolean
-  notDownloadedMark: boolean
-}): ReactNode {
-  if (downloaded) return <Downloaded size={iconSize.sub} tone="good" />
-  if (notDownloadedMark) return <NotDownloaded size={iconSize.sub} tone="textMuted" />
-  return null
 }
 
 /** The ⋯, handing itself to `onMore` so a menu can open beside it. */

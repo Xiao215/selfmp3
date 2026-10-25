@@ -14,7 +14,7 @@ import { ease, spring, timing } from '../../ui/motion'
 import { MOVE_MS, OPACITY, roomShift } from '../../ui/motion.model'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Downloaded, Grip, NotDownloaded } from '../../ui/components/Icons'
+import { ChevronRight, Downloaded, Grip } from '../../ui/components/Icons'
 import { HoldToReorder, useLiftScale, useMakeRoom } from '../../ui/components/HoldToReorder'
 import { useSongDropTarget } from '../../ports/songDrag'
 import { SaveUpNext, UpNextSource } from './UpNextSource'
@@ -484,7 +484,6 @@ function Rail({
                     artUri={artFor(row.song)}
                     kind={kind}
                     downloaded={facts.downloaded}
-                    notDownloadedMark={facts.notDownloadedMark}
                     unavailable={facts.unavailable}
                     placeholder={kind === 'next' && drag?.from === row.index}
                     // A row out past the rail's edge is being removed, not
@@ -603,7 +602,6 @@ const RailRow = memo(function RailRow({
   artUri,
   kind,
   downloaded,
-  notDownloadedMark,
   unavailable,
   placeholder,
   shift,
@@ -617,7 +615,6 @@ const RailRow = memo(function RailRow({
   artUri: string | null | undefined
   kind: 'next' | 'played'
   downloaded: boolean
-  notDownloadedMark: boolean
   /** Not on this device, with nothing to stream it from now: faded. */
   unavailable: boolean
   /** This row is out being dragged: its place stays, empty, until it lands. */
@@ -713,13 +710,7 @@ const RailRow = memo(function RailRow({
             <RowFace
               song={song}
               artUri={artUri}
-              mark={
-                downloaded ? (
-                  <Downloaded size={iconSize.sub} tone="good" />
-                ) : notDownloadedMark ? (
-                  <NotDownloaded size={iconSize.sub} tone="textMuted" />
-                ) : null
-              }
+              mark={downloaded ? <Downloaded size={iconSize.sub} tone="good" /> : null}
             />
           </Press>
         </Animated.View>

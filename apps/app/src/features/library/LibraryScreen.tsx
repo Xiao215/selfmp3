@@ -1,7 +1,7 @@
 import { useOpenSearch } from '../../shell/palette'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { Song } from '@selfmp3/shared'
+import { formatBytes, type Song } from '@selfmp3/shared'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -11,6 +11,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import {
+  CloudDownload,
   Download,
   Downloaded,
   Music,
@@ -20,6 +21,7 @@ import {
   SortLines,
 } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
+import { MoreMenu } from '../../ui/components/MoreMenu'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongRows } from '../../ui/components/useSongRows'
@@ -328,6 +330,7 @@ export function LibraryScreen(): ReactNode {
                     <Shuffle size={iconSize.item} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
+                <LibraryMore />
               </>
             )
           }
@@ -434,6 +437,7 @@ export function LibraryScreen(): ReactNode {
                     testID="library-play-tags"
                   />
                 ) : null}
+                <LibraryMore />
               </View>
             </View>
           ) : null}
@@ -592,6 +596,35 @@ export function LibraryScreen(): ReactNode {
         ]}
       />
     </SafeAreaView>
+  )
+}
+
+/**
+ * Library's ⋯, on an installed app: "Download all", with what it would take.
+ * It had been a strip over the songs on every visit — "109 not on this
+ * computer · 528.2 MB · Download" — for a wait only a tap ends (AL1). Settings
+ * › On this phone keeps the totals and the same button.
+ */
+function LibraryMore(): ReactNode {
+  const { installed, absentIds, absentBytes, requestDownload } = useDownloads()
+  if (!installed) return null
+  return (
+    <MoreMenu
+      name="Library"
+      testID="library-more"
+      menuTestID="library-more-menu"
+      items={[
+        {
+          key: 'download-all',
+          label: 'Download all',
+          icon: <CloudDownload tone="textSecondary" />,
+          detail: absentBytes > 0 ? formatBytes(absentBytes) : undefined,
+          disabled: absentIds.length === 0,
+          testID: 'library-download-all',
+          onPress: () => requestDownload(absentIds),
+        },
+      ]}
+    />
   )
 }
 

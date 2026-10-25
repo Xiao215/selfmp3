@@ -64,9 +64,10 @@ at a time.
 
 - **Download automatically on Wi-Fi** (on by default). A phone reports its connection type
   (`connectionKind.ts`). A computer reports nothing, and is taken to be on Wi-Fi or a cable
-  rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data,
-  or for any sync over 500 MB (`LARGE_SYNC_BYTES`), it shows "12 to download · Download" and
-  waits for a tap rather than spending the allowance for you.
+  rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data
+  it shows "12 not on this phone · on data · Download" and waits for a tap rather than
+  spending the allowance for you; a sync over 500 MB (`LARGE_SYNC_BYTES`) waits for one too,
+  quietly: Library's ⋯ has **Download all**, beside its size.
 - **The whole library.** What to keep is every song the library has (`GET
   /api/library/manifest`, worked out from this device's copy).
 - **A capped bucket waits.** While the bucket refuses reads for the day (docs/SYNC.md, "Caps"),
@@ -131,8 +132,11 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   and motion a tab has read survive a deploy.
 - **Offline, a song that is not on the device is dimmed**, and tapping it says why instead of
   starting a track that fails half a second later. Play and Shuffle use only what is here.
-- **A line at the top of the Library** when there is something to say: downloading, waiting
-  for Wi-Fi or for a tap, the bucket's cap, or offline.
+- **A line at the top of the Library** when there is news: downloading, a failure, waiting
+  for Wi-Fi, the bucket's cap, or offline. A wait only a tap ends (automatic downloads off,
+  or over 500 MB) is no news, and says nothing there.
+- **Only a song that is here is marked**, with a small filled mark before its artist. A song
+  that is not carries nothing: in a library that lives in its storage that is most of them.
 - **Settings › On this phone** (*On this computer* in the desktop app) has the switch, what is
   on the device and how much room it takes, the reason for any wait with a Download button,
   and the removal buttons.

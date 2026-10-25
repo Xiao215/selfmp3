@@ -311,7 +311,6 @@ function SheetPanel({
         measures={promised === null && entry.index === first}
         artUri={artFor(entry.song)}
         downloaded={facts.downloaded}
-        notDownloadedMark={facts.notDownloadedMark}
         unavailable={facts.unavailable}
         tags={facts.tags}
         hideTagIds={fromTags}
@@ -460,7 +459,6 @@ const SheetRow = memo(function SheetRow({
   measures,
   artUri,
   downloaded,
-  notDownloadedMark,
   unavailable,
   tags,
   hideTagIds,
@@ -482,7 +480,6 @@ const SheetRow = memo(function SheetRow({
   measures: boolean
   artUri: string | null | undefined
   downloaded: boolean
-  notDownloadedMark: boolean
   /** Not on this phone, with nothing to stream it from now: faded. */
   unavailable: boolean
   tags: readonly Tag[]
@@ -543,7 +540,6 @@ const SheetRow = memo(function SheetRow({
               artUri={artUri}
               active={false}
               downloaded={downloaded}
-              notDownloadedMark={notDownloadedMark}
               unavailable={unavailable}
               onPress={onPress}
               tags={tags}

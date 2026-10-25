@@ -1,9 +1,7 @@
 /** What a song row says about whether its song can play here. */
 export interface RowAvailability {
-  /** Kept on this device. */
+  /** Kept on this device: the one mark a row carries for where its song is. */
   readonly downloaded: boolean
-  /** Not on this device, said by an installed app, where that may mean it does not play. */
-  readonly notDownloadedMark: boolean
   /** Not here, with nothing to stream it from now: drawn faded. */
   readonly unavailable: boolean
 }
@@ -27,14 +25,13 @@ interface Sources {
  * other words), and Up next's, which knew only the bucket's side; Search and
  * the place pages faded nothing.
  *
- * A browser keeps nothing, so it marks nothing as missing, and a server that
- * is away fades nothing there either: every song is equally out of reach,
- * which the page already says.
+ * A song that is not here carries no mark of its own (only the kept ones
+ * do), and a browser's server being away fades nothing there: every song is
+ * equally out of reach, which the page already says.
  */
 export function rowAvailability(here: boolean, sources: Sources, kept = false): RowAvailability {
   return {
     downloaded: here,
-    notDownloadedMark: sources.installed && !here,
     // A song a browser's worker kept for having played it is no download, but
     // it plays from here when nothing can be streamed.
     unavailable:

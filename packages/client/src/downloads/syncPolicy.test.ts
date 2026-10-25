@@ -83,8 +83,15 @@ describe('the header', () => {
       text: '40 not on this phone · offline',
       action: null,
     })
-    expect(text({ ...phone, missingBytes: 1.2 * 1024 * MB })).toBe('40 not on this phone · 1.2 GB')
-    expect(text({ ...phone, autoOnWifi: false })).toBe('40 not on this phone')
+  })
+
+  // The same line on every visit to Library: Library's ⋯ has Download all (AL1).
+  it('says nothing about a wait only a tap ends', () => {
+    expect(syncHeader({ ...phone, missingBytes: 1.2 * 1024 * MB })).toEqual({ kind: 'none' })
+    expect(syncHeader({ ...phone, autoOnWifi: false })).toEqual({ kind: 'none' })
+    expect(syncHeader({ ...phone, autoOnWifi: false, network: 'cellular' })).toEqual({
+      kind: 'none',
+    })
   })
 
   it('says nothing when there is nothing to say', () => {

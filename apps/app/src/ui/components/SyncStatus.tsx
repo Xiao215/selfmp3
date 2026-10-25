@@ -24,9 +24,9 @@ import { thisPlace } from '../../ports/place'
  * · offline" — with the device named as the word table
  * names it (docs/features/design-system.md, Words).
  *
- * Only when there is something to say. On Wi-Fi with automatic downloads on,
- * a missing song is about to be fetched, and a browser streams, so neither
- * says anything until a download is actually running.
+ * Only when there is news. On Wi-Fi with automatic downloads on, a missing
+ * song is about to be fetched; a browser streams; and a wait only a tap ends
+ * is Library's ⋯ "Download all", not a strip on every visit (`syncHeader`).
  */
 export function SyncStatus(): ReactNode {
   const downloads = useDownloads()

@@ -246,19 +246,6 @@ export function Downloaded({
   )
 }
 
-/**
- * A song that is not on this device: the cloud it is in, and nothing else.
- *
- * Not a download arrow, which says what you could do to the song rather than
- * where it is — and beside a row that offers downloading in its ⋯ menu, an
- * arrow reads as a button. The same cloud the download icons are drawn from,
- * without their arrow.
- */
-export const NotDownloaded = icon(
-  () => <Path d="M7 17.5a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5 3.5 3.5 0 0 1-.5 6.5Z" />,
-  'textMuted',
-)
-
 export const Info = icon(color => (
   <>
     <Circle cx="12" cy="12" r="9" />

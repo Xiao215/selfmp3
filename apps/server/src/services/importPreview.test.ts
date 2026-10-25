@@ -146,6 +146,19 @@ function previewDeps(options: {
   return { deps: deps as unknown as Parameters<typeof buildImportPreview>[0], probed }
 }
 
+describe('buildImportPreview with a link to anywhere else', () => {
+  it.each([
+    'http://127.0.0.1:4646/api/health',
+    'http://localhost:4646/api/health?x=2',
+    'https://example.com/foo',
+    'http://100.64.0.1/admin',
+  ])('refuses %s before yt-dlp is asked to fetch it', async url => {
+    const { deps, probed } = previewDeps({ playlists: { [url]: [track(url, 'health')] } })
+    await expect(buildImportPreview(deps, url)).rejects.toThrow(/Paste a link from YouTube/)
+    expect(probed).toEqual([])
+  })
+})
+
 describe('buildImportPreview with an album or playlist link', () => {
   const albumPage = 'https://music.youtube.com/browse/MPREb_hqiB0KumHYT'
   const playlistPage = 'https://music.youtube.com/playlist?list=PLcKNQQ5neMz2J5RP49n'

@@ -2,6 +2,7 @@ import {
   messageOf,
   extractUrls,
   isNeteaseUrl,
+  isYouTubeUrl,
   linklessLines,
   lookUpFailure,
   spotifyLink,
@@ -319,6 +320,11 @@ async function probeLink(deps: PreviewDeps, url: string): Promise<Probed> {
       tracks: list.tracks.map(track => byName(track)),
       from: 'spotify',
     }
+  }
+  if (!isYouTubeUrl(url)) {
+    throw HttpError.unprocessable(
+      'Paste a link from YouTube, YouTube Music, 网易云音乐 or Spotify, or a list of songs.',
+    )
   }
   return { ...(await probeYouTube(deps, url)), from: 'youtube' }
 }

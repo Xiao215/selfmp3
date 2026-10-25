@@ -64,17 +64,22 @@ const STYLE = `
   --deep: #6d5ce7;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; background: var(--ground); }
 body {
   margin: 0;
   min-height: 100dvh;
-  background:
-    radial-gradient(90vmax 60vmax at 50% -12%, rgba(124, 96, 255, 0.34), transparent 62%),
-    radial-gradient(70vmax 50vmax at 110% 40%, rgba(185, 164, 255, 0.08), transparent 60%),
-    var(--ground);
+  position: relative;
   color: var(--text);
   font: 400 16px/1.5 'Bricolage', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+/* The glow is one screen tall from the top, whatever the page's length, so
+   opening "Not working?" lengthens the page without moving it. */
+body::before {
+  content: ''; position: absolute; z-index: -1; inset: 0 0 auto; height: 100vh; pointer-events: none;
+  background:
+    radial-gradient(90vmax 60vmax at 50% -12%, rgba(124, 96, 255, 0.34), transparent 62%),
+    radial-gradient(70vmax 50vmax at 110% 40%, rgba(185, 164, 255, 0.08), transparent 60%);
 }
 main {
   max-width: 420px;

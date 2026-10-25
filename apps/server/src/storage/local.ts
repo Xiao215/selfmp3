@@ -11,26 +11,48 @@ import { normalizeKey, type StorageDriver, type StorageStat } from './driver.js'
 const AUDIO_EXTENSION_SET = new Set<string>(AUDIO_EXTENSIONS)
 
 /** The library folder on the local filesystem. */
+/** Whether `absolute` is `root` or somewhere under it. */
+const within = (root: string, absolute: string): boolean =>
+  absolute === root || absolute.startsWith(root.endsWith(path.sep) ? root : root + path.sep)
+
 export class LocalStorageDriver implements StorageDriver {
   readonly #root: string
+  /** The root with its own symlinks followed (`/tmp` is `/private/tmp` on a Mac). */
+  readonly #realRoot: string
 
   constructor(root: string) {
     this.#root = path.resolve(root)
     fs.mkdirSync(this.#root, { recursive: true })
+    this.#realRoot = fs.realpathSync(this.#root)
   }
 
   /**
    * Resolve a key to an absolute path, refusing anything that escapes the
-   * root. `normalizeKey` already strips `..`, but a symlink could still point
-   * outside, so the resolved path is checked as well.
+   * root. `normalizeKey` already strips `..`; a symlink could still point
+   * outside (`ln -s /etc/passwd song.mp3`), so where the path really leads —
+   * or, for a file not written yet, where its nearest existing folder does —
+   * is checked as well.
    */
   #resolve(key: string): string {
     const absolute = path.resolve(this.#root, normalizeKey(key))
-    const rootWithSep = this.#root.endsWith(path.sep) ? this.#root : this.#root + path.sep
-    if (absolute !== this.#root && !absolute.startsWith(rootWithSep)) {
+    if (!within(this.#root, absolute) || !within(this.#realRoot, this.#real(absolute))) {
       throw new Error(`storage key escapes the library root: ${key}`)
     }
     return absolute
+  }
+
+  /** `absolute` with its symlinks followed, as far up as it exists. */
+  #real(absolute: string): string {
+    let existing = absolute
+    for (;;) {
+      try {
+        return path.join(fs.realpathSync(existing), path.relative(existing, absolute))
+      } catch {
+        const parent = path.dirname(existing)
+        if (parent === existing) return absolute
+        existing = parent
+      }
+    }
   }
 
   async exists(key: string): Promise<boolean> {
@@ -73,9 +95,10 @@ export class LocalStorageDriver implements StorageDriver {
         if (entry.isDirectory()) {
           await walk(absolute)
         } else if (entry.isFile() || entry.isSymbolicLink()) {
-          if (AUDIO_EXTENSION_SET.has(path.extname(entry.name).toLowerCase())) {
-            found.push(path.relative(this.#root, absolute).split(path.sep).join('/'))
-          }
+          if (!AUDIO_EXTENSION_SET.has(path.extname(entry.name).toLowerCase())) continue
+          // A link counts only when it leads to a file inside the folder.
+          if (entry.isSymbolicLink() && !(await this.#linksInside(absolute))) continue
+          found.push(path.relative(this.#root, absolute).split(path.sep).join('/'))
         }
       }
     }
@@ -83,6 +106,15 @@ export class LocalStorageDriver implements StorageDriver {
     await walk(this.#root)
     found.sort((a, b) => a.localeCompare(b))
     return found
+  }
+
+  async #linksInside(absolute: string): Promise<boolean> {
+    try {
+      const target = await fsp.realpath(absolute)
+      return within(this.#realRoot, target) && (await fsp.stat(target)).isFile()
+    } catch {
+      return false
+    }
   }
 
   async read(key: string): Promise<Buffer> {

@@ -5,6 +5,7 @@ import type { Song } from './schemas/song.js'
 import {
   NO_NAMES,
   artistSearchNames,
+  namesFor,
   namesToSpell,
   songSearchNames,
   type LibraryNames,
@@ -118,5 +119,24 @@ describe('an artist’s other names as they are kept', () => {
     ).toEqual(['Jay Chou', '周杰倫'])
     const many = Array.from({ length: 30 }, (_, i) => `Name ${i}`)
     expect(tidyArtistNames('Someone', many)).toHaveLength(20)
+  })
+})
+
+describe('names that are also an object’s own keys', () => {
+  it.each(['__proto__', 'constructor', 'Constructor', 'toString', 'hasOwnProperty'])(
+    'finds a song by %s without reading what objects inherit',
+    name => {
+      const odd = song(9, name, name, name)
+      expect(songSearchNames(odd, NO_NAMES)).toContain(name)
+      expect(artistSearchNames(name, names)).toEqual([name])
+      expect(namesFor(NO_NAMES.artistNames, name)).toEqual([])
+    },
+  )
+
+  it('still reads a name that really is "__proto__", as JSON brings it', () => {
+    const parsed = JSON.parse(
+      '{"artistNames":{"__proto__":["Proto"]},"spellings":{}}',
+    ) as LibraryNames
+    expect(artistSearchNames('__proto__', parsed)).toEqual(['__proto__', 'Proto'])
   })
 })

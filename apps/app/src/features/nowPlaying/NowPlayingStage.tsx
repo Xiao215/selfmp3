@@ -9,7 +9,6 @@ import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
 import type { Rgb } from '@selfmp3/client'
 import {
-  fonts,
   isRoomTrackId,
   motion,
   radius,
@@ -20,6 +19,7 @@ import {
   coverSize,
   space,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'

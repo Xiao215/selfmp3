@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { fonts } from '@selfmp3/client'
+import { fonts } from '../../../ports/fonts'
 import { Cover } from '../../../ui/components/Cover'
 import { lookInk, paperLook } from '../looks.model'
 import { PrintedTag, type LookProps } from './parts'

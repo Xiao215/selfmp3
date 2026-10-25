@@ -5,7 +5,6 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
 import { artistOr, formatDuration, plural, type RoomAction, type RoomState } from '@selfmp3/shared'
 import {
-  fonts,
   radius,
   roomTrackId,
   roomTrackSong,
@@ -14,6 +13,7 @@ import {
   tracking,
   iconSize,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands, usePlayerPlaying } from '../../player/PlayerProvider'

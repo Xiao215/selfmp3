@@ -4,7 +4,6 @@ import { AppState, Image, KeyboardAvoidingView, Linking, Text, View } from 'reac
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { DOORMAN_ERROR, DoormanError, PRIVACY_POLICY_URL } from '@selfmp3/shared'
 import {
-  fonts,
   hitSlopFor,
   leading,
   radius,
@@ -14,6 +13,7 @@ import {
   tracking,
   textStyle,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'

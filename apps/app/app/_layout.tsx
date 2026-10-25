@@ -77,7 +77,8 @@ onAppLeaving(sendPending)
 /**
  * The design's two faces (`fonts` in packages/client). A native build embeds
  * them through the `expo-font` config plugin, so this finds them already there;
- * a browser gets them as `@font-face` from here.
+ * a browser gets them as `@font-face` from here. iOS draws them by their own
+ * names instead (`ports/fonts`).
  */
 const FONTS = {
   InstrumentSerif_400Regular,

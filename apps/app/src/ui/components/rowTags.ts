@@ -58,8 +58,12 @@ export function chipBudget({ hasAddButton }: { hasAddButton: boolean }): number 
  * never more than two short chips and a count.
  */
 const UNDER_LANE_MAX = 132
-/** What the artist and the length keep of the line, however many tags the song has. */
-const UNDER_WORDS_MIN = 110
+/**
+ * What the artist and the length keep of the line, however many tags the song
+ * has: room for a short artist, " · 3:44" and the cloud mark. Less, and on a
+ * small phone a long tag left "ZUTOMAYO · 2:…" beside it.
+ */
+const UNDER_WORDS_MIN = 140
 
 /** Room for the chips on a phone row's second line, in a text column `column` wide. */
 export function underBudget(column: number): number {

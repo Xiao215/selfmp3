@@ -7,6 +7,7 @@ import {
   forgetChipWidths,
   rememberChipWidth,
   TAG_CHIP_MAX_WIDTH,
+  underBudget,
 } from './rowTags'
 
 const tag = (name: string, id = name.length): Tag => ({ id, name, hue: 200, songCount: 1 })
@@ -103,5 +104,19 @@ describe('remembered widths', () => {
 describe('chipBudget', () => {
   it('leaves room for the ⊕ when the row has one', () => {
     expect(chipBudget({ hasAddButton: true })).toBeLessThan(chipBudget({ hasAddButton: false }))
+  })
+})
+
+describe('underBudget', () => {
+  it('leaves the artist and the length their room on a small phone', () => {
+    // A 390-point phone's text column, beside the ⋯: one long chip, no more.
+    const lane = underBudget(244)
+    expect(244 - lane).toBeGreaterThanOrEqual(140)
+    expect(lane).toBeGreaterThanOrEqual(TAG_CHIP_MAX_WIDTH)
+  })
+
+  it('caps the lane on a wide phone and closes it on a narrow one', () => {
+    expect(underBudget(400)).toBe(132)
+    expect(underBudget(120)).toBe(0)
   })
 })

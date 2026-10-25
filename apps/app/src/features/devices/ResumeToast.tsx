@@ -27,7 +27,7 @@ const RESUME_TOAST_MS = 12_000
  *
  * It does not outstay the question. Playing anything here answers it, so it
  * goes the moment playback starts; left alone it goes after twelve seconds,
- * with the bar along its foot running down so that is not a surprise. It is
+ * with the ring round its ✕ running down so that is not a surprise. It is
  * drawn as a message is (`ToastCard`): the song's cover, where it was playing
  * over its title, and a play button.
  */
@@ -106,7 +106,6 @@ export function ResumeToast(): ReactNode {
         art={<Cover uri={artFor(song)} title={song.title} size={ART} />}
         timed={{ since: offer.at, ms: RESUME_TOAST_MS }}
         onDismiss={decline}
-        closable={false}
       >
         <ToastButton
           label={`Continue ${song.title} by ${artistOr(song.artist)}, from ${from}`}

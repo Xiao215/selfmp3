@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
-import {
-  Animated,
-  Easing,
-  PanResponder,
-  StyleSheet as RNStyleSheet,
-  Text,
-  View,
-} from 'react-native'
+import { Animated, PanResponder, StyleSheet as RNStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { Circle, Svg } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
 import { hitSlopFor, leading, motion, radius, space, type, iconSize } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -125,13 +119,8 @@ function ToastItem({
         tone={toast.tone}
         words={toast}
         art={toast.art ?? (toast.songs.length > 0 ? <ToastCovers songs={toast.songs} /> : null)}
-        timed={
-          toast.actions.length > 0 && toast.autoDismissMs > 0
-            ? { since: toast.since, ms: toast.autoDismissMs }
-            : null
-        }
+        timed={toast.autoDismissMs > 0 ? { since: toast.since, ms: toast.autoDismissMs } : null}
         onDismiss={dismiss}
-        closable={toast.autoDismissMs <= 0}
       >
         {toast.actions.map((action, index) => (
           <ToastButton
@@ -155,16 +144,17 @@ function ToastItem({
 const SWIPE_AWAY = 72
 
 /**
- * One message as it is drawn (docs/ui-mock: the notifications canvas, A1 B1 C2):
+ * One message as it is drawn (docs/ui-mock: the notifications canvas, A1 C2):
  * a card a step lighter than anything under it, with what it is about at its
  * start — a song's cover, a friend's face — then its words, then what you can
  * do. Its tone is its ground: a good, warning or failed message is washed in
  * that colour, so it is told apart before it is read. A message with nothing
  * but a few words is a capsule its own width.
  *
- * Swiped down or sideways it goes; only a message that stays until it is
- * dismissed — a failure — carries a ✕. One with something to press has a bar
- * along its foot that empties with its time.
+ * Every one ends in a ✕. One that goes by itself has a ring round its ✕
+ * that empties with its time, so its going is no surprise and a mouse can
+ * still send it off sooner; a failure, which stays until it is dismissed, has
+ * the ✕ alone. On a phone it can be swiped down or sideways too.
  *
  * Shared with the offer to continue from another device (`ResumeToast`), which
  * is drawn beside these but is not one of them.
@@ -175,23 +165,21 @@ export function ToastCard({
   art,
   timed,
   onDismiss,
-  closable,
   children,
 }: {
   tone: ToastTone
   words: ToastWords
   art?: ReactNode
-  /** The bar's time: from `since`, `ms` long. */
+  /** Its time, for the ring round its ✕: from `since`, `ms` long. Null for one that stays. */
   timed: { since: number; ms: number } | null
   onDismiss: () => void
-  closable: boolean
   /** Its buttons (`ToastButton`). */
   children?: ReactNode
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const finePointer = useLayoutValue(layout => layout.finePointer)
   const swipe = useSwipeAway(onDismiss)
+  const close = finePointer ? 32 : 40
   const wash =
     tone === 'good'
       ? theme.colors.goodWash
@@ -200,7 +188,7 @@ export function ToastCard({
         : tone === 'error'
           ? theme.colors.dangerWash
           : null
-  const capsule = !art && !words.over && !words.under && !children && !closable
+  const capsule = !art && !words.over && !words.under && !children
   return (
     <Animated.View
       {...swipe.handlers}
@@ -212,19 +200,12 @@ export function ToastCard({
       onAccessibilityAction={onDismiss}
       onAccessibilityEscape={onDismiss}
     >
-      {wash || timed ? (
+      {wash ? (
         <View
           style={[RNStyleSheet.absoluteFill, capsule ? styles.clipCapsule : styles.clip]}
           pointerEvents="none"
         >
-          {wash ? <View style={[RNStyleSheet.absoluteFill, { backgroundColor: wash }]} /> : null}
-          {timed ? (
-            <TimeLeft
-              since={timed.since}
-              ms={timed.ms}
-              color={tone === 'info' ? accent.accent : theme.colors.textSecondary}
-            />
-          ) : null}
+          <View style={[RNStyleSheet.absoluteFill, { backgroundColor: wash }]} />
         </View>
       ) : null}
       {art}
@@ -244,11 +225,19 @@ export function ToastCard({
         ) : null}
       </View>
       {children}
-      {closable ? (
-        <IconButton onPress={onDismiss} label="Dismiss" size={finePointer ? 28 : 40}>
+      <View>
+        <IconButton onPress={onDismiss} label="Dismiss" size={close}>
           <X size={iconSize.field} color={theme.colors.textSecondary} />
         </IconButton>
-      ) : null}
+        {timed ? (
+          <TimeRing
+            since={timed.since}
+            ms={timed.ms}
+            size={close}
+            color={theme.colors.textSecondary}
+          />
+        ) : null}
+      </View>
     </Animated.View>
   )
 }
@@ -337,28 +326,47 @@ function ToastCovers({ songs }: { songs: readonly Song[] }): ReactNode {
 export const ART = 44
 
 /**
- * The bar along a message's foot, emptying as its time runs out: how long Undo
- * has left, which was a guess.
+ * A message's time left, as a ring round its ✕ that empties clockwise. The
+ * clock is `since`, so a message folded into this one fills it again.
  */
-function TimeLeft({ since, ms, color }: { since: number; ms: number; color: string }): ReactNode {
-  const [left] = useState(() => new Animated.Value(1))
+function TimeRing({
+  since,
+  ms,
+  size,
+  color,
+}: {
+  since: number
+  ms: number
+  size: number
+  color: string
+}): ReactNode {
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const gone = Math.min(1, (Date.now() - since) / ms)
-    left.setValue(1 - gone)
-    // Linear, and not skipped under Reduce Motion: it is a clock, not a flourish.
-    const animation = Animated.timing(left, {
-      toValue: 0,
-      duration: ms * (1 - gone),
-      easing: Easing.linear,
-      useNativeDriver: nativeDriver,
-    })
-    animation.start()
-    return () => animation.stop()
-  }, [since, ms, left])
+    // A quarter of a second is smooth enough for a ring this thin.
+    const timer = setInterval(() => setNow(Date.now()), 250)
+    return () => clearInterval(timer)
+  }, [])
+  const left = Math.min(1, Math.max(0, 1 - (now - since) / ms))
+  const r = size / 2 - 2
+  const around = 2 * Math.PI * r
   return (
-    <Animated.View
-      style={[styles.bar, { backgroundColor: color, transform: [{ scaleX: left }] }]}
-    />
+    <View pointerEvents="none" style={RNStyleSheet.absoluteFill}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeOpacity={0.55}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeDasharray={`${around} ${around}`}
+          strokeDashoffset={around * (1 - left)}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+    </View>
   )
 }
 
@@ -452,8 +460,10 @@ const styles = StyleSheet.create(theme => ({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 46,
-    paddingVertical: space.sm,
-    paddingHorizontal: space.gutter,
+    paddingVertical: space.xs,
+    paddingLeft: space.gutter,
+    paddingRight: space.xs,
+    gap: space.sm,
     borderRadius: radius.pill,
     backgroundColor: theme.colors.toast,
     ...floating(theme.colors),
@@ -492,14 +502,5 @@ const styles = StyleSheet.create(theme => ({
     borderWidth: 2,
     borderColor: theme.colors.toast,
     margin: -2,
-  },
-  bar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 3,
-    opacity: 0.7,
-    transformOrigin: 'left',
   },
 }))

@@ -530,7 +530,8 @@ export function LibraryScreen(): ReactNode {
         />
       </View>
 
-      {model.tagFiltered ? null : <GemsRow />}
+      {/* Not over a library that never came: songs to play above "can't reach" read as a library that half works. */}
+      {model.tagFiltered || model.emptyReason === 'unreachable' ? null : <GemsRow />}
 
       <SyncStatus />
 

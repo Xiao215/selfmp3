@@ -8,11 +8,12 @@ import {
   MOTION_VERSION,
   PlayEventSchema,
   SONG_FIELDS,
-  SetSongTagsSchema,
+  ChangeSongTagsSchema,
   SimilarQuerySchema,
   similarSongs,
   SongPatchSchema,
   tagFlips,
+  tagsAfter,
   type Affected,
   type BulkDeleteResult,
   type MergeSongsResult,
@@ -94,8 +95,8 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/bulk/delete',
     route({ body: BulkDeleteSongsSchema }, async ({ body }): Promise<BulkDeleteResult> => {
-      const { removed, failed } = await container.songRemoval.remove(body.songIds)
-      return { removed: removed.length, failed }
+      const { removed, alreadyGone, failed } = await container.songRemoval.remove(body.songIds)
+      return { removed: removed.length + alreadyGone.length, failed }
     }),
   )
 
@@ -167,13 +168,13 @@ export function songRoutes(container: Container): Router {
     }),
   )
 
-  router.put(
+  router.patch(
     '/songs/:id/tags',
-    route({ params: ParamsWithId, body: SetSongTagsSchema }, ({ params, body }) => {
+    route({ params: ParamsWithId, body: ChangeSongTagsSchema }, ({ params, body }) => {
       const song = songOrThrow(params.id)
       // Silently drop ids for tags that no longer exist rather than 400ing —
       // a phone working from a stale library should not hit an error wall.
-      const valid = container.tags.exists(body.tagIds)
+      const valid = container.tags.exists(tagsAfter(song.tagIds, body.add, body.remove))
       transact(container.db, () => container.tags.setSongTags(params.id, valid))
       // Stamped: the tags that went on, and the ones that came off.
       const { on, off } = tagFlips(song.tagIds, valid)

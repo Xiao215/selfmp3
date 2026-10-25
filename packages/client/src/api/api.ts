@@ -97,6 +97,7 @@ import {
   type OfflineScope,
   type PlayEvent,
   type SongPatch,
+  type ChangeSongTags,
   type StatsRange,
   type WrappedRange,
   type UpdatePlaylist,
@@ -310,8 +311,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     patchSong: (id: number, patch: SongPatch) =>
       request('PATCH', `/api/songs/${id}`, SongSchema, patch),
 
-    setSongTags: (id: number, tagIds: number[]) =>
-      request('PUT', `/api/songs/${id}/tags`, SongSchema, { tagIds }),
+    changeSongTags: (id: number, change: ChangeSongTags) =>
+      request('PATCH', `/api/songs/${id}/tags`, SongSchema, change),
 
     setLoved: (id: number, loved: boolean) =>
       request('POST', `/api/songs/${id}/loved`, SongSchema, { loved }),

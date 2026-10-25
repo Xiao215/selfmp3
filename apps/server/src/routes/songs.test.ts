@@ -194,9 +194,9 @@ describe('POST /api/songs/merge', () => {
       sourceUrl: null,
     })
 
-  const post = (url: string, body: unknown) =>
+  const post = (url: string, body: unknown, method = 'POST') =>
     fetch(`${origin}${url}`, {
-      method: 'POST',
+      method,
       headers: {
         Authorization: `Bearer ${container.config.authToken ?? ''}`,
         'Content-Type': 'application/json',
@@ -241,6 +241,32 @@ describe('POST /api/songs/merge', () => {
     expect(plays).toEqual([{ id: kept }, { id: kept }])
     // The tag stayed: the copy was not its last song.
     expect(container.tags.all().map(tag => tag.name)).toEqual(['rain'])
+  })
+
+  /*
+   * Another device put alpha on while this one's picker was open, or while it
+   * was offline: the tick sends beta alone, and alpha stays.
+   */
+  it('changes only the tags an edit names, keeping one another device put on', async () => {
+    const song = insert('夜に駆ける')
+    const alpha = container.tags.create('alpha', 10).id
+    const beta = container.tags.create('beta', 30).id
+    container.tags.setSongTags(song, [alpha])
+
+    const on = await post(`/api/songs/${song}/tags`, { add: [beta], remove: [] }, 'PATCH')
+    expect(on.status).toBe(200)
+    expect(((await on.json()) as { tagIds: number[] }).tagIds.sort()).toEqual([alpha, beta].sort())
+
+    const off = await post(`/api/songs/${song}/tags`, { add: [], remove: [beta] }, 'PATCH')
+    expect(((await off.json()) as { tagIds: number[] }).tagIds).toEqual([alpha])
+  })
+
+  it('counts a song already gone as deleted, for a delete asked again', async () => {
+    const song = insert('Gone')
+    const first = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await first.json()).toEqual({ removed: 1, failed: [] })
+    const again = await post('/api/songs/bulk/delete', { songIds: [song] })
+    expect(await again.json()).toEqual({ removed: 1, failed: [] })
   })
 
   it('folds nothing into a song that is not there, and nothing into itself', async () => {

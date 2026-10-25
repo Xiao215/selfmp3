@@ -67,3 +67,64 @@ export function undoTagChange(
   if (current.all.has(tagId) || current.some.has(tagId)) return current
   return { all: new Set([...current.all, tagId]), some: current.some }
 }
+
+/** A tick on one song not yet answered: whether it put the tag on, and which tick it was. */
+export interface PendingTick {
+  readonly on: boolean
+  readonly tick: number
+}
+
+/**
+ * What the picker on one song shows: the song's tags as the library has them
+ * now, with the ticks still on their way laid over them. Read from the library
+ * rather than kept from when the picker opened, so a tag another device put on
+ * meanwhile shows ticked — and stays on, since each tick sends only itself.
+ */
+export function songPickerTicks(
+  held: readonly number[],
+  pending: ReadonlyMap<number, PendingTick>,
+): ReadonlySet<number> {
+  const ticked = new Set(held)
+  for (const [tagId, { on }] of pending) {
+    if (on) ticked.add(tagId)
+    else ticked.delete(tagId)
+  }
+  return ticked
+}
+
+/** The ticks on their way with this one's tags added. */
+export function withPendingTicks(
+  pending: ReadonlyMap<number, PendingTick>,
+  change: { readonly add: readonly number[]; readonly remove: readonly number[] },
+  tick: number,
+): ReadonlyMap<number, PendingTick> {
+  const next = new Map(pending)
+  for (const tagId of change.add) next.set(tagId, { on: true, tick })
+  for (const tagId of change.remove) next.set(tagId, { on: false, tick })
+  return next
+}
+
+/**
+ * The ticks on their way once this one is answered, or refused: its tags go
+ * back to what the song says, unless a later tick has taken them since.
+ */
+export function settledTicks(
+  pending: ReadonlyMap<number, PendingTick>,
+  tagIds: readonly number[],
+  tick: number,
+): ReadonlyMap<number, PendingTick> {
+  const next = new Map(pending)
+  for (const tagId of tagIds) if (next.get(tagId)?.tick === tick) next.delete(tagId)
+  return next
+}
+
+/** The tags to put on and take off one song, to go from what is shown to what was ticked. */
+export function songTagChange(
+  shown: ReadonlySet<number>,
+  next: ReadonlySet<number>,
+): { readonly add: number[]; readonly remove: number[] } {
+  return {
+    add: [...next].filter(id => !shown.has(id)),
+    remove: [...shown].filter(id => !next.has(id)),
+  }
+}

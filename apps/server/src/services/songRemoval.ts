@@ -13,9 +13,15 @@ import { removeFolderIfEmpty } from './libraryLayout.js'
 
 /** What became of a request to remove some songs. */
 interface RemovalResult {
-  /** Ids whose rows are gone. */
+  /** Ids whose rows this removed. */
   removed: number[]
-  /** Ids that were not found, and songs whose local copy would not go. */
+  /**
+   * Ids that were not in the library to begin with. Gone is what was asked,
+   * so these are done, not failed: a delete whose answer was lost and is
+   * asked again finds its songs already gone.
+   */
+  alreadyGone: number[]
+  /** Songs whose local copy would not go. */
   failed: BulkDeleteFailure[]
 }
 
@@ -88,17 +94,17 @@ export class SongRemovalService {
   /**
    * Remove these songs, one request's worth.
    *
-   * Ids that are not in the library are reported, not thrown: a phone working
-   * from a stale list should lose the rows it can and be told about the rest.
+   * Ids that are not in the library are already gone, which is what was
+   * asked: a phone working from a stale list, or asking again after an answer
+   * that never reached it, loses the rows it can and counts the rest as done.
    * The rows go in one transaction and the library version moves once.
    */
   async remove(ids: readonly number[]): Promise<RemovalResult> {
     const requested = [...new Set(ids)]
     const songs = this.#songs.byIds(requested)
     const found = new Set(songs.map(song => song.id))
-    const failed: BulkDeleteFailure[] = requested
-      .filter(id => !found.has(id))
-      .map(id => ({ songId: id, reason: `no song with id ${id}`, removed: false }))
+    const alreadyGone = requested.filter(id => !found.has(id))
+    const failed: BulkDeleteFailure[] = []
 
     // Side effects one song at a time, and never fatal: the point of a batch
     // is that one bad file does not cost you the other thirty-nine.
@@ -125,7 +131,7 @@ export class SongRemovalService {
       for (const tagId of emptied) this.#tags.delete(tagId)
       this.#onChange()
     }
-    return { removed, failed }
+    return { removed, alreadyGone, failed }
   }
 
   /**

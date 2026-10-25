@@ -7,6 +7,7 @@ import {
   playlistPatchProblem,
   playlistSongsProblem,
   tagFlips,
+  tagsAfter,
   tagNamed,
   tagRenameProblem,
   tagsEmptiedBy,
@@ -108,14 +109,23 @@ export function loveSongs(ctx: EditContext, ids: readonly number[], loved: boole
   }))
 }
 
-/** A song's tags, all at once: the ones that go on, and the ones that come off. */
-export function setSongTags(ctx: EditContext, id: number, tagIds: readonly number[]): Change[] {
+/**
+ * Tags on and off one song: only what the change names, so a tag another
+ * device put on meanwhile stays (`tagsAfter`). Recorded as the ones that go
+ * on, and the ones that come off.
+ */
+export function changeSongTags(
+  ctx: EditContext,
+  id: number,
+  add: readonly number[],
+  remove: readonly number[],
+): Change[] {
   const current = song(ctx, id)
   const uid = songUid(ctx, id)
   // Tags that are gone are dropped quietly, as the server does for a stale phone.
   const { on, off } = tagFlips(
     current.tagIds,
-    tagIds.filter(tagId => ctx.view.uids.tags.has(tagId)),
+    tagsAfter(current.tagIds, add, remove).filter(tagId => ctx.view.uids.tags.has(tagId)),
   )
   const flips = [
     ...on.map(tagId => ({ tagId, on: true })),

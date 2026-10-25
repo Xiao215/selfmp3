@@ -18,9 +18,10 @@ const tag = (id: number, name: string): Tag =>
   ({ id, name, hue: 0, songCount: 1 }) as unknown as Tag
 
 let mockHere: Tag[] = []
+let mockSongs: Song[] = []
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
-  useLibrary: () => ({ data: { songs: [], playlists: [], tags: mockHere } }),
+  useLibrary: () => ({ data: { songs: mockSongs, playlists: [], tags: mockHere } }),
   useCreateTag: () => ({ mutateAsync: jest.fn() }),
 }))
 jest.mock('./Popover', () => ({
@@ -77,14 +78,22 @@ describe('TagSearchList from another library', () => {
 describe('TagPicker on a song', () => {
   /** A server whose answers are held until the test lets each one go. */
   function heldServer() {
-    const calls: { tagIds: number[]; answer: () => void; refuse: () => void }[] = []
+    const calls: {
+      change: { add: number[]; remove: number[] }
+      answer: () => void
+      refuse: () => void
+    }[] = []
+    let has: number[] = []
     configureClient({
       api: {
-        setSongTags: (id: number, tagIds: number[]) =>
+        changeSongTags: (id: number, change: { add: number[]; remove: number[] }) =>
           new Promise((resolve, reject) => {
             calls.push({
-              tagIds,
-              answer: () => resolve({ id, tagIds } as Song),
+              change,
+              answer: () => {
+                has = [...new Set([...has, ...change.add])].filter(t => !change.remove.includes(t))
+                resolve({ id, tagIds: has } as Song)
+              },
               refuse: () => reject(new Error('timed out')),
             })
           }),
@@ -121,10 +130,44 @@ describe('TagPicker on a song', () => {
     await waitFor(() => expect(calls).toHaveLength(1))
     await act(async () => calls[0]?.answer())
     await waitFor(() => expect(calls).toHaveLength(2))
-    expect(calls.map(call => call.tagIds)).toEqual([[1], []])
+    expect(calls.map(call => call.change)).toEqual([
+      { add: [1], remove: [] },
+      { add: [], remove: [1] },
+    ])
     await act(async () => calls[1]?.refuse())
 
     await waitFor(() => expect(jpop().props['accessibilityState'].checked).toBe(true))
+  })
+
+  /*
+   * Another device put alpha on while the picker was open here: it shows
+   * ticked, and ticking jpop sends jpop alone, so alpha stays on the song.
+   */
+  it('shows a tag another device put on meanwhile, and a tick sends only itself', async () => {
+    mockHere = [tag(1, 'jpop'), tag(2, 'alpha')]
+    const calls = heldServer()
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    const song = { id: 7, title: '曲终奏雅', tagIds: [] } as unknown as Song
+    mockSongs = [song]
+    const view = await render(
+      <QueryClientProvider client={client}>
+        <TagPicker song={song} onClose={() => undefined} />
+      </QueryClientProvider>,
+    )
+    // The library hears of alpha.
+    mockSongs = [{ ...song, tagIds: [2] }]
+    await view.rerender(
+      <QueryClientProvider client={client}>
+        <TagPicker song={song} onClose={() => undefined} />
+      </QueryClientProvider>,
+    )
+    const box = (name: string) => screen.getByRole('checkbox', { name })
+    expect(box('alpha').props['accessibilityState'].checked).toBe(true)
+
+    await fireEvent.press(box('jpop'))
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(calls[0]?.change).toEqual({ add: [1], remove: [] })
+    mockSongs = []
   })
 
   it('leaves a failed tick alone when a later one has been made', async () => {

@@ -157,6 +157,69 @@ export const queryKeys = {
 }
 
 /**
+ * The edits that can wait for the library: made while this device cannot
+ * reach it, kept on the device and sent when it can (the app's
+ * `waitingEdits.ts`), even across a reload. A browser that goes offline holds
+ * every edit back until it is online again, and held only in memory they were
+ * lost to a reload without a word.
+ *
+ * Each is named by its key and sent by the same function from either side:
+ * the hook that made it, or the defaults a kept edit is sent with after a
+ * reload (`resumableEdits`), which knows nothing of the screen it came from.
+ * They are the taps: a tag, a heart, a song onto or off a playlist, a new
+ * order. Each says only what it changes, so sending it late cannot undo what
+ * another device did meanwhile.
+ */
+export const editKeys = {
+  songTags: ['edit', 'song-tags'],
+  loved: ['edit', 'loved'],
+  bulkTag: ['edit', 'bulk-tag'],
+  bulkLoved: ['edit', 'bulk-loved'],
+  addToPlaylist: ['edit', 'add-to-playlist'],
+  removeFromPlaylist: ['edit', 'remove-from-playlist'],
+  reorderPlaylist: ['edit', 'reorder-playlist'],
+} as const
+
+const editFns = {
+  songTags: ({ songId, add, remove }: { songId: number; add: number[]; remove: number[] }) =>
+    clientApi().changeSongTags(songId, { add, remove }),
+  loved: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
+  bulkTag: (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
+    clientApi().bulkTag(input),
+  bulkLoved: (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
+  addToPlaylist: async ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) => {
+    // A removal still waiting on its Undo goes first: added back inside the
+    // Undo's time, a song was added to a playlist that still had it, and
+    // then taken out of it when the time ran out.
+    await beforeAddingTo(playlistId)
+    return clientApi().addToPlaylist(playlistId, { songIds })
+  },
+  removeFromPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+    clientApi().removeManyFromPlaylist(playlistId, songIds),
+  reorderPlaylist: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
+    clientApi().reorderPlaylist(playlistId, songIds),
+} satisfies Record<keyof typeof editKeys, (variables: never) => Promise<unknown>>
+
+/**
+ * Teach a query client how to send each kind of edit by its key alone, for an
+ * edit kept from before a reload. Only the sending: what a hook does with the
+ * answer belongs to its screen, and the app asks for the library again once
+ * the kept edits have gone.
+ */
+export function resumableEdits(client: QueryClient): void {
+  for (const name of Object.keys(editKeys) as (keyof typeof editKeys)[]) {
+    client.setMutationDefaults([...editKeys[name]], {
+      mutationFn: editFns[name] as (variables: unknown) => Promise<unknown>,
+    })
+  }
+}
+
+/** Whether a mutation is a kind of edit that can wait (`editKeys`). */
+export function isResumableEdit(mutationKey: readonly unknown[] | undefined): boolean {
+  return mutationKey?.[0] === 'edit'
+}
+
+/**
  * Listening for the cloud library changing behind an answer, once per query
  * client however many screens hold the library.
  */
@@ -508,10 +571,15 @@ export function useImportTools(enabled = true): UseQueryResult<ToolStatus, Error
  */
 function useLibraryMutation<TArgs, TResult>(
   fn: (args: TArgs) => Promise<TResult>,
-  { failure, members = true }: { failure?: string; members?: boolean } = {},
+  {
+    failure,
+    members = true,
+    key,
+  }: { failure?: string; members?: boolean; key?: readonly unknown[] } = {},
 ): UseMutationResult<TResult, Error, TArgs> {
   const client = useQueryClient()
   return useMutation({
+    ...(key === undefined ? {} : { mutationKey: [...key] }),
     mutationFn: fn,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.library })
@@ -669,16 +737,17 @@ export function useSetTagHue() {
 }
 
 /**
- * Replace a song's tags. Each tick sends the whole set, so the requests for
- * one song run one at a time, in the order they were made: two quick ticks
- * answered out of order put the first set back over the second, and a tag
- * just taken off came back on the chips.
+ * Put tags on a song and take them off. Each tick sends only what it changes,
+ * never the whole set: a whole set worked out from a picker left open, or from
+ * an edit made offline and sent on reconnecting, took off every tag another
+ * device had put on meanwhile. The requests still run one at a time, in the
+ * order they were made, so each answer is the song as of every tick before it.
  */
-export function useSetSongTags() {
+export function useChangeSongTags() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ songId, tagIds }: { songId: number; tagIds: number[] }) =>
-      clientApi().setSongTags(songId, tagIds),
+    mutationKey: [...editKeys.songTags],
+    mutationFn: editFns.songTags,
     scope: { id: 'song-tags' },
     meta: { failure: 'Couldn’t change the song’s tags' },
     onSuccess: song => {
@@ -702,11 +771,10 @@ export function useSetSongTags() {
 }
 
 export const useBulkTag = () =>
-  useLibraryMutation(
-    (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
-      clientApi().bulkTag(input),
-    { failure: 'Couldn’t tag those songs' },
-  )
+  useLibraryMutation(editFns.bulkTag, {
+    failure: 'Couldn’t tag those songs',
+    key: editKeys.bulkTag,
+  })
 
 export function usePatchSong() {
   const client = useQueryClient()
@@ -744,10 +812,10 @@ export const useBulkEditSongs = () =>
   })
 
 export const useBulkLoved = () =>
-  useLibraryMutation(
-    (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
-    { failure: 'Couldn’t change the likes' },
-  )
+  useLibraryMutation(editFns.bulkLoved, {
+    failure: 'Couldn’t change the likes',
+    key: editKeys.bulkLoved,
+  })
 
 export const useScanLibrary = (api: Api | null) =>
   useLibraryMutation<void, ScanResult>(() => serverOf(api).scan(), {
@@ -759,6 +827,9 @@ export function useUpdatePlaylist() {
   return useMutation({
     mutationFn: ({ id, patch }: { id: number; patch: Parameters<Api['updatePlaylist']>[1] }) =>
       clientApi().updatePlaylist(id, patch),
+    // In the order made: a rule or a name goes whole, and two answered out of
+    // order would leave the first.
+    scope: { id: 'playlist-update' },
     meta: { failure: 'Couldn’t save the playlist' },
     onSuccess: (playlist, { id }) => {
       putPlaylist(client, playlist)
@@ -843,7 +914,8 @@ export function useToggleLoved() {
   const client = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ id, loved }: { id: number; loved: boolean }) => clientApi().setLoved(id, loved),
+    mutationKey: [...editKeys.loved],
+    mutationFn: editFns.loved,
     meta: { failure: 'Couldn’t change the like' },
 
     onMutate: async ({ id, loved }) => {
@@ -880,14 +952,40 @@ export function useToggleLoved() {
   })
 }
 
+/**
+ * Change the library's settings, shown at once.
+ *
+ * Optimistic, and one at a time in the order they were made. A switch that
+ * waited for the server did not move under the finger, and each tap worked out
+ * its value from the last answer: two quick taps both sent "off". A note
+ * removed while the last removal was still saving came back the same way. Now
+ * each change is applied to what is held as it is made, so the next one starts
+ * from it; the server's answer is taken only when it is the last one waiting,
+ * so an earlier answer does not put a switch back for a moment; and a failure
+ * puts back what was held before it and asks again.
+ */
 export function useUpdateSettings(api: Api | null, baseUrl: string | null) {
   const client = useQueryClient()
+  const key = queryKeys.settings(baseUrl)
   return useMutation({
+    mutationKey: ['settings', 'update', baseUrl],
     mutationFn: (patch: Parameters<Api['updateSettings']>[0]) =>
       serverOf(api).updateSettings(patch),
+    scope: { id: `settings:${baseUrl ?? ''}` },
     meta: { failure: 'Couldn’t save the setting' },
+    onMutate: async patch => {
+      await client.cancelQueries({ queryKey: key })
+      const previous = client.getQueryData<Settings>(key)
+      if (previous) client.setQueryData<Settings>(key, { ...previous, ...patch })
+      return { previous }
+    },
     onSuccess: settings => {
-      client.setQueryData(queryKeys.settings(baseUrl), settings)
+      const waiting = client.isMutating({ mutationKey: ['settings', 'update', baseUrl] })
+      if (waiting <= 1) client.setQueryData(key, settings)
+    },
+    onError: (_error, _patch, context) => {
+      if (context?.previous) client.setQueryData(key, context.previous)
+      void client.invalidateQueries({ queryKey: key })
     },
   })
 }
@@ -895,13 +993,8 @@ export function useUpdateSettings(api: Api | null, baseUrl: string | null) {
 export function useAddToPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: async ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) => {
-      // A removal still waiting on its Undo goes first: added back inside the
-      // Undo's time, a song was added to a playlist that still had it, and
-      // then taken out of it when the time ran out.
-      await beforeAddingTo(playlistId)
-      return clientApi().addToPlaylist(playlistId, { songIds })
-    },
+    mutationKey: [...editKeys.addToPlaylist],
+    mutationFn: editFns.addToPlaylist,
     meta: { failure: 'Couldn’t add to the playlist' },
     onSuccess: (playlist, { playlistId }) => {
       // The answer is the playlist with its new count and length; its members
@@ -929,8 +1022,10 @@ export function useAddToPlaylist() {
 export function useReorderPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().reorderPlaylist(playlistId, songIds),
+    mutationKey: [...editKeys.reorderPlaylist],
+    mutationFn: editFns.reorderPlaylist,
+    // The whole order each time, so the newest has to land last.
+    scope: { id: 'playlist-order' },
     meta: { failure: 'Couldn’t save the new order' },
 
     onMutate: async ({ playlistId, songIds }) => {
@@ -953,8 +1048,8 @@ export function useReorderPlaylist() {
 export function useRemoveManyFromPlaylist() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) =>
-      clientApi().removeManyFromPlaylist(playlistId, songIds),
+    mutationKey: [...editKeys.removeFromPlaylist],
+    mutationFn: editFns.removeFromPlaylist,
     meta: { failure: 'Couldn’t remove the songs from the playlist' },
     onSuccess: ({ playlist }, { playlistId }) => {
       if (playlist) putPlaylist(client, playlist)

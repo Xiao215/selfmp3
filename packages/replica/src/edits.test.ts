@@ -134,9 +134,14 @@ describe('editing songs', () => {
     expect(view.playlistSongs[d.idOf('playlists', '8')]).toEqual([d.idOf('songs', 'b')])
   })
 
-  it('sets a song’s tags as the ones that go on and the ones that come off', () => {
+  it('changes a song’s tags as the ones that go on and the ones that come off', () => {
     const d = device()
-    const changes = edits.setSongTags(d.ctx(), d.idOf('songs', 'a'), [d.idOf('tags', '2'), 9999])
+    const changes = edits.changeSongTags(
+      d.ctx(),
+      d.idOf('songs', 'a'),
+      [d.idOf('tags', '2'), 9999],
+      [d.idOf('tags', '1')],
+    )
     expect(
       changes.map(change => change.type === 'songTagged' && [change.tagUid, change.on]),
     ).toEqual([

@@ -63,6 +63,8 @@ import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
 import { thisPlace } from '../ports/place'
+import { useOnline } from '../offline/useOnline'
+import { useWaitingEdits } from '../offline/waitingEdits'
 
 /**
  * The desktop's left rail.
@@ -579,6 +581,8 @@ function Foot(): ReactNode {
   const { state, installed } = useDownloads()
   const { fromCloud } = useConnection()
   const held = useBucketHold() !== null
+  const online = useOnline()
+  const waiting = useWaitingEdits()
   /*
    * Of this library, what is here — not how many files the device is keeping.
    * The index holds an entry for every song ever downloaded, a replaced
@@ -594,25 +598,32 @@ function Foot(): ReactNode {
   const place = thisPlace()
   // A failed refetch keeps the cached library, so an error wins over the data.
   // Edits a cloud library is still holding are read as the foot draws, which
-  // it does again whenever the library's answer changes.
+  // it does again whenever the library's answer changes; a server library's
+  // edits made offline wait in the query client (`waitingEdits.ts`).
+  const unsent =
+    waiting + (fromCloud && (library.isError || !online) ? cloudLibrary.pendingCloudChanges() : 0)
   const notice = footNotice({
     error: library.isError ? library.error : null,
     held,
+    offline: !online,
     fromCloud,
     keepsSongs: installed,
     place,
-    unsent: fromCloud && library.isError ? cloudLibrary.pendingCloudChanges() : 0,
+    unsent,
   })
   const dot = notice
     ? theme.colors.warning
     : library.isPending
       ? theme.colors.textMuted
       : theme.colors.good
-  const summary = library.data ? footSummary({ songs, here, place }) : null
+  const summary = library.data ? footSummary({ songs, here, place, unsent }) : null
+  // The page says it already, in its own card where the library would be: the
+  // same title twice, one above the other, read as two problems.
+  const pageSays = library.isError && !library.data && (pathname === '/library' || pathname === '/')
 
   return (
     <View style={styles.foot}>
-      {notice ? (
+      {notice && !pageSays ? (
         <NoticeCard
           tone="warn"
           wash

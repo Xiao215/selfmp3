@@ -47,6 +47,7 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
+import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Press } from '../../ui/components/Press'
@@ -67,14 +68,17 @@ const SPARK = { width: 120, height: 56 }
  */
 export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode {
   const [period, setPeriod] = useState<StatsPeriod>('month')
-  const { data: stats, isLoading } = useStatsFor(via, statsRangeFor(period))
+  const { data: stats, isLoading, refetch } = useStatsFor(via, statsRangeFor(period))
 
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
       {isLoading && !stats ? (
         <PageLoading line="Working it out…" />
       ) : !stats ? (
-        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE} />
+        <EmptyState title="Stats need your library" line={SHOWS_WHEN_REACHABLE}>
+          {/* It asks again by itself once the library answers; this is for now. */}
+          <Button label="Try again" onPress={refetch} />
+        </EmptyState>
       ) : stats.totals.plays === 0 ? (
         <EmptyState
           title="Nothing to show yet"

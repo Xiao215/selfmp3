@@ -47,6 +47,8 @@ jest.mock('../../offline/DownloadsProvider', () => ({
 let mockAnswer: ((result: { removed: number; failed: number[] }) => void) | null = null
 jest.mock('@selfmp3/client', () => ({
   ...jest.requireActual('@selfmp3/client'),
+  // The dialog watches its songs leave the library; nothing leaves it here.
+  useLibrary: () => ({ data: undefined }),
   useBulkDeleteSongs: () => ({
     isPending: false,
     mutate: (

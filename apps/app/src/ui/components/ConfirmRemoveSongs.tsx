@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -9,6 +9,7 @@ import {
   space,
   type,
   useBulkDeleteSongs,
+  useLibrary,
   textStyle,
   radius,
 } from '@selfmp3/client'
@@ -47,6 +48,28 @@ export function RemoveSongs({
   const { dropDownloads } = useDownloads()
   const bulkDelete = useBulkDeleteSongs()
   const [error, setError] = useState<string | null>(null)
+  const { data: library } = useLibrary()
+
+  /*
+   * A delete that reached the server but whose answer was lost failed here
+   * while the list behind already showed the songs gone. Once every one of
+   * them has left the library, it worked: say so and close.
+   */
+  const gone =
+    error !== null &&
+    library !== undefined &&
+    !songs.some(song => library.songs.some(held => held.id === song.id))
+  const told = useRef(false)
+  useEffect(() => {
+    if (!gone || told.current) return
+    told.current = true
+    onDone()
+    const only = songs.length === 1 ? songs[0] : undefined
+    showToast(
+      only ? `Deleted “${only.title}”` : `Deleted ${plural(songs.length, 'song', 'songs')}`,
+      'good',
+    )
+  }, [gone, onDone, songs])
 
   const confirm = (): void => {
     const ids = songs.map(song => song.id)

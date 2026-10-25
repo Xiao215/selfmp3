@@ -151,7 +151,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([one.id])
 
-      expect(result).toEqual({ removed: [one.id], failed: [] })
+      expect(result).toEqual({ removed: [one.id], alreadyGone: [], failed: [] })
       expect(tags.all().map(tag => tag.name)).toEqual(['loud', 'new'])
       expect(songs.byId(two.id)).not.toBeNull()
       expect(changes).toBe(1)
@@ -162,7 +162,7 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(onDisk(key)).toBe(false)
       expect(onDisk('A - One/A - One.lrc')).toBe(false)
       expect(onDisk('A - One')).toBe(false)
@@ -219,26 +219,23 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove([id])
 
-      expect(result).toEqual({ removed: [id], failed: [] })
+      expect(result).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(songs.byId(id)).toBeNull()
       expect(onDisk('A - One')).toBe(false)
     })
 
-    it('reports ids it does not know without changing anything', async () => {
+    it('counts ids it does not know as gone already, without changing anything', async () => {
       const { id } = addSong('A - One')
 
       const result = await removal.remove([id, 999])
 
       expect(result.removed).toEqual([id])
-      expect(result.failed).toEqual([
-        { songId: 999, reason: 'no song with id 999', removed: false },
-      ])
+      expect(result.alreadyGone).toEqual([999])
+      expect(result.failed).toEqual([])
       expect(changes).toBe(1)
 
-      expect(await removal.remove([999])).toEqual({
-        removed: [],
-        failed: [{ songId: 999, reason: 'no song with id 999', removed: false }],
-      })
+      // Asked again, as after an answer that was lost: nothing failed.
+      expect(await removal.remove([id])).toEqual({ removed: [], alreadyGone: [id], failed: [] })
       expect(changes).toBe(1)
     })
   })

@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native'
-import { fireEvent, render, screen } from '@testing-library/react-native'
+import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import { hueFromString } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 
-import { Cover } from './Cover'
+import { COVER_RETRIES, COVER_RETRY_MS, Cover } from './Cover'
 
 type View = Awaited<ReturnType<typeof render>>
 
@@ -40,6 +40,27 @@ describe('Cover', () => {
 
     expect(drawn(view)).toEqual([])
     expect(screen.getByText('S')).toBeTruthy()
+  })
+
+  it('asks again for a picture that failed, a few times and then no more', async () => {
+    jest.useFakeTimers()
+    try {
+      const view = await render(<Cover uri="a.jpg" title="First light" />)
+      await fireEvent(picture(view, 'a.jpg'), 'error')
+      expect(drawn(view)).toEqual([])
+
+      for (let attempt = 0; attempt < COVER_RETRIES; attempt++) {
+        await act(() => jest.advanceTimersByTime(COVER_RETRY_MS * 2 ** attempt))
+        expect(drawn(view)).toEqual(['a.jpg'])
+        // The letter stays under it while it is asked again.
+        expect(screen.getByText('F')).toBeTruthy()
+        await fireEvent(picture(view, 'a.jpg'), 'error')
+      }
+      await act(() => jest.advanceTimersByTime(60 * 60 * 1000))
+      expect(drawn(view)).toEqual([])
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   it('draws the letter in the hue it is given, the page’s colour, not the title’s', async () => {

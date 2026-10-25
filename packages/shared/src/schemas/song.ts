@@ -105,10 +105,19 @@ export const SongPatchSchema = SongFieldsSchema.partial().refine(
 )
 export type SongPatch = z.infer<typeof SongPatchSchema>
 
-export const SetSongTagsSchema = z.object({
-  tagIds: z.array(IdSchema).max(100),
-})
-export type SetSongTags = z.infer<typeof SetSongTagsSchema>
+/**
+ * Tags on and off one song: only what changed (`tagsAfter`), so the tags
+ * another device put on meanwhile stay.
+ */
+export const ChangeSongTagsSchema = z
+  .object({
+    add: z.array(IdSchema).max(100),
+    remove: z.array(IdSchema).max(100),
+  })
+  .refine(change => change.add.length + change.remove.length > 0, {
+    message: 'no tags to change',
+  })
+export type ChangeSongTags = z.infer<typeof ChangeSongTagsSchema>
 
 /**
  * Remove many songs from the library in one request.
@@ -156,7 +165,10 @@ export const BulkDeleteFailureSchema = z.object({
 export type BulkDeleteFailure = z.infer<typeof BulkDeleteFailureSchema>
 
 export const BulkDeleteResultSchema = z.object({
-  /** Rows actually removed from the library. */
+  /**
+   * Songs no longer in the library: removed now, or gone already — a delete
+   * asked again after its answer was lost has nothing left to fail at.
+   */
   removed: z.number().int().nonnegative(),
   failed: z.array(BulkDeleteFailureSchema),
 })

@@ -19,6 +19,7 @@ import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
+import { useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
@@ -243,6 +244,8 @@ function Keeping(): ReactNode {
   useRecordRecentLists()
   // Every downloaded song's cover and words, kept beside it while the server answers.
   useKeepAlongside()
+  // Edits made while the library was out of reach, kept through a reload.
+  useKeepWaitingEdits()
   return null
 }
 

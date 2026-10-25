@@ -105,6 +105,17 @@ export function tagRenameProblem(
 }
 
 /**
+ * A song's tags after a change: the ones it had, with `add` put on and
+ * `remove` taken off. A tag edit says only what it changes, never the whole
+ * set — a whole set worked out on one device took off whatever another device
+ * had put on meanwhile (a picker left open, an edit made offline).
+ */
+export function tagsAfter<T>(had: readonly T[], add: readonly T[], remove: readonly T[]): T[] {
+  const gone = new Set(remove)
+  return [...new Set([...had, ...add])].filter(tag => !gone.has(tag))
+}
+
+/**
  * A song's tags set all at once, as the tags that go on and the ones that come
  * off — which are what each answerer stamps, or records, one by one.
  */

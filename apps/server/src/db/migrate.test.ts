@@ -110,6 +110,58 @@ describe('migrate', () => {
   })
 
   /*
+   * Up next, a recent list or a phone's played-song copy holds a song's id.
+   * Given out again, it turned into whichever song was imported next.
+   */
+  it('never gives a song’s id out twice, nor one an import or the lyrics index names', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    migrate(db, createLogger('silent'))
+    const latest = db.pragma('user_version', { simple: true }) as number
+    db.exec(`
+      INSERT INTO songs (id, path, title, artist, loved, cover_palette)
+      VALUES (1, 'a.m4a', 'A', 'Ann', 1, '[1,2]'), (3, 'c.m4a', 'C', '', 0, NULL);
+      INSERT INTO tags (id, name) VALUES (1, 'Rain');
+      INSERT INTO song_tags (song_id, tag_id) VALUES (3, 1);
+      INSERT INTO playlists (id, name) VALUES (1, 'Mix');
+      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (1, 3, 0);
+      INSERT INTO play_events (song_id) VALUES (1);
+      INSERT INTO import_jobs (id, url, song_id) VALUES ('j', 'u', 3);
+      INSERT INTO lyrics_fts (song_id, line_no, line, tokens) VALUES (8, 0, 'la', 'la');
+    `)
+    const before = db.prepare('SELECT * FROM songs ORDER BY id').all()
+    db.pragma('user_version = 49')
+    migrate(db, createLogger('silent'))
+
+    expect(db.pragma('user_version', { simple: true })).toBe(latest)
+    expect(db.prepare('SELECT * FROM songs ORDER BY id').all()).toEqual(before)
+    expect(db.pragma('foreign_key_check')).toEqual([])
+    const made = (name: string) =>
+      Number(
+        db.prepare('INSERT INTO songs (path, title) VALUES (?, ?)').run(`${name}.m4a`, name)
+          .lastInsertRowid,
+      )
+    // Past the lyrics left behind for song 8.
+    expect(made('New')).toBe(9)
+    db.prepare('DELETE FROM songs WHERE id = 9').run()
+    expect(made('Newer')).toBe(10)
+    // Deleting still takes the song's tags, places and plays with it, its
+    // import's link, its lyrics and its sync stamps.
+    db.exec(`INSERT INTO sync_stamps (kind, uid, field, hlc)
+             SELECT 'song', uid, 'title', 'h' FROM songs WHERE id = 3`)
+    db.prepare('DELETE FROM songs WHERE id IN (1, 3)').run()
+    expect(count(db, 'song_tags')).toBe(0)
+    expect(count(db, 'playlist_items')).toBe(0)
+    expect(count(db, 'play_events')).toBe(0)
+    expect(count(db, 'sync_stamps')).toBe(0)
+    expect(db.prepare('SELECT song_id FROM import_jobs').get()).toEqual({ song_id: null })
+    const indexes = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'songs'")
+      .all()
+    expect(indexes).toHaveLength(8)
+  })
+
+  /*
    * An open page, an Up next source or a recent list holds a playlist's id.
    * Given out again, it turned into whichever playlist was made next.
    */

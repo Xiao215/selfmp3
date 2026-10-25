@@ -1089,6 +1089,98 @@ const MIGRATIONS: readonly Migration[] = [
       DROP TABLE orphaned;
     `,
   },
+  {
+    // 50. A song's id is never given out twice, as 41 and 48 made it for tags
+    // and playlists. Deleting the newest song and importing another gave the
+    // new one the old id, and whatever held it — Up next, a recent list, a
+    // played-song copy on a phone, an open song menu — turned into the new
+    // song. The sequence starts past every id still here or still named by an
+    // import or the lyrics index. Column order is unchanged.
+    name: 'a song’s id is never given out twice',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE songs_new (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        path           TEXT    NOT NULL UNIQUE,
+        title          TEXT    NOT NULL,
+        artist         TEXT    NOT NULL DEFAULT '',
+        album          TEXT    NOT NULL DEFAULT '',
+        album_artist   TEXT    NOT NULL DEFAULT '',
+        track_no       INTEGER,
+        year           INTEGER,
+        duration       REAL    NOT NULL DEFAULT 0,
+        size_bytes     INTEGER NOT NULL DEFAULT 0,
+        mime           TEXT    NOT NULL DEFAULT 'audio/mp4',
+        mtime_ms       INTEGER NOT NULL DEFAULT 0,
+        has_art        INTEGER NOT NULL DEFAULT 0,
+        art_ext        TEXT,
+        lyrics_kind    TEXT    NOT NULL DEFAULT 'none',
+        play_count     INTEGER NOT NULL DEFAULT 0,
+        loved          INTEGER NOT NULL DEFAULT 0,
+        -- The link an import came from: how its own timed lyrics are found.
+        source_url     TEXT,
+        last_played_at TEXT,
+        added_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        art_rev        INTEGER NOT NULL DEFAULT 0,
+        -- Set when lrclib says a track has no words, or when you mark it so. Not a
+        -- lyrics_kind value, because the scanner rewrites that column from the
+        -- files on every rescan, and smart playlists read lyrics_kind != 'none' as
+        -- "has lyrics".
+        instrumental   INTEGER NOT NULL DEFAULT 0,
+        -- How the song is known outside this database (docs/SYNC.md). The integer
+        -- id stays a local handle: another device would hand out the same
+        -- numbers.
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- The cover's most vivid colour, picked from a 24×24 drawing of it so no
+        -- device has to decode the image to draw the playing song in it, and the
+        -- handful of colours it is made of (JSON, most of the cover first), which
+        -- the no-lyrics visuals draw in. cover_tone_rev is the art_rev they were
+        -- picked from: a new cover makes them stale. A cover with no colour in it
+        -- keeps a null hue with the revision set, so it is not read again.
+        cover_hue      REAL,
+        cover_chroma   REAL,
+        cover_tone_rev INTEGER,
+        cover_palette  TEXT
+      );
+      INSERT INTO songs_new (
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental, uid, cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      )
+      SELECT
+        id, path, title, artist, album, album_artist, track_no, year, duration, size_bytes,
+        mime, mtime_ms, has_art, art_ext, lyrics_kind, play_count, loved, source_url,
+        last_played_at, added_at, updated_at, art_rev, instrumental, uid, cover_hue,
+        cover_chroma, cover_tone_rev, cover_palette
+      FROM songs;
+      DROP TABLE songs;
+      ALTER TABLE songs_new RENAME TO songs;
+      CREATE INDEX idx_songs_added  ON songs(added_at DESC);
+      CREATE INDEX idx_songs_artist ON songs(artist COLLATE NOCASE);
+      CREATE INDEX idx_songs_album  ON songs(album COLLATE NOCASE);
+      CREATE INDEX idx_songs_plays  ON songs(play_count DESC);
+      CREATE INDEX idx_songs_source ON songs(source_url) WHERE source_url IS NOT NULL;
+      CREATE INDEX idx_songs_size   ON songs(size_bytes);
+      CREATE UNIQUE INDEX idx_songs_uid ON songs(uid);
+      CREATE TRIGGER lyrics_fts_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM lyrics_fts WHERE song_id = old.id;
+      END;
+      CREATE TRIGGER sync_stamps_song_delete AFTER DELETE ON songs BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('song','songTag') AND uid = old.uid;
+        DELETE FROM sync_stamps WHERE kind = 'playlistSong' AND field = old.uid;
+      END;
+
+      DELETE FROM sqlite_sequence WHERE name = 'songs';
+      INSERT INTO sqlite_sequence (name, seq)
+      SELECT 'songs', max(
+        coalesce((SELECT max(id) FROM songs), 0),
+        coalesce((SELECT max(song_id) FROM import_jobs), 0),
+        coalesce((SELECT max(CAST(song_id AS INTEGER)) FROM lyrics_fts), 0)
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

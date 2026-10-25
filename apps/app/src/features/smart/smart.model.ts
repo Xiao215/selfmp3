@@ -4,6 +4,7 @@ import type {
   AiCheck,
   AskAnswer,
   AskOrder,
+  AskPlaybackOp,
   AskSort,
   BulkEditSongs,
   Playlist,
@@ -244,13 +245,21 @@ export function describeNotes(result: DescribeResult, picked: number): string[] 
 /** What the Ask offer says it does, in one line: Search's card and the palette's row alike. */
 export const ASK_SUB = 'Play, find, list or tag songs'
 
+/** Writing whose two characters are already a word: 情歌, 摇滚, 演歌, 발라드's first two. */
+const WORD_PER_CHARACTER =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
 /**
- * Whether the box offers to ask (S1, I1): three letters at least. The offer
- * is always there for that much; where it sits and what Enter does depend on
- * whether anything matched (`asksOnEnter`).
+ * Whether the box offers to ask (S1, I1): three letters at least, or two in
+ * Chinese, Japanese or Korean, where two characters say a whole thing. The
+ * offer is always there for that much; where it sits and what Enter does
+ * depend on whether anything matched (`asksOnEnter`).
  */
 export function askable(text: string): boolean {
-  return text.trim().length >= 3
+  const trimmed = text.trim()
+  if (trimmed.length >= 3) return true
+  const characters = [...trimmed]
+  return characters.length === 2 && characters.every(each => WORD_PER_CHARACTER.test(each))
 }
 
 /**
@@ -275,6 +284,16 @@ export function rangeWords(range: AskStatsRange): string {
     case 'all':
       return 'all time'
   }
+}
+
+/** A playback answer's request in words, before the device has said what came of it. */
+const PLAYBACK_ASKED: Readonly<Record<AskPlaybackOp, string>> = {
+  next: 'skip to the next song',
+  previous: 'go back a song',
+  restart: 'start the song again',
+  pause: 'pause',
+  resume: 'carry on playing',
+  upNext: 'play a song from Up next',
 }
 
 /** The most songs a recap names; past that it says how many more. */
@@ -368,7 +387,8 @@ export function answerRecap(
       case 'open':
         return answer.say
       case 'playback':
-        return `Did ${answer.op} on what was playing.`
+        // What it came to is the device's to say (`PlaybackAnswer`); until then, only what was asked.
+        return `Asked to ${PLAYBACK_ASKED[answer.op]}.`
       case 'none':
         return answer.say
     }

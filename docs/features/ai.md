@@ -218,8 +218,14 @@ accent-tinted bubble on the right, and its answer under it, drawn as that kind o
 always is (`AnswerBody.tsx`). Earlier turns stay, oldest at the top. The field is docked at
 the foot ("Ask a follow-up…"); while a turn is worked on its send is the one Stop, which
 takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
-and the conversation is not kept after it (so there is no "new chat" button). When the
-keyboard rises, the thread's foot moves up with it, as a messages app keeps it. On a phone the page owns the display, as Search does; on a computer
+and the conversation is not kept after it (so there is no "new chat" button); the page drawn
+again any other way — a browser's Back from an answer's page — finds its turns as they were
+(`askThread.store.ts`). When the
+keyboard rises, the thread's foot moves up with it, as a messages app keeps it. A
+question over 500 characters is not sent: the field stops there, and one from Search says
+it is too long. An answer that failed says why when the server said ("Your server couldn’t
+reach the model.", with Open Settings where Settings can help); Try again is worked on as a
+new turn is, with its Stop, and the next question waits for it. On a phone the page owns the display, as Search does; on a computer
 it opens in the main column, and the palette's Ask row closes the palette and opens it.
 Asked while Search adds to a room (`?to=room`), song answers go to the room. A review's keys
 work from the field while it is empty.
@@ -426,7 +432,10 @@ Whatever is typed in the Ask page's field is a new turn, asked after the convers
 before it: the request carries `before`, each earlier question with what was shown for it
 (`AskTurn`). A words answer is its words; a list or a review is a line the device writes
 (`answerRecap` in `smart.model.ts`: "Offered 12 songs (“…”): …", "Proposed 8 name
-changes: …"). The server sets them out as turns and asks for the newest
+changes: …"). A list changed with Change it is told as it is shown now, and a playback
+answer as what it came to on this device ("Nothing is playing."). A long conversation
+sends only its newest eight turns (`ASK_BEFORE_MAX`). The server sets them out as turns
+and asks for the newest
 (`followed` in `ask.ts`: "Earlier in this conversation: They asked … You answered … Now
 they say …"), so the model neither looks everything up again nor re-answers it, and "only
 the albums" after a song list is still that request changed. Until 2026-10-24 only the

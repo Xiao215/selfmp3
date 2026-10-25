@@ -166,14 +166,21 @@ export const TagReviewSchema = z.object({
 })
 export type TagReview = z.infer<typeof TagReviewSchema>
 
+/** The longest question Ask takes. */
+export const ASK_TEXT_MAX = 500
+/** The longest line a turn's answer is told back in. */
+export const ASK_ANSWERED_MAX = 2000
+/** The most earlier turns a follow-up is asked after: a longer conversation sends its newest. */
+export const ASK_BEFORE_MAX = 8
+
 /**
  * One turn of an Ask conversation: what was asked, and what the answer shown
  * for it said — its words, or a line the device writes for a list or a review
  * ("Showed 12 songs: …").
  */
 export const AskTurnSchema = z.object({
-  asked: z.string().trim().min(1).max(500),
-  answered: z.string().trim().max(2000),
+  asked: z.string().trim().min(1).max(ASK_TEXT_MAX),
+  answered: z.string().trim().max(ASK_ANSWERED_MAX),
 })
 export type AskTurn = z.infer<typeof AskTurnSchema>
 
@@ -182,7 +189,7 @@ export type AskTurn = z.infer<typeof AskTurnSchema>
  * of a few things the app can already do, and answered as a proposal.
  */
 export const AskRequestSchema = z.object({
-  text: z.string().trim().min(1).max(500),
+  text: z.string().trim().min(1).max(ASK_TEXT_MAX),
   /** The song playing on the asking device, by the server's id: what "this" means (A8). */
   playing: IdSchema.nullable().default(null),
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
@@ -192,7 +199,7 @@ export const AskRequestSchema = z.object({
    * an answer: each thing asked with what was shown for it. `text` is what is
    * answered; these are what it is said after.
    */
-  before: z.array(AskTurnSchema).max(8).default([]),
+  before: z.array(AskTurnSchema).max(ASK_BEFORE_MAX).default([]),
 })
 export type AskRequest = z.infer<typeof AskRequestSchema>
 

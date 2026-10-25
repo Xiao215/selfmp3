@@ -11,6 +11,7 @@ import type {
 } from '@selfmp3/shared'
 import {
   answerSongs,
+  answerRecap,
   askable,
   asksOnEnter,
   describeNotes,
@@ -186,6 +187,22 @@ describe('askable', () => {
     expect(askable('yoru')).toBe(true)
     expect(askable('周杰倫的慢歌')).toBe(true)
     expect(askable('ab')).toBe(false)
+  })
+
+  it('offers two characters of Chinese, Japanese or Korean, which are a word already', () => {
+    expect(askable('情歌')).toBe(true)
+    expect(askable(' 摇滚 ')).toBe(true)
+    expect(askable('演歌')).toBe(true)
+    expect(askable('발라')).toBe(true)
+    expect(askable('歌')).toBe(false)
+    expect(askable('a歌')).toBe(false)
+  })
+})
+
+describe('answerRecap for playback', () => {
+  it('says only what was asked, not that it was done: the device says what came of it', () => {
+    const recap = answerRecap({ kind: 'playback', op: 'next', place: null }, () => undefined)
+    expect(recap).toBe('Asked to skip to the next song.')
   })
 })
 

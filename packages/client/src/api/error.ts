@@ -1,4 +1,4 @@
-import { BUCKET_CAP_CODE } from '@selfmp3/shared'
+import { AI_ERROR, BUCKET_CAP_CODE } from '@selfmp3/shared'
 
 /**
  * The one error type every screen already knows how to read.
@@ -86,18 +86,18 @@ export function failureWords(
   return { say: failure, under: /[.!?…]$/.test(sentence) ? sentence : `${sentence}.` }
 }
 
+/** The codes a model's failure is sent with, each worded for people whatever its status. */
+const MODEL_FAILURES: ReadonlySet<string> = new Set(Object.values(AI_ERROR))
+
 /**
- * A refusal the server put into words for the person: a 4xx it explained.
- * Not a 400, which is a request it could not read (a zod message), and not
- * one whose body it never sent (`code` left at `error`, the message being
- * "POST /api/… failed (404)").
+ * A refusal the server put into words for the person: a 4xx it explained, or
+ * why the model did not answer ("Your server couldn’t reach the model.",
+ * sent as a 502 or 503). Not a 400, which is a request it could not read (a
+ * zod message), and not one whose body it never sent (`code` left at
+ * `error`, the message being "POST /api/… failed (404)").
  */
 function saidForPeople(error: ApiError): boolean {
-  return (
-    error.status >= 400 &&
-    error.status < 500 &&
-    error.status !== 400 &&
-    error.code !== 'error' &&
-    error.message.length > 0
-  )
+  if (error.message.length === 0) return false
+  if (MODEL_FAILURES.has(error.code)) return true
+  return error.status >= 400 && error.status < 500 && error.status !== 400 && error.code !== 'error'
 }

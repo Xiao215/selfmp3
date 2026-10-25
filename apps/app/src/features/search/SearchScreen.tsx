@@ -503,7 +503,8 @@ function NothingMatches({ words }: { words: string }): ReactNode {
       compact
       testID="search-nothing"
       title={`Nothing matches “${words}”`}
-      line="Try fewer letters."
+      // Fewer letters than two is nothing left to search with.
+      line={[...words].length > 2 ? 'Try fewer letters.' : 'Try other words.'}
     />
   )
 }

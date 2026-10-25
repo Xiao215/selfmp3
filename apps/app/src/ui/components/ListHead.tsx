@@ -34,6 +34,7 @@ interface WideOverrides {
 export function ListHead({
   wide,
   light,
+  lightFull = false,
   art,
   topBar,
   heroRef,
@@ -47,8 +48,10 @@ export function ListHead({
   opensArt = false,
 }: {
   wide: boolean
-  /** The light's colour, from the lead cover (`useSongColor`). */
+  /** The light's colour, from the lead cover (`useSongColor`), or a tag's own. */
   light: string
+  /** The light is the page's own colour (a tag's tile), at full strength (`CoverLight`). */
+  lightFull?: boolean
   /** A picture behind the light — an artist's banner — or none. */
   art: string | null | undefined
   /** The round buttons in the corners; none on a page that has no way back here. */
@@ -92,7 +95,7 @@ export function ListHead({
        * picture to open, so the light is not drawn afresh when a banner arrives.
        */}
       <Reanimated.View pointerEvents="none" style={[styles.light, lightStyle]}>
-        <CoverLight color={light} art={art} />
+        <CoverLight color={light} art={art} full={lightFull} />
       </Reanimated.View>
       {open && art ? (
         <>
@@ -232,6 +235,10 @@ function OpenArt({ art, style }: { art: string; style: AnimatedStyle }): ReactNo
 export const listHeadText = StyleSheet.create(theme => ({
   kind: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   kindText: labelText(theme.colors),
+  // The name, and a mark of what kind of list it is beside it where it has
+  // one: a tag's dot, a self-filling playlist's mark.
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  nameShrink: { flexShrink: 1 },
   name: heroTitle(theme.colors),
   summary: { color: theme.colors.textSecondary, fontSize: type.sub },
 }))

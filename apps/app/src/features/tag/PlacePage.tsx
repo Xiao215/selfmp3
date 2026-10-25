@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useNavigation, useRouter } from 'expo-router'
 import type { NativeStackNavigationProp } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
-import { space, type, useLibrary, iconSize } from '@selfmp3/client'
+import { space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -28,13 +28,7 @@ import { useSongColor } from '../../ui/useSongColor'
 import { useSelection, type Selection } from '../../selection/useSelection'
 import { spring } from '../../ui/motion'
 import { takePlaceHandoff } from '../../ui/coverHandoff'
-import {
-  combinedLink,
-  combinedName,
-  placesSource,
-  recentKind,
-  type ListSource,
-} from '../lists/lists.model'
+import { combinedLink, combinedName, placesSource, type ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { AddSheet } from './AddSheet'
 import { useArtistPicture } from './useArtistPicture'
@@ -51,6 +45,7 @@ import {
 } from './tag.model'
 import { nameTitle, rowTitle } from '../../ui/surfaces'
 import { MOVE_MS } from '../../ui/motion.model'
+import { useShownScheme } from '../../ui/theme/unistyles'
 
 /**
  * A place's page (docs/ui-mock `P08`, `P10`, `C06`): a tag, an artist, or
@@ -125,13 +120,10 @@ export function PlacePage({
   const summary = artistAlone ? artistSummary(songs) : placeSummary(songs)
   // What Up next is called when this plays.
   const source = useMemo(() => placesSource(chosen), [chosen])
-  const kindLabel = combining
-    ? source?.kind === 'combined'
-      ? recentKind(source)
-      : 'Together'
-    : place.kind === 'tag'
-      ? 'Tag'
-      : 'Artist'
+  // A tag alone wears its own colour at the head, as its tile on Home does
+  // (G1, 2026-10-25): a deep fill in the dark, the pale tile on Paper.
+  const scheme = useShownScheme()
+  const tagLight = only?.kind === 'tag' ? tagColors(only.tag.hue, scheme).tile : null
   /** Combining from one place: the pick opens as a page of its own, over this one. */
   const combine = (picked: readonly Place[]): void => {
     setAdding(false)
@@ -276,7 +268,8 @@ export function PlacePage({
   const head = (
     <ListHead
       wide={wide}
-      light={light.color}
+      light={tagLight ?? light.color}
+      lightFull={tagLight !== null}
       art={artistAlone ? (backdrop ?? leadArt) : null}
       // Their banner opens out when pressed; a song's cover standing in does not.
       opensArt={artistAlone && backdrop !== null}
@@ -300,22 +293,19 @@ export function PlacePage({
       cover={artistAlone ? null : <PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          <View style={listHeadText.kind}>
-            {place.kind === 'tag' ? (
-              <TagDot hue={place.tag.hue} size={7} />
-            ) : (
-              <User size={iconSize.small} tone="textSecondary" />
-            )}
-            <Text style={listHeadText.kindText}>{kindLabel}</Text>
+          {/* No TAG or ARTIST over the name: the page says what it is. A tag
+              keeps its dot beside its name. */}
+          <View style={listHeadText.nameRow}>
+            {only?.kind === 'tag' ? <TagDot hue={only.tag.hue} size={wide ? 14 : 10} /> : null}
+            <Text
+              style={[listHeadText.name, listHeadText.nameShrink, artistAlone && styles.nameSerif]}
+              numberOfLines={2}
+              accessibilityRole="header"
+              testID="place-name"
+            >
+              {title}
+            </Text>
           </View>
-          <Text
-            style={[listHeadText.name, artistAlone && styles.nameSerif]}
-            numberOfLines={2}
-            accessibilityRole="header"
-            testID="place-name"
-          >
-            {title}
-          </Text>
           <Text style={listHeadText.summary}>{summary}</Text>
           {combining ? (
             <Chips

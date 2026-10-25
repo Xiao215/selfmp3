@@ -180,38 +180,41 @@ export function PlaylistDetailScreen(): ReactNode {
 
   const titles = (
     <>
-      <View style={listHeadText.kind}>
-        {live ? <Live size={iconSize.small} tone="textSecondary" /> : null}
-        <Text style={listHeadText.kindText}>
-          {live ? `Playlist · ${FOLLOWS_LABEL}` : 'Playlist'}
-        </Text>
+      {/* No PLAYLIST over the name; one that fills itself wears the mark by it. */}
+      <View style={listHeadText.nameRow}>
+        {live ? (
+          <View accessibilityLabel={FOLLOWS_LABEL} {...tip(FOLLOWS_LABEL)}>
+            <Live size={iconSize.large} tone="textSecondary" />
+          </View>
+        ) : null}
+        {renaming ? (
+          <TextInput
+            {...NO_AUTOFILL}
+            style={[listHeadText.name, styles.nameInput]}
+            value={draftName ?? playlist?.name ?? ''}
+            onChangeText={setDraftName}
+            onSubmitEditing={saveName}
+            onBlur={saveName}
+            selectTextOnFocus
+            autoFocus
+            maxLength={NameSchema.maxLength ?? undefined}
+            accessibilityLabel="Playlist name"
+          />
+        ) : (
+          <Press
+            feedback="dim"
+            style={listHeadText.nameShrink}
+            onPress={() => setRenaming(true)}
+            disabled={!finePointer || !playlist}
+            accessibilityRole="header"
+            {...(finePointer ? tip('Rename') : {})}
+          >
+            <Text style={listHeadText.name} numberOfLines={2}>
+              {name}
+            </Text>
+          </Press>
+        )}
       </View>
-      {renaming ? (
-        <TextInput
-          {...NO_AUTOFILL}
-          style={[listHeadText.name, styles.nameInput]}
-          value={draftName ?? playlist?.name ?? ''}
-          onChangeText={setDraftName}
-          onSubmitEditing={saveName}
-          onBlur={saveName}
-          selectTextOnFocus
-          autoFocus
-          maxLength={NameSchema.maxLength ?? undefined}
-          accessibilityLabel="Playlist name"
-        />
-      ) : (
-        <Press
-          feedback="dim"
-          onPress={() => setRenaming(true)}
-          disabled={!finePointer || !playlist}
-          accessibilityRole="header"
-          {...(finePointer ? tip('Rename') : {})}
-        >
-          <Text style={listHeadText.name} numberOfLines={2}>
-            {name}
-          </Text>
-        </Press>
-      )}
       {describing ? (
         <TextInput
           {...NO_AUTOFILL}

@@ -1,14 +1,23 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg'
+import Svg, { Path } from 'react-native-svg'
 import type { Song, Stats, Tag } from '@selfmp3/shared'
-import { motion, radius, type, useLibrary, type ServerConnection, space } from '@selfmp3/client'
+import {
+  motion,
+  radius,
+  type,
+  useLibrary,
+  type ServerConnection,
+  space,
+  withAlpha,
+} from '@selfmp3/client'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
+import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
 import { TagDot } from '../../ui/components/TagDot'
 import { Segmented } from '../../ui/components/Segmented'
@@ -19,6 +28,8 @@ import { songLink } from '../song/song.model'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { useArtistPicture } from '../tag/useArtistPicture'
+import { backdropVeil } from '../nowPlaying/nowPlaying.model'
+import { useShownScheme } from '../../ui/theme/unistyles'
 import { StatsFrame } from './StatsFrame'
 import { useStatsFor, useStatsSongs } from './statsSource'
 import {
@@ -35,7 +46,6 @@ import {
   type RankKind,
   type StatsPeriod,
 } from './stats.model'
-import { useSvgId } from '../../ui/useSvgId'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Press } from '../../ui/components/Press'
@@ -311,10 +321,9 @@ function RankedList({
 }
 
 /**
- * The most-played artist, as a portrait rather than a line (Xiao chose F,
- * 2026-10-01): their banner across the column with the name on it, the way
- * their own page opens. Without a banner it is lit by the cover they wear in
- * the lines below.
+ * The most-played artist, as a card rather than a line: their round picture
+ * beside the rank, blurred across the card behind it (Xiao chose A,
+ * 2026-10-24). Without a picture it is the cover they wear in the lines below.
  */
 function ArtistLead({
   row,
@@ -327,13 +336,21 @@ function ArtistLead({
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   const picture = useArtistPicture(row.known ? row.name : null)
-  // Nothing while the picture is on its way, so a cover does not flash up
-  // before the banner that replaces it.
-  const art = picture === undefined ? null : (picture?.banner ?? (cover ? artFor(cover) : null))
+  // On its way while the picture is, so a cover does not flash up before the
+  // picture that replaces it.
+  const art =
+    picture === undefined ? undefined : (picture?.portrait ?? (cover ? artFor(cover) : null))
+  const backdrop =
+    picture === undefined ? null : (picture?.portrait ?? (cover ? backdropFor(cover) : null))
   return (
     <LeadCard
       art={art}
+      backdrop={backdrop}
+      // A portrait has no tone of its own; the cover standing in for one does.
+      tone={picture?.portrait ? null : (cover?.coverTone ?? null)}
+      round
       rank={row.rank}
       name={row.name}
       note={`${row.trailing} · most played`}
@@ -360,9 +377,13 @@ function SongLead({
 }): ReactNode {
   const router = useRouter()
   const artFor = useArt()
+  const backdropFor = useArt(ROW_COVER_SIZE)
   return (
     <LeadCard
       art={song ? artFor(song) : null}
+      backdrop={song ? backdropFor(song) : null}
+      tone={song?.coverTone ?? null}
+      round={false}
       rank={row.rank}
       name={row.name}
       note={row.artist ? `${row.trailing} · ${row.artist}` : row.trailing}
@@ -373,13 +394,21 @@ function SongLead({
   )
 }
 
+/** The picture beside first place's rank: the card's height less room above and below. */
+const LEAD_PICTURE = 84
+
 /**
- * First place as a card: a picture to the right, faded into the card under
- * the serif rank and the name. Without a picture it is the card's raised
- * tone. The bar is left out: the first one is always full.
+ * First place as a card: the serif rank, the picture sharp beside it and the
+ * name, over that picture blurred to fill the card and veiled in the card's
+ * tone so the words read on any cover. Without a picture it is the card's
+ * raised tone and the picture's letter tile. The bar is left out: the first
+ * one is always full.
  */
 function LeadCard({
   art,
+  backdrop,
+  tone,
+  round,
   rank,
   name,
   note,
@@ -388,6 +417,10 @@ function LeadCard({
   testID,
 }: {
   art: string | null | undefined
+  /** The same picture, small: blurred, a 128 looks the same and costs far less on iOS. */
+  backdrop: string | null | undefined
+  tone: Song['coverTone']
+  round: boolean
   rank: number
   name: string
   note: string
@@ -396,9 +429,12 @@ function LeadCard({
   testID: string
 }): ReactNode {
   const { theme } = useUnistyles()
+  const scheme = useShownScheme()
   const [loaded, setLoaded] = useState<string | null>(null)
-  const shown = useFade(art !== null && loaded === art, motion.base, motion.base)
-  const shade = useSvgId('statslead')
+  const shown = useFade(!!backdrop && loaded === backdrop, motion.base, motion.base)
+  // Without a tone to judge by (an artist's own picture), the veil a light
+  // picture would need, so a white portrait still leaves the name readable.
+  const veil = backdropVeil(tone, scheme, tone ? 0.5 : 0.72)
 
   return (
     <Press
@@ -410,39 +446,29 @@ function LeadCard({
       testID={testID}
       style={styles.lead}
     >
-      {/*
-       * The picture keeps to the right and fades into the card under the
-       * words. A banner's subject sits in its middle, a face or, for
-       * HOYO-MiX, a logo spelling the name; drawn across the whole card,
-       * the name would be written over it.
-       */}
-      {art ? (
-        <Animated.View style={[styles.leadArt, { opacity: shown }]}>
-          <Animated.Image
-            source={{ uri: art }}
-            style={styles.leadPicture}
+      {backdrop ? (
+        <Animated.View pointerEvents="none" style={[styles.leadLight, { opacity: shown }]}>
+          <Image
+            source={{ uri: backdrop }}
+            style={styles.leadBlur}
             resizeMode="cover"
-            onLoad={() => setLoaded(art)}
+            blurRadius={40}
+            onLoad={() => setLoaded(backdrop)}
             accessibilityIgnoresInvertColors
           />
-          <Svg
-            width="100%"
-            height="100%"
-            preserveAspectRatio="none"
-            style={StyleSheet.absoluteFill}
-          >
-            <Defs>
-              <LinearGradient id={shade} x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={theme.colors.surface3} stopOpacity={1} />
-                <Stop offset="0.6" stopColor={theme.colors.surface3} stopOpacity={0} />
-              </LinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${shade})`} />
-          </Svg>
+          <View
+            style={[styles.leadLight, { backgroundColor: withAlpha(theme.colors.surface3, veil) }]}
+          />
         </Animated.View>
       ) : null}
-      <View style={[styles.leadWords, art && styles.leadWordsBesideArt]}>
+      <View style={styles.leadWords}>
         <Text style={styles.leadRank}>{rank}</Text>
+        <Cover
+          uri={art}
+          title={name}
+          size={LEAD_PICTURE}
+          radius={round ? LEAD_PICTURE / 2 : undefined}
+        />
         <View style={styles.leadNames}>
           <Text style={styles.leadName} numberOfLines={1}>
             {name}
@@ -625,26 +651,21 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: space.tight,
     borderRadius: radius.card,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     backgroundColor: theme.colors.surface3,
   },
-  leadArt: { position: 'absolute', top: 0, bottom: 0, right: 0, left: '38%' },
-  // Dimmed, so a long name running onto a white banner still reads.
-  leadPicture: { width: '100%', height: '100%', opacity: 0.8 },
+  leadLight: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  // Drawn past the card's edges, where a blur thins out toward nothing.
+  leadBlur: { position: 'absolute', top: -40, bottom: -40, left: -40, right: -40 },
   leadWords: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: space.snug,
-    paddingHorizontal: space.roomy,
-    paddingBottom: space.md,
+    alignItems: 'center',
+    gap: space.md,
+    paddingLeft: space.roomy,
+    paddingRight: space.lg,
   },
-  // Beside a picture the words stop at 62% of the card, before the picture
-  // shows through the fade, so a long name ends in an ellipsis rather than
-  // being written over the art's own lettering (P8 A).
-  leadWordsBesideArt: { paddingRight: '38%' },
-  // The serif's figures stand taller than their own size (bigNumber above).
-  leadRank: { ...serif(theme.colors), color: theme.colors.accent },
-  leadNames: { flex: 1, minWidth: 0, paddingBottom: space.xs },
+  leadRank: serif(theme.colors),
+  leadNames: { flex: 1, minWidth: 0 },
   leadName: { color: theme.colors.textPrimary, fontSize: type.section, fontWeight: '700' },
   leadNote: { color: theme.colors.textSecondary, fontSize: type.small, marginTop: 2 },
   tagSquare: {

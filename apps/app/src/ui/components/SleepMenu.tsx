@@ -125,3 +125,20 @@ function useClock(endsAt: number | null, everyMs: number, ticking: boolean): num
   }, [endsAt, everyMs, ticking])
   return now
 }
+
+/**
+ * The sleep timer's row, saying how long is left; its own component so only
+ * a menu that shows it ticks with the timer.
+ */
+export function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
+  const { left } = useSleepTimerStatus()
+  return (
+    <SheetItem
+      icon={icon}
+      label="Sleep timer"
+      detail={left ?? 'Off'}
+      active={left !== null}
+      onPress={onPress}
+    />
+  )
+}

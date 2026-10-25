@@ -15,7 +15,7 @@ import { Devices, Moon } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { SongActionItems } from './SongActionItems'
-import { useSleepTimerStatus } from './SleepMenu'
+import { SleepItem } from './SleepMenu'
 import { TagPicker } from './TagPicker'
 import type { PopoverAnchor } from '../rightClick'
 
@@ -256,23 +256,6 @@ function Items({
         }
       />
     </>
-  )
-}
-
-/**
- * The sleep timer's row, saying how long is left; its own component so only
- * a menu that shows it ticks with the timer.
- */
-function SleepItem({ icon, onPress }: { icon: ReactNode; onPress: () => void }): ReactNode {
-  const { left } = useSleepTimerStatus()
-  return (
-    <SheetItem
-      icon={icon}
-      label="Sleep timer"
-      detail={left ?? 'Off'}
-      active={left !== null}
-      onPress={onPress}
-    />
   )
 }
 

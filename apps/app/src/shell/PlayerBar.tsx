@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'expo-router'
 import { artistOr } from '@selfmp3/shared'
 import { warmCoverPalette } from '../features/nowPlaying/useCoverPalette'
 import { isRoomTrackId, iconSize } from '@selfmp3/client'
-import { radius, space, type, withAlpha, type SongColors } from '@selfmp3/client'
+import { radius, space, type, type SongColors } from '@selfmp3/client'
 import { DevicesSheet } from '../features/devices/DevicesSheet'
 import { TogetherButton } from '../features/room/Together'
 import { UpNextTarget } from '../ui/components/CoverFlight'
@@ -24,13 +24,15 @@ import {
   ChevronDown,
   Devices,
   Moon,
+  More,
   TagPlus,
   UpNext,
   Volume,
   VolumeMute,
 } from '../ui/components/Icons'
 import { Popover } from '../ui/components/Popover'
-import { SleepMenu, useSleepTimerStatus } from '../ui/components/SleepMenu'
+import { SleepItem, SleepMenu, useSleepTimerStatus } from '../ui/components/SleepMenu'
+import { SheetItem } from '../ui/components/Sheet'
 import { Scrubber } from '../ui/components/Scrubber'
 import { SeekBar } from '../ui/components/SeekBar'
 import { TagPicker } from '../ui/components/TagPicker'
@@ -49,11 +51,11 @@ import { WINDOW_WIDTH } from './widths'
  *
  * Three columns. The song on the left, with love and tags. The transport in
  * the middle: shuffle, previous, play, next, repeat, and the scrubber. On the
- * right — sleep, volume, Up next, devices — three groups with room between
- * them, because a row of controls reads as a wall of icons and they are three
- * jobs: when it stops, how loud, and what is beside the page and where it
- * comes out. Up next toggles the rail (`QueueRail`) and is lit while it is
- * open.
+ * right, volume; then Up next, Listen together and a ⋯ "This player" that
+ * holds the sleep timer and Play on… (B1, Xiao 2026-10-25: Listen together
+ * keeps its own button, being too hard to find otherwise). A running timer
+ * shows as a dot on the ⋯. Up next toggles the rail (`QueueRail`) and is lit
+ * while it is open.
  *
  * The bar fills with the cover's colour up to where the song has got, fading
  * out at its leading edge, with a bright line along its top edge.
@@ -86,8 +88,6 @@ export function PlayerBar(): ReactNode {
   }, [song, art])
   const tagsRef = useRef<View>(null)
   const [tagsOpen, setTagsOpen] = useState(false)
-  const [devicesOpen, setDevicesOpen] = useState(false)
-  const devicesRef = useRef<View>(null)
 
   const pathname = usePathname()
   const onPage = pathname === '/now-playing'
@@ -189,10 +189,7 @@ export function PlayerBar(): ReactNode {
           style={styles.tools}
           onLayout={event => setToolsWidth(Math.ceil(event.nativeEvent.layout.width))}
         >
-          <View style={styles.group} role="group" aria-label="Sleep">
-            <SleepButton tone={songColor} />
-          </View>
-          <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Volume">
+          <View style={styles.group} role="group" aria-label="Volume">
             <VolumeControl compact={compact} tone={songColor} />
           </View>
           <View style={[styles.group, styles.groupDivided]} role="group" aria-label="Panels">
@@ -209,13 +206,9 @@ export function PlayerBar(): ReactNode {
                 />
               </IconButton>
             </UpNextTarget>
-            <View ref={devicesRef} collapsable={false}>
-              <IconButton onPress={() => setDevicesOpen(true)} label="Devices">
-                <Devices size={iconSize.medium} color={theme.colors.textSecondary} />
-              </IconButton>
-            </View>
             {/* Listen together, or the room's faces while you are in one. */}
             <TogetherButton iconSize={iconSize.medium} color={theme.colors.textSecondary} />
+            <ThisPlayer tone={songColor} />
           </View>
         </View>
       </View>
@@ -226,74 +219,68 @@ export function PlayerBar(): ReactNode {
         onClose={() => setTagsOpen(false)}
         anchorRef={tagsRef}
       />
-      <DevicesSheet
-        open={devicesOpen}
-        onClose={() => setDevicesOpen(false)}
-        anchorRef={devicesRef}
-      />
     </View>
   )
 }
 
 /**
- * A lit control that says its value — "24 min", "End of song" — so a running
- * timer can be read off the bar without opening anything. Shown only while
- * the setting differs from normal; otherwise the plain icon is.
+ * The ⋯ at the end of the bar: what this player does beside playing — the
+ * sleep timer, and which device the music comes out of. The phone's Now
+ * Playing has the same "This player" group at the foot of its menu. While a
+ * timer runs a dot in the song's colour sits on the ⋯, so "is a timer
+ * running?" still reads from the bar; the menu's row says how long is left.
  */
-function ValuePill({
-  tone,
-  Icon,
-  value,
-  label,
-  caption,
-  onPress,
-}: {
-  /** The playing song's colour, and the lighter tint of it that text is drawn in. */
-  tone: SongColors
-  Icon: typeof Moon
-  value: string
-  label: string
-  caption: string
-  onPress: () => void
-}): ReactNode {
-  return (
-    <Press
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      {...tip(caption)}
-      style={[styles.pill, { backgroundColor: withAlpha(tone.color, 0.18) }]}
-    >
-      <Icon size={iconSize.field} color={tone.tint} />
-      <Text style={[styles.pillText, { color: tone.tint }]}>{value}</Text>
-    </Press>
-  )
-}
-
-function SleepButton({ tone }: { tone: SongColors }): ReactNode {
+function ThisPlayer({ tone }: { tone: SongColors }): ReactNode {
   const { theme } = useUnistyles()
-  const [open, setOpen] = useState(false)
   const anchorRef = useRef<View>(null)
-  const { left, line } = useSleepTimerStatus()
-  const toggle = (): void => setOpen(value => !value)
-
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [sleepOpen, setSleepOpen] = useState(false)
+  const [devicesOpen, setDevicesOpen] = useState(false)
+  const { line } = useSleepTimerStatus()
+  const then = (open: () => void) => (): void => {
+    setMenuOpen(false)
+    open()
+  }
   return (
     <View ref={anchorRef} collapsable={false}>
-      {left ? (
-        <ValuePill
-          tone={tone}
-          Icon={Moon}
-          value={left}
-          label={`Sleep timer: ${line}`}
-          caption="Sleep timer"
-          onPress={toggle}
+      <IconButton
+        testID="player-bar-more"
+        onPress={() => setMenuOpen(open => !open)}
+        label={line ? `This player. Sleep timer: ${line}` : 'This player'}
+        caption="This player"
+        active={menuOpen}
+      >
+        <More size={iconSize.medium} color={theme.colors.textSecondary} />
+      </IconButton>
+      {line ? (
+        <View style={[styles.timerDot, { backgroundColor: tone.color }]} pointerEvents="none" />
+      ) : null}
+      <Popover
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        anchorRef={anchorRef}
+        placement="above"
+        title="This player"
+        panelTitle="This player"
+        width={220}
+        testID="player-bar-menu"
+      >
+        <SleepItem
+          icon={<Moon size={iconSize.item} tone="textSecondary" />}
+          onPress={then(() => setSleepOpen(true))}
         />
-      ) : (
-        <IconButton onPress={toggle} label="Sleep timer">
-          <Moon size={iconSize.medium} color={theme.colors.textSecondary} />
-        </IconButton>
-      )}
-      <SleepMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} />
+        <SheetItem
+          icon={<Devices tone="textSecondary" />}
+          label="Play on…"
+          onPress={then(() => setDevicesOpen(true))}
+        />
+      </Popover>
+      <SleepMenu open={sleepOpen} onClose={() => setSleepOpen(false)} anchorRef={anchorRef} />
+      <DevicesSheet
+        open={devicesOpen}
+        onClose={() => setDevicesOpen(false)}
+        anchorRef={anchorRef}
+      />
     </View>
   )
 }
@@ -441,17 +428,15 @@ const styles = StyleSheet.create(theme => ({
   title: rowTitle(theme.colors),
   // The mini player's ink: muted, the artist all but went on a song-coloured wash.
   artist: { color: theme.colors.textSecondary, fontSize: type.small },
-  /* A lit control with its value in it: 24 min. */
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    height: 28,
-    paddingHorizontal: 9,
-    marginHorizontal: 2,
-    borderRadius: radius.pill,
+  // A sleep timer is running: a dot on the ⋯'s shoulder, in the song's colour.
+  timerDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  pillText: { fontSize: type.small, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centre: {
     flexGrow: 1.9,
     flexShrink: 1,

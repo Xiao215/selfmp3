@@ -164,9 +164,15 @@ export function peakCard(hourly: readonly HourlyPlays[]): PeakCard {
   }
 }
 
-interface StreakDot {
+/** One square of the strip under Streak: a day, or a week in a long window. */
+interface StreakSquare {
+  /** Its last day, as a local day key. */
   readonly date: string
+  /** Music on it (on any of its days, for a week). */
   readonly played: boolean
+  /** Part of the run still going: drawn in the accent. */
+  readonly inRun: boolean
+  /** It holds today: ringed. */
   readonly today: boolean
 }
 
@@ -174,20 +180,26 @@ interface StreakCard {
   readonly value: string
   /** "Sep 6 to 14", or the best run when there is no run now. */
   readonly line: string | undefined
-  /** The window's days, up to the last thirty, oldest first. */
-  readonly dots: readonly StreakDot[]
+  /** The window as one strip, oldest first: a square a day, or a week for 3 months and a year. */
+  readonly squares: readonly StreakSquare[]
+  /** Under the strip's first square: "Sep 26". Its last says "today". */
+  readonly from: string
 }
 
 /**
- * The most days the dots under Streak cover: a month. A week's window has
- * seven, since the days before it were not asked about and would read as
- * days without music.
+ * The most days the strip under Streak covers a day at a time: a month. A
+ * week's window has seven, since the days before it were not asked about and
+ * would read as days without music. All time keeps to the last month.
  */
-const STREAK_DOTS = 30
+const STREAK_DAYS = 30
+
+/** A long window's squares are weeks: 13 for three months, 52 for a year. */
+const STREAK_WEEKS: Partial<Record<Stats['range'], number>> = { '90d': 13, '365d': 52 }
 
 /**
- * Streak: the run of days with music that is still going, and the month of
- * days it sits in.
+ * Streak: the run of days with music that is still going, and the window it
+ * sits in as one strip of squares — the run in the accent, the other days with
+ * music filled, today ringed (X1).
  *
  * The server counts a run as still going when its last day is today or
  * yesterday (you might still put something on this evening), so the run's
@@ -199,18 +211,34 @@ export function streakCard(
 ): StreakCard {
   const played = new Set(stats.daily.filter(day => day.plays > 0).map(day => day.date))
   const todayIso = localDayKey(today)
+  const runEnd = played.has(todayIso) ? today : daysBefore(today, 1)
+  const run = new Set(
+    Array.from({ length: stats.streakDays }, (_, back) => localDayKey(daysBefore(runEnd, back))),
+  )
+
+  const weeks = STREAK_WEEKS[stats.range]
+  const span = weeks ? 7 : 1
   // All time lists only the days with plays; every other window has a day for each day.
-  const count = stats.range === 'all' ? STREAK_DOTS : Math.min(STREAK_DOTS, stats.daily.length)
-  const dots = Array.from({ length: count }, (_, index) => {
-    const date = localDayKey(daysBefore(today, count - 1 - index))
-    return { date, played: played.has(date), today: date === todayIso }
+  const count =
+    weeks ?? (stats.range === 'all' ? STREAK_DAYS : Math.min(STREAK_DAYS, stats.daily.length))
+  const squares = Array.from({ length: count }, (_, index) => {
+    const last = daysBefore(today, (count - 1 - index) * span)
+    const days = Array.from({ length: span }, (_, back) => localDayKey(daysBefore(last, back)))
+    return {
+      date: localDayKey(last),
+      played: days.some(day => played.has(day)),
+      inRun: days.some(day => run.has(day)),
+      today: index === count - 1,
+    }
   })
+  const first = daysBefore(today, (count - 1) * span + span - 1)
+  const from = `${first.toLocaleDateString(undefined, { month: 'short' })} ${first.getDate()}`
+
   if (stats.streakDays === 0) {
-    return { value: daysLabel(0), line: bestStreakHint(stats.longestStreakDays), dots }
+    return { value: daysLabel(0), line: bestStreakHint(stats.longestStreakDays), squares, from }
   }
-  const end = played.has(todayIso) ? today : daysBefore(today, 1)
-  const start = daysBefore(end, stats.streakDays - 1)
-  return { value: daysLabel(stats.streakDays), line: spanWords(start, end), dots }
+  const start = daysBefore(runEnd, stats.streakDays - 1)
+  return { value: daysLabel(stats.streakDays), line: spanWords(start, runEnd), squares, from }
 }
 
 /** "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". */

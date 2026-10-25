@@ -7,7 +7,7 @@ import { radius, usePlaylistSongIds } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongsById } from '../../ui/songsById'
-import { Cover } from '../../ui/components/Cover'
+import { Cover, CoverEdge } from '../../ui/components/Cover'
 import { ListMusic, Live } from '../../ui/components/Icons'
 import { isLive, mosaicCovers } from './playlists.model'
 
@@ -78,6 +78,8 @@ export function PlaylistCover({
       {covers.map(song => (
         <Tile key={song.id} song={song} uri={artFor(song)} half={covers.length === 4} />
       ))}
+      {/* One edge round the mosaic, not one round each of its cells. */}
+      <CoverEdge radius={coverRadius(size)} />
     </View>
   )
 }

@@ -47,14 +47,23 @@ export function queueRows(
 
 /**
  * "Next · 6 songs · 24 min": what is still to come, over Up next's songs on a
- * phone's sheet and a computer's rail alike. The two had said it two ways
- * ("Next · 6 songs, 24 min" and "6 songs · 24 min"), and an empty queue as
- * "Nothing next" and "Nothing after this one".
+ * phone's sheet. It and the rail had said it two ways ("Next · 6 songs, 24
+ * min" and "6 songs · 24 min"), and an empty queue as "Nothing next" and
+ * "Nothing after this one".
  */
 export function nextLabel(next: readonly QueueRow[]): string {
+  const count = nextCount(next)
+  return next.length === 0 ? count : `Next · ${count}`
+}
+
+/**
+ * "6 songs · 24 min", or "Nothing next": the same, after the name of where it
+ * came from on the computer rail's one head line.
+ */
+export function nextCount(next: readonly QueueRow[]): string {
   if (next.length === 0) return 'Nothing next'
   const seconds = next.reduce((sum, row) => sum + row.song.duration, 0)
-  return `Next · ${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
+  return `${plural(next.length, 'song', 'songs')} · ${formatLongDuration(seconds)}`
 }
 
 /**

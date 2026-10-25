@@ -263,10 +263,10 @@ describe('removing a song where the copy goes with it', () => {
     // The menu goes, and the question is one press in a dialog, not a second
     // state of the menu. It draws through the overlay host a tick later.
     expect(onClose).toHaveBeenCalled()
-    expect(await screen.findByText('Delete “Nocturne” from your library?')).toBeTruthy()
+    expect(await screen.findByText('Delete this song?')).toBeTruthy()
     expect(screen.queryByRole('menuitem', { name: 'Remove from library' })).toBeNull()
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete song' }))
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete' }))
     expect(mockDropDownloads).toHaveBeenCalledWith([4])
     expect(mockForgetSongs).toHaveBeenCalledWith([4])
     expect(mockDeleteSong).toHaveBeenCalledWith({ songIds: [4] }, expect.anything())

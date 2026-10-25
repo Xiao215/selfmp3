@@ -37,7 +37,7 @@ import { TagDot } from './TagDot'
 import { usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
-import { Downloaded, More, NotDownloaded, Play, Plus } from './Icons'
+import { Downloaded, More, NotDownloaded, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 
@@ -514,7 +514,9 @@ export const SongRow = memo(function SongRow({
                   {...untabbed}
                   style={styles.tagAdd}
                 >
-                  <Plus size={iconSize.sub} tone="textMuted" />
+                  {/* The player bar's tag-with-a-plus: a bare + on a song row read as
+                      Add to playlist or Add to Up next. */}
+                  <TagPlus size={iconSize.field} tone="textMuted" />
                 </Pressable>
               </Reveal>
             ) : null}

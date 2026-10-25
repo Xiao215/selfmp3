@@ -17,6 +17,7 @@ import { useNowPlayingSong } from './useNowPlayingSong'
 const mockPutAway = jest.fn()
 jest.mock('./leaveNowPlaying', () => ({ putAway: () => mockPutAway() }))
 jest.mock('expo-router', () => ({ useRouter: () => ({}) }))
+jest.mock('../../offline/useArt', () => ({ useArt: () => () => null }))
 
 /*
  * The player, as the page reads it: the song loaded, which `forgetSongs` lets
@@ -101,15 +102,15 @@ describe('removing the song Now Playing is the page of', () => {
     )
 
     await fireEvent.press(screen.getByText('Remove Nocturne'))
-    expect(await screen.findByText('Delete “Nocturne” from your library?')).toBeTruthy()
-    await fireEvent.press(screen.getByRole('button', { name: 'Delete song' }))
+    expect(await screen.findByText('Delete this song?')).toBeTruthy()
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete' }))
 
     // The player has let the song go; the server has not answered yet.
     expect(screen.getByText('Nothing playing')).toBeTruthy()
     expect(mockPutAway).not.toHaveBeenCalled()
 
     await act(async () => mockAnswer?.({ removed: 1, failed: [] }))
-    expect(screen.queryByText('Delete “Nocturne” from your library?')).toBeNull()
+    expect(screen.queryByText('Delete this song?')).toBeNull()
     expect(mockPutAway).toHaveBeenCalledTimes(1)
   })
 })

@@ -136,18 +136,71 @@ describe('the cards', () => {
     )
     expect(card.value).toBe('4 days')
     expect(card.line).toBe(spanWords(new Date(2026, 8, 10), new Date(2026, 8, 13)))
-    expect(card.dots).toHaveLength(5)
-    expect(card.dots.at(-1)).toEqual({ date: '2026-09-14', played: false, today: true })
-    expect(card.dots.filter(dot => dot.played)).toHaveLength(4)
+    expect(card.squares).toHaveLength(5)
+    expect(card.squares.at(-1)).toEqual({
+      date: '2026-09-14',
+      played: false,
+      inRun: false,
+      today: true,
+    })
+    expect(card.squares.filter(square => square.played)).toHaveLength(4)
+    expect(card.squares.filter(square => square.inRun)).toHaveLength(4)
+    expect(card.from).toMatch(/^Sep\w* 10$/)
   })
 
-  it('Streak with no run shows the best one, and All time shows a month of dots', () => {
+  it('Streak: days played before the run are filled but not part of it', () => {
+    const today = new Date(2026, 8, 14)
+    const card = streakCard(
+      {
+        range: '7d',
+        daily: [
+          '2026-09-08',
+          '2026-09-09',
+          '2026-09-10',
+          '2026-09-11',
+          '2026-09-12',
+          '2026-09-13',
+          '2026-09-14',
+        ].map(date => ({ date, plays: date === '2026-09-11' ? 0 : 1, minutes: 3 })),
+        streakDays: 3,
+        longestStreakDays: 3,
+      },
+      today,
+    )
+    expect(card.squares.map(square => [square.played, square.inRun])).toEqual([
+      [true, false],
+      [true, false],
+      [true, false],
+      [false, false],
+      [true, true],
+      [true, true],
+      [true, true],
+    ])
+  })
+
+  it('Streak with no run shows the best one, and All time shows a month of days', () => {
     const card = streakCard(
       { range: 'all', daily: [], streakDays: 0, longestStreakDays: 6 },
       new Date(2026, 8, 14),
     )
     expect(card.line).toBe('best: 6 days')
-    expect(card.dots).toHaveLength(30)
+    expect(card.squares).toHaveLength(30)
+  })
+
+  it('Streak over a year is a strip of weeks, a week lit by any day in it', () => {
+    const card = streakCard(
+      {
+        range: '365d',
+        daily: [{ date: '2026-09-02', plays: 1, minutes: 3 }],
+        streakDays: 0,
+        longestStreakDays: 1,
+      },
+      new Date(2026, 8, 14),
+    )
+    expect(card.squares).toHaveLength(52)
+    // Sep 8 to 14 is the last week, Sep 1 to 7 the one before it.
+    expect(card.squares.map(square => square.played).lastIndexOf(true)).toBe(50)
+    expect(card.squares.at(-1)?.today).toBe(true)
   })
 
   it('says a span of days with the month once when it is one month', () => {

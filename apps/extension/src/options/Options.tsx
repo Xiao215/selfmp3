@@ -11,10 +11,12 @@ import { signInFailure } from './signIn.js'
  *
  * Signing in is the way in that keeps working: the server is asked directly
  * whenever it answers, and when it does not the link waits in the bucket for it
- * (I3, docs/features/browser-extension.md). An address is still offered under
- * it, for a server this computer can reach that the bucket has never been told
- * about — a development server on localhost, say. Every server needs a bucket,
- * so the library behind a typed address lives in one all the same.
+ * (I3, docs/features/browser-extension.md). An address is still offered, folded
+ * away under "Connect by address instead", for a server this computer can reach
+ * that the bucket has never been told about — a development server on
+ * localhost, say. Every server needs a bucket, so the library behind a typed
+ * address lives in one all the same. The page as it opens says none of that:
+ * no bucket, server, sync or address until the fold is opened.
  *
  * Each library has its own token on its server (docs/features/shared-server.md),
  * but a server holding one library does not ask its own machine for it, so on
@@ -102,8 +104,8 @@ export function Options(): ReactNode {
           Save what you are already looking at<i>.</i>
         </h1>
         <p className="lede">
-          It imports the song, playlist, album or artist on the page into your own library. It never
-          plays anything, never reads your history, and only talks to your server or your bucket.
+          Adds the song, playlist, album or artist on the page to your library. It never plays
+          anything or reads your history.
         </p>
 
         <section className="card account" aria-live="polite">
@@ -129,24 +131,22 @@ export function Options(): ReactNode {
             </>
           ) : (
             <div className="account-in">
-              <p>
-                Sign in with the same Google account as your phone and the app. Nothing is typed:
-                your server is found by the addresses it writes into every sync, and links wait in
-                your bucket while it is off.
-              </p>
               {signIn.error && (
                 <p className="error" role="alert">
                   {signInFailure(signIn.error)}
                 </p>
               )}
+              {/* The popup's Sign in brings you here, so the button has the focus. */}
               <button
                 type="button"
                 className="primary"
+                autoFocus
                 disabled={signIn.isPending}
                 onClick={() => signIn.mutate()}
               >
                 {signIn.isPending ? 'Waiting for Google…' : 'Sign in with Google'}
               </button>
+              <p className="account-hint">Use the same account as your phone.</p>
             </div>
           )}
         </section>
@@ -192,59 +192,66 @@ export function Options(): ReactNode {
           </section>
         )}
 
-        <form
-          className="group"
-          onSubmit={event => {
-            event.preventDefault()
-            connect.mutate()
-          }}
-        >
-          <h2 className="label">Another way to connect</h2>
-          <div className="address">
-            <input
-              id="address"
-              aria-label="Address"
-              value={address}
-              placeholder="https://your-server.ts.net"
-              autoComplete="url"
-              onChange={event => setAddress(event.target.value)}
-            />
-            <button type="submit" className="tonal" disabled={connect.isPending || !address.trim()}>
-              {connect.isPending ? 'Connecting…' : 'Use this address'}
-            </button>
-          </div>
-          <p className="hint">
-            For a server this computer can reach that your library has not been told about; it is
-            tried before the ones from your sync. On this computer,{' '}
-            <code>{DEFAULT_LOCAL_SERVER_URL}</code>. Over Tailscale, your server’s{' '}
-            <code>https://…ts.net</code> address.
-          </p>
-          {wantsToken && (
-            <>
-              <label className="field">
-                <span className="label">Token</span>
-                <input
-                  id="token"
-                  type="password"
-                  value={token}
-                  autoComplete="off"
-                  autoFocus
-                  onChange={event => setToken(event.target.value)}
-                />
-              </label>
-              <p className="hint">
-                Your library’s token on that server: its log prints it when it holds one library,
-                and otherwise it is in its <code>data/hub.json</code>. The extension keeps it in its
-                own storage, which no web page can read.
-              </p>
-            </>
-          )}
-          {connect.error && (
-            <p className="error" role="alert">
-              {connect.error.message}
+        {/* Folded away: an address is for a server sign-in cannot find. */}
+        <details className="group by-address" open={server?.typed || wantsToken || undefined}>
+          <summary>Connect by address instead</summary>
+          <form
+            className="group"
+            onSubmit={event => {
+              event.preventDefault()
+              connect.mutate()
+            }}
+          >
+            <div className="address">
+              <input
+                id="address"
+                aria-label="Address"
+                value={address}
+                placeholder="https://your-server.ts.net"
+                autoComplete="url"
+                onChange={event => setAddress(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="tonal"
+                disabled={connect.isPending || !address.trim()}
+              >
+                {connect.isPending ? 'Connecting…' : 'Use this address'}
+              </button>
+            </div>
+            <p className="hint">
+              For a server this computer can reach that your library has not been told about; it is
+              tried before the ones from your sync. On this computer,{' '}
+              <code>{DEFAULT_LOCAL_SERVER_URL}</code>. Over Tailscale, your server’s{' '}
+              <code>https://…ts.net</code> address.
             </p>
-          )}
-        </form>
+            {wantsToken && (
+              <>
+                <label className="field">
+                  <span className="label">Token</span>
+                  <input
+                    id="token"
+                    type="password"
+                    value={token}
+                    autoComplete="off"
+                    autoFocus
+                    onChange={event => setToken(event.target.value)}
+                  />
+                </label>
+                <p className="hint">
+                  Your library’s token on that server: its log prints it when it holds one library,
+                  and otherwise it is in its <code>data/hub.json</code>. The extension keeps it in
+                  its own storage, which no web page can read.
+                </p>
+              </>
+            )}
+            {connect.error && (
+              <p className="error" role="alert">
+                {connect.error.message}
+              </p>
+            )}
+          </form>
+        </details>
       </div>
     </main>
   )

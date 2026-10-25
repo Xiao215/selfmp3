@@ -80,18 +80,25 @@ export function PlayingNow({
   row,
   ended,
   onOpen,
+  quiet = false,
 }: {
   row: QueueRow
   ended: boolean
   onOpen: () => void
+  /**
+   * The computer's rail: title and artist only, the time a line along the
+   * foot (the player bar under it already says it in numbers).
+   */
+  quiet?: boolean
 }): ReactNode {
   const playing = usePlayer().isPlaying
   return (
     <PlayingCard
       song={row.song}
-      label={ended ? 'Played' : 'Playing'}
+      label={ended ? 'Played' : quiet ? undefined : 'Playing'}
       line={artistOr(row.song.artist)}
-      clock={<PlayingClock />}
+      clock={quiet ? undefined : <PlayingClock />}
+      foot={quiet ? playedLine : undefined}
       playing={playing}
       onOpen={onOpen}
       testID={`queue-row-${row.index}`}
@@ -99,6 +106,15 @@ export function PlayingNow({
       <PlayPauseButton size={44} glyph={iconSize.nav} />
     </PlayingCard>
   )
+}
+
+const playedLine = (tint: string): ReactNode => <PlayedLine tint={tint} />
+
+/** How far the song has played, as a line; on its own, as the clock is, for the ticks. */
+function PlayedLine({ tint }: { tint: string }): ReactNode {
+  const { position, duration } = usePlayerProgress()
+  const share = duration > 0 ? Math.min(1, position / duration) : 0
+  return <View style={[styles.played, { width: `${share * 100}%`, backgroundColor: tint }]} />
 }
 
 /** "1:52 of 4:23", on its own so a tick redraws this and not Up next. */
@@ -114,20 +130,34 @@ function PlayingClock(): ReactNode {
  * a finger's button, or a mouse's. Drawn only while something follows the
  * song playing: over "Nothing next" it offered to clear nothing (w23).
  */
-export function ClearRestButton({ onPress }: { onPress: () => void }): ReactNode {
+export function ClearRestButton({
+  onPress,
+  short = false,
+}: {
+  onPress: () => void
+  /**
+   * The computer rail's head line: a bare "Clear" at its end, so where the
+   * songs came from keeps its room (still "Clear the rest" to a screen reader).
+   */
+  short?: boolean
+}): ReactNode {
   const dense = useLayoutValue(layout => layout.dense)
   return (
     <Press
       onPress={onPress}
       accessibilityRole="button"
+      accessibilityLabel="Clear the rest"
       testID="queue-clear-rest"
+      feedback={short ? 'dim' : undefined}
       style={({ pressed }) => [
-        styles.clear,
-        dense && styles.clearDense,
-        pressed && styles.clearPressed,
+        short ? styles.clearShort : styles.clear,
+        !short && dense && styles.clearDense,
+        !short && pressed && styles.clearPressed,
       ]}
     >
-      <Text style={[styles.clearText, dense && styles.clearTextDense]}>Clear the rest</Text>
+      <Text style={[styles.clearText, (dense || short) && styles.clearTextDense]}>
+        {short ? 'Clear' : 'Clear the rest'}
+      </Text>
     </Press>
   )
 }
@@ -310,6 +340,7 @@ export function UpNextList({
 }
 
 const styles = StyleSheet.create(theme => ({
+  played: { height: '100%' },
   clear: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -321,6 +352,7 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.borderStrong,
   },
   clearDense: { height: 28, paddingHorizontal: space.snug },
+  clearShort: { paddingVertical: space.xs, paddingLeft: space.xs },
   clearPressed: { backgroundColor: theme.colors.surface3 },
   clearText: smallTitle(theme.colors),
   clearTextDense: { fontSize: type.small },

@@ -16,7 +16,7 @@ import {
 import { useArtistNudge } from '../../features/tag/useArtistNudge'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useAccent } from '../accent'
-import { Checkbox, CheckRow } from './Checkbox'
+import { CheckRow, TagCheck } from './Checkbox'
 import { Plus } from './Icons'
 import { usePanelDense } from './panel'
 import { Popover } from './Popover'
@@ -25,7 +25,6 @@ import { Press } from './Press'
 import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
-import { TagDot } from './TagDot'
 import { menuItem } from '../surfaces'
 
 /**
@@ -384,9 +383,8 @@ export function TagSearchList({
                 setQuery('')
               }}
             >
-              <Checkbox checked={on} mixed={partly} />
-              <TagDot hue={item.hue} />
-              <Text style={styles.itemLabel} numberOfLines={1}>
+              <TagCheck hue={item.hue} checked={on} mixed={partly} />
+              <Text style={[styles.itemLabel, on && styles.itemLabelOn]} numberOfLines={1}>
                 {item.name}
               </Text>
               <Text style={styles.count}>{item.songCount}</Text>
@@ -440,6 +438,7 @@ const styles = StyleSheet.create(theme => ({
   item: menuItem,
   itemPressed: { backgroundColor: theme.colors.surface3 },
   itemLabel: { flex: 1, color: theme.colors.textPrimary, fontSize: type.body },
+  itemLabelOn: { fontWeight: '600' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny },
   // Set apart from the list by room, not a rule.
   create: {

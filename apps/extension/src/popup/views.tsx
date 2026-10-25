@@ -154,23 +154,22 @@ function State({
 }
 
 export function Checking(): ReactNode {
-  return <p className="quiet">Checking your server…</p>
+  return <p className="quiet">Finding your library…</p>
 }
 
 export function Connect({ onOptions }: { onOptions: () => void }): ReactNode {
   return (
     <State
-      title="Connect to your library"
+      title="Save songs from any page"
       actions={
+        // Signing in runs in the options page: a sign-in window closes the
+        // popup, and the answer would come back to nobody.
         <button type="button" className="primary" onClick={onOptions}>
-          Set it up
+          Sign in with Google
         </button>
       }
     >
-      <p>
-        Sign in with the Google account your library uses, and links can wait in your bucket while
-        your server is off. Or point the extension at your server’s address.
-      </p>
+      <p>Sign in with the account your library uses.</p>
     </State>
   )
 }

@@ -229,7 +229,19 @@ export function createTag(
   if (existing) return { changes: [], uid: tagUid(ctx, existing.id) }
   const uid = make(ctx)
   return {
-    changes: [{ type: 'tagCreated', hlc: ctx.stamp(), uid, name, hue: newTagHue(name, hue) }],
+    changes: [
+      {
+        type: 'tagCreated',
+        hlc: ctx.stamp(),
+        uid,
+        name,
+        hue: newTagHue(
+          name,
+          hue,
+          ctx.view.library.tags.map(tag => tag.hue),
+        ),
+      },
+    ],
     uid,
   }
 }

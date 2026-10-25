@@ -87,9 +87,38 @@ export function tagNamed<T extends { readonly name: string }>(
   return tags.find(tag => sameTagName(tag.name, name)) ?? null
 }
 
-/** A new tag's colour: the one asked for, or one its name always gives. */
-export function newTagHue(name: string, hue: number | undefined): number {
-  return hue ?? hueFromString(name.toLowerCase())
+/**
+ * The hues a tag is offered: thirteen around the wheel, skipping the muddy
+ * stretch between yellow and green where chips stop looking like different
+ * colours from each other.
+ */
+export const TAG_HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
+
+/** How far apart two hues are, the short way round the wheel. */
+function hueGap(a: number, b: number): number {
+  const d = Math.abs((((a - b) % 360) + 360) % 360)
+  return Math.min(d, 360 - d)
+}
+
+/**
+ * A new tag's colour: the one asked for, or else the offered hue farthest
+ * from every hue `inUse` (X5, 2026-10-25: "calm" came out the red "live"
+ * already was, when its name alone chose). Among hues as far, the one
+ * nearest the hue its name gives, so the same library and name always give
+ * the same colour.
+ */
+export function newTagHue(name: string, hue: number | undefined, inUse: readonly number[]): number {
+  if (hue !== undefined) return hue
+  const own = hueFromString(name.toLowerCase())
+  if (inUse.length === 0) return own
+  const room = (candidate: number): number =>
+    Math.min(...inUse.map(used => hueGap(candidate, used)))
+  let best: number = TAG_HUES[0]
+  for (const candidate of TAG_HUES) {
+    const more = room(candidate) - room(best)
+    if (more > 0 || (more === 0 && hueGap(candidate, own) < hueGap(best, own))) best = candidate
+  }
+  return best
 }
 
 /** Why tag `id` cannot be called `name`: another tag already is. Null when it can. */

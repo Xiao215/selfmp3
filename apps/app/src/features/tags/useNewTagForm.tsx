@@ -15,7 +15,7 @@ interface NewTagForm {
   readonly setName: (name: string) => void
   /** The colour it will be: the one picked, or the one the name gives it. */
   readonly hue: number
-  /** The colour the name alone would give it, which leads the swatches. */
+  /** The colour it is given when none is picked, which leads the swatches. */
   readonly autoHue: number
   readonly setHue: (hue: number) => void
   readonly ready: boolean
@@ -57,10 +57,10 @@ export function useNewTagForm({
   const createTag = useCreateTag()
   const artistNudge = useArtistNudge()
   const [name, setNameState] = useState('')
-  // A colour picked for the new tag; left alone, the name chooses one.
+  // A colour picked for the new tag; left alone, it is one no tag is near.
   const [picked, setPicked] = useState<number | undefined>(undefined)
   const trimmed = name.trim()
-  const autoHue = autoTagHue(trimmed)
+  const autoHue = autoTagHue(trimmed, tags)
 
   const make = async (wanted: string): Promise<void> => {
     const tag = { name: wanted, ...(picked === undefined ? {} : { hue: picked }) }

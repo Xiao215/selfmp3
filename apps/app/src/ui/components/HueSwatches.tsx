@@ -2,17 +2,14 @@ import { useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Pressable, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { hueFromString } from '@selfmp3/shared'
+import { newTagHue, TAG_HUES } from '@selfmp3/shared'
 import { radius, tagColors, space } from '@selfmp3/client'
 import { Check } from './Icons'
 import { hueName } from '../hueNames.model'
 import { browserKeys } from '../../ports/browserKeys'
 
-/**
- * Thirteen hues around the wheel, skipping the muddy stretch between yellow and
- * green where chips stop looking like different colours from each other.
- */
-const HUES = [0, 22, 40, 58, 95, 140, 168, 192, 212, 235, 262, 290, 318] as const
+/** A tag's thirteen hues (`TAG_HUES`), the ones a new tag is given too. */
+const HUES = TAG_HUES
 
 /** One colour on offer: its hue, its name, and how it is drawn. */
 interface Swatch {
@@ -139,12 +136,17 @@ export function HueSwatches({
 }
 
 /**
- * The colour a tag of this name is given when none is chosen: the server's
- * own rule (`hueFromString` of the normalised name), so the first swatch shows
- * what pressing Enter would make.
+ * The colour a tag of this name is given when none is chosen, among the
+ * library's `tags`: the server's own rule (`newTagHue` — the hue farthest from
+ * the ones in use, the name deciding between equals), so the first swatch
+ * shows what pressing Enter would make.
  */
-export function autoTagHue(name: string): number {
-  return hueFromString(name.trim().replace(/\s+/g, ' ').toLowerCase())
+export function autoTagHue(name: string, tags: readonly { readonly hue: number }[]): number {
+  return newTagHue(
+    name.trim().replace(/\s+/g, ' '),
+    undefined,
+    tags.map(tag => tag.hue),
+  )
 }
 
 const styles = StyleSheet.create(() => ({

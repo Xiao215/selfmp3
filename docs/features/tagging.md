@@ -105,6 +105,12 @@ A tag whose name is an artist's asks first (`P11`): **Open the artist**, or **Ma
 anyway**. Closing the question any other way makes nothing. It runs wherever a tag is made by
 name — the new-tag card, the sidebar's **+** and the picker's **Create…**.
 
+An artist's page has, beside **Make a tag from this artist**, **Other names…**
+(`ArtistNamesEditor.tsx`): one field of names apart by commas that search finds the artist
+by too, in a popover beside the ⋯ (a sheet on a phone). Saved, it closes; a refusal keeps it
+open and says why (X8, 2026-10-25: it used to stay open with a tick on Save, and read as not
+saved).
+
 ## Tagging what is playing
 
 How a song feels is clearest while it is playing. **Edit tags** beside the heart in the

@@ -92,18 +92,31 @@ export class LyricsSearchRepository {
     this.#insertLine = db.prepare(
       'INSERT INTO lyrics_fts (song_id, line_no, line, tokens) VALUES (?, ?, ?, ?)',
     )
-    // One hit per song: the best-ranked matching line. FTS5's hidden `rank`
-    // column is used because bm25() cannot be called inside a subquery.
+    // One hit per song (X3, 2026-10-25): its first matching line, so a
+    // chorus is found where it is first sung, and the song ranked by its
+    // best. Two copies of one song — the single and the album's, the same
+    // title, artist and line — are one hit, the better-ranked copy. FTS5's
+    // hidden `rank` column is used because bm25() cannot be called inside a
+    // subquery.
     this.#search = db.prepare<[string, number], LyricsSearchRow>(`
-      SELECT song_id, line
-      FROM (
-        SELECT song_id, line, rank,
-               ROW_NUMBER() OVER (PARTITION BY song_id ORDER BY rank, line_no) AS n
+      WITH first AS (
+        SELECT song_id, line,
+               MIN(rank) OVER (PARTITION BY song_id) AS best,
+               ROW_NUMBER() OVER (PARTITION BY song_id ORDER BY line_no) AS n
         FROM lyrics_fts
         WHERE lyrics_fts MATCH ?
+      ),
+      copies AS (
+        SELECT f.song_id, f.line, f.best,
+               ROW_NUMBER() OVER (
+                 PARTITION BY lower(s.title), lower(s.artist), f.line ORDER BY f.best, f.song_id
+               ) AS copy
+        FROM first f JOIN songs s ON s.id = f.song_id
+        WHERE f.n = 1
       )
-      WHERE n = 1
-      ORDER BY rank
+      SELECT song_id, line FROM copies
+      WHERE copy = 1
+      ORDER BY best, song_id
       LIMIT ?
     `)
     this.#unindexed = db.prepare<[], { id: number }>(`

@@ -71,7 +71,7 @@ describe('Import, coming back after a look-up', () => {
       await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abc')
     })
     await act(async () => {
-      await fireEvent.press(screen.getByText('Look it up'))
+      await fireEvent.press(screen.getByLabelText('Look it up'))
     })
   }
 

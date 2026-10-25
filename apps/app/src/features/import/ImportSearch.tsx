@@ -111,7 +111,7 @@ export function ImportSearch({
     <SafeAreaView style={styles.screen} edges={['top']}>
       <TapAway onPress={closeOpen} style={wide ? styles.headWide : styles.headPhone}>
         {/* As the review's head: the round ‹ back to Import, the name under it. */}
-        <PageHeader title="Search" back={{ to: '/import', testID: 'import-search-back' }} />
+        <PageHeader title="Find songs" back={{ to: '/import', testID: 'import-search-back' }} />
         <SearchField
           value={words}
           onChangeText={setWords}
@@ -124,13 +124,12 @@ export function ImportSearch({
           style={styles.field}
           testID="import-search-field"
         />
-        <Text style={styles.status} testID="import-search-status">
-          {query === null
-            ? 'Search YouTube Music and 网易云 for a song to import.'
-            : searching.searching
-              ? 'Searching YouTube Music and 网易云…'
-              : 'From YouTube Music and 网易云. Tick the songs to import.'}
-        </Text>
+        {/* The field says where it looks; a line under it said so again (J1). */}
+        {current && rows.length > kept ? (
+          <Text style={styles.status} testID="import-search-status">
+            Tick the songs to import.
+          </Text>
+        ) : null}
       </TapAway>
 
       <ScrollView
@@ -186,26 +185,32 @@ export function ImportSearch({
           {current && !searching.searching && rows.length === kept ? (
             <Text style={styles.none}>Nothing found for “{query}”.</Text>
           ) : null}
+          {query === null && rows.length === 0 ? (
+            <Text style={styles.empty}>Pick songs here, then import them together.</Text>
+          ) : null}
         </TapAway>
       </ScrollView>
 
-      <ImportFoot
-        error={page.error}
-        onDismissError={() => page.setError(null)}
-        finder={finder}
-        tags={tags}
-        createTag={source.createTag}
-        tagIds={tagIds}
-        onTags={next => patchDraft({ tagIds: next })}
-        count={picked}
-        finding={finding}
-        busy={enqueue.isPending}
-        onImport={() => {
-          if (search) enqueue.mutate(search.review)
-        }}
-        onGround={closeOpen}
-        testID="import-search-commit"
-      />
+      {/* Tag and Import once there is something to import (J1, 2026-10-25). */}
+      {picked > 0 || page.error || finder.error ? (
+        <ImportFoot
+          error={page.error}
+          onDismissError={() => page.setError(null)}
+          finder={finder}
+          tags={tags}
+          createTag={source.createTag}
+          tagIds={tagIds}
+          onTags={next => patchDraft({ tagIds: next })}
+          count={picked}
+          finding={finding}
+          busy={enqueue.isPending}
+          onImport={() => {
+            if (search) enqueue.mutate(search.review)
+          }}
+          onGround={closeOpen}
+          testID="import-search-commit"
+        />
+      ) : null}
     </SafeAreaView>
   )
 }
@@ -236,6 +241,13 @@ const styles = StyleSheet.create(theme => ({
   apart: { marginTop: space.roomy },
   more: { alignItems: 'flex-start' },
   none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: space.sm },
+  empty: {
+    color: theme.colors.textMuted,
+    fontSize: type.sub,
+    textAlign: 'center',
+    marginVertical: 'auto',
+    paddingVertical: space.xl,
+  },
   looking: {
     flexDirection: 'row',
     alignItems: 'center',

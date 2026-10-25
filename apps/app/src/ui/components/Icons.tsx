@@ -454,6 +454,9 @@ export const ChevronLeft = icon(() => <Path d="m15 6-6 6 6 6" />)
 
 export const ChevronRight = icon(() => <Path d="m9 6 6 6-6 6" />)
 
+/** Go: a field's own button that sends what was typed (Import's). */
+export const ArrowRight = icon(() => <Path d="M5 12h14m-6-6 6 6-6 6" />)
+
 export const Expand = icon(() => <Path d="M14 4h6v6M10 20H4v-6M20 4l-6 6M4 20l6-6" />)
 
 export const Collapse = icon(() => <Path d="M4 10h6V4M20 14h-6v6M10 10 4 4M14 14l6 6" />)

@@ -43,8 +43,9 @@ export function SongTagsLine({
   /** The add chip, for the tag window to hang from on a computer. */
   editRef?: RefObject<View | null>
   /**
-   * The add chip says what it does ("Edit tags") beside its mark, where a
-   * mouse has room; on a phone it is the round dashed + the board draws.
+   * The add chip says what it does ("Add tag", "Edit tags") beside its mark:
+   * Now Playing on a phone and a computer alike, where a lone + said nothing.
+   * Left out, it is the round dashed +.
    */
   labelled?: boolean
   style?: StyleProp<ViewStyle>
@@ -54,7 +55,7 @@ export function SongTagsLine({
   const openTag = useOpenTag()
   if (isRoomTrackId(song.id)) return <RoomSongLine song={song} />
   const tags = tagsOf(song)
-  const label = tags.length > 0 ? 'Edit tags' : 'Add tags'
+  const label = tags.length > 0 ? 'Edit tags' : 'Add tag'
   return (
     <View style={[styles.tags, style]}>
       {tags.map(tag => (

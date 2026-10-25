@@ -167,17 +167,19 @@ describe('what the menu offers', () => {
     expect(screen.queryByRole('menuitem', { name: 'Select' })).toBeNull()
   })
 
-  it('on Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
+  it('on a phone’s Now Playing, leaves out what the page shows and ends with the sleep timer and Devices', async () => {
     const onSleep = jest.fn()
     const onDevices = jest.fn()
     await draw(undefined, { context: 'nowPlaying', extras: { onSleep, onDevices } })
 
-    // The page has the heart, the tags and ⓘ, and the song is already playing.
+    // The page has the heart and the tags, and the song is already playing;
+    // its head has no ⓘ, so the menu keeps Song details.
     expect(screen.queryByRole('button', { name: 'Like' })).toBeNull()
     const order = [
       /^Add to playlist/,
       /^Play similar songs$/,
       /^Download$/,
+      /^Song details$/,
       /^Sleep timer/,
       /^Devices$/,
       /^Delete from library…$/,

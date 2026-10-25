@@ -12,6 +12,7 @@ const one = {
   nowPlaying: false,
   place: 'phone',
   shareable: false,
+  detailsInMenu: false,
 }
 
 const ids = (facts: typeof one): string[] => songActions(facts).map(action => action.id)
@@ -63,6 +64,16 @@ describe('what can be done to songs', () => {
       'addToPlaylist',
       'playSimilar',
       'download',
+      'delete',
+    ])
+  })
+
+  it('keeps Song details for a phone’s Now Playing, which has no door of its own to it', () => {
+    expect(ids({ ...one, nowPlaying: true, detailsInMenu: true })).toEqual([
+      'addToPlaylist',
+      'playSimilar',
+      'download',
+      'details',
       'delete',
     ])
   })

@@ -8,8 +8,9 @@ import { Stack, useLocalSearchParams, useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Song } from '@selfmp3/shared'
 import { artistOr } from '@selfmp3/shared'
-import { radius, space, type, withAlpha, iconSize } from '@selfmp3/client'
+import { radius, space, type, useLibrary, withAlpha, iconSize } from '@selfmp3/client'
 import { useRoom } from '../room/room.store'
+import { describeSource } from '../lists/lists.model'
 import { RoomSheets } from '../room/RoomSheets'
 import { ShareSheet } from '../share/ShareSheet'
 import { RoomPill, TogetherButton } from '../room/Together'
@@ -21,7 +22,7 @@ import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { setStageExit } from '../../shell/stageExit'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronDown, Info, Moon, More, UpNext } from '../../ui/components/Icons'
+import { ChevronDown, Moon, More, UpNext } from '../../ui/components/Icons'
 import { HeadPill } from '../../ui/components/HeadPill'
 import { LikeButton } from '../../ui/components/LikeButton'
 import { SeekBar } from '../../ui/components/SeekBar'
@@ -29,7 +30,7 @@ import { SleepMenu, useSleepTimerStatus } from '../../ui/components/SleepMenu'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TransportControls } from '../../ui/components/TransportControls'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, label, heroTitle } from '../../ui/surfaces'
+import { artShadow, heroTitle } from '../../ui/surfaces'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
@@ -39,7 +40,6 @@ import { useLayout } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
 import { QueueSheet } from '../queue/QueueSheet'
 import { openQueueSheet } from '../queue/queueSheet.store'
-import { songLink } from '../song/song.model'
 import { ArtistLinks } from './ArtistLinks'
 import { leaveTo, putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
@@ -141,11 +141,13 @@ function PhoneNowPlaying(): ReactNode {
 /**
  * The full-screen phone player (docs/ui-mock `P21`, `P22`).
  *
- * Two views of one route. The cover: a header with the way down and ⓘ, the
- * cover that breathes with play and pause, the song with its heart, Up next
- * and ⋯ beside it, its tags, then the scrubber and the transport, low where a
- * thumb is. The sleep timer is under ⋯, and while one runs the header says
- * so in place of "Now playing". The words (`?view=lyrics`): the lyrics fill the page under a small
+ * Two views of one route. The cover: a header with the way down, where the
+ * music came from ("From Library", "From night") and Up next, the cover that
+ * breathes with play and pause, the song on a line of its own (two, if its
+ * name needs them) with its heart and ⋯ beside it, its tags, then the
+ * scrubber and the transport, low where a thumb is. The sleep timer and Song
+ * details are under ⋯ (D1, 2026-10-25), and while a timer runs the header says
+ * so in place of where the music came from. The words (`?view=lyrics`): the lyrics fill the page under a small
  * header, with the scrubber and the transport kept, so reading along never
  * costs the skip. A song with no lyrics says so there; a phone has no visual.
  *
@@ -197,10 +199,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
     router.setParams({ view: next === 'lyrics' ? 'lyrics' : undefined })
   }
   const close = (): void => putAway(router)
-  // The song's own page is a page of the app, not of this modal: the modal
-  // goes down first, so back from the song lands where Now Playing was opened.
-  // Down and then along, not both at once, which is why the push is inside.
-  const openSong = (): void => leaveTo(router, songLink(song.id))
 
   /*
    * The page's two views pass each other (`M2`, 1): the one arriving springs up
@@ -387,7 +385,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             color={songColor.color}
             tagging={tagging.on ? { line: tagging.line, stop: tagging.stop } : null}
             onClose={close}
-            onOpenSong={openSong}
             onLyrics={() => setView('lyrics')}
             onTags={tagEditor.toggle}
             onSleep={() => setSleepOpen(true)}
@@ -417,7 +414,9 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
 
       {/* The song menu every other screen has, less what the page shows itself,
           with the sleep timer and Devices after it: this page has no other door
-          to them. Removing asks above the page, and a link puts the page away first. */}
+          to them, nor to Song details. Removing asks above the page, and a link
+          (the song's own page included) puts the page away first, so back from
+          it lands where Now Playing was opened. */}
       <SongMenu
         song={moreOpen ? song : null}
         onClose={() => setMoreOpen(false)}
@@ -454,7 +453,6 @@ function CoverView({
   color,
   tagging,
   onClose,
-  onOpenSong,
   onLyrics,
   onTags,
   onSleep,
@@ -476,7 +474,6 @@ function CoverView({
   handed: CoverFrame | null
   tagging: { line: string; stop: () => void } | null
   onClose: () => void
-  onOpenSong: () => void
   onLyrics: () => void
   onTags: () => void
   onSleep: () => void
@@ -517,15 +514,13 @@ function CoverView({
             <RoomPill />
           </View>
         ) : (
-          <Text style={styles.headLabel} numberOfLines={1}>
-            Now playing
-          </Text>
+          <PlayingFrom />
         )}
         {/* Both sides as wide, so whatever is in the middle sits in the middle. */}
         <View style={[styles.headSide, styles.headSideEnd]}>
           {inRoom && !middleTaken ? null : <TogetherButton filled />}
-          <IconButton onPress={onOpenSong} label="Song details" filled testID="now-playing-info">
-            <Info size={iconSize.nav} color={theme.colors.textPrimary} />
+          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
+            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
         </View>
       </View>
@@ -542,7 +537,8 @@ function CoverView({
 
       <View style={styles.titleRow}>
         <View style={styles.titles}>
-          <Text style={styles.title} numberOfLines={1}>
+          {/* The one thing read on this page: its own line, and two if it needs them. */}
+          <Text style={styles.title} numberOfLines={2}>
             {song.title}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
@@ -551,9 +547,6 @@ function CoverView({
         </View>
         <View style={styles.titleButtons}>
           <LikeButton song={song} filled />
-          <IconButton onPress={openQueueSheet} label="Up next" filled testID="now-playing-queue">
-            <UpNext size={iconSize.nav} color={theme.colors.textPrimary} />
-          </IconButton>
           <IconButton onPress={onMore} label="More" filled testID="now-playing-more">
             <More size={iconSize.nav} color={theme.colors.textPrimary} />
           </IconButton>
@@ -567,6 +560,7 @@ function CoverView({
         // under the modal, out of sight.
         onOpen={href => leaveTo(router, href)}
         onEdit={onTags}
+        labelled
         style={styles.tags}
       />
 
@@ -577,6 +571,42 @@ function CoverView({
       {/* The round white Play (`S2`) is the page's one primary. */}
       <TransportControls size="page" tint={color} style={styles.controls} />
     </>
+  )
+}
+
+/**
+ * The head's middle, where an eyebrow said "Now playing" on the one page that
+ * can only be that: where the music came from instead, as Up next names it
+ * ("From Library", "From night", "From Long walks"), and a press opens it.
+ * Nothing at all when Up next has no name for its songs, as when a row of
+ * Library is played on its own.
+ */
+function PlayingFrom(): ReactNode {
+  const router = useRouter()
+  const { source, queue } = usePlayer()
+  const { data: library } = useLibrary()
+  const line = useMemo(
+    () =>
+      source && library && queue.items.length > 0
+        ? describeSource(source, { tags: library.tags, playlists: library.playlists })
+        : null,
+    [source, library, queue.items.length],
+  )
+  if (!line) return <View style={styles.from} />
+  const link = line.link
+  return (
+    <Press
+      feedback="dim"
+      onPress={link ? () => leaveTo(router, link as Href) : undefined}
+      disabled={!link}
+      accessibilityRole={link ? 'link' : 'text'}
+      accessibilityLabel={link ? `Open ${line.label}` : `Playing from ${line.label}`}
+      style={styles.from}
+    >
+      <Text style={styles.fromLabel} numberOfLines={1} testID="now-playing-from">
+        From {line.label}
+      </Text>
+    </Press>
   )
 }
 
@@ -816,11 +846,8 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.sm,
     marginHorizontal: -space.xs,
   },
-  headLabel: {
-    ...label(theme.colors),
-    flex: 1,
-    textAlign: 'center',
-  },
+  from: { flex: 1, minWidth: 0, alignItems: 'center' },
+  fromLabel: { color: theme.colors.textSecondary, fontSize: type.sub, textAlign: 'center' },
   art: {
     flex: 1,
     minHeight: 0,
@@ -831,7 +858,7 @@ const styles = StyleSheet.create(theme => ({
   artShadow: { borderRadius: radius.card, ...artShadow(theme.colors) },
   titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: space.md,
   },
   titles: { flex: 1, minWidth: 0, gap: 3 },

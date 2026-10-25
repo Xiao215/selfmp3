@@ -1,0 +1,262 @@
+# When a push to main goes red, Claude looks at why and, if it can, offers the
+# fix as a pull request. Nothing reaches main without being merged by hand.
+#
+# Two jobs, so the one that runs code never holds a token that can write. The
+# first checks out main, installs, reads the failed logs and lets Claude
+# change files and run the checks, all with a read-only token; what it
+# changed leaves as a patch. The second applies that patch — it runs nothing
+# from the checkout — pushes it to `autofix/<sha>` and opens the pull request.
+#
+# Only pushes to main: a pull request from a fork is someone else's code, and
+# its logs are text a stranger can write. Only the workflows that run on a
+# push; the release workflows are a deliberate act, and a red one is for
+# whoever started it. A run by hand (`workflow_dispatch` with a run id) is for
+# trying this out on an old failure.
+#
+# Claude signs in with CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`, billed to
+# the subscription) or ANTHROPIC_API_KEY, whichever secret is set. Opening the
+# pull request needs Settings → Actions → General → "Allow GitHub Actions to
+# create and approve pull requests"; without it the branch is still pushed and
+# the run's summary links to it.
+name: Autofix
+
+on:
+  workflow_run:
+    workflows: [Check, End to end, Pages, Docker]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The id of a failed run on main to fix
+        required: true
+
+permissions: {}
+
+# One at a time per commit. A push that fails in Check fails in Pages too (it
+# calls Check), and the second run should find the first one's branch rather
+# than race it to the same fix.
+concurrency:
+  group: autofix-${{ github.event.workflow_run.head_sha || inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+        github.event.workflow_run.conclusion == 'failure' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      changed: ${{ steps.keep.outputs.changed }}
+      base: ${{ steps.base.outputs.sha }}
+      failed: ${{ steps.pick.outputs.sha }}
+      url: ${{ steps.pick.outputs.url }}
+    steps:
+      # The same questions for both triggers, asked of the run itself: a run
+      # id typed by hand is held to what the `if` above asks of an event.
+      # Then two reasons to stop before spending anything: this commit already
+      # has a fix branch, or a later push to main has gone green since.
+      - name: Pick the failure
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+        run: |
+          run=$(gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --json conclusion,event,headBranch,headSha,workflowDatabaseId,workflowName,url)
+          read -r conclusion event branch sha workflow < <(jq -r \
+            '[.conclusion, .event, .headBranch, .headSha, .workflowDatabaseId] | @tsv' <<<"$run")
+          if [ "$conclusion" != failure ] || [ "$event" != push ] || [ "$branch" != main ]; then
+            echo "Run $RUN_ID is $conclusion on a $event to $branch, not a failed push to main." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/branches/autofix/${sha:0:7}" --silent 2>/dev/null; then
+            echo "autofix/${sha:0:7} already exists." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          latest=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" \
+            --branch main --event push --status completed --limit 1 \
+            --json headSha,conclusion --jq '.[0] | .headSha + " " + .conclusion')
+          if [ "${latest% *}" != "$sha" ] && [ "${latest#* }" = success ]; then
+            echo "A later push (${latest:0:7}) already passes $(jq -r .workflowName <<<"$run")." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "go=true"
+            echo "sha=$sha"
+            echo "url=$(jq -r .url <<<"$run")"
+          } >> "$GITHUB_OUTPUT"
+
+      # Main as it is now rather than the failed commit: the fix has to merge
+      # onto it, and a failure a later push already fixed should not reproduce.
+      - if: steps.pick.outputs.go
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - if: steps.pick.outputs.go
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - if: steps.pick.outputs.go
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # As in check.yml, so the server's tests can run.
+      - if: steps.pick.outputs.go
+        run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+
+      # Every failed run on the commit, not only the one that started this:
+      # Check and End to end fail on the same push more often than apart. The
+      # tail of each log, since a failed job's last lines are where it says why.
+      - if: steps.pick.outputs.go
+        name: Gather the failed logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          mkdir .autofix
+          echo .autofix/ >> .git/info/exclude
+          gh run list --repo "$GITHUB_REPOSITORY" --commit "$SHA" --status failure \
+            --json databaseId,workflowName,url --jq '.[] | [.databaseId, .workflowName, .url] | @tsv' |
+            while IFS=$'\t' read -r id name url; do
+              echo "- $name: $url (log in .autofix/$id.log)" >> .autofix/runs.md
+              gh run view "$id" --repo "$GITHUB_REPOSITORY" --log-failed | tail -n 4000 > ".autofix/$id.log"
+            done
+          cat .autofix/runs.md
+
+      - if: steps.pick.outputs.go
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          claude_args: >-
+            --max-turns 100
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(npm run:*),Bash(npm test:*),Bash(npx:*),Bash(node:*),Bash(xvfb-run:*),Bash(git diff:*),Bash(git status:*),Bash(git log:*),Bash(git show:*)"
+          prompt: |
+            A push to main in this repository failed in GitHub Actions. The
+            checkout is main as it is now, with dependencies installed. The
+            failed runs are listed in .autofix/runs.md, and each one's log is
+            beside it in .autofix/. The workflows themselves are in
+            .github/workflows/ if you need to see how a step is run.
+
+            Find out why it failed and fix the cause in the code. Reproduce it
+            first where you can (`npm run check` is everything Check runs; the
+            end-to-end suites are `npm run verify:extension` and, under
+            `xvfb-run -a`, `npm run verify:desktop`, after the builds e2e.yml
+            does). Fix it the way the surrounding code would: never by
+            skipping or loosening a test, disabling a lint rule, or deleting
+            what the check is there to protect. Do not edit .github/. Keep the
+            change to what the failure needs.
+
+            Some failures are not the code's: a flaky test that passes when
+            run again, a network error, a service's quota, a deploy step. Then
+            change nothing.
+
+            Either way, write .autofix/summary.md. Its first line is a commit
+            title in this repository's style (`git log` shows it): a plain
+            sentence saying what is now true, not "Fix X". After a blank
+            line: what failed and why, what you changed, and what you ran to
+            check it, with the result. If you changed nothing, say why.
+
+            Finally, write .autofix/verified with the single word `yes` if
+            the checks that failed now pass on your change, or `no`.
+
+      # Everything Claude changed, as one patch. `git add -A` keeps to what
+      # .gitignore allows, so builds and test results stay behind.
+      - if: steps.pick.outputs.go
+        id: keep
+        run: |
+          [ -f .autofix/summary.md ] && cat .autofix/summary.md >> "$GITHUB_STEP_SUMMARY"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir "$RUNNER_TEMP/autofix"
+          git diff --cached --binary > "$RUNNER_TEMP/autofix/fix.patch"
+          cp .autofix/summary.md .autofix/verified "$RUNNER_TEMP/autofix/" 2>/dev/null || true
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - if: steps.keep.outputs.changed == 'true'
+        uses: actions/upload-artifact@v5
+        with:
+          name: autofix
+          path: ${{ runner.temp }}/autofix
+          retention-days: 7
+
+  pr:
+    needs: fix
+    if: needs.fix.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.fix.outputs.base }}
+
+      - uses: actions/download-artifact@v6
+        with:
+          name: autofix
+          path: ${{ runner.temp }}/autofix
+
+      # Pushed with the workflow's own token, which starts no workflows of its
+      # own, so Check and End to end are asked for by name. Their runs are
+      # dispatches rather than pushes to main, so a red one does not come back
+      # here. A pull request Claude could not check opens as a draft.
+      - name: Open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ needs.fix.outputs.failed }}
+          URL: ${{ needs.fix.outputs.url }}
+        run: |
+          dir="$RUNNER_TEMP/autofix"
+          branch="autofix/${FAILED:0:7}"
+          if grep -q '^diff --git a/.github/' "$dir/fix.patch"; then
+            echo "The patch changes .github/, which this workflow cannot push." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          git apply --index "$dir/fix.patch"
+          title=$(head -n 1 "$dir/summary.md" 2>/dev/null)
+          title=${title:-"Main is green again after ${FAILED:0:7}"}
+          {
+            tail -n +3 "$dir/summary.md" 2>/dev/null
+            echo
+            echo "Failed run: $URL"
+            echo
+            echo "Opened by .github/workflows/autofix.yml. Check and End to end are dispatched on this branch."
+          } > "$dir/body.md"
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -F - <<EOF
+          $title
+
+          Failed run: $URL
+
+          Co-Authored-By: Claude <noreply@anthropic.com>
+          EOF
+          git push origin "HEAD:refs/heads/$branch"
+          gh workflow run check.yml --ref "$branch"
+          gh workflow run e2e.yml --ref "$branch"
+          draft=$([ "$(cat "$dir/verified" 2>/dev/null)" = yes ] || echo --draft)
+          if ! gh pr create --base main --head "$branch" --title "$title" --body-file "$dir/body.md" $draft; then
+            echo "Pushed $branch but could not open a pull request: allow GitHub Actions to create pull requests in Settings → Actions → General." >> "$GITHUB_STEP_SUMMARY"
+            echo "https://github.com/$GITHUB_REPOSITORY/compare/main...$branch" >> "$GITHUB_STEP_SUMMARY"
+          fi

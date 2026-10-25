@@ -135,7 +135,6 @@ function SelectionPicker({
   const [shown, setShown] = useState(() => tagsAcross(songs))
   const latest = useRef(shown)
   const bulkTag = useBulkTag()
-  const wide = useLayoutValue(layout => layout.wide)
   return (
     <TagSearchList
       selected={shown.all}
@@ -160,7 +159,6 @@ function SelectionPicker({
         for (const tagId of remove) send(tagId, 'remove')
       }}
       onLeave={onLeave}
-      autoFocus={wide}
     />
   )
 }
@@ -168,7 +166,6 @@ function SelectionPicker({
 function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNode {
   const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(song.tagIds))
   const setSongTags = useSetSongTags()
-  const wide = useLayoutValue(layout => layout.wide)
   // The last set the library took, for a tick that did not: the box goes back
   // to what is true rather than showing a tag the song does not have.
   const saved = useRef<ReadonlySet<number>>(selected)
@@ -196,7 +193,6 @@ function Picker({ song, onLeave }: { song: Song; onLeave: () => void }): ReactNo
         )
       }}
       onLeave={onLeave}
-      autoFocus={wide}
     />
   )
 }
@@ -237,7 +233,6 @@ export function TagSearchList({
   mixed,
   onChange,
   onLeave,
-  autoFocus = false,
   from,
 }: {
   selected: ReadonlySet<number>
@@ -246,13 +241,15 @@ export function TagSearchList({
   onChange: (next: ReadonlySet<number>) => void
   /** Close whatever this is drawn in, as the nudge's "Open the artist" leaves for the artist. */
   onLeave?: () => void
-  autoFocus?: boolean
   /** Another library's tags, when the ticked ids are not this device's. */
   from?: TagSource
 }): ReactNode {
   const accent = useAccent()
   // In a pop-up with a mouse the rows are a menu's, not a finger's.
   const dense = usePanelDense()
+  // A computer types straight into the search. A phone opens on the list, and
+  // its keyboard comes up only when the field is tapped: most picks are a tick.
+  const wide = useLayoutValue(layout => layout.wide)
   const { data: library } = useLibrary()
   const tags = useMemo<readonly Offered[]>(() => {
     if (!from) return (library?.tags ?? []).map(tag => ({ tag, there: true }))
@@ -353,7 +350,7 @@ export function TagSearchList({
         placeholder="Search or create a tag…"
         autoCapitalize="none"
         autoCorrect={false}
-        autoFocus={autoFocus}
+        autoFocus={wide}
         // This field creates tags as well as searching them, so it stops where
         // a tag name stops.
         maxLength={TAG_NAME_MAX}

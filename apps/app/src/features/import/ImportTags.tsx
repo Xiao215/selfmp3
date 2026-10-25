@@ -43,13 +43,7 @@ function TagSheet({
   return (
     <Sheet open={open} onClose={onClose} title="Tag these songs" titleTone="label">
       {open ? (
-        <TagSearchList
-          selected={selected}
-          onChange={onChange}
-          onLeave={onClose}
-          from={from}
-          autoFocus
-        />
+        <TagSearchList selected={selected} onChange={onChange} onLeave={onClose} from={from} />
       ) : null}
     </Sheet>
   )

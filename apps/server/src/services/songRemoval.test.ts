@@ -83,6 +83,22 @@ describe('SongRemovalService', () => {
     fs.rmSync(root, { recursive: true, force: true })
   })
 
+  const row = {
+    artist: '',
+    album: '',
+    albumArtist: '',
+    trackNo: null,
+    year: null,
+    duration: 180,
+    sizeBytes: 5,
+    mime: 'audio/mp4',
+    mtimeMs: 1_700_000_000_000,
+    hasArt: false,
+    artExt: null,
+    lyricsKind: 'synced' as const,
+    sourceUrl: null,
+  }
+
   /** A song in its own folder, with a sidecar beside it, as an import lays one out. */
   const addSong = (name: string): { id: number; key: string } => {
     const key = `${name}/${name}.m4a`
@@ -90,23 +106,7 @@ describe('SongRemovalService', () => {
     fs.mkdirSync(folder, { recursive: true })
     fs.writeFileSync(path.join(folder, `${name}.m4a`), 'audio')
     fs.writeFileSync(path.join(folder, `${name}.lrc`), '[00:01.00] la')
-    const id = songs.insert({
-      path: key,
-      title: name,
-      artist: '',
-      album: '',
-      albumArtist: '',
-      trackNo: null,
-      year: null,
-      duration: 180,
-      sizeBytes: 5,
-      mime: 'audio/mp4',
-      mtimeMs: 1_700_000_000_000,
-      hasArt: false,
-      artExt: null,
-      lyricsKind: 'synced',
-      sourceUrl: null,
-    })
+    const id = songs.insert({ ...row, path: key, title: name })
     return { id, key }
   }
 
@@ -242,28 +242,25 @@ describe('SongRemovalService', () => {
 
   describe('in batches', () => {
     it('lets the event loop run between batches of a big removal', async () => {
-      const ids = Array.from({ length: 120 }, (_, i) => addSong(`S${i}`).id)
+      // Rows only, already uploaded: what matters here is the database.
+      const ids = Array.from({ length: 120 }, (_, i) =>
+        songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
+      )
+      // Each batch leaves a callback for the loop's next turn; by the next
+      // batch it must have run.
       let turns = 0
-      let spinning = true
-      const spin = (): void => {
-        turns++
-        if (spinning) setImmediate(spin)
-      }
-      setImmediate(spin)
       const seen: number[] = []
       const deleteMany = songs.deleteMany.bind(songs)
       songs.deleteMany = batch => {
         seen.push(turns)
+        setImmediate(() => turns++)
         return deleteMany(batch)
       }
 
       const result = await removal.remove(ids)
-      spinning = false
 
       expect(result.removed).toHaveLength(120)
-      expect(seen).toHaveLength(3)
-      expect(seen[1]!).toBeGreaterThan(seen[0]!)
-      expect(seen[2]!).toBeGreaterThan(seen[1]!)
+      expect(seen).toEqual([0, 1, 2])
       expect(songs.count()).toBe(0)
       expect(changes).toBe(1)
     })

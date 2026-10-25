@@ -4,7 +4,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
 import { NoticeCard } from '../../ui/components/NoticeCard'
@@ -34,7 +34,7 @@ export function CantReach({
 }): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { fromCloud, connection } = useConnection()
   const capped = bucketCapped(error)
   // Counted once each time it is drawn, for the server owner's admin page

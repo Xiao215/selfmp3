@@ -14,7 +14,7 @@ import {
 import { radius, space, type, useGems, usePlaylistSongs, iconSize } from '@selfmp3/client'
 import { prefs } from '../../ports/prefs'
 import { usePlayerCommands } from '../../player/PlayerProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
@@ -48,6 +48,7 @@ import {
 } from './playlists.model'
 import { usePlaylistPlayback } from './usePlaylistPlayback'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { Press } from '../../ui/components/Press'
 
 /** Tiles at least this wide at desktop width, as many as fit; two across on a phone. */
@@ -73,7 +74,7 @@ const SORT_PREF = 'playlists.sort'
 export function PlaylistsScreen(): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const [chosenSort, setSortState] = useState<PlaylistSort>(() => {
     const stored = prefs.get(SORT_PREF)
     return isPlaylistSort(stored) ? stored : 'recent'
@@ -123,9 +124,12 @@ export function PlaylistsScreen(): ReactNode {
     ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
     ...playlists.map(playlist => ({ kind: 'playlist' as const, playlist })),
   ]
+  // A screenful or two of tiles, and more as the scroll nears the end: six
+  // hundred playlists drew every tile before the page answered (bug bash F171).
+  const { drawn, ...ahead } = useDrawnAhead(tiles.length)
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]}>
+      <ScrollView contentContainerStyle={[styles.content, wide && styles.contentWide]} {...ahead}>
         <PageHeader
           title="Playlists"
           subtitle={
@@ -181,7 +185,7 @@ export function PlaylistsScreen(): ReactNode {
           <CantReach error={model.failure} onRetry={model.retry} />
         ) : (
           <TileGrid
-            items={tiles}
+            items={tiles.slice(0, drawn)}
             columns={columns}
             gap={GAP}
             keyOf={gridKey}

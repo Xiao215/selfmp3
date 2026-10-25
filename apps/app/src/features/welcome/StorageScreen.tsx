@@ -8,7 +8,7 @@ import { session as cloud } from '../../replica'
 import { deviceWord } from '../../ports/device'
 import { installedApp } from '../../ports/install'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { SignOutDialog } from '../settings/SignOutDialog'
 import { TextField } from '../../ui/components/TextField'
@@ -53,7 +53,7 @@ import { rowTitle, lineSub, hint, textColumn } from '../../ui/surfaces'
  */
 export function StorageScreen(): ReactNode {
   const router = useRouter()
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const { storageConnected } = useConnection()
 
   const [mode, setMode] = useState<StorageMode>('backblaze')

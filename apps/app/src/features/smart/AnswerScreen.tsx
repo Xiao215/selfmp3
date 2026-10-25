@@ -18,7 +18,7 @@ import {
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
@@ -64,7 +64,7 @@ import { OPACITY } from '../../ui/motion.model'
  */
 export function AnswerScreen(): ReactNode {
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { id } = useLocalSearchParams<{ id?: string }>()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()

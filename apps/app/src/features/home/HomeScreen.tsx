@@ -31,7 +31,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useOpenSearch } from '../../shell/palette'
 import { useBottomInset } from '../../shell/bottomInset'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { Press } from '../../ui/components/Press'
@@ -144,7 +144,7 @@ function HomePage({
   /** The song a stats id names, as this device knows it: the server's ids are not this library's. */
   songFor: (songId: number) => Song | undefined
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const beside = useCardsBeside(wide)
   const router = useRouter()
   const now = useNow()
@@ -531,7 +531,7 @@ function Tile({
   artUri: string | null | undefined
   onPress: () => void
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const arrival = useArrival(index, arrive, count)
   const colours = tagColors(tile.tag.hue)
   const ref = useRef<View>(null)

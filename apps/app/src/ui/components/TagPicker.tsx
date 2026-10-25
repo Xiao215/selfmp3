@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -34,6 +34,7 @@ import {
 } from './tagPicker.model'
 import { SearchField } from './SearchField'
 import { ScrollView } from './Scroll'
+import { useDrawnAhead } from '../useDrawnAhead'
 import { TagDot } from './TagDot'
 import { menuItem } from '../surfaces'
 
@@ -292,13 +293,24 @@ export function TagSearchList({
    * that has just ticked it.
    */
   const [openedWith] = useState(selected)
-  const ranked = useMemo(() => {
-    const matches = fuzzyRank(query, tags, each => each.tag.name)
-    if (query.trim()) return matches
-    const first = (match: (typeof matches)[number]): number =>
-      match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
-    return [...matches].sort((a, b) => first(a) - first(b))
-  }, [query, tags, openedWith])
+  /*
+   * Ranked a beat behind the typing, and drawn a screenful at a time: with
+   * five hundred tags every letter re-ranked and redrew every row before the
+   * field could show it (bug bash F171). Enter ranks what is typed now.
+   */
+  const shownQuery = useDeferredValue(query)
+  const rankFor = useCallback(
+    (text: string) => {
+      const matches = fuzzyRank(text, tags, each => each.tag.name)
+      if (text.trim()) return matches
+      const first = (match: (typeof matches)[number]): number =>
+        match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1
+      return [...matches].sort((a, b) => first(a) - first(b))
+    },
+    [tags, openedWith],
+  )
+  const ranked = useMemo(() => rankFor(shownQuery), [rankFor, shownQuery])
+  const { drawn, ...ahead } = useDrawnAhead(ranked.length, shownQuery)
   const hasExact = ranked.some(match => match.exact)
   const trimmed = query.trim()
 
@@ -342,7 +354,7 @@ export function TagSearchList({
     // With nothing typed there is no best match: an empty query ranks the whole
     // list, and submitting would silently tick its first entry.
     if (!trimmed) return
-    const best = ranked[0]
+    const best = (shownQuery === query ? ranked : rankFor(query))[0]
     if (best) {
       pick(best.item)
       setQuery('')
@@ -373,8 +385,9 @@ export function TagSearchList({
         style={styles.list}
         // A scroll through the list puts the keyboard away, so the rows it
         // covered are there to tap.
+        {...ahead}
       >
-        {ranked.map(({ item: offered }) => {
+        {ranked.slice(0, drawn).map(({ item: offered }) => {
           const { tag: item, there } = offered
           const on = there && selected.has(item.id)
           const partly = !on && there && mixed?.has(item.id) === true
@@ -410,7 +423,8 @@ export function TagSearchList({
         ) : null}
       </ScrollView>
 
-      {trimmed && !hasExact ? (
+      {/* Once the ranking has caught up with the typing, so it never offers a twin. */}
+      {trimmed && shownQuery.trim() === trimmed && !hasExact ? (
         <Press
           depth="row"
           style={({ pressed }) => [styles.item, styles.create, pressed && styles.itemPressed]}

@@ -37,7 +37,7 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { OverlayProvider } from '../../shell/Overlay'
 import { modalCoversScreen } from '../../ports/modalCoversScreen'
 import { ToastHost } from '../../ui/components/ToastHost'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useLayoutFlags } from '../../shell/useLayout'
 import { DevicesSheet } from '../devices/DevicesSheet'
 import { QueueSheet } from '../queue/QueueSheet'
 import { openQueueSheet } from '../queue/queueSheet.store'
@@ -71,7 +71,7 @@ import { TouchFlag } from '../../ui/touchFlag'
  * Now Playing: the computer's stage, or the phone's own full-screen page.
  */
 export function NowPlayingScreen(): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const player = usePlayer()
   const router = useRouter()
   const { song: songParam } = useLocalSearchParams<{ song?: string }>()

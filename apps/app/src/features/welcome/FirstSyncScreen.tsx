@@ -16,7 +16,7 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useCloudSession } from '../profile/useCloudSession'
 import { useArt } from '../../offline/useArt'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { ToggleRow } from '../../ui/components/Toggle'
 import {
@@ -50,7 +50,7 @@ const COVER_FETCHES = 4
 
 export function FirstSyncScreen(): ReactNode {
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const { fromCloud, status } = useConnection()
   const library = useLibrary()
   const { prefs, setPrefs } = useDownloads()

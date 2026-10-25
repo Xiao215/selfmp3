@@ -16,7 +16,7 @@ import {
   withAlpha,
 } from '@selfmp3/client'
 import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { Cover } from '../../ui/components/Cover'
@@ -102,7 +102,7 @@ export function StatsScreen({ via }: { via?: ServerConnection } = {}): ReactNode
  * at 1100, a row left Listened's number 64 px beside its line and cut it to "1 …".
  */
 function Cards({ stats }: { stats: Stats }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const row = useContentWidthValue(width => width !== null && width >= COLUMN_WIDTH.statsCards)
   // On a very wide page the line runs across the card from the words, rather
   // than sitting at the card's far end 1000 px from its number (P1 C).

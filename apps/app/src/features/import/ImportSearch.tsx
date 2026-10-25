@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { pageFrame, lineSub } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { PageHeader } from '../../ui/components/PageHeader'
@@ -49,7 +49,7 @@ export function ImportSearch({
   /** As ImportScreen's: the server this page was pointed at stopped answering. */
   onUnreachable?: () => void
 } = {}): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey

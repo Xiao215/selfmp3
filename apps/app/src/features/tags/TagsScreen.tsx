@@ -10,7 +10,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useOpenSearch } from '../../shell/palette'
 import { useEscape } from '../../shell/useEscape'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
@@ -62,6 +62,7 @@ import { PageHeader } from '../../ui/components/PageHeader'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
+import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { TagDot } from '../../ui/components/TagDot'
 
 /** Tiles at least this wide on a computer, as many as fit; two across on a phone. */
@@ -92,7 +93,7 @@ type HoldRef = (tagId: number, node: View | null) => void
  * are by and tags them one at a time while they play (K2).
  */
 export function TagsScreen(): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const router = useRouter()
   const player = usePlayerCommands()
   const { data: library } = useLibrary()
@@ -137,12 +138,22 @@ export function TagsScreen(): ReactNode {
     () => (library ? tagsMostPlayed(library.tags, library.songs) : []),
     [library],
   )
-  const layout = useMemo(() => tagsLayout(standings), [standings])
+  const laidOut = useMemo(() => tagsLayout(standings), [standings])
+  // A screenful or two of tiles, and more as the scroll nears the end.
+  const { drawn, ...ahead } = useDrawnAhead(
+    laidOut.main.length + laidOut.justStarted.length + laidOut.empty.length,
+  )
+  const layout = useMemo(() => {
+    const main = laidOut.main.slice(0, drawn)
+    const justStarted = laidOut.justStarted.slice(0, drawn - main.length)
+    const empty = laidOut.empty.slice(0, drawn - main.length - justStarted.length)
+    return { main, justStarted, empty }
+  }, [laidOut, drawn])
   /*
    * A pointer has the ⋯ and right-click; a finger has only the hold, which
    * nothing on a tile says, so it is shown once on the first tile.
    */
-  const firstTagId = (layout.main[0] ?? layout.justStarted[0])?.standing.tag.id
+  const firstTagId = (layout.main[0] ?? layout.justStarted[0] ?? layout.empty[0])?.standing.tag.id
   const [lightTile, holdGuide] = useGuide('tag-hold', !finePointer && firstTagId !== undefined)
   useEffect(() => {
     lightTile(firstTagId === undefined ? null : (rowRefs.current.get(firstTagId) ?? null))
@@ -217,6 +228,7 @@ export function TagsScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']} testID="tags-screen">
       <ScrollView
         contentContainerStyle={[styles.content, wide ? styles.contentWide : styles.contentNarrow]}
+        {...ahead}
       >
         <PageHeader
           title="Tags"
@@ -267,6 +279,14 @@ export function TagsScreen(): ReactNode {
                       </Text>
                     ) : null}
                     {grid(layout.justStarted)}
+                  </>
+                ) : null}
+                {layout.empty.length > 0 ? (
+                  <>
+                    {layout.main.length + layout.justStarted.length > 0 ? (
+                      <Text style={styles.runLabel}>Nothing in them yet</Text>
+                    ) : null}
+                    {grid(layout.empty)}
                   </>
                 ) : null}
               </>

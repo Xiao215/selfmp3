@@ -6,7 +6,7 @@ import { Redirect } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { space, type, type Review, type ServerConnection } from '@selfmp3/client'
 import { plural } from '@selfmp3/shared'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { canListenHere } from '../../ports/listen'
 import { label as groupLabel, pageFrame, pageTitle, textColumn } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
@@ -65,7 +65,7 @@ export function ImportReview({
   /** As ImportScreen's: the server this page was pointed at stopped answering. */
   onUnreachable?: () => void
 } = {}): ReactNode {
-  const { wide, finePointer } = useLayout()
+  const { wide, finePointer } = useLayoutFlags()
   const page = useImportPage(via, onUnreachable)
   const { source, draft, patchDraft, listen, backTo, failed } = page
   const key = page.draftKey

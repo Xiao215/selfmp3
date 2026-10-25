@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { startTransition, useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, Text, View } from 'react-native'
 import type { NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native'
@@ -247,12 +247,18 @@ export function UpNextList({
       const y = event.nativeEvent.contentOffset.y
       if (y > 0) onScrolled?.()
       const at = Math.floor(y / step)
-      setScrollStep(now => (now === at ? now : at))
+      // Drawn behind the scroll rather than in its way: the rows a step
+      // brings are a screen ahead already (`span`), and each one sets up its
+      // swipe and its hold. Drawn in the scroll's own frame, a 2,000-song
+      // queue flung on a phone dropped a frame in three (bug bash F168).
+      startTransition(() => setScrollStep(now => (now === at ? now : at)))
     },
     [onScrolled, step],
   )
-  const scrollTop = scrollStep * step
-  const span = viewport + step
+  // A screen either side of the one in view, as a list of songs keeps, so a
+  // fling is through rows already there while the next step is drawn.
+  const scrollTop = scrollStep * step - viewport
+  const span = viewport * 3 + step
   const nextAt = upNextWindow({
     count: next.length,
     runTop: headHeight,

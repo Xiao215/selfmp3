@@ -7,7 +7,7 @@ import { space, type, tracking } from '@selfmp3/client'
 import { fonts } from '../../ports/fonts'
 import { useContentWidth } from '../../shell/contentWidth'
 import { tabbing } from '../../shell/tabbing'
-import { useLayout } from '../../shell/useLayout'
+import { useLayout, useLayoutFlags } from '../../shell/useLayout'
 import { useFade } from '../motion'
 import { MOVE_MS } from '../motion.model'
 import { rightClick, type PopoverAnchor } from '../rightClick'
@@ -207,7 +207,7 @@ export function GridTile({
   /** The tile's own view, for what is anchored to it. */
   tileRef?: (node: View | null) => void
 }): ReactNode {
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const out = finePointer && (hovered || focused)

@@ -87,11 +87,12 @@ describe('how All tags lays its tags out', () => {
     expect(names(tagsLayout(tagsMostPlayed([game, snow], twins)).main)).toEqual(['game', 'snow'])
   })
 
-  it('keeps tags with a song or two, and empty ones, for the end', () => {
+  it('keeps tags with a song or two for the end, and empty ones after them', () => {
     const songs = library({ 1: [4], 2: [4], 3: [4], 4: [5], 5: [5] })
-    const { main, justStarted } = tagsLayout(tagsMostPlayed([pop, tiny, empty], songs))
-    expect(names(main)).toEqual(['pop'])
-    expect(names(justStarted)).toEqual(['tiny', 'empty'])
+    const layout = tagsLayout(tagsMostPlayed([pop, tiny, empty], songs))
+    expect(names(layout.main)).toEqual(['pop'])
+    expect(names(layout.justStarted)).toEqual(['tiny'])
+    expect(names(layout.empty)).toEqual(['empty'])
   })
 
   it('leaves a one-song region inside its holder rather than at the end', () => {

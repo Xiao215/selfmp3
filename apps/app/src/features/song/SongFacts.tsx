@@ -20,7 +20,7 @@ import { Button } from '../../ui/components/Button'
 import { CloudRemove } from '../../ui/components/Icons'
 import { EnergyWave } from '../../ui/components/EnergyWave'
 import { label as labelText } from '../../ui/surfaces'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { tip } from '../../ui/tip'
 import { onThisDevice } from '../settings/settings.model'
 import { Press } from '../../ui/components/Press'
@@ -59,7 +59,7 @@ export function SongFacts({ song, plays = true }: { song: Song; plays?: boolean 
       : null
   const queued = !downloading && downloads.queue.includes(song.id)
   const place = thisPlace()
-  const { finePointer } = useLayout()
+  const { finePointer } = useLayoutFlags()
 
   return (
     <View>

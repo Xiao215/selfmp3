@@ -6,7 +6,7 @@ import type { Tag } from '@selfmp3/shared'
 import { ApiError, TIMED_OUT, space, type ServerConnection } from '@selfmp3/client'
 import { useFloatingChrome, useFootInset } from '../../shell/bottomInset'
 import { setPageFoot } from '../../shell/pageFoot'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { NoticeCard } from '../../ui/components/NoticeCard'
 import { useBackTo } from '../../ui/useBackTo'
@@ -124,7 +124,7 @@ export function ImportFoot({
   /** The Import button's. */
   testID: string
 }): ReactNode {
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   const footInset = useFootInset()
   const chrome = useFloatingChrome()
   useEffect(() => () => setPageFoot(0), [])

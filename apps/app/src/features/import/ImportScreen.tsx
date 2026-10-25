@@ -44,7 +44,7 @@ import {
   space,
 } from '@selfmp3/client'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
-import { useLayout } from '../../shell/useLayout'
+import { useLayoutFlags } from '../../shell/useLayout'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { NavRow } from '../../ui/components/NavRow'
 import { ProgressBar } from '../../ui/components/ProgressBar'
@@ -115,7 +115,7 @@ export function ImportScreen({
 } = {}): ReactNode {
   const { theme } = useUnistyles()
   const router = useRouter()
-  const { wide } = useLayout()
+  const { wide } = useLayoutFlags()
   /*
    * What the paragraph over the box used to say, shown once on the first
    * visit, pointing at the box (D1, 2026-10-13); the sources row under the
@@ -794,7 +794,7 @@ function JobRow({
   /** "Import next", while it would move the song (`canImportNext`). */
   onNext: (() => void) | null
 }): ReactNode {
-  const { wide, dense } = useLayout()
+  const { wide, dense } = useLayoutFlags()
   const [hovered, setHovered] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const tone = jobTone(job)

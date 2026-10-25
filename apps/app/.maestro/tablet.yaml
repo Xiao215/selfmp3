@@ -1,18 +1,27 @@
-# The wide layout on a touch screen: an iPad in portrait is past the breakpoint,
-# so it has the sidebar and the player bar rather than tabs and a mini player,
-# and smoke.yaml's phone steps do not apply.
+# The wide layout on a touch screen. Held upright an iPad has the phone's tabs
+# whatever its width (AI1); turned on its side it is past the breakpoint, so it
+# has the sidebar and the player bar rather than tabs and a mini player, and
+# smoke.yaml's phone steps do not apply.
 #
 # Run on an iPad simulator, connected the same way (connect.yaml):
 #   maestro --device <iPad udid> test .maestro/tablet.yaml
 appId: com.selfmp3.app
 ---
+- setOrientation: PORTRAIT
 - launchApp
 - extendedWaitUntil:
     visible:
       id: 'home-screen'
     timeout: 60000
 - assertVisible:
+    id: 'tab-home'
+- assertNotVisible:
     id: 'sidebar'
+- setOrientation: LANDSCAPE_LEFT
+- extendedWaitUntil:
+    visible:
+      id: 'sidebar'
+    timeout: 10000
 
 # A tile on Home opens its tag as a page. Home settles first: the week's card
 # arrives after its numbers do and pushes the tiles down the page, and a tap

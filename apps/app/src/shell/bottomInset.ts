@@ -21,10 +21,9 @@ const FLOATING_BARS_WIDTH = 560
 
 /**
  * How far in from each side a floating bar sits, given its own edge on a
- * phone. On a phone layout wider than a phone (an iPad mini or a 9th-gen iPad
- * in portrait, 744–819) the tab bar keeps to 560, centred, rather than
- * stretching to 736 (P4 B); the mini player keeps its few points past it on
- * each side.
+ * phone. On a phone layout wider than a phone (an iPad in portrait, 744–1024)
+ * the tab bar keeps to 560, centred, rather than stretching across (P4 B);
+ * the mini player keeps its few points past it on each side.
  */
 export function useFloatingBarSide(edge: number): number {
   return useLayoutValue(layout =>

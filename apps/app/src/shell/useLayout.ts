@@ -18,9 +18,19 @@ import { readRootWidth, subscribeRootWidth } from './rootWidth'
  * It is a width and not a platform on purpose. A phone in landscape, an iPad,
  * an iPad given half the screen in Split View, and a browser window dragged
  * narrow all get the layout that fits the room they actually have.
+ *
+ * One shape overrules the width: a touch screen held upright. An iPad in
+ * portrait is 744 to 1024 wide, and past 820 the sidebar and the computer's
+ * small type were squeezed into a column a finger reads from arm's length;
+ * the phone's layout, given the room, fits it better (P4 B, then AI1 for every
+ * width). Asked of the pointer and the window's shape, not of the platform —
+ * an iPad in landscape, or a touch laptop, keeps the computer's layout.
  */
 interface Layout {
-  /** At or above the 820-point breakpoint: sidebar, player bar, popovers. */
+  /**
+   * At or above the 820-point breakpoint, and not a touch screen held
+   * upright: sidebar, player bar, popovers.
+   */
   wide: boolean
   /** Below it: tab bar, mini player, full-screen now playing, sheets. */
   compact: boolean
@@ -71,8 +81,15 @@ function subscribeWidth(listener: () => void): () => void {
  */
 const readWidth = (): number => readRootWidth() ?? windowSize.get().width
 
-function layoutAt(width: number): Layout {
-  const wide = width >= BREAKPOINT
+/** A finger, and a window taller than it is wide: an iPad held in portrait. */
+function readUpright(): boolean {
+  if (finePointer) return false
+  const { width, height } = windowSize.get()
+  return height > width
+}
+
+function layoutAt(width: number, upright: boolean): Layout {
+  const wide = width >= BREAKPOINT && !upright
   return { wide, compact: !wide, dense: wide && finePointer, finePointer, width }
 }
 
@@ -82,7 +99,9 @@ function layoutAt(width: number): Layout {
  * only asks `wide` or `dense` asks `useLayoutValue`.
  */
 export function useLayout(): Layout {
-  return layoutAt(useSyncExternalStore(subscribeWidth, readWidth, readWidth))
+  const width = useSyncExternalStore(subscribeWidth, readWidth, readWidth)
+  const upright = useSyncExternalStore(subscribeWindow, readUpright, readUpright)
+  return layoutAt(width, upright)
 }
 
 /**
@@ -93,7 +112,7 @@ export function useLayout(): Layout {
  * that compares by `===` — a boolean, a number, a string.
  */
 export function useLayoutValue<T>(select: (layout: Layout) => T): T {
-  const read = (): T => select(layoutAt(readWidth()))
+  const read = (): T => select(layoutAt(readWidth(), readUpright()))
   return useSyncExternalStore(subscribeWidth, read, read)
 }
 

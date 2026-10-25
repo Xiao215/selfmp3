@@ -15,7 +15,7 @@ Files:
 | Dropdown | `apps/app/src/ui/components/Select.tsx` |
 | The song row | `apps/app/src/ui/components/SongRow.tsx` |
 | The song menu | `apps/app/src/ui/components/SongMenu.tsx`, what it offers in `apps/app/src/ui/songActions.model.ts` |
-| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `SectionHead.tsx`, `SongLine.tsx`, `Chip.tsx`, `Button.tsx`, `Press.tsx` |
+| The shared parts | `apps/app/src/ui/components/SearchField.tsx`, `EmptyState.tsx`, `Skeleton.tsx`, `SectionHead.tsx`, `SongLine.tsx`, `Chip.tsx`, `Button.tsx`, `Press.tsx` |
 | Floating-layer shell | `apps/app/src/ui/components/Popover.tsx`, `Sheet.tsx`, `apps/app/src/shell/Overlay.tsx` |
 | Hover captions | `apps/app/src/ui/tip.ts`, `apps/app/src/shell/TooltipHost.web.tsx` |
 | Tokens | `packages/client/src/theme/tokens.ts`; shared shapes in `apps/app/src/ui/surfaces.ts`; themes in `apps/app/src/ui/theme/unistyles.ts` |
@@ -114,6 +114,7 @@ The same part looks the same wherever it is. A screen uses these; it does not dr
 | `SearchField` | The one search field: a pill one step up from what it sits on, a magnifier, a × once there are words. Its edge and magnifier turn the accent with the focus. 48 high with a finger, 40 with a mouse. `raised` on a card, a sheet or a panel. Given `onPress` and no `value` it is a **door** to the real search (Home, Library); `trailing` takes the ×'s place (Ask's Stop, the palette's count) | Search, Home and Library (as doors), the palette, Import's search, a tag's Add, the song picker, the tag picker, the listen-tags panel |
 | `EmptyState` | What stands where a list would be: an optional icon, a title, one short line, and the button that fixes it (children). `compact` in a sheet, a panel or the palette | Library, a playlist, Home, Stats, the Report, Search, the palette, the add sheets, Now Playing |
 | `SectionHead` | A section's heading: its name in the display face at 18, and a link to the rest at the other end ("All 9", "See all"). `aside` for quiet words beside it, `collapsible`, `end` for buttons, `look="label"` for a quiet group inside a sheet or list | Home, Search, Settings, Stats, Import, Up next's rail, a song's similar shelf, a room's sheets |
+| `Skeleton` | What a list or a grid is while it is on its way: its shapes (`Bone`) in `surface1`, drawn only after 300 ms (`MOVE_MS.skeletonWait`) so a quick answer never flashes them, with one slow light across them that stands still under Reduce Motion. `SongRowsSkeleton` is a song list's | Home's tiles and Recently played, Library, a playlist, Stats, Tags, the sidebar's lists |
 | `SongLine` | The compact song line: a 36 cover (`coverSize.line`), the title, a line under it, and what the place needs at the end. Pressable with `onPress`, or the face alone for a row whose press a screen owns | Up next's rail, the palette, the song picker, Profile, a room, Ask's answers, Tidy up's review |
 
 `SongLine` is not `SongRow`. A list of songs — Library, a playlist, a tag, Search's Songs, the

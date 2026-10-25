@@ -25,7 +25,8 @@ import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { BackButton } from '../../ui/components/BackButton'
 import { MissingPage } from '../../ui/components/MissingPage'
-import { PageLoading } from '../../ui/components/PageLoading'
+import { SongRowsSkeleton } from '../../ui/components/Skeleton'
+import { useSongRowHeight } from '../../ui/components/SongRow'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
 import { ListMusic, Live, Plus } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
@@ -73,6 +74,7 @@ export function PlaylistDetailScreen(): ReactNode {
   const { theme } = useUnistyles()
   const artFor = useArt(ROW_COVER_SIZE)
   const { wide, finePointer } = useLayout()
+  const rowHeight = useSongRowHeight()
   const params = useLocalSearchParams<{ id: string; rename?: string; describe?: string }>()
   const playlistId = Number(params.id)
   const router = useRouter()
@@ -317,7 +319,7 @@ export function PlaylistDetailScreen(): ReactNode {
   // What stands where the songs would, when there are none (the list shows it
   // only then): loading, a server that is not answering, or an empty playlist.
   const empty = contents.isPending ? (
-    <PageLoading />
+    <SongRowsSkeleton rowHeight={rowHeight} rows={Math.min(playlist?.songCount ?? 6, 8)} />
   ) : contents.isError ? (
     // The list is the server's; the library knows only how long it is.
     <EmptyState

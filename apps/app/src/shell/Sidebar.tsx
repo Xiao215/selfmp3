@@ -59,6 +59,7 @@ import { setPaletteOpen } from './palette'
 import { label as labelText, serif } from '../ui/surfaces'
 import { ScrollView } from '../ui/components/Scroll'
 import { TagDot } from '../ui/components/TagDot'
+import { Bone, Skeleton } from '../ui/components/Skeleton'
 import { Press } from '../ui/components/Press'
 import { IconButton } from '../ui/components/IconButton'
 import { SIDEBAR_WIDTH } from './widths'
@@ -277,6 +278,7 @@ function Playlists(): ReactNode {
       </View>
 
       <View ref={dropTarget} collapsable={false}>
+        {library ? null : <RailWaiting kind="playlists" />}
         {recent.map(playlist => (
           <RailPlaylist
             key={playlist.id}
@@ -474,7 +476,7 @@ function Tags(): ReactNode {
         {!library && !adding ? (
           // Not "no tags yet": with the library unreachable or still coming,
           // this device does not know whether there are any.
-          <Text style={[styles.hint, styles.loadingHint]}>Tags load with your library.</Text>
+          <RailWaiting kind="tags" />
         ) : null}
         {library && tags.length === 0 && !adding ? (
           <View style={styles.tagEmpty}>
@@ -488,6 +490,31 @@ function Tags(): ReactNode {
       </ScrollView>
       {form.nudge}
     </View>
+  )
+}
+
+/** The names whose shapes the rail draws while the library is on its way, as shares of a row. */
+const RAIL_WAITING = ['64%', '48%', '72%', '40%'] as const
+
+/**
+ * A rail section's rows while the library is on its way (AA1): a playlist's
+ * cover or a tag's dot, and a name, at the rows' own size and inset.
+ */
+function RailWaiting({ kind }: { kind: 'playlists' | 'tags' }): ReactNode {
+  const shown = kind === 'playlists' ? RAIL_WAITING.slice(0, 3) : RAIL_WAITING
+  return (
+    <Skeleton label={kind === 'playlists' ? 'Loading playlists' : 'Loading tags'}>
+      {shown.map(width => (
+        <View key={width} style={kind === 'playlists' ? styles.playlistWaiting : styles.tagWaiting}>
+          {kind === 'playlists' ? (
+            <Bone width={22} height={22} radius={radius.coverSm - 2} />
+          ) : (
+            <Bone width={8} height={8} radius={radius.pill} />
+          )}
+          <Bone width={width} height={10} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
   )
 }
 
@@ -754,7 +781,6 @@ const styles = StyleSheet.create(theme => ({
     borderColor: 'transparent',
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
-  loadingHint: { paddingHorizontal: space.snug, paddingVertical: space.xs },
   dropping: {
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,
@@ -812,6 +838,20 @@ const styles = StyleSheet.create(theme => ({
   tagList: { flexGrow: 1 },
   tagListContent: { gap: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', borderRadius: radius.item },
+  playlistWaiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 32,
+    paddingHorizontal: space.tight + 1,
+  },
+  tagWaiting: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 30,
+    paddingLeft: space.snug,
+  },
   tagMain: {
     flex: 1,
     minWidth: 0,

@@ -34,6 +34,7 @@ import { useContentWidth, useContentWidthValue } from '../../shell/contentWidth'
 import { useLayout } from '../../shell/useLayout'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { Press } from '../../ui/components/Press'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
@@ -277,6 +278,13 @@ function HomePage({
             />
             <Recents recents={recents} rooms={rooms} wide={wide} />
           </View>
+        ) : library === undefined && recentLists.length > 0 ? (
+          // Remembered on this device, so known to be coming before the songs
+          // they name have arrived (AA1).
+          <View style={styles.stack}>
+            <SectionHead title="Recently played" action={null} />
+            <RecentsWaiting wide={wide} />
+          </View>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -451,7 +459,7 @@ function Tiles({
     reserve: beside ? SIDE_COLUMN + COLUMN_GAP : 0,
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
-  if (loading) return <View style={styles.tilesPlaceholder} />
+  if (loading) return <TilesWaiting columns={columns} />
   if (tiles.length === 0) {
     return (
       <EmptyState
@@ -471,6 +479,38 @@ function Tiles({
       artFor={tile => (tile.cover ? art(tile.cover) : null)}
       onOpen={tile => openTag(tile.tag, { from: 'tile' })}
     />
+  )
+}
+
+/** The tiles' shapes while the library is on its way: two rows of them, a tile high (AA1). */
+function TilesWaiting({ columns }: { columns: number }): ReactNode {
+  const { wide } = useLayout()
+  const cells = useMemo(() => Array.from({ length: columns * 2 }, (_, index) => index), [columns])
+  return (
+    <Skeleton label="Loading your tags" testID="home-tiles-loading">
+      <TileGrid
+        items={cells}
+        columns={columns}
+        gap={TILE_GAP}
+        keyOf={cell => cell}
+        renderItem={() => <Bone height={wide ? 118 : 104} radius={radius.card} />}
+      />
+    </Skeleton>
+  )
+}
+
+/** Recently played's shapes: a row of covers, each with its name under it. */
+function RecentsWaiting({ wide }: { wide: boolean }): ReactNode {
+  const size = wide ? RECENT_TILE : 92
+  return (
+    <Skeleton label="Loading recently played" style={styles.recentsWaiting}>
+      {Array.from({ length: RECENTS_LEAST }, (_, index) => (
+        <View key={index} style={[styles.recentWaiting, { width: size }]}>
+          <Bone width={size} height={size} radius={radius.cover} />
+          <Bone width="70%" height={11} radius={radius.pill} />
+        </View>
+      ))}
+    </Skeleton>
   )
 }
 
@@ -983,7 +1023,8 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.item,
   },
   tileCoverWide: { right: -6, bottom: -8 },
-  tilesPlaceholder: { height: 218 },
+  recentsWaiting: { flexDirection: 'row', gap: RECENT_GAP, overflow: 'hidden' },
+  recentWaiting: { gap: space.sm },
   emptyTile: card(theme.colors),
   firstCard: {
     borderRadius: radius.cardLg,

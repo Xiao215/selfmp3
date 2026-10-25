@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
-import { hitSlopFor, radius, space, type, useLibrary, iconSize, textStyle } from '@selfmp3/client'
+import { hitSlopFor, radius, space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -13,6 +13,7 @@ import { useLayout } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { Bone, Skeleton } from '../../ui/components/Skeleton'
 import { IconButton } from '../../ui/components/IconButton'
 import {
   ChevronRight,
@@ -246,7 +247,7 @@ export function TagsScreen(): ReactNode {
         <SuggestTagsSheet open={suggesting} onClose={() => setSuggesting(false)} />
 
         {!library ? (
-          <Text style={styles.hint}>Tags load with your library.</Text>
+          <TilesWaiting columns={columns} width={tileWidth} />
         ) : standings.length === 0 ? (
           // The form above is already the way out while it is open.
           adding ? null : (
@@ -294,6 +295,29 @@ export function TagsScreen(): ReactNode {
         steps={[{ gesture: 'hold', text: 'Hold a tag to rename, recolour or delete it' }]}
       />
     </SafeAreaView>
+  )
+}
+
+/** A row of records' shapes, each with its name under it, while the library is on its way (AA1). */
+function TilesWaiting({ columns, width }: { columns: number; width: number }): ReactNode {
+  const cells = useMemo(() => Array.from({ length: columns }, (_, index) => index), [columns])
+  if (width === 0) return null
+  return (
+    <Skeleton label="Loading tags" testID="tags-loading">
+      <TileGrid
+        items={cells}
+        columns={columns}
+        gap={GAP}
+        keyOf={cell => cell}
+        renderItem={() => (
+          <View style={styles.tileWaiting}>
+            <Bone height={Math.round(width / SLEEVE_ASPECT)} radius={radius.cover} />
+            <Bone width="50%" height={14} radius={radius.pill} />
+            <Bone width="30%" height={10} radius={radius.pill} />
+          </View>
+        )}
+      />
+    </Skeleton>
   )
 }
 
@@ -725,7 +749,7 @@ const styles = StyleSheet.create(theme => ({
   content: { gap: space.lg },
   contentNarrow: pageFrame(false),
   contentWide: { ...pageFrame(true), width: '100%' },
-  hint: { color: theme.colors.textMuted, ...textStyle('sub') },
+  tileWaiting: { gap: space.sm },
   newCard: { gap: space.sm, padding: space.md, ...card(theme.colors) },
   newHeadRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fieldLabel: label(theme.colors),

@@ -46,7 +46,7 @@ import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { usePullToRefresh } from './usePullToRefresh'
 import { label, pageFrame } from '../../ui/surfaces'
 import { PageHeader } from '../../ui/components/PageHeader'
-import { PageLoading } from '../../ui/components/PageLoading'
+import { SongRowsSkeleton } from '../../ui/components/Skeleton'
 import { Guide } from '../guide/Guide'
 import { useGuide } from '../guide/useGuide'
 import { sortLabel } from '../../ui/components/listScrollbar.model'
@@ -272,6 +272,7 @@ export function LibraryScreen(): ReactNode {
         */}
         <PageHeader
           title="Library"
+          subtitleLoading={model.loading}
           subtitle={
             <>
               {model.subtitle}
@@ -562,7 +563,7 @@ export function LibraryScreen(): ReactNode {
         {bar.beforeList}
 
         {model.loading ? (
-          <PageLoading />
+          <SongRowsSkeleton rowHeight={rowHeight} testID="library-loading" />
         ) : (
           <SongList
             arrivalKey={arrivalKey}

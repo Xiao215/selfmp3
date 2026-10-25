@@ -54,6 +54,8 @@ export interface Toast extends ToastWords {
   /** Something else drawn there instead: the face of a friend who came into the room. */
   readonly art?: ReactNode
   readonly group?: string
+  /** How many messages are folded into it: the count its `say` names once there are two. */
+  readonly count: number
 }
 
 interface ToastOptions {
@@ -93,10 +95,13 @@ export function showToast(
   const actions = options.actions ?? []
   const earlier = upIn(options.group)
   const songs = [...(earlier?.songs ?? []), ...(options.songs ?? [])]
+  const count = (earlier?.count ?? 0) + 1
   const toast: Toast = {
     ...words,
-    // Folded together it is about all of them, and the count names them.
-    say: earlier && songs.length > 1 ? plural(songs.length, 'song', 'songs') : words.say,
+    // Folded together it is about all of them, and the count names them:
+    // every kind that folds is about songs.
+    say: earlier ? plural(count, 'song', 'songs') : words.say,
+    count,
     id: earlier?.id ?? nextId++,
     tone,
     // A message you can act on is given longer: five seconds is enough to

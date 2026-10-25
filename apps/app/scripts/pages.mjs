@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   INSTALL_PAGE_FONTS,
+  PLAIN_PAGES,
   renderBucketGuidePage,
   renderInstallPage,
   renderPrivacyPage,
@@ -21,17 +22,20 @@ import {
  */
 const pub = resolve(dirname(fileURLToPath(import.meta.url)), '../public')
 mkdirSync(pub, { recursive: true })
-for (const [name, page] of [
-  ['privacy.html', renderPrivacyPage()],
-  ['bucket.html', renderBucketGuidePage()],
-  ['install.html', renderInstallPage()],
-]) {
-  const out = resolve(pub, name)
+const pages = {
+  privacy: renderPrivacyPage,
+  bucket: renderBucketGuidePage,
+  install: renderInstallPage,
+}
+for (const name of PLAIN_PAGES) {
+  const out = resolve(pub, `${name}.html`)
+  const page = pages[name]()
   writeFileSync(out, page)
   console.log(`wrote ${out}`)
 }
 
-// The install page wears the app's faces, served from beside it rather than fetched.
+// The plain pages wear the app's faces (the install page both, the others the
+// wordmark's), served from beside them rather than fetched.
 const require = createRequire(import.meta.url)
 mkdirSync(resolve(pub, 'fonts'), { recursive: true })
 for (const [name, from] of Object.entries(INSTALL_PAGE_FONTS)) {

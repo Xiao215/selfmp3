@@ -7,7 +7,7 @@ import {
   type,
   type ThemePalette,
 } from '@selfmp3/client/tokens'
-import { escapeHtml } from '@selfmp3/shared'
+import { DEFAULT_APP_URL, escapeHtml } from '@selfmp3/shared'
 import { sha256Base64 } from './encoding.js'
 
 /**
@@ -48,6 +48,12 @@ function paletteVars(palette: ThemePalette): string {
   ].join(' ')
 }
 
+/**
+ * The wordmark's face, from beside the web app (apps/app/scripts/pages.mjs
+ * copies it there), which GitHub Pages serves to any origin.
+ */
+const WORDMARK_FONT = `${DEFAULT_APP_URL}/fonts/InstrumentSerif-Regular.ttf`
+
 const STYLE = `
 :root { color-scheme: dark; ${paletteVars(darkPalette(DEFAULT_ACCENT_HUE))} }
 @media (prefers-color-scheme: light) {
@@ -72,7 +78,8 @@ main {
   border-radius: ${radius.card}px;
   background: var(--card);
 }
-.brand { margin: 0 0 20px; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+@font-face { font-family: 'Instrument Serif'; src: url(${WORDMARK_FONT}); font-display: swap; }
+.brand { margin: 0 0 16px; color: var(--text); font: 400 28px/1 'Instrument Serif', Georgia, serif; letter-spacing: -0.01em; }
 h1 { margin: 0 0 12px; font-size: ${type.large}px; line-height: ${leading.large}px; }
 p { margin: 0 0 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
 a { color: var(--accent); }
@@ -83,6 +90,7 @@ a { color: var(--accent); }
   letter-spacing: 0.08em;
   user-select: all;
 }
+.code.long { font-size: 22px; letter-spacing: 0.02em; overflow-wrap: anywhere; }
 `
 
 let styleHash: Promise<string> | null = null
@@ -97,7 +105,8 @@ async function pageHeaders(): Promise<Record<string, string>> {
   return {
     'content-type': 'text/html; charset=utf-8',
     'content-security-policy':
-      `default-src 'none'; style-src 'sha256-${hash}'; base-uri 'none'; ` +
+      `default-src 'none'; style-src 'sha256-${hash}'; font-src ${new URL(DEFAULT_APP_URL).origin}; ` +
+      "base-uri 'none'; " +
       "form-action 'none'; frame-ancestors 'none'",
     'referrer-policy': 'no-referrer',
     'x-content-type-options': 'nosniff',
@@ -134,7 +143,9 @@ export async function page(options: PageOptions): Promise<Response> {
     '<p class="brand">self.mp3</p>',
     `<h1>${escapeHtml(options.title)}</h1>`,
     ...paragraphs(options.lines),
-    options.code ? `<p class="code">${escapeHtml(options.code)}</p>` : '',
+    options.code
+      ? `<p class="code${options.code.length > 12 ? ' long' : ''}">${escapeHtml(options.code)}</p>`
+      : '',
     ...paragraphs(options.notes),
     '</main>',
     '</body>',

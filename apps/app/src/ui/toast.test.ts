@@ -8,6 +8,7 @@ import {
   sendPending,
   showFailure,
   showPendingToast,
+  showToast,
   showUndoToast,
 } from './toast'
 
@@ -147,6 +148,14 @@ describe('a folded message', () => {
     folded?.actions[0]?.onPress()
     await settle()
     expect(order).toEqual(['two', 'one'])
+  })
+
+  it('counts what folded in even when it has no songs to show', () => {
+    showToast({ over: 'Skipped, wouldn’t play', say: 'A' }, 'warn', { group: 'skipped' })
+    showToast({ over: 'Skipped, wouldn’t play', say: 'B' }, 'warn', { group: 'skipped' })
+    showToast({ over: 'Skipped, wouldn’t play', say: 'C' }, 'warn', { group: 'skipped' })
+    expect(currentToasts()).toHaveLength(1)
+    expect(currentToasts().at(-1)).toMatchObject({ say: '3 songs', count: 3 })
   })
 
   it('waits as long as its newest says, then sends every one', async () => {

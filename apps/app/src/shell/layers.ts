@@ -7,18 +7,32 @@
  * ask: a list's ⌘A must not select the songs under an open menu.
  */
 const open: { readonly id: string; readonly close: () => void }[] = []
+const listeners = new Set<() => void>()
 
 /** `close` is what Escape would do: how `closeLayers` takes it away. */
 export function openLayer(id: string, close: () => void = () => {}): void {
   open.push({ id, close })
+  for (const listener of listeners) listener()
 }
 
 export function closeLayer(id: string): void {
   for (let index = open.length - 1; index >= 0; index--) {
     if (open[index]?.id !== id) continue
     open.splice(index, 1)
+    for (const listener of listeners) listener()
     return
   }
+}
+
+/** Told whenever a layer opens or closes: a first-run tip waits for them (`guideBusy`). */
+export function subscribeLayers(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+/** How many layers are open now. */
+export function layerCount(): number {
+  return open.length
 }
 
 /** Whether `id` is the topmost open layer. */

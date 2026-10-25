@@ -131,3 +131,63 @@ export function placeWords(hole: Box, screen: { width: number; height: number })
   if (below + WORDS_HEIGHT <= screen.height - 24) return { kind: 'below', top: below, left, width }
   return { kind: 'above', bottom: screen.height - hole.y + WORDS_GAP, left, width }
 }
+
+/**
+ * Which step comes after `now` in a guide of `steps`, or -1 once it is over.
+ * A guide already over stays over: a tap on the layer as it fades out went on
+ * to step 0 and started the guide again.
+ */
+export function stepAfter(now: number, steps: number): number {
+  if (now < 0) return now
+  return now + 1 < steps ? now + 1 : -1
+}
+
+/** Whether a box has moved enough that the spotlight should follow it. */
+export function boxMoved(from: Box, to: Box): boolean {
+  return (
+    Math.abs(from.x - to.x) > 0.5 ||
+    Math.abs(from.y - to.y) > 0.5 ||
+    Math.abs(from.width - to.width) > 0.5 ||
+    Math.abs(from.height - to.height) > 0.5
+  )
+}
+
+/**
+ * How many fingers are still down once a touch has ended: the touches React
+ * reports less the ones this event ended. Some platforms still count the
+ * lifted finger among `touches`, some do not; this is right for both.
+ */
+export function fingersLeft(
+  touches: readonly { readonly identifier: string | number }[],
+  ended: readonly { readonly identifier: string | number }[],
+): number {
+  return touches.filter(touch => !ended.some(gone => gone.identifier === touch.identifier)).length
+}
+
+/** The input types that are pressed rather than typed in. */
+const NOT_TYPED = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'submit',
+])
+
+/** Whether an element (a browser's) is somewhere keys type into. */
+export function takesTyping(
+  element: {
+    readonly tagName?: string
+    readonly type?: string
+    readonly isContentEditable?: boolean
+  } | null,
+): boolean {
+  if (element === null) return false
+  if (element.isContentEditable === true) return true
+  const tag = element.tagName?.toUpperCase()
+  if (tag === 'TEXTAREA') return true
+  return tag === 'INPUT' && !NOT_TYPED.has((element.type ?? 'text').toLowerCase())
+}

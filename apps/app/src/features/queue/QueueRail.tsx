@@ -163,9 +163,20 @@ function Rail({
    * which nothing on screen says: the first time the rail is open with a song
    * to come, a guide lights that song and drags it out once.
    */
-  const [firstTarget, hint] = useGuide('up-next-rail', shown && rows.next.length > 0)
   const railRef = useRef<View>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
+  /*
+   * Too narrow to keep the rail beside the page (an iPad in portrait): it lies
+   * over the page instead, as the board draws it, and slides in over a page
+   * that keeps its width rather than taking room of its own.
+   */
+  const over = width < WINDOW_WIDTH.railBeside
+  // Never over a song being carried: it came up mid-drag and acted the drag
+  // out on the row under the one in hand. Lying over the page, the rail is a
+  // layer of its own, which the guide does not wait for.
+  const [firstTarget, hint] = useGuide('up-next-rail', shown && rows.next.length > 0 && !drag, {
+    layers: over ? 1 : 0,
+  })
   // The pointer's travel, which the copy follows without a render, and how far
   // it has turned into "remove" (0 or 1, sprung between).
   const [dx] = useState(() => new Animated.Value(0))
@@ -429,12 +440,6 @@ function Rail({
     },
   }))
 
-  /*
-   * Too narrow to keep the rail beside the page (an iPad in portrait): it lies
-   * over the page instead, as the board draws it, and slides in over a page
-   * that keeps its width rather than taking room of its own.
-   */
-  const over = width < WINDOW_WIDTH.railBeside
   // Lying over the page it is in the page's way, so it goes as the phone's
   // sheet does: on Escape, from its source link, and when another page opens
   // (a tap on the page is the shell's, `Shell`). Beside the page it stays.
@@ -545,17 +550,17 @@ function Rail({
                   />
                 )
                 // The first song to come is the one the guide lights and drags
-                // out. Every row has the same wrapper, so the row that becomes
-                // first as the one above it goes is not remounted mid-drag.
+                // out. Every row has the same wrappers, so the row that becomes
+                // first as the one above it goes is not remounted mid-drag. Lit
+                // by the outer one, which the pull does not move, so a window
+                // resized mid-pull keeps the spotlight on the row's place.
                 const first = kind === 'next' && row.index === rows.next[0]?.index
                 return (
-                  <Animated.View
-                    ref={first ? firstTarget : undefined}
-                    collapsable={false}
-                    style={first && hint.shown ? slideWith(hint, 120) : null}
-                  >
-                    {railRow}
-                  </Animated.View>
+                  <View ref={first ? firstTarget : undefined} collapsable={false}>
+                    <Animated.View style={first && hint.shown ? slideWith(hint, 120) : null}>
+                      {railRow}
+                    </Animated.View>
+                  </View>
                 )
               }}
             />

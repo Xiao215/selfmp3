@@ -154,7 +154,12 @@ export function TagsScreen(): ReactNode {
    * nothing on a tile says, so it is shown once on the first tile.
    */
   const firstTagId = (layout.main[0] ?? layout.justStarted[0] ?? layout.empty[0])?.standing.tag.id
-  const [lightTile, holdGuide] = useGuide('tag-hold', !finePointer && firstTagId !== undefined)
+  // Not while the editor a hold opens is up: the guide came over it, and the
+  // finger letting go of the hold closed the guide unread.
+  const [lightTile, holdGuide] = useGuide(
+    'tag-hold',
+    !finePointer && firstTagId !== undefined && editing === null,
+  )
   useEffect(() => {
     lightTile(firstTagId === undefined ? null : (rowRefs.current.get(firstTagId) ?? null))
   })

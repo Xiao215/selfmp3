@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Animated, View } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
@@ -8,6 +8,7 @@ import { setReorderHold } from '../../ports/songDrag'
 import { lightTap } from '../../ports/haptics'
 import { ease, spring, timing } from '../motion'
 import { MOVE_MS } from '../motion.model'
+import { holdGuides } from '../../features/guide/guideBusy'
 
 /**
  * Holding a row and moving it: a finger's way to reorder a list.
@@ -94,6 +95,19 @@ export function HoldToReorder(props: HoldToReorderProps): ReactNode {
 }
 
 /**
+ * Tells the first-run guides a hold is under way, from the finger going down
+ * until the row is let go (`guideBusy`): a guide that came up over a held row
+ * was closed, unread, by the same finger letting go. The root hears most
+ * fingers itself, but once gesture handler wins a touch React is told it was
+ * cancelled while the finger is still carrying the row.
+ */
+function useHoldsGuides(): (on: boolean) => void {
+  const id = useId()
+  useEffect(() => () => holdGuides(id, false), [id])
+  return useCallback((on: boolean) => holdGuides(id, on), [id])
+}
+
+/**
  * A mouse: the browser's own pointer capture, through the port. Nothing is
  * captured until the hold has elapsed, so a click still plays the song.
  */
@@ -107,10 +121,15 @@ function HeldByPointer({
   children,
 }: HoldToReorderProps): ReactNode {
   const ref = useRef<View>(null)
+  const busy = useHoldsGuides()
+  // Whether the hold got as far as carrying the row: the count's end says
+  // nothing then, and the drop is what lets the guides go.
+  const carried = useRef(false)
   usePointerHold(ref, {
     enabled,
     holdMs: MOVE_MS.hold,
     onStart: x => {
+      carried.current = true
       setReorderHold(true)
       onStart(x)
       // After `onStart`, not before it: the row is carried now, and the swell
@@ -118,8 +137,16 @@ function HeldByPointer({
       onHolding?.(false)
     },
     onMove,
-    onHolding,
+    onHolding: holding => {
+      if (holding) {
+        carried.current = false
+        busy(true)
+      } else if (!carried.current) busy(false)
+      onHolding?.(holding)
+    },
     onEnd: (dx, dy) => {
+      carried.current = false
+      busy(false)
       setReorderHold(false)
       onEnd(dx, dy)
     },
@@ -147,6 +174,7 @@ function HeldByFinger({
   onLayoutHeight,
   children,
 }: HoldToReorderProps): ReactNode {
+  const busy = useHoldsGuides()
   /*
    * How far the gesture has got, for a row taken away in the middle of one.
    * The song held can start playing and leave the rows that can be moved, or
@@ -163,13 +191,14 @@ function HeldByFinger({
     latest.current = { onEnd, onHolding }
   })
   const takeAway = useCallback((): void => {
+    busy(false)
     const was = progress.over()
     if (was === 'carried') {
       setReorderHold(false)
       latest.current.onEnd(0, 0)
     }
     if (was !== 'idle') latest.current.onHolding?.(false)
-  }, [progress])
+  }, [progress, busy])
   useEffect(() => {
     if (!enabled) takeAway()
   }, [enabled, takeAway])
@@ -194,6 +223,7 @@ function HeldByFinger({
     // wait this is feedback for.
     .onBegin(() => {
       progress.begin()
+      busy(true)
       onHolding?.(true)
     })
     .onStart(event => {
@@ -218,6 +248,7 @@ function HeldByFinger({
     // Always run, whether the hold won or the finger left before it did, so a
     // swell that was counting for nothing is always taken back.
     .onFinalize(() => {
+      busy(false)
       if (progress.over() !== 'idle') onHolding?.(false)
     })
 

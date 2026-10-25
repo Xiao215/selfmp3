@@ -745,23 +745,24 @@ function BreathingCover({
         )
       }}
     >
-      <Animated.View style={guide.shown ? riseWith(guide, 24) : null} {...touch.handlers}>
-        <Animated.View style={[styles.artShadow, { transform }]}>
-          <Press
-            depth="row"
-            onPress={() => {
-              if (!touch.moved()) onPress()
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Show the lyrics"
-          >
-            {/* What the lyrics guide lights: the cover, not the room around it. */}
-            <View ref={guideTarget} collapsable={false}>
+      {/* What the lyrics guide lights: the cover, not the room around it, and
+          where it rests rather than where the guide's pull has lifted it. */}
+      <View ref={guideTarget} collapsable={false}>
+        <Animated.View style={guide.shown ? riseWith(guide, 24) : null} {...touch.handlers}>
+          <Animated.View style={[styles.artShadow, { transform }]}>
+            <Press
+              depth="row"
+              onPress={() => {
+                if (!touch.moved()) onPress()
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Show the lyrics"
+            >
               <Cover uri={uri} title={song.album || song.title} size={size} />
-            </View>
-          </Press>
+            </Press>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      </View>
     </View>
   )
 }

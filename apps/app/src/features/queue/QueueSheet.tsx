@@ -228,7 +228,9 @@ function SheetPanel({
    * Swiping a song away and holding one to move it, shown once on the first
    * song to come, in place of a line that sat under the list for good. Never
    * over a row already being held or swiped: it came up mid-swipe, and the
-   * tap that closed it was the swipe's own finger.
+   * tap that closed it was the swipe's own finger. A hold still being
+   * counted, and a menu opened from a row, the guide waits out itself
+   * (`guideBusy`); the sheet is the one layer it is drawn in.
    */
   const [firstTarget, guide] = useGuide(
     'up-next',
@@ -238,6 +240,7 @@ function SheetPanel({
       drag === null &&
       !swiping &&
       !onlySongEnded(player),
+    { layers: 1 },
   )
   const last = rows.next[rows.next.length - 1]?.index ?? 0
 

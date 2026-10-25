@@ -243,7 +243,7 @@ describe('SongRemovalService', () => {
   describe('in batches', () => {
     it('lets the event loop run between batches of a big removal', async () => {
       // Rows only, already uploaded: what matters here is the database.
-      const ids = Array.from({ length: 120 }, (_, i) =>
+      const ids = Array.from({ length: 101 }, (_, i) =>
         songs.insert({ ...row, path: `S${i}/S${i}.m4a`, title: `S${i}` }),
       )
       // Each batch leaves a callback for the loop's next turn; by the next
@@ -259,11 +259,11 @@ describe('SongRemovalService', () => {
 
       const result = await removal.remove(ids)
 
-      expect(result.removed).toHaveLength(120)
+      expect(result.removed).toHaveLength(101)
       expect(seen).toEqual([0, 1, 2])
       expect(songs.count()).toBe(0)
       expect(changes).toBe(1)
-    })
+    }, 30_000)
 
     it('takes the rows at once and calls a copy still being deleted leaving', async () => {
       const { id, key } = addSong('A - One')

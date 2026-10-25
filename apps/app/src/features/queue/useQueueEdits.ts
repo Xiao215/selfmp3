@@ -84,7 +84,10 @@ export function useQueueEdits(
         if (!moves) return
         // Both go through the player's own queue edits, which read and write
         // its queue synchronously, so the move sees the song just put back.
+        // A song put back is not one added: Up next keeps the name it had.
+        const source = live.source
         live.playNext([removal.id])
+        live.setSource(source)
         if (moves.from !== moves.to) live.reorderQueue(moves.from, moves.to)
       },
       { songs: song ? [song] : [], group: 'up-next-removed' },

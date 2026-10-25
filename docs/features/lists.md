@@ -43,7 +43,8 @@ different: its rows are what was searched for, so a row plays the results from t
 next is named "Search". The whole library plays from **Shuffle** — the head on a computer,
 next to Sort on a phone — or **Play these tags** with tags on. A tag's, an artist's or a
 playlist's page plays its list from the row. One song is not a list: Up next wears no name for
-it and offers no Save, and Recently played shows it as that song.
+it and offers no Save, and Recently played shows it as that song — until you add songs to it
+(see Save).
 
 When that song ends, nothing else plays, but the silence is explained (A1, 2026-10-08). The
 song stays loaded, paused at its end, so the mini player or the player bar stays too; a toast
@@ -108,13 +109,19 @@ back for it. Tapping the line opens what it names.
 ## Save
 
 Shown only where saving would make something new (`savePlan`): never for a tag, an artist,
-a playlist or the whole library, which are places of their own, and never for one song.
+a playlist, Liked or the whole library, which are places of their own, and never for one song.
 Nor for songs that need a tag, a chore rather than a list, or Home's Recently played songs,
 which Home already keeps.
 
 - **Tags combined** make a playlist that fills from them (`followRules`), so new songs join.
 - **Anything else** makes a playlist of the songs in Up next as they are, in the list's own
   order rather than the shuffle (`songsToSave`). A song swiped out of an answer stays out.
+- **Songs added to one song, or to the whole library, make it yours** (B1, 2026-10-25). Play
+  Next, Add to Up next or a drop into the rail turn a nameless Up next, or Library's Shuffle,
+  into "Lined up" (`sourceAfterAdding`; the rail's line reads "Lined up · 5 songs · 19 min",
+  with no "From"), and Save appears in Up next's head. It saves the songs in Up next's own
+  order, shuffle and all, as "Songs you lined up" (made unique). A song put back with Undo is
+  not one added. Recently played shows its songs, not a tile for it: it grows as it plays.
 - **Edits to Up next while a tag or a playlist plays change nothing lasting** (G1): there is
   no "changed" state and no question at save time. Lasting edits to a playlist happen on
   its page; to keep a song out of a tag, untag it.

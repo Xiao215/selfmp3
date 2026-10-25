@@ -6,6 +6,7 @@ import {
   describeSource,
   homeRecents,
   LIKED_SOURCE,
+  LINED_UP_SOURCE,
   libraryListSource,
   librarySource,
   likedSongs,
@@ -18,6 +19,7 @@ import {
   recentSongIds,
   savePlan,
   songsToSave,
+  sourceAfterAdding,
   sourceKey,
   sourceTagIds,
   withListRenamed,
@@ -411,5 +413,30 @@ describe('Liked', () => {
       kind: 'songs',
       name: 'Liked · Calm',
     })
+  })
+})
+
+describe('Up next lined up by hand', () => {
+  it('is what one song or the library becomes once songs are added; anything named stays', () => {
+    expect(sourceAfterAdding(null)).toEqual(LINED_UP_SOURCE)
+    expect(sourceAfterAdding({ kind: 'library' })).toEqual(LINED_UP_SOURCE)
+    const tagged: ListSource = { kind: 'tag', tagId: 3, name: 'Calm' }
+    expect(sourceAfterAdding(tagged)).toBe(tagged)
+    expect(sourceAfterAdding(LIKED_SOURCE)).toBe(LIKED_SOURCE)
+  })
+
+  it('saves the songs in Up next’s order, by a name no playlist has yet', () => {
+    const shuffled = queue([5, 2, 9], [2, 5, 9])
+    const taken = { ...known, playlists: [playlist(8, 'Songs you lined up')] }
+    expect(savePlan(LINED_UP_SOURCE, shuffled, taken)).toEqual({
+      kind: 'songs',
+      name: 'Songs you lined up 2',
+      songIds: [5, 2, 9],
+    })
+    expect(savePlan(LINED_UP_SOURCE, queue([5]), known)).toBeNull()
+  })
+
+  it('is not kept as a list of its own by Recently played: its songs are', () => {
+    expect(sourceKey(LINED_UP_SOURCE, [1, 2])).toBeNull()
   })
 })

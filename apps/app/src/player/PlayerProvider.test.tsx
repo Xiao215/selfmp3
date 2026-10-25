@@ -212,6 +212,20 @@ describe('the queue as the commands see it', () => {
     expect([...api.queue.items]).toEqual([1, 2, 3])
   })
 
+  it('makes one song, or the library, a list of your own once songs are added to it', async () => {
+    await draw()
+    await act(() => api.playFrom([1], 0))
+    expect(api.source).toBeNull()
+    await act(() => api.addToQueue([2, 3]))
+    expect(api.source).toMatchObject({ kind: 'songs', origin: 'upnext' })
+
+    // A tag stays a tag: edits to it change nothing lasting.
+    const tag = { kind: 'tag', tagId: 4, name: 'calm' } as const
+    await act(() => api.playFrom([1, 2], 0, { source: tag }))
+    await act(() => api.playNext([3]))
+    expect(api.source).toEqual(tag)
+  })
+
   it('starts the song again on repeat-one when it ends, rather than moving on', async () => {
     await draw()
     await act(() => api.playFrom([1, 2], 0))

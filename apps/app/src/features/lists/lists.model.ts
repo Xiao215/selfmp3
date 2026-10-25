@@ -1,3 +1,4 @@
+import { uniqueName } from '@selfmp3/client'
 import { placeSongs, type Place } from '../tag/tag.model'
 import { artistLink, tagLink } from '../tag/placeLinks'
 import {
@@ -28,7 +29,8 @@ import {
  * Songs played as a list that is neither a tag, an artist nor a playlist.
  * `recent` is Home's Recently played row of songs played on their own: Up next
  * names it, but it is neither saved nor remembered as a list of its own, since
- * Recently played already is that list.
+ * Recently played already is that list. `upnext` is Up next built by hand:
+ * songs added to one song, or to the whole library (`sourceAfterAdding`).
  */
 const SONGS_ORIGINS = [
   'search',
@@ -39,6 +41,7 @@ const SONGS_ORIGINS = [
   'found',
   'recent',
   'liked',
+  'upnext',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
@@ -82,6 +85,22 @@ export type ListSource =
 
 /** What Up next is called while Forgotten gems play, from Library's row or the playlists grid. */
 export const GEMS_SOURCE: ListSource = { kind: 'songs', origin: 'gems', name: 'Forgotten gems' }
+
+/** What Up next is called once songs are added to one song or the whole library. */
+export const LINED_UP_SOURCE: ListSource = { kind: 'songs', origin: 'upnext', name: 'Lined up' }
+
+/** What Save calls Up next lined up by hand, made unique among the playlists. */
+const LINED_UP_SAVED = 'Songs you lined up'
+
+/**
+ * What Up next is once songs are added to it (B1, 2026-10-25). A song played
+ * alone, or the whole library, is not a list you made; songs added to it
+ * make one, so it is yours to Save. A tag, a playlist or anything else named
+ * stays what it is: edits there change nothing lasting (G1).
+ */
+export function sourceAfterAdding(source: ListSource | null): ListSource | null {
+  return source === null || source.kind === 'library' ? LINED_UP_SOURCE : source
+}
 
 /** What Up next is called while Liked plays, from its page, its tile or Library's chip. */
 export const LIKED_SOURCE: ListSource = { kind: 'liked' }
@@ -137,6 +156,8 @@ export interface SourceLine {
   readonly link: SourceLink | null
   /** Saved from Up next a moment ago. */
   readonly saved: boolean
+  /** Lined up by hand, not played from anywhere: the line says no "From". */
+  readonly yours?: boolean
 }
 
 /** What Save would make: a playlist filled from tags, or one of these songs. */
@@ -332,7 +353,9 @@ export function describeSource(source: ListSource, known: Known): SourceLine {
         saved: false,
       }
     case 'songs':
-      return plain(source.name, null)
+      return source.origin === 'upnext'
+        ? { ...plain(source.name, null), yours: true }
+        : plain(source.name, null)
     case 'room':
       return plain(source.name, { pathname: '/past-room/[code]', params: { code: source.code } })
   }
@@ -403,6 +426,14 @@ export function savePlan(
     case 'room':
       return songs(source.name)
     case 'songs':
+      if (source.origin === 'upnext') {
+        // Lined up by hand, it keeps the order Up next has now, and a name of its own.
+        const songIds = [...new Set(queue.items)]
+        const taken = known.playlists.map(each => each.name)
+        return songIds.length >= 2
+          ? { kind: 'songs', name: uniqueName(LINED_UP_SAVED, taken), songIds }
+          : null
+      }
       // Songs that need a tag are a chore, not a list; Recently played is
       // already kept, on Home, and a playlist of it would be stale tomorrow.
       return source.origin === 'untagged' || source.origin === 'recent' ? null : songs(source.name)
@@ -517,7 +548,13 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
       return `answer:${source.text.trim().toLowerCase()}`
     case 'songs':
       // One song is shown as that song; Recently played already has it.
-      if (source.origin === 'untagged' || source.origin === 'recent' || songIds.length < 2) {
+      // Lined up by hand, it grows as it plays: its songs are its tiles.
+      if (
+        source.origin === 'untagged' ||
+        source.origin === 'recent' ||
+        source.origin === 'upnext' ||
+        songIds.length < 2
+      ) {
         return null
       }
       return `songs:${source.origin}:${songIds.join(',')}`
@@ -700,6 +737,8 @@ export function recentKind(source: ListSource): string {
           return 'Recently played'
         case 'liked':
           return 'Liked songs'
+        case 'upnext':
+          return 'Lined up'
       }
     case 'room':
       return 'Together'

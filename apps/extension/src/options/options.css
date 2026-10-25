@@ -34,10 +34,6 @@
   padding-top: 6px;
 }
 
-.options-intro > .logo {
-  font-size: var(--type-title);
-}
-
 .options h1 {
   margin: 0;
   font-family: var(--font-serif);

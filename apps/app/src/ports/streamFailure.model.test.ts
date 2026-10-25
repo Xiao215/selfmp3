@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { cannotPlayYet, streamFailureMessage } from './streamFailure.model'
+import {
+  LOST_CONNECTION,
+  cannotPlayYet,
+  isUnreachable,
+  stoppedOn,
+  streamFailureMessage,
+} from './streamFailure.model'
 
 describe('why a song would not play', () => {
   it("repeats the doorman's reason, which is the bucket's", () => {
@@ -40,6 +46,18 @@ describe('why a song would not play', () => {
     )
     expect(streamFailureMessage(500, '{"code":"internal"}', 'phone')).toBe(
       'Could not play this song',
+    )
+  })
+})
+
+describe('the toast when the player stops on a song', () => {
+  it('blames the connection, not the song, when nothing answered', () => {
+    expect(stoppedOn('第八夜', isUnreachable(LOST_CONNECTION))).toBe('Can’t reach your library')
+  })
+
+  it('names the song that would not play otherwise', () => {
+    expect(stoppedOn('第八夜', isUnreachable('This file could not be decoded'))).toBe(
+      'Couldn’t play “第八夜”',
     )
   })
 })

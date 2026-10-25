@@ -37,6 +37,16 @@ export function isUnreachable(error: string | null): boolean {
   return error === LOST_CONNECTION
 }
 
+/**
+ * What the player says when it stops on a song for good. Nothing answering
+ * is the connection's fault, not the song's: "Couldn't play “…”" during an
+ * outage sent people looking for something wrong with the file. The words are
+ * the ones the rest of the app uses for an unreachable library.
+ */
+export function stoppedOn(title: string, unreachable: boolean): string {
+  return unreachable ? 'Can’t reach your library' : `Couldn’t play “${title}”`
+}
+
 /** A song with no copy here and no way to fetch one. */
 export function notHere(place: DevicePlace): string {
   return `This song isn’t on this ${place}`

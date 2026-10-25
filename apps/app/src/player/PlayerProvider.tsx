@@ -50,7 +50,7 @@ import {
 } from '../api/mediaAddress.model'
 import { mediaSourcesFor } from '../api/mediaSources'
 import { isLenderCap } from '../ports/bucketRefusal'
-import { isUnreachable } from '../ports/streamFailure.model'
+import { isUnreachable, stoppedOn } from '../ports/streamFailure.model'
 import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
 import { recentUri } from '../ports/recentCopies'
@@ -1013,7 +1013,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // here, or one more report of a failure set it running again. Choosing
       // something to play starts a fresh run (`freshRun`).
       halt()
-      say(`Couldn’t play “${title}”`, 'error')
+      say(stoppedOn(title, unreachable), 'error')
     }
   }, [engine, loadIndex, mayPlay, commitQueue, halt])
 

@@ -527,9 +527,10 @@ const styles = StyleSheet.create(theme => ({
   // Near the top rather than the middle, where the eye already is.
   frame: { padding: 0, justifyContent: 'flex-start' },
   panel: dialogPanel(theme.colors),
-  inputRow: { padding: space.md, paddingBottom: space.sm },
+  // Rows to choose, not words to copy; the field keeps its own selection.
+  inputRow: { padding: space.md, paddingBottom: space.sm, userSelect: 'none' },
   count: { color: theme.colors.textMuted, fontSize: type.tiny, fontVariant: ['tabular-nums'] },
-  results: { padding: space.tight },
+  results: { padding: space.tight, userSelect: 'none' },
   group: { marginBottom: space.tight },
   groupTitle: {
     flexDirection: 'row',

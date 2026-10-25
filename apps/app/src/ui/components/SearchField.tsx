@@ -144,6 +144,8 @@ const styles = StyleSheet.create(theme => ({
     flex: 1,
     minWidth: 0,
     alignSelf: 'stretch',
+    // Its words stay selectable where what is around it is not (the palette).
+    userSelect: 'text',
     color: theme.colors.textPrimary,
     fontSize: type.body,
     padding: 0,

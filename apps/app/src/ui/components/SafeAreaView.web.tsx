@@ -2,6 +2,8 @@ import type { ComponentProps, ReactNode } from 'react'
 import { View, type ViewProps } from 'react-native'
 import type { SafeAreaView as PlainSafeAreaView } from 'react-native-safe-area-context'
 
+import { useTitleBarRoom } from '../../shell/TitleBarRoom'
+
 /**
  * In a browser the safe-area view is a plain `View`.
  *
@@ -15,13 +17,26 @@ import type { SafeAreaView as PlainSafeAreaView } from 'react-native-safe-area-c
  * (`.hash > *`), and Unistyles names a style by its content, so the shell's
  * root, which has the same style, stretched the bottom tabs over half the
  * screen. A browser's safe-area insets are all but always zero, so `edges` has
- * nothing to do here.
+ * nothing to do here — except in a narrow desktop window, whose traffic lights
+ * stand where a phone's status bar would (`TitleBarRoom`): a top edge keeps
+ * clear of them with room of their height above the page.
  */
 export function SafeAreaView({
-  edges: _edges,
+  edges,
   mode: _mode,
   children,
   ...rest
 }: ViewProps & Pick<ComponentProps<typeof PlainSafeAreaView>, 'edges' | 'mode'>): ReactNode {
-  return <View {...rest}>{children}</View>
+  const titleBar = useTitleBarRoom()
+  const top = titleBar > 0 && (edges === undefined || topEdge(edges))
+  return (
+    <View {...rest}>
+      {top ? <View style={{ height: titleBar }} /> : null}
+      {children}
+    </View>
+  )
+}
+
+function topEdge(edges: NonNullable<ComponentProps<typeof PlainSafeAreaView>['edges']>): boolean {
+  return Array.isArray(edges) ? edges.includes('top') : 'top' in edges && edges.top !== 'off'
 }

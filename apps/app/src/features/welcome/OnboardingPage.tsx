@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { radius, space, textStyle } from '@selfmp3/client'
 import { fonts } from '../../ports/fonts'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { titleBarInset } from '../../ports/titleBarInset'
+import { TitleBarDrag } from '../../shell/TitleBarRoom'
 import { useLayoutValue } from '../../shell/useLayout'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -61,6 +61,7 @@ export function OnboardingPage({
       ) : (
         scroll
       )}
+      <TitleBarDrag name="onboarding" />
     </SafeAreaView>
   )
 }
@@ -127,7 +128,7 @@ const styles = StyleSheet.create(theme => ({
   page: {
     flexGrow: 1,
     paddingHorizontal: ONBOARDING_GUTTER,
-    paddingTop: 44 + titleBarInset,
+    paddingTop: 44,
     paddingBottom: 40,
   },
   pageWide: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },

@@ -9,10 +9,12 @@ export const titleBarInset: number = desktop?.info.titleBarInset ?? 0
  * not a property the web renderer knows, and unknown properties are dropped. So
  * the strip is styled by id, once, when this module first loads — which is when
  * the sidebar that renders it is imported. Guarded on the inset so an ordinary
- * tab never grows a rule it has no use for.
+ * tab never grows a rule it has no use for. By the id's start, because there is
+ * more than one strip: the sidebar's, a narrow window's (`TitleBarRoom`) and the
+ * welcome pages'.
  */
 if (titleBarInset > 0 && typeof document !== 'undefined') {
   const style = document.createElement('style')
-  style.textContent = `#${TITLE_BAR_DRAG_ID} { -webkit-app-region: drag; }`
+  style.textContent = `[id^="${TITLE_BAR_DRAG_ID}"] { -webkit-app-region: drag; }`
   document.head.appendChild(style)
 }

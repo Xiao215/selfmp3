@@ -783,6 +783,8 @@ const styles = StyleSheet.create(theme => ({
     gap: space.snug,
     // A step up from the page, told apart by tone and not by a line (`S2`).
     backgroundColor: theme.colors.surface1,
+    // Chrome, as the sidebar is: a drag in it moves a song, not a selection.
+    userSelect: 'none',
   },
   railOver: {
     // Thrown sideways, onto the page the rail slides over, so not `artShadow`'s.

@@ -1,5 +1,6 @@
 /**
- * What the draggable title-bar strip is called, where there is one.
+ * What the draggable title-bar strips are called, where there are any: this, or
+ * this and a suffix where there is more than one kind.
  *
  * Its own file, with no `.web` twin, because the sidebar and the web half of
  * `titleBarInset` both need it. Importing it from `./titleBarInset` would not

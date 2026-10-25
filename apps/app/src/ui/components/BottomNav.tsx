@@ -149,6 +149,7 @@ const styles = StyleSheet.create(theme => ({
     left: EDGE,
     right: EDGE,
     height: NAV_HEIGHT,
+    userSelect: 'none',
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',

@@ -29,6 +29,8 @@ import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
 import { useLayout } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
+import { thisPlace } from '../../ports/place'
+import { onThisDevice } from '../settings/settings.model'
 import { useDragScroll } from '../../ports/dragScroll'
 import { useContentWidth } from '../../shell/contentWidth'
 import { noMatchesTitle, stripTags, useLibraryModel } from './library.model'
@@ -443,7 +445,8 @@ export function LibraryScreen(): ReactNode {
           {!wide && installed ? (
             <Chip
               testID="library-on-this-phone"
-              label="On this phone"
+              // A narrow desktop window wears the phone's layout, not its name.
+              label={onThisDevice(thisPlace())}
               selected={filter.downloadedOnly}
               icon={
                 <Downloaded

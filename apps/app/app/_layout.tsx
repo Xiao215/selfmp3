@@ -27,6 +27,7 @@ import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
 import { Shell } from '../src/shell/Shell'
+import { TitleBarRoom } from '../src/shell/TitleBarRoom'
 import { addressOf, fullScreenSwipeAllowed, swipeBackAllowed } from '../src/shell/backGesture'
 import { fromTile } from '../src/features/tag/placeLinks'
 import { nowPlayingAnimation, stackAnimation } from '../src/shell/pageStep'
@@ -174,42 +175,45 @@ export default function RootLayout(): ReactNode {
       onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
     >
       <SafeAreaProvider>
-        <ThemedStatusBar />
-        {/* Outermost of the app's own providers: everything below draws with it. */}
-        <AccentProvider>
-          <QueryClientProvider client={queryClient}>
-            <ConnectionProvider>
-              <DownloadsProvider>
-                <PlayerProvider>
-                  {/*
+        {/* A narrow desktop window's traffic lights, as a phone's status bar. */}
+        <TitleBarRoom>
+          <ThemedStatusBar />
+          {/* Outermost of the app's own providers: everything below draws with it. */}
+          <AccentProvider>
+            <QueryClientProvider client={queryClient}>
+              <ConnectionProvider>
+                <DownloadsProvider>
+                  <PlayerProvider>
+                    {/*
                     Inside the player, not around it: devices reads the player to
                     build a heartbeat and calls back into it to execute a handoff,
                     and the player has no idea other devices exist.
                   */}
-                  {/* Listening together: the room's songs, and the host's player playing them. */}
-                  <RoomProvider>
-                    <DevicesProvider>
-                      <CarProvider>
-                        {/* Around the shell: the sidebar and the library share it. */}
-                        <LibraryFilterProvider>
-                          <RootRoutes />
-                          {/* What is kept in step behind the pages: drawn as nothing. */}
-                          <Keeping />
-                          {/* The home-screen widget's snapshot, where there is one. */}
-                          <WidgetSync />
-                          {/* The bucket refusing for the day, said once. */}
-                          <BucketHoldNotice />
-                          {/* Yesterday's feature counts, sent to the server once. */}
-                          <UsageReporter />
-                        </LibraryFilterProvider>
-                      </CarProvider>
-                    </DevicesProvider>
-                  </RoomProvider>
-                </PlayerProvider>
-              </DownloadsProvider>
-            </ConnectionProvider>
-          </QueryClientProvider>
-        </AccentProvider>
+                    {/* Listening together: the room's songs, and the host's player playing them. */}
+                    <RoomProvider>
+                      <DevicesProvider>
+                        <CarProvider>
+                          {/* Around the shell: the sidebar and the library share it. */}
+                          <LibraryFilterProvider>
+                            <RootRoutes />
+                            {/* What is kept in step behind the pages: drawn as nothing. */}
+                            <Keeping />
+                            {/* The home-screen widget's snapshot, where there is one. */}
+                            <WidgetSync />
+                            {/* The bucket refusing for the day, said once. */}
+                            <BucketHoldNotice />
+                            {/* Yesterday's feature counts, sent to the server once. */}
+                            <UsageReporter />
+                          </LibraryFilterProvider>
+                        </CarProvider>
+                      </DevicesProvider>
+                    </RoomProvider>
+                  </PlayerProvider>
+                </DownloadsProvider>
+              </ConnectionProvider>
+            </QueryClientProvider>
+          </AccentProvider>
+        </TitleBarRoom>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

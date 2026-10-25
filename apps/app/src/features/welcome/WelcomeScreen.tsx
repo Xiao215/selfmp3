@@ -19,7 +19,7 @@ import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
 import { onSignInCode } from '../../ports/signInReturn'
-import { titleBarInset } from '../../ports/titleBarInset'
+import { TitleBarDrag } from '../../shell/TitleBarRoom'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
 import { BrandMark } from '../../ui/components/BrandMark'
@@ -268,6 +268,7 @@ export function WelcomeScreen(): ReactNode {
             {actions}
           </ScrollView>
         </KeyboardAvoidingView>
+        <TitleBarDrag name="welcome" />
       </SafeAreaView>
     )
   }
@@ -381,14 +382,13 @@ function Tile({ tile, wide }: { tile: WelcomeTile; wide: boolean }): ReactNode {
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
   clear: { flex: 1 },
-  // The page sits at the foot of the display, where a thumb is (`P01`). The
-  // Mac's traffic lights sit over the top of a narrow window; the mark is far
-  // below them, but a page that scrolls up under them keeps clear anyway.
+  // The page sits at the foot of the display, where a thumb is (`P01`). A
+  // narrow window's traffic lights are in the safe area (`TitleBarRoom`).
   narrow: {
     flexGrow: 1,
     justifyContent: 'flex-end',
     paddingHorizontal: ONBOARDING_GUTTER,
-    paddingTop: space.xl + titleBarInset,
+    paddingTop: space.xl,
     paddingBottom: 60,
     gap: 22,
   },

@@ -444,7 +444,9 @@ function Tags(): ReactNode {
   // Escape puts it away, typed name and all.
   useEscape(adding, putAway)
   const trimmed = form.name.trim()
-  const suggestions = trimmed ? fuzzyRank(trimmed, tags, tag => tag.name).slice(0, 3) : []
+  const suggestions = trimmed
+    ? fuzzyRank(trimmed, tags, tag => tag.name, { scattered: true }).slice(0, 3)
+    : []
   const exact = existingTag(tags, trimmed)
 
   return (

@@ -300,7 +300,7 @@ export function TagSearchList({
   const shownQuery = useDeferredValue(query)
   const rankFor = useCallback(
     (text: string) => {
-      const matches = fuzzyRank(text, tags, each => each.tag.name)
+      const matches = fuzzyRank(text, tags, each => each.tag.name, { scattered: true })
       if (text.trim()) return matches
       const first = (match: (typeof matches)[number]): number =>
         match.item.there && openedWith.has(match.item.tag.id) ? 0 : 1

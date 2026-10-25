@@ -54,6 +54,38 @@ describe('fuzzyRank', () => {
   it('is case insensitive', () => {
     expect(fuzzyRank('JAZZ', tags, t => t.name)[0]?.item.name).toBe('jazz')
   })
+
+  it('takes letters scattered through a short name only when asked', () => {
+    expect(fuzzyRank('cls', tags, t => t.name)).toEqual([])
+    expect(fuzzyRank('cls', tags, t => t.name, { scattered: true })[0]?.item.name).toBe('classical')
+  })
+})
+
+describe('what a search finds a song by', () => {
+  const songs = [
+    'Echo Valley Mornings Some Band Live',
+    'Calm Down Rema',
+    'Becalmed Eno Another Green World',
+    'Midnight Drive Kavinsky Outrun',
+    'Nightcall Kavinsky Outrun',
+    'Sad Song (Live at the Piano Bar, 2019) Somebody Tour',
+  ]
+  const found = (query: string, scattered = false) =>
+    fuzzyRank(query, songs, song => song, { scattered }).map(match => match.item)
+
+  it('is a word start or a run of letters, not letters scattered through it', () => {
+    // 2026-10-25: "calm" found eight songs, one of them right.
+    expect(found('calm')).toEqual(['Calm Down Rema', 'Becalmed Eno Another Green World'])
+    expect(found('calm', true)).toContain(songs[0])
+    expect(found('sad piano')).toEqual([])
+    expect(found('sad piano', true)).toEqual([songs[5]])
+  })
+
+  it('still knows a song by its initials, a phrase across its names, and a typo', () => {
+    expect(found('md')).toEqual(['Midnight Drive Kavinsky Outrun'])
+    expect(found('drive kav')).toEqual(['Midnight Drive Kavinsky Outrun'])
+    expect(found('nightcal kavinsky outrun')).toEqual(['Nightcall Kavinsky Outrun'])
+  })
 })
 
 /**
@@ -151,8 +183,9 @@ describe('the prepared paths', () => {
   it('ranks exactly as the matcher did before', () => {
     for (const query of queries) {
       const before = legacyRank(query, songs, text)
-      expect(fuzzyRank(query, songs, text), query).toEqual(before)
-      expect(fuzzyRankPrepared(query, songs, prepared), query).toEqual(before)
+      const scattered = { scattered: true }
+      expect(fuzzyRank(query, songs, text, scattered), query).toEqual(before)
+      expect(fuzzyRankPrepared(query, songs, prepared, scattered), query).toEqual(before)
     }
   })
 

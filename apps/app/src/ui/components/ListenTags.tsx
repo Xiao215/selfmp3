@@ -81,7 +81,10 @@ function Panel({
   const trimmed = query.trim()
 
   const matches = useMemo(
-    () => (trimmed ? fuzzyRank(query, tags, tag => tag.name).map(match => match.item) : []),
+    () =>
+      trimmed
+        ? fuzzyRank(query, tags, tag => tag.name, { scattered: true }).map(match => match.item)
+        : [],
     [query, trimmed, tags],
   )
   const { mostUsed, lately } = useMemo(() => chooserTagGroups(tags, selected), [tags, selected])

@@ -191,12 +191,14 @@ export function addSheetRows(input: {
   const query = input.query.trim()
   if (input.list === 'artists') {
     const artists = query
-      ? fuzzyRank(query, input.artists, artist => artist.name).map(match => match.item)
+      ? fuzzyRank(query, input.artists, artist => artist.name, { scattered: true }).map(
+          match => match.item,
+        )
       : [...input.artists].sort((a, b) => a.name.localeCompare(b.name))
     return artists.map(artist => ({ kind: 'place', place: { kind: 'artist', artist } }))
   }
   if (query) {
-    return fuzzyRank(query, input.tags, tag => tag.name).map(match => ({
+    return fuzzyRank(query, input.tags, tag => tag.name, { scattered: true }).map(match => ({
       kind: 'place' as const,
       place: { kind: 'tag' as const, tag: match.item },
     }))

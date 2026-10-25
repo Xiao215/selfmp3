@@ -83,6 +83,17 @@ describe('searchLibrary', () => {
     expect(searchLibrary('ikuta', named).artists.map(artist => artist.name)).toEqual(['幾田りら'])
   })
 
+  it('finds a song by a word start or a run of letters, not letters scattered through it', () => {
+    const moods = {
+      ...library,
+      songs: [song(1, 'Calm Down', 'Rema'), song(2, 'Echo Valley Mornings', 'Some Band')],
+      tags: [{ id: 7, name: 'chill', hue: 1, songCount: 1 }] as never,
+    }
+    expect(searchLibrary('calm', moods).songs.map(found => found.id)).toEqual([1])
+    expect(searchLibrary('down', moods).songs.map(found => found.id)).toEqual([1])
+    expect(searchLibrary('chl', moods).tags).toEqual([])
+  })
+
   it('finds nothing for nothing typed', () => {
     expect(searchLibrary('  ', library)).toEqual({ songs: [], tags: [], artists: [] })
   })

@@ -27,7 +27,8 @@ jest.mock('../../player/PlayerProvider', () => {
       const { current, index } = useSyncExternalStore(subscribe, () => mockPlaying)
       return {
         current,
-        queue: { index },
+        // Up next's button counts what waits after the song; nothing does here.
+        queue: { items: [], original: [], index, shuffle: false, repeat: 'off' },
         isPlaying: true,
         toggle: () => undefined,
         next: () => undefined,

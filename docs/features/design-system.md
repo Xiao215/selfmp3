@@ -364,6 +364,9 @@ is a mistake. The rules, and what moves (docs/ui-mock `M1`–`M3`):
   and a segmented control's pill are springs, so a second tap turns them rather than
   restarting; a stage exit or a page's own close plays once, however many times it is asked
   (`shell/stageExit.ts`).
+- The Up next button wears how many songs wait after the one playing, a small count in the
+  accent on its shoulder, which ticks up (and swells once) as flying covers land on it rather
+  than the moment the songs are queued (`UpNextTarget`, `flightsUnderway`).
 - Liking a song pops its heart — in to 0.82, out past its size to 1.22, home, over
   `MOVE_MS.likePop` — and one ring in the song's colour goes out from it (`likeRing`);
   unliking just turns it back (`LikeButton`).

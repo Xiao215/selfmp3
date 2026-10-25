@@ -206,8 +206,13 @@ command palette), the Search page on a phone. Letters stay a search, matched on 
 as you type; nothing is sent anywhere until you ask. Three letters or more add an **Ask**
 row (`askable`): first when nothing matched, so ↵ asks (`asksOnEnter`); after the matches
 otherwise, so ↵ still opens what was typed in the palette, and on the Search page only puts
-the keyboard away. Asking opens the Ask page (below), so the box keeps only what you typed
-and Back finds it there.
+the keyboard away. A match is a word start or a run of letters
+([lyrics-plus.md](lyrics-plus.md), "Search by name"), so a mood typed whole ("calm evening")
+matches nothing and Ask leads, on both layouts, with no "Nothing matches" line under it; the
+tags some of the words name ("calm") are listed after it, and do not count as a match. A
+place named exactly what was typed leads the results, so "calm" opens the tag (D1,
+2026-10-25; `matchCount`, `placesOf` in `search.model.ts`). Asking opens the Ask page
+(below), so the box keeps only what you typed and Back finds it there.
 
 ### The Ask page
 

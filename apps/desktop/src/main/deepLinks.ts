@@ -50,9 +50,16 @@ export class DeepLinks {
   }
 }
 
+/** What `did-start-navigation` says about a navigation, as far as following a page needs. */
+export interface NavigationStart {
+  readonly isMainFrame: boolean
+  readonly isSameDocument: boolean
+}
+
 /** As much of a window's `webContents` as following its page takes. */
 export interface LinkPage {
-  on(event: 'did-start-loading' | 'did-finish-load' | 'destroyed', listener: () => void): unknown
+  on(event: 'did-start-navigation', listener: (details: NavigationStart) => void): unknown
+  on(event: 'did-finish-load' | 'destroyed', listener: () => void): unknown
   send(channel: string, url: string): void
 }
 
@@ -60,14 +67,22 @@ export interface LinkPage {
  * Deliver links to `page` only while it has a loaded page to hear them.
  *
  * Called for every window the shell makes, so a window made again — after the
- * last one closed, off macOS — takes over the stream. A load starting (the
- * first one, or a reload) holds links until it finishes; `did-finish-load`
+ * last one closed, off macOS — takes over the stream. A new document starting
+ * (the first one, or a reload) holds links until it finishes; `did-finish-load`
  * comes after the export's scripts have run, which is when the page's own
  * listener exists (apps/app's `ports/deepLinks.web.ts` subscribes as its
  * module loads, and keeps what arrives before a screen asks).
+ *
+ * Only a new document: the router's own page changes are `pushState`s, which
+ * start loading and never finish, so holding on `did-start-loading` held every
+ * link after the first page change for good — the window came forward and the
+ * page never moved, a sign-in return included. A frame inside the page
+ * navigating is not the page going either.
  */
 export function followPage(links: DeepLinks, page: LinkPage, channel: string): void {
-  page.on('did-start-loading', () => links.unready())
+  page.on('did-start-navigation', details => {
+    if (details.isMainFrame && !details.isSameDocument) links.unready()
+  })
   page.on('did-finish-load', () => links.ready(url => page.send(channel, url)))
   page.on('destroyed', () => links.unready())
 }

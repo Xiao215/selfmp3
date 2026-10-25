@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url'
 import { DEEP_LINK_SCHEME } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
-import { DeepLinks, deepLinkFromArgv, followPage, type LinkPage } from './deepLinks.js'
+import {
+  DeepLinks,
+  deepLinkFromArgv,
+  followPage,
+  type LinkPage,
+  type NavigationStart,
+} from './deepLinks.js'
 
 describe('deepLinkFromArgv', () => {
   it('finds the URL wherever the OS put it', () => {
@@ -62,20 +68,27 @@ describe('DeepLinks', () => {
   })
 })
 
+type Listener = (details: NavigationStart) => void
+
 /** A window's page, as far as `followPage` sees one: events to fire, and what it was sent. */
-function fakePage(): LinkPage & { fire(event: string): void; sent: string[] } {
-  const listeners = new Map<string, (() => void)[]>()
+function fakePage(): LinkPage & {
+  fire(event: string, details?: Partial<NavigationStart>): void
+  sent: string[]
+} {
+  const listeners = new Map<string, Listener[]>()
   const sent: string[] = []
   return {
     sent,
-    on(event, listener) {
+    on(event: string, listener: Listener) {
       listeners.set(event, [...(listeners.get(event) ?? []), listener])
     },
-    send(_channel, url) {
+    send(_channel: string, url: string) {
       sent.push(url)
     },
-    fire(event) {
-      for (const listener of listeners.get(event) ?? []) listener()
+    fire(event, details) {
+      // A new document in the window's own frame, unless the test says otherwise.
+      const full = { isMainFrame: true, isSameDocument: false, ...details }
+      for (const listener of listeners.get(event) ?? []) listener(full)
     },
   }
 }
@@ -85,7 +98,7 @@ describe('followPage', () => {
     const links = new DeepLinks()
     const page = fakePage()
     followPage(links, page, 'deep-link')
-    page.fire('did-start-loading')
+    page.fire('did-start-navigation')
     links.deliver('selfmp3://welcome#signin-code=A-B')
     expect(page.sent).toEqual([])
     page.fire('did-finish-load')
@@ -97,10 +110,37 @@ describe('followPage', () => {
     const page = fakePage()
     followPage(links, page, 'deep-link')
     page.fire('did-finish-load')
-    page.fire('did-start-loading')
+    page.fire('did-start-navigation')
     links.deliver('selfmp3://now-playing')
     expect(page.sent).toEqual([])
     page.fire('did-finish-load')
+    expect(page.sent).toEqual(['selfmp3://now-playing'])
+  })
+
+  /*
+   * The router moving between pages is a `pushState`: Electron says a load
+   * started and never says it finished. Holding links on that held every link
+   * after the first page change until the next reload.
+   */
+  it('keeps delivering after the page changes pages without loading', () => {
+    const links = new DeepLinks()
+    const page = fakePage()
+    followPage(links, page, 'deep-link')
+    page.fire('did-start-navigation')
+    page.fire('did-finish-load')
+    page.fire('did-start-loading')
+    page.fire('did-start-navigation', { isSameDocument: true })
+    links.deliver('selfmp3://playlist/9')
+    expect(page.sent).toEqual(['selfmp3://playlist/9'])
+  })
+
+  it('keeps delivering while a frame inside the page loads', () => {
+    const links = new DeepLinks()
+    const page = fakePage()
+    followPage(links, page, 'deep-link')
+    page.fire('did-finish-load')
+    page.fire('did-start-navigation', { isMainFrame: false })
+    links.deliver('selfmp3://now-playing')
     expect(page.sent).toEqual(['selfmp3://now-playing'])
   })
 

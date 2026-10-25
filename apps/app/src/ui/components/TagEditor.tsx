@@ -2,12 +2,13 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { plural, TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
+import { plural, rulesWithoutTag, TAG_NAME_MAX, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   failureText,
   space,
   type,
   useDeleteTag,
+  useLibrary,
   useRenameTag,
   useSetTagHue,
   iconSize,
@@ -81,6 +82,8 @@ function Editor({
   const rename = useRenameTag()
   const setHue = useSetTagHue()
   const deleteTag = useDeleteTag()
+  const { data: library } = useLibrary()
+  const following = followersOf(library?.playlists ?? [], tag.id)
 
   const trimmed = name.trim()
   const changed = trimmed.length > 0 && trimmed !== tag.name
@@ -154,6 +157,9 @@ function Editor({
           <Text style={[styles.hint, styles.confirm]}>
             Delete “{tag.name}”? Its {plural(tag.songCount, 'song stays', 'songs stay')} in your
             library.
+            {following.length > 0
+              ? ` ${quoted(following)} ${following.length === 1 ? 'fills' : 'fill'} from it, and will go on without it.`
+              : null}
           </Text>
           <SheetItem
             icon={<Trash color={theme.colors.danger} />}
@@ -170,6 +176,21 @@ function Editor({
       )}
     </View>
   )
+}
+
+/** The playlists that fill from this tag, by name: what deleting it changes (`rulesWithoutTag`). */
+function followersOf(playlists: readonly Playlist[], tagId: number): string[] {
+  return playlists
+    .filter(playlist => playlist.rules && rulesWithoutTag(playlist.rules, tagId) !== undefined)
+    .map(playlist => playlist.name)
+}
+
+/** “A”, “A” and “B”, or “A”, “B” and 3 more. */
+function quoted(names: readonly string[]): string {
+  const shown = names.slice(0, 2).map(name => `“${name}”`)
+  const more = names.length - shown.length
+  if (more > 0) return `${shown.join(', ')} and ${more} more`
+  return shown.join(' and ')
 }
 
 const styles = StyleSheet.create(theme => ({

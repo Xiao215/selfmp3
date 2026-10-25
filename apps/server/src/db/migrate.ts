@@ -1010,6 +1010,85 @@ const MIGRATIONS: readonly Migration[] = [
     name: 'web search is part of smart features',
     sql: `DELETE FROM settings WHERE key = 'smartWeb';`,
   },
+  {
+    // 48. A playlist's id is never given out twice, as 41 made it for tags.
+    // Deleting the newest playlist and making another gave the new one the old
+    // id, and an open page, an Up next source or a recent list holding it
+    // turned into the new playlist — the new name over the old one's songs.
+    // The sequence starts past every id still here or named by an import.
+    name: 'a playlist’s id is never given out twice',
+    foreignKeysOff: true,
+    sql: `
+      CREATE TABLE playlists_new (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name           TEXT    NOT NULL,
+        description    TEXT    NOT NULL DEFAULT '',
+        kind           TEXT    NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual','live')),
+        rules          TEXT,
+        pinned         INTEGER NOT NULL DEFAULT 0,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+        uid            TEXT    NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+        -- Set when a playlist is started as one (Play, Shuffle, a row in it), so
+        -- the playlists page can put the ones in use first. Not synced: it moves
+        -- on every play, and an edit stamp for it would put a playlist in every
+        -- device's log each time music started.
+        last_played_at TEXT
+      );
+      INSERT INTO playlists_new (id, name, description, kind, rules, pinned, created_at,
+                                 updated_at, uid, last_played_at)
+      SELECT id, name, description, kind, rules, pinned, created_at, updated_at, uid,
+             last_played_at
+        FROM playlists;
+      DROP TABLE playlists;
+      ALTER TABLE playlists_new RENAME TO playlists;
+      CREATE UNIQUE INDEX idx_playlists_uid ON playlists(uid);
+      CREATE TRIGGER sync_stamps_playlist_delete AFTER DELETE ON playlists BEGIN
+        DELETE FROM sync_stamps WHERE kind IN ('playlist','playlistSong') AND uid = old.uid;
+      END;
+
+      DELETE FROM sqlite_sequence WHERE name = 'playlists';
+      INSERT INTO sqlite_sequence (name, seq)
+      SELECT 'playlists', max(
+        coalesce((SELECT max(id) FROM playlists), 0),
+        coalesce((SELECT max(playlist_id) FROM import_jobs), 0)
+      );
+    `,
+  },
+  {
+    // 49. A live playlist's rules about a tag that has been deleted go
+    // (rulesWithoutTag, which deleting a tag now does as it goes). Such a
+    // rule was invisible and could not be removed: "has" matched nothing, and
+    // "does not have" the whole library. One left with no rules stops
+    // following and keeps the songs it holds in its own order.
+    name: 'rules about deleted tags go',
+    sql: `
+      CREATE TEMP TABLE orphaned AS
+      SELECT DISTINCT p.id
+        FROM playlists p,
+             json_each(CASE WHEN json_valid(p.rules) THEN p.rules ELSE '{}' END, '$.rules') rule
+       WHERE p.kind = 'live'
+         AND json_extract(rule.value, '$.field') = 'tag'
+         AND CAST(json_extract(rule.value, '$.tagId') AS INTEGER) NOT IN (SELECT id FROM tags);
+
+      UPDATE playlists
+         SET rules = json_set(rules, '$.rules', (
+               SELECT json_group_array(json(value)) FROM (
+                 SELECT rule.value FROM json_each(playlists.rules, '$.rules') rule
+                  WHERE json_extract(rule.value, '$.field') IS NOT 'tag'
+                     OR CAST(json_extract(rule.value, '$.tagId') AS INTEGER) IN (SELECT id FROM tags)
+                  ORDER BY rule.key
+               )
+             )),
+             updated_at = datetime('now')
+       WHERE id IN (SELECT id FROM orphaned);
+
+      UPDATE playlists SET kind = 'manual', rules = NULL
+       WHERE id IN (SELECT id FROM orphaned) AND json_array_length(rules, '$.rules') = 0;
+
+      DROP TABLE orphaned;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -6,6 +6,7 @@ import {
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
+  rulesWithoutTag,
   tagFlips,
   tagsAfter,
   tagNamed,
@@ -18,6 +19,7 @@ import {
   type Playlist,
   type PlayEvent,
   type SetArtistNames,
+  type SmartRules,
   type Song,
   type SongPatch,
   type UpdatePlaylist,
@@ -169,6 +171,7 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
   )
   return [
     ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
+    ...lettingGoOf(ctx, emptied, new Set(known.map(([, uid]) => uid))),
     ...emptied.map(id => ({ type: 'tagRemoved' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
   ]
 }
@@ -252,8 +255,10 @@ export function editTag(
   ]
 }
 
+/** The tag, after the playlists that follow it let go of it (`lettingGoOf`). */
 export function removeTag(ctx: EditContext, id: number): Change[] {
-  return [{ type: 'tagRemoved', hlc: ctx.stamp(), uid: tagUid(ctx, id) }]
+  const uid = tagUid(ctx, id)
+  return [...lettingGoOf(ctx, [id]), { type: 'tagRemoved', hlc: ctx.stamp(), uid }]
 }
 
 // --- Artists ---------------------------------------------------------------------
@@ -274,6 +279,52 @@ export function nameArtist(
 
 const cloudRules = (ctx: EditContext, rules: NonNullable<CreatePlaylist['rules']>) =>
   toCloudRules(rules, id => ctx.view.uids.tags.get(id) ?? null)
+
+/**
+ * What deleting these tags does to the playlists that follow them, as the
+ * server's `TagRemoval` does (shared `rulesWithoutTag`): the rules about them
+ * go, and a playlist left with none keeps the songs it shows — but for `gone`,
+ * songs removed in the same edit — and stops following.
+ */
+function lettingGoOf(
+  ctx: EditContext,
+  tagIds: readonly number[],
+  gone: ReadonlySet<string> = new Set(),
+): Change[] {
+  const changes: Change[] = []
+  for (const found of ctx.view.library.playlists) {
+    const uid = ctx.view.uids.playlists.get(found.id)
+    if (found.kind !== 'live' || !found.rules || !uid) continue
+    let rules: SmartRules | null = found.rules
+    let touched = false
+    for (const tagId of tagIds) {
+      if (!rules) break
+      const next: SmartRules | null | undefined = rulesWithoutTag(rules, tagId)
+      if (next === undefined) continue
+      rules = next
+      touched = true
+    }
+    if (!touched) continue
+    changes.push(
+      rules
+        ? {
+            type: 'playlistEdited',
+            hlc: ctx.stamp(),
+            uid,
+            fields: { rules: cloudRules(ctx, rules) },
+          }
+        : {
+            type: 'playlistUnfollowed',
+            hlc: ctx.stamp(),
+            uid,
+            songUids: (ctx.view.playlistSongs[found.id] ?? [])
+              .map(songId => songUid(ctx, songId))
+              .filter(songUid => !gone.has(songUid)),
+          },
+    )
+  }
+  return changes
+}
 
 export function createPlaylist(
   ctx: EditContext,

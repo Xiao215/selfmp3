@@ -258,6 +258,69 @@ describe('editing tags', () => {
   })
 })
 
+describe('deleting a tag playlists follow', () => {
+  /** A live playlist on chill — and, for "Chill and loved", on being loved too. */
+  const follow = (d: ReturnType<typeof device>, name: string) => {
+    const made = edits.createPlaylist(d.ctx(), {
+      name,
+      description: '',
+      kind: 'live',
+      rules: {
+        match: 'all',
+        rules: [
+          { field: 'tag', op: 'has', tagId: d.idOf('tags', '1') },
+          ...(name === 'Chill and loved'
+            ? [{ field: 'loved' as const, op: 'is' as const, value: true }]
+            : []),
+        ],
+        orderBy: 'addedAt',
+        order: 'desc',
+        limit: null,
+      },
+    })
+    return d.apply(made.changes).ids.playlists[made.uid] ?? 0
+  }
+
+  it('keeps the songs of a playlist that followed only it, and stops it following', () => {
+    const d = device()
+    const chill = follow(d, 'Chill')
+    const changes = edits.removeTag(d.ctx(), d.idOf('tags', '1'))
+    expect(changes.map(change => change.type)).toEqual(['playlistUnfollowed', 'tagRemoved'])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === chill)).toMatchObject({
+      kind: 'manual',
+      rules: null,
+    })
+    expect(view.playlistSongs[chill]).toEqual([d.idOf('songs', 'a')])
+  })
+
+  it('takes only its rule out of a playlist that follows other things too', () => {
+    const d = device()
+    const both = follow(d, 'Chill and loved')
+    const changes = edits.removeTag(d.ctx(), d.idOf('tags', '1'))
+    expect(changes.map(change => change.type)).toEqual(['playlistEdited', 'tagRemoved'])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === both)).toMatchObject({
+      kind: 'live',
+      rules: { rules: [{ field: 'loved', op: 'is', value: true }] },
+    })
+  })
+
+  it('leaves the removed songs out of a playlist their emptied tag stops', () => {
+    const d = device()
+    const chill = follow(d, 'Chill')
+    const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
+    expect(changes.map(change => change.type)).toEqual([
+      'songRemoved',
+      'playlistUnfollowed',
+      'tagRemoved',
+    ])
+    const view = d.apply(changes)
+    expect(view.library.playlists.find(p => p.id === chill)?.kind).toBe('manual')
+    expect(view.playlistSongs[chill]).toEqual([])
+  })
+})
+
 describe('editing playlists', () => {
   it('makes a playlist with rules naming tags by uid', () => {
     const d = device()

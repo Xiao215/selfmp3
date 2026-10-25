@@ -1,5 +1,6 @@
 import { hueFromString } from './format.js'
 import type { EditRefusal, PlaylistKind } from './schemas/playlist.js'
+import type { SmartRules } from './schemas/smart.js'
 import { sameTagName } from './sync.js'
 
 /**
@@ -126,6 +127,22 @@ export function tagFlips<T>(had: readonly T[], wanted: readonly T[]): { on: T[];
     on: [...after].filter(tag => !before.has(tag)),
     off: [...before].filter(tag => !after.has(tag)),
   }
+}
+
+// --- Removing tags ----------------------------------------------------------------
+
+/**
+ * A live playlist's rules once this tag is deleted: its rules about the tag
+ * go and the rest stay. Undefined when no rule names the tag; null when none
+ * would be left, and the playlist then keeps the songs it shows and stops
+ * following. Left alone, a rule about a tag nobody can see or remove made
+ * "has" playlists empty (and so hidden) and "does not have" ones the whole
+ * library.
+ */
+export function rulesWithoutTag(rules: SmartRules, tagId: number): SmartRules | null | undefined {
+  const kept = rules.rules.filter(rule => rule.field !== 'tag' || rule.tagId !== tagId)
+  if (kept.length === rules.rules.length) return undefined
+  return kept.length > 0 ? { ...rules, rules: kept } : null
 }
 
 // --- Removing songs --------------------------------------------------------------

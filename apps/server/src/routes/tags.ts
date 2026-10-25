@@ -50,12 +50,15 @@ export function tagRoutes(container: Container): Router {
     }),
   )
 
-  /** Deleting a tag never touches the songs that carried it. */
+  /**
+   * Deleting a tag never touches the songs that carried it; the playlists that
+   * follow it let go of it (`TagRemoval`).
+   */
   router.delete(
     '/tags/:id',
     route({ params: ParamsWithId }, ({ params }): Ok => {
       if (!container.tags.byId(params.id)) throw HttpError.notFound('no such tag')
-      container.tags.delete(params.id)
+      container.tagRemoval.remove(params.id)
       container.bumpLibraryVersion()
       return { ok: true }
     }),

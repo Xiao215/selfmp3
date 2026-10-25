@@ -1,7 +1,7 @@
 /**
  * The installed app's menu keys, as Settings › Keyboard shortcuts lists them.
  *
- * The menu names each item once — Next, Previous, Seek forward, Seek back —
+ * The menu names each item once — Next, Previous, Seek Forward, Seek Back —
  * which is right for a menu and a long list for a page. So related items share
  * a row ("⌘ ← → Previous / next"), and the keys are drawn the way a Mac draws
  * them. The keys themselves are always read from the menu, never written here,
@@ -25,10 +25,15 @@ const ROWS: readonly { commands: readonly string[]; label: string }[] = [
   { commands: ['play-pause'], label: 'Play / pause' },
   { commands: ['previous', 'next'], label: 'Previous / next' },
   { commands: ['seek-back', 'seek-forward'], label: 'Seek 10 s' },
+  { commands: ['like'], label: 'Like the song playing' },
   { commands: ['volume-up', 'volume-down'], label: 'Volume' },
   { commands: ['mute'], label: 'Mute' },
   { commands: ['search'], label: 'Search' },
-  { commands: ['library', 'playlists', 'now-playing'], label: 'Library · Playlists · Now playing' },
+  { commands: ['home', 'library', 'import', 'stats'], label: 'Home · Library · Import · Stats' },
+  { commands: ['playlists'], label: 'Playlists' },
+  { commands: ['now-playing'], label: 'Now playing' },
+  { commands: ['new-playlist'], label: 'New playlist' },
+  { commands: ['start-import'], label: 'Import a link or song' },
   { commands: ['settings'], label: 'Settings' },
 ]
 

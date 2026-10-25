@@ -6,6 +6,7 @@ import type {
   DownloadResult,
   FileKind,
   FileStat,
+  MenuState,
   PackSlice,
   StreamSession,
   TransferProgress,
@@ -177,4 +178,7 @@ export interface DesktopBridge {
    * the Dock menu with what is on.
    */
   setPlaybackState(state: DockPlaybackState): Promise<void>
+
+  /** Ticks Shuffle, the Repeat mode and Like in the application menu as the player has them. */
+  setMenuState(state: MenuState): Promise<void>
 }

@@ -90,8 +90,9 @@ item before the current one ends.
 
 An iPad with a Magic Keyboard, or an iPhone with a Bluetooth one, answers the desktop app's
 menu keys: Space for play and pause, ⌘← ⌘→ for previous and next, ⌥⌘← ⌥⌘→ to seek, ⌘↑ ⌘↓
-and ⌥⌘↓ for the volume, ⌘K for Search, ⌘1–3 for Library, Playlists and Now Playing, and ⌘,
-for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape key — closes the sheet,
+and ⌥⌘↓ for the volume, ⌘L to like the song playing, ⌘K for Search, ⌘1–4 for Home, Library,
+Import and Stats, ⌘5 for Playlists, ⌘0 for Now Playing, ⌘N for a new playlist, ⌘I to import,
+and ⌘, for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape key — closes the sheet,
 menu or dialog on top, or with none open clears the
 selection and, at a computer's width, closes Now Playing's stage. ⌘A in a song list selects every song. Holding ⌘ shows
 them all in iPadOS's own list, named as the menu names them, and while a keyboard is attached
@@ -104,7 +105,7 @@ view controller and sends each press to JavaScript, where `ports/keyCommands.ts`
 keys, read from `packages/desktop-bridge/src/menu.ts`), `useHotkeys`, `useEscape` and a
 list's `useListKeys`. A key command beats a text field, so the module takes Space, the
 ⌘-arrows and ⌘A away while one is being typed in, which is what the desktop's `pageKeeps`
-marks; ⌘K, ⌘1–3 and the rest answer there too, as the desktop's menu does. Escape answers in
+marks; ⌘K, ⌘1–5 and the rest answer there too, as the desktop's menu does. Escape answers in
 a field as well, unless an input method is composing. Whether a keyboard is attached is
 GameController's `GCKeyboard`. A song list's arrows, Space and Enter are the web's alone: a
 native row is nowhere the keyboard can be ([FEATURE_TODO.md](FEATURE_TODO.md)).

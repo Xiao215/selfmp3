@@ -18,10 +18,15 @@ describe('keyboard shortcuts', () => {
       'space Play / pause',
       '⌘ ← → Previous / next',
       '⌥ ⌘ ← → Seek 10 s',
+      '⌘ L Like the song playing',
       '⌘ ↑ ↓ Volume',
       '⌥ ⌘ ↓ Mute',
       '⌘ K Search',
-      '⌘ 1–3 Library · Playlists · Now playing',
+      '⌘ 1–4 Home · Library · Import · Stats',
+      '⌘ 5 Playlists',
+      '⌘ 0 Now playing',
+      '⌘ N New playlist',
+      '⌘ I Import a link or song',
       '⌘ , Settings',
     ])
   })

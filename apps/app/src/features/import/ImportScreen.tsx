@@ -140,7 +140,13 @@ export function ImportScreen({
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
   const { api, library, tools, refetchTools, queue, history } = source
-  const params = useLocalSearchParams<{ url?: string; text?: string; title?: string }>()
+  const params = useLocalSearchParams<{
+    url?: string
+    text?: string
+    title?: string
+    /** File › Import… (⌘I) in the Mac app: a fresh value each time, to focus the field. */
+    focus?: string
+  }>()
 
   // The draft outlives this screen (importDraft.store.ts); only the error is the screen's.
   const key = draftSourceFor(via)
@@ -192,6 +198,12 @@ export function ImportScreen({
     // Only `shared` matters here; the ref guards against a second run anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shared])
+
+  // File › Import… in the Mac app: the field, ready for a paste.
+  const linksRef = useRef<TextInput>(null)
+  useEffect(() => {
+    if (params.focus) linksRef.current?.focus()
+  }, [params.focus])
 
   /**
    * A press on the queue: drawn at once (`editQueue`), so the row answers
@@ -252,6 +264,7 @@ export function ImportScreen({
         <View style={styles.composeRow}>
           <TextInput
             {...NO_AUTOFILL}
+            ref={linksRef}
             style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
             value={links}
             onChangeText={next => patchDraft({ links: next })}

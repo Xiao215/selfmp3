@@ -98,18 +98,38 @@ export const commandSchema = z.enum([
   'previous',
   'search',
   'settings',
-  'now-playing',
+  'home',
   'library',
+  'import',
+  'stats',
   'playlists',
+  'now-playing',
+  'new-playlist',
+  'start-import',
   'volume-up',
   'volume-down',
   'mute',
   'shuffle',
-  'repeat',
+  'repeat-off',
+  'repeat-all',
+  'repeat-one',
+  'like',
   'seek-forward',
   'seek-back',
 ])
 export type Command = z.infer<typeof commandSchema>
+
+/**
+ * What the menu's checkmarks show, told by the page whenever it changes:
+ * Shuffle, which Repeat mode, and whether the playing song is liked — null
+ * when nothing that can be liked is playing, which greys Like out.
+ */
+export const menuStateSchema = z.object({
+  shuffle: z.boolean(),
+  repeat: z.enum(['off', 'all', 'one']),
+  liked: z.boolean().nullable(),
+})
+export type MenuState = z.infer<typeof menuStateSchema>
 
 /**
  * Told to the shell so it can hold a power-save blocker and label the Dock.

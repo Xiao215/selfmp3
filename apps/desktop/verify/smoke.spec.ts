@@ -731,11 +731,11 @@ test.describe('an application, not a page', () => {
         },
         [
           ['Playback', 'Play / Pause'],
-          ['View', 'Now playing'],
+          ['View', 'Now Playing'],
         ] as [string, string][],
       )
 
-      expect(clicked).toEqual(['Space', 'CmdOrCtrl+3'])
+      expect(clicked).toEqual(['Space', 'CmdOrCtrl+0'])
       await expect
         .poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen))
         .toEqual(['play-pause', 'now-playing'])
@@ -768,7 +768,7 @@ test.describe('an application, not a page', () => {
             ?.items.find(one => one.label === section)
             ?.submenu?.items.find(one => one.label === label)
         const playPause = find('Playback', 'Play / Pause')
-        const nowPlaying = find('View', 'Now playing')
+        const nowPlaying = find('View', 'Now Playing')
         if (!playPause || !nowPlaying) return 'missing'
         // `MenuItem.click(event, focusedWindow, focusedWebContents)`.
         const click = (item: Electron.MenuItem, byKey: boolean): void =>
@@ -776,7 +776,7 @@ test.describe('an application, not a page', () => {
             triggeredByAccelerator: byKey,
           })
         click(playPause, true) // Space, left unhandled by a text field: nothing.
-        click(nowPlaying, true) // ⌘3 is the menu's own key: sent.
+        click(nowPlaying, true) // ⌘0 is the menu's own key: sent.
         click(playPause, false) // The pointer: sent.
         return 'clicked'
       })
@@ -807,16 +807,15 @@ test.describe('an application, not a page', () => {
         })),
       )
       const playback = menu?.find(section => section.label === 'Playback')
+      // Shuffle, Repeat's submenu and Like are not plain items: their own test is below.
       expect(playback?.items.map(item => item.label)).toEqual([
         'Play / Pause',
         'Next',
         'Previous',
-        'Seek forward',
-        'Seek back',
-        'Shuffle',
-        'Repeat',
-        'Volume up',
-        'Volume down',
+        'Seek Forward',
+        'Seek Back',
+        'Volume Up',
+        'Volume Down',
         'Mute',
       ])
       // Space and the ⌘-arrows are drawn but not taken: registering them would
@@ -832,6 +831,74 @@ test.describe('an application, not a page', () => {
       // Everything else is a real accelerator.
       const view = menu?.find(section => section.label === 'View')
       expect(view?.items.every(item => item.registered !== false)).toBe(true)
+      // The sidebar's order, Home first, then the OS's own Full Screen.
+      expect(view?.items.map(item => `${item.label} ${item.accelerator ?? ''}`.trim())).toEqual([
+        'Home CmdOrCtrl+1',
+        'Library CmdOrCtrl+2',
+        'Import CmdOrCtrl+3',
+        'Stats CmdOrCtrl+4',
+        'Playlists CmdOrCtrl+5',
+        'Now Playing CmdOrCtrl+0',
+        'Search CmdOrCtrl+K',
+        'Toggle Full Screen Control+Command+F',
+      ])
+      const file = menu?.find(section => section.label === 'File')
+      expect(file?.items.map(item => item.label)).toEqual([
+        'New Playlist',
+        'Import…',
+        'Close Window',
+      ])
+    } finally {
+      await app.close()
+    }
+  })
+
+  /*
+   * Shuffle and Like are checkboxes and Repeat a submenu of three radio items,
+   * ticked as the page says the player has them (AO1). The page is the only
+   * one that knows, so a click sends the command and leaves the tick as it
+   * was until the page answers.
+   */
+  test('ticks Shuffle, Repeat and Like as the page says', async () => {
+    const app = await launchApp()
+    try {
+      const page = await app.firstWindow()
+      await page.waitForLoadState('domcontentloaded')
+      const ticks = () =>
+        app.evaluate(({ Menu }) => {
+          const menu = Menu.getApplicationMenu()
+          const item = (id: string) => menu?.getMenuItemById(id)
+          return {
+            shuffle: item('shuffle')?.checked,
+            repeat: ['repeat-off', 'repeat-all', 'repeat-one'].find(id => item(id)?.checked),
+            like: item('like')?.checked,
+            likeEnabled: item('like')?.enabled,
+            types: [item('shuffle')?.type, item('repeat-one')?.type, item('like')?.type],
+          }
+        })
+      const tell = (state: { shuffle: boolean; repeat: string; liked: boolean | null }) =>
+        page.evaluate(async next => {
+          const desktop = (window as unknown as { selfmp3Desktop: DesktopForTest }).selfmp3Desktop
+          await desktop.setMenuState(next)
+        }, state)
+
+      await tell({ shuffle: true, repeat: 'one', liked: true })
+      expect(await ticks()).toEqual({
+        shuffle: true,
+        repeat: 'repeat-one',
+        like: true,
+        likeEnabled: true,
+        types: ['checkbox', 'radio', 'checkbox'],
+      })
+      await tell({ shuffle: false, repeat: 'all', liked: null })
+      expect(await ticks()).toMatchObject({
+        shuffle: false,
+        repeat: 'repeat-all',
+        like: false,
+        likeEnabled: false,
+      })
+      await tell({ shuffle: false, repeat: 'off', liked: false })
+      expect(await ticks()).toMatchObject({ repeat: 'repeat-off', likeEnabled: true })
     } finally {
       await app.close()
     }
@@ -1259,6 +1326,7 @@ interface DesktopForTest {
     title: string | null
     artist: string | null
   }): Promise<void>
+  setMenuState(state: { shuffle: boolean; repeat: string; liked: boolean | null }): Promise<void>
   updates: {
     check(): Promise<{ state: string; canInstall: boolean; version: string | null }>
   }

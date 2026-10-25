@@ -21,6 +21,7 @@ import {
   type DesktopBridge,
   type DesktopInfo,
   type DockPlaybackState,
+  type MenuState,
   type FileKind,
 } from '@selfmp3/desktop-bridge'
 
@@ -149,6 +150,10 @@ const bridge: DesktopBridge = {
 
   setPlaybackState: async (state: DockPlaybackState) => {
     await ipcRenderer.invoke(CHANNELS.setPlaybackState, state)
+  },
+
+  setMenuState: async (state: MenuState) => {
+    await ipcRenderer.invoke(CHANNELS.setMenuState, state)
   },
 
   updates: {

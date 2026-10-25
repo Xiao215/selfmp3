@@ -19,6 +19,7 @@ import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/Selectio
 import { ResumeToast } from '../features/devices/ResumeToast'
 import { IosUpdateNotice } from '../features/settings/IosUpdate'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
+import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
@@ -34,11 +35,17 @@ import { useCommands } from './useCommands'
 import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
-import { motion, space } from '@selfmp3/client'
+import { isRoomTrackId, motion, space, useLibrary, useToggleLoved } from '@selfmp3/client'
 import { pageKey, stepSide } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
-import { usePlayerCommands, useSongLoaded } from '../player/PlayerProvider'
+import {
+  usePlayer,
+  usePlayerCommands,
+  usePlayingSongId,
+  useSongLoaded,
+} from '../player/PlayerProvider'
+import { desktop } from '../ports/desktop/bridge'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
 import { closeQueueSheet } from '../features/queue/queueSheet.store'
@@ -105,6 +112,8 @@ export function Shell({
       <PlaybackNotices />
       <PaletteHost />
       <MenuCommands />
+      {desktop ? <MenuChecks /> : null}
+      <NewPlaylistHost />
       <DeepLinkRoutes />
       {/* Covers flying into the Up next button (`ui/coverFlight.ts`). */}
       <CoverFlight />
@@ -407,22 +416,69 @@ function DeepLinkRoutes(): ReactNode {
  */
 function MenuCommands(): ReactNode {
   const player = usePlayerCommands()
+  const playingId = usePlayingSongId()
+  const { data: library } = useLibrary()
+  const toggleLoved = useToggleLoved()
   useCommands({
+    home: () => router.navigate('/'),
     library: () => router.navigate('/library'),
+    import: () => router.navigate('/import'),
+    stats: () => router.navigate('/stats'),
     playlists: () => router.navigate('/playlists'),
     'now-playing': () => router.navigate('/now-playing'),
     settings: () => router.navigate('/settings'),
+    // File › Import…: the page, with its field ready to paste into. A new
+    // value each time, so the field takes the focus again on the page itself.
+    'start-import': () =>
+      router.navigate({ pathname: '/import', params: { focus: String(Date.now()) } }),
+    // The playing song, as the heart beside it does; a friend's song in a room has none.
+    like: () => {
+      if (playingId === null || isRoomTrackId(playingId)) return
+      const song = library?.songs.find(one => one.id === playingId)
+      if (song) toggleLoved.mutate({ id: song.id, loved: !song.loved })
+    },
     'play-pause': () => player.toggle(),
     next: () => player.next(),
     previous: () => player.previous(),
     'seek-forward': () => player.seekBy(SEEK_STEP_SECONDS),
     'seek-back': () => player.seekBy(-SEEK_STEP_SECONDS),
     shuffle: () => player.toggleShuffle(),
-    repeat: () => player.cycleRepeatMode(),
+    'repeat-off': () => player.setRepeatMode('off'),
+    'repeat-all': () => player.setRepeatMode('all'),
+    'repeat-one': () => player.setRepeatMode('one'),
     'volume-up': () => player.stepVolume(VOLUME_STEP),
     'volume-down': () => player.stepVolume(-VOLUME_STEP),
     mute: () => player.toggleMute(),
   })
+  return null
+}
+
+/**
+ * File › New Playlist (⌘N): the same window the sidebar's + opens, here so it
+ * opens at any width, a window too narrow for the sidebar included.
+ */
+function NewPlaylistHost(): ReactNode {
+  const [open, setOpen] = useState(false)
+  useCommands({ 'new-playlist': () => setOpen(true) })
+  return <NewPlaylist open={open} onClose={() => setOpen(false)} />
+}
+
+/**
+ * The installed app's menu ticks Shuffle, the Repeat mode and Like as the
+ * player has them (AO1): told to the shell whenever one changes. Drawn only
+ * where there is a shell to tell.
+ */
+function MenuChecks(): ReactNode {
+  const { queue, current } = usePlayer()
+  const { data: library } = useLibrary()
+  // The library's word on the like, which a heart pressed anywhere changes first.
+  const liked = useMemo(() => {
+    if (!current || isRoomTrackId(current.id)) return null
+    return library?.songs.find(one => one.id === current.id)?.loved ?? current.loved
+  }, [current, library])
+  useEffect(() => {
+    void desktop?.setMenuState({ shuffle: queue.shuffle, repeat: queue.repeat, liked })
+  }, [queue.shuffle, queue.repeat, liked])
   return null
 }
 

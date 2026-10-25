@@ -15,6 +15,7 @@ import {
   headersSchema,
   packSlicesSchema,
   loginItemOpenSchema,
+  menuStateSchema,
   secretKeySchema,
   secretValueSchema,
   streamSessionSchema,
@@ -25,6 +26,7 @@ import {
 import * as files from './files.js'
 import * as updates from './updates.js'
 
+import { setMenuState } from './menu.js'
 import { setPlaybackState } from './nowPlaying.js'
 import { encryptionAvailable, secretStore } from './secrets.js'
 import type { StreamProxy } from './stream.js'
@@ -169,5 +171,8 @@ export function registerIpc({
 
   ipcMain.handle(CHANNELS.setPlaybackState, (_event, state: unknown) => {
     setPlaybackState(dockPlaybackStateSchema.parse(state), window_)
+  })
+  ipcMain.handle(CHANNELS.setMenuState, (_event, state: unknown) => {
+    setMenuState(menuStateSchema.parse(state))
   })
 }

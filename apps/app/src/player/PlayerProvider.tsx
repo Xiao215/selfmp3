@@ -168,6 +168,8 @@ export interface PlayerApi {
   analyser: () => FrequencyAnalyser | null
   toggleShuffle: () => void
   cycleRepeatMode: () => void
+  /** One Repeat mode by name: the Mac menu's Repeat › Off, All, One. */
+  setRepeatMode: (mode: QueueState['repeat']) => void
   playNext: (songIds: readonly number[]) => void
   addToQueue: (songIds: readonly number[]) => void
   removeFromQueue: (index: number) => void
@@ -245,6 +247,7 @@ type PlayerCommands = Pick<
   | 'analyser'
   | 'toggleShuffle'
   | 'cycleRepeatMode'
+  | 'setRepeatMode'
   | 'playNext'
   | 'addToQueue'
   | 'removeFromQueue'
@@ -1011,6 +1014,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     () => mutateQueue(state => ({ ...state, repeat: cycleRepeat(state.repeat) })),
     [mutateQueue],
   )
+  const setRepeatMode = useCallback(
+    (mode: QueueState['repeat']) => mutateQueue(state => ({ ...state, repeat: mode })),
+    [mutateQueue],
+  )
 
   const playNext = useCallback(
     (songIds: readonly number[]) => mutateQueue(state => playNextIds(state, songIds)),
@@ -1170,6 +1177,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       analyser,
       toggleShuffle,
       cycleRepeatMode,
+      setRepeatMode,
       playNext,
       addToQueue,
       insertIntoQueue,
@@ -1200,6 +1208,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       analyser,
       toggleShuffle,
       cycleRepeatMode,
+      setRepeatMode,
       playNext,
       addToQueue,
       insertIntoQueue,

@@ -135,7 +135,6 @@ export function ImportScreen({
    * visit, pointing at the box (D1, 2026-10-13); the sources row under the
    * box says the rest every time.
    */
-  const [boxTarget, boxGuide] = useGuide('import-box', true)
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
@@ -152,6 +151,9 @@ export function ImportScreen({
   const key = draftSourceFor(via)
   const [draft, patchDraft] = useImportDraft(key)
   const { links, review } = draft
+  // Only over an empty box: once something is in it, what the guide would say
+  // has been found out. (A box being typed in, it waits out itself.)
+  const [boxTarget, boxGuide] = useGuide('import-box', links === '')
   // The card offering a kept review counts songs coming in: as the library is now.
   useRefreshReview(api, key, reviewUrls(review))
   const { error, setError, failed } = useImportFailure(via, onUnreachable)
@@ -427,6 +429,11 @@ export function ImportScreen({
   const [boxSeenBefore] = useState(() => guideSeen('import-box'))
   const [swipeTarget, swipeGuide] = useGuide('import-rows', swipeable.length >= 2 && boxSeenBefore)
   const firstSwipe = swipeable[0]?.id ?? null
+  // What the first row's swipe shows: a failed import has only Remove.
+  const swipeShows =
+    swipeable[0] !== undefined && canImportNext(swipeable[0], nextUp)
+      ? 'Swipe left for Next and Remove'
+      : 'Swipe left to remove'
   const rowProps = (job: ImportJob) => ({
     job,
     tags,
@@ -558,7 +565,7 @@ export function ImportScreen({
       />
       <Guide
         guide={swipeGuide}
-        steps={[{ gesture: 'swipe-left', text: 'Swipe left for Next and Remove', distance: 120 }]}
+        steps={[{ gesture: 'swipe-left', text: swipeShows, distance: 120 }]}
       />
     </SafeAreaView>
   )

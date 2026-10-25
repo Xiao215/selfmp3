@@ -53,6 +53,8 @@ const serverLibrary: Library = {
 /** The server: its settings table, and every request it was sent. */
 let stored: Settings
 let up: boolean
+/** The server's model address; null is a server with none set up. */
+let modelAddress: string | null
 let sent: { method: string; path: string; body: unknown; auth: string | null }[]
 
 const json = (body: unknown): Response =>
@@ -65,6 +67,7 @@ beforeEach(() => {
   stored = { ...DEFAULT_SETTINGS, defaultImportTagIds: [7] }
   named = { id: 'the-pi', addresses: ['http://localhost:4600', ADDRESS], token: TOKEN }
   up = true
+  modelAddress = 'http://127.0.0.1:8787/v1'
   jest.mocked(Clipboard.setStringAsync).mockClear()
   for (const toast of currentToasts()) dismissToast(toast.id)
   sent = []
@@ -81,6 +84,9 @@ beforeEach(() => {
     }
     if (url.pathname === '/api/library') return Promise.resolve(json(serverLibrary))
     if (url.pathname === '/api/settings' && method === 'GET') return Promise.resolve(json(stored))
+    if (url.pathname === '/api/ai') {
+      return Promise.resolve(json({ address: modelAddress, models: { fast: 'f', smart: 's' } }))
+    }
     if (url.pathname === '/api/settings' && method === 'PATCH') {
       stored = { ...stored, ...(body as Partial<Settings>) }
       return Promise.resolve(json(stored))
@@ -125,6 +131,15 @@ it('turns a smart feature off on the server itself, with no web switch of its ow
   expect(patches).toEqual([
     { method: 'PATCH', path: '/api/settings', body: { smartAsk: false }, auth: `Bearer ${TOKEN}` },
   ])
+  await unmount()
+  client.clear()
+})
+
+it('dims the switches and says so when the server has no model', async () => {
+  modelAddress = null
+  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
+  expect(await screen.findByText('No model set up')).toBeTruthy()
+  expect(screen.getByRole('switch', { name: 'Ask in Search', disabled: true })).toBeTruthy()
   await unmount()
   client.clear()
 })

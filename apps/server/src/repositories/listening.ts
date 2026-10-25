@@ -11,6 +11,23 @@ export function toMinutes(ms: number | null): number {
   return Math.round(((ms ?? 0) / 60_000) * 10) / 10
 }
 
+/**
+ * The start of a listening window, as a UTC timestamp, snapped to a local
+ * midnight. Stats and Wrapped both bound their windows with it, so Stats ›
+ * Month and the Month report count the same plays.
+ *
+ * Both pages count in days — active days, the streak, the
+ * busiest date, the peak weekday — so a window that started at "now minus
+ * seven times twenty-four hours" would straddle eight local dates and report
+ * "8 days with music" under a heading that says seven. Snapping to local
+ * midnight makes the label and the numbers agree. The bound parameter is the
+ * offset, e.g. `-6 days` for a seven-day window (today plus the six before).
+ *
+ * `localtime` … `utc` is the standard SQLite round trip: shift to wall clock,
+ * truncate, step back, shift back to what the column actually stores.
+ */
+export const WINDOW_START = "datetime('now', 'localtime', 'start of day', ?, 'utc')"
+
 /** Plays of one artist string, as SQL groups them. */
 export interface ArtistPlaysRow {
   artist: string

@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
+import type { TextInput } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { ApiError, normaliseBaseUrl, space } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
-import { plural } from '@selfmp3/shared'
+import { API_ERROR, plural } from '@selfmp3/shared'
 import { StatusLine } from '../../ui/components/StatusLine'
 
 /**
@@ -38,14 +39,20 @@ export function ServerAddress({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const tokenField = useRef<TextInput>(null)
+  // Read at the press rather than from `busy`, which has not drawn yet when
+  // Enter is pressed again straight away: five Enters were five connects.
+  const trying = useRef(false)
 
   const save = (): void => {
+    if (trying.current) return
     const baseUrl = normaliseBaseUrl(address)
     if (!baseUrl) {
       setError('That does not look like an address. Try mac-mini.tail1234.ts.net')
       return
     }
 
+    trying.current = true
     setBusy(true)
     setError(null)
     setNote(null)
@@ -76,10 +83,18 @@ export function ServerAddress({
           setError('The server is there, but it rejected that token.')
         } else if (caught instanceof ApiError && caught.isOffline) {
           setError('Could not reach the server. Is Tailscale connected and the server running?')
+        } else if (
+          caught instanceof ApiError &&
+          (caught.status === 404 || caught.code === API_ERROR.contractMismatch)
+        ) {
+          // Something answered, but not as self.mp3 does: a different server,
+          // or the right one at a path that is not its address.
+          setError('Something answered there, but it is not a self.mp3 server.')
         } else {
-          setError(caught instanceof Error ? caught.message : 'Could not connect')
+          setError('Could not connect to that address.')
         }
       } finally {
+        trying.current = false
         setBusy(false)
       }
     })()
@@ -111,6 +126,8 @@ export function ServerAddress({
         keyboardType="url"
         inputMode="url"
         returnKeyType="next"
+        submitBehavior="submit"
+        onSubmitEditing={() => tokenField.current?.focus()}
       />
       <TextField
         testID="welcome-token"
@@ -118,6 +135,7 @@ export function ServerAddress({
         onChangeText={setToken}
         placeholder="Token, only if the server has one"
         accessibilityLabel="Token"
+        inputRef={tokenField}
         autoCapitalize="none"
         secret
         returnKeyType="go"

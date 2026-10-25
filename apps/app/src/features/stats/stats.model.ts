@@ -241,12 +241,18 @@ export function streakCard(
   return { value: daysLabel(stats.streakDays), line: spanWords(start, runEnd), squares, from }
 }
 
-/** "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". */
+/**
+ * "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". A run that
+ * began in another year says which: "Dec 30, 2023 to Oct 25", not a span
+ * that reads like ten months.
+ */
 export function spanWords(start: Date, end: Date): string {
   const month = (date: Date): string => date.toLocaleDateString(undefined, { month: 'short' })
   if (localDayKey(start) === localDayKey(end)) return `${month(end)} ${end.getDate()}`
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-  return `${month(start)} ${start.getDate()} to ${sameMonth ? '' : `${month(end)} `}${end.getDate()}`
+  const sameYear = start.getFullYear() === end.getFullYear()
+  const sameMonth = sameYear && start.getMonth() === end.getMonth()
+  const from = `${month(start)} ${start.getDate()}${sameYear ? '' : `, ${start.getFullYear()}`}`
+  return `${from} to ${sameMonth ? '' : `${month(end)} `}${end.getDate()}`
 }
 
 /**
@@ -401,6 +407,8 @@ export interface StatFigures {
    */
   readonly listenedUnit?: string
   readonly plays: string
+  /** "play" or "plays", the caption under the plays. */
+  readonly playsCaption: string
   readonly streak: string
   /** "day" or "days", drawn smaller beside the streak's number. */
   readonly streakUnit: string
@@ -408,12 +416,13 @@ export interface StatFigures {
 
 export function statFigures(stats: Pick<Stats, 'totals' | 'streakDays'>): StatFigures {
   const whole = formatListenTime(stats.totals.minutes)
-  const minutes = /^(\d+) (min)$/.exec(whole)
+  const minutes = /^(<?\d+) (min)$/.exec(whole)
   return {
     ...(minutes
       ? { listened: minutes[1] ?? whole, listenedUnit: minutes[2] }
       : { listened: whole }),
     plays: stats.totals.plays.toLocaleString(),
+    playsCaption: stats.totals.plays === 1 ? 'play' : 'plays',
     streak: stats.streakDays.toLocaleString(),
     streakUnit: stats.streakDays === 1 ? 'day' : 'days',
   }

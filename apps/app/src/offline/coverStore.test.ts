@@ -28,7 +28,7 @@ const replica = {
 }
 vi.mock('../replica', () => replica)
 
-const { createCoverStore } = await import('./coverStore')
+const { createCoverStore, fanOfCovers } = await import('./coverStore')
 type Platform = Parameters<typeof createCoverStore>[0]
 
 /** A platform that keeps names in memory, priming however the test asks. */
@@ -170,6 +170,15 @@ describe('the cover store', () => {
 
     await store.ensureServerCover(7, 'r2', 'https://mac.example/art/7')
     expect(store.coverFor(7)).toBe('file:///7-r2.jpg')
+  })
+
+  it("lets go of a song's old art once its new art is kept", async () => {
+    const platform = fakePlatform()
+    const store = createCoverStore(platform)
+    await store.ensureServerCover(7, 'r1', 'https://mac.example/art/7?r1')
+    await store.ensureServerCover(7, 'r2', 'https://mac.example/art/7?r2')
+    expect(store.coverFor(7)).toBe('file:///7-r2.jpg')
+    expect(await platform.listCloud()).toEqual(['7-r2.jpg'])
   })
 
   it('asks a server for a cover once per address, however many rows draw it', async () => {
@@ -426,5 +435,21 @@ describe('the cover store', () => {
       await createCoverStore(fakePlatform({ packs })).fillFromPacks(() => false)
       expect(packs.have).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe("Welcome's fan of kept covers", () => {
+  it('takes one picture per song, newest first, up to the limit', () => {
+    const names = [
+      '110-c.jpg',
+      '110-b.jpg',
+      'hash-1.jpg',
+      '110-a.jpg',
+      '12-x.jpg',
+      'notes.txt',
+      '13-y.jpg',
+    ]
+    expect(fanOfCovers(names, 3)).toEqual(['110-c.jpg', 'hash-1.jpg', '12-x.jpg'])
+    expect(fanOfCovers(names, 9)).toEqual(['110-c.jpg', 'hash-1.jpg', '12-x.jpg', '13-y.jpg'])
   })
 })

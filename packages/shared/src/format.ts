@@ -32,12 +32,16 @@ export function formatLongDuration(seconds: number): string {
 /**
  * Time listened, short enough to be a big number: "6h 12", "3h", "42 min".
  * The minutes after the hours carry no unit, as a clock's do, and a whole
- * hour has none: Stats, You, Wrapped and Home all write it this way.
+ * hour has none: Stats, You, Wrapped and Home all write it this way. Hours
+ * are grouped like the play counts beside them ("3,663h 09"), and a few
+ * seconds of listening is "<1 min", not nothing.
  */
 export function formatListenTime(minutes: number): string {
-  const total = Number.isFinite(minutes) ? Math.max(0, Math.round(minutes)) : 0
+  const exact = Number.isFinite(minutes) ? Math.max(0, minutes) : 0
+  const total = Math.round(exact)
+  if (total === 0 && exact > 0) return '<1 min'
   if (total < 60) return `${total} min`
-  const hours = Math.floor(total / 60)
+  const hours = Math.floor(total / 60).toLocaleString('en')
   const rest = total % 60
   return rest === 0 ? `${hours}h` : `${hours}h ${String(rest).padStart(2, '0')}`
 }

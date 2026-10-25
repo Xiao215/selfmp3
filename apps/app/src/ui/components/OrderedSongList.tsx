@@ -304,6 +304,7 @@ const isDense = (layout: { dense: boolean }): boolean => layout.dense
 
 const styles = StyleSheet.create({
   frame: { flex: 1, minHeight: 0 },
+  raised: { zIndex: 2 },
 })
 
 /** How a row takes part in a move. Made once, so a row's memo holds. */
@@ -439,30 +440,37 @@ function LiftedCell({ index, style, onLayout, onFocusCapture, children }: CellPr
     step,
     from !== null,
   )
+  const lifted = (carried && lift !== null) || (settling === index && lift !== null)
+  const moved =
+    carried && lift !== null
+      ? { transform: [{ translateY: dragY }, { scale: lift }] }
+      : // Settling, or swelling while its hold is counted: the scale only.
+        // `dragY` is left where the finger put it until the new order
+        // lands, so a row reading it now would settle in the wrong place.
+        settling === index && lift !== null
+        ? { transform: [{ scale: lift }] }
+        : guide !== null && index === 0
+          ? liftWith(guide, step)
+          : guide !== null && index === 1
+            ? makeRoomWith(guide, step)
+            : room
+  /*
+   * The cell stays where the list put it and the row inside it moves: the
+   * move guide lights the cell, and a spotlight measured off the moving row
+   * followed the lift when the window was resized mid-demo. The raised
+   * `zIndex` stays on the cell, which is what its siblings are.
+   */
   return (
-    <Animated.View
-      style={[
-        style,
-        carried && lift !== null
-          ? { zIndex: 2, transform: [{ translateY: dragY }, { scale: lift }] }
-          : // Settling, or swelling while its hold is counted: the scale only.
-            // `dragY` is left where the finger put it until the new order
-            // lands, so a row reading it now would settle in the wrong place.
-            settling === index && lift !== null
-            ? { zIndex: 2, transform: [{ scale: lift }] }
-            : guide !== null && index === 0
-              ? liftWith(guide, step)
-              : guide !== null && index === 1
-                ? makeRoomWith(guide, step)
-                : room,
-      ]}
+    <View
+      style={[style, (lifted || (guide !== null && index === 0)) && styles.raised]}
       ref={index === 0 && target !== null ? target : undefined}
+      collapsable={false}
       onLayout={onLayout}
       // The list's own cell passes this on to a View, which takes it on both
-      // platforms; the types of Animated.View just do not name it.
+      // platforms; the types just do not name it.
       {...{ onFocusCapture }}
     >
-      {children}
-    </Animated.View>
+      <Animated.View style={moved}>{children}</Animated.View>
+    </View>
   )
 }

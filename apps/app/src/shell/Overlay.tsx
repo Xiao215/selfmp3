@@ -15,6 +15,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useLayerFocus, useLayerKeys } from './layerFocus'
+import { useWatchBusy } from '../features/guide/watchBusy'
 
 /**
  * One place, at the root of the app, where sheets and popovers are drawn.
@@ -82,6 +83,9 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
   }, [])
 
   const api = useMemo<OverlayApi>(() => ({ set, remove }), [set, remove])
+  // Every touch passes the root on its way up, so it is here that the
+  // first-run guides hear a finger is down (`guideBusy`).
+  const watch = useWatchBusy()
 
   const modal = nodes.some(entry => entry.modal)
   // The topmost modal layer's node, for its keys.
@@ -93,7 +97,7 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
     <OverlayContext.Provider value={api}>
       {/* A container of its own, so "absolutely positioned" has something
           definite to be positioned against: the whole app, tab bar included. */}
-      <View style={styles.root}>
+      <View style={styles.root} {...watch}>
         <View style={styles.root} aria-hidden={modal}>
           {children}
         </View>

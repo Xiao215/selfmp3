@@ -33,7 +33,7 @@ vi.mock('react-native-track-player', () => {
 
 vi.mock('../player/setup', () => ({ ensurePlayer: () => Promise.resolve() }))
 // Who this device is reads React Native, which a node test cannot load.
-vi.mock('./device', () => ({ deviceKind: () => 'phone' }))
+vi.mock('./device', () => ({ deviceKind: () => 'phone', deviceModel: () => 'iphone' }))
 
 beforeEach(() => {
   told.length = 0

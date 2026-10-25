@@ -102,8 +102,16 @@ export function JoinScreen(): ReactNode {
     return <BadRoomCode key={given} given={given ?? ''} back={status === 'ready'} />
   }
 
+  // Connected to a library (cloud or a server address) there is somewhere to go back to,
+  // and this page has no sidebar to go there by.
+  const connected = status === 'ready'
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      {connected ? (
+        <View style={styles.joinBack}>
+          <BackButton to="/" always testID="room-join-back" />
+        </View>
+      ) : null}
       <View style={styles.centre} testID="room-join">
         <Text style={styles.label}>Room {formatRoomCode(code.data)}</Text>
         <Text style={styles.big} accessibilityRole="header">
@@ -112,7 +120,9 @@ export function JoinScreen(): ReactNode {
         <Text style={styles.text}>
           {signedIn
             ? 'You join as yourself, and can bring songs from your own library.'
-            : 'No app or account needed. You can add songs that are in the room, or a link.'}
+            : connected
+              ? 'You join with a name and can add songs that are in the room. Bringing your own needs a self.mp3 sign-in.'
+              : 'No app or account needed. You can add songs that are in the room, or a link.'}
         </Text>
         {room.pass && !already ? (
           <Text style={styles.text}>Joining leaves the room you are in now.</Text>
@@ -134,7 +144,7 @@ export function JoinScreen(): ReactNode {
           onPress={() => void join()}
           testID="room-join-go"
         />
-        {!signedIn && status !== 'loading' ? (
+        {status === 'missing' ? (
           <Text style={styles.text}>
             Have self.mp3?{' '}
             <Text style={styles.link} onPress={() => router.push('/welcome')}>
@@ -444,6 +454,7 @@ export function PastRoomScreen(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  joinBack: { paddingHorizontal: space.gutter },
   centre: {
     flex: 1,
     width: '100%',

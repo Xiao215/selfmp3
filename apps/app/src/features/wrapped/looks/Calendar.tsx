@@ -45,34 +45,45 @@ export function CalendarLook({ input, hue, art }: LookProps): ReactNode {
           </View>
         ) : null}
         <View style={[styles.row, styles.grid]}>
-          {grid.cells.map((day, i) => (
-            <View key={day?.key ?? `blank-${i}`} style={{ width: cell, height: cell }}>
-              {day ? (
-                <>
-                  <DayDot
-                    share={day.share}
-                    cell={cell}
-                    dot={ink.accent}
-                    empty={ink.well}
-                    smallest={8}
-                    largest={Math.min(30, cell * 0.55)}
-                    fade
-                    cover={
-                      day.songId !== null && record ? (
-                        <Cover
-                          uri={art(day.songId)}
-                          title={record.title}
-                          size={cell}
-                          radius={radius.cover}
-                        />
-                      ) : null
-                    }
-                  />
-                  <LookText style={[styles.date, { color: ink.quiet }]}>{day.label}</LookText>
-                </>
-              ) : null}
-            </View>
-          ))}
+          {grid.cells.map((day, i) => {
+            const covered = day?.songId != null && record != null
+            return (
+              <View key={day?.key ?? `blank-${i}`} style={{ width: cell, height: cell }}>
+                {day ? (
+                  <>
+                    <DayDot
+                      share={day.share}
+                      cell={cell}
+                      dot={ink.accent}
+                      empty={ink.well}
+                      smallest={8}
+                      largest={Math.min(30, cell * 0.55)}
+                      fade
+                      cover={
+                        day.songId !== null && record ? (
+                          <Cover
+                            uri={art(day.songId)}
+                            title={record.title}
+                            size={cell}
+                            radius={radius.cover}
+                          />
+                        ) : null
+                      }
+                    />
+                    {/* On the cover the label sits on a scrap of the page, or it is lost in the picture. */}
+                    <LookText
+                      style={[
+                        covered ? styles.dateOnCover : styles.date,
+                        { color: ink.quiet, backgroundColor: covered ? ink.ground : undefined },
+                      ]}
+                    >
+                      {day.label}
+                    </LookText>
+                  </>
+                ) : null}
+              </View>
+            )
+          })}
         </View>
       </View>
 
@@ -118,6 +129,16 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   date: { position: 'absolute', left: 2, top: 0, fontSize: 9, fontFamily: mono },
+  dateOnCover: {
+    position: 'absolute',
+    left: 3,
+    top: 3,
+    paddingHorizontal: 3,
+    borderRadius: 3,
+    overflow: 'hidden',
+    fontSize: 9,
+    fontFamily: mono,
+  },
   caption: { fontSize: 12, lineHeight: 17 },
   foot: {
     marginTop: 'auto',

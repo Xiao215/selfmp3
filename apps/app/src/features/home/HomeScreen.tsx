@@ -813,7 +813,7 @@ function ThisWeek({
         {sunday ? <WeekReadyHead card={sunday} song={sundaySong} tone={tone} /> : null}
         <StatFigures>
           <StatFigure value={figures.listened} unit={figures.listenedUnit} caption="listened" />
-          <StatFigure value={figures.plays} caption="plays" />
+          <StatFigure value={figures.plays} caption={figures.playsCaption} />
           {/* "2 days", not "2 d": the unit is set small, so it fits (Xiao). */}
           <StatFigure value={figures.streak} unit={figures.streakUnit} caption="streak" />
         </StatFigures>

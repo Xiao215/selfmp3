@@ -150,10 +150,12 @@ export function Chip({
 }
 
 const styles = StyleSheet.create(theme => ({
+  // Never wider than its row: a long tag ends in an ellipsis, its × still on the pill.
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: radius.pill,
+    maxWidth: '100%',
   },
   chipOff: { backgroundColor: theme.colors.surface2 },
   chipSelected: { backgroundColor: theme.colors.textPrimary },

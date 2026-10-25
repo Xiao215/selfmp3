@@ -43,6 +43,10 @@ export function normaliseBaseUrl(input: string): string | null {
   const trimmed = input.trim()
   if (trimmed.length === 0) return null
 
+  // A scheme other than the web's (`ftp://`, `file://`) is not a server's
+  // address; guessing one in front of it made `http://ftp//…`.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) && !/^https?:\/\//i.test(trimmed)) return null
+
   const scheme = /:\d+(?:\/|$)/.test(trimmed) ? 'http' : 'https'
   const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `${scheme}://${trimmed}`
 
@@ -75,6 +79,8 @@ export function normaliseBaseUrl(input: string): string | null {
   if (!validHost) return null
 
   const digits = port?.[1] ?? ''
+  // A port past the last one there is was "could not reach", as if it might.
+  if (digits !== '' && Number(digits) > 65535) return null
   const isDefault =
     digits === '' ||
     (protocol === 'https' && digits === '443') ||
@@ -82,8 +88,10 @@ export function normaliseBaseUrl(input: string): string | null {
   const host = isDefault ? hostname : `${hostname}:${digits}`
 
   // Keep any path prefix (someone may reverse-proxy at /music) but drop the
-  // trailing slash so joining with `/api/...` never doubles up.
-  const path = rawPath.replace(/\/+$/, '')
+  // trailing slash so joining with `/api/...` never doubles up. An address
+  // copied from a request (`…/api`, `…/api/health`) ends in the server's own
+  // routes, which every request already adds, so they go too.
+  const path = rawPath.replace(/\/+$/, '').replace(/\/api(?:\/.*)?$/i, '')
   return `${protocol}://${host}${path}`
 }
 

@@ -1,7 +1,13 @@
 import * as Crypto from 'expo-crypto'
 import { Directory, File, FileMode, Paths } from 'expo-file-system'
 import { namesDigest } from './coverPacks'
-import { createCoverStore, isPicture, parseServedName, type CoverPlatform } from './coverStore'
+import {
+  createCoverStore,
+  fanOfCovers,
+  isPicture,
+  parseServedName,
+  type CoverPlatform,
+} from './coverStore'
 
 /**
  * Cover art from the bucket, as files this phone can hand to the OS.
@@ -165,7 +171,11 @@ export async function keptCovers(limit: number): Promise<readonly string[]> {
       }
     }
     files.sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
-    return files.slice(0, limit).map(file => file.uri)
+    const byName = new Map(files.map(file => [file.name, file.uri]))
+    return fanOfCovers(
+      files.map(file => file.name),
+      limit,
+    ).flatMap(name => byName.get(name) ?? [])
   } catch {
     // Nothing kept, or nothing readable: Welcome draws its tiles.
     return []

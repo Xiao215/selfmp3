@@ -20,10 +20,18 @@ has two steps; the first tap moves on.
 - Settings › About › Tips › **Show tips again** forgets them all (B3).
 - Only when the gesture would work right now, about 0.7 s after the page settles, and one at a
   time. Under Reduce Motion the touch stands still.
+- Never over hands already busy (`guideBusy.ts`): it waits while a finger or button is down, a
+  row is held or carried, a field has the keys, or a sheet, menu or dialog is open over its
+  screen, and comes a settle after all of that stops, so the finger letting go never lands on
+  it. It takes touches from its first frame, a tap as it fades out does nothing, and on a
+  computer the keys stay with it while it is up. It goes if another page opens over its own.
+- The spotlight follows what it lights while it is up (a resize, a page still settling, a box
+  that grows), so the ref goes on something the demo does not move.
 - Per device on purpose: a phone teaches holding and swiping, a computer dragging.
 
 Code: `apps/app/src/features/guide/` (`guide.model.ts` the pure half, `guideMemory.ts` what is
-remembered, `useGuide.ts` when one shows and what it lights, `Guide.tsx` the layer, the touch
+remembered, `guideBusy.ts` and `watchBusy.ts` what it waits for, `useGuide.ts` when one shows
+and what it lights, `Guide.tsx` the layer, the touch
 and the helpers a screen moves its lit thing with). A guide on a page that is a native modal
 (Now Playing, the Up next sheet over it) is drawn `inline`, since the root layer sits under the
 modal.

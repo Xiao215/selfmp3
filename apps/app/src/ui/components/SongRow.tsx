@@ -401,7 +401,11 @@ export const SongRow = memo(function SongRow({
                   <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
                     {hereMark}
                     <Text style={styles.subtitle} numberOfLines={1}>
-                      {artistOr(song.artist)} · {formatDuration(song.duration)}
+                      {artistOr(song.artist)}
+                    </Text>
+                    {/* Its own words, so a long artist is cut before the length is. */}
+                    <Text style={styles.subtitleLength} numberOfLines={1}>
+                      · {formatDuration(song.duration)}
                     </Text>
                   </View>
                   {/* Two and a count, where a list shows tags at all (`S3`): Library, Search, Up next. */}
@@ -944,6 +948,7 @@ const styles = StyleSheet.create(theme => ({
     fontSize: type.sub,
     flexShrink: 1,
   },
+  subtitleLength: { color: theme.colors.textSecondary, fontSize: type.sub, flexShrink: 0 },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minWidth: 0 },
   subtitleWords: {
     flexDirection: 'row',

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Animated } from 'react-native'
 import type { View } from 'react-native'
+import { usePathname } from 'expo-router'
 import { useWindowValue } from '../../shell/useLayout'
-import type { Box, GuideName } from './guide.model'
+import { boxMoved, stepAfter, type Box, type GuideName } from './guide.model'
+import { guidesWait, subscribeBusy } from './guideBusy'
 import {
   claimGuide,
   countVisit,
@@ -11,11 +13,21 @@ import {
   releaseGuide,
   useGuideMemory,
 } from './guideMemory'
+import { fieldFocused } from './watchBusy'
 
 /** How long a page has to arrive before its guide darkens it. */
 const SETTLE_MS = 700
 /** How many more times a guide looks for what it lights before waiting for `ready` again. */
 const RETRIES = 6
+/**
+ * How often a guide that is up looks again at where its thing is. A page can
+ * still be settling when it is first measured (an iPad's Import box sat 30
+ * points lower once its scroll view had taken the status bar's inset), and a
+ * box grows as a list is pasted into it; nothing tells a guide either happened.
+ */
+const FOLLOW_MS = 400
+
+const stayStill = (): (() => void) => () => {}
 
 /** The ref for the View the spotlight goes round: kept apart from the handle, which is read while rendering. */
 export type GuideTarget = (view: View | null) => void
@@ -43,11 +55,20 @@ export interface GuideHandle {
  * says the gesture would work right now, after the page has settled, and
  * only while no other guide is up. `afterVisits` holds it back until that
  * many visits have gone by without it.
+ *
+ * It also waits while the hands are busy (`guideBusy`): a finger down, a row
+ * being held or carried, a field being typed in, or a layer open over the
+ * screen. `layers` is how many layers the screen itself is drawn in (Up next's
+ * sheet is one), so its own does not count. It comes a settle after all of
+ * that has stopped, so the finger letting go never lands on it.
+ *
+ * The ref goes on something the gesture does not move: the spotlight follows
+ * it while the guide is up, and would follow the demo's pull too.
  */
 export function useGuide(
   name: GuideName,
   ready: boolean,
-  { afterVisits = 0 }: { afterVisits?: number } = {},
+  { afterVisits = 0, layers = 0 }: { afterVisits?: number; layers?: number } = {},
 ): readonly [GuideTarget, GuideHandle] {
   useGuideMemory()
   const node = useRef<View | null>(null)
@@ -64,7 +85,13 @@ export function useGuide(
     () => afterVisits === 0 || guideSeen(name) || countVisit(name) > afterVisits,
   )
   const seen = guideSeen(name)
-  const want = ready && visitOk && !seen && box === null
+  const asks = ready && visitOk && !seen && box === null
+  // Only a guide still to come listens: every touch would otherwise re-render
+  // each screen that has ever had one.
+  const busy = useSyncExternalStore(asks ? subscribeBusy : stayStill, () =>
+    asks ? guidesWait(layers) : false,
+  )
+  const want = asks && !busy
   const lit = box !== null
   /*
    * The window's size, only while the guide is waiting to come up or is up.
@@ -72,7 +99,7 @@ export function useGuide(
    * seen: each was drawn again for every pixel a window was dragged, the
    * pages under the top one too (bug bash F056).
    */
-  const watching = want || lit
+  const watching = asks || lit
   const windowWidth = useWindowValue(window => (watching ? window.width : 0))
   const windowHeight = useWindowValue(window => (watching ? window.height : 0))
 
@@ -82,7 +109,8 @@ export function useGuide(
     const timer = setTimeout(() => {
       const view = node.current
       if (cancelled) return
-      if (view === null || !claimGuide(name)) {
+      // Typing with no keyboard on screen to say so (an iPad's own keyboard).
+      if (view === null || fieldFocused() || !claimGuide(name)) {
         if (attempt < RETRIES) setAttempt(now => now + 1)
         return
       }
@@ -91,7 +119,7 @@ export function useGuide(
         // time the screen is ready, rather than lighting nothing.
         const visible =
           width > 0 && height > 0 && y + height > 0 && y < windowHeight && x < windowWidth
-        if (cancelled || !visible) {
+        if (cancelled || !visible || guidesWait(layers)) {
           releaseGuide(name)
           if (!cancelled && attempt < RETRIES) setAttempt(now => now + 1)
           return
@@ -104,18 +132,25 @@ export function useGuide(
       cancelled = true
       clearTimeout(timer)
     }
-  }, [want, name, attempt, windowHeight, windowWidth])
-
-  // A window resized under a guide (a computer's) moves what it lights; the
-  // spotlight follows rather than glowing round an empty patch.
-  useEffect(() => {
-    if (!lit) return
-    node.current?.measureInWindow((x, y, width, height) => {
-      if (width > 0 && height > 0) setBox(now => (now === null ? now : { x, y, width, height }))
-    })
-  }, [lit, windowWidth, windowHeight])
+  }, [want, name, attempt, layers, windowHeight, windowWidth])
 
   const shown = box !== null && step >= 0
+
+  // What it lights moves under a guide that is up: a window resized (a
+  // computer's), a page still settling, a box growing as a list is pasted in.
+  // The spotlight follows rather than glowing round an empty patch.
+  useEffect(() => {
+    if (!shown) return undefined
+    const follow = (): void =>
+      node.current?.measureInWindow((x, y, width, height) => {
+        if (width <= 0 || height <= 0) return
+        const next = { x, y, width, height }
+        setBox(now => (now === null || !boxMoved(now, next) ? now : next))
+      })
+    follow()
+    const timer = setInterval(follow, FOLLOW_MS)
+    return () => clearInterval(timer)
+  }, [shown, windowWidth, windowHeight])
   /*
    * The hand stopped and put back at the start before the step changes, while
    * the row it moves is still joined to it. A row lets go of the hand on that
@@ -128,25 +163,42 @@ export function useGuide(
     demo.stopAnimation()
     demo.setValue(0)
   }, [demo])
+  // The step as the last press left it, read by the next press: giving the
+  // turn back from inside a state update told every other guide mid-render.
+  const stepNow = useRef(0)
   const dismiss = useCallback(() => {
     settle()
+    stepNow.current = -1
     setStep(-1)
     releaseGuide(name)
   }, [name, settle])
   const next = useCallback(
     (steps: number) => {
       settle()
-      setStep(now => {
-        if (now + 1 < steps) return now + 1
-        releaseGuide(name)
-        return -1
-      })
+      const after = stepAfter(stepNow.current, steps)
+      stepNow.current = after
+      setStep(after)
+      if (after < 0) releaseGuide(name)
     },
     [name, settle],
   )
 
   // A screen left with its guide up gives the turn back.
   useEffect(() => () => releaseGuide(name), [name])
+
+  // Another page opened over the guide's (the screen stays mounted under a
+  // pushed one): the guide goes with its page rather than lighting a patch of
+  // the new one.
+  const pathname = usePathname()
+  const shownOn = useRef<string | null>(null)
+  useEffect(() => {
+    if (!shown) {
+      shownOn.current = null
+      return
+    }
+    if (shownOn.current === null) shownOn.current = pathname
+    else if (shownOn.current !== pathname) dismiss()
+  }, [shown, pathname, dismiss])
 
   const guide = useMemo(
     () => ({ name, box, shown, step, demo, next, dismiss }),

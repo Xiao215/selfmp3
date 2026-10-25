@@ -114,6 +114,20 @@ describe('formatListenTime', () => {
     expect(formatListenTime(42.4)).toBe('42 min')
     expect(formatListenTime(Number.NaN)).toBe('0 min')
   })
+
+  it('groups big hours like the play counts beside them', () => {
+    expect(formatListenTime(3663 * 60 + 9)).toBe('3,663h 09')
+    expect(formatListenTime(1000 * 60)).toBe('1,000h')
+    expect(formatListenTime(999 * 60 + 59)).toBe('999h 59')
+  })
+
+  it('says under a minute for a few seconds, and 0 for none', () => {
+    expect(formatListenTime(0.1)).toBe('<1 min')
+    expect(formatListenTime(0.49)).toBe('<1 min')
+    expect(formatListenTime(0.5)).toBe('1 min')
+    expect(formatListenTime(0)).toBe('0 min')
+    expect(formatListenTime(-3)).toBe('0 min')
+  })
 })
 
 describe('plural', () => {

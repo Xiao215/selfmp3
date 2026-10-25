@@ -1,5 +1,5 @@
 import { devicePlace, type DevicePlace } from '../features/settings/settings.model'
-import { deviceKind } from './device'
+import { deviceKind, deviceModel } from './device'
 import { installedApp } from './install'
 
 /**
@@ -7,5 +7,5 @@ import { installedApp } from './install'
  * browser", "Remove from this phone"): `devicePlace` for the device as it is.
  */
 export function thisPlace(): DevicePlace {
-  return devicePlace(deviceKind(), installedApp)
+  return devicePlace(deviceKind(), installedApp, deviceModel() === 'ipad')
 }

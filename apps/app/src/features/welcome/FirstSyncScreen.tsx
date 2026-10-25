@@ -17,6 +17,7 @@ import { useCloudSession } from '../profile/useCloudSession'
 import { useArt } from '../../offline/useArt'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayoutFlags } from '../../shell/useLayout'
+import { thisPlace } from '../../ports/place'
 import { Cover } from '../../ui/components/Cover'
 import { ToggleRow } from '../../ui/components/Toggle'
 import {
@@ -114,7 +115,7 @@ export function FirstSyncScreen(): ReactNode {
       : null,
   )
   const bytes = library.data ? songs.reduce((sum, song) => sum + song.sizeBytes, 0) : null
-  const keep = keepEverySongCopy(wide, bytes)
+  const keep = keepEverySongCopy(wide, bytes, thisPlace() === 'iPad')
 
   return (
     <OnboardingPage

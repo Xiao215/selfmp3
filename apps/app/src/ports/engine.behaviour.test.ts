@@ -82,7 +82,7 @@ vi.mock('../player/setup', () => ({ ensurePlayer: () => Promise.resolve() }))
 // Who this device is reads React Native, which a node test cannot load. Each
 // rig says which it is: a phone, or a computer for the browser.
 const device = vi.hoisted(() => ({ kind: 'phone' as 'phone' | 'desktop' }))
-vi.mock('./device', () => ({ deviceKind: () => device.kind }))
+vi.mock('./device', () => ({ deviceKind: () => device.kind, deviceModel: () => 'iphone' }))
 
 // --- the browser's element ---------------------------------------------------
 

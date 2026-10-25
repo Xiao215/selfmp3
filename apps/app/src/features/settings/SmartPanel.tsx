@@ -73,7 +73,8 @@ const SWITCHES: readonly {
  * The switches are the library's settings, which the server acts on — it
  * refuses a feature that is off, and reads the notes with each
  * request — so they are read from and written to the server itself. The
- * switches wait for its answer.
+ * switches wait for its answer. With no model set up on the server none of
+ * them can do anything, so they are dimmed and the panel says so.
  */
 export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
   const server = useServerApi()
@@ -81,6 +82,15 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
     server.api,
     server.via?.baseUrl ?? null,
   )
+  const via = reachedConnection(server.reach)?.baseUrl ?? null
+  // The Model panel's own question, under its key: one answer for both.
+  const setup = useQuery({
+    queryKey: viaKey(via, 'ai', 'setup'),
+    queryFn: () => server.api!.aiSetup(),
+    enabled: server.api !== null,
+    retry: false,
+  })
+  const noModel = setup.data?.address === null
   return (
     <Panel title="Smart features" mark={<Sparkle size={iconSize.small} />} anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
@@ -88,12 +98,19 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
       ) : (
         <>
           {settings ? null : <SettingsWaiting failed={failed} onRetry={retry} />}
+          {settings && noModel ? (
+            <Row
+              label="No model set up"
+              hint="These need a model on your server first: see Advanced › Model."
+            />
+          ) : null}
           {settings ? (
             <Row label="Use smart features" hint="Song names and tags only. Never audio.">
               <Toggle
                 value={settings.smartFeatures}
                 onChange={value => set('smartFeatures', value)}
                 label="Use smart features"
+                disabled={noModel}
                 testID="smart-features"
               />
             </Row>
@@ -105,7 +122,7 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
                     value={settings[each.key]}
                     onChange={value => set(each.key, value)}
                     label={each.label}
-                    disabled={!settings.smartFeatures}
+                    disabled={noModel || !settings.smartFeatures}
                   />
                 </Row>
               ))

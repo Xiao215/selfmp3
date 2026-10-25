@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
 import { iconSize, radius, shareLinkUrl, space, type } from '@selfmp3/client'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
@@ -71,6 +72,8 @@ export function LinksScreen(): ReactNode {
   const router = useRouter()
   const wide = useLayoutValue(layout => layout.wide)
   const { data: links, isLoading } = useSentLinks()
+  // Links are kept with a self.mp3 sign-in; a server address alone has none to list.
+  const { fromCloud } = useConnection()
   const act = useShareAct()
   const now = useMinute()
   const coverOf = useOwnCover(ROW_COVER_SIZE)
@@ -264,8 +267,15 @@ export function LinksScreen(): ReactNode {
               ))}
             </View>
           ) : null}
-          {/* Nothing shared yet — or no storage to lend from, which shares nothing either. */}
-          {!isLoading && (links ?? []).length === 0 ? (
+          {/* Nothing shared yet, or nothing that can share: a server connected by address. */}
+          {!fromCloud ? (
+            <EmptyState
+              icon={<Link size={iconSize.large} tone="textMuted" />}
+              title="No share links here"
+              line="Share links need a self.mp3 sign-in."
+              testID="links-none"
+            />
+          ) : !isLoading && (links ?? []).length === 0 ? (
             <EmptyState
               icon={<Link size={iconSize.large} tone="textMuted" />}
               title="No links yet"

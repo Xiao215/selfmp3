@@ -55,16 +55,22 @@ export function keepEverySongByDefault(wide: boolean): boolean {
   return wide
 }
 
-/** The switch's words, naming the device it is on and how much it would hold. */
+/**
+ * The switch's words, naming the device it is on and how much it would hold.
+ * An iPad is wide like a computer, and keeps the computer's default, but is
+ * called an iPad.
+ */
 export function keepEverySongCopy(
   wide: boolean,
   bytes: number | null,
+  iPad = false,
 ): { readonly label: string; readonly hint: string } {
   const size = bytes !== null && bytes > 0 ? `About ${formatBytes(bytes)}. ` : ''
+  const device = iPad ? 'iPad' : 'computer'
   return wide
     ? {
-        label: 'Keep every song on this computer',
-        hint: `${size}A computer usually has the room, so this is on by default here.`,
+        label: `Keep every song on this ${device}`,
+        hint: `${size}${iPad ? 'An iPad' : 'A computer'} usually has the room, so this is on by default here.`,
       }
     : {
         label: 'Keep every song on this phone',

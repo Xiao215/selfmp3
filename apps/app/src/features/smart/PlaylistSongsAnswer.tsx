@@ -18,7 +18,7 @@ import type { AnswerKeys } from './answerKeys'
 import { Review, reviewText } from './Review'
 import { keptSongs, parts, playlistEditHere, sortWords, type Reviewed } from './smart.model'
 import { useSmartServer } from './useSmartServer'
-import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
+import { AnswerActions, AnswerHead, AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 
 type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
 
@@ -38,7 +38,8 @@ export function PlaylistSongsAnswer({
 }: {
   answer: Answer
   height: number
-  onDone: () => void
+  /** Done with: what was done to the playlist, or that nothing changed. */
+  onDone: (outcome?: string) => void
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
   const server = useSmartServer()
@@ -75,7 +76,7 @@ export function PlaylistSongsAnswer({
       try {
         await reorder.mutateAsync({ playlistId, songIds: here.songIds })
         undoToast(`Sorted ${name}`, () => reorder.mutateAsync({ playlistId, songIds: before }))
-        onDone()
+        onDone(`Sorted ${name}`)
       } catch {
         // The edit says what failed itself.
         setSorting(false)
@@ -106,7 +107,7 @@ export function PlaylistSongsAnswer({
           </View>
         )}
         <AnswerActions>
-          <Button label="Close" onPress={onDone} />
+          <Button label="Close" onPress={() => onDone(CLOSED)} />
           <Button
             label="Sort"
             variant="primary"
@@ -145,24 +146,24 @@ export function PlaylistSongsAnswer({
   const apply = async (
     approved: readonly Reviewed[],
     leftOut: ReadonlySet<string>,
-  ): Promise<boolean> => {
+  ): Promise<boolean | string> => {
     const songIds = approved.flatMap(each => keptSongs(each, leftOut))
     if (songIds.length === 0) return false
     const before = [...current]
     try {
       if (adding) {
         await add.mutateAsync({ playlistId, songIds })
-        undoToast(`Added ${plural(songIds.length, 'song', 'songs')} to ${name}`, () =>
-          removeMany.mutateAsync({ playlistId, songIds }),
-        )
-      } else {
-        await removeMany.mutateAsync({ playlistId, songIds })
-        undoToast(`Removed ${plural(songIds.length, 'song', 'songs')} from ${name}`, async () => {
-          await add.mutateAsync({ playlistId, songIds })
-          await reorder.mutateAsync({ playlistId, songIds: before })
-        })
+        const added = `Added ${plural(songIds.length, 'song', 'songs')} to ${name}`
+        undoToast(added, () => removeMany.mutateAsync({ playlistId, songIds }))
+        return added
       }
-      return true
+      await removeMany.mutateAsync({ playlistId, songIds })
+      const removed = `Removed ${plural(songIds.length, 'song', 'songs')} from ${name}`
+      undoToast(removed, async () => {
+        await add.mutateAsync({ playlistId, songIds })
+        await reorder.mutateAsync({ playlistId, songIds: before })
+      })
+      return removed
     } catch {
       // The edit says what failed itself.
       return false
@@ -171,6 +172,7 @@ export function PlaylistSongsAnswer({
 
   return (
     <Review
+      card
       changes={[edit]}
       sectionOf={() => 'Songs'}
       head={adding ? `Add to ${name}` : `Remove from ${name}`}

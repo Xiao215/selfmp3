@@ -49,7 +49,7 @@ import { chunks, foldedBare as bare, pool } from './text.js'
  * number they give ("up to 300") is taken from those.
  */
 
-const VERSION = 6
+const VERSION = 7
 
 /** The most names of each kind the model is shown; past that, the most used. */
 const MAX_NAMES = 600
@@ -431,7 +431,7 @@ const ASKED_SYSTEM = `You change the names in someone's own music library the wa
 - Every song on one album gets the same album name.
 - why: at most six plain words, the same words for every edit made for the same reason ("Official Chinese name").
 - Never use a number that is not in the table, and never an edit that keeps the name the same.
-- say: what you tell them, in the language of their request, in one or two plain sentences. When you change nothing, or leave out a song they seem to mean, say which song you took them to mean and why it stays as it is. Empty when the edits say it all, or when no song in the table is one they mean.`
+- say: what you tell them, in one or two plain sentences, in the language they wrote their request in (not the language of the songs' names). When you change nothing, or leave out a song they seem to mean, say which song you took them to mean and why it stays as it is. Empty when the edits say it all, or when no song in the table is one they mean.`
 
 /** Added when the songs were looked up: what was found is the only place a name may come from. */
 const FOUND_RULES = `
@@ -445,9 +445,6 @@ Each song may be followed by "found": what music catalogues (网易云, MusicBra
 const WEB_RULES = `
 
 None of these songs is in the music catalogues. Search the web for each one's name the way they ask: the artist's or publisher's own pages, stores, wikis. Give a name only when a page you read gives it for this same song, and leave the rest out.`
-
-/** The most of the model's sentences an answer says, one per batch at most. */
-const MAX_SAID = 2
 
 /** Songs per web call: each may mean a few searches. */
 const WEB_PER_CALL = 15
@@ -631,6 +628,7 @@ async function askedTidy(
   const { propose, changes } = grouped()
   // What the model told them, batch by batch: the answer's words when it changes nothing.
   const said: string[] = []
+  const saidOnWeb: string[] = []
   let done = 0
   const failures: LlmError[] = []
   let missed = 0
@@ -728,7 +726,7 @@ async function askedTidy(
         webMissed += batch.length
         return
       }
-      if (answer.say.trim()) said.push(answer.say.trim())
+      if (answer.say.trim()) saidOnWeb.push(answer.say.trim())
       eachChecked(answer, batch, (song, edit) => {
         propose(
           song,
@@ -751,7 +749,10 @@ async function askedTidy(
     looked: needing.length > songs.length ? songs.length : chosen.length,
     note: notes.length > 0 ? notes.join(' ') : null,
     asked: asked.text,
-    reply: [...new Set(said)].slice(0, MAX_SAID).join(' ') || null,
+    // One thing said: each batch says much the same about its own songs, so
+    // two of them read as the answer twice. The web pass speaks only when the
+    // names pass had nothing to say.
+    reply: said[0] ?? saidOnWeb[0] ?? null,
     gaps: null,
   }
 }

@@ -12,7 +12,7 @@ import { showPendingToast, showUndoToast } from '../../ui/toast'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { FOLLOWS_LABEL, isLive } from '../playlists/playlists.model'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { AnswerActions, AnswerHead, AnswerLine, AnswerNote } from './AnswerParts'
+import { AnswerActions, AnswerHead, AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 import { textColumn } from '../../ui/surfaces'
 
 /**
@@ -27,7 +27,8 @@ export function PlaylistsAnswer({
   onDone,
 }: {
   answer: Extract<AskAnswer, { kind: 'playlists' }>
-  onDone: () => void
+  /** Done with: what was done, or that nothing changed. */
+  onDone: (outcome?: string) => void
 }): ReactNode {
   const { data: library } = useLibrary()
   const queryClient = useQueryClient()
@@ -52,6 +53,10 @@ export function PlaylistsAnswer({
     if (chosen.length === 0 || busy) return
     const gone = new Set(chosen.map(playlist => playlist.id))
     const [only] = chosen
+    const deleted =
+      chosen.length === 1 && only
+        ? `Deleted “${only.name}”`
+        : `Deleted ${plural(chosen.length, 'playlist', 'playlists')}`
     // Out of the library drawn here at once; nothing is sent until the Undo
     // has gone, and asking for the library again brings them back after an
     // Undo or a delete that failed.
@@ -84,7 +89,7 @@ export function PlaylistsAnswer({
         art: only && chosen.length === 1 ? <PlaylistCover playlist={only} size={ART} /> : undefined,
       },
     )
-    onDone()
+    onDone(deleted)
   }
 
   const rename = async (): Promise<void> => {
@@ -101,7 +106,7 @@ export function PlaylistsAnswer({
         () => clientApi().updatePlaylist(playlist.id, { name: playlist.name }).then(refresh),
         { tone: 'good', failed: 'Couldn’t undo that' },
       )
-      onDone()
+      onDone(`Renamed “${playlist.name}” to “${to}”`)
     } catch (caught) {
       setError(failureText('Couldn’t rename it', caught))
     } finally {
@@ -177,7 +182,7 @@ export function PlaylistsAnswer({
       ) : null}
       {error ? <StatusLine>{error}</StatusLine> : null}
       <AnswerActions>
-        <Button label="Cancel" onPress={onDone} />
+        <Button label="Cancel" onPress={() => onDone(CLOSED)} />
         {renaming ? (
           <Button
             label="Rename"

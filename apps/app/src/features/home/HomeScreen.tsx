@@ -9,7 +9,7 @@ import { plural } from '@selfmp3/shared'
 import { pastRoomFaces, useRecentRooms } from '../room/pastRooms.store'
 import { FacesCover } from '../room/RoomFace'
 import { usePastRoomCovers } from '../room/usePastRoomCovers'
-import { HomeTogetherButton, TogetherCard } from '../room/Together'
+import { HomeTogetherButton } from '../room/Together'
 import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
@@ -249,8 +249,6 @@ function HomePage({ stats }: { stats: Stats | undefined }): ReactNode {
             />
           ) : null}
         </View>
-
-        {empty ? null : <TogetherCard />}
 
         <ShareAsks />
         <FromFriends wide={wide} />

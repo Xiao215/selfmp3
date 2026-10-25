@@ -10,7 +10,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { copyText } from '../../ports/clipboard'
 import { SelectableText } from '../../ports/selectableText'
 import { Button } from '../../ui/components/Button'
-import { Copy as CopyIcon, Play, Sparkle } from '../../ui/components/Icons'
+import { Copy as CopyIcon, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import { rangeWords } from './smart.model'
@@ -27,7 +27,7 @@ import { TidyReview } from './TidyReview'
 import { CopiesReview } from './CopiesReview'
 import type { AnswerKeys } from './answerKeys'
 import { useSmartServer } from './useSmartServer'
-import { SongLine } from '../../ui/components/SongLine'
+import { AnswerSongLine } from './AnswerSongLine'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
 import { Press } from '../../ui/components/Press'
 
@@ -48,7 +48,8 @@ export function AnswerBody({
 }: {
   answer: Answer
   text: string
-  onDone: () => void
+  /** Done with the answer: a proposal says what came of it ("Fixed 31 songs", `CLOSED`). */
+  onDone: (outcome?: string) => void
   onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
@@ -79,11 +80,18 @@ export function AnswerBody({
       )
     case 'tags':
       return (
-        <TagsReview review={answer.review} height={listHeight} onClose={onDone} onKeys={onKeys} />
+        <TagsReview
+          card
+          review={answer.review}
+          height={listHeight}
+          onClose={onDone}
+          onKeys={onKeys}
+        />
       )
     case 'tidy':
       return (
         <TidyReview
+          card
           result={answer.tidy}
           height={listHeight}
           onClose={onDone}
@@ -93,7 +101,13 @@ export function AnswerBody({
       )
     case 'copies':
       return (
-        <CopiesReview result={answer.copies} height={listHeight} onClose={onDone} onKeys={onKeys} />
+        <CopiesReview
+          card
+          result={answer.copies}
+          height={listHeight}
+          onClose={onDone}
+          onKeys={onKeys}
+        />
       )
     case 'remember':
       return <RememberAnswer note={answer.note} onDone={onDone} />
@@ -259,7 +273,6 @@ function SongPicks({
   picks: readonly { songId: number; why: string | null }[]
   onDone: () => void
 }): ReactNode {
-  const { theme } = useUnistyles()
   const server = useSmartServer()
   const player = usePlayerCommands()
   const songsById = useSongsById()
@@ -274,20 +287,17 @@ function SongPicks({
   return (
     <>
       {found.map(({ song, why }, index) => (
-        <SongLine
+        <AnswerSongLine
           key={song.id}
-          onPress={() => {
+          song={song}
+          onPlay={() => {
             player.playFrom(ids, index, {
               source: { kind: 'songs', origin: 'found', name: 'Search' },
             })
             onDone()
           }}
-          accessibilityLabel={`Play ${song.title}`}
           artUri={artFor(song)}
-          coverTitle={song.album || song.title}
-          title={song.title}
           sub={why ? `${artistOr(song.artist)} · ${why}` : artistOr(song.artist)}
-          trailing={<Play size={iconSize.field} color={theme.colors.textSecondary} />}
         />
       ))}
     </>

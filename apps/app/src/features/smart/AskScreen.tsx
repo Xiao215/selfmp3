@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
-// eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dock is its own field, its send turning into Stop in place, as ChangeField's does
-import { KeyboardAvoidingView, Text, TextInput, View, useWindowDimensions } from 'react-native'
+import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Text,
+  // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the dock is its own field, its send turning into Stop in place, as ChangeField's does
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -19,7 +26,7 @@ import { useAccent } from '../../ui/accent'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { ChevronRight, Pencil, Sparkle } from '../../ui/components/Icons'
+import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { Kbd } from '../../ui/components/Kbd'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView, type ScrollView as ScrollNode } from '../../ui/components/Scroll'
@@ -31,7 +38,8 @@ import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
 import { AnswerBody } from './AnswerBody'
-import { AnswerActions } from './AnswerParts'
+import { AnswerActions, CLOSED } from './AnswerParts'
+import { SelectableText } from '../../ports/selectableText'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
 import { answerRecap } from './smart.model'
@@ -49,8 +57,11 @@ interface Turn {
   readonly playing: number | null
   /** What its answer showed, in words, for the turns after it; null until it is answered. */
   readonly answered: string | null
-  /** Its answer was acted on or put aside: drawn as the line it was answered with. */
-  readonly settled: boolean
+  /**
+   * What came of a proposal once it was acted on or put aside ("Fixed 31
+   * songs", `CLOSED`): the turn keeps the model's words and this line (S1).
+   */
+  readonly outcome: string | null
 }
 
 /**
@@ -100,7 +111,7 @@ const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
  * server hears each earlier question with what was shown for it, and answers
  * the newest). While one is worked on its send is a Stop, which takes the
  * turn back off the page and its words back into the field. ‹ goes back to
- * Search with the question still typed; the pencil starts over.
+ * Search with the question still typed; a conversation is not kept after it.
  *
  * `?to=room` asks for the room you are in, as Search does when adding to it
  * (A2): songs answered are added there rather than played.
@@ -115,7 +126,6 @@ export function AskScreen(): ReactNode {
   const server = useSmartServer()
   const player = usePlayer()
   const songsById = useSongsById()
-  const accent = useAccent()
 
   const playingNow = (): number | null => {
     const id = player.current?.id
@@ -126,7 +136,7 @@ export function AskScreen(): ReactNode {
     asked,
     playing: playingNow(),
     answered: null,
-    settled: false,
+    outcome: null,
   })
   const [turns, setTurns] = useState<readonly Turn[]>(() => {
     const first = typeof params.q === 'string' ? params.q.trim() : ''
@@ -138,6 +148,22 @@ export function AskScreen(): ReactNode {
   const scroll = useRef<ScrollNode>(null)
   /** Where the newest turn starts in the thread, to show an answer from its top. */
   const latestTop = useRef(0)
+  /** How far the thread is scrolled, and how tall it is, to keep its foot in view as it shrinks. */
+  const scrolled = useRef(0)
+  const threadHeight = useRef(0)
+  /** The thread's last shrink: by how much, and where it was scrolled to then. */
+  const shrank = useRef<{ by: number; at: number } | null>(null)
+  // The keyboard takes room from the thread's foot. Once it is up, what was at
+  // the foot is moved up by that room, as a messages app keeps it; moved while
+  // the keyboard still rises, the scroll was lost to the page's own move.
+  useEffect(() => {
+    const risen = Keyboard.addListener('keyboardDidShow', () => {
+      const lost = shrank.current
+      shrank.current = null
+      if (lost) scroll.current?.scrollTo({ y: lost.at + lost.by, animated: true })
+    })
+    return () => risen.remove()
+  }, [])
 
   const latest = turns.at(-1)
   const working = latest !== undefined && latest.answered === null
@@ -158,17 +184,11 @@ export function AskScreen(): ReactNode {
     setDraft(latest.asked)
     field.current?.focus()
   }
-  const startOver = (): void => {
-    setTurns([])
-    setKeys(null)
-    setDraft('')
-    field.current?.focus()
-  }
   const answered = useCallback((id: number, recap: string) => {
     setTurns(was => was.map(turn => (turn.id === id ? { ...turn, answered: recap } : turn)))
   }, [])
-  const settle = useCallback((id: number) => {
-    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, settled: true } : turn)))
+  const settle = useCallback((id: number, outcome: string) => {
+    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, outcome } : turn)))
   }, [])
   const titleOf = useCallback(
     (serverId: number) => {
@@ -230,13 +250,8 @@ export function AskScreen(): ReactNode {
                   {adding ? `Ask for ${roomTitle(adding)}` : 'Ask'}
                 </Text>
               </View>
-              <View style={[styles.headSide, styles.headRight]}>
-                {turns.length > 0 ? (
-                  <IconButton label="New question" filled onPress={startOver} testID="ask-new">
-                    <Pencil size={iconSize.field} color={accent.accent} />
-                  </IconButton>
-                ) : null}
-              </View>
+              {/* Balances the ‹, so the title sits in the middle. */}
+              <View style={styles.headSide} />
             </View>
 
             {server.reach.state !== 'reachable' ? (
@@ -250,6 +265,17 @@ export function AskScreen(): ReactNode {
                 contentContainerStyle={styles.turns}
                 keyboardDismissMode="interactive"
                 keyboardShouldPersistTaps="handled"
+                onScroll={event => {
+                  scrolled.current = event.nativeEvent.contentOffset.y
+                }}
+                scrollEventThrottle={16}
+                onLayout={event => {
+                  const height = event.nativeEvent.layout.height
+                  if (height < threadHeight.current) {
+                    shrank.current = { by: threadHeight.current - height, at: scrolled.current }
+                  }
+                  threadHeight.current = height
+                }}
               >
                 {turns.length === 0 ? (
                   <Text style={styles.empty}>
@@ -262,7 +288,10 @@ export function AskScreen(): ReactNode {
                     turn={turn}
                     before={turns.slice(0, index).map(each => ({
                       asked: each.asked,
-                      answered: each.answered ?? '',
+                      // What was proposed, and what came of it once it did.
+                      answered: each.outcome
+                        ? `${each.answered ?? ''}\nThen: ${each.outcome}`
+                        : (each.answered ?? ''),
                     }))}
                     latest={index === turns.length - 1}
                     via={reachedConnection(server.reach)?.baseUrl ?? null}
@@ -348,7 +377,7 @@ function TurnView({
   titleOf: (serverId: number) => string | undefined
   listHeight: number
   onAnswered: (id: number, recap: string) => void
-  onSettle: (id: number) => void
+  onSettle: (id: number, outcome: string) => void
   onAsk: (words: string) => void
   onKeys?: (keys: AnswerKeys | null) => void
   /** Where it starts in the thread, for the newest. */
@@ -386,11 +415,12 @@ function TurnView({
   useEffect(() => {
     if (recap !== null && recap !== turn.answered) onAnswered(turn.id, recap)
   }, [recap, turn.answered, turn.id, onAnswered])
+  const settled = turn.outcome !== null
   // Only the newest answer's keys work, and only while it is shown whole.
   useEffect(() => {
-    if (!onKeys || turn.settled) return undefined
+    if (!onKeys || settled) return undefined
     return () => onKeys(null)
-  }, [onKeys, turn.settled])
+  }, [onKeys, settled])
 
   const settles = data !== undefined && SETTLES.has(data.kind)
   return (
@@ -415,24 +445,47 @@ function TurnView({
             </AnswerActions>
           ) : null}
         </View>
-      ) : turn.settled && recap !== null ? (
-        <Text style={styles.settled} numberOfLines={2} testID="ask-turn-settled">
-          {recap}
-        </Text>
+      ) : turn.outcome !== null && data ? (
+        <Outcome answer={data} outcome={turn.outcome} />
       ) : data ? (
         <View testID={`ask-answer-${data.kind}`}>
           <AnswerBody
             answer={data}
             text={turn.asked}
-            // A proposal acted on or put aside folds away; anything else stays to come back to.
-            onDone={() => (settles ? onSettle(turn.id) : undefined)}
+            // A proposal acted on or put aside becomes what came of it; anything
+            // else stays to come back to.
+            onDone={outcome => (settles && outcome ? onSettle(turn.id, outcome) : undefined)}
             onOpenPage={() => undefined}
             listHeight={listHeight}
-            onKeys={latest && !turn.settled ? onKeys : undefined}
+            onKeys={latest && !settled ? onKeys : undefined}
             onAsk={onAsk}
           />
         </View>
       ) : null}
+    </View>
+  )
+}
+
+/**
+ * A proposal once it is done with (S1): what the model said stays as it was,
+ * and the review gives way to one line on what came of it, ticked when
+ * something was done.
+ */
+function Outcome({ answer, outcome }: { answer: AskAnswer; outcome: string }): ReactNode {
+  const { theme } = useUnistyles()
+  const said = answer.kind === 'tidy' ? answer.tidy.reply : null
+  const done = outcome !== CLOSED
+  return (
+    <View style={styles.outcome}>
+      {said ? <SelectableText style={styles.said}>{said}</SelectableText> : null}
+      <View style={styles.outcomeLine} testID="ask-turn-outcome">
+        {done ? (
+          <View style={styles.tick}>
+            <Check size={iconSize.tiny} color={theme.colors.onPrimary} />
+          </View>
+        ) : null}
+        <Text style={done ? styles.outcomeDone : styles.outcomeClosed}>{outcome}</Text>
+      </View>
     </View>
   )
 }
@@ -524,7 +577,6 @@ const styles = StyleSheet.create(theme => ({
     paddingBottom: space.sm,
   },
   headSide: { width: 48, flexDirection: 'row' },
-  headRight: { justifyContent: 'flex-end' },
   title: {
     flex: 1,
     flexDirection: 'row',
@@ -550,7 +602,19 @@ const styles = StyleSheet.create(theme => ({
   },
   bubbleText: { color: theme.colors.textPrimary, ...textStyle('body') },
   failed: { gap: space.sm },
-  settled: { color: theme.colors.textMuted, fontSize: type.sub },
+  outcome: { gap: space.md },
+  said: { color: theme.colors.textPrimary, ...textStyle('body') },
+  outcomeLine: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  tick: {
+    width: 20,
+    height: 20,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.good,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outcomeDone: { color: theme.colors.textPrimary, ...textStyle('body') },
+  outcomeClosed: { color: theme.colors.textSecondary, ...textStyle('body') },
   dock: {
     paddingHorizontal: space.lg,
     paddingTop: space.sm,

@@ -1,0 +1,255 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  IOS_ASSETS,
+  IOS_INSTALL_PAGE_URL,
+  IOS_RELEASE_TAG,
+  REPOSITORY,
+  iosAssetUrl,
+  renderIosManifest,
+} from '@selfmp3/shared'
+
+/**
+ * The iPhone app for friends: one ad hoc build, signed for every iPhone on the
+ * signing team's list, and with `--publish` put on the `ios` release, where the
+ * install page and the installed apps find it (packages/shared/src/iosApp.ts).
+ *
+ *   node scripts/ios-release.mjs [--publish] [--skip-prebuild]
+ *
+ * How it signs is not in this public repository: it is read from
+ * ~/.ios-signing/release.json (or SELFMP3_IOS_SIGNING), which names the team,
+ * the certificate and a profile per bundle — see docs/MOBILE.md, "Sharing the
+ * iPhone app". The build number is main's commit count (app.config.js), so a
+ * published build must be a commit on main.
+ */
+
+const app = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const out = resolve(app, 'build/release')
+const args = new Set(process.argv.slice(2))
+const publish = args.has('--publish')
+
+/** The Xcode targets, by the bundle each signs. */
+const TARGETS = { selfmp3: 'com.selfmp3.app', SelfMp3Widget: 'com.selfmp3.app.widget' }
+
+const run = (command, list, options = {}) =>
+  execFileSync(command, list, {
+    cwd: options.cwd ?? app,
+    stdio: options.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
+    env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
+  })
+    ?.toString()
+    .trim()
+
+const signingPath =
+  process.env.SELFMP3_IOS_SIGNING ?? resolve(homedir(), '.ios-signing/release.json')
+if (!existsSync(signingPath)) {
+  throw new Error(
+    `No signing setup at ${signingPath}; see docs/MOBILE.md, "Sharing the iPhone app".`,
+  )
+}
+/**
+ * { team, method: 'release-testing' | 'debugging', identity, profiles: { [bundle]: name },
+ *   withoutAppGroup?: true } — the last for profiles made before the App Group was assigned.
+ */
+const signing = JSON.parse(readFileSync(signingPath, 'utf8'))
+for (const bundle of Object.values(TARGETS)) {
+  if (!signing.profiles?.[bundle]) throw new Error(`${signingPath} names no profile for ${bundle}.`)
+}
+
+const commit = run('git', ['rev-parse', 'HEAD'], { capture: true })
+const build = Number(run('git', ['rev-list', '--count', 'HEAD'], { capture: true }))
+const { version } = JSON.parse(readFileSync(resolve(app, 'package.json'), 'utf8'))
+if (publish) {
+  if (run('git', ['status', '--porcelain'], { capture: true }) !== '') {
+    throw new Error('The checkout has changes; a published build is a commit as it is on main.')
+  }
+  run('git', ['fetch', '--quiet', 'origin', 'main'])
+  try {
+    run('git', ['merge-base', '--is-ancestor', commit, 'FETCH_HEAD'])
+  } catch {
+    throw new Error('HEAD is not on main yet; its build number would not follow main’s.')
+  }
+}
+console.log(`self.mp3 ${version} (${build}), ${commit.slice(0, 8)}`)
+
+if (!args.has('--skip-prebuild')) {
+  run('npx', ['expo', 'prebuild', '-p', 'ios', '--no-install'])
+  run('pod', ['install'], { cwd: resolve(app, 'ios') })
+}
+
+rmSync(out, { recursive: true, force: true })
+mkdirSync(out, { recursive: true })
+
+const settings = [
+  'CODE_SIGN_STYLE=Manual',
+  `DEVELOPMENT_TEAM=${signing.team}`,
+  `CODE_SIGN_IDENTITY=${signing.identity}`,
+  ...Object.entries(TARGETS).map(
+    ([target, bundle]) => `PROFILE_${target}=${signing.profiles[bundle]}`,
+  ),
+  // Each target its own profile, by name, with no edit to the generated project.
+  'PROVISIONING_PROFILE_SPECIFIER=$(PROFILE_$(TARGET_NAME))',
+]
+if (signing.withoutAppGroup) {
+  const empty = resolve(out, 'none.entitlements')
+  writeFileSync(
+    empty,
+    '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict/></plist>\n',
+  )
+  settings.push(`CODE_SIGN_ENTITLEMENTS=${empty}`)
+}
+
+const archive = resolve(out, 'selfmp3.xcarchive')
+execFileSync(
+  'xcodebuild',
+  [
+    '-workspace',
+    'ios/selfmp3.xcworkspace',
+    '-scheme',
+    'selfmp3',
+    '-configuration',
+    'Release',
+    '-destination',
+    'generic/platform=iOS',
+    '-derivedDataPath',
+    resolve(app, 'build/ddp'),
+    '-archivePath',
+    archive,
+    ...settings,
+    'archive',
+  ],
+  { cwd: app, stdio: 'inherit' },
+)
+
+const exportOptions = resolve(out, 'ExportOptions.plist')
+writeFileSync(
+  exportOptions,
+  `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>${signing.method}</string>
+  <key>teamID</key><string>${signing.team}</string>
+  <key>signingStyle</key><string>manual</string>
+  <key>signingCertificate</key><string>${signing.identity}</string>
+  <key>provisioningProfiles</key>
+  <dict>
+${Object.values(TARGETS)
+  .map(bundle => `    <key>${bundle}</key><string>${signing.profiles[bundle]}</string>`)
+  .join('\n')}
+  </dict>
+  <key>thinning</key><string>&lt;none&gt;</string>
+</dict>
+</plist>
+`,
+)
+execFileSync(
+  'xcodebuild',
+  [
+    '-exportArchive',
+    '-archivePath',
+    archive,
+    '-exportPath',
+    out,
+    '-exportOptionsPlist',
+    exportOptions,
+  ],
+  { cwd: app, stdio: 'inherit' },
+)
+
+const ipa = resolve(out, IOS_ASSETS.app)
+if (!existsSync(ipa)) throw new Error(`The export wrote no ${IOS_ASSETS.app} into ${out}.`)
+writeFileSync(
+  resolve(out, IOS_ASSETS.manifest),
+  renderIosManifest({
+    url: iosAssetUrl(IOS_ASSETS.app),
+    bundleId: TARGETS.selfmp3,
+    version,
+    title: 'self.mp3',
+  }),
+)
+writeFileSync(
+  resolve(out, IOS_ASSETS.latest),
+  `${JSON.stringify({ version, build, commit, publishedAt: new Date().toISOString() }, null, 2)}\n`,
+)
+console.log(`Built ${ipa}`)
+
+if (publish) {
+  const repo = `${REPOSITORY.owner}/${REPOSITORY.name}`
+  const notes = `self.mp3 ${version} (${build}) for iPhone, from ${commit.slice(0, 8)}. Installed from the install page, not from here: ${IOS_INSTALL_PAGE_URL}`
+  let exists = true
+  try {
+    run('gh', ['release', 'view', IOS_RELEASE_TAG, '--repo', repo], { capture: true })
+  } catch {
+    exists = false
+  }
+  if (exists) {
+    // The tag moves with each build; the release, and its files' addresses, stay.
+    run(
+      'gh',
+      [
+        'api',
+        '-X',
+        'PATCH',
+        `repos/${repo}/git/refs/tags/${IOS_RELEASE_TAG}`,
+        '-f',
+        `sha=${commit}`,
+        '-F',
+        'force=true',
+      ],
+      { capture: true },
+    )
+  } else {
+    // Never the latest release: the Mac app's updater reads that one (releases.ts).
+    run('gh', [
+      'release',
+      'create',
+      IOS_RELEASE_TAG,
+      '--repo',
+      repo,
+      '--target',
+      commit,
+      '--title',
+      'iPhone app',
+      '--notes',
+      notes,
+      '--prerelease',
+      '--latest=false',
+    ])
+  }
+  // ios.json last, so no installed app hears of a build before it can be downloaded.
+  run('gh', [
+    'release',
+    'upload',
+    IOS_RELEASE_TAG,
+    ipa,
+    resolve(out, IOS_ASSETS.manifest),
+    '--repo',
+    repo,
+    '--clobber',
+  ])
+  run('gh', [
+    'release',
+    'upload',
+    IOS_RELEASE_TAG,
+    resolve(out, IOS_ASSETS.latest),
+    '--repo',
+    repo,
+    '--clobber',
+  ])
+  run('gh', [
+    'release',
+    'edit',
+    IOS_RELEASE_TAG,
+    '--repo',
+    repo,
+    '--notes',
+    notes,
+    '--prerelease',
+    '--latest=false',
+  ])
+  console.log(`Published build ${build} to ${repo}, release ${IOS_RELEASE_TAG}.`)
+}

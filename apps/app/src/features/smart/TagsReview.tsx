@@ -11,7 +11,7 @@ import { Review, reviewText, songCount, type ReviewRowState } from './Review'
 import { tagChangesHere, tagSection, tagSteps, type TagHere } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { useTagChanges } from './useTagChanges'
-import { AnswerLine, AnswerNote } from './AnswerParts'
+import { AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 
 /**
  * Tags (docs/features/ai.md): changes to your tags, for a yes or no each —
@@ -27,11 +27,15 @@ export function TagsReview({
   height,
   onClose,
   onKeys,
+  card = false,
 }: {
   review: TagReview
   /** How tall the list may grow before it scrolls. */
   height: number
-  onClose?: () => void
+  /** Done with: what was changed, or that nothing changed. */
+  onClose?: (outcome?: string) => void
+  /** Ask's card (`Review`). */
+  card?: boolean
   /** Given the keys while this is drawn, and null when it goes. */
   onKeys?: (keys: AnswerKeys | null) => void
 }): ReactNode {
@@ -65,7 +69,7 @@ export function TagsReview({
         ))}
         {onClose ? (
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-            <Button label="Close" onPress={onClose} />
+            <Button label="Close" onPress={() => onClose(CLOSED)} />
           </View>
         ) : null}
       </View>
@@ -75,7 +79,7 @@ export function TagsReview({
   const apply = async (
     approved: readonly TagHere[],
     leftOut: ReadonlySet<string>,
-  ): Promise<boolean> => {
+  ): Promise<boolean | string> => {
     const steps = tagSteps(approved, leftOut, library?.songs ?? [], library?.playlists ?? [])
     if (steps.length === 0) return false
     const done = await change(steps)
@@ -85,11 +89,9 @@ export function TagsReview({
       showUndoToast('Some of the changes were made', done.undo, { tone: 'warn', after })
       return false
     }
-    showUndoToast(`Made ${plural(approved.length, 'change', 'changes')} to your tags`, done.undo, {
-      tone: 'good',
-      after,
-    })
-    return true
+    const made = `Made ${plural(approved.length, 'change', 'changes')} to your tags`
+    showUndoToast(made, done.undo, { tone: 'good', after })
+    return made
   }
 
   const meta = (each: TagHere, state: ReviewRowState): string => {
@@ -114,6 +116,7 @@ export function TagsReview({
 
   return (
     <Review
+      card={card}
       changes={here}
       // A change on one song has nothing to open, so its song shows from the start.
       openAtFirst={here.filter(each => each.songIds.length === 1).map(each => each.change.key)}

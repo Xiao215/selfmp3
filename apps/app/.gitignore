@@ -19,10 +19,13 @@ dist-pages/
 # The service worker, bundled from sw/sw.ts by `npm run build:sw`.
 public/sw.js
 
-# The privacy policy and the bucket guide, written from packages/shared/src/privacy.ts and
-# bucketGuide.ts by `npm run build:pages`.
+# The privacy policy, the bucket guide and the iPhone app's install page with its fonts,
+# written from packages/shared/src/privacy.ts, bucketGuide.ts and installPage.ts by
+# `npm run build:pages`.
 public/privacy.html
 public/bucket.html
+public/install.html
+public/fonts/
 
 # The widget's asset catalog, written by `expo prebuild` from the colours in
 # targets/widget/expo-target.config.js (@bacons/apple-targets).

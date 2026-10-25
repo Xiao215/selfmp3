@@ -58,7 +58,7 @@ test.describe('tags as places', () => {
     test.skip(tags.length === 0, 'needs a tag in the dev library')
 
     await expect(
-      page.getByText(`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'} · most played first`),
+      page.getByText(`${tags.length} ${tags.length === 1 ? 'tag' : 'tags'}`, { exact: true }),
     ).toBeVisible()
     await expect(page.getByTestId(/^tags-row-\d+$/)).toHaveCount(tags.length)
     const first = mostPlayed(tags, songs)[0]

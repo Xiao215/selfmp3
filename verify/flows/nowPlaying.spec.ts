@@ -34,7 +34,8 @@ test.describe('now playing', () => {
     await expect(page.getByRole('tab', { name: 'Queue' })).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'Details' }).click()
-    await expect(page.getByText(/^sound$/i).first()).toBeVisible()
+    // How it sounds is a strip of tiles now, the first of them Tempo (F1).
+    await expect(page.getByText(/^tempo$/i).first()).toBeVisible()
 
     // Only the words, from the page's own button, and back to the full page.
     await page.getByRole('tab', { name: /Lyrics|Visual/ }).click()

@@ -36,7 +36,10 @@ test.describe('importing', () => {
     await expect(lookUp).toBeDisabled()
     // What was pasted is said under the box, before any lookup.
     const box = page.getByRole('textbox', { name: 'Links to import' })
+    // One typed line searches (J1); two or more are a list of names.
     await box.fill('yoasobi idol')
+    await expect(page.getByTestId('import-pasted')).toHaveText('Search YouTube Music and 网易云')
+    await box.fill('yoasobi idol\nyorushika hitchcock')
     await expect(page.getByTestId('import-pasted')).toHaveText('A list of song names')
     await box.fill(LINK)
     await expect(page.getByTestId('import-pasted')).toHaveText('YouTube song')
@@ -84,9 +87,9 @@ test.describe('importing', () => {
 
     await dismissToasts(page)
     if (onPhone(page)) {
-      // A tap off the card closes the row again — here on the list's hint, part of
-      // its ground — and the row keeps the new name. The cover only pauses.
-      await page.getByText(/^Untick a song to leave it out\./).click()
+      // A tap off the card closes the row again — here on the list's count, part
+      // of its ground — and the row keeps the new name. The cover only pauses.
+      await count.click()
       await expect(bar).toHaveCount(0)
       await expect(
         page.getByRole('button', { name: `${TITLE} (corrected), jawed karim` }),

@@ -27,7 +27,7 @@ import { PendingImports } from './PendingImports'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ListenTags } from '../../ui/components/ListenTags'
 import { useSelection } from '../../selection/useSelection'
-import { useLayout, useWindowValue } from '../../shell/useLayout'
+import { useLayoutFlags, useWindowValue } from '../../shell/useLayout'
 import { deviceWord } from '../../ports/device'
 import { thisPlace } from '../../ports/place'
 import { onThisDevice } from '../settings/settings.model'
@@ -47,6 +47,9 @@ import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
+import { useSteadyOrder } from '../../ui/useSteadyOrder'
+
+const tagKey = (tag: { readonly id: number }): number => tag.id
 
 /**
  * How tall a window is before the head scrolls with the songs: a 720p laptop's
@@ -66,7 +69,7 @@ const SHORT_WINDOW = 520
 export function LibraryScreen(): ReactNode {
   const { fromCloud } = useConnection()
   const { theme } = useUnistyles()
-  const { wide, dense, finePointer } = useLayout()
+  const { wide, dense, finePointer } = useLayoutFlags()
   const shortWindow = useWindowValue(window => window.height < SHORT_WINDOW)
   // One row needs about 600 points once Shuffle is an icon: title, search, order
   // and shuffle, the search giving up width first. An iPad's column beside the
@@ -121,9 +124,16 @@ export function LibraryScreen(): ReactNode {
     () => (installed ? songs.filter(song => downloaded(song.id)).length : 0),
     [installed, songs, downloaded],
   )
-  const strip = useMemo(
-    () => stripTags(model.tags, filter.tagIds, recentTagIds),
-    [model.tags, filter.tagIds, recentTagIds],
+  // In the order it had when the page opened, while it is open: turning a
+  // tag on makes it the one used last, and a chip that jumped to the front
+  // slid another under the pointer for the press that meant to undo it.
+  const strip = useSteadyOrder(
+    useMemo(
+      () => stripTags(model.tags, filter.tagIds, recentTagIds),
+      [model.tags, filter.tagIds, recentTagIds],
+    ),
+    tagKey,
+    true,
   )
 
   const rowHeight = useSongRowHeight()
@@ -310,30 +320,6 @@ export function LibraryScreen(): ReactNode {
           }
         />
 
-        {/*
-            A phone's library keeps Shuffle with its tools in the title row — a
-            tap on a row plays that song alone. But tags turn this list into an
-            idea, and an idea is worth starting, so the two controls a computer
-            keeps in its header take a row of their own here.
-          */}
-        {!wide && model.tagFiltered ? (
-          <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
-            <PlayButton
-              label="Play these tags"
-              icon={<Play color={theme.colors.onPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => playTags(false)}
-              testID="library-play-tags"
-            />
-            <Button
-              accessibilityLabel="Shuffle these tags"
-              icon={<Shuffle color={theme.colors.textPrimary} />}
-              disabled={visible.length === 0}
-              onPress={() => playTags(true)}
-            />
-          </View>
-        ) : null}
-
         <View style={[styles.controls, headWide && styles.controlsWide]}>
           {/*
               Not a second search: a door to the one Search (docs/ui-mock `P19`,
@@ -483,15 +469,43 @@ export function LibraryScreen(): ReactNode {
               onPress={() => chooseTag(tag.id)}
             />
           ))}
+          {/* Lit while the chooser is open, which has its own Done: the chip
+              had read "+ Done" beside it. */}
           <Chip
             testID="library-add-tag"
-            label={choosingTags ? 'Done' : 'More tags'}
-            icon={<Plus color={theme.colors.textSecondary} />}
-            selected={false}
+            label="More tags"
+            icon={choosingTags ? undefined : <Plus color={theme.colors.textSecondary} />}
+            selected={choosingTags}
             dashed
             onPress={() => setChoosingTags(open => !open)}
           />
         </ScrollView>
+      ) : null}
+
+      {/*
+        A phone's library keeps Shuffle with its tools in the title row — a
+        tap on a row plays that song alone. But tags turn this list into an
+        idea, and an idea is worth starting, so the two controls a computer
+        keeps in its header take a row of their own here: under the strip, so
+        the chip just tapped stays under the finger. Above it, the row pushed
+        the strip down, and a second tap on the chip opened Search.
+      */}
+      {!wide && model.tagFiltered ? (
+        <View style={styles.phoneTransport} ref={transportRef} collapsable={false}>
+          <PlayButton
+            label="Play these tags"
+            icon={<Play color={theme.colors.onPrimary} />}
+            disabled={visible.length === 0}
+            onPress={() => playTags(false)}
+            testID="library-play-tags"
+          />
+          <Button
+            accessibilityLabel="Shuffle these tags"
+            icon={<Shuffle color={theme.colors.textPrimary} />}
+            disabled={visible.length === 0}
+            onPress={() => playTags(true)}
+          />
+        </View>
       ) : null}
 
       {/* On a phone the list is headed by its order: "RECENTLY ADDED" (`P12`). */}
@@ -600,7 +614,13 @@ export function LibraryScreen(): ReactNode {
 
 const styles = StyleSheet.create(theme => ({
   /* Play first, the white round one: it is what picking tags was for. */
-  phoneTransport: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  phoneTransport: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.gutter,
+    paddingTop: space.xs,
+  },
   chooser: { paddingHorizontal: space.gutter },
   screen: {
     flex: 1,

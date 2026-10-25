@@ -108,7 +108,14 @@ export function useSongRows({
   }, [])
   // Holding a row selects it; the ⋯ opens the menu.
   const onLongPress = useCallback((song: Song) => latest.current.selection.enter(song.id), [])
-  const onToggleSelect = useCallback((song: Song) => latest.current.selection.toggle(song.id), [])
+  // A tick ticks; with Shift it ticks every row from the last one ticked, as
+  // Shift on the row does, rather than that one alone.
+  const onToggleSelect = useCallback((song: Song, event?: GestureResponderEvent) => {
+    const { selection } = latest.current
+    const modifiers = modifiersOf(event)
+    if (modifiers.shiftKey) selection.click(song.id, modifiers)
+    else selection.toggle(song.id)
+  }, [])
   // A drag from a ticked row carries every ticked song.
   const dragSongs = useCallback((song: Song) => latest.current.selection.carried(song.id), [])
   const listRef = useRef<FlatList<Song>>(null)

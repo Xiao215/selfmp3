@@ -129,7 +129,8 @@ export const SongRow = memo(function SongRow({
    */
   selecting?: boolean
   selected?: boolean
-  onToggleSelect?: (song: Song) => void
+  /** The tick pressed: with the press, whose Shift ticks the rows between. */
+  onToggleSelect?: (song: Song, event?: GestureResponderEvent) => void
   /**
    * What dragging this row onto a playlist carries, with a mouse: every
    * ticked song when it is one of them, in the list's order, so the songs you
@@ -338,7 +339,7 @@ export const SongRow = memo(function SongRow({
       <SelectBox
         song={song}
         selected={selected}
-        onToggle={() => onToggleSelect(song)}
+        onToggle={event => onToggleSelect(song, event)}
         phone={phone}
         untabbed={listKey !== undefined}
       />
@@ -685,14 +686,14 @@ function SelectBox({
 }: {
   song: Song
   selected: boolean
-  onToggle: () => void
+  onToggle: (event: GestureResponderEvent) => void
   phone?: boolean
   untabbed: boolean
 }): ReactNode {
   return (
     <Checkbox
       checked={selected}
-      onChange={onToggle}
+      onChange={(_checked, event) => onToggle(event)}
       label={selected ? `Deselect ${song.title}` : `Select ${song.title}`}
       style={phone ? styles.select : styles.selectWide}
       {...(untabbed ? UNTABBED : null)}

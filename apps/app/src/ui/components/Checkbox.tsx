@@ -1,7 +1,7 @@
 import { forwardRef, useMemo } from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { View } from 'react-native'
-import type { StyleProp, ViewStyle } from 'react-native'
+import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Animated, {
   Easing,
   FadeIn,
@@ -48,8 +48,11 @@ export function Checkbox({
 }: {
   checked: boolean
   mixed?: boolean
-  /** Makes it the control: pressed, it asks to be the other way. */
-  onChange?: (checked: boolean) => void
+  /**
+   * Makes it the control: pressed, it asks to be the other way. The press
+   * comes too, for a box that means more with Shift held (a song list's).
+   */
+  onChange?: (checked: boolean, event: GestureResponderEvent) => void
   /** What it ticks, read with its state: "Select Evening". */
   label?: string
   /** The press target's own room round the mark. */
@@ -65,7 +68,7 @@ export function Checkbox({
         mixed={mixed}
         label={label ?? ''}
         depth="control"
-        onPress={() => onChange(!checked)}
+        onPress={event => onChange(!checked, event)}
         style={style}
         testID={testID}
         tabIndex={tabIndex}

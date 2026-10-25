@@ -28,7 +28,7 @@ import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { useEscape } from './useEscape'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
-import { isLive, listedPlaylists } from '../features/playlists/playlists.model'
+import { addedToPlaylist, isLive, listedPlaylists } from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { useMenuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -66,6 +66,7 @@ import { SIDEBAR_WIDTH } from './widths'
 import { thisPlace } from '../ports/place'
 import { useOnline } from '../offline/useOnline'
 import { useWaitingEdits } from '../offline/waitingEdits'
+import { useSteadyOrder } from '../ui/useSteadyOrder'
 
 /**
  * The desktop's left rail.
@@ -89,6 +90,8 @@ import { useWaitingEdits } from '../offline/waitingEdits'
  * card only when something needs you.
  */
 const ROWS = NAV.filter(place => place.rail === 'row')
+
+const tagKey = (tag: Tag): number => tag.id
 
 /** How many playlists the rail lists: the ones played last. The header opens them all. */
 const RAIL_PLAYLISTS = 4
@@ -340,11 +343,19 @@ function RailPlaylist({
   const addToPlaylist = useAddToPlaylist()
   const over = useSongDropTarget(ref, {
     enabled: !live,
+    // Said once the server has taken them, counting only the songs that were
+    // not in it already; a failure is the app's own error toast.
     onDrop: songIds => {
-      addToPlaylist.mutate({ playlistId: playlist.id, songIds })
-      showToast(
-        { over: `Added to ${playlist.name}`, say: plural(songIds.length, 'song', 'songs') },
-        'good',
+      const before = playlist.songCount
+      addToPlaylist.mutate(
+        { playlistId: playlist.id, songIds },
+        {
+          onSuccess: after =>
+            showToast(
+              addedToPlaylist(playlist.name, songIds.length, before, after.songCount),
+              'good',
+            ),
+        },
       )
     },
   })
@@ -387,7 +398,16 @@ function Tags(): ReactNode {
    * ones this device reached for last — no pinning, nothing to maintain —
    * and the rest are one press away on All tags, which the header opens.
    */
-  const rail = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
+  const recent = useMemo(() => railTags(recentIds, tags), [recentIds, tags])
+  /*
+   * Held in place while the pointer is over them, and always under a finger:
+   * opening a tag makes it the one used last, and the row that jumped to the
+   * top slid another tag under the pointer for the next click. Once the
+   * pointer leaves they take the order they now have.
+   */
+  const finePointer = useLayoutValue(layout => layout.finePointer)
+  const [pointerOver, setPointerOver] = useState(false)
+  const rail = useSteadyOrder(recent, tagKey, pointerOver || !finePointer)
 
   // A tag is a place (docs/UI-MIGRATION.md, Phase 4): choosing one opens its
   // page, which is already open when its row is lit.
@@ -486,7 +506,12 @@ function Tags(): ReactNode {
         </View>
       ) : null}
 
-      <ScrollView style={styles.tagList} contentContainerStyle={styles.tagListContent}>
+      <ScrollView
+        style={styles.tagList}
+        contentContainerStyle={styles.tagListContent}
+        onPointerEnter={() => setPointerOver(true)}
+        onPointerLeave={() => setPointerOver(false)}
+      >
         {rail.map(tag => (
           <TagRow
             key={tag.id}

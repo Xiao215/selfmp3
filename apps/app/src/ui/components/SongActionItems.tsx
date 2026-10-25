@@ -15,7 +15,7 @@ import {
   useLibrary,
   iconSize,
 } from '@selfmp3/client'
-import { playlistsToAddTo } from '../../features/playlists/playlists.model'
+import { addedToPlaylist, playlistsToAddTo } from '../../features/playlists/playlists.model'
 import { askForGuide } from '../../features/guide/guideMemory'
 import { usePlaylistRemoval } from '../../features/playlists/usePlaylistRemoval'
 import { useFlyToUpNext } from '../../features/queue/useFlyToUpNext'
@@ -136,7 +136,6 @@ export function SongActionItems({
   }).filter(action => !leave.includes(action.id))
   // The one played last first; not the playlist this is, and never a live one.
   const manualPlaylists = playlistsToAddTo(library?.playlists ?? [], playlist?.id)
-  const these = count === 1 ? `“${songs[0]?.title ?? ''}”` : plural(count, 'song', 'songs')
 
   /**
    * Said once the server has taken the edit, not as it is sent: a failure is
@@ -247,9 +246,16 @@ export function SongActionItems({
               key={list.id}
               label={list.name}
               onPress={() => {
+                // Counting only the songs that were not in it already.
                 addToPlaylist.mutate(
                   { playlistId: list.id, songIds: ids },
-                  saidOnSuccess(`Added ${these} to ${list.name}`),
+                  {
+                    onSuccess: after =>
+                      showToast(
+                        addedToPlaylist(list.name, count, list.songCount, after.songCount),
+                        'good',
+                      ),
+                  },
                 )
                 // A computer can drop songs on the sidebar's playlists instead,
                 // which this is the moment to show (`sidebar-drop`).

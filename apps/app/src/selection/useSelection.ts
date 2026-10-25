@@ -45,11 +45,11 @@ export interface Selection<Id = number> {
  * what they cannot know: which list is visible, which route this is, and a
  * keyboard's Escape.
  *
- * Two things are derived rather than set in an effect, so nothing renders
- * twice to correct itself. Songs that left the visible list are pruned at
- * read time. A selection made on another route reads as empty, because
- * arriving back at a list still holding a selection made against a view you
- * have since left is how songs get deleted by accident.
+ * Two things are derived rather than set in an effect. Songs that left the
+ * visible list are pruned as the list is read, and stay pruned. A selection
+ * made on another route reads as empty, because arriving back at a list
+ * still holding a selection made against a view you have since left is how
+ * songs get deleted by accident.
  */
 export function useSelection<Id = number>(visibleIds: readonly Id[]): Selection<Id> {
   const pathname = usePathname()
@@ -62,6 +62,10 @@ export function useSelection<Id = number>(visibleIds: readonly Id[]): Selection<
     () => (stored.path === pathname ? pruneSelection(stored.state, visibleIds) : EMPTY_SELECTION),
     [stored, pathname, visibleIds],
   )
+  // Pruned for good, not only for this render: a song a filter hid had come
+  // back ticked once the filter was off, after the bar had said "None
+  // selected" over it. Set while rendering, from what this render found.
+  if (stored.path === pathname && state !== stored.state) setStored({ path: pathname, state })
 
   /** Apply a rule to what is actually on screen now, on this route. */
   const update = useCallback(

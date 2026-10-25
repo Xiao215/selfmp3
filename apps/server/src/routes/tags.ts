@@ -69,8 +69,12 @@ export function tagRoutes(container: Container): Router {
     '/tags/bulk',
     route({ body: BulkTagSchema }, ({ body }): Affected => {
       if (!container.tags.byId(body.tagId)) throw HttpError.notFound('no such tag')
-      const affected = container.tags.bulk(body.songIds, body.tagId, body.action)
-      container.edits.tagOnSongs(body.tagId, body.songIds)
+      // A song removed since the selection was made is skipped, as adding to a
+      // playlist skips it, rather than failing the rest on its foreign key.
+      const present = container.songs.existingIds(body.songIds)
+      const songIds = body.songIds.filter(id => present.has(id))
+      const affected = container.tags.bulk(songIds, body.tagId, body.action)
+      container.edits.tagOnSongs(body.tagId, songIds)
       container.bumpLibraryVersion()
       return { affected }
     }),

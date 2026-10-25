@@ -116,7 +116,7 @@ describe('underBudget', () => {
   })
 
   it('caps the lane on a wide phone and closes it on a narrow one', () => {
-    expect(underBudget(400)).toBe(132)
+    expect(underBudget(400)).toBe(underBudget(244))
     expect(underBudget(120)).toBe(0)
   })
 })

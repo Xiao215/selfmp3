@@ -840,12 +840,15 @@ test.describe('an application, not a page', () => {
         'Playlists CmdOrCtrl+5',
         'Now Playing CmdOrCtrl+0',
         'Search CmdOrCtrl+K',
+        'Reload CmdOrCtrl+R',
         'Toggle Full Screen Control+Command+F',
       ])
       const file = menu?.find(section => section.label === 'File')
+      // New Window brings back a window the red button hid: a Mac's only.
       expect(file?.items.map(item => item.label)).toEqual([
         'New Playlist',
         'Import…',
+        ...(process.platform === 'darwin' ? ['New Window'] : []),
         'Close Window',
       ])
     } finally {

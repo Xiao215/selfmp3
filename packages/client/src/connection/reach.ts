@@ -29,7 +29,7 @@ export const PROBE_TIMEOUT_MS = 3_000
 export const REQUEST_TIMEOUT_MS = 15_000
 
 /** What a request that ran out of time says, rather than the platform's words for its abort. */
-export const TIMED_OUT = 'Your server took too long to answer.'
+export const TIMED_OUT = 'Your library took too long to answer.'
 
 /** How often the screen looks again, whether the server was found or not. */
 export const LOOK_AGAIN_MS = 20_000

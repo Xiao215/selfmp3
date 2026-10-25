@@ -46,14 +46,18 @@ import { noServer, viaKey } from '../../connection/via'
 /**
  * How long a look-up may take: a YouTube mix, several links or a long list
  * keep the server at it for half a minute and more, and a look-up given up
- * on is its work thrown away.
+ * on is its work thrown away. The names the model offers for a review's rows
+ * wait as long: a long list is one long question.
  */
 const LOOK_UP_MS = 120_000
 
 interface ImportSource {
   readonly api: ReturnType<typeof apiFor>
-  /** `api`, waiting as long as a look-up takes: a link's songs, a search, songs found by name. */
-  readonly lookUp: Pick<ReturnType<typeof apiFor>, 'importPreview' | 'importSearch' | 'importFind'>
+  /** `api`, waiting as long as a look-up takes: a link's songs, a search, songs found by name, better names. */
+  readonly lookUp: Pick<
+    ReturnType<typeof apiFor>,
+    'importPreview' | 'importSearch' | 'importFind' | 'importNames'
+  >
   readonly library: Library | undefined
   /** Make a tag in the library whose tags this screen offers, and show it there. */
   readonly createTag: (name: string) => Promise<Tag>

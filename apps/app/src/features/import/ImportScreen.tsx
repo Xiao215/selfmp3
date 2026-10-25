@@ -282,7 +282,11 @@ export function ImportScreen({
             ref={linksRef}
             style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
             value={links}
-            onChangeText={next => patchDraft({ links: next })}
+            onChangeText={next => {
+              patchDraft({ links: next })
+              // What went wrong was about what the box held; an edit is the next try.
+              setError(null)
+            }}
             onContentSizeChange={event => setLinksHeight(event.nativeEvent.contentSize.height)}
             onFocus={() => setLinksFocused(true)}
             onBlur={() => setLinksFocused(false)}

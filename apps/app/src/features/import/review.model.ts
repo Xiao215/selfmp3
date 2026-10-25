@@ -196,12 +196,12 @@ export function importErrorText(error: Error): string {
   if (error.isOffline) {
     return error.message === TIMED_OUT
       ? `${TIMED_OUT} Try again in a moment.`
-      : 'Your server isn’t reachable right now.'
+      : 'Your library isn’t reachable right now.'
   }
   if (error.status >= 400 && error.status < 500 && error.message && !UNSAID.test(error.message)) {
     return error.message.charAt(0).toLocaleUpperCase() + error.message.slice(1)
   }
-  return 'Your server couldn’t do that. Try again.'
+  return 'Couldn’t do that. Try again.'
 }
 
 /** The client's own line for a refusal that came with no words ("POST /api/… failed (404)"). */

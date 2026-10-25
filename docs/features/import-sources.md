@@ -94,7 +94,10 @@ the review says over them which links it could not read and why, in words
 (`lookUpFailure`), never yt-dlp's. Lines with no link in them, pasted with the links, are
 song names, looked up as a list of them is; the box says so before the wait ("YouTube song
 and 1 song name"). A look-up may take the server two minutes (a YouTube mix, a long list)
-before the app gives up on it and says the server took too long.
+before the app gives up on it and says, in the screen's words, "Your library took too long to
+answer. Try again in a moment." — a search, Look again and the model's better names wait as
+long (`lookUp` in `importSource.ts`). What went wrong stays on the card until the box is
+edited: an edit is the next try, and the card goes.
 
 ## A list of song names
 

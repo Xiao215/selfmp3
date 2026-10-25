@@ -1,5 +1,4 @@
 import {
-  fonts,
   HIT_TARGET,
   radius,
   space,
@@ -9,6 +8,7 @@ import {
   type ThemePalette,
   type TypeStep,
 } from '@selfmp3/client'
+import { fonts } from '../ports/fonts'
 
 /**
  * The few shapes every screen repeats, from docs/ui-mock `S2`, so a card or a
@@ -151,11 +151,6 @@ export function sectionTitle(colors: ThemePalette) {
     fontFamily: fonts.display,
     fontSize: type.section,
     letterSpacing: tracking.heading,
-    // The display face's last glyph leans past its own advance width, and
-    // tracked tighter still it is cut off by the text's own box: "Your tags"
-    // loses the tail of its s on a phone. Two points is not enough on a real
-    // one; six is, and is still less than the space that follows any heading.
-    paddingRight: space.tight,
   } as const
 }
 

@@ -14,7 +14,6 @@ import { useResumeSharedJoin } from '../shared/SharedScreens'
 import type { PastRoom } from '../room/room.model'
 import type { Song, Stats } from '@selfmp3/shared'
 import {
-  fonts,
   radius,
   tagColors,
   type,
@@ -24,6 +23,7 @@ import {
   iconSize,
   space,
 } from '@selfmp3/client'
+import { fonts } from '../../ports/fonts'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
 import { useAccount } from '../profile/useAccount'

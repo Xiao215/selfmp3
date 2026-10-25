@@ -185,8 +185,22 @@ export function heroTitle(colors: ThemePalette, step: keyof typeof HERO_TRACKING
     color: colors.textPrimary,
     fontFamily: fonts.display,
     ...textStyle(step),
+    ...headroom(step),
     letterSpacing: HERO_TRACKING[step],
   } as const
+}
+
+/**
+ * Room over a big title's first line for the glyphs that stand above it, in
+ * padding the same margin takes back, so the title sits where it did. The
+ * scale sets these lines shorter than the faces' own, and iOS shortens a line
+ * from its top: a name in Chinese falls back to PingFang, whose deeper descent
+ * lifts the baseline, and 中文流行 drew flat-topped on a phone (2026-10-24).
+ * The text's box is all it may draw in; the padding is part of it.
+ */
+function headroom(step: TypeStep) {
+  const room = Math.ceil(type[step] / 4)
+  return { paddingTop: room, marginTop: -room } as const
 }
 
 const HERO_TRACKING = {
@@ -201,7 +215,11 @@ const HERO_TRACKING = {
  * their own line height (48, 50, 53) and tracking (-0.5, -0.6, -0.8).
  */
 export function nameTitle(colors: ThemePalette) {
-  return { ...serif(colors, 'display'), letterSpacing: tracking.serif } as const
+  return {
+    ...serif(colors, 'display'),
+    ...headroom('display'),
+    letterSpacing: tracking.serif,
+  } as const
 }
 
 /** A row's or a card's title: one line of body text, set heavier. */

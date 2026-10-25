@@ -427,9 +427,12 @@ const styles = StyleSheet.create(theme => ({
   // this page. The head and the empty state take it themselves.
   content: { paddingBottom: space.xl },
   gutter: { paddingHorizontal: space.lg },
-  // A field in place of the name: the control surface, and no edge.
+  // A field in place of the name: the control surface, and no edge. A field
+  // draws its own line, so it takes none of the name's headroom (`heroTitle`).
   nameInput: {
-    paddingVertical: 2,
+    paddingTop: 2,
+    paddingBottom: 2,
+    marginTop: 0,
     paddingHorizontal: space.sm,
     borderRadius: radius.field,
     backgroundColor: theme.colors.surface2,

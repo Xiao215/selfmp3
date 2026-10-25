@@ -20,7 +20,7 @@ import { Chip } from '../../ui/components/Chip'
 import { Toggle } from '../../ui/components/Toggle'
 import { engineCapabilities } from '../../ports/engine'
 import { CROSSFADE_MAX, setCrossfadeSeconds, useCrossfadeSeconds } from '../../player/crossfadePref'
-import { label, PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, quietLabel } from '../../ui/surfaces'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
@@ -114,6 +114,13 @@ export function SettingsScreen(): ReactNode {
   // The bucket refusing for the day, which the health cannot see: in the cloud
   // it is the doorman's, and the doorman answers while the bucket will not.
   const capped = useBucketHold() !== null || bucketCapped(health.error)
+  // Under the title only when something needs you (E1).
+  const healthNote = healthLine(health.data, {
+    loading: health.isPending,
+    error: health.isError ? health.error : null,
+    capped,
+    compact: !wide,
+  })
 
   // Keys to list where they can be pressed: the installed app's menu, or an
   // iPad's while a keyboard is attached, which comes and goes. A tab on a Mac
@@ -326,15 +333,12 @@ export function SettingsScreen(): ReactNode {
             title="Settings"
             back={{ to: '/profile', testID: 'settings-back' }}
             subtitle={
-              <Text style={capped ? styles.subCapped : undefined}>
-                {capped ? '● ' : null}
-                {healthLine(health.data, {
-                  loading: health.isPending,
-                  error: health.isError ? health.error : null,
-                  capped,
-                  compact: !wide,
-                })}
-              </Text>
+              healthNote === null ? undefined : (
+                <Text style={capped ? styles.subCapped : undefined}>
+                  {capped ? '● ' : null}
+                  {healthNote}
+                </Text>
+              )
             }
             subtitleTestID="settings-health"
           />
@@ -371,14 +375,14 @@ export function SettingsScreen(): ReactNode {
             <DevicesPanel anchor={anchorAt('devices')} />
 
             {shown('playback') ? (
-              <Panel title="Playback" hint="on this device" anchor={anchorAt('playback')}>
+              <Panel title="Playback" anchor={anchorAt('playback')}>
                 <CrossfadeRow />
               </Panel>
             ) : null}
 
             <SmartPanel anchor={anchorAt('smart')} />
 
-            <Panel title="Lyrics" hint="on this device" anchor={anchorAt('lyrics')}>
+            <Panel title="Lyrics" anchor={anchorAt('lyrics')}>
               <Row label="Show pinyin" hint="A romanized line under Chinese lyrics.">
                 <Toggle
                   value={pinyinOn}
@@ -435,7 +439,7 @@ export function SettingsScreen(): ReactNode {
 
       {column ? (
         <View style={styles.indexColumn} accessibilityLabel="Settings sections">
-          <Text style={styles.indexTitle}>ON THIS PAGE</Text>
+          <Text style={styles.indexTitle}>On this page</Text>
           {index}
         </View>
       ) : null}
@@ -522,7 +526,7 @@ function SectionIndex({
 function CrossfadeRow(): ReactNode {
   const seconds = useCrossfadeSeconds()
   return (
-    <Row label="Crossfade" hint="Overlaps songs. Zero turns it off." last>
+    <Row label="Crossfade" last>
       <SliderSetting
         value={seconds}
         min={0}
@@ -604,7 +608,7 @@ const styles = StyleSheet.create(theme => ({
     gap: 1,
   },
   indexTitle: {
-    ...label(theme.colors),
+    ...quietLabel(theme.colors),
     paddingTop: space.xs,
     paddingHorizontal: space.snug,
     paddingBottom: space.tight,

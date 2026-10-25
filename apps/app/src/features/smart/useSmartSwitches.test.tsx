@@ -56,3 +56,17 @@ it('counts every feature on, and asks nothing, while no server is found', async 
   })
   expect(global.fetch).not.toHaveBeenCalled()
 })
+
+it('counts every feature off while "Use smart features" is off', async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ ...DEFAULT_SETTINGS, smartFeatures: false }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ),
+  ) as unknown as typeof fetch
+  const { result } = await renderHook(() => useSmartSwitches(), { wrapper: wrapperFor(SERVER) })
+  await waitFor(() => expect(result.current.ask).toBe(false))
+  expect(Object.values(result.current).every(on => !on)).toBe(true)
+})

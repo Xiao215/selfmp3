@@ -11,7 +11,7 @@ import { useSmartServer } from '../smart/useSmartServer'
 import { useServerApi } from '../../connection/useServerApi'
 import { useServerSettings } from './useServerSettings'
 import { ServerAway } from '../../connection/ServerAway'
-import { Panel, Row, SettingsWaiting } from './SettingsParts'
+import { Details, Panel, Row, SettingsWaiting } from './SettingsParts'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { type, textStyle, iconSize, space } from '@selfmp3/client'
 import { hint, textColumn } from '../../ui/surfaces'
@@ -65,6 +65,11 @@ const SWITCHES: readonly {
  * the server asks a model, and the Test, are running it, and sit under
  * Advanced (`SmartModelPanel`, O1).
  *
+ * One switch over the six says what leaves the library at all — song names
+ * and tags, never audio — and off, greys the six (E1, 2026-10-25); each
+ * keeps its own setting for when it is turned back on. What each one sends
+ * is there for whoever asks, folded under the panel.
+ *
  * The switches are the library's settings, which the server acts on — it
  * refuses a feature that is off, and reads the notes with each
  * request — so they are read from and written to the server itself. The
@@ -77,24 +82,30 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
     server.via?.baseUrl ?? null,
   )
   return (
-    <Panel
-      title="Smart features"
-      mark={<Sparkle size={iconSize.small} />}
-      hint="through your library’s computer"
-      anchor={anchor}
-    >
+    <Panel title="Smart features" mark={<Sparkle size={iconSize.small} />} anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
         <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
         <>
           {settings ? null : <SettingsWaiting failed={failed} onRetry={retry} />}
+          {settings ? (
+            <Row label="Use smart features" hint="Song names and tags only. Never audio.">
+              <Toggle
+                value={settings.smartFeatures}
+                onChange={value => set('smartFeatures', value)}
+                label="Use smart features"
+                testID="smart-features"
+              />
+            </Row>
+          ) : null}
           {settings
             ? SWITCHES.map(each => (
-                <Row key={each.key} label={each.label} hint={each.sees}>
+                <Row key={each.key} label={each.label} disabled={!settings.smartFeatures}>
                   <Toggle
                     value={settings[each.key]}
                     onChange={value => set(each.key, value)}
                     label={each.label}
+                    disabled={!settings.smartFeatures}
                   />
                 </Row>
               ))
@@ -102,13 +113,12 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
           {settings ? (
             <Row
               label="What Ask remembers"
-              hint={
-                settings.smartNotes.length === 0
-                  ? 'Nothing yet. Ask offers to remember standing requests.'
-                  : 'Sent with every request.'
-              }
-              last={settings.smartNotes.length === 0}
-            />
+              hint={settings.smartNotes.length === 0 ? undefined : 'Sent with every request.'}
+            >
+              {settings.smartNotes.length === 0 ? (
+                <Text style={styles.nothing}>Nothing yet</Text>
+              ) : null}
+            </Row>
           ) : null}
           {settings?.smartNotes.map((note, index) => (
             <View key={note} style={styles.note} testID="smart-note">
@@ -126,6 +136,13 @@ export function SmartPanel({ anchor }: { anchor: (node: View | null) => void }):
               />
             </View>
           ))}
+          {settings ? (
+            <Details label="What each one sends" testID="smart-sends">
+              {SWITCHES.map(each => (
+                <Row key={each.key} label={each.label} hint={each.sees} />
+              ))}
+            </Details>
+          ) : null}
         </>
       )}
     </Panel>
@@ -174,12 +191,7 @@ export function SmartModelPanel({ anchor }: { anchor: (node: View | null) => voi
   }
 
   return (
-    <Panel
-      title="Model"
-      mark={<Sparkle size={iconSize.small} />}
-      hint="for smart features"
-      anchor={anchor}
-    >
+    <Panel title="Model" mark={<Sparkle size={iconSize.small} />} anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
         <ServerAway reach={server.reach} need="ai" row testID="smart-server" />
       ) : (
@@ -256,6 +268,7 @@ function addressHint(
 }
 
 const styles = StyleSheet.create(theme => ({
+  nothing: { color: theme.colors.textMuted, fontSize: type.sub },
   address: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,

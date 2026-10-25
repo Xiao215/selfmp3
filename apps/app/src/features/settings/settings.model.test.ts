@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { ApiError } from '@selfmp3/client'
 
 import {
-  accentName,
   activeSection,
   addressForElsewhere,
   ALL_SECTIONS,
@@ -189,14 +188,12 @@ describe('settings', () => {
   })
 
   it('words the rows', () => {
-    expect(crossfadeLabel(0)).toBe('off')
+    expect(crossfadeLabel(0)).toBe('Off')
     expect(crossfadeLabel(4)).toBe('4s')
-    expect(accentName(330, [{ hue: 330, name: 'Pink' }])).toBe('Pink')
-    expect(accentName(30, [{ hue: 330, name: 'Pink' }])).toBe('Hue 30°')
   })
 
-  it('says it is checking while it checks, and which side it could not reach', () => {
-    expect(healthLine(undefined, { loading: true })).toBe('Checking your library…')
+  it('says nothing while it checks, and which side it could not reach', () => {
+    expect(healthLine(undefined, { loading: true })).toBeNull()
     expect(healthLine(undefined, { error: true })).toBe('Can’t reach your library')
     const capped = new ApiError(502, 'cap exceeded', 'bucket_cap_exceeded')
     const now = new Date('2026-10-08T04:00:00Z')
@@ -208,7 +205,7 @@ describe('settings', () => {
   it('says the bucket is refusing over a doorman that answered, shorter on a phone', () => {
     const doorman = { ok: true as const, version: 'web', uptimeSeconds: 0 }
     const now = new Date('2026-10-08T04:00:00Z')
-    expect(healthLine(doorman, {})).toBe('self.mp3 web')
+    expect(healthLine(doorman, {})).toBeNull()
     expect(healthLine(doorman, { capped: true, now })).toBe(
       'Storage allowance used up · resets in about 20 hours',
     )
@@ -219,22 +216,24 @@ describe('settings', () => {
 
   it('keeps this device, what is online and the last week, and folds the rest away', () => {
     const now = 100 * RECENT_DEVICE_WINDOW_MS
-    const row = (id: string, ageMs: number, online = false) => ({
+    const row = (id: string, ageMs: number, online = false, copies: string[] = []) => ({
       device: { id, online, lastSeenAt: now - ageMs },
-      ids: [id],
+      ids: [id, ...copies],
     })
     const rows = [
       row('me', 30 * RECENT_DEVICE_WINDOW_MS),
       row('phone', 0, true),
-      row('mac', RECENT_DEVICE_WINDOW_MS - 1),
-      row('old', RECENT_DEVICE_WINDOW_MS + 1),
+      // The newest of a name's folded copies is a device in use; the rest are stale.
+      row('mac', RECENT_DEVICE_WINDOW_MS - 1, false, ['mac-2', 'mac-3']),
+      row('old', RECENT_DEVICE_WINDOW_MS + 1, false, ['old-2']),
     ]
-    const { recent, older } = splitDevices(rows, 'me', now)
+    const { recent, olderIds } = splitDevices(rows, 'me', now)
     expect(recent.map(entry => entry.device.id)).toEqual(['me', 'phone', 'mac'])
-    expect(older.map(entry => entry.device.id)).toEqual(['old'])
+    expect(recent.find(entry => entry.device.id === 'mac')?.ids).toEqual(['mac'])
+    expect(olderIds).toEqual(['mac-2', 'mac-3', 'old', 'old-2'])
   })
 
-  it('says what it is connected to', () => {
+  it('says nothing over a library that answered, only when it is not connected', () => {
     expect(healthLine(undefined)).toBe('Not connected to your library right now')
     expect(
       healthLine({
@@ -243,7 +242,7 @@ describe('settings', () => {
         uptimeSeconds: 5,
         songCount: 13,
       }),
-    ).toBe('self.mp3 1.0.0 · 13 songs')
+    ).toBeNull()
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
       'Last scan: 1 new, 2 updated.',
     )

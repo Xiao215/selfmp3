@@ -33,7 +33,7 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
   )
   const named = useNamedServer()
   return (
-    <Panel title="Importing" hint="on your library’s computer" anchor={anchor}>
+    <Panel title="Importing" anchor={anchor}>
       {server.reach.state !== 'reachable' ? (
         <ServerAway
           reach={server.reach}
@@ -44,7 +44,7 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
         />
       ) : settings ? (
         <>
-          <Row label="Downloads at once" hint="Two is a good default.">
+          <Row label="Downloads at once">
             <Select<number>
               value={settings.importConcurrency}
               onChange={value => set('importConcurrency', value)}

@@ -27,7 +27,7 @@ export function ShortcutsPanel({
     [items],
   )
   return (
-    <Panel title="Keyboard shortcuts" hint="on this device" anchor={anchor}>
+    <Panel title="Keyboard shortcuts" anchor={anchor}>
       {rows.map(row => (
         <View key={row.label} style={styles.shortcut}>
           <View style={styles.keys}>

@@ -34,6 +34,12 @@ export const SettingsSchema = z.object({
   /** Absolute path to a cookies.txt, used when ytCookieSource is 'file'. */
   ytCookieFile: z.string().trim().max(1000).default(''),
   /**
+   * Smart features at all (Settings › Smart features' "Use smart features").
+   * Off, every one of them is off whatever its own switch says, and each
+   * keeps its own switch for when this is turned back on.
+   */
+  smartFeatures: z.boolean().default(true),
+  /**
    * The smart features one at a time (Settings › Smart features,
    * docs/features/ai.md). Off, a feature's way in is not drawn and the server
    * refuses it, so nothing of the library goes to the model for it.

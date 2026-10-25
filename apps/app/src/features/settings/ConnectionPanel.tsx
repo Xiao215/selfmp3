@@ -61,7 +61,7 @@ export function ConnectionPanel({
   const { wide } = useLayout()
   const where = storage ? whereItIs(storage) : null
   return (
-    <Panel title="Account" hint="on this device" anchor={anchor}>
+    <Panel title="Account" anchor={anchor}>
       {fromCloud ? (
         <>
           <Row label="Signed in" hint="With Google.">
@@ -119,9 +119,9 @@ export function ConnectionPanel({
           <Computers />
         </>
       ) : (
-        <Row label="Address">
+        <Row label="Library">
           <Text style={partStyles.valueText} numberOfLines={1}>
-            {connection?.baseUrl ?? 'Not set'}
+            {connection ? withoutScheme(connection.baseUrl) : 'Not set'}
           </Text>
         </Row>
       )}
@@ -131,6 +131,13 @@ export function ConnectionPanel({
         whether the library can be reached.
       */}
       <Details>
+        {fromCloud || !connection ? null : (
+          <Row label="Address">
+            <Text style={partStyles.valueText} numberOfLines={1}>
+              {connection.baseUrl}
+            </Text>
+          </Row>
+        )}
         {fromCloud ? null : (
           <Row label="Token">
             <Text style={partStyles.valueText}>
@@ -138,7 +145,7 @@ export function ConnectionPanel({
             </Text>
           </Row>
         )}
-        <Row label="Library" last>
+        <Row label="Songs" last>
           <Text style={partStyles.valueText}>
             {library.isError
               ? library.data
@@ -159,6 +166,11 @@ export function ConnectionPanel({
       </ButtonRow>
     </Panel>
   )
+}
+
+/** An address as people say it: "localhost:4650", the scheme left to Details. */
+function withoutScheme(address: string): string {
+  return address.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/+$/, '')
 }
 
 /** The servers this account has let in, each with Remove; the shared one offered when there are none. */

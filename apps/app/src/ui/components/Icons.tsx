@@ -189,6 +189,14 @@ export const Music = icon(() => (
   </>
 ))
 
+/** A link, two rings of a chain: an import nothing is known about yet but its address. */
+export const Link = icon(() => (
+  <>
+    <Path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+    <Path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+  </>
+))
+
 export const Download = icon(() => (
   <>
     <Path d="M12 3v12" />

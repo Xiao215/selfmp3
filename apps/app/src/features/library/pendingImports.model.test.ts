@@ -40,20 +40,25 @@ describe('pending imports in a cloud library', () => {
       new Set(),
     )
     expect(rows.map(row => row.uid)).toEqual(['new', 'old', 'bad'])
+    // Not looked up yet: named by its kind, its address after the status (AB1).
     expect(rows[0]).toMatchObject({
-      title: 'https://www.youtube.com/watch?v=dGZqpVCJP3k',
-      status: 'Waiting for your library’s computer',
+      title: 'A YouTube link',
+      status: 'Waiting for your library’s computer · youtube.com/watch?v=dGZqpVC…',
     })
     expect(rows[1]).toMatchObject({
       title: '群青',
       status: 'Downloading…',
       failed: false,
     })
-    expect(rows[2]).toMatchObject({ status: 'This video is private.', failed: true })
+    expect(rows[2]).toMatchObject({
+      title: 'A YouTube link',
+      status: 'This video is private. · youtube.com/watch?v=dGZqpVC…',
+      failed: true,
+    })
   })
 
   it('keeps a finished request until its songs are in the library, and never shows a cancelled one', () => {
-    const done = request({ uid: 'done', state: 'done', songIds: [7, 8] })
+    const done = request({ uid: 'done', state: 'done', title: '群青', songIds: [7, 8] })
     expect(pendingImports([done], new Set([7])).map(row => row.status)).toEqual([
       'Almost ready: uploading to your library',
     ])

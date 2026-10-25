@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -15,6 +15,8 @@ import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { floating, smallTitle } from '../surfaces'
 import { useFloatingChrome } from '../../shell/bottomInset'
+import { closeQueueSheet } from '../../features/queue/queueSheet.store'
+import { WINDOW_WIDTH } from '../../shell/widths'
 
 /**
  * How much room a phone's list leaves under its last row while the bar is up,
@@ -165,6 +167,21 @@ export function SelectionLane({
    */
   const { top: statusBar } = useSafeAreaInsets()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  /*
+   * Up next lying over the page (a portrait iPad) covers the bar's right end,
+   * More and Done with it. Starting a selection is working on the page, as a
+   * tap on it is (`usePageTap`), so it puts Up next away; opened again while
+   * the bar is up, it stays. Asked of the window alone, not of whether Up
+   * next is up, which would draw the bar again for every play and pause.
+   */
+  const railOver = useLayoutValue(layout => layout.wide && layout.width < WINDOW_WIDTH.railBeside)
+  const clearRail = useEffectEvent(() => {
+    if (railOver) closeQueueSheet()
+  })
+  useEffect(() => {
+    if (shown) clearRail()
+  }, [shown])
 
   /*
    * Up while it is asked for, and kept up until the sink has landed. The

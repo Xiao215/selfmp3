@@ -378,6 +378,7 @@ function Stage({
   // The page runs on under the player bar (`stagePage`), so what it lays out
   // in is its own height less the bar's, whether the bar is showing or not.
   const height = (size?.height ?? window.height) - PLAYER_BAR_HEIGHT
+  const drawnAt = `${width}x${height}`
   const geometry = useMemo(() => stageGeometry(width, height, top), [width, height, top])
   // Nothing laid out moves between the modes: each piece is laid out where the
   // mode puts it and carried there (stageMove.model.ts says why).
@@ -496,13 +497,16 @@ function Stage({
     >
       {/* The cover's own colours as light behind everything. Sized by the page
           above the bar, as it always was; the light reaches past the edges so
-          it runs on under the bar for when Focus puts it away. */}
-      <View pointerEvents="none" style={[styles.fill, { bottom: PLAYER_BAR_HEIGHT }]}>
+          it runs on under the bar for when Focus puts it away. Both drawings
+          are keyed by the page's size: on iOS an Svg keeps the shapes it worked
+          out at its first size, so a turned iPad drew the old page's light and
+          shade with a hard edge where that page ended. */}
+      <View key={drawnAt} pointerEvents="none" style={[styles.fill, { bottom: PLAYER_BAR_HEIGHT }]}>
         <CoverGlow palette={palette} />
       </View>
       {/* Stage darkens toward the words so they sit on something calm; Focus evenly. */}
       <Moving move={move} pose={m => ({ opacity: 1 - m })} pointerEvents="none" style={styles.fill}>
-        <Svg width="100%" height="100%">
+        <Svg key={drawnAt} width="100%" height="100%">
           <Defs>
             <LinearGradient id="np-shade" x1="0" y1="0" x2="1" y2="0">
               <Stop offset="0" stopColor={theme.colors.surface0} stopOpacity={0.35} />

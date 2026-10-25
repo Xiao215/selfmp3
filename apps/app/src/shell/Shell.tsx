@@ -199,10 +199,13 @@ function Frame({
           <ContentWidthContext.Provider value={contentStore}>
             <PageStep wide={wide}>{children}</PageStep>
           </ContentWidthContext.Provider>
-          {wide ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} right={railCover} /> : null}
+          {wide && railCover === 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
         </View>
         {/* Up next, beside the page, across every page. */}
         {wide ? <QueueRail /> : null}
+        {/* Over Up next while it lies over the page: the strip of page left
+            between it and the sidebar is too narrow to read a message in. */}
+        {wide && railCover > 0 ? <Toasts left={sidebar ? SIDEBAR_WIDTH : 0} /> : null}
       </View>
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {!wide && chrome ? <MiniPlayer /> : null}
@@ -450,7 +453,7 @@ function PaletteHost(): ReactNode {
  * The toast row: at the foot of the content column, above the player bar or
  * the mini player, so a message never covers the transport.
  */
-function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): ReactNode {
+function Toasts({ left = 0 }: { left?: number }): ReactNode {
   // Above a phone's floating tab bar and mini player, and above its floating
   // selection bar rather than over its buttons: the row rides the bar's own
   // rise and sink (`selectionBarLift`), a transform because the value moves
@@ -471,8 +474,8 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
   return (
     <Animated.View
       // Centred in the page that can be seen: it starts where the sidebar over
-      // it ends, and stops where Up next lying over it begins.
-      style={[styles.toasts, { left, right, bottom: TOASTS_BOTTOM + chrome + foot }, lift]}
+      // it ends.
+      style={[styles.toasts, { left, bottom: TOASTS_BOTTOM + chrome + foot }, lift]}
       pointerEvents="box-none"
     >
       <ResumeToast />
@@ -484,7 +487,7 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
 
 /** How far the toasts sit above the foot of the page, or above the chrome that floats there. */
 const TOASTS_BOTTOM = 10
-/** Above the sheets the shell draws beside them (their rows lift at 2). */
+/** Above the sheets the shell draws beside them (their rows lift at 2), and Up next lying over the page (2). */
 const TOASTS_LAYER = 10
 
 const styles = StyleSheet.create(theme => ({

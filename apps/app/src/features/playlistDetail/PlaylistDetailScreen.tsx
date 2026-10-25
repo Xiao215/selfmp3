@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { plural, type Song, NameSchema } from '@selfmp3/shared'
+import { plural, type Song, NAME_MAX } from '@selfmp3/shared'
 import {
   space,
   useLibrary,
@@ -196,7 +196,7 @@ export function PlaylistDetailScreen(): ReactNode {
           onBlur={saveName}
           selectTextOnFocus
           autoFocus
-          maxLength={NameSchema.maxLength ?? undefined}
+          maxLength={NAME_MAX}
           accessibilityLabel="Playlist name"
         />
       ) : (

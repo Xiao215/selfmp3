@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
-import { plural, formatLongDuration, type Tag, NameSchema } from '@selfmp3/shared'
+import { plural, formatLongDuration, type Tag, NAME_MAX } from '@selfmp3/shared'
 import {
   failureText,
   radius,
@@ -298,7 +298,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             onSubmit: make,
             placeholder: 'Name',
             label: 'Playlist name',
-            limit: NameSchema,
+            limit: { maxLength: NAME_MAX },
             testID: 'new-playlist-field',
           })
         )}

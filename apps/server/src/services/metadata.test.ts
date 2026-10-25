@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { parseFilename } from './metadata.js'
 
 describe('parseFilename', () => {
+  it('takes out what shows nothing, as a name typed in is', () => {
+    expect(parseFilename('\u202EArtist - Song\u200B.mp3')).toEqual({
+      artist: 'Artist',
+      title: 'Song',
+    })
+  })
+
   it('splits Artist - Title', () => {
     expect(parseFilename('Aurora Lane - Midnight Drive.m4a')).toEqual({
       artist: 'Aurora Lane',

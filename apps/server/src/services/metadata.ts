@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { parseFile, type IAudioMetadata } from 'music-metadata'
-import { messageOf, cleanArtist } from '@selfmp3/shared'
+import { messageOf, cleanArtist, tidyText } from '@selfmp3/shared'
 import type { StorageDriver } from '../storage/index.js'
 import type { Logger } from '../logger.js'
 
@@ -34,7 +34,7 @@ interface ExtractedMetadata {
  * stripped: "(Official Video)", "[HD]", "(Lyrics)" and friends.
  */
 export function parseFilename(relativePath: string): { artist: string; title: string } {
-  const base = path.basename(relativePath).replace(/\.[^.]+$/, '')
+  const base = tidyText(path.basename(relativePath).replace(/\.[^.]+$/, ''))
 
   const cleaned = base
     .replace(
@@ -79,11 +79,13 @@ function fromParsed(metadata: IAudioMetadata, relativePath: string): ExtractedMe
 
   const picture = common.picture?.[0]
 
+  // Tidied as a name typed in is (shared `tidyText`): a file's tags can carry
+  // line breaks and invisible or direction-changing characters as well.
   return {
-    title: common.title?.trim() || fromName.title,
-    artist: cleanArtist(common.artist?.trim() || fromName.artist),
-    album: common.album?.trim() ?? '',
-    albumArtist: common.albumartist?.trim() ?? '',
+    title: tidyText(common.title ?? '') || fromName.title,
+    artist: cleanArtist(tidyText(common.artist ?? '') || fromName.artist),
+    album: tidyText(common.album ?? ''),
+    albumArtist: tidyText(common.albumartist ?? ''),
     trackNo: typeof common.track?.no === 'number' ? common.track.no : null,
     year: typeof common.year === 'number' && common.year > 0 ? common.year : null,
     duration: metadata.format.duration ?? 0,

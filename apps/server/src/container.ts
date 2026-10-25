@@ -303,7 +303,13 @@ export function createContainer(configured: Config, options: ContainerOptions = 
 
   // Before the sync, which puts every artist's picture in the bucket.
   const youtubeMusicArtists = new YouTubeMusicArtists(logger)
-  const artistBackdrops = new ArtistBackdropService(config, songs, youtubeMusicArtists, logger)
+  const artistBackdrops = new ArtistBackdropService(
+    config,
+    songs,
+    names,
+    youtubeMusicArtists,
+    logger,
+  )
   // Before the sync too: what search finds things by goes in every snapshot.
   const spellings = new SpellingService({ names, songs, romanization, logger })
   const artistNames = new ArtistNameLookup({

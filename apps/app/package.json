@@ -16,6 +16,7 @@
     "web": "npm run build:pages && expo start --web",
     "build:sw": "esbuild sw/sw.ts --bundle --format=iife --target=es2022 --minify --define:__SHELL_BUILD__=\"\\\"$(date +%s)\\\"\" --outfile=public/sw.js",
     "build:pages": "node scripts/pages.mjs",
+    "release:ios": "node scripts/ios-release.mjs",
     "export:web": "npm run build:sw && npm run build:pages && expo export -p web",
     "test": "jest"
   },

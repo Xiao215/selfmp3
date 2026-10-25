@@ -43,10 +43,6 @@ modal.
 | `import-review` | Import review (phone)                       | Tap a song to hear it; untick to leave it out| the line over the list      |
 | `import-box`    | Import, first visit                         | Search for a song, or paste a link           | the paragraph over the box  |
 
-`together-card` is remembered the same way though it is not a guide: Home's Listen together
-card (`features/room/Together.tsx`), gone once the device has been in a room or was told
-Not now, and back with Show tips again.
-
 Left without a guide, because they are standard or show themselves: pull to refresh, pulling a
 sheet down, the seek bar, Shift-click and ⌘-click, the song list scrollbar.
 

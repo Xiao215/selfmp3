@@ -17,6 +17,7 @@ import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
+import { IosUpdateNotice } from '../features/settings/IosUpdate'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
@@ -467,6 +468,7 @@ function Toasts({ left = 0, right = 0 }: { left?: number; right?: number }): Rea
       pointerEvents="box-none"
     >
       <ResumeToast />
+      <IosUpdateNotice />
       <ToastHost />
     </Animated.View>
   )

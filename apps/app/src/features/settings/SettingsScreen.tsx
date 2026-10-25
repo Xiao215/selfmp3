@@ -36,6 +36,7 @@ import { ConnectionPanel } from './ConnectionPanel'
 import { DesktopPanel } from './DesktopPanel'
 import { DevicesPanel } from './DevicesPanel'
 import { GetAppPanel } from './GetAppPanel'
+import { IosUpdateRow, versionLabel } from './IosUpdate'
 import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
@@ -400,9 +401,10 @@ export function SettingsScreen(): ReactNode {
             <Panel title="About" anchor={anchorAt('about')}>
               <Row label="Version">
                 <Text style={partStyles.valueText}>
-                  {String(Constants.expoConfig?.version ?? '1.0.0')}
+                  {versionLabel(String(Constants.expoConfig?.version ?? '1.0.0'))}
                 </Text>
               </Row>
+              <IosUpdateRow />
               {/* Each guide shows once on a device; this brings them all back, once each. */}
               <Row label="Tips">
                 <Button

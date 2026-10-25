@@ -1,16 +1,12 @@
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { HIT_TARGET, hitSlopFor, iconSize, leading, radius, space, type } from '@selfmp3/client'
+import { HIT_TARGET, hitSlopFor, iconSize, radius } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
-import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
-import { Button } from '../../ui/components/Button'
 import { HeadPill } from '../../ui/components/HeadPill'
 import { IconButton } from '../../ui/components/IconButton'
 import { Press } from '../../ui/components/Press'
 import { People } from '../../ui/components/Icons'
-import { guideSeen, markGuideSeen, useGuideMemory } from '../guide/guideMemory'
 import { RoomFaces } from './RoomFace'
 import { LiveRing } from './roomMotion'
 import { peopleHere, roomTitle } from './room.model'
@@ -126,64 +122,7 @@ export function HomeTogetherButton(): ReactNode {
   return <TogetherButton filled start={EMPTY} />
 }
 
-/**
- * Home's way in (T3), until this device has been in a room or was told Not
- * now: the player's People button is easy to pass by the first time. Kept
- * with the guides, so Settings' Show tips again brings it back and automated
- * runs, which start with every guide seen, never meet it.
- */
-export function TogetherCard(): ReactNode {
-  const { theme } = useUnistyles()
-  useGuideMemory()
-  const { state } = useRoom()
-  if (state || guideSeen('together-card')) return null
-  return (
-    <View style={styles.card} testID="home-together">
-      <View style={styles.cardMark}>
-        <People size={iconSize.nav} color={theme.colors.textPrimary} />
-      </View>
-      <View style={styles.cardText}>
-        <Text style={styles.cardTitle}>Listen together</Text>
-        <Text style={styles.cardLine}>Friends add songs to your Up next, from their phones.</Text>
-        <View style={styles.cardActions}>
-          <Button
-            label="Start a room"
-            variant="primary"
-            onPress={() => openRoomSheet(EMPTY)}
-            testID="home-together-start"
-          />
-          <Button
-            label="Not now"
-            variant="text"
-            onPress={() => markGuideSeen('together-card')}
-            testID="home-together-dismiss"
-          />
-        </View>
-      </View>
-    </View>
-  )
-}
-
 const styles = StyleSheet.create(theme => ({
-  card: {
-    ...card(theme.colors),
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: space.md,
-    padding: space.lg,
-  },
-  cardMark: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface3,
-  },
-  cardText: { flex: 1, minWidth: 0, gap: 4 },
-  cardTitle: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '700' },
-  cardLine: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  cardActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.sm },
   live: {
     alignItems: 'center',
     justifyContent: 'center',

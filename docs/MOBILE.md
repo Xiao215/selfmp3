@@ -329,6 +329,67 @@ entitlement … does not match"), so the first install from the new team needs t
 app deleted, along with what it kept on the phone. A paid team's build launches without
 the Trust step in [PREPROD.md](PREPROD.md); that step is for free Apple IDs.
 
+### Sharing the iPhone app
+
+Friends install an **ad hoc** build from a page in Safari: no App Store, no TestFlight,
+no review, and a build lasts as long as its profile, a year. The catch is Apple's: an ad
+hoc build installs only on iPhones the signing team has registered, at most 100 a
+membership year, so each friend's iPhone ID goes onto the team once. (The App Store,
+even unlisted, is not an option: guideline 5.2.3 refuses apps that download media from
+other services.)
+
+**A friend** opens `install.html` beside the web app, in Safari
+(`renderInstallPage` in `packages/shared/src/iosApp.ts`):
+
+1. **Send my iPhone's ID** installs a profile service from the doorman
+   (`apps/doorman/src/device.ts`). The iPhone hands over its UDID and Safari shows it on a
+   page to send on. Nothing is kept, and nothing stays installed.
+2. **Install self.mp3**, once their iPhone is in a build, opens the install link
+   (`itms-services://` with the manifest on the `ios` release).
+
+**The team's account holder**, once: an **Apple Distribution** certificate from a
+request you send (made as in step 1 above), and an **Ad Hoc** profile for each of
+`com.selfmp3.app` and `com.selfmp3.app.widget` with that certificate, the App Group
+assigned, and every registered iPhone. For each new friend: register the ID under
+Devices, then edit both profiles, tick the new iPhone, save, and send you the two
+`.mobileprovision` files again.
+
+**You** keep the signing setup outside the repository, in `~/.ios-signing/release.json`:
+
+```json
+{
+  "team": "<team id>",
+  "method": "release-testing",
+  "identity": "Apple Distribution",
+  "profiles": {
+    "com.selfmp3.app": "<app profile name>",
+    "com.selfmp3.app.widget": "<widget profile name>"
+  }
+}
+```
+
+and, from a commit on main:
+
+```bash
+cd apps/app
+npm run release:ios -- --publish
+```
+
+That prebuilds, archives with each target's profile, exports `selfmp3.ipa`, and puts it on
+the `ios` release with `manifest.plist` and `ios.json`, replacing the last build's.
+The release is a prerelease and never the latest, because the Mac app's updater reads
+the latest release. Leave out `--publish` to build without uploading: the files land in
+`apps/app/build/release`. `"method": "debugging"` with development profiles makes the
+same kind of build for the phones those profiles carry, and `"withoutAppGroup": true`
+signs without the widget's App Group, for profiles made before it was assigned.
+
+**Updates.** The build number is main's commit count (`app.config.js`). An installed
+release build reads `ios.json` and, when the release's build is larger, says so once in
+a toast and keeps an Install row in Settings › About (`features/settings/IosUpdate.tsx`).
+Install brings up the same iOS question as the page; the app's data stays. A new
+friend's iPhone needs a new build: an existing install keeps working, but the old build
+will not install on the new iPhone.
+
 ---
 
 ## Android, from nothing to a running app

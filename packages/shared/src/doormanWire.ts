@@ -213,6 +213,8 @@ export const DOORMAN_PATHS = {
   storage: '/v1/storage',
   backblaze: '/v1/storage/backblaze',
   changes: '/v1/changes',
+  /** An iPhone's ID, for the iPhone app's install page (apps/doorman/src/device.ts). */
+  device: '/v1/device',
   list: LIST,
   files: FILES,
   grants: GRANTS,

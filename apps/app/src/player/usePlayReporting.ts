@@ -64,6 +64,9 @@ export function usePlayReporting({
       const song = songs.current.get(songId)
       const needed = secondsToCount(song?.duration ?? 0)
       if (!completed && held.listenedSeconds < needed) return
+      // A song that "ended" with nothing of it heard never sounded: one that
+      // failed, which the player moved past. Not a play, and not Song of the week.
+      if (held.listenedSeconds <= 0) return
 
       held.counted = true
       const counted = countAs(songId)

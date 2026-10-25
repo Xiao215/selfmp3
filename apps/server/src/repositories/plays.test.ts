@@ -3,7 +3,7 @@ import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
 import { SongRepository } from './songs.js'
-import { sqliteTime, StatsRepository } from './stats.js'
+import { heardMs, sqliteTime, StatsRepository } from './stats.js'
 
 /**
  * Plays reported late, against a real in-memory SQLite built from the real
@@ -131,5 +131,23 @@ describe('sqliteTime', () => {
     expect(sqliteTime(undefined, now)).toBeNull()
     expect(sqliteTime('yesterday-ish', now)).toBeNull()
     expect(sqliteTime('2026-09-11T00:00:00.000Z', now)).toBeNull()
+  })
+
+  it('treats a clock that was never set as now: 1970, or year 1', () => {
+    expect(sqliteTime('1970-01-01T00:00:00Z', now)).toBeNull()
+    expect(sqliteTime('0001-01-01T00:00:00Z', now)).toBeNull()
+    expect(sqliteTime('2019-06-01T00:00:00Z', now)).toBe('2019-06-01 00:00:00')
+  })
+})
+
+describe('heardMs', () => {
+  it('holds a play to the length of its song', () => {
+    // A day of listening sent for a one-second song is the song, and a little.
+    expect(heardMs(86_400_000, 1)).toBe(11_000)
+    expect(heardMs(120_000, 190)).toBe(120_000)
+  })
+
+  it('keeps what a song of no known length was sent', () => {
+    expect(heardMs(300_000, 0)).toBe(300_000)
   })
 })

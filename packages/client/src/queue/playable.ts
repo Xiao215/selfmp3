@@ -38,3 +38,19 @@ export function peekPlayable(
   const { state: next, stop } = advancePlayable(state, true, canPlay)
   return stop ? null : (next.items[next.index] ?? null)
 }
+
+/**
+ * Past a song that failed to play: on as if it had ended — so at the end of
+ * the queue it stops, rather than going back to the top as Next does, and
+ * with Repeat all it goes round, where the run of skips is what stops it.
+ * Repeat-one would only start the failed song again, so the queue goes round
+ * instead, as with Repeat all, and keeps its Repeat-one.
+ */
+export function skipFailed(
+  state: QueueState,
+  canPlay: (songId: number) => boolean,
+): { state: QueueState; stop: boolean } {
+  if (state.repeat !== 'one') return advancePlayable(state, true, canPlay)
+  const round = advancePlayable({ ...state, repeat: 'all' }, true, canPlay)
+  return { state: { ...round.state, repeat: 'one' }, stop: round.stop }
+}

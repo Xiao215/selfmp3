@@ -20,6 +20,8 @@ import { thisPlace } from './place'
 export async function askWhyRefused(
   url: string,
   headers: Readonly<Record<string, string>>,
+  /** What to say when nothing answers; null says nothing, leaving what failed to speak. */
+  noAnswer: string | null = null,
 ): Promise<string | null> {
   const held = bucketHold('read')
   if (held) return held.message
@@ -31,8 +33,8 @@ export async function askWhyRefused(
     noteRefusal(body, message)
     return message
   } catch {
-    // No answer at all: nothing to add to what failed.
-    return null
+    // No answer at all: nothing to add to what failed, unless the caller has words for it.
+    return noAnswer
   }
 }
 

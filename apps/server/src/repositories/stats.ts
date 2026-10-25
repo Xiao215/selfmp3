@@ -27,19 +27,37 @@ const RANGE_DAYS: Record<StatsRange, number | null> = {
   all: null,
 }
 
+/** Before this, a play's time is a clock that was never set (1970, year 1), not history. */
+const PLAYS_BEGIN = Date.UTC(2000, 0, 1)
+
 /**
  * A client's ISO 8601 timestamp as SQLite's UTC `YYYY-MM-DD HH:MM:SS`, the
  * format `datetime('now')` writes and every range query compares against.
  *
- * Null means "use now": for no timestamp, an unreadable one, and one in the
- * future. A phone whose clock runs ahead must not put a play in the future,
- * where it would top every "recently played" list until the future arrived.
+ * Null means "use now": for no timestamp, an unreadable one, one in the
+ * future, and one from before anyone could have played it here. A phone whose
+ * clock runs ahead must not put a play in the future, where it would top every
+ * "recently played" list until the future arrived; one whose clock went back
+ * to 1970 must not stretch every all-time range back to then.
  */
 export function sqliteTime(iso: string | undefined, now = Date.now()): string | null {
   if (!iso) return null
   const ms = Date.parse(iso)
-  if (Number.isNaN(ms) || ms > now) return null
+  if (Number.isNaN(ms) || ms > now || ms < PLAYS_BEGIN) return null
   return toSqliteTime(ms)
+}
+
+/** How far past a song's length a play may run: a second's jitter per tick, and some. */
+const PLAY_SLACK_MS = 10_000
+
+/**
+ * What a play says it heard, held to the song's own length: one play of a
+ * one-second song is never a day of listening in Stats. A song whose length
+ * is not known yet keeps what it was sent, which the schema already caps.
+ */
+export function heardMs(msPlayed: number, durationSeconds: number): number {
+  if (!(durationSeconds > 0)) return msPlayed
+  return Math.min(msPlayed, Math.round(durationSeconds * 1000) + PLAY_SLACK_MS)
 }
 
 export class StatsRepository {

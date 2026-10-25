@@ -28,7 +28,7 @@ import { route } from '../http/route.js'
 import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { transact } from '../db/index.js'
-import { sqliteTime } from '../repositories/stats.js'
+import { heardMs, sqliteTime } from '../repositories/stats.js'
 import { romanizedLines } from '../services/romanizedLines.js'
 
 /** The fields a patch sets, in `SONG_FIELDS` order: what an edit to it is stamped with. */
@@ -205,14 +205,14 @@ export function songRoutes(container: Container): Router {
   router.post(
     '/songs/:id/played',
     route({ params: ParamsWithId, body: PlayEventSchema }, ({ params, body }): PlayRecorded => {
-      songOrThrow(params.id)
+      const song = songOrThrow(params.id)
       // A play sent late carries when it happened; one sent twice carries the
       // same client id both times, and the second changes nothing.
       const playedAt = sqliteTime(body.playedAt)
       const recorded = transact(container.db, () => {
         const inserted = container.stats.record(
           params.id,
-          body.msPlayed,
+          heardMs(body.msPlayed, song.duration),
           body.completed,
           playedAt,
           body.clientId ?? null,

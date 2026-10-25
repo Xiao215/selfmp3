@@ -80,6 +80,8 @@ const THUMB_GRABBED = 1.2
  * (the volume, which follows the finger); `onCommit` hears where it was let
  * go, and a screen reader's step (a seek, which lands once). `hold` keeps a
  * let-go value showing until `value` catches up with it (`useSeekHold`).
+ * `of` is what is being scrubbed, the song: a drag still held when it changes
+ * is called off, rather than let go on the next song at the old one's place.
  */
 export function Scrubber({
   value,
@@ -98,6 +100,7 @@ export function Scrubber({
   testID,
   style,
   around,
+  of = null,
 }: {
   value: number
   max: number
@@ -125,6 +128,8 @@ export function Scrubber({
   style?: StyleProp<ViewStyle>
   /** What goes round the track and moves with it: the seek bar's times. */
   around?: (bar: ReactNode, shown: number) => ReactNode
+  /** What it scrubs, such as the song: a drag held across a change of it is dropped. */
+  of?: number | string | null
 }): ReactNode {
   const accent = useAccent()
   const fill = color ?? accent.accent
@@ -135,6 +140,15 @@ export function Scrubber({
   const seekHold = useSeekHold(value)
   const held = hold ? seekHold.held : null
   const holdAt = seekHold.hold
+
+  /*
+   * What the finger took hold of. A song that ends under a held finger is
+   * followed by the next, and let go then, the drag landed on that one: at
+   * the old song's place, near its end, as often as not. Once what is
+   * scrubbed has changed, the drag is the old one's: not shown, and not let go.
+   */
+  const [grab, setGrab] = useState<{ readonly of: typeof of } | null>(null)
+  const grabGone = grab !== null && grab.of !== of
 
   // Rebuilt when the length or the end changes rather than reading refs:
   // PanResponder objects are cheap, and the alternative is a handler that
@@ -149,6 +163,7 @@ export function Scrubber({
     const valueAt = (x: number, y: number): number | null =>
       valueAlong(vertical ? length - y : x, length, max)
     const drag = (x: number, y: number): void => {
+      if (grabGone) return
       const at = valueAt(x, y)
       if (at === null) return
       setDragging(at)
@@ -160,20 +175,27 @@ export function Scrubber({
       // A drag that wanders is still a drag: not the page's swipe to close,
       // nor the list's scroll.
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: event => drag(event.nativeEvent.locationX, event.nativeEvent.locationY),
+      onPanResponderGrant: event => {
+        setGrab({ of })
+        drag(event.nativeEvent.locationX, event.nativeEvent.locationY)
+      },
       onPanResponderMove: event => drag(event.nativeEvent.locationX, event.nativeEvent.locationY),
       onPanResponderRelease: event => {
         const at = valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)
+        setGrab(null)
         setDragging(null)
-        if (at === null) return
+        if (at === null || grabGone) return
         if (hold) holdAt(at)
         onCommit(at)
       },
-      onPanResponderTerminate: () => setDragging(null),
+      onPanResponderTerminate: () => {
+        setGrab(null)
+        setDragging(null)
+      },
     })
-  }, [length, max, vertical, onChange, onCommit, hold, holdAt])
+  }, [length, max, vertical, onChange, onCommit, hold, holdAt, of, grabGone])
 
-  const shown = dragging ?? held ?? value
+  const shown = (grabGone ? null : dragging) ?? held ?? value
   // A tenth of a per cent at a time (`filledTenths` says why).
   const tenths = filledTenths(shown, max)
   const share = `${tenths / 10}%` as const
@@ -184,7 +206,7 @@ export function Scrubber({
    * The thumb swells under the finger, on the spring, as every press in the
    * app does (`M1`, "Press").
    */
-  const grabbing = dragging !== null
+  const grabbing = dragging !== null && !grabGone
   const [grabbed] = useState(() => new Animated.Value(1))
   useEffect(() => {
     spring(grabbed, grabbing ? THUMB_GRABBED : 1)

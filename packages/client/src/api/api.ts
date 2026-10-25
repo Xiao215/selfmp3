@@ -17,6 +17,7 @@
  */
 import {
   AffectedSchema,
+  AllPlaylistSongsSchema,
   AnalysisStatusSchema,
   ArtistBackdropSchema,
   SetArtistNamesSchema,
@@ -514,6 +515,9 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     playlistSongs: (id: number) =>
       request('GET', `/api/playlists/${id}/songs`, PlaylistSongsSchema),
+
+    /** Every playlist's songs in one request. */
+    allPlaylistSongs: () => request('GET', '/api/playlists/songs', AllPlaylistSongsSchema),
 
     /** A selection past `BULK_IDS_MAX` goes in parts, each after the last. */
     addToPlaylist: async (id: number, input: AddToPlaylist): Promise<Playlist> => {

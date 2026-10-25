@@ -228,7 +228,8 @@ POST /api/playlists/:id/songs/remove  { songIds: number[] } -> { removed, playli
 ```
 
 `POST /api/tags/bulk` and `POST /api/playlists/:id/songs` take id lists for tagging and adding.
-A batch is at most 2000 ids. The bulk song routes are registered **before** `/songs/:id/…`, or
+A batch is at most 2000 ids (`BULK_IDS_MAX`); the client sends a bigger selection as several
+batches, one after another, and adds up their answers. The bulk song routes are registered **before** `/songs/:id/…`, or
 `/songs/bulk/loved` would be matched by `/songs/:id/loved` with an id of `"bulk"` and 400
 instead of reaching the handler. Removing from a playlist refuses a playlist that fills from
 tags.
@@ -237,7 +238,9 @@ tags.
 song: its cover, lyrics, motion curve, lyrics-index rows, any copy of its audio still on the
 server's disk, and its files in the bucket, which are put in the cloud trash and deleted once
 the snapshot without the song is up and no other song names them. A tag the removed songs were
-the last songs of goes too.
+the last songs of goes too. The rows go 50 at a time, with the event loop let go between, and
+files are tidied after the rows are gone; a merge takes its copies' rows inside its own
+transaction, so a second merge of the same songs finds nothing to fold.
 
 - The rows go in **one transaction** (`SongRepository.deleteMany`) and the library version is
   bumped **once**, so a client settles in a single refetch instead of flickering N times.

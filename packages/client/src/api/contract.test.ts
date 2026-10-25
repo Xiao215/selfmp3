@@ -72,6 +72,7 @@ const CALLS: Calls = {
   deletePlaylist: api => api.deletePlaylist(1),
   stopFollowing: api => api.stopFollowing(1),
   playlistSongs: api => api.playlistSongs(1),
+  allPlaylistSongs: api => api.allPlaylistSongs(),
   addToPlaylist: api => api.addToPlaylist(1, { songIds: [1] }),
   removeManyFromPlaylist: api => api.removeManyFromPlaylist(1, [1]),
   reorderPlaylist: api => api.reorderPlaylist(1, [1]),

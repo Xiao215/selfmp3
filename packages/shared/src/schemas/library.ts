@@ -50,6 +50,13 @@ export const PlaylistSongsSchema = z.object({
 })
 export type PlaylistSongs = z.infer<typeof PlaylistSongsSchema>
 
+/**
+ * Every playlist's songs at once, for a device keeping them all alongside:
+ * one request where one a playlist was 622 at launch.
+ */
+export const AllPlaylistSongsSchema = z.object({ playlists: z.array(PlaylistSongsSchema) })
+export type AllPlaylistSongs = z.infer<typeof AllPlaylistSongsSchema>
+
 /** Small payload a device polls to decide whether a full sync is needed. */
 export const SyncManifestSchema = z.object({
   version: z.number().int().nonnegative(),

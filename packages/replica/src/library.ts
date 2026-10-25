@@ -250,6 +250,8 @@ export interface CloudLibraryApi {
   pendingCloudChanges: () => number
   flushCloudChanges: () => Promise<void>
   cloudPlaylistSongs: (playlistId: number) => Promise<readonly number[]>
+  /** Every playlist's songs, by playlist id, brought up to date once. */
+  cloudAllPlaylistSongs: () => Promise<Readonly<Record<number, readonly number[]>>>
   cloudLyrics: (
     session: CloudSession | null,
     songId: number,
@@ -1089,12 +1091,17 @@ export function createCloudLibrary(
   // --- Reading what the library points at ----------------------------------------------
 
   /** A playlist's songs, in order, from the library as this device has it — offline too. */
-  async function cloudPlaylistSongs(playlistId: number): Promise<readonly number[]> {
+  async function cloudAllPlaylistSongs(): Promise<Readonly<Record<number, readonly number[]>>> {
     // Brought up to date first: plays can move a song into a Live playlist.
-    const stored =
+    return (
       (replica ? (await currentView(replica)).playlistSongs : null) ??
-      ((await store.read(PLAYLISTS_KEY)) as Record<number, number[]> | null)
-    return stored?.[playlistId] ?? []
+      ((await store.read(PLAYLISTS_KEY)) as Record<number, number[]> | null) ??
+      {}
+    )
+  }
+
+  async function cloudPlaylistSongs(playlistId: number): Promise<readonly number[]> {
+    return (await cloudAllPlaylistSongs())[playlistId] ?? []
   }
 
   async function filesOf(songId: number): Promise<SongFiles | null> {
@@ -1328,6 +1335,7 @@ export function createCloudLibrary(
     pendingCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,
+    cloudAllPlaylistSongs,
     cloudLyrics,
     cloudMotion,
     cloudCoverKey,

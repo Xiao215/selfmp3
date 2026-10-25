@@ -8,6 +8,7 @@ import {
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
+  type AllPlaylistSongs,
   type Ok,
   type RemovedFromPlaylist,
 } from '@selfmp3/shared'
@@ -43,6 +44,17 @@ export function playlistRoutes(container: Container): Router {
       container.bumpLibraryVersion()
       return container.playlists.byId(created.id) ?? created
     }),
+  )
+
+  /** Every playlist's ordered song ids, in one answer (`AllPlaylistSongs`). */
+  router.get(
+    '/playlists/songs',
+    route({}, (): AllPlaylistSongs => ({
+      playlists: container.playlists.all().map(playlist => ({
+        playlistId: playlist.id,
+        songIds: container.playlists.songIds(playlist),
+      })),
+    })),
   )
 
   /** Ordered song ids. Live playlists resolve their rules on every read. */

@@ -204,6 +204,7 @@ export function createCloudRoutes(
     cloudManifest,
     cloudMotion,
     cloudPlaylistSongs,
+    cloudAllPlaylistSongs,
     loadCloudLibrary,
     markPlaylistPlayed,
     peekCloudLibrary,
@@ -221,6 +222,20 @@ export function createCloudRoutes(
       async ({ session, query }) => {
         await loadCloudLibrary(session)
         return cloudManifest(query.get('scope') === 'playlists' ? 'playlists' : 'library')
+      },
+    ],
+    [
+      'GET',
+      '/api/playlists/songs',
+      async ({ session }) => {
+        const view = await loadCloudLibrary(session)
+        const all = await cloudAllPlaylistSongs()
+        return {
+          playlists: view.library.playlists.map(playlist => ({
+            playlistId: playlist.id,
+            songIds: [...(all[playlist.id] ?? [])],
+          })),
+        }
       },
     ],
     [

@@ -28,10 +28,11 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ]
 
-// react-native-web modules swapped for a fixed copy, by the file they resolve
-// to: Expo's Babel preset rewrites `import { ScrollView } from 'react-native'`
-// to the module's own path, so no one specifier catches every import. Each
-// file in webFixes/ says what it fixes, and imports the original itself.
+// react-native-web and expo-router modules swapped for a fixed copy, by the
+// file they resolve to: Expo's Babel preset rewrites `import { ScrollView }
+// from 'react-native'` to the module's own path, so no one specifier catches
+// every import. Each file in webFixes/ says what it fixes, and imports the
+// original itself.
 function rnwFile(request) {
   return require.resolve(`react-native-web/dist/${request}`, { paths: [projectRoot] })
 }
@@ -39,6 +40,8 @@ const scrollViewFix = path.resolve(projectRoot, 'webFixes/scrollView.js')
 const webFixes = {
   [rnwFile('exports/ScrollView')]: scrollViewFix,
   [rnwFile('cjs/exports/ScrollView')]: scrollViewFix,
+  [require.resolve('expo-router/build/fork/createMemoryHistory', { paths: [projectRoot] })]:
+    path.resolve(projectRoot, 'webFixes/memoryHistory.js'),
 }
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

@@ -57,6 +57,30 @@ export function onLiveKeys(given: NavState, live: NavState | undefined): NavStat
   return { ...incoming, ...(live.key ? { key: live.key } : null), routes }
 }
 
+/**
+ * Whether `next` is `previous` with a page further down the stack brought back
+ * to the top: a place or a page already open, gone to again
+ * (`ports/singularPlaces.web.ts`). The stack is no longer, so expo-router's
+ * `useLinking` took it for a replace and wrote it over the history entry it
+ * came from: Library → Stats → Library left no Stats to go Back to. It is a
+ * step like any other, and `webFixes/memoryHistory.js` makes it one.
+ */
+export function broughtBackUp(previous: NavState | undefined, next: NavState): boolean {
+  if (!previous || previous.key !== next.key) return false
+  if (previous.routes.length !== next.routes.length) return false
+  const before = previous.routes[previous.index ?? previous.routes.length - 1]
+  const after = next.routes[next.index ?? next.routes.length - 1]
+  if (!before?.key || !after?.key) return false
+  if (before.key === after.key) {
+    // The same page on top: the change, if any, is further in.
+    return before.state && after.state ? broughtBackUp(before.state, after.state) : false
+  }
+  return (
+    next.routes.some(route => route.key === before.key) &&
+    previous.routes.some(route => route.key === after.key)
+  )
+}
+
 /** The one page an address names, as a step back or on from the live stack. */
 function stepFromLive(incoming: NavState, live: NavState): NavState {
   const [only] = incoming.routes

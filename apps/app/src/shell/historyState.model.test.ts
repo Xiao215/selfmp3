@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { onLiveKeys } from './historyState.model'
+import { broughtBackUp, onLiveKeys } from './historyState.model'
 
 /** The live state: the app's layout at the root, and the stack of pages under it. */
 const live = {
@@ -110,5 +110,49 @@ describe('a history step put on the live keys', () => {
     }
     const one = { key: 's', routes: [{ key: 'library-1', name: 'library', params: {} }] }
     expect(onLiveKeys(twice, one).routes.map(route => route.key)).toEqual(['library-1', undefined])
+  })
+})
+
+describe('a page brought back up the stack', () => {
+  const inStack = (...names: string[]) => ({
+    key: 'root-1',
+    index: 0,
+    routes: [
+      {
+        key: '__root-1',
+        name: '__root',
+        state: {
+          key: 'stack-1',
+          index: names.length - 1,
+          routes: names.map(name => ({ key: `${name}-1`, name, params: {} })),
+        },
+      },
+    ],
+  })
+
+  it('is a step: Library → Stats → Library', () => {
+    expect(broughtBackUp(inStack('library', 'stats'), inStack('stats', 'library'))).toBe(true)
+  })
+
+  it('is not a page pushed, popped, or left on top', () => {
+    expect(broughtBackUp(inStack('library'), inStack('library', 'stats'))).toBe(false)
+    expect(broughtBackUp(inStack('library', 'stats'), inStack('library'))).toBe(false)
+    expect(broughtBackUp(inStack('library', 'stats'), inStack('library', 'stats'))).toBe(false)
+    expect(broughtBackUp(undefined, inStack('library'))).toBe(false)
+  })
+
+  it('is not a page replaced by another', () => {
+    const replaced = inStack('library', 'stats')
+    const tags = { key: 'tags-1', name: 'tags', params: {} }
+    const next = {
+      ...replaced,
+      routes: [
+        {
+          ...replaced.routes[0]!,
+          state: { key: 'stack-1', index: 1, routes: [replaced.routes[0]!.state.routes[0]!, tags] },
+        },
+      ],
+    }
+    expect(broughtBackUp(replaced, next)).toBe(false)
   })
 })

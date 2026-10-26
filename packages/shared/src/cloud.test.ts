@@ -408,6 +408,7 @@ describe('snapshot schema', () => {
     const plays = `lyrics/${'5'.repeat(64)}.plays`
     const banner = `covers/${'6'.repeat(64)}.jpg`
     const portrait = `covers/${'7'.repeat(64)}.jpg`
+    const pack = `covers/${'8'.repeat(64)}.pack`
     const snapshot = CloudSnapshotSchema.parse({
       format: 1,
       writtenAt: '2026-09-11T10:00:00.000Z',
@@ -425,12 +426,12 @@ describe('snapshot schema', () => {
       ],
       artistNames: [],
       spellings: {},
-      coverPacks: [],
+      coverPacks: [{ key: pack, size: 2, covers: [[song.cover.key, 2]] }],
       sound: { model: 'clamp3', key: sound, size: 1 },
       plays: [{ month: '2026-09', key: plays, size: 1, count: 1 }],
     })
     expect([...snapshotFileKeys(snapshot)].sort()).toEqual(
-      [song.audio.key, song.cover.key, lyrics, motion, banner, portrait, sound, plays].sort(),
+      [song.audio.key, song.cover.key, lyrics, motion, banner, portrait, sound, plays, pack].sort(),
     )
   })
 

@@ -94,6 +94,11 @@ export function coverPackKey(sha256: string): string {
   return `covers/${sha256}.pack`
 }
 
+/** Whether a key in the bucket is a pack of covers (`coverPackKey`). */
+export function isCoverPackKey(key: string): boolean {
+  return key.startsWith('covers/') && key.endsWith('.pack')
+}
+
 /** Where each picture of a pack is in its file: its key, where it starts, and how long it is. */
 export function coverPackMembers(
   pack: CloudCoverPack,
@@ -266,12 +271,12 @@ export function othersSnapshotsToPrune(
 }
 
 /**
- * The files a snapshot names for its songs, artists, sound and plays: each
- * song's audio, cover, words and motion curve, each artist's pictures, the
- * sound vectors and the months of plays. What the server's sweep of unnamed
- * files (`#trashOrphans` in apps/server's cloudSync.ts) must not take while
- * that snapshot may be read. Its cover packs are not among them: the sweep
- * never looks at packs, which the server writes and lets go of itself.
+ * The files a snapshot names: each song's audio, cover, words and motion
+ * curve, each artist's pictures, the sound vectors, the months of plays and
+ * the packs of covers. What the server must not delete while that snapshot
+ * may be read — its sweep of unnamed files (`#trashOrphans` in apps/server's
+ * cloudSync.ts), and a pack it replaced (`#emptyTrash`): a device that listed
+ * the snapshots just before a newer one went up reads the one it listed.
  */
 export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
   const keys = new Set<string>()
@@ -290,6 +295,7 @@ export function snapshotFileKeys(snapshot: CloudSnapshot): Set<string> {
   }
   add(snapshot.sound?.key)
   for (const month of snapshot.plays ?? []) add(month.key)
+  for (const pack of snapshot.coverPacks) add(pack.key)
   return keys
 }
 

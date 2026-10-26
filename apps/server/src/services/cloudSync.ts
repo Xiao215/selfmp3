@@ -15,6 +15,7 @@ import {
   audioKey,
   coverKey,
   coverPackKey,
+  isCoverPackKey,
   foldedLogKeys,
   detectLyricsLanguage,
   isSynced,
@@ -132,6 +133,8 @@ const RETRY_DELAYS_MS = [FIRST_RETRY_MS, 120_000, 300_000, 900_000, 1_800_000]
 
 /** Snapshots this server keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
+/** Passes in a row a log file is found broken before the server goes past it (`#givenUpOn`). */
+const BROKEN_LOG_PASSES = 3
 
 /**
  * How often to look for changes other devices have written. One listing of
@@ -446,6 +449,14 @@ export class CloudSyncService {
    * that changes has a new key, and is looked for under that.
    */
   readonly #unpackable = new Set<string>()
+  /** How many passes in a row found each broken log file broken (`#givenUpOn`). */
+  readonly #brokenLogs = new Map<string, number>()
+  /**
+   * The files each snapshot in the bucket names, by its key: a snapshot never
+   * changes once written, so asking again which files the kept ones name is
+   * a listing, not a read of each (`#namedBySnapshots`).
+   */
+  readonly #snapshotFiles = new Map<string, Set<string>>()
   /** The pass that sends the vectors once the hour since the last is up. */
   #soundTimer: NodeJS.Timeout | null = null
   /**
@@ -1019,7 +1030,6 @@ export class CloudSyncService {
       // Other devices' changes next: a song removed elsewhere is not worth
       // uploading, and the snapshot at the end should say they are folded in.
       const logs = await this.#readLogs(store, generation)
-      failed += logs.unreadable
       if (generation !== this.#generation || this.#stopped) return
 
       // Only by a pass that read every log there is to read: what nothing
@@ -1153,10 +1163,17 @@ export class CloudSyncService {
           this.#logger.warn('could not look for artists’ pictures', { message: messageOf(error) })
         })
       this.#lastSyncAt = this.#now().toISOString()
-      if (failed === 0) {
+      if (failed === 0 && logs.unreadable === 0) {
         this.#retryIndex = 0
         this.#state = 'idle'
         this.#lastError = null
+      } else if (failed === 0) {
+        // A device's log this server cannot use, said for what it is
+        // (`#readLog` kept the words) rather than as songs that would not go
+        // up. Nothing here is waited out: the next look at the log folder
+        // reads it again, and a server that is updated reads it at last.
+        this.#retryIndex = 0
+        this.#state = 'error'
       } else {
         // The bucket refused some songs and took the rest: a full bucket, or
         // a doorman past its day's quota. Nothing about the library will
@@ -1236,11 +1253,17 @@ export class CloudSyncService {
       const where = parseLogKey(key)
       const file = read[index]
       if (!where || stuck.has(where.deviceId)) return
-      if (file === 'gone' || file === 'unreadable') {
-        stuck.add(where.deviceId)
-        if (file === 'unreadable') unreadable++
+      if (file === 'broken' && this.#givenUpOn(key)) {
+        // Read as nothing: its changes are lost, and the device's later ones count.
+        reached.set(where.deviceId, where.seq)
         return
       }
+      if (file === 'gone' || file === 'broken' || file === 'newer') {
+        stuck.add(where.deviceId)
+        if (file !== 'gone') unreadable++
+        return
+      }
+      this.#brokenLogs.delete(key)
       changes.push(...(file ?? []))
       reached.set(where.deviceId, where.seq)
     })
@@ -1336,22 +1359,25 @@ export class CloudSyncService {
   /**
    * One log file's changes. `gone` when it went between the listing and now —
    * a device tidies its files away once a snapshot has them, so the next pass
-   * simply lists again — and `unreadable`, with the reason kept, when it
-   * cannot be used.
+   * simply lists again; `newer` when a newer build wrote it, which updating
+   * this server fixes; and `broken` when it is not a log file at all — cut
+   * short, or not the file its name says — which nothing will ever fix, since
+   * a file once written never changes (`#givenUpOn`). Either way the reason
+   * is kept.
    */
-  async #readLog(store: CloudStore, key: string): Promise<Change[] | 'gone' | 'unreadable'> {
+  async #readLog(store: CloudStore, key: string): Promise<Change[] | 'gone' | 'broken' | 'newer'> {
     const where = parseLogKey(key)
-    if (!where) return 'unreadable'
+    if (!where) return 'broken'
     const data = await store.get(key)
     if (!data) return 'gone'
     const read = readLogFile(parseJson(data))
     if (!read.ok || read.file.device !== where.deviceId || read.file.seq !== where.seq) {
-      this.#lastError =
-        read.ok || read.reason === 'unreadable'
-          ? `A change log from ${where.deviceId} could not be read (${key}).`
-          : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
+      const broken = read.ok || read.reason === 'unreadable'
+      this.#lastError = broken
+        ? `A change log from ${where.deviceId} could not be read (${key}).`
+        : `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
       this.#logger.warn('could not use a log file', { key, reason: this.#lastError })
-      return 'unreadable'
+      return broken ? 'broken' : 'newer'
     }
     if (read.skipped > 0) {
       this.#lastError = `${where.deviceId} is writing changes this version of self.mp3 cannot read. Update this server.`
@@ -1359,9 +1385,27 @@ export class CloudSyncService {
         key,
         skipped: read.skipped,
       })
-      return 'unreadable'
+      return 'newer'
     }
     return [...read.file.changes]
+  }
+
+  /**
+   * Whether to go past a broken log file (`#readLog`), and so lose what it
+   * held, rather than hold back everything that device writes after it for
+   * good. Not at the first sight of one: a read cut short by the network
+   * looks the same once. A file broken on `BROKEN_LOG_PASSES` passes in a row
+   * is broken for good.
+   */
+  #givenUpOn(key: string): boolean {
+    const seen = (this.#brokenLogs.get(key) ?? 0) + 1
+    if (seen < BROKEN_LOG_PASSES) {
+      this.#brokenLogs.set(key, seen)
+      return false
+    }
+    this.#brokenLogs.delete(key)
+    this.#logger.warn('went past a change log that cannot be read; its changes are lost', { key })
+    return true
   }
 
   /**
@@ -2132,11 +2176,28 @@ export class CloudSyncService {
    * that lands meanwhile finds it absent and sends it again, rather than
    * finding it present and pointing every device at a file about to vanish.
    * One that fails stays in the trash for the next pass.
+   *
+   * A pack of covers replaced waits longer: until no snapshot in the bucket
+   * names it. A device reads the snapshot it listed, which may be one of the
+   * older ones still kept, and a pack deleted under it left that device
+   * fetching every cover one by one — what the packs are there to save. Other
+   * files go as they did: an older snapshot naming a removed song's audio
+   * names a song the logs since have taken away.
    */
   async #emptyTrash(store: CloudStore): Promise<void> {
     const { cloud } = this.#deps
+    let trashed = cloud.trashedKeys()
+    if (trashed.some(isCoverPackKey)) {
+      const named = await this.#namedBySnapshots(store).catch((error: unknown) => {
+        this.#logger.warn('could not read every snapshot; replaced cover packs stay for now', {
+          message: messageOf(error),
+        })
+        return null
+      })
+      trashed = trashed.filter(key => !isCoverPackKey(key) || (named !== null && !named.has(key)))
+    }
     let deleted = 0
-    for (const key of cloud.trashedKeys()) {
+    for (const key of trashed) {
       if (this.#stopped) return
       const inflight = store.delete(key).finally(() => this.#deleting.delete(key))
       this.#deleting.set(key, inflight)
@@ -2210,12 +2271,20 @@ export class CloudSyncService {
   async #namedBySnapshots(store: CloudStore): Promise<Set<string>> {
     const named = new Set<string>()
     const keys = (await store.list(SNAPSHOTS_FOLDER)).map(object => object.key)
+    const listed = new Set(keys)
+    for (const key of this.#snapshotFiles.keys())
+      if (!listed.has(key)) this.#snapshotFiles.delete(key)
     for (const key of keys) {
       if (!parseSnapshotKey(key)) continue
-      const kept = this.#newestRead?.newest
-      const body = kept?.key === key ? kept.body : await store.get(key)
-      if (!body) throw new Error(`${key} went while it was being read`)
-      for (const file of snapshotFileKeys(parseSnapshot(body))) named.add(file)
+      let files = this.#snapshotFiles.get(key)
+      if (!files) {
+        const kept = this.#newestRead?.newest
+        const body = kept?.key === key ? kept.body : await store.get(key)
+        if (!body) throw new Error(`${key} went while it was being read`)
+        files = snapshotFileKeys(parseSnapshot(body))
+        this.#snapshotFiles.set(key, files)
+      }
+      for (const file of files) named.add(file)
     }
     return named
   }

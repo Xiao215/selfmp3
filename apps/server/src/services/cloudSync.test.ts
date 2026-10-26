@@ -396,6 +396,19 @@ describe('CloudSyncService', () => {
       row => row.uid,
     )
 
+  /**
+   * Snapshots enough to prune every one the bucket held before, each with an
+   * edit of its own: what a file named only by those is waiting for.
+   */
+  const publishPastKept = async (): Promise<void> => {
+    const id = Number(db.prepare('SELECT id FROM songs ORDER BY id LIMIT 1').pluck().get())
+    for (let round = 0; round < 3; round++) {
+      songs.patch(id, { year: 1990 + round })
+      await pass()
+    }
+    await pass()
+  }
+
   describe('connecting', () => {
     it('marks a new bucket as self.mp3’s, then publishes the library', async () => {
       addSong('Aurora Lane - Sunrise', 'audio-sunrise')
@@ -905,7 +918,7 @@ describe('CloudSyncService', () => {
       expect(bucket.puts.slice(puts).filter(key => key.endsWith('.pack'))).toEqual([])
     })
 
-    it('packs a new cover with the rest, and deletes the old pack once the new one is named', async () => {
+    it('packs a new cover with the rest, and deletes the old pack once no snapshot names it', async () => {
       await threeWithCovers()
       await connect()
       const [before] = packKeys()
@@ -917,6 +930,10 @@ describe('CloudSyncService', () => {
       await vi.waitFor(() => expect(latest().coverPacks[0]?.covers).toHaveLength(4))
       const [after] = latest().coverPacks
       expect(after?.key).not.toBe(before)
+      // Kept while an older snapshot still in the bucket names it: a device
+      // that listed the snapshots a moment ago is reading that one.
+      expect(packKeys().sort()).toEqual([before, after?.key].sort())
+      await publishPastKept()
       await vi.waitFor(() => expect(packKeys()).toEqual([after?.key]))
     })
 
@@ -935,6 +952,7 @@ describe('CloudSyncService', () => {
           gone,
         ),
       )
+      await publishPastKept()
       await vi.waitFor(() => expect(packKeys()).toEqual([latest().coverPacks[0]?.key]))
     })
 
@@ -1050,6 +1068,9 @@ describe('CloudSyncService', () => {
       await pass()
 
       expect(latest().artists).toEqual([])
+      expect(bucket.keys('covers/').filter(key => !key.endsWith('.pack'))).toEqual([])
+      // The pack they were in, once no snapshot kept names it.
+      await publishPastKept()
       expect(bucket.keys('covers/')).toEqual([])
     })
   })
@@ -2220,6 +2241,31 @@ describe('CloudSyncService', () => {
       expect(latest().upTo).toEqual({ [PHONE]: 1, [LAPTOP]: 1 })
       expect(sync.status()).toMatchObject({ state: 'error' })
       expect(sync.status().lastError).toMatch(/Update this server/)
+    })
+
+    it('goes past a log cut short once it stays broken, and says what it is meanwhile', async () => {
+      const id = addSong('A - One', 'one')
+      await connect()
+      // Not a log file at all, and never going to be one: a file never changes.
+      bucket.objects.set(logKey(PHONE, 1), {
+        body: Buffer.from('{"format":1,"device":"iphone-0b7d44a1","seq":1,"chan'),
+        contentType: 'application/json',
+      })
+      writeLog(PHONE, 2, [
+        { type: 'songEdited', hlc: stamp(2), uid: uidOf(id), fields: { loved: true } },
+      ])
+
+      await pass()
+      expect(songs.byId(id)).toMatchObject({ loved: false })
+      // Said for what it is, not as songs that would not go up.
+      expect(sync.status()).toMatchObject({ state: 'error' })
+      expect(sync.status().lastError).toMatch(/A change log from iphone-0b7d44a1 could not be read/)
+
+      await pass()
+      await pass()
+      expect(songs.byId(id)).toMatchObject({ loved: true })
+      expect(latest().upTo).toEqual({ [PHONE]: 2 })
+      expect(sync.status()).toMatchObject({ state: 'idle', lastError: null })
     })
 
     it('takes a song another device removed out, and its files out of the bucket', async () => {

@@ -3,12 +3,14 @@ import {
   ImportStatusSchema,
   ImportStepSchema,
   sameLink,
+  type CameWith,
   type ImportEnqueueItem,
   type ImportJob,
   type ImportStatus,
   type ImportStep,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
+import { readCameWith } from '../db/rows.js'
 
 /**
  * The import queue, persisted.
@@ -86,6 +88,8 @@ export class ImportRepository {
   readonly #db: Db
 
   readonly #insert
+  readonly #insertCameWith
+  readonly #cameWith
   readonly #byId
   readonly #open
   readonly #finished
@@ -119,6 +123,12 @@ export class ImportRepository {
       INSERT INTO import_jobs (id, url, title, artist, album, thumbnail, duration, tag_ids, playlist_id, position)
       VALUES (@id, @url, @title, @artist, @album, @thumbnail, @duration, @tagIds, @playlistId, @position)
     `)
+    this.#insertCameWith = db.prepare(
+      'INSERT INTO import_came_with (job_id, came_with) VALUES (?, ?)',
+    )
+    this.#cameWith = db.prepare<[string], { came_with: string }>(
+      'SELECT came_with FROM import_came_with WHERE job_id = ?',
+    )
 
     this.#byId = db.prepare<[string], ImportJobRow>('SELECT * FROM import_jobs WHERE id = ?')
 
@@ -266,6 +276,7 @@ export class ImportRepository {
           playlistId,
           position: position++,
         })
+        if (item.cameWith) this.#insertCameWith.run(id, JSON.stringify(item.cameWith))
         const row = this.#byId.get(id)
         if (row) created.push(toJob(row))
       }
@@ -336,6 +347,11 @@ export class ImportRepository {
 
   playlistFor(id: string): number | null {
     return this.#byId.get(id)?.playlist_id ?? null
+  }
+
+  /** The friend the job's song came from, which the song keeps once it lands. */
+  cameWithFor(id: string): CameWith | null {
+    return readCameWith(this.#cameWith.get(id)?.came_with ?? null)
   }
 
   /**

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { IdSchema } from './common.js'
+import { CameWithSchema } from './song.js'
 
 /**
  * Listening statistics.
@@ -65,16 +66,31 @@ export const StatsSchema = z.object({
 })
 export type Stats = z.infer<typeof StatsSchema>
 
-/** One play in `/api/stats/history`, newest first: the song as it was named then. */
-export const PlayHistoryEventSchema = z.object({
+/**
+ * One song's history with you, `/api/songs/:id/history`: every play of it the
+ * server keeps, folded into what its page draws. The server is the only one
+ * that has them all; a device's own copy knows only the count and the last.
+ */
+export const SongHistorySchema = z.object({
   songId: IdSchema,
-  title: z.string(),
-  artist: z.string(),
-  hasArt: z.boolean(),
-  playedAt: z.string(),
-  completed: z.boolean(),
+  /** Who handed it over, when someone did (schemas/song.ts). */
+  cameWith: CameWithSchema.nullable(),
+  plays: z.number().int().nonnegative(),
+  /** Everything heard of it, all plays together. */
+  msPlayed: z.number().int().nonnegative(),
+  /** UTC `YYYY-MM-DD HH:MM:SS`, as every play time is; null before any play. */
+  firstPlayedAt: z.string().nullable(),
+  lastPlayedAt: z.string().nullable(),
+  /**
+   * Plays by the UTC hour they began in, oldest first, only hours that have
+   * any: the device folds them into its own weeks, in its own time zone.
+   */
+  hours: z.array(
+    z.object({
+      /** UTC `YYYY-MM-DD HH:00:00`. */
+      at: z.string(),
+      plays: z.number().int().positive(),
+    }),
+  ),
 })
-export type PlayHistoryEvent = z.infer<typeof PlayHistoryEventSchema>
-
-export const PlayHistorySchema = z.object({ events: z.array(PlayHistoryEventSchema) })
-export type PlayHistory = z.infer<typeof PlayHistorySchema>
+export type SongHistory = z.infer<typeof SongHistorySchema>

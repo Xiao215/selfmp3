@@ -1,12 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import {
-  StatsRangeSchema,
-  UpdateSettingsSchema,
-  type Health,
-  type PlayHistory,
-  type Stats,
-} from '@selfmp3/shared'
+import { StatsRangeSchema, UpdateSettingsSchema, type Health, type Stats } from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { isAuthenticated } from '../http/middleware.js'
@@ -58,33 +52,6 @@ export function systemRoutes(container: Container): Router {
     '/stats',
     route({ query: z.object({ range: StatsRangeSchema.default('30d') }) }, ({ query }): Stats =>
       container.stats.build(query.range),
-    ),
-  )
-
-  /** Recent plays, joined to song titles for the history list. */
-  router.get(
-    '/stats/history',
-    route(
-      { query: z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }) },
-      ({ query }): PlayHistory => {
-        const events = container.stats.recent(query.limit)
-        const songs = new Map(
-          container.songs.byIds(events.map(event => event.songId)).map(song => [song.id, song]),
-        )
-        return {
-          events: events.map(event => {
-            const song = songs.get(event.songId)
-            return {
-              songId: event.songId,
-              title: song?.title ?? 'Deleted song',
-              artist: song?.artist ?? '',
-              hasArt: song?.hasArt ?? false,
-              playedAt: event.playedAt,
-              completed: event.completed,
-            }
-          }),
-        }
-      },
     ),
   )
 

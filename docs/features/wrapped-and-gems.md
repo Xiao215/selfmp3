@@ -1,6 +1,6 @@
-# The Report, anytime — and forgotten gems
+# The Report, anytime, a song's story — and forgotten gems
 
-Two ways of looking back at your own listening, built from what the library already records:
+Three ways of looking back at your own listening, built from what the library already records:
 every play, and each song's play count, last play and love.
 
 **Where the plays come from.** A play is written on the device that heard it, goes up to the
@@ -13,8 +13,8 @@ up with this device's by the uid both know them by, so a cover still draws and a
 plays. With no server in reach the page is still drawn and says why it is empty. See
 docs/SYNC.md, "Reaching the server for what only it can do".
 
-Forgotten gems need no server: they are worked out on the device from its own copy of the
-library.
+A song's story asks the server the same way, and says less when no server answers. Forgotten
+gems need no server: they are worked out on the device from its own copy of the library.
 
 ---
 
@@ -104,6 +104,46 @@ Asked of the server, through the reached address on a cloud library
 `packages/shared/src/schemas/wrapped.ts`. All the SQL is in
 `apps/server/src/repositories/wrapped.ts`; only the streak and the personality line are
 worked out in JavaScript, from a handful of rows.
+
+---
+
+## Your story with a song (N4a)
+
+A song's page (`/song/<id>`) has **You and this song**: the song's history with you, in four
+lines and a strip.
+
+| Line | Says | From |
+| --- | --- | --- |
+| **Came in** | the day it was added, and where from: *from Mia, in a room*, *from a link Kai sent*, *from YouTube* (or 网易云, YouTube Music, bilibili…), *from a file* | `addedAt`, `cameWith`, `sourceUrl` |
+| **First** | its first play, and how long after it came: *18 March · 15 days later* | the server |
+| **Best week** | its busiest Monday-to-Sunday week, once one holds three plays: *31 plays · week of 10 August* | the server |
+| **Last** | the last play (*Yesterday, 23:40*), with every play and the time listened: *87 plays · 5h 12 in all* | the server |
+
+Under them, a bar a week from the week it came in to this one, the busiest in the accent:
+*Weeks since 3 March*. Past 52 weeks a bar holds a few weeks, and the caption says *Since 3 March
+2025*. A stay under three weeks draws no strip, since the lines already say it all. The card is
+left out until the song has been played; the line by the buttons says *Not played yet* instead.
+
+**One question per song.** `GET /api/songs/:id/history` answers with every play of the song the
+server keeps (`SongHistorySchema` in `packages/shared/src/schemas/stats.ts`): the count, the
+time heard, the first and last play, and the plays in each UTC hour. The device folds the hours
+into its own weeks, in its own time zone (`songStory` in
+`apps/app/src/features/song/song.model.ts`). This replaced reading the library's last 200 plays
+of any song, which left a song's older plays out. A cloud library asks its server directly, by
+the server's id for the song (`useSongHistoryFor` in `features/stats/statsSource.ts`); its own
+copy of the library answers no such question (`SERVER_ONLY_ROUTES`).
+
+**Without a server** the card says only what this device's copy knows: *Came in* (the day, and
+the site its link is on, or *a file*) and *Last* with the play count. No first play, best week,
+time or strip is guessed.
+
+**Who a song came from** (`CameWith` in `packages/shared/src/schemas/song.ts`) is kept when a
+friend's song is brought home with Get it: from a room (who brought it, or whose shared
+playlist it is) or from a share link (who sent it). The import job carries it
+(`import_came_with`, beside the queue) until the song lands, then the song keeps it (`songs.came_with`,
+migration 51) and the snapshot carries it (`CloudSong.cameWith`), so a server made again from
+the bucket still knows. A song found and imported by hand has none, and its link says where it
+came from.
 
 ---
 

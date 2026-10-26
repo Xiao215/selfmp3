@@ -23,23 +23,16 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
 import { TagPicker } from '../../ui/components/TagPicker'
-import { artShadow, card, label, pageFrame, serif, bodyText, heroTitle } from '../../ui/surfaces'
+import { artShadow, card, label, pageFrame, heroTitle } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { useSongColor } from '../../ui/useSongColor'
 import { ArtistLinks } from '../nowPlaying/ArtistLinks'
 import { SimilarShelf } from './SimilarShelf'
-import { useHistoryFor, useStatsSongs } from '../stats/statsSource'
+import { useSongHistoryFor } from '../stats/statsSource'
 import { useOpenTag } from '../tag/useOpenTag'
 import { SongAbout } from './SongAbout'
 import { SoundStrip } from './SongFacts'
-import {
-  bylineRest,
-  playStrip,
-  songPlays,
-  songStory,
-  unplayedLine,
-  type PlayStrip,
-} from './song.model'
+import { bylineRest, songStory, unplayedLine, type WeekStrip } from './song.model'
 import { goBack } from '../../ui/useBackTo'
 import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -286,65 +279,60 @@ function SongPage({ song }: { song: Song }): ReactNode {
 }
 
 /**
- * "You and this song": the plays and when it came, in a sentence, and a strip
- * of when those plays were.
+ * "You and this song": when it came and from where, its first play, its best
+ * week and its last, and a strip of its weeks since.
  *
- * The count and the dates are the song record's and always there. When each
- * play happened is the server's history, which a cloud library reaches only
- * while its server can be reached (`useVia`, as Stats and Home do);
- * without it the sentence says what the record knows and the strip is left out.
- * Out of reach, it asks its own client, as Home does, which has no history to
- * give.
+ * Every play of it is the server's, which a cloud library reaches only while
+ * its server can be reached (`useVia`, as Stats and Home do). Without one the
+ * card says what this device's copy of the song knows — when it came, how
+ * often and when it was last played — and nothing more.
  */
 function YouAndThisSong({ song }: { song: Song }): ReactNode {
   const via = useVia()
-  const { data: history } = useHistoryFor(via)
-  const songFor = useStatsSongs(via)
-  const { story, strip } = useMemo(() => {
-    const now = new Date()
-    const known = history ? songPlays(history.events, id => songFor(id)?.id === song.id) : null
-    return {
-      story: songStory(song, known?.playedAt ?? [], now),
-      strip: known
-        ? playStrip({
-            playedAt: known.playedAt,
-            addedAt: song.addedAt,
-            coveredFrom: known.coveredFrom,
-            now,
-          })
-        : null,
-    }
-  }, [history, songFor, song])
+  const { data: history } = useSongHistoryFor(via, song.id)
+  const story = useMemo(() => songStory(song, history ?? null, new Date()), [history, song])
 
   return (
     <View style={styles.card} testID="song-you">
       <Text style={styles.cardLabel}>You and this song</Text>
-      <Text style={styles.story}>
-        {story.count !== null ? <Text style={styles.count}>{story.count}</Text> : null}
-        {story.lead}
-        <Text style={styles.bright}>{story.when}</Text>
-        {story.tail}
-      </Text>
-      {strip ? <Strip strip={strip} /> : null}
+      <View style={styles.rows}>
+        {story.rows.map(row => (
+          <View key={row.key} style={styles.row} testID={`song-you-${row.key}`}>
+            <Text style={styles.rowLabel}>{row.label}</Text>
+            <View style={styles.rowText}>
+              <Text style={styles.rowValue} numberOfLines={1}>
+                {row.value}
+              </Text>
+              <Text style={styles.rowSub} numberOfLines={1}>
+                {row.sub}
+              </Text>
+            </View>
+          </View>
+        ))}
+      </View>
+      {story.strip ? <Strip strip={story.strip} /> : null}
     </View>
   )
 }
 
-/** Plays over time, oldest on the left; the busiest stretch in the accent. */
-function Strip({ strip }: { strip: PlayStrip }): ReactNode {
+/** Plays a week, oldest on the left; the busiest week in the accent. */
+function Strip({ strip }: { strip: WeekStrip }): ReactNode {
   return (
-    <View style={styles.strip} accessibilityLabel="Plays over time">
-      {strip.bars.map((bar, index) => (
-        <View
-          // The bars are positions in time, and never move.
-          key={index}
-          style={[
-            styles.bar,
-            { height: `${Math.round(bar * 100)}%` },
-            index === strip.peak && styles.barPeak,
-          ]}
-        />
-      ))}
+    <View style={styles.stripWrap}>
+      <View style={styles.strip} accessibilityLabel="Plays each week" testID="song-you-strip">
+        {strip.bars.map((bar, index) => (
+          <View
+            // The bars are positions in time, and never move.
+            key={index}
+            style={[
+              styles.bar,
+              { height: `${Math.round(bar * 100)}%` },
+              index === strip.peak && styles.barPeak,
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.rowSub}>{strip.caption}</Text>
     </View>
   )
 }
@@ -365,6 +353,8 @@ function SongMissing(): ReactNode {
 
 /** Between the cover and the title on a computer. */
 const HERO_GAP_WIDE = 28
+/** The quiet names down the listening card's left: "Best week" fits on one line. */
+const ROW_LABEL_WIDTH = 76
 /** How many of a song's tags its page lays out; the rest are a count that opens them all. */
 const SHOWN_TAGS = 12
 
@@ -404,10 +394,14 @@ const styles = StyleSheet.create(theme => ({
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
   card: { ...card(theme.colors), padding: space.lg, gap: space.md },
   cardLabel: label(theme.colors),
-  story: bodyText(theme.colors),
-  count: serif(theme.colors, 'large'),
-  bright: { color: theme.colors.textPrimary },
-  strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 28 },
+  rows: { gap: space.md },
+  row: { flexDirection: 'row', alignItems: 'baseline', gap: space.md },
+  rowLabel: { width: ROW_LABEL_WIDTH, color: theme.colors.textMuted, fontSize: type.sub },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowValue: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
+  rowSub: { color: theme.colors.textSecondary, fontSize: type.sub },
+  stripWrap: { gap: space.sm },
+  strip: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 36 },
   bar: {
     flex: 1,
     minHeight: 2,

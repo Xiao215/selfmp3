@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { IdSchema } from './common.js'
-import { CoverToneSchema } from './song.js'
+import { CameWithSchema, CoverToneSchema } from './song.js'
 
 /**
  * The import pipeline: a URL goes in, a tagged song with lyrics comes out.
@@ -242,6 +242,8 @@ export const ImportEnqueueItemSchema = z.object({
   album: z.string().trim().max(300).default(''),
   thumbnail: z.string().nullable().default(null),
   duration: z.number().nonnegative().default(0),
+  /** The friend it came from, for a room's or a share link's Get it. */
+  cameWith: CameWithSchema.optional(),
 })
 export type ImportEnqueueItem = z.infer<typeof ImportEnqueueItemSchema>
 

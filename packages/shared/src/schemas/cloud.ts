@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CoverToneSchema } from './song.js'
+import { CameWithSchema, CoverToneSchema } from './song.js'
 import { HLC_PATTERN } from '../hlc.js'
 import { HASH_FILE_NAME } from '../doormanWire.js'
 import { HueSchema, IdSchema } from './common.js'
@@ -221,6 +221,8 @@ export const CloudSongSchema = z.object({
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
   sourceUrl: z.string().nullable(),
+  /** The friend it came from (schemas/song.ts), for a song someone handed over. */
+  cameWith: CameWithSchema.optional(),
   tagUids: z.array(UidSchema),
   /** How the song sounds, as the server's analyser measured it (schemas/audioFeatures.ts). Null until it has. */
   audioFeatures: AudioFeaturesSchema.nullable(),

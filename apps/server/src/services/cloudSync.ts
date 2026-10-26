@@ -2372,6 +2372,7 @@ export class CloudSyncService {
       imports: importRequests?.recent() ?? [],
       ...(server ? { server } : {}),
       songs: songs.all(),
+      cameWith: songs.allCameWith(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],

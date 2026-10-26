@@ -3,6 +3,7 @@ import {
   toSqliteTime,
   type DailyPlays,
   type HourlyPlays,
+  type SongHistory,
   type Stats,
   type StatsRange,
   type TopEntry,
@@ -371,18 +372,36 @@ export class StatsRepository {
     return new Map(rows.map(row => [row.day, row.plays]))
   }
 
-  /** Recent plays, newest first. Powers the history list. */
-  recent(limit = 100): Array<{ songId: number; playedAt: string; completed: boolean }> {
-    return this.#db
-      .prepare<[number], { song_id: number; played_at: string; completed: number }>(
-        'SELECT song_id, played_at, completed FROM play_events ORDER BY played_at DESC, id DESC LIMIT ?',
+  /**
+   * One song's plays, folded for its page (`SongHistory`): how many, how long,
+   * the first and the last, and how many began in each UTC hour. Hours rather
+   * than days or weeks, so the device can fold them into weeks in its own time
+   * zone; a song played a thousand times is still well under a thousand rows.
+   */
+  songPlays(songId: number): Omit<SongHistory, 'songId' | 'cameWith'> {
+    const totals = this.#db
+      .prepare<
+        [number],
+        { plays: number; ms: number | null; first: string | null; last: string | null }
+      >(
+        `SELECT COUNT(*) AS plays, SUM(ms_played) AS ms,
+                MIN(played_at) AS first, MAX(played_at) AS last
+           FROM play_events WHERE song_id = ?`,
       )
-      .all(limit)
-      .map(row => ({
-        songId: row.song_id,
-        playedAt: row.played_at,
-        completed: row.completed === 1,
-      }))
+      .get(songId)
+    const hours = this.#db
+      .prepare<[number], { at: string; plays: number }>(
+        `SELECT strftime('%Y-%m-%d %H:00:00', played_at) AS at, COUNT(*) AS plays
+           FROM play_events WHERE song_id = ? GROUP BY at ORDER BY at`,
+      )
+      .all(songId)
+    return {
+      plays: totals?.plays ?? 0,
+      msPlayed: Math.round(totals?.ms ?? 0),
+      firstPlayedAt: totals?.first ?? null,
+      lastPlayedAt: totals?.last ?? null,
+      hours,
+    }
   }
 }
 

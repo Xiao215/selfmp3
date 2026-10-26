@@ -61,7 +61,6 @@ import {
   MotionSchema,
   LyricsSearchResponseSchema,
   OkSchema,
-  PlayHistorySchema,
   PlayRecordedSchema,
   PlaylistSchema,
   PlaylistSongsSchema,
@@ -69,6 +68,7 @@ import {
   ScanResultSchema,
   SettingsSchema,
   SimilarSongsSchema,
+  SongHistorySchema,
   SongSchema,
   StatsSchema,
   WrappedSchema,
@@ -707,7 +707,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     gems: (limit: number) =>
       request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
 
-    history: (limit: number) =>
-      request('GET', `/api/stats/history?limit=${limit}`, PlayHistorySchema),
+    /** One song's every play, which only a server keeps (`SongHistory`). */
+    songHistory: (songId: number) =>
+      request('GET', `/api/songs/${songId}/history`, SongHistorySchema),
   }
 }

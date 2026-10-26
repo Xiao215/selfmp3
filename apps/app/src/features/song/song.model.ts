@@ -2,11 +2,15 @@ import {
   calendarDaysAgo,
   DAY_MS,
   formatDuration,
+  formatListenTime,
   fromSqliteTime,
+  plural,
   startOfLocalDay,
-  WEEKDAYS,
+  type CameWith,
   type Song,
+  type SongHistory,
 } from '@selfmp3/shared'
+import { sourceName } from '../share/share.model'
 
 /**
  * The words and numbers on a song's own page (docs/ui-mock `P15`), worked out
@@ -14,10 +18,9 @@ import {
  *
  * What the page knows comes from two places. The song record always says how
  * often it has been played, when it was added and when it was last played.
- * The server's play history says *when* each play was, but only the latest
- * few hundred across the whole library, and only while the server can be
- * reached; everything built from it (the hour, the busiest day, the strip)
- * is left out when it has nothing to say.
+ * The server keeps every play of it, and who handed it over, and says so
+ * while it can be reached; everything built from that (the first play, the
+ * best week, the strip) is left out when no server answers.
  */
 
 /** Where a song's page lives: `/song/<id>`. Every door to it goes through here. */
@@ -48,186 +51,193 @@ function count(n: number, one: string, many: string): string {
   return n <= 1 ? `${one} ago` : `${n} ${many} ago`
 }
 
-/**
- * "You and this song" as one sentence, cut where the page changes the ink:
- * the number is drawn in the serif and the time in full white.
- */
+/** One line of "You and this song": a quiet name, the fact, and a word under it. */
+interface StoryRow {
+  readonly key: 'came' | 'first' | 'best' | 'last'
+  readonly label: string
+  readonly value: string
+  readonly sub: string
+}
+
+/** Weekly plays since the song came in, oldest first, and what the strip says it is. */
+export interface WeekStrip {
+  /** Each bar from 0 to 1. */
+  readonly bars: readonly number[]
+  /** The tallest bar, drawn in the accent. */
+  readonly peak: number
+  /** "Weeks since 3 March", under the strip. */
+  readonly caption: string
+}
+
+/** "You and this song", worked out: the lines, and the strip when there is one. */
 interface SongStory {
-  /** The big number; null when it has never been played. */
-  readonly count: number | null
-  /** The words between the number and the time. */
-  readonly lead: string
-  /** When it was added: "3 weeks ago". */
-  readonly when: string
-  /** The rest, ending in a full stop. */
-  readonly tail: string
+  readonly rows: readonly StoryRow[]
+  readonly strip: WeekStrip | null
 }
 
-/**
- * The sentence, from the record and whatever plays the history holds for this
- * song (`playedAt`, newest or oldest first, it does not matter).
- *
- * The habit ("Mostly around 11 pm, and six times on one Saturday") needs three
- * plays at least to be a habit; without one, the last play is said instead.
- */
-export function songStory(
-  song: Pick<Song, 'playCount' | 'addedAt' | 'lastPlayedAt'>,
-  playedAt: readonly string[],
-  now: Date,
-): SongStory {
-  const when = timeAgo(song.addedAt, now)
-  if (song.playCount === 0) {
-    return { count: null, lead: 'Not played yet. You added it ', when, tail: '.' }
-  }
-  const lead = ` ${song.playCount === 1 ? 'play' : 'plays'} since you added it `
-  const dates = playedAt.map(parseWhen).filter(date => !Number.isNaN(date.getTime()))
-  const hour = usualHour(dates)
-  const day = busiestDay(dates)
-  if (hour !== null) {
-    const busy = day ? `, and ${numberWord(day.plays)} times on one ${day.weekday}` : ''
-    return { count: song.playCount, lead, when, tail: `. Mostly around ${hourWords(hour)}${busy}.` }
-  }
-  const last = song.lastPlayedAt ? ` Last played ${timeAgo(song.lastPlayedAt, now)}.` : ''
-  return { count: song.playCount, lead, when, tail: `.${last}` }
-}
+/** At most this many bars; a longer stay puts a few weeks in each. */
+const STRIP_BARS = 52
+/** A strip of fewer weeks than this says nothing the lines do not. */
+const STRIP_MIN_WEEKS = 3
+/** A best week of fewer plays is just a week. */
+const BEST_WEEK_MIN = 3
 
-/**
- * The hour most plays fall around, counting the hour either side with it so
- * 10:50 and 11:10 agree. Only when at least three plays are known and half of
- * them sit in that window; otherwise there is no "mostly" to speak of.
- */
-export function usualHour(dates: readonly Date[]): number | null {
-  if (dates.length < 3) return null
-  const byHour = new Array<number>(24).fill(0)
-  for (const date of dates) byHour[date.getHours()] = (byHour[date.getHours()] ?? 0) + 1
-  let best = -1
-  let bestCount = 0
-  for (let hour = 0; hour < 24; hour++) {
-    const around =
-      (byHour[(hour + 23) % 24] ?? 0) + (byHour[hour] ?? 0) + (byHour[(hour + 1) % 24] ?? 0)
-    // Ties go to the hour that itself holds more plays, then to the earlier one.
-    if (around > bestCount || (around === bestCount && (byHour[hour] ?? 0) > (byHour[best] ?? 0))) {
-      best = hour
-      bestCount = around
-    }
-  }
-  return bestCount * 2 >= dates.length ? best : null
-}
-
-/** The one day it was played most, when that was three times or more. */
-export function busiestDay(
-  dates: readonly Date[],
-): { readonly plays: number; readonly weekday: string } | null {
-  const byDay = new Map<number, { plays: number; weekday: string }>()
-  for (const date of dates) {
-    const key = startOfLocalDay(date)
-    const entry = byDay.get(key) ?? { plays: 0, weekday: WEEKDAYS[date.getDay()] ?? '' }
-    entry.plays += 1
-    byDay.set(key, entry)
-  }
-  let best: { plays: number; weekday: string } | null = null
-  for (const entry of byDay.values()) if (!best || entry.plays > best.plays) best = entry
-  return best && best.plays >= 3 ? best : null
-}
-
-/** "11 pm", "noon", "midnight", "9 am". */
-export function hourWords(hour: number): string {
-  if (hour === 0) return 'midnight'
-  if (hour === 12) return 'noon'
-  return hour < 12 ? `${hour} am` : `${hour - 12} pm`
-}
-
-const WORDS = [
-  'zero',
-  'one',
-  'two',
-  'three',
-  'four',
-  'five',
-  'six',
-  'seven',
-  'eight',
-  'nine',
-  'ten',
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ]
 
-/** Small numbers in words, as a sentence says them; larger ones in digits. */
-function numberWord(n: number): string {
-  return WORDS[n] ?? String(n)
+/** "3 March", with the year when it is not this one: "3 March 2025". */
+function dayWords(date: Date, now: Date): string {
+  const day = `${date.getDate()} ${MONTHS[date.getMonth()] ?? ''}`
+  return date.getFullYear() === now.getFullYear() ? day : `${day} ${date.getFullYear()}`
+}
+
+/** "Today, 23:40", "Yesterday, 08:05", or the day: "3 March". */
+export function playedWords(date: Date, now: Date): string {
+  const clock = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  const days = Math.round((startOfLocalDay(now) - startOfLocalDay(date)) / DAY_MS)
+  if (days === 0) return `Today, ${clock}`
+  if (days === 1) return `Yesterday, ${clock}`
+  return dayWords(date, now)
+}
+
+/** Where it came from, as far as anyone knows: a friend, a site, or a file of yours. */
+export function cameFrom(song: Pick<Song, 'sourceUrl'>, cameWith: CameWith | null): string {
+  if (cameWith?.kind === 'room') return `from ${cameWith.from}, in a room`
+  if (cameWith?.kind === 'link') return `from a link ${cameWith.from} sent`
+  return song.sourceUrl ? `from ${sourceName(song.sourceUrl)}` : 'from a file'
+}
+
+/** The local Monday a moment falls in, as that midnight's time. */
+function weekOf(date: Date): number {
+  const monday = new Date(startOfLocalDay(date))
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  return monday.getTime()
+}
+
+/** The week after `week`, by the calendar: a clock change makes a week 167 or 169 hours. */
+function nextWeek(week: number): number {
+  const date = new Date(week)
+  date.setDate(date.getDate() + 7)
+  return date.getTime()
 }
 
 /**
- * This song's plays out of the server's recent history, and how far back that
- * history reaches: the oldest play in it, of any song. `isThisSong` is asked
- * because a history from a cloud library's server names songs by the
- * server's ids, which only the caller can translate.
+ * The song's history with you (docs/features/wrapped-and-gems.md, "Your story
+ * with a song"). `history` is the server's every play of it, or null when no
+ * server could be asked: then the lines say only what this device's copy of
+ * the song knows — when it came, how often it was played, and the last time —
+ * and there is no first play, best week or strip to make up.
  */
-export function songPlays(
-  events: readonly { readonly songId: number; readonly playedAt: string }[],
-  isThisSong: (songId: number) => boolean,
-): { readonly playedAt: readonly string[]; readonly coveredFrom: string | null } {
-  let coveredFrom: string | null = null
-  let oldest = Infinity
-  const playedAt: string[] = []
-  for (const event of events) {
-    const at = parseWhen(event.playedAt).getTime()
-    if (at < oldest) {
-      oldest = at
-      coveredFrom = event.playedAt
+export function songStory(
+  song: Pick<Song, 'addedAt' | 'sourceUrl' | 'playCount' | 'lastPlayedAt'>,
+  history: SongHistory | null,
+  now: Date,
+): SongStory {
+  const rows: StoryRow[] = []
+  const added = parseWhen(song.addedAt)
+  rows.push({
+    key: 'came',
+    label: 'Came in',
+    value: Number.isNaN(added.getTime()) ? 'A while ago' : dayWords(added, now),
+    sub: cameFrom(song, history?.cameWith ?? null),
+  })
+
+  if (!history) {
+    const last = song.lastPlayedAt ? parseWhen(song.lastPlayedAt) : null
+    if (last && !Number.isNaN(last.getTime())) {
+      rows.push({
+        key: 'last',
+        label: 'Last',
+        value: playedWords(last, now),
+        sub: plural(song.playCount, 'play', 'plays'),
+      })
     }
-    if (isThisSong(event.songId)) playedAt.push(event.playedAt)
+    return { rows, strip: null }
   }
-  return { playedAt, coveredFrom }
-}
 
-/** The history strip: bars from 0 to 1, oldest first, and the tallest one. */
-export interface PlayStrip {
-  readonly bars: readonly number[]
-  readonly peak: number
+  // The plays by local week, from the hours the server counted them in.
+  const weeks = new Map<number, number>()
+  for (const hour of history.hours) {
+    const at = parseWhen(hour.at)
+    if (Number.isNaN(at.getTime())) continue
+    const week = weekOf(at)
+    weeks.set(week, (weeks.get(week) ?? 0) + hour.plays)
+  }
+
+  const first = history.firstPlayedAt ? parseWhen(history.firstPlayedAt) : null
+  if (first && !Number.isNaN(first.getTime())) {
+    const days = Math.round((startOfLocalDay(first) - startOfLocalDay(added)) / DAY_MS)
+    rows.push({
+      key: 'first',
+      label: 'First',
+      value: dayWords(first, now),
+      sub: days <= 0 ? 'the day it came' : plural(days, 'day later', 'days later'),
+    })
+  }
+
+  let best: { week: number; plays: number } | null = null
+  for (const [week, plays] of weeks) {
+    if (!best || plays > best.plays || (plays === best.plays && week < best.week)) {
+      best = { week, plays }
+    }
+  }
+  if (best && best.plays >= BEST_WEEK_MIN) {
+    rows.push({
+      key: 'best',
+      label: 'Best week',
+      value: plural(best.plays, 'play', 'plays'),
+      sub: `week of ${dayWords(new Date(best.week), now)}`,
+    })
+  }
+
+  const last = history.lastPlayedAt ? parseWhen(history.lastPlayedAt) : null
+  if (last && !Number.isNaN(last.getTime())) {
+    rows.push({
+      key: 'last',
+      label: 'Last',
+      value: playedWords(last, now),
+      sub: `${plural(history.plays, 'play', 'plays')} · ${formatListenTime(history.msPlayed / 60_000)} in all`,
+    })
+  }
+
+  return { rows, strip: weekStrip(weeks, first && first < added ? first : added, now) }
 }
 
 /**
- * The plays spread over the song's time in the library, in equal slices.
- *
- * The history reaches back only so far (`coveredFrom`, its oldest play of any
- * song), and a slice before that would read as "not played then" when the
- * truth is "not known". So the strip starts at whichever is later, the day it
- * was added or the start of the history, and it is null when no play of this
- * song falls inside it.
+ * The strip: one bar a week from the week it came in to this one, or a few
+ * weeks a bar once there are more than `STRIP_BARS` of them. Null for a stay
+ * too short to draw, or one with no plays in it.
  */
-export function playStrip({
-  playedAt,
-  addedAt,
-  coveredFrom,
-  now,
-  slices = 21,
-}: {
-  playedAt: readonly string[]
-  addedAt: string
-  coveredFrom: string | null
-  now: Date
-  slices?: number
-}): PlayStrip | null {
-  const added = parseWhen(addedAt).getTime()
-  const covered = coveredFrom === null ? Number.NaN : parseWhen(coveredFrom).getTime()
-  const from = Math.max(
-    Number.isNaN(added) ? -Infinity : added,
-    Number.isNaN(covered) ? -Infinity : covered,
-  )
-  const end = now.getTime()
-  // A song added this morning still gets a day's width, so its plays spread out.
-  const start = Number.isFinite(from) ? Math.min(from, end - DAY_MS) : end - DAY_MS
-  const width = (end - start) / slices
-  const counts = new Array<number>(slices).fill(0)
-  for (const value of playedAt) {
-    const at = parseWhen(value).getTime()
-    if (Number.isNaN(at) || at < start || at > end) continue
-    const slice = Math.min(slices - 1, Math.floor((at - start) / width))
-    counts[slice] = (counts[slice] ?? 0) + 1
-  }
+function weekStrip(weeks: ReadonlyMap<number, number>, from: Date, now: Date): WeekStrip | null {
+  if (Number.isNaN(from.getTime())) return null
+  const starts: number[] = []
+  for (let week = weekOf(from); week <= weekOf(now); week = nextWeek(week)) starts.push(week)
+  if (starts.length < STRIP_MIN_WEEKS) return null
+  const per = Math.ceil(starts.length / STRIP_BARS)
+  const counts: number[] = []
+  starts.forEach((week, index) => {
+    const bar = Math.floor(index / per)
+    counts[bar] = (counts[bar] ?? 0) + (weeks.get(week) ?? 0)
+  })
   const most = Math.max(...counts)
   if (most === 0) return null
-  return { bars: counts.map(n => n / most), peak: counts.indexOf(most) }
+  return {
+    bars: counts.map(n => n / most),
+    peak: counts.indexOf(most),
+    caption: `${per === 1 ? 'Weeks since' : 'Since'} ${dayWords(from, now)}`,
+  }
 }
 
 /**

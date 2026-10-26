@@ -29,12 +29,17 @@ export function RoomSongLine({ song }: { song: Song }): ReactNode {
   const [asked, setAsked] = useState(false)
   if (!state || !entry) return null
 
+  const whose = owner && owner.id !== state.you ? owner : by
+  // Whose song it is, which the song keeps once it is got: a shared
+  // playlist's owner, or whoever brought it.
+  const from = entry.from ?? (whose && whose.id !== state.you ? whose.name : null)
+  const cameWith = from ? { kind: 'room' as const, from } : null
+
   const getIt = async (): Promise<void> => {
     setAsked(true)
-    if (!(await get([entry.song]))) setAsked(false)
+    if (!(await get([{ song: entry.song, cameWith }]))) setAsked(false)
   }
 
-  const whose = owner && owner.id !== state.you ? owner : by
   const line =
     link !== 'live'
       ? 'Reconnecting…'

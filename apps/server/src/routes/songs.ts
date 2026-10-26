@@ -20,6 +20,7 @@ import {
   type LyricsResponse,
   type PlayRecorded,
   type SimilarSongs,
+  type SongHistory,
   type Song,
   type SongFields,
   API_ERROR,
@@ -227,6 +228,23 @@ export function songRoutes(container: Container): Router {
         return inserted
       })
       return { ok: true, duplicate: !recorded }
+    }),
+  )
+
+  /**
+   * One song's history with you, for its page: every play of it this server
+   * keeps, and who handed it over. Only a server has every play; a device's
+   * copy knows the count and the last.
+   */
+  router.get(
+    '/songs/:id/history',
+    route({ params: ParamsWithId }, ({ params }): SongHistory => {
+      songOrThrow(params.id)
+      return {
+        songId: params.id,
+        cameWith: container.songs.cameWith(params.id),
+        ...container.stats.songPlays(params.id),
+      }
     }),
   )
 

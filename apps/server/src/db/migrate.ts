@@ -1181,6 +1181,19 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 51. Who handed a song over: a friend's song brought home from a room or
+    // a share link with Get it (schemas/song.ts, CameWith), as JSON. A job
+    // carries it beside the queue until the song exists, and the song keeps it.
+    name: 'a song remembers who it came from',
+    sql: `
+      ALTER TABLE songs ADD COLUMN came_with TEXT;
+      CREATE TABLE IF NOT EXISTS import_came_with (
+        job_id    TEXT PRIMARY KEY REFERENCES import_jobs(id) ON DELETE CASCADE,
+        came_with TEXT NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

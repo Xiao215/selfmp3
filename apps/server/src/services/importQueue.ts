@@ -72,7 +72,10 @@ export class ImportQueueService {
   readonly #config: Pick<Config, 'dataDir'>
   readonly #storage: Pick<StorageDriver, 'write' | 'exists'>
   readonly #imports: ImportRepository
-  readonly #songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+  readonly #songs: Pick<
+    SongRepository,
+    'byId' | 'patch' | 'setSourceUrl' | 'setCameWith' | 'setInstrumental'
+  >
   readonly #tags: Pick<TagRepository, 'exists' | 'addToSong'>
   readonly #playlists: Pick<PlaylistRepository, 'byId' | 'add'>
   readonly #settings: Pick<SettingsRepository, 'get'>
@@ -109,7 +112,10 @@ export class ImportQueueService {
     config: Pick<Config, 'dataDir'>
     storage: Pick<StorageDriver, 'write' | 'exists'>
     imports: ImportRepository
-    songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+    songs: Pick<
+      SongRepository,
+      'byId' | 'patch' | 'setSourceUrl' | 'setCameWith' | 'setInstrumental'
+    >
     tags: Pick<TagRepository, 'exists' | 'addToSong'>
     playlists: Pick<PlaylistRepository, 'byId' | 'add'>
     settings: Pick<SettingsRepository, 'get'>
@@ -577,6 +583,7 @@ export class ImportQueueService {
         ...(album.trim() ? { album: album.trim() } : {}),
       })
       this.#songs.setSourceUrl(songId, job.url)
+      this.#songs.setCameWith(songId, this.#imports.cameWithFor(job.id))
       if (instrumental) this.#songs.setInstrumental(songId, true)
 
       /*

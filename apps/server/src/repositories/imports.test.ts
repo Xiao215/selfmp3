@@ -35,6 +35,38 @@ describe('ImportRepository', () => {
       )
       .map(job => job.id)
 
+  describe('cameWithFor', () => {
+    it('keeps the friend a song was got from until the song lands, and nothing for the rest', () => {
+      const [got, found] = imports
+        .enqueue(
+          [
+            {
+              url: 'https://youtu.be/abc',
+              title: 'From Mia',
+              artist: '',
+              album: '',
+              thumbnail: null,
+              duration: 0,
+              cameWith: { kind: 'room', from: 'Mia' },
+            },
+            {
+              url: 'https://youtu.be/def',
+              title: 'Mine',
+              artist: '',
+              album: '',
+              thumbnail: null,
+              duration: 0,
+            },
+          ],
+          [],
+          null,
+        )
+        .map(job => job.id)
+      expect(imports.cameWithFor(got ?? '')).toEqual({ kind: 'room', from: 'Mia' })
+      expect(imports.cameWithFor(found ?? '')).toBeNull()
+    })
+  })
+
   describe('isPending', () => {
     it('knows a queued song under any spelling of its link', () => {
       imports.enqueue(

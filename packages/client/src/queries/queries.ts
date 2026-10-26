@@ -28,7 +28,7 @@ import type {
   WrappedRange,
   ForgottenGems,
   ImportQueue,
-  PlayHistory,
+  SongHistory,
   ScanResult,
   SimilarSongs,
   ToolStatus,
@@ -123,7 +123,8 @@ export const queryKeys = {
    * the library; the same handful while you are looking at it.
    */
   gems: (limit: number) => ['gems', limit] as const,
-  history: ['stats', 'history'] as const,
+  /** One song's history (`SongHistory`), under stats so a play's refresh of them reaches it. */
+  songHistory: (songId: number) => ['stats', 'song', songId] as const,
   playlists: playlistsKey,
   playlistSongs: (id: number) => [...playlistsKey, id, 'songs'] as const,
   /** Where a members hook with no playlist to ask about sits, asking nothing. */
@@ -483,16 +484,19 @@ export function useGems(limit = GEMS_LIMIT): UseQueryResult<ForgottenGems, Error
   })
 }
 
-/** Plays the listening history reads, from this device's server or one reached directly. */
-export const HISTORY_PLAYS = 200
-
-export function useHistory(enabled = true): UseQueryResult<PlayHistory, Error> {
+/**
+ * One song's every play and who handed it over, for its page. Only a server
+ * answers it; `enabled` is false where this device's client is a cloud
+ * library's copy, which knows only the count and the last play.
+ */
+export function useSongHistory(songId: number, enabled = true): UseQueryResult<SongHistory, Error> {
   const { ready } = useClientState()
   return useQuery({
-    queryKey: queryKeys.history,
-    queryFn: () => clientApi().history(HISTORY_PLAYS),
+    queryKey: queryKeys.songHistory(songId),
+    queryFn: () => clientApi().songHistory(songId),
     enabled: ready && enabled,
     staleTime: STALE.minute,
+    retry: false,
   })
 }
 

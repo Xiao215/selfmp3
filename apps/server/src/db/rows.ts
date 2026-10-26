@@ -1,5 +1,13 @@
-import { CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
-import type { CoverSwatch, CoverTone, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
+import { CameWithSchema, CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
+import type {
+  CameWith,
+  CoverSwatch,
+  CoverTone,
+  LyricsKind,
+  Song,
+  AudioFeatures,
+  Tag,
+} from '@selfmp3/shared'
 
 /**
  * The shape of rows as SQLite actually returns them, and the mappers that turn
@@ -200,5 +208,16 @@ export function toTag(row: TagRow): Tag {
     name: row.name,
     hue: row.hue,
     songCount: row.song_count ?? 0,
+  }
+}
+
+/** A `came_with` column (jobs and songs alike), read back; anything malformed is none. */
+export function readCameWith(value: string | null): CameWith | null {
+  if (value === null) return null
+  try {
+    const parsed = CameWithSchema.safeParse(JSON.parse(value))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
   }
 }

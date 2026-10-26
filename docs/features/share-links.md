@@ -146,8 +146,9 @@ From its last day, the page's top line says **ends tonight** or **ends tomorrow*
 and **Get it** becomes the main button. There is no notification.
 
 **Get it** is a room's Get it (`features/room/useGetSongs.ts`). Your own server imports the
-song from its source link into your bucket. It needs you signed in and your server
-reachable. A song with no source link, such as a file you dropped in, has no Get
+song from its source link into your bucket, and the song remembers who sent the link (its
+page says *from a link Mia sent*, docs/features/wrapped-and-gems.md). It needs you signed in
+and your server reachable. A song with no source link, such as a file you dropped in, has no Get
 it.
 
 ## After it ends (E1)

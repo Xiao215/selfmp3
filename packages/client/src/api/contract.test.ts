@@ -116,7 +116,7 @@ const CALLS: Calls = {
   artistBackdrop: api => api.artistBackdrop('Aurora'),
   wrapped: api => api.wrapped('month' as never),
   gems: api => api.gems(5),
-  history: api => api.history(5),
+  songHistory: api => api.songHistory(1),
 }
 
 type Routes = Parameters<typeof createCloudRoutes>

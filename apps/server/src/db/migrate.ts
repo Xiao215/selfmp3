@@ -1222,6 +1222,52 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 54. A removed song's copy in the inbox is deleted after its row, and a
+    // copy not yet deleted is not the sweep's to make a new song of. That was
+    // held in memory only: a server killed during a big removal came back
+    // with the copies it had not reached as new songs (bug bash R3-M8). The
+    // row's deletion now notes its copy, in the same transaction however the
+    // row goes — a removal here, a fold, another device's — and the note goes
+    // once the copy has; a start finishes whatever is left.
+    name: 'a removed song’s copy is remembered until it has gone',
+    sql: `
+      CREATE TABLE IF NOT EXISTS leaving_copies (
+        path    TEXT    PRIMARY KEY,
+        song_id INTEGER NOT NULL
+      );
+      CREATE TRIGGER IF NOT EXISTS songs_leaving AFTER DELETE ON songs BEGIN
+        INSERT OR REPLACE INTO leaving_copies (path, song_id) VALUES (old.path, old.id);
+      END;
+    `,
+  },
+  {
+    // 55. A cover carried in a file that could not be kept — the disk full as
+    // it was written — is still to be read out of it, and the file is the
+    // only place it is. It was lost for good once the copy was let go (bug
+    // bash R3-M11). Each such song is noted here until a cover is kept for
+    // it, and the cloud pass keeps its copy till then.
+    name: 'a cover that could not be kept is read again',
+    sql: `
+      CREATE TABLE IF NOT EXISTS covers_to_read (
+        song_id INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE
+      );
+    `,
+  },
+  {
+    // 56. A tag that went because its last songs were removed (`tagEmptied`,
+    // docs/SYNC.md), as it was then: a device that tags a song with it, not
+    // having heard, brings it back. Deleting it outright lost the tag, and
+    // that song's tagging, on every device (bug bash R3-M7).
+    name: 'tags emptied by a removal are kept aside',
+    sql: `
+      CREATE TABLE IF NOT EXISTS emptied_tags (
+        uid  TEXT    PRIMARY KEY,
+        name TEXT    NOT NULL,
+        hue  INTEGER NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

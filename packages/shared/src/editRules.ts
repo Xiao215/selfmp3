@@ -180,9 +180,11 @@ export function followsTag(rules: SmartRules, tagId: number): boolean {
 /**
  * The tags that removing these songs leaves with none: those whose every song
  * is among them. They go with the songs, everywhere — as a change of their
- * own in the log, so every device and the server lose exactly these — rather
- * than linger at 0 in every sidebar. A tag that had no songs to begin with is
- * not among them: one just made, here or on another device, is yours to fill.
+ * own in the log (`tagEmptied`), so every device and the server lose exactly
+ * these — rather than linger at 0 in every sidebar. A tag that had no songs to
+ * begin with is not among them: one just made, here or on another device, is
+ * yours to fill. Nor is one another device fills meanwhile: `tagEmptied`
+ * leaves a tag that a song has, and gives it back to a song tagged later.
  */
 export function tagsEmptiedBy(
   tags: readonly { readonly id: number; readonly songCount: number }[],

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BULK_IDS_MAX, LYRICS_QUERY_MAX, LibrarySchema, type Library } from '@selfmp3/shared'
+import { TIMED_OUT } from '../connection/reach.js'
 import { createApi } from './api.js'
 
 /**
@@ -174,5 +175,62 @@ describe('lyric search', () => {
 
     const q = new URL(paths[0] ?? '', 'http://x').searchParams.get('q') ?? ''
     expect(q).toBe('阿'.repeat(LYRICS_QUERY_MAX))
+  })
+})
+
+/**
+ * A server busy with a scan applied every part of a 5,040-song tag, but
+ * answered one after the deadline, and the app said it had failed (R3-m9).
+ */
+describe('a bulk edit whose answer runs out of time', () => {
+  const ids = Array.from({ length: 5040 }, (_, i) => i + 1)
+
+  function server(fail: (call: number) => Error | null) {
+    const sent: number[][] = []
+    const api = createApi({
+      context: () => ({
+        transport: { url: path => `http://server.test${path}` },
+        fromCloud: false,
+      }),
+      fetch: (_url, init) => {
+        const body = JSON.parse(init?.body ?? '{}') as { songIds: number[] }
+        sent.push(body.songIds)
+        const failure = fail(sent.length)
+        if (failure) return Promise.reject(failure)
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ affected: body.songIds.length }),
+        } as unknown as Response)
+      },
+    })
+    return { api, sent }
+  }
+
+  it('asks again for a part that ran out of time, rather than calling the whole edit failed', async () => {
+    const { api, sent } = server(call => (call === 2 ? new Error(TIMED_OUT) : null))
+
+    await expect(api.bulkTag({ tagId: 1, songIds: ids, action: 'add' })).resolves.toBeTruthy()
+    expect(sent.map(part => part.length)).toEqual([BULK_IDS_MAX, BULK_IDS_MAX, BULK_IDS_MAX, 1040])
+    expect(sent[2]).toEqual(sent[1])
+  })
+
+  it('gives up on a part that keeps running out of time', async () => {
+    const { api, sent } = server(call => (call >= 2 ? new Error(TIMED_OUT) : null))
+
+    await expect(api.bulkLoved({ loved: true, songIds: ids })).rejects.toMatchObject({
+      status: 0,
+      message: TIMED_OUT,
+    })
+    expect(sent).toHaveLength(4)
+  })
+
+  it('fails at once when the server is not there at all', async () => {
+    const { api, sent } = server(() => new TypeError('Failed to fetch'))
+
+    await expect(api.bulkTag({ tagId: 1, songIds: ids, action: 'add' })).rejects.toMatchObject({
+      status: 0,
+    })
+    expect(sent).toHaveLength(1)
   })
 })

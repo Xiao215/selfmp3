@@ -167,12 +167,25 @@ describe('editing songs', () => {
     const changes = edits.removeSongs(d.ctx(), [d.idOf('songs', 'a')])
     expect(changes.map(change => [change.type, change.uid])).toEqual([
       ['songRemoved', uid('a')],
-      ['tagRemoved', uid('1')],
+      ['tagEmptied', uid('1')],
     ])
     expect(d.apply(changes).library.tags.map(tag => tag.name)).toEqual(['rain'])
     expect(edits.removeSongs(d.ctx(), [d.idOf('songs', 'b')]).map(c => c.type)).toEqual([
       'songRemoved',
     ])
+  })
+
+  // R3-M7: the tag went everywhere, and the song tagged with it lost it.
+  it('leaves a tag another device has just put on a song this one had not heard of', () => {
+    const here = device()
+    const removing = edits.removeSongs(here.ctx(), [here.idOf('songs', 'a')])
+    const there = device()
+    const tagging = edits
+      .changeSongTags(there.ctx(), there.idOf('songs', 'b'), [there.idOf('tags', '1')], [])
+      .map(change => ({ ...change, hlc: change.hlc.replace('iphone-0b7d44a1', 'web-5c6d7e8f') }))
+    const both = replayedSnapshot(replay(BASE, [], [...removing, ...tagging]), BASE)
+    expect(both.tags.map(tag => tag.name)).toEqual(['chill', 'rain'])
+    expect(both.songs.find(s => s.uid === uid('b'))?.tagUids).toEqual([uid('1')])
   })
 
   it('counts a play under the play outbox’s own id, so a resend counts once', () => {
@@ -314,7 +327,7 @@ describe('deleting a tag playlists follow', () => {
     expect(changes.map(change => change.type)).toEqual([
       'songRemoved',
       'playlistUnfollowed',
-      'tagRemoved',
+      'tagEmptied',
     ])
     const view = d.apply(changes)
     expect(view.library.playlists.find(p => p.id === chill)?.kind).toBe('manual')

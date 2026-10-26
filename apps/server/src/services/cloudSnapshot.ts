@@ -23,7 +23,7 @@ import type {
 } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
 import type { ArtistNamesRow } from '../repositories/names.js'
-import type { StampRow } from '../repositories/sync.js'
+import type { EmptiedTag, StampRow } from '../repositories/sync.js'
 import { sha256 } from '../util/hash.js'
 
 /**
@@ -66,6 +66,8 @@ interface SnapshotInput {
   readonly stamps?: readonly StampRow[]
   /** Second uids for tags made twice under one name, and the tag each means. */
   readonly aliases?: ReadonlyMap<string, string>
+  /** Tags that went with their last songs (`tagEmptied`), kept aside to come back. */
+  readonly emptiedTags?: readonly EmptiedTag[]
   /** Copies folded into another song (`songMerged`), and the uid of the song each went into. */
   readonly merged?: ReadonlyMap<string, string>
   /** How far into each device's log this library has read. */
@@ -185,6 +187,9 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
   }
   const aliases = [...(input.aliases ?? [])].filter(([, target]) => tagUidSet.has(target))
   const merged = [...(input.merged ?? [])].filter(([, target]) => publishedUids.has(target))
+  const emptiedTags = (input.emptiedTags ?? [])
+    .filter(tag => !tagUidSet.has(tag.uid))
+    .map(tag => ({ uid: tag.uid, name: tag.name, hue: tag.hue }))
 
   // Parsed on the way out as well as on the way in: a snapshot another device
   // would reject is a bug here, and it should fail here, loudly.
@@ -234,6 +239,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
         }
       : {}),
     ...(aliases.length > 0 ? { aliases: Object.fromEntries(aliases) } : {}),
+    ...(emptiedTags.length > 0 ? { emptiedTags } : {}),
     ...(merged.length > 0 ? { merged: Object.fromEntries(merged) } : {}),
     ...(input.imports && input.imports.length > 0
       ? {

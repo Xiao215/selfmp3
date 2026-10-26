@@ -17,6 +17,7 @@ import { LyricsIndexService } from './lyricsIndex.js'
 import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
 import { MotionStore } from './motionStore.js'
+import { ScannerService } from './scanner.js'
 import { SongRemovalService } from './songRemoval.js'
 
 /**
@@ -275,6 +276,108 @@ describe('SongRemovalService', () => {
       expect(await removal.settle(taken)).toEqual({ removed: [id], alreadyGone: [], failed: [] })
       expect(removal.isLeaving(key)).toBe(false)
       expect(onDisk(key)).toBe(false)
+    })
+  })
+
+  /*
+   * The rows go first and the copies one by one after them, so a server killed
+   * in between — a power cut, a crash, the OOM killer — leaves copies of songs
+   * that are gone. The next start's sweep made new songs of them, 26 to 29 of
+   * 30 a time (bug bash R3-M8).
+   */
+  describe('killed before the copies went', () => {
+    /** The same database, as the next start opens it: nothing held in memory survives. */
+    const restart = () => {
+      const logger = createLogger('silent')
+      const storage = new LocalStorageDriver(path.join(root, 'library'))
+      const lyrics = new LyricsService(storage, logger, () => Promise.reject(new Error('offline')))
+      const config = { dataDir } as Config
+      const next = new SongRemovalService({
+        storage,
+        songs,
+        tags,
+        cloud,
+        lyrics,
+        covers: new CoverService(config, songs, logger),
+        lyricsCache: new LyricsCache(config, logger),
+        motion: new MotionStore(config, logger),
+        lyricsIndex: new LyricsIndexService({
+          songs,
+          search,
+          lyrics,
+          metadata: new MetadataService(storage, logger),
+          logger,
+        }),
+        onChange: () => undefined,
+        logger,
+      })
+      // Every copy reads as a song: what keeps one out is that it is leaving.
+      const metadata = {
+        read: (key: string) =>
+          Promise.resolve({
+            ...row,
+            title: key,
+            picture: null,
+            embeddedLyrics: null,
+          }),
+      }
+      const scanner = new ScannerService({
+        storage,
+        songs,
+        metadata: metadata as never,
+        lyrics,
+        covers: { save: () => Promise.resolve() } as never,
+        logger,
+        settleMs: 0,
+      })
+      scanner.isLeaving = key => next.isLeaving(key)
+      return { removal: next, scanner }
+    }
+
+    it('still knows the copies are leaving, so a sweep makes no song of them', async () => {
+      const one = addSong('A - One')
+      const two = addSong('B - Two')
+      removal.take([one.id, two.id])
+
+      const after = restart()
+
+      expect(after.removal.isLeaving(one.key)).toBe(true)
+      expect(await after.scanner.scan()).toMatchObject({ added: 0 })
+      expect(songs.count()).toBe(0)
+    })
+
+    it('deletes them at the next start, after which the names are free again', async () => {
+      const one = addSong('A - One')
+      await lyricsCache.write(one.id, 'romaji', 'abcd', { lines: [] })
+      removal.take([one.id])
+
+      const after = restart()
+      await after.removal.finishLeaving()
+
+      expect(onDisk('A - One')).toBe(false)
+      expect(cacheFolder(one.id)).toBe(false)
+      expect(after.removal.isLeaving(one.key)).toBe(false)
+    })
+
+    it('leaves a file a new song has taken the name of since', async () => {
+      const one = addSong('A - One')
+      removal.take([one.id])
+      const again = songs.insert({ ...row, path: one.key, title: 'A - One' })
+
+      await restart().removal.finishLeaving()
+
+      expect(onDisk(one.key)).toBe(true)
+      expect(songs.byId(again)?.path).toBe(one.key)
+    })
+
+    it('remembers a copy another device’s removal left, until it is tidied', async () => {
+      const one = addSong('A - One')
+      // The cloud pass takes the row inside its own transaction, then tidies.
+      songs.delete(one.id)
+
+      expect(restart().removal.isLeaving(one.key)).toBe(true)
+      await removal.tidyAfter([{ id: one.id, path: one.key }])
+      expect(removal.isLeaving(one.key)).toBe(false)
     })
   })
 

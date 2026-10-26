@@ -56,6 +56,16 @@ Account › Storage (with Open Backblaze), and the sidebar under the library's n
 like a hundred other things — songs skipped one after another, letter tiles for covers, a song
 remembered for the session as having no words — and each of those asked the bucket again.
 
+**A busy bucket.** Backblaze answers a burst of requests with 503 SlowDown (or a 429): nothing is
+wrong with what was asked for, only the moment. The doorman passes it on as `bucket_busy`
+(packages/shared `classifyBucketRefusal`'s `busy`), and the player says "Storage is busy, trying
+again" and asks for the same song again after 2, 4, 8, 15 and then every 30 seconds, for about
+four minutes, before it stops and waits for Play (`recoverPlayback`'s `retry-later`). It never
+skips: the next song would get the same answer, and skipping it as a broken song walked three good
+songs in a second (bug bash R3-M2). A song already on the device plays as usual; Next lands on it.
+The server's upload pass stops at the first busy answer, as it does for a cap, rather than trying
+every song against it.
+
 What a song costs on its way up is kept small on purpose: the server sends each of its files
 without asking the bucket about it first, and so does the doorman (Backblaze takes
 `If-None-Match` on an upload and ignores it, and the server knows from its listing what the
@@ -492,6 +502,7 @@ changes moves its own clock past it.
 | A song folded into another copy of itself (`songMerged`) | Its tags, love and playlist places go to the song kept, each unless the kept song's own was changed later, and never twice in one playlist; an empty name or number, the cover and the words are filled in from it, never written over; the plays add up. Then it is gone as a removal is, and a late play, tag or playlist place naming it lands on the song kept (the snapshot's `merged`); a late edit or removal of it is about the copy, and is ignored. The server moves its play history to the song kept as well (`services/songMerge.ts`), so Stats and the plays files count them there. |
 | The names an artist also goes by (`artistNamed`) | The latest list wins, as a field does. An artist has no uid, so the list is kept under `artistKey` of the artist's name. The server fills in names from MusicBrainz for an artist nobody has named, stamped as the earliest change there could be, so whatever a person sets on any device wins. A list cleared is kept cleared. Those names join one artist under two spellings into one (shared `artistJoins.ts`); names still as MusicBrainz found them, told apart by that earliest stamp, only ask first. |
 | New tags and playlists | The device makes the `uid`, so a playlist can be made offline and have songs added to it before any other device has heard of it. A tag made twice under one name on two devices becomes one tag, and the second uid still finds it. |
+| A tag whose last songs were removed (`tagEmptied`) | It goes with them, unless a song has it by the time the change is applied — another device may be filling it that moment. Gone this way, it is kept aside (the snapshot's `emptiedTags`, the server's `emptied_tags`), and a song tagged with it brings it back, whichever change arrives first; a tag made under its name since takes it in, as a tag made twice does. Only a tag someone deletes (`tagRemoved`) is gone for good. |
 | Deleting | For good: a change to something that is not there is ignored, so a late edit never brings back a deleted playlist. A removed song's files are deleted from the bucket by the next pass after the snapshot without it, unless another song still names them, and every device deletes the copy it kept. |
 
 Because the latest stamp wins whenever a change is applied, the same changes give every device

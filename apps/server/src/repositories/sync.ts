@@ -9,6 +9,12 @@ export interface StampRow {
   readonly hlc: string
 }
 
+export interface EmptiedTag {
+  readonly uid: string
+  readonly name: string
+  readonly hue: number
+}
+
 /**
  * What this server keeps to combine its edits with every other device's
  * (docs/SYNC.md): when each edited field was last set, which tag a second
@@ -33,6 +39,11 @@ export class SyncRepository {
   readonly #aliasTarget
   readonly #addAlias
   readonly #aliases
+  readonly #keepEmptied
+  readonly #addEmptied
+  readonly #emptiedTag
+  readonly #forgetEmptied
+  readonly #emptiedTags
   readonly #playlist
   readonly #cursors
   readonly #setCursor
@@ -83,6 +94,20 @@ export class SyncRepository {
     this.#aliases = db.prepare<[], { uid: string; target: string }>(`
       SELECT a.uid, t.uid AS target FROM tag_aliases a JOIN tags t ON t.id = a.tag_id
     `)
+    this.#keepEmptied = db.prepare(`
+      INSERT INTO emptied_tags (uid, name, hue) SELECT uid, name, hue FROM tags WHERE id = ?
+      ON CONFLICT (uid) DO UPDATE SET name = excluded.name, hue = excluded.hue
+    `)
+    this.#addEmptied = db.prepare(
+      'INSERT INTO emptied_tags (uid, name, hue) VALUES (?, ?, ?) ON CONFLICT (uid) DO NOTHING',
+    )
+    this.#emptiedTag = db.prepare<[string], EmptiedTag>(
+      'SELECT uid, name, hue FROM emptied_tags WHERE uid = ?',
+    )
+    this.#forgetEmptied = db.prepare('DELETE FROM emptied_tags WHERE uid = ?')
+    this.#emptiedTags = db.prepare<[], EmptiedTag>(
+      'SELECT uid, name, hue FROM emptied_tags ORDER BY uid',
+    )
     this.#playlist = db.prepare<[string], { id: number; kind: string; updated_at: string }>(
       'SELECT id, kind, updated_at FROM playlists WHERE uid = ?',
     )
@@ -197,6 +222,34 @@ export class SyncRepository {
   /** Every alias, as the second uid and the uid of the tag it means. */
   aliases(): Map<string, string> {
     return new Map(this.#aliases.all().map(row => [row.uid, row.target]))
+  }
+
+  // --- Tags their last songs took with them ------------------------------------
+
+  /**
+   * Keep a tag aside, as it is, before it goes because its last songs did
+   * (`tagEmptied`): a song another device tags with it brings it back.
+   */
+  keepEmptiedTag(tagId: number): void {
+    this.#keepEmptied.run(tagId)
+  }
+
+  /** One a snapshot kept aside, for a server taking the bucket's library. */
+  addEmptiedTag(tag: EmptiedTag): void {
+    this.#addEmptied.run(tag.uid, tag.name, tag.hue)
+  }
+
+  emptiedTag(uid: string): EmptiedTag | null {
+    return this.#emptiedTag.get(uid) ?? null
+  }
+
+  /** True when it was kept aside. */
+  forgetEmptiedTag(uid: string): boolean {
+    return this.#forgetEmptied.run(uid).changes > 0
+  }
+
+  emptiedTags(): EmptiedTag[] {
+    return this.#emptiedTags.all()
   }
 
   playlist(uid: string): { id: number; kind: 'manual' | 'live'; updatedAt: string } | null {

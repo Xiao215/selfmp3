@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { PlaybackState } from '@selfmp3/shared'
-import { handoffTarget, heardAt, serverTime, shortDeviceName, type ListHeard } from './handoff.js'
+import {
+  deviceLabels,
+  handoffTarget,
+  heardAt,
+  serverTime,
+  shortDeviceName,
+  type ListHeard,
+} from './handoff.js'
 
 const NOW = 1_800_000_000_000
 
@@ -141,5 +148,40 @@ describe('shortDeviceName', () => {
 
   it('leaves a custom name alone', () => {
     expect(shortDeviceName('Kitchen speaker')).toBe('Kitchen speaker')
+  })
+})
+
+describe('deviceLabels', () => {
+  const labels = (devices: { id: string; name: string }[]): string[] => {
+    const named = deviceLabels(devices)
+    return devices.map(device => named.get(device.id) ?? '')
+  }
+
+  it('shortens names nothing else on the list shares', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Mac · Chrome' },
+        { id: 'b', name: 'iPhone · Safari' },
+        { id: 'c', name: 'Kitchen' },
+      ]),
+    ).toEqual(['Mac', 'iPhone', 'Kitchen'])
+  })
+
+  it('keeps the browser and the tab where the short names would be the same (R3-m2)', () => {
+    expect(
+      labels([
+        { id: 'a', name: 'Mac · Chrome' },
+        { id: 'a-2', name: 'Mac · Chrome · tab 2' },
+        { id: 'b', name: 'Mac · Safari' },
+        { id: 'c', name: 'iPhone · Safari' },
+      ]),
+    ).toEqual(['Mac · Chrome', 'Mac · Chrome · tab 2', 'Mac · Safari', 'iPhone'])
+  })
+
+  it('numbers the same name on two devices, the same way on every device', () => {
+    const one = { id: 'b-mac', name: 'Mac · Chrome' }
+    const two = { id: 'a-mac', name: 'Mac · Chrome' }
+    expect(labels([one, two])).toEqual(['Mac · Chrome 2', 'Mac · Chrome'])
+    expect(labels([two, one])).toEqual(['Mac · Chrome', 'Mac · Chrome 2'])
   })
 })

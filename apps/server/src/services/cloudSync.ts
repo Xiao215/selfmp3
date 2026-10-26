@@ -346,6 +346,12 @@ interface CloudSyncDeps {
    */
   readonly analysed?: (songId: number) => boolean
   /**
+   * Whether a song's cover is still to be read out of its copy here, having
+   * failed to be kept the first time (`SongRepository.coverToRead`): the copy
+   * is the only place it is, so it stays till then.
+   */
+  readonly coverToRead?: (songId: number) => boolean
+  /**
    * A folder to use as the bucket instead of an account (bucket/local.ts).
    * Connected from the start and never saved; signing in and connecting are
    * refused while it is set.
@@ -1106,8 +1112,9 @@ export class CloudSyncService {
             sidecarHere: signatures.sidecarHere,
           })
         } catch (error) {
-          // Offline, a refused key, no bucket, a used-up cap: nothing else
-          // will work either, and every try against a cap is one more call.
+          // Offline, a refused key, no bucket, a used-up cap, a bucket asking
+          // for fewer requests: nothing else will work either, and every try
+          // against a cap or a busy bucket is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
           // Removed while the pass was sending it, its copy with it: what was
           // asked, not a failure to try again over.
@@ -1150,7 +1157,7 @@ export class CloudSyncService {
         // is no longer needed here, what the library no longer names is no
         // longer needed in the bucket, and nothing can take a removed song back.
         cloud.forgetRemoved()
-        await this.#letGo(settled)
+        await this.#letGo(store, settled)
         if (generation !== this.#generation || this.#stopped) return
         await this.#emptyTrash(store)
         if (generation !== this.#generation || this.#stopped) return
@@ -2256,25 +2263,42 @@ export class CloudSyncService {
    *
    * Every song here is wholly in the bucket as it stands, and the snapshot
    * naming it is up; what the copy is still for is analysis, so a song analysis
-   * has not reached yet keeps it a while longer. From here on the words are
+   * has not reached yet keeps it a while longer — as does one whose cover could
+   * not be kept and is still to be read out of it. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
    * because nothing here can have changed them (`#signatures`).
    *
    * What is here is what `#signatures` saw at the start of the pass, so a
    * library already let go costs no second look. A sidecar written since then
    * has not been sent yet, and stays for the next pass to send.
+   *
+   * The last copy is not deleted on the word of what this server remembers
+   * sending: the bucket is asked, once a song, for the audio every device
+   * will play from now on. A song whose audio is not there — a bucket emptied
+   * by hand, a folder standing in for one that went away — keeps its copy,
+   * and the next pass checks the whole bucket and sends what it lost.
    */
-  async #letGo(settled: readonly Settled[]): Promise<void> {
+  async #letGo(store: CloudStore, settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
-    const { storage, lyrics } = this.#deps
+    const { storage, lyrics, cloud } = this.#deps
     let released = 0
+    let notThere = 0
     for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
       if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
+      if (this.#deps.coverToRead?.(file.id)) continue
       try {
-        if (audioHere) await storage.delete(file.path)
+        if (audioHere) {
+          const state = cloud.state(file.id)
+          const object = state ? await store.head(state.audioKey) : null
+          if (!state || object?.size !== state.audioSize) {
+            notThere++
+            continue
+          }
+          await storage.delete(file.path)
+        }
         await lyrics.deleteSidecar(file.path)
         await removeFolderIfEmpty(storage, file.path)
         released++
@@ -2286,6 +2310,12 @@ export class CloudSyncService {
       }
     }
     if (released > 0) this.#logger.info('let go of copies now in the bucket', { songs: released })
+    if (notThere > 0) {
+      this.#logger.warn('kept copies whose audio the bucket does not have; checking it next pass', {
+        songs: notThere,
+      })
+      this.#verified = false
+    }
   }
 
   /**
@@ -2554,20 +2584,22 @@ export class CloudSyncService {
     // names the snapshot and starts the window logs are tidied against, so it
     // is the time the snapshot was really written.
     const writtenAt = this.#now()
+    const everySong = songs.all()
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
+      emptiedTags: sync?.emptiedTags() ?? [],
       merged: sync?.merges() ?? new Map(),
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],
       ...(server ? { server } : {}),
-      songs: songs.all(),
+      songs: everySong,
       cameWith: songs.allCameWith(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
       artistNames: names?.repo.artistNames() ?? new Map(),
-      spellings: names?.spellings.current() ?? {},
+      spellings: names?.spellings.current(everySong) ?? {},
       coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.

@@ -61,6 +61,31 @@ export function controlsOf(row: HTMLElement): HTMLElement[] {
   )
 }
 
+/** Where a row stands in its list: which list, and how many drawn rows come before it. */
+export interface RowPlace {
+  readonly listKey: string
+  readonly index: number
+}
+
+/** The place of the song row `target` is in, or null outside one. */
+export function rowPlaceOf(target: EventTarget | null): RowPlace | null {
+  const row = songRowOf(target)
+  const listKey = row?.getAttribute(SONG_ROW)
+  if (!row || !listKey) return null
+  return { listKey, index: rowsOf(listKey).indexOf(row) }
+}
+
+/**
+ * The press target of the row standing where one stood: the next row, once
+ * that one has left the list (deleted from it), or the one before it, for the
+ * last. Null when the list has no row drawn, or has gone.
+ */
+export function pressAt(place: RowPlace): HTMLElement | null {
+  const rows = rowsOf(place.listKey)
+  const row = rows[Math.max(0, Math.min(place.index, rows.length - 1))]
+  return row ? pressOf(row) : null
+}
+
 /** The drawn row of `listKey` that is `songId`, or null. */
 export function rowOfSong(listKey: string, songId: number): HTMLElement | null {
   return rowsOf(listKey).find(row => songOf(row) === songId) ?? null

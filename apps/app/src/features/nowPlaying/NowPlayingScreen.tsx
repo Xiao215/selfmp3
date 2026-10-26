@@ -317,7 +317,7 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
         easing: ease.in,
         useNativeDriver: nativeDriver,
       }).start(({ finished }) => done(finished))
-    })
+    }, modalCoversScreen)
     return () => setStageExit(null)
   }, [arrival])
   /*

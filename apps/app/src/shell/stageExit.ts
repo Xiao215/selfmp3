@@ -29,11 +29,24 @@ let leave: Leave | null = null
  */
 let leaving = false
 
-/** Called by the page on mount with its exit, and with null on unmount. */
-export function setStageExit(next: Leave | null): void {
+/** Whether the page showing covers the whole app: the phone's, a native modal. */
+let covering = false
+
+/**
+ * Called by the page on mount with its exit, and with null on unmount.
+ * `covers` is the phone's page, presented as a modal over everything the
+ * shell draws, the overlay host for dialogs included (`stageCovers`).
+ */
+export function setStageExit(next: Leave | null, covers = false): void {
   leave = next
+  covering = next !== null && covers
   // A page arriving, or going, is not a page part-way out of the door.
   leaving = false
+}
+
+/** Whether a page is up that covers the whole app, and must go before another is opened. */
+export function stageCovers(): boolean {
+  return covering
 }
 
 export function leaveStage(navigate: () => void): void {

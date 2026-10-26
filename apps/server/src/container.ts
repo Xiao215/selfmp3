@@ -361,6 +361,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // later does not cost a download.
     analysed: songId =>
       audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.canHear || sound.has(songId)),
+    coverToRead: songId => songs.isCoverToRead(songId),
     cloudDir: config.cloudDir ?? undefined,
     publishAnyway: config.publishAnyway,
     importRequests,
@@ -489,7 +490,15 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const songRemoval = new SongRemovalService({
     storage,
     songs,
-    tags: { all: () => tags.all(), delete: id => void tagRemoval.remove(id) },
+    tags: {
+      all: () => tags.all(),
+      // Kept aside, as a tag another device empties is: a device tagging a
+      // song with it meanwhile brings it back (`tagEmptied`, docs/SYNC.md).
+      delete: id => {
+        syncRepo.keepEmptiedTag(id)
+        tagRemoval.remove(id)
+      },
+    },
     cloud: cloudRepo,
     lyrics,
     covers,
@@ -504,7 +513,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     config,
     settings,
     scanner,
-    onChanged: bump,
     logger,
   })
 
@@ -568,7 +576,12 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     else analysis.kick()
   }
 
-  scanner.onScanComplete = () => analysis.kick()
+  // A sweep that changed something moves the version, whoever started it —
+  // the scanner too, coming back for files that were still arriving.
+  scanner.onScanComplete = result => {
+    if (result.added || result.updated) bump()
+    analysis.kick()
+  }
   scanner.isLeaving = key => songRemoval.isLeaving(key)
   scanner.bucketAudio = songId => cloudRepo.state(songId)?.audioKey ?? null
 
@@ -654,6 +667,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     stop: () => {
       stopped = true
       libraryWatcher.stop()
+      scanner.stop()
       devices.stop()
       analysis.stop()
       coverTones.stop()

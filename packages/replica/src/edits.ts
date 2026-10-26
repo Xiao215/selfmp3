@@ -161,7 +161,9 @@ export function tagSongs(
 
 /**
  * Out of the library, on every device — with each tag only these songs had,
- * as the server's own removal takes them (`tagsEmptiedBy`).
+ * as the server's own removal takes them (`tagsEmptiedBy`). Those go as
+ * `tagEmptied`, not `tagRemoved`: another device may be putting one on a song
+ * this one has not heard of, and then it stays.
  */
 export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] {
   const known = knownSongs(ctx, ids)
@@ -172,7 +174,7 @@ export function removeSongs(ctx: EditContext, ids: readonly number[]): Change[] 
   return [
     ...known.map(([, uid]) => ({ type: 'songRemoved' as const, hlc: ctx.stamp(), uid })),
     ...lettingGoOf(ctx, emptied, new Set(known.map(([, uid]) => uid))),
-    ...emptied.map(id => ({ type: 'tagRemoved' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
+    ...emptied.map(id => ({ type: 'tagEmptied' as const, hlc: ctx.stamp(), uid: tagUid(ctx, id) })),
   ]
 }
 

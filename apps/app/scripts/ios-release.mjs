@@ -83,6 +83,13 @@ if (!args.has('--skip-prebuild')) {
 rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 
+// The build number this commit is, in every place iOS reads one: the app's
+// Info.plist has it written in by prebuild, which --skip-prebuild leaves at an
+// older commit's, and the widget takes CURRENT_PROJECT_VERSION, which prebuild
+// leaves at 1. The app compares its own (app.config.js, the same count) with
+// ios.json's, so all three must be this one.
+run('plutil', ['-replace', 'CFBundleVersion', '-string', String(build), 'ios/selfmp3/Info.plist'])
+
 const settings = [
   'CODE_SIGN_STYLE=Manual',
   `DEVELOPMENT_TEAM=${signing.team}`,
@@ -92,6 +99,7 @@ const settings = [
   ),
   // Each target its own profile, by name, with no edit to the generated project.
   'PROVISIONING_PROFILE_SPECIFIER=$(PROFILE_$(TARGET_NAME))',
+  `CURRENT_PROJECT_VERSION=${build}`,
 ]
 if (signing.withoutAppGroup) {
   const empty = resolve(out, 'none.entitlements')

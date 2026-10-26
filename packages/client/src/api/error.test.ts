@@ -33,6 +33,17 @@ describe('failureText', () => {
     )
   })
 
+  it('keeps a full disk or a busy database as the server said it', () => {
+    const full = new ApiError(507, 'the server’s disk is full', 'disk_full')
+    expect(failureText('Couldn’t make that tag', full)).toBe(
+      'Couldn’t make that tag: the server’s disk is full',
+    )
+    const busy = new ApiError(503, 'the server is busy, try again in a moment', 'database_busy')
+    expect(failureText('Couldn’t make that tag', busy)).toBe(
+      'Couldn’t make that tag: the server is busy, try again in a moment',
+    )
+  })
+
   it('stops at the failure for a server error, a bad shape or a thrown exception', () => {
     const failures = [
       new ApiError(500, 'POST /api/playlists failed (500)'),

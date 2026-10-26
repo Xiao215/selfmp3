@@ -2152,6 +2152,23 @@ describe('CloudSyncService', () => {
       expect(here('A - One/A - One.m4a')).toBe(false)
     })
 
+    it('keeps the copy while the cover in it is still to be read', async () => {
+      // A full disk as the sweep kept its cover: the file is the only place it
+      // is, and once the copy goes it is lost (bug bash R3-M11).
+      const service = lettingGo({ coverToRead: songId => songs.isCoverToRead(songId) })
+      const id = addSong('A - One', 'one')
+      analysed.add(id)
+      songs.coverToRead(id)
+
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(here('A - One/A - One.m4a')).toBe(true)
+
+      songs.coverRead(id)
+      await service.syncNow()
+      expect(here('A - One/A - One.m4a')).toBe(false)
+    })
+
     it('never lets go of a copy that is not wholly up', async () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')
@@ -2170,6 +2187,26 @@ describe('CloudSyncService', () => {
       bucket.comeBack()
       await service.syncNow()
       expect(here('B - Two/B - Two.m4a')).toBe(false)
+    })
+
+    it('keeps the copy of a song whose audio the bucket does not have, and sends it again', async () => {
+      const service = lettingGo()
+      const id = addSong('A - One', 'one')
+      await service.connect(CONNECT)
+      await service.whenIdle()
+
+      // Sent and remembered as sent; then gone from the bucket (emptied by
+      // hand, or a folder standing in for it that went away) before
+      // analysis is done with the song.
+      bucket.objects.delete(`audio/${sha('one')}.m4a`)
+      analysed.add(id)
+      await service.syncNow()
+      expect(here('A - One/A - One.m4a')).toBe(true)
+
+      // The next pass looks at the whole bucket and sends what it lost.
+      await service.syncNow()
+      expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+      expect(here('A - One/A - One.m4a')).toBe(false)
     })
 
     it('hands the audio back from the bucket, for analysis, once the copy is gone', async () => {

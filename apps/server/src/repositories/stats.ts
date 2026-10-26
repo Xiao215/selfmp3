@@ -1,7 +1,6 @@
 import {
   countsAsPlay,
   DAY_STARTS_AT_HOUR,
-  localDayKey,
   toSqliteTime,
   type DailyPlays,
   type HourlyPlays,
@@ -14,10 +13,14 @@ import {
 import type { Db } from '../db/index.js'
 import {
   dayGap,
+  dayKeyBefore,
+  readerZone,
   runs,
   toMinutes,
   topArtists,
-  WINDOW_START,
+  useZones,
+  windowStart,
+  zoneDayKey,
   type ArtistPlaysRow,
 } from './listening.js'
 
@@ -113,6 +116,7 @@ export class StatsRepository {
   constructor(db: Db, shownAs: () => ReadonlyMap<string, string> = () => new Map()) {
     this.#db = db
     this.#shownAs = shownAs
+    useZones(db)
     this.#record = db.prepare(
       `INSERT OR IGNORE INTO play_events (song_id, ms_played, completed, played_at, client_id)
        VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?)`,
@@ -135,8 +139,8 @@ export class StatsRepository {
           LIMIT 1
        )`,
     )
-    this.#playDates = db.prepare<[], { date: string }>(
-      "SELECT DISTINCT date(played_at, 'localtime') AS date FROM play_events ORDER BY date",
+    this.#playDates = db.prepare<{ zone: string }, { date: string }>(
+      'SELECT DISTINCT date(wall_clock(played_at, @zone)) AS date FROM play_events ORDER BY date',
     )
     this.#latestPlay = db.prepare<[], { id: number | null }>(
       'SELECT MAX(id) AS id FROM play_events',
@@ -273,31 +277,35 @@ export class StatsRepository {
   }
 
   /**
-   * SQL fragment plus params limiting events to the requested window: today
-   * and the days before it, from a local midnight, as the daily chart is
+   * SQL fragment limiting events to the requested window: today and the days
+   * before it, from a midnight in the reader's zone, as the daily chart is
    * drawn and as Wrapped counts. A rolling `now - N days` spanned N + 1
    * calendar days, so Stats › Month counted a partial day more than the
    * Month report. `alias` is the events table's, `e.`, where the query joins
-   * songs to it.
+   * songs to it; the window's start is the `@from` parameter.
    */
-  #window(range: StatsRange, alias = ''): { clause: string; params: unknown[] } {
-    const days = RANGE_DAYS[range]
-    if (days === null) return { clause: '1 = 1', params: [] }
-    return { clause: `${alias}played_at >= ${WINDOW_START}`, params: [`-${days - 1} days`] }
+  #window(range: StatsRange, alias = ''): string {
+    return RANGE_DAYS[range] === null ? '1 = 1' : `${alias}played_at >= @from`
   }
 
-  build(range: StatsRange): Stats {
-    const { clause, params } = this.#window(range)
+  /**
+   * The stats for a range, with days and hours counted in `zone` (an IANA
+   * name, see `readerZone`): the reader's, not the server's.
+   */
+  build(range: StatsRange, zone = readerZone()): Stats {
+    const clause = this.#window(range)
     const joined = this.#window(range, 'e.')
+    const days = RANGE_DAYS[range]
+    const params = { zone, from: days === null ? null : windowStart(days, zone) }
 
     const totals = this.#db
-      .prepare<unknown[], { plays: number; ms: number | null; songs: number }>(
+      .prepare<typeof params, { plays: number; ms: number | null; songs: number }>(
         `SELECT COUNT(*) AS plays,
                 COALESCE(SUM(ms_played), 0) AS ms,
                 COUNT(DISTINCT song_id) AS songs
            FROM play_events WHERE ${clause}`,
       )
-      .get(...params)
+      .get(params)
 
     const library = this.#db
       .prepare<[], { count: number; duration: number | null; never: number }>(
@@ -309,19 +317,20 @@ export class StatsRepository {
       .get()
 
     const daily: DailyPlays[] = this.#db
-      .prepare<unknown[], { date: string; plays: number; ms: number | null }>(
+      .prepare<typeof params, { date: string; plays: number; ms: number | null }>(
         /*
-         * Grouped by the local day, as the axis beneath it is built and as the
-         * hourly query below already does. `played_at` is stored in UTC, so
-         * plainly dating it put an evening play west of Greenwich on tomorrow's
-         * bar — or off the end of the chart, where `zeroFill` never looked.
+         * Grouped by the reader's day, as the axis beneath it is built and as
+         * the hourly query below already does. `played_at` is stored in UTC,
+         * so plainly dating it put an evening play west of Greenwich on
+         * tomorrow's bar — or off the end of the chart, where `zeroFill` never
+         * looked.
          */
-        `SELECT date(played_at, 'localtime') AS date, COUNT(*) AS plays,
+        `SELECT date(wall_clock(played_at, @zone)) AS date, COUNT(*) AS plays,
                 COALESCE(SUM(ms_played), 0) AS ms
            FROM play_events WHERE ${clause}
-          GROUP BY date(played_at, 'localtime') ORDER BY date`,
+          GROUP BY 1 ORDER BY date`,
       )
-      .all(...params)
+      .all(params)
       .map(row => ({
         date: row.date,
         plays: row.plays,
@@ -329,16 +338,15 @@ export class StatsRepository {
       }))
 
     // Zero-fill so the chart shows quiet days as gaps rather than skipping them.
-    const days = RANGE_DAYS[range]
-    const filledDaily = days === null ? daily : zeroFill(daily, days)
+    const filledDaily = days === null ? daily : zeroFill(daily, days, zone)
 
     const hourlyRows = this.#db
-      .prepare<unknown[], { hour: string; plays: number }>(
-        `SELECT strftime('%H', played_at, 'localtime') AS hour, COUNT(*) AS plays
+      .prepare<typeof params, { hour: string; plays: number }>(
+        `SELECT strftime('%H', wall_clock(played_at, @zone)) AS hour, COUNT(*) AS plays
            FROM play_events WHERE ${clause}
           GROUP BY hour ORDER BY hour`,
       )
-      .all(...params)
+      .all(params)
 
     const hourly: HourlyPlays[] = Array.from({ length: 24 }, (_, hour) => ({ hour, plays: 0 }))
     for (const row of hourlyRows) {
@@ -348,29 +356,29 @@ export class StatsRepository {
     }
 
     const artistRows = this.#db
-      .prepare<unknown[], ArtistPlaysRow>(
+      .prepare<typeof params, ArtistPlaysRow>(
         `SELECT s.artist, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
-          WHERE ${joined.clause}
+          WHERE ${joined}
           GROUP BY s.artist ORDER BY plays DESC`,
       )
-      .all(...params)
+      .all(params)
 
     const topTags: TopEntry[] = this.#db
-      .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
+      .prepare<typeof params, { key: string; plays: number; ms: number | null }>(
         `SELECT t.name AS key, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e
            JOIN song_tags st ON st.song_id = e.song_id
            JOIN tags t ON t.id = st.tag_id
-          WHERE ${joined.clause}
+          WHERE ${joined}
           GROUP BY t.id ORDER BY plays DESC, key LIMIT 10`,
       )
-      .all(...params)
+      .all(params)
       .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
 
     const topSongs: TopSong[] = this.#db
       .prepare<
-        unknown[],
+        typeof params,
         {
           song_id: number
           title: string
@@ -383,10 +391,10 @@ export class StatsRepository {
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
-          WHERE ${joined.clause}
+          WHERE ${joined}
           GROUP BY s.id ORDER BY plays DESC, s.title LIMIT 20`,
       )
-      .all(...params)
+      .all(params)
       .map(row => ({
         songId: row.song_id,
         title: row.title,
@@ -396,7 +404,7 @@ export class StatsRepository {
         minutes: toMinutes(row.ms),
       }))
 
-    const streaks = this.#streaks()
+    const streaks = this.#streaks(zone)
 
     return {
       range,
@@ -421,15 +429,16 @@ export class StatsRepository {
   /**
    * Current and longest run of consecutive days with at least one play.
    *
-   * Computed over distinct local dates. Today not yet having a play does not
-   * break the current streak — you might still put something on this evening.
+   * Computed over distinct dates in the reader's zone. Today not yet having
+   * a play does not break the current streak — you might still put something
+   * on this evening.
    */
-  #streaks(): { current: number; longest: number } {
-    const dates = this.#playDates.all().map(row => row.date)
+  #streaks(zone: string): { current: number; longest: number } {
+    const dates = this.#playDates.all({ zone }).map(row => row.date)
     const { longest, last } = runs(dates)
     const lastDate = dates.at(-1)
     if (lastDate === undefined) return { current: 0, longest }
-    return { current: dayGap(lastDate, localDayKey(new Date())) <= 1 ? last : 0, longest }
+    return { current: dayGap(lastDate, zoneDayKey(Date.now(), zone)) <= 1 ? last : 0, longest }
   }
 
   /** Plays a day since `from` (a UTC date), for the owner's admin page. */
@@ -446,13 +455,14 @@ export class StatsRepository {
   /**
    * The last `days` days of plays by song, local hour, kind of day and how
    * many weeks ago, for "Usually at this hour" (services/usualHours.ts).
-   * `offsetMinutes` is the asking device's clock against UTC, east positive:
-   * the hours are the listener's, not the server's. A day starts at
+   * `zone` is the asking device's (see `readerZone`): the hours are the
+   * listener's, not the server's, and half a year of them crosses a clock
+   * change that one offset would have put an hour out. A day starts at
    * `DAY_STARTS_AT_HOUR` (shared usual.ts), so one on a Saturday morning is
    * Friday night's.
    */
   usualPlays(
-    offsetMinutes: number,
+    zone: string,
     days: number,
   ): { uid: string; hour: number; weekend: boolean; weeksAgo: number; plays: number }[] {
     return this.#db
@@ -465,12 +475,12 @@ export class StatsRepository {
                 strftime('%w', e.local, ?) IN ('0', '6') AS weekend,
                 CAST((julianday('now') - julianday(e.played_at)) / 7 AS INTEGER) AS weeksAgo,
                 COUNT(*) AS plays
-           FROM (SELECT song_id, played_at, datetime(played_at, ?) AS local
+           FROM (SELECT song_id, played_at, wall_clock(played_at, ?) AS local
                    FROM play_events WHERE played_at >= datetime('now', ?)) e
            JOIN songs s ON s.id = e.song_id
           GROUP BY s.uid, hour, weekend, weeksAgo`,
       )
-      .all(`-${DAY_STARTS_AT_HOUR} hours`, `${Math.round(offsetMinutes)} minutes`, `-${days} days`)
+      .all(`-${DAY_STARTS_AT_HOUR} hours`, zone, `-${days} days`)
       .map(row => ({ ...row, weekend: row.weekend === 1 }))
   }
 
@@ -508,14 +518,12 @@ export class StatsRepository {
 }
 
 /** Insert zero rows for days with no plays, so charts show a continuous axis. */
-function zeroFill(rows: readonly DailyPlays[], days: number): DailyPlays[] {
+function zeroFill(rows: readonly DailyPlays[], days: number, zone: string): DailyPlays[] {
   const byDate = new Map(rows.map(row => [row.date, row]))
   const out: DailyPlays[] = []
-  const today = new Date()
+  const today = zoneDayKey(Date.now(), zone)
   for (let offset = days - 1; offset >= 0; offset--) {
-    const day = new Date(today)
-    day.setDate(day.getDate() - offset)
-    const key = localDayKey(day)
+    const key = dayKeyBefore(today, offset)
     out.push(byDate.get(key) ?? { date: key, plays: 0, minutes: 0 })
   }
   return out

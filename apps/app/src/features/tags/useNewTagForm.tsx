@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TextInputProps } from 'react-native'
 import { TAG_NAME_MAX, type Tag } from '@selfmp3/shared'
-import { useCreateTag } from '@selfmp3/client'
+import { failureText, useCreateTag } from '@selfmp3/client'
 import { autoTagHue } from '../../ui/components/HueSwatches'
 import { TextField } from '../../ui/components/TextField'
 import { isComposing } from '../../shell/composing'
@@ -20,15 +20,23 @@ interface NewTagForm {
   readonly setHue: (hue: number) => void
   readonly ready: boolean
   readonly busy: boolean
-  /** The last try was refused: said under the form until the name changes. */
-  readonly failed: boolean
+  /**
+   * Why the last try made nothing, said under the form until the name
+   * changes; null when it has not failed.
+   */
+  readonly failure: string | null
   readonly submit: () => void
   /** The artist's-name question (`P11`), drawn wherever the form is. */
   readonly nudge: ReactNode
 }
 
-/** What the form says when the server would not make the tag. */
-export const NEW_TAG_FAILED = 'Couldn’t make that tag. Try a different name.'
+/**
+ * What the form says when the tag was not made, with the reason when there
+ * is one to say: the server's disk full, its database busy, the library out
+ * of reach. Not "try a different name": the server makes any name it is
+ * given (a taken one is the tag already there), so the name was never why.
+ */
+const NEW_TAG_FAILED = 'Couldn’t make that tag'
 
 /**
  * Making a tag, in the sidebar's form and on the Tags page alike: the name,
@@ -81,7 +89,7 @@ export function useNewTagForm({
     setHue: setPicked,
     ready: trimmed.length > 0,
     busy: createTag.isPending,
-    failed: createTag.isError,
+    failure: createTag.isError ? failureText(NEW_TAG_FAILED, createTag.error) : null,
     submit: () => {
       if (!trimmed) return
       const already = existingTag(tags, trimmed)

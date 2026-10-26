@@ -1,5 +1,5 @@
 import type { Href, useRouter } from 'expo-router'
-import { leaveStage } from '../../shell/stageExit'
+import { leaveStage, stageCovers } from '../../shell/stageExit'
 import { goBack } from '../../ui/useBackTo'
 
 type Router = ReturnType<typeof useRouter>
@@ -30,5 +30,39 @@ export function leaveTo(router: Router, href: Href): void {
   leaveStage(() => {
     if (router.canGoBack()) router.back()
     router.push(href)
+  })
+}
+
+/** How long a link waits for Now Playing to go down before it is followed regardless. */
+const LINK_WAIT_MS = 1500
+
+/** A link to Now Playing itself, which has nothing to put away first. */
+const TO_NOW_PLAYING = /^(?:[a-z][a-z0-9+.-]*:)?\/*now-playing(?:[/?#]|$)/i
+
+/**
+ * Before a link the system handed the app is followed (`app/+native-intent`):
+ * the phone's Now Playing put away, as `leaveTo` puts it away. Expo Router
+ * opens a link's page on the stack it finds, and with Now Playing up that is
+ * the modal's: the page was drawn inside it, over the shell's overlay host,
+ * so the page's own confirmations opened out of sight and its buttons did
+ * nothing (R3-m5). Resolves once the modal has gone, or after a while
+ * regardless, so a link is never lost to an exit that was stopped or was
+ * already on its way.
+ */
+export function putAwayForLink(router: Router, path: string): Promise<void> {
+  if (!stageCovers() || TO_NOW_PLAYING.test(path)) return Promise.resolve()
+  return new Promise(resolve => {
+    let followed = false
+    const timer = setTimeout(() => {
+      followed = true
+      resolve()
+    }, LINK_WAIT_MS)
+    leaveStage(() => {
+      clearTimeout(timer)
+      // Too late: the link's page is up by now, and back would take it away.
+      if (followed) return
+      if (router.canGoBack()) router.back()
+      resolve()
+    })
   })
 }

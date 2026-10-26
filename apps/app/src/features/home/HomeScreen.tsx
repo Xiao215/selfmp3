@@ -40,6 +40,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { SearchField } from '../../ui/components/SearchField'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
+import { DISPLAY_SCALE } from '../../ui/textScale'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
 import { ChevronRight, Download, Play, Sparkle } from '../../ui/components/Icons'
@@ -241,7 +242,11 @@ function HomePage({
         {wide ? null : <PhoneHeader />}
 
         <View style={[styles.greetingBlock, wide && styles.greetingBlockWide]}>
-          <Text style={styles.greeting} accessibilityRole="header">
+          <Text
+            style={styles.greeting}
+            accessibilityRole="header"
+            maxFontSizeMultiplier={DISPLAY_SCALE}
+          >
             {greeting(now.getHours())}
             <Text style={styles.greetingDot}>.</Text>
           </Text>

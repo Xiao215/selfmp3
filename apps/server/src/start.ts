@@ -53,6 +53,12 @@ export function startContainer(container: Container): void {
       })
   }
 
+  // Songs removed while the server was last running whose copies it had not
+  // deleted yet: before the sweep, which would find those copies.
+  const tidied = container.songRemoval.finishLeaving().catch((error: unknown) => {
+    logger.warn('could not finish tidying after removed songs', { message: messageOf(error) })
+  })
+
   if (!config.scanOnBoot) {
     warmLyrics()
     startCloud()
@@ -60,11 +66,8 @@ export function startContainer(container: Container): void {
   }
   // Deliberately not awaited: the API is already serving, and a first scan of
   // a large library should not delay that.
-  void container.scanner
-    .scan()
-    .then(result => {
-      if (result.added || result.updated) container.bumpLibraryVersion()
-    })
+  void tidied
+    .then(() => (container.stopped() ? undefined : container.scanner.scan()))
     .catch((error: unknown) => {
       logger.error('initial scan failed', {
         message: messageOf(error),

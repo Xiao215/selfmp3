@@ -60,6 +60,8 @@ export const DOORMAN_ERROR = {
    * every read of the device's own bucket — the friend's bucket is fine.
    */
   lenderCapExceeded: 'lender_cap_exceeded',
+  /** The bucket asks for fewer requests for a moment (SlowDown): the same request will do later. */
+  bucketBusy: 'bucket_busy',
   bucketError: 'bucket_error',
 
   // Listening rooms and shared playlists (`RoomRefusal`, and their own).

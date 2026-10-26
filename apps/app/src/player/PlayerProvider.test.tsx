@@ -7,6 +7,7 @@ import type { EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 import { PlayerProvider, usePlayer, type PlayerApi } from './PlayerProvider'
 import { setRoomTracks } from './roomTracks'
 import { currentToasts } from '../ui/toast'
+import { STORAGE_BUSY } from '../ports/streamFailure.model'
 
 /**
  * The queue the commands read is the queue the last command left.
@@ -288,6 +289,20 @@ describe('keeping songs where they stream from the bucket', () => {
     expect(mockKeepPlayed).not.toHaveBeenCalled()
   })
 
+  // Bug bash R3-m1 (R2-m5): the scrubber dragged to the end, or End on Seek, a few seconds in.
+  it('does not count a song seeked to its end a few seconds in', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(() => listen(4))
+    await act(() => api.seekTo(199.5))
+    await act(() => mockWiring.onProgress?.(199.5, 200))
+    await act(() => mockWiring.onProgress?.(200, 200))
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
   it('lends nothing again when the next song could not be kept', async () => {
     mockKeepAhead.mockImplementation(() => Promise.resolve(false))
     await draw()
@@ -496,6 +511,86 @@ describe('a run of songs that will not play', () => {
 
     expect(mockEngine.load).toHaveBeenCalledWith(1, { autoplay: true, startAt: 3 })
     expect(mockEngine.play).not.toHaveBeenCalled()
+  })
+
+  /*
+   * Bug bash R3-M2: Backblaze asking for fewer requests failed songs the way a
+   * broken file does, so one Next walked three good songs in a second, stopped
+   * on "Couldn't play", and never asked again once the bucket had recovered.
+   */
+  describe('while the storage is busy', () => {
+    beforeEach(() => jest.useFakeTimers())
+    afterEach(() => jest.useRealTimers())
+
+    const busy = (): void => fails(STORAGE_BUSY)
+    const wait = (ms: number) => act(() => jest.advanceTimersByTime(ms))
+
+    it('waits it out on the same song, longer each time, and says so', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      await act(() => listen(3))
+      mockEngine.load.mockClear()
+
+      await act(async () => busy())
+      // Not at once: a bucket asking for fewer requests is asked again after a while.
+      expect(mockEngine.load).not.toHaveBeenCalled()
+      expect(currentToasts().map(toast => toast.over)).toContain('Storage is busy, trying again')
+      await wait(2_000)
+      expect(loaded()).toEqual([1])
+      expect(mockEngine.load).toHaveBeenLastCalledWith(1, { autoplay: true, startAt: 3 })
+
+      await act(async () => busy())
+      await wait(2_000)
+      expect(loaded()).toEqual([1])
+      await wait(2_000)
+      expect(loaded()).toEqual([1, 1])
+
+      // The bucket answers again: the song plays, nothing else is asked for.
+      await act(async () => mockEngineListener?.({ ...IDLE, playing: true, currentTime: 3 }))
+      expect(currentToasts().map(toast => toast.over)).not.toContain(
+        'Storage is busy, trying again',
+      )
+      await wait(60_000)
+      expect(loaded()).toEqual([1, 1])
+      expect(api.current?.id).toBe(1)
+      expect(mockEngine.pause).not.toHaveBeenCalled()
+    })
+
+    it('never skips down the queue, and stops once it has waited a few minutes', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      mockEngine.load.mockClear()
+
+      for (let tries = 0; tries < 30; tries++) {
+        await act(async () => busy())
+        await wait(30_000)
+      }
+
+      expect(new Set(loaded())).toEqual(new Set([1]))
+      expect(api.current?.id).toBe(1)
+      expect(mockEngine.pause).toHaveBeenCalled()
+      expect(currentToasts().map(toast => toast.say)).toContain(
+        'Your storage is still busy. Press Play to try “Song 1” again',
+      )
+    })
+
+    it('calls the wait off for a Pause, and for a song chosen meanwhile', async () => {
+      await draw()
+      await act(() => api.playFrom(SONGS, 0))
+      await act(async () => busy())
+      mockEngine.load.mockClear()
+
+      // Next to a song this device has: it plays, and song 1 is not asked for after all.
+      await act(() => api.next())
+      expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: true })
+      await wait(60_000)
+      expect(loaded()).toEqual([2])
+
+      await act(async () => busy())
+      await act(() => api.toggle())
+      await wait(60_000)
+      expect(loaded()).toEqual([2])
+    })
   })
 
   it('counts no play for a song that failed and was moved past', async () => {

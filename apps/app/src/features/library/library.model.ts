@@ -423,6 +423,7 @@ export function footNotice({
   keepsSongs,
   place,
   unsent,
+  stuck = false,
   now = new Date(),
 }: {
   /** Why the library did not come; null while it has. */
@@ -433,6 +434,8 @@ export function footNotice({
   keepsSongs: boolean
   place: DevicePlace
   unsent: number
+  /** Those edits wait because sending them failed, and are being tried again. */
+  stuck?: boolean
   now?: Date
 }): { title: string; body: string } | null {
   const stillPlay = keepsSongs ? `Songs on this ${place} still play. ` : ''
@@ -460,6 +463,17 @@ export function footNotice({
         ? 'Your change sends when you’re back.'
         : `Your ${unsent} changes send when you’re back.`
   if (offline) return { title: 'Offline', body: `${stillPlay}${changes}` }
+  if (!error && stuck && unsent > 0) {
+    // Whatever else the doorman answers, an edit the storage did not take is
+    // not saved, and a green dot over "Saving…" said it would be any moment.
+    return {
+      title: 'Not sent yet',
+      body:
+        unsent === 1
+          ? 'Your change didn’t go through. It’s sent again by itself.'
+          : `Your ${unsent} changes didn’t go through. They’re sent again by themselves.`,
+    }
+  }
   if (!error) return null
   if (answeredWithError(error)) {
     return {

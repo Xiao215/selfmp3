@@ -291,6 +291,95 @@ describe('tags', () => {
   })
 })
 
+describe('a tag its last songs took with them', () => {
+  const removing: Change[] = [
+    { type: 'songRemoved', hlc: at(1), uid: SONG_A },
+    { type: 'tagEmptied', hlc: at(2), uid: TAG_RAIN },
+  ]
+  const filled = snapshot({ songs: [song(SONG_A, { tagUids: [TAG_RAIN] }), song(SONG_B)] })
+
+  it('goes, and is kept aside in the snapshot', () => {
+    const library = replay(removing, filled)
+    expect(library.tags.has(TAG_RAIN)).toBe(false)
+    const written = snapshotOf(library, { writtenAt: 'now', writtenBy: 'mac-aaaa', upTo: {} })
+    expect(written.emptiedTags).toEqual([{ uid: TAG_RAIN, name: 'rain', hue: 200 }])
+    expect(CloudSnapshotSchema.safeParse(written).success).toBe(true)
+  })
+
+  // R3-M7: one device deletes the tag's last songs while another, which has
+  // not heard yet, puts the tag on a different song. The tag is being filled.
+  it('stays when another device tags a song with it, in whatever order they arrive', () => {
+    const tagging: Change = {
+      type: 'songTagged',
+      hlc: at(3, 'web-bbbb'),
+      uid: SONG_B,
+      tagUid: TAG_RAIN,
+      on: true,
+    }
+    for (const tagged of [tagging, { ...tagging, hlc: at(0.5, 'web-bbbb') }]) {
+      for (const order of permutations([...removing, tagged])) {
+        const library = syncLibrary(filled)
+        // One at a time, as the server hears them, pass by pass.
+        for (const change of order) applyChange(library, change)
+        expect(library.tags.get(TAG_RAIN)?.name).toBe('rain')
+        expect(library.songs.get(SONG_B)?.tagUids).toEqual([TAG_RAIN])
+        expect(library.emptied.size).toBe(0)
+      }
+    }
+  })
+
+  it('comes back from the snapshot that left it out', () => {
+    const written = snapshotOf(replay(removing, filled), {
+      writtenAt: 'now',
+      writtenBy: 'mac-aaaa',
+      upTo: {},
+    })
+    const library = replay(
+      [{ type: 'songTagged', hlc: at(3, 'web-bbbb'), uid: SONG_B, tagUid: TAG_RAIN, on: true }],
+      written,
+    )
+    expect(library.tags.get(TAG_RAIN)).toEqual({ uid: TAG_RAIN, name: 'rain', hue: 200 })
+    expect(library.songs.get(SONG_B)?.tagUids).toEqual([TAG_RAIN])
+  })
+
+  it('folds into a tag made under its name since', () => {
+    const again = uid(0x75)
+    const library = replay(
+      [
+        ...removing,
+        { type: 'tagCreated', hlc: at(3), uid: again, name: 'Rain', hue: 10 },
+        { type: 'songTagged', hlc: at(4, 'web-bbbb'), uid: SONG_B, tagUid: TAG_RAIN, on: true },
+      ],
+      filled,
+    )
+    expect(library.tags.has(TAG_RAIN)).toBe(false)
+    expect(library.aliases.get(TAG_RAIN)).toBe(again)
+    expect(library.songs.get(SONG_B)?.tagUids).toEqual([again])
+  })
+
+  it('does not come back for a tag taken off, or once it is removed for good', () => {
+    const off = replay(
+      [
+        ...removing,
+        { type: 'songTagged', hlc: at(3, 'web-bbbb'), uid: SONG_B, tagUid: TAG_RAIN, on: false },
+      ],
+      filled,
+    )
+    expect(off.tags.has(TAG_RAIN)).toBe(false)
+    const removed = replay(
+      [
+        ...removing,
+        { type: 'tagRemoved', hlc: at(3), uid: TAG_RAIN },
+        { type: 'songTagged', hlc: at(4, 'web-bbbb'), uid: SONG_B, tagUid: TAG_RAIN, on: true },
+      ],
+      filled,
+    )
+    expect(removed.tags.has(TAG_RAIN)).toBe(false)
+    expect(removed.emptied.size).toBe(0)
+    expect(removed.songs.get(SONG_B)?.tagUids).toEqual([])
+  })
+})
+
 describe('smart rules about tags', () => {
   const tagged = (tagUid: string) => ({
     match: 'all' as const,

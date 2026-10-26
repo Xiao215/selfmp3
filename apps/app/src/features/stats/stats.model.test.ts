@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 
 import {
@@ -205,9 +205,31 @@ describe('the cards', () => {
 
   it('says a span of days with the month once when it is one month', () => {
     const sep = (day: number) => new Date(2026, 8, day)
-    expect(spanWords(sep(6), sep(14))).toMatch(/^Sep\w* 6 to 14$/)
-    expect(spanWords(new Date(2026, 7, 30), sep(3))).toMatch(/^Aug\w* 30 to Sep\w* 3$/)
-    expect(spanWords(sep(14), sep(14))).toMatch(/^Sep\w* 14$/)
+    expect(spanWords(sep(6), sep(14))).toBe('Sep 6 to 14')
+    expect(spanWords(new Date(2026, 7, 30), sep(3))).toBe('Aug 30 to Sep 3')
+    expect(spanWords(sep(14), sep(14))).toBe('Sep 14')
+  })
+
+  it("says its months in English whatever language the reader's device is in", () => {
+    // A reader whose device is set to Chinese: the default locale is theirs.
+    const own = Date.prototype.toLocaleDateString
+    const spy = vi.spyOn(Date.prototype, 'toLocaleDateString').mockImplementation(function (
+      this: Date,
+      locales,
+      options,
+    ) {
+      return own.call(this, locales ?? 'zh-CN', options)
+    })
+    try {
+      expect(spanWords(new Date(2026, 9, 5), new Date(2026, 9, 25))).toBe('Oct 5 to 25')
+      const card = streakCard(
+        { range: '90d', daily: [], streakDays: 0, longestStreakDays: 0 },
+        new Date(2026, 9, 25),
+      )
+      expect(card.from).toBe('Jul 27')
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('says the year a run began when it was another year', () => {

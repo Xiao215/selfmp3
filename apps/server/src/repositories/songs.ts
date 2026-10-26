@@ -104,6 +104,13 @@ export class SongRepository {
   readonly #setCoverTone
   readonly #allPaths
   readonly #inFolder
+  readonly #leaving
+  readonly #allLeaving
+  readonly #copyGone
+  readonly #coverToRead
+  readonly #coverRead
+  readonly #isCoverToRead
+  readonly #coversToRead
   /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
   readonly #patches = new Map<string, Database.Statement>()
 
@@ -214,6 +221,21 @@ export class SongRepository {
     this.#inFolder = db.prepare<[string, string], { n: number }>(
       'SELECT COUNT(*) AS n FROM (SELECT 1 FROM songs WHERE path >= ? AND path < ? LIMIT 1)',
     )
+    this.#leaving = db.prepare<[string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM leaving_copies WHERE path = ?',
+    )
+    this.#allLeaving = db.prepare<[], { song_id: number; path: string }>(
+      'SELECT song_id, path FROM leaving_copies ORDER BY path',
+    )
+    this.#copyGone = db.prepare<[string]>('DELETE FROM leaving_copies WHERE path = ?')
+    this.#coverToRead = db.prepare<[number]>(
+      'INSERT OR IGNORE INTO covers_to_read (song_id) VALUES (?)',
+    )
+    this.#coverRead = db.prepare<[number]>('DELETE FROM covers_to_read WHERE song_id = ?')
+    this.#isCoverToRead = db.prepare<[number], { n: number }>(
+      'SELECT COUNT(*) AS n FROM covers_to_read WHERE song_id = ?',
+    )
+    this.#coversToRead = db.prepare<[], { song_id: number }>('SELECT song_id FROM covers_to_read')
   }
 
   all(): Song[] {
@@ -443,6 +465,8 @@ export class SongRepository {
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {
     this.#setArt.run(hasArt ? 1 : 0, extension, id)
+    // With a cover kept, none is still to be read out of its file.
+    if (hasArt) this.#coverRead.run(id)
   }
 
   /** The extension the song's kept cover was saved with (`setArt`), or null. */
@@ -505,5 +529,46 @@ export class SongRepository {
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#allPaths.all()
     return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
+  }
+
+  /**
+   * Whether a removed song's copy at this path is still to be deleted. A row's
+   * deletion notes its path (`leaving_copies`), so the note outlives a server
+   * killed before the copy went.
+   */
+  isLeaving(path: string): boolean {
+    return (this.#leaving.get(path)?.n ?? 0) > 0
+  }
+
+  /** Removed songs whose copies are still to be deleted, for a start to finish. */
+  leaving(): { id: number; path: string }[] {
+    return this.#allLeaving.all().map(row => ({ id: row.song_id, path: row.path }))
+  }
+
+  /** A removed song's copy is gone: the sweep may make a song of that path again. */
+  copyGone(path: string): void {
+    this.#copyGone.run(path)
+  }
+
+  /**
+   * The cover in this song's file could not be kept, and is to be read out
+   * of it again (`covers_to_read`). Until it is, the copy here is not let go.
+   */
+  coverToRead(id: number): void {
+    this.#coverToRead.run(id)
+  }
+
+  /** Nothing more to read out of this song's file for its cover: one is kept, or it has none. */
+  coverRead(id: number): void {
+    this.#coverRead.run(id)
+  }
+
+  isCoverToRead(id: number): boolean {
+    return (this.#isCoverToRead.get(id)?.n ?? 0) > 0
+  }
+
+  /** Every song with a cover still to read out of its file. */
+  coversToRead(): Set<number> {
+    return new Set(this.#coversToRead.all().map(row => row.song_id))
   }
 }

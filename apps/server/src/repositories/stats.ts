@@ -1,4 +1,5 @@
 import {
+  countsAsPlay,
   localDayKey,
   toSqliteTime,
   type DailyPlays,
@@ -54,6 +55,34 @@ export function sqliteTime(iso: string | undefined, now = Date.now()): string | 
   return toSqliteTime(ms)
 }
 
+/** How far ahead of this server's clock a play may say it was and still be taken for now. */
+const PLAYS_AHEAD_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Why nobody could have made this play, or null for one somebody could:
+ * nothing like a play heard (shared `countsAsPlay`, which running to the end
+ * does not get round), or a time no clock that was ever set gives — before
+ * 2000, or more than a day ahead. Those used to be recorded as now.
+ */
+export function impossiblePlay(
+  play: { readonly msPlayed: number; readonly completed: boolean; readonly playedAt?: string },
+  durationSeconds: number,
+  now = Date.now(),
+): string | null {
+  if (
+    !countsAsPlay(heardMs(play.msPlayed, durationSeconds) / 1000, durationSeconds, play.completed)
+  ) {
+    return 'not enough of the song was heard to be a play'
+  }
+  if (play.playedAt !== undefined) {
+    const ms = Date.parse(play.playedAt)
+    if (Number.isNaN(ms) || ms < PLAYS_BEGIN || ms > now + PLAYS_AHEAD_MS) {
+      return 'no clock could have played it then'
+    }
+  }
+  return null
+}
+
 /** How far past a song's length a play may run: a second's jitter per tick, and some. */
 const PLAY_SLACK_MS = 10_000
 
@@ -70,6 +99,7 @@ export function heardMs(msPlayed: number, durationSeconds: number): number {
 export class StatsRepository {
   readonly #db: Db
   readonly #record
+  readonly #overlapping
   readonly #playDates
   readonly #latestPlay
 
@@ -78,6 +108,24 @@ export class StatsRepository {
     this.#record = db.prepare(
       `INSERT OR IGNORE INTO play_events (song_id, ms_played, completed, played_at, client_id)
        VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?)`,
+    )
+    // Plays end when they are recorded, so two of one song overlap when their
+    // ends are closer together than the shorter of them lasted, less a second
+    // for times kept to the second.
+    this.#overlapping = db.prepare<
+      { songId: number; at: string | null; ms: number; clientId: string | null },
+      { n: number }
+    >(
+      `SELECT COUNT(*) AS n FROM (
+         SELECT 1 FROM play_events
+          WHERE song_id = @songId
+            AND (@clientId IS NULL OR client_id IS NOT @clientId)
+            AND played_at >= datetime(COALESCE(@at, 'now'), '-' || (@ms / 1000 + 1) || ' seconds')
+            AND played_at <= datetime(COALESCE(@at, 'now'), '+' || (@ms / 1000 + 1) || ' seconds')
+            AND abs(unixepoch(played_at) - unixepoch(COALESCE(@at, 'now'))) * 1000
+                  < min(ms_played, @ms) - 1000
+          LIMIT 1
+       )`,
     )
     this.#playDates = db.prepare<[], { date: string }>(
       "SELECT DISTINCT date(played_at, 'localtime') AS date FROM play_events ORDER BY date",
@@ -97,6 +145,22 @@ export class StatsRepository {
    */
   latestPlayId(): number {
     return this.#latestPlay.get()?.id ?? 0
+  }
+
+  /**
+   * Whether this song has another play recorded across the same stretch of
+   * time: one person cannot hear a song twice at once, so it is a copy of
+   * that play (a phone's log carried ten thousand plays of one three-second
+   * song, all ending at the same instant). A resend under its own `clientId`
+   * is not counted against itself: `record` already knows it.
+   */
+  overlaps(
+    songId: number,
+    msPlayed: number,
+    playedAt: string | null = null,
+    clientId: string | null = null,
+  ): boolean {
+    return (this.#overlapping.get({ songId, at: playedAt, ms: msPlayed, clientId })?.n ?? 0) > 0
   }
 
   /**

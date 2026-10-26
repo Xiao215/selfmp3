@@ -333,3 +333,124 @@ describe('POST /api/songs/merge', () => {
     expect(container.songs.byId(only)).not.toBeNull()
   })
 })
+
+/*
+ * Plays nobody could have made: a 0 ms "completed" play counted, a play dated
+ * year 1 or 2999 was recorded as now, seeking to the end of a twelve-minute
+ * song after three seconds was a full play, and one phone's log added ten
+ * thousand plays of a three-second song at the same instant.
+ */
+describe('POST /api/songs/:id/played', () => {
+  const variables = [
+    'SELFMP3_DATA_DIR',
+    'SELFMP3_LIBRARY_DIR',
+    'SELFMP3_LOG_LEVEL',
+    'SELFMP3_CLOUD_DIR',
+  ] as const
+  const saved = new Map<string, string | undefined>()
+  let root = ''
+  let token = ''
+  let container: Container
+  let server: http.Server
+  let origin = ''
+  const ids: Record<string, number> = {}
+
+  beforeAll(async () => {
+    for (const name of variables) saved.set(name, process.env[name])
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-played-'))
+    process.env['SELFMP3_DATA_DIR'] = path.join(root, 'data')
+    process.env['SELFMP3_LIBRARY_DIR'] = path.join(root, 'library')
+    process.env['SELFMP3_LOG_LEVEL'] = 'silent'
+    process.env['SELFMP3_CLOUD_DIR'] = 'bucket'
+
+    container = createContainer(loadConfig())
+    token = container.config.authToken ?? ''
+    for (const [name, duration] of [
+      ['sky', 735],
+      ['tiny', 4],
+      ['song', 200],
+    ] as const) {
+      ids[name] = container.songs.insert({
+        path: `${name}.m4a`,
+        title: name,
+        artist: '',
+        album: '',
+        albumArtist: '',
+        trackNo: null,
+        year: null,
+        duration,
+        sizeBytes: 1,
+        mime: 'audio/mp4',
+        mtimeMs: 0,
+        hasArt: false,
+        artExt: null,
+        lyricsKind: 'none',
+        sourceUrl: null,
+      })
+    }
+
+    server = http.createServer(createApp(container))
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  afterAll(async () => {
+    await new Promise<void>(resolve => server.close(() => resolve()))
+    container.close()
+    fs.rmSync(root, { recursive: true, force: true })
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  })
+
+  const play = async (id: number, body: object): Promise<Response> =>
+    fetch(`${origin}/api/songs/${id}/played`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  const playCount = (id: number): number => container.songs.byId(id)?.playCount ?? -1
+
+  it('refuses a play with nothing, or too little, heard, ran out or not', async () => {
+    const sky = ids['sky']!
+    expect((await play(sky, { msPlayed: 0, completed: true })).status).toBe(422)
+    expect((await play(sky, { msPlayed: 2566, completed: true })).status).toBe(422)
+    expect((await play(sky, { msPlayed: 30_000, completed: false })).status).toBe(422)
+    expect(playCount(sky)).toBe(0)
+  })
+
+  it('refuses a time no clock that was ever set gives, rather than calling it now', async () => {
+    const tiny = ids['tiny']!
+    for (const playedAt of ['0001-01-01T00:00:00Z', '2999-01-01T00:00:00Z']) {
+      expect((await play(tiny, { msPlayed: 5000, completed: true, playedAt })).status).toBe(422)
+    }
+    expect(playCount(tiny)).toBe(0)
+    // All of a short song, ending a little before its end was counted, is a play.
+    expect((await play(tiny, { msPlayed: 3200, completed: true })).status).toBe(200)
+    expect(playCount(tiny)).toBe(1)
+  })
+
+  it('takes a play across the same stretch as one already here for that play', async () => {
+    const song = ids['song']!
+    const at = '2026-09-01T09:00:00.000Z'
+    const first = await play(song, { msPlayed: 200_000, completed: true, playedAt: at })
+    expect(await first.json()).toEqual({ ok: true, duplicate: false })
+    const again = await play(song, {
+      msPlayed: 200_000,
+      completed: true,
+      playedAt: '2026-09-01T09:00:01.000Z',
+      clientId: 'another-play-0001',
+    })
+    expect(await again.json()).toEqual({ ok: true, duplicate: true })
+    // The next time round, straight after, is a play of its own.
+    const next = await play(song, {
+      msPlayed: 200_000,
+      completed: true,
+      playedAt: '2026-09-01T09:03:20.000Z',
+    })
+    expect(await next.json()).toEqual({ ok: true, duplicate: false })
+    expect(playCount(song)).toBe(2)
+  })
+})

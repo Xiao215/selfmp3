@@ -408,7 +408,7 @@ describe('CloudIngest', () => {
         uid: EXTRA,
         playId: 'play-late-0001',
         playedAt: '2026-09-01T09:00:00.000Z',
-        msPlayed: 30_000,
+        msPlayed: 70_000,
         completed: false,
       },
       { type: 'songTagged', hlc: at(12), uid: EXTRA, tagUid: RAIN, on: false },
@@ -555,6 +555,33 @@ describe('CloudIngest', () => {
       },
     ])
     expect(songs.byId(a)).toMatchObject({ title: 'Later', year: 1990 })
+  })
+
+  // One phone's log carried ten thousand plays of one song, all ending at the
+  // same instant, and every one of them counted; and plays nobody could have made.
+  it('takes in only plays somebody could have made', () => {
+    const a = addSong('Alpha')
+    const A = uidOf('songs', a)
+    const played = (n: number, over: Partial<Change & { type: 'songPlayed' }> = {}): Change => ({
+      type: 'songPlayed',
+      hlc: at(30 + n),
+      uid: A,
+      playId: `play-${String(n).padStart(8, '0')}`,
+      playedAt: '2026-09-01T09:00:00.000Z',
+      msPlayed: 90_000,
+      completed: true,
+      ...over,
+    })
+    const result = ingest.apply([
+      ...Array.from({ length: 200 }, (_, n) => played(n)),
+      played(300, { msPlayed: 0 }),
+      played(301, { msPlayed: 2000, playedAt: '2026-09-02T09:00:00.000Z' }),
+      played(302, { playedAt: '2999-01-01T00:00:00.000Z' }),
+      // The next time round is a play of its own.
+      played(303, { playedAt: '2026-09-01T09:01:41.000Z' }),
+    ])
+    expect(result.applied).toBe(2)
+    expect(songs.byId(a)?.playCount).toBe(2)
   })
 
   it('stamps what the server does after anything it has taken in', () => {

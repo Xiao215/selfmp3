@@ -250,8 +250,10 @@ describe('keeping songs where they stream from the bucket', () => {
     await draw()
     await act(() => api.playFrom([1, 2, 3], 0))
 
-    // A song that ran out counts, once some of it was heard.
-    await act(() => listen(5))
+    // A song that ran out counts a second short of its minute: the last tick
+    // before the end may not have been counted.
+    await act(() => listen(59))
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
     await act(() => mockWiring.onTrackEnd?.())
 
     expect(mockKeepPlayed).toHaveBeenCalledWith(1)
@@ -261,13 +263,24 @@ describe('keeping songs where they stream from the bucket', () => {
     expect(mockEngine.refreshLookahead).toHaveBeenCalled()
   })
 
+  // Seeking to the end of a long song a few seconds in "completed" it, and it counted.
+  it('does not count a song run out with only seconds of it heard', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(() => listen(5))
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
   it('lends nothing again when the next song could not be kept', async () => {
     mockKeepAhead.mockImplementation(() => Promise.resolve(false))
     await draw()
     await act(() => api.playFrom([1, 2], 0))
     mockEngine.refreshLookahead.mockClear()
 
-    await act(() => listen(5))
+    await act(() => listen(59))
     await act(() => mockWiring.onTrackEnd?.())
     await act(() => Promise.resolve())
 

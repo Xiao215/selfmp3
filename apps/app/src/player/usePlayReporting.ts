@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import { AppState } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Song } from '@selfmp3/shared'
-import { queryKeys, secondsToCount } from '@selfmp3/client'
+import { countsAsPlay, queryKeys } from '@selfmp3/client'
 
 import { flushListens, recordListen } from '../offline/listenOutbox'
 
@@ -62,11 +62,9 @@ export function usePlayReporting({
       if (songId === null || held.counted) return
 
       const song = songs.current.get(songId)
-      const needed = secondsToCount(song?.duration ?? 0)
-      if (!completed && held.listenedSeconds < needed) return
-      // A song that "ended" with nothing of it heard never sounded: one that
-      // failed, which the player moved past. Not a play, and not Song of the week.
-      if (held.listenedSeconds <= 0) return
+      // Not for running out alone: a seek to the end "completes" a song, and
+      // one that failed and was moved past "ended" with nothing heard.
+      if (!countsAsPlay(held.listenedSeconds, song?.duration ?? 0, completed)) return
 
       held.counted = true
       const counted = countAs(songId)

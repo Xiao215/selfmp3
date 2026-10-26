@@ -663,8 +663,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       },
 
       onTrackEnd: () => {
-        // A song that ran out counts however little of it was heard after the
-        // threshold — it finished, which is the strongest evidence there is.
+        // A song that ran out is let off the last tick the player may not have
+        // counted — but only if it was heard (shared `countsAsPlay`): seeking
+        // to the end runs a song out too.
         flushPlay(true)
 
         // "End of this song": used up by the first song to end after it was

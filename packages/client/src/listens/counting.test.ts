@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { listenedDelta, secondsToCount, PLAY_COUNT_SECONDS } from './counting.js'
+import { countsAsPlay, listenedDelta, secondsToCount, PLAY_COUNT_SECONDS } from './counting.js'
 
 /**
  * These two decide play counts, and play counts are what stats and Wrapped are
@@ -50,5 +50,30 @@ describe('secondsToCount', () => {
     // Duration is 0 until the metadata loads; the callers check for it, and
     // this must not be the thing that makes an unplayed song count.
     expect(secondsToCount(0)).toBe(0)
+  })
+})
+
+describe('countsAsPlay', () => {
+  it('needs the minute, or all of a shorter song', () => {
+    expect(countsAsPlay(59, 735, false)).toBe(false)
+    expect(countsAsPlay(60, 735, false)).toBe(true)
+    expect(countsAsPlay(42, 42, false)).toBe(true)
+  })
+
+  // Seeking to the end after three seconds "completed" a twelve-minute song.
+  it('does not take running out for listening', () => {
+    expect(countsAsPlay(2.5, 735, true)).toBe(false)
+    expect(countsAsPlay(0, 4, true)).toBe(false)
+  })
+
+  it('lets a song that ran out off the last tick', () => {
+    expect(countsAsPlay(58.5, 735, true)).toBe(true)
+    expect(countsAsPlay(3.2, 4, true)).toBe(true)
+    expect(countsAsPlay(58.5, 735, false)).toBe(false)
+  })
+
+  it('counts any listening of a song whose length is not known', () => {
+    expect(countsAsPlay(0.5, 0, false)).toBe(true)
+    expect(countsAsPlay(0, 0, false)).toBe(false)
   })
 })

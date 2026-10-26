@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { bucketHold } from '@selfmp3/replica'
+import { bucketHold, doormanTrouble } from '@selfmp3/replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import {
   dataAnswer,
@@ -40,6 +40,7 @@ import {
 import { onPlayedKeys, playedKeys } from '../ports/playedCopies'
 import { prefs as prefStore } from '../ports/prefs'
 import { useConnection } from '../connection/ConnectionProvider'
+import { useDoormanTrouble } from '../connection/useDoormanTrouble'
 import { useConnectionKind } from './connectionKind'
 import { downloadQueue } from './downloads'
 import { useSongsById } from '../ui/songsById'
@@ -304,7 +305,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
   const held = useBucketHold('read') !== null && fromCloud
   // A browser too, on the bucket's day: it has nothing else to stream from.
   // Offline it fades nothing, since its worker may answer more than it lists.
-  const streamBlocked = fromCloud && (held || (installedApp && network === 'none'))
+  // Nothing answering from the storage, though the device is online, is the
+  // bucket's day again: the songs played here still play, and only those.
+  const unreachable = useDoormanTrouble()?.kind === 'unreachable' && fromCloud
+  const streamBlocked = fromCloud && (held || unreachable || (installedApp && network === 'none'))
   useEffect(() => {
     if (!held) return undefined
     const timer = setTimeout(() => {
@@ -555,6 +559,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
         // Asked at the moment of playing, like the rest: a hold comes and goes
         // by the minute, and the player asks this for every song it lines up.
         bucketHeld: bucketHold('read') !== null,
+        storageUnreachable: doormanTrouble()?.kind === 'unreachable',
         dataAllowed: now.dataAllowed,
       })
     },
@@ -595,6 +600,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
           return
         case 'offline':
         case 'held':
+        case 'unreachable':
           return
       }
     },

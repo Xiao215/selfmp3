@@ -100,5 +100,12 @@ function wordsFor(
         confirm: 'OK',
         cancel: null,
       }
+    case 'unreachable':
+      return {
+        title: quoted,
+        body: `Your storage can’t be reached right now, so only songs on this ${place} play until it answers again.`,
+        confirm: 'OK',
+        cancel: null,
+      }
   }
 }

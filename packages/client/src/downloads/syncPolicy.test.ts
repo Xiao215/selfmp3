@@ -135,6 +135,7 @@ describe('playing a song that is not downloaded', () => {
     streamUndownloaded: true,
     fromCloud: false,
     bucketHeld: false,
+    storageUnreachable: false,
     dataAllowed: false,
   }
 
@@ -190,6 +191,14 @@ describe('playing a song that is not downloaded', () => {
       expect(playBlock({ ...cloud, bucketHeld: true, network: 'none' })).toBe('offline')
       // A library on a server does not answer to the bucket's day.
       expect(playBlock({ ...song, bucketHeld: true })).toBeNull()
+    })
+
+    it('does not try one with the storage out of reach, though the device is online', () => {
+      expect(playBlock({ ...cloud, storageUnreachable: true })).toBe('unreachable')
+      expect(playBlock({ ...cloud, storageUnreachable: true, downloaded: true })).toBeNull()
+      expect(playBlock({ ...cloud, storageUnreachable: true, bucketHeld: true })).toBe('held')
+      // A library on a server does not stream from the storage.
+      expect(playBlock({ ...song, storageUnreachable: true })).toBeNull()
     })
   })
 

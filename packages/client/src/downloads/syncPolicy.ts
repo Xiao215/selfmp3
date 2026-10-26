@@ -170,7 +170,7 @@ export function downloadAsk(
 }
 
 /** Why a song cannot start here, or null when it can. */
-export type PlayBlock = 'offline' | 'held' | 'streaming-off' | 'data'
+export type PlayBlock = 'offline' | 'held' | 'unreachable' | 'streaming-off' | 'data'
 
 export function playBlock({
   downloaded,
@@ -179,6 +179,7 @@ export function playBlock({
   streamUndownloaded,
   fromCloud,
   bucketHeld,
+  storageUnreachable,
   dataAllowed,
 }: {
   /** A file here already: a download, or a copy kept because it was played. */
@@ -202,11 +203,19 @@ export function playBlock({
    * songs it played counts as `downloaded`, and nothing else can come.
    */
   bucketHeld: boolean
+  /**
+   * Nothing answers from the storage: the doorman, or the way to it, is down,
+   * though the device says it is online (replica's `doormanTrouble`). The
+   * same as a refusal for a song not here: tried, it failed, was retried and
+   * skipped, three at a time, before the songs this device has.
+   */
+  storageUnreachable: boolean
   dataAllowed: boolean
 }): PlayBlock | null {
   if (downloaded) return null
   if (network === 'none') return 'offline'
   if (fromCloud && bucketHeld) return 'held'
+  if (fromCloud && storageUnreachable) return 'unreachable'
   if (!installed) return null
   if (!streamUndownloaded) return 'streaming-off'
   if (network === 'cellular' && !dataAllowed) return 'data'

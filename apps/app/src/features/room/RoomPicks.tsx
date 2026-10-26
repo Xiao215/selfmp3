@@ -33,8 +33,11 @@ import { sayRoomFailure } from './roomFailure'
  */
 export function MyLibraryPicker({
   onAdd,
+  has,
 }: {
   onAdd: (song: RoomSong) => Promise<boolean>
+  /** Songs already where they would go, by id: marked as there, not offered. */
+  has?: ReadonlySet<number>
 }): ReactNode {
   const [added, setAdded] = useState<ReadonlySet<number>>(new Set())
 
@@ -51,7 +54,7 @@ export function MyLibraryPicker({
     <View style={styles.tab}>
       <LibrarySongPicker
         order="played"
-        stateOf={song => (added.has(song.id) ? 'added' : 'add')}
+        stateOf={song => (added.has(song.id) ? 'added' : has?.has(song.id) ? 'has' : 'add')}
         onAdd={song => void add(song)}
         testID="room-add-search"
       />

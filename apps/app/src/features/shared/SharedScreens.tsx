@@ -10,7 +10,7 @@ import {
   type SharedSummary,
   SharedNameSchema,
 } from '@selfmp3/shared'
-import { radius, sharedInviteLink, space, type } from '@selfmp3/client'
+import { radius, sharedInviteLink, space, type, yoursOf } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -108,6 +108,13 @@ export function SharedPlaylistScreen(): ReactNode {
   }
 
   const rows = sharedRows(playlist)
+  // Your songs that are in it already, by file: Add songs marks them, as the doorman refuses them.
+  const inIt = new Set(
+    playlist.entries.flatMap(entry => {
+      const yours = yoursOf(entry.song, index)
+      return yours === null ? [] : [yours]
+    }),
+  )
   const ids = rows.map(row => row.trackId)
   const playHere = (start = 0): void => {
     if (ids.length > 0) player.playFrom(ids, start)
@@ -210,6 +217,7 @@ export function SharedPlaylistScreen(): ReactNode {
         width={480}
       >
         <MyLibraryPicker
+          has={inIt}
           onAdd={song =>
             act({ type: 'add', song }).then(
               () => true,

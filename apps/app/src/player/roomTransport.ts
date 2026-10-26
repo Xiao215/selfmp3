@@ -10,7 +10,7 @@
  * provider drives the player with.
  */
 
-export type TransportStep = 'previous' | 'toggle' | 'next'
+type TransportStep = 'previous' | 'toggle' | 'next'
 
 /** Takes a press, or answers false to leave it to the player. */
 type Taker = (step: TransportStep) => boolean
@@ -22,7 +22,7 @@ export function setRoomTransport(next: Taker | null): void {
 }
 
 /** Whether the room took this press. */
-export function roomTakes(step: TransportStep): boolean {
+function roomTakes(step: TransportStep): boolean {
   return taker?.(step) ?? false
 }
 

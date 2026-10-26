@@ -18,12 +18,14 @@ export const FULL_SCREEN_ROUTES: readonly string[] = [...GATE_ROUTES, '/now-play
  * The pages that open without signing in: joining a room from its invite
  * link, the room itself, and a share link — all a friend without self.mp3
  * ever sees (docs/features/listen-together.md, docs/features/share-links.md).
- * Each has its own head, so no chrome.
+ * Each has its own head, so no chrome. In a room, Search too: it is where a
+ * guest adds what is in the room, or a link (A2).
  */
-export function opensSignedOut(pathname: string): boolean {
+export function opensSignedOut(pathname: string, inRoom = false): boolean {
   // A shared playlist's invite opens too, to say that joining one needs signing in.
   return (
     pathname === '/room' ||
+    (inRoom && pathname === '/search') ||
     pathname.startsWith('/join/') ||
     pathname.startsWith('/l/') ||
     /^\/shared\/[^/]+\/join\//.test(pathname)

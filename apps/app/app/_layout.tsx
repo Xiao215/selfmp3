@@ -41,6 +41,7 @@ import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { useLayoutFlags } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
+import { useRoom } from '../src/features/room/room.store'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
@@ -263,6 +264,8 @@ function RootRoutes(): ReactNode {
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
+  // A guest in a room adds to it from Search (`opensSignedOut`).
+  const inRoom = useRoom().pass !== null
   const { wide } = useLayoutFlags()
   const reduced = useMotionReduced()
   // A face that failed to load is not a reason to keep the app shut: the system
@@ -291,10 +294,10 @@ function RootRoutes(): ReactNode {
     // tests. Signing out lands here too, by the same rule.
     // A room's invite and the room itself are the exception: a friend
     // without self.mp3 joins with a name (docs/features/listen-together.md).
-    if (status === 'missing' && pathname !== '/welcome' && !opensSignedOut(pathname)) {
+    if (status === 'missing' && pathname !== '/welcome' && !opensSignedOut(pathname, inRoom)) {
       router.replace('/welcome')
     }
-  }, [status, pathname, router])
+  }, [status, pathname, router, inRoom])
 
   // Welcome with a library is done: an account with no bucket yet goes to
   // Where it lives, a device's first Google sign-in goes on to First sync,

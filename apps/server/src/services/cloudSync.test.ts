@@ -31,7 +31,7 @@ import { CloudError, type CloudStore } from '../bucket/store.js'
 import { MemoryCloudStore } from './fixtures/memoryStore.js'
 import { KeptCloudFiles } from '../bucket/kept.js'
 import { AudioFeaturesRepository } from '../repositories/audioFeatures.js'
-import { ANALYSIS_VERSION } from '@selfmp3/shared'
+import { ANALYSIS_VERSION, encodeSoundMap, parseSoundMap } from '@selfmp3/shared'
 import { CloudRepository } from '../repositories/cloud.js'
 import { MotionStore } from './motionStore.js'
 import { ImportRepository } from '../repositories/imports.js'
@@ -58,6 +58,8 @@ import { SoundVectorsRepository } from '../repositories/soundVectors.js'
 import { SOUND_MODEL, SoundModelFiles } from '../sound/models.js'
 import { decodePack, encodePack } from '../sound/pack.js'
 import { SoundService } from '../sound/sound.js'
+import { SoundMapService } from '../sound/soundMap.js'
+import { SoundMapRepository } from '../repositories/soundMap.js'
 import { SOUND_DIMENSIONS, toBlob } from '../sound/vectors.js'
 
 /**
@@ -1228,6 +1230,103 @@ describe('CloudSyncService', () => {
       await pass()
       expect(vectors.countHeard(MODEL)).toBe(1)
       expect(latest().sound!.key).toBe(key)
+    })
+  })
+
+  describe('the sound map', () => {
+    const MODEL = SOUND_MODEL.name
+    let vectors: SoundVectorsRepository
+    let sound: SoundService
+    let soundMap: SoundMapService
+    let maps: SoundMapRepository
+
+    beforeEach(() => {
+      const logger = createLogger('silent')
+      const config = { dataDir, sound: { enabled: true, models: dataDir, threads: 1 } }
+      vectors = new SoundVectorsRepository(db)
+      sound = new SoundService({
+        config,
+        vectors,
+        logger,
+        files: new SoundModelFiles({ config, logger, files: [] }),
+        makeModel: () => {
+          throw new Error('nothing is heard here')
+        },
+      })
+      maps = new SoundMapRepository(db)
+      soundMap = new SoundMapService({
+        repo: maps,
+        sound,
+        logger,
+        changed: () => sync.kick(),
+        pause: async () => {},
+      })
+    })
+    afterEach(() => soundMap.stop())
+
+    const along = (axis: number): Float32Array => {
+      const v = new Float32Array(SOUND_DIMENSIONS)
+      v[axis] = 1
+      return v
+    }
+    const mapPuts = (): string[] => bucket.puts.filter(key => key.endsWith('.map'))
+    const mapOf = (snapshot: CloudSnapshot) =>
+      parseSoundMap(bucket.objects.get(snapshot.soundMap!.key)!.body.toString('utf8'))
+
+    it('puts every heard song’s place in the bucket beside the vectors, and names it in the snapshot', async () => {
+      const ids = ['a', 'b', 'c', 'd'].map(name => addSong(`Artist - ${name}`, name))
+      ids.forEach((id, index) => vectors.upsert(id, MODEL, along(index)))
+      const unheard = addSong('Nova - Dusk', 'dusk')
+      sync = makeSync({ sound, soundMap })
+      await connect()
+      await soundMap.refresh()
+      await vi.waitFor(() => expect(latest().soundMap).toBeDefined())
+
+      const snapshot = latest()
+      const [key] = mapPuts()
+      expect(snapshot.soundMap).toEqual({ key, size: bucket.objects.get(key!)!.body.length })
+      expect([...mapOf(snapshot)!.keys()].sort()).toEqual(
+        ids.map(id => cloud.state(id)!.audioKey).sort(),
+      )
+      expect(soundMap.forLibrary().unheard).toBe(1)
+      expect(soundMap.forLibrary().places.map(place => place.id)).not.toContain(unheard)
+
+      // Nothing new heard: nothing folded or sent again.
+      await pass()
+      await soundMap.refresh()
+      expect(mapPuts()).toHaveLength(1)
+    })
+
+    it('starts from the bucket’s map when it has none of its own', async () => {
+      const songs = ['a', 'b', 'c', 'd'].map(name => theirSong(`Artist - ${name}`))
+      const pack = encodePack(
+        MODEL,
+        songs.map((song, index) => ({ audioKey: song.audio.key, vector: toBlob(along(index)) })),
+      )
+      const packKey = `lyrics/${sha(pack)}.vec`
+      bucket.objects.set(packKey, { body: pack, contentType: 'application/octet-stream' })
+      const placed = new Map(songs.map((song, index) => [song.audio.key, { x: index / 4, y: 0.5 }]))
+      const map = Buffer.from(encodeSoundMap(placed))
+      const mapKey = `lyrics/${sha(map)}.map`
+      bucket.objects.set(mapKey, { body: map, contentType: 'application/json' })
+      seedBucket(
+        CloudSnapshotSchema.parse({
+          ...theirSnapshot({ songs }),
+          sound: { model: MODEL, key: packKey, size: pack.length },
+          soundMap: { key: mapKey, size: map.length },
+        }),
+      )
+      sync = makeSync({ sound, soundMap })
+      await connect()
+
+      // Taken back, then folded again from the vectors taken back, starting
+      // where the songs sat.
+      await soundMap.refresh()
+      expect(maps.get()?.sig).toBe(sound.packSignature())
+      const again = parseSoundMap(maps.get()!.data)!
+      expect(again.size).toBe(4)
+      const order = [...again.entries()].sort((a, b) => a[1].x - b[1].x).map(([key]) => key)
+      expect([order[0], order[3]].sort()).toEqual([songs[0]!.audio.key, songs[3]!.audio.key].sort())
     })
   })
 

@@ -41,6 +41,7 @@ export * from './queue/playable.js'
 export * from './queue/recovery.js'
 // Auto-mix: the upcoming queue in a smooth order, and the fade for each handover.
 export * from './queue/autoMix.js'
+export * from './soundMap/soundMap.js'
 
 /** Filtering and sorting a library, which every client does the same way. */
 export * from './library/filter.js'

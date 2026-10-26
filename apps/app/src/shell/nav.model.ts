@@ -16,11 +16,11 @@
  * and Playlists as a section whose header is the way to the playlists page.
  */
 
-export type NavId = 'home' | 'library' | 'playlists' | 'import' | 'stats'
+export type NavId = 'home' | 'library' | 'playlists' | 'import' | 'stats' | 'soundMap'
 
 interface NavPlace {
   readonly id: NavId
-  readonly href: '/' | '/library' | '/playlists' | '/import' | '/stats'
+  readonly href: '/' | '/library' | '/playlists' | '/import' | '/stats' | '/sound-map'
   readonly label: string
   /** One of the phone's tabs. */
   readonly tab: boolean
@@ -38,6 +38,7 @@ export const NAV: readonly NavPlace[] = [
   // page's business — leaving the row out would say the feature did not exist.
   { id: 'import', href: '/import', label: 'Import', tab: false, rail: 'row' },
   { id: 'stats', href: '/stats', label: 'Stats', tab: false, rail: 'row' },
+  { id: 'soundMap', href: '/sound-map', label: 'Sound map', tab: false, rail: 'row' },
 ]
 
 export type TabHref = '/' | '/library' | '/playlists'
@@ -54,6 +55,7 @@ const HOME_PAGES = [
   '/past-room',
   '/profile',
   '/stats',
+  '/sound-map',
   '/settings',
   '/import',
 ] as const

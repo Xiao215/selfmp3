@@ -122,6 +122,7 @@ describe('/api/cloud/uids', () => {
     health: unknown = '<html>Sign in to the Wi-Fi</html>',
     snapshotBytes?: string,
     snapshot: CloudSnapshot = SNAPSHOT,
+    bucketFiles: Record<string, unknown> = {},
   ) {
     const data = new Map<string, unknown>()
     const clone = (value: unknown): unknown =>
@@ -145,6 +146,7 @@ describe('/api/cloud/uids', () => {
 
     const files = new Map<string, unknown>([
       ['snapshots/20260911T100000000Z-mac-3f9a1c2e.json', snapshot],
+      ...Object.entries(bucketFiles),
     ])
     const reply = (status: number, body: unknown): Promise<CloudResponse> =>
       Promise.resolve({
@@ -395,6 +397,25 @@ describe('/api/cloud/uids', () => {
     const songId = (title: string) => library.songs.find(row => row.title === title)?.id ?? 0
     return { made, a: songId('Song a'), b: songId('Song b'), mix: library.playlists[0]?.id ?? 0 }
   }
+
+  it('places the heard songs on the sound map from the file the snapshot names, read once', async () => {
+    const mapKey = `lyrics/${'e'.repeat(64)}.map`
+    const made = device(
+      undefined,
+      undefined,
+      { ...SNAPSHOT, soundMap: { key: mapKey, size: 60 } },
+      { [mapKey]: { places: [[`audio/${'a'.repeat(64)}.m4a`, 2500, 7500]] } },
+    )
+    await made.session.saveSession(SESSION)
+    const library = (await made.cloudRequest('GET', '/api/library', undefined)) as {
+      songs: { id: number; title: string }[]
+    }
+    const a = library.songs.find(row => row.title === 'Song a')?.id
+    const expected = { places: [{ id: a, x: 0.25, y: 0.75 }], unheard: 1 }
+    expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
+    expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
+    expect(made.fetched.filter(path => path.endsWith('.map'))).toHaveLength(1)
+  })
 
   it('says a song with no words is instrumental the way the server does', async () => {
     const { made, a, b } = await signedIn()

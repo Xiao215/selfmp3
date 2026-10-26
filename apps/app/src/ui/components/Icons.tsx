@@ -341,6 +341,19 @@ export const Sparkles = icon(() => (
 
 export const BarChart = icon(() => <Path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />)
 
+/** The sound map: songs gathered in two places, and a drift between them. */
+export const SoundMap = icon(color => (
+  <>
+    <Circle cx="6" cy="7" r="1.6" fill={color} stroke="none" />
+    <Circle cx="9.5" cy="5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="8.5" cy="9.5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="15.5" cy="17" r="1.6" fill={color} stroke="none" />
+    <Circle cx="19" cy="14.5" r="1.6" fill={color} stroke="none" />
+    <Circle cx="18" cy="19" r="1.6" fill={color} stroke="none" />
+    <Path d="M5 13c1 4 5 5 8 4.5M11 7c4 0 7 2 7.5 5" strokeDasharray="1.5 2.5" />
+  </>
+))
+
 export const Settings = icon(() => (
   <>
     <Circle cx="12" cy="12" r="3" />

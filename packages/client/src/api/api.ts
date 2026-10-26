@@ -70,6 +70,7 @@ import {
   SimilarSongsSchema,
   SongHistorySchema,
   UsualHoursSchema,
+  SoundMapSchema,
   SongSchema,
   StatsSchema,
   WrappedSchema,
@@ -365,6 +366,9 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     similar: (id: number, limit: number) =>
       request('GET', `/api/songs/${id}/similar?limit=${limit}`, SimilarSongsSchema),
+
+    /** Every heard song's place on the sound map (docs/features/sound-map.md). */
+    soundMap: () => request('GET', '/api/sound-map', SoundMapSchema),
 
     /** The multi-select delete. */
     bulkDeleteSongs: async (input: BulkDeleteSongs): Promise<BulkDeleteResult> => {

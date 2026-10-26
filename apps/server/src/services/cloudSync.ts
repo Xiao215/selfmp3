@@ -31,6 +31,7 @@ import {
   snapshotFileKeys,
   snapshotKey,
   snapshotsToPrune,
+  soundMapKey,
   soundVectorsKey,
   playsKey,
   parseCloudWords,
@@ -43,6 +44,7 @@ import {
   type CloudPlays,
   type CloudCoverPack,
   type CloudSound,
+  type CloudSoundMap,
   type CloudWords,
   type CloudStatus,
   type DoormanMe,
@@ -83,6 +85,7 @@ import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudS
 import type { LyricsService } from './lyrics.js'
 import type { MetadataService } from './metadata.js'
 import type { MotionStore } from './motionStore.js'
+import type { SoundMapService } from '../sound/soundMap.js'
 import type { SoundService } from '../sound/sound.js'
 import type { PlaysArchive } from './playsArchive.js'
 import {
@@ -308,6 +311,12 @@ interface CloudSyncDeps {
    */
   readonly sound?: Pick<SoundService, 'model' | 'hearing' | 'packSignature' | 'pack' | 'restore'>
   /**
+   * Where every heard song sits on the sound map (sound/soundMap.ts), as one
+   * small file beside the vectors, for devices to draw. Absent where the map
+   * is not what is being tested, which then sends none.
+   */
+  readonly soundMap?: Pick<SoundMapService, 'file' | 'refresh' | 'adopt'>
+  /**
    * When each song was played, a file a month beside the words
    * (services/playsArchive.ts), so the history outlives this server's
    * database. Absent where plays are not what is being tested.
@@ -443,6 +452,8 @@ export class CloudSyncService {
    * before that snapshot has been looked at.
    */
   #bucketSound: CloudSound | null | undefined = undefined
+  /** Likewise the sound map the bucket's snapshot named, until it has been read back. */
+  #bucketSoundMap: CloudSoundMap | null | undefined = undefined
   /**
    * Pictures named in the library whose bytes this server does not have, as
    * the last look for them found: not looked for again every pass. A cover
@@ -651,6 +662,7 @@ export class CloudSyncService {
       this.#adopted = false
       this.#coversSwept = false
       this.#bucketSound = undefined
+      this.#bucketSoundMap = undefined
       this.#forgetBucketReads()
     }
     return this.#pass()
@@ -1119,6 +1131,8 @@ export class CloudSyncService {
       if (generation !== this.#generation || this.#stopped) return
       await this.#uploadSound(store)
       if (generation !== this.#generation || this.#stopped) return
+      await this.#uploadSoundMap(store)
+      if (generation !== this.#generation || this.#stopped) return
       if (await this.#uploadPlays(store)) this.#playsCovered = this.#deps.sync?.cursors() ?? {}
 
       if (generation !== this.#generation) return
@@ -1547,6 +1561,7 @@ export class CloudSyncService {
     const newest = await this.#newestSnapshot(store)
     if (!newest) {
       this.#bucketSound = null
+      this.#bucketSoundMap = null
       this.#bucketPlays = null
       this.#adopted = true
       return
@@ -1566,6 +1581,7 @@ export class CloudSyncService {
       )
     }
     this.#bucketSound = snapshot.sound
+    this.#bucketSoundMap = snapshot.soundMap ?? null
     this.#bucketPlays = snapshot.plays ?? []
     this.#takeOnCoverPacks(snapshot.coverPacks)
     if (snapshot.writtenBy === this.#deviceId()) {
@@ -2017,6 +2033,53 @@ export class CloudSyncService {
       cloud.saveSound({ ...named, sig: '', uploadedAt: this.#now().toISOString() })
     }
     this.#bucketSound = null
+  }
+
+  /**
+   * The sound map's file (sound/soundMap.ts), when it is not the one in the
+   * bucket. The fold itself is started here and not waited for: it can take
+   * a while on a Pi, and a new map asks for a pass of its own when it is made.
+   */
+  async #uploadSoundMap(store: CloudStore): Promise<void> {
+    const soundMap = this.#deps.soundMap
+    if (!soundMap) return
+    const { cloud } = this.#deps
+    await this.#readBucketSoundMap(store, soundMap)
+    void soundMap.refresh()
+    const file = soundMap.file()
+    if (file === null) {
+      if (!cloud.soundState()) cloud.dropSoundMap()
+      return
+    }
+    const data = Buffer.from(file)
+    const key = soundMapKey(sha256(data))
+    if (cloud.soundMapState()?.key === key) return
+    await this.#putOnce(store, key, data, 'application/json')
+    cloud.saveSoundMap({ key, size: data.length })
+  }
+
+  /**
+   * The map the bucket's snapshot named when its library was taken on: a
+   * server with no map of its own starts its next fold from it, so the map
+   * every device has been drawing holds still. Read once.
+   */
+  async #readBucketSoundMap(
+    store: CloudStore,
+    soundMap: NonNullable<CloudSyncDeps['soundMap']>,
+  ): Promise<void> {
+    const named = this.#bucketSoundMap
+    if (!named) return
+    const { cloud } = this.#deps
+    if (cloud.soundMapState()?.key !== named.key) {
+      if (soundMap.file() === null) {
+        const data = await store.get(named.key)
+        if (data && soundMap.adopt(data.toString('utf8'))) {
+          this.#logger.info('took the sound map back from the bucket', { key: named.key })
+        }
+      }
+      cloud.saveSoundMap(named)
+    }
+    this.#bucketSoundMap = null
   }
 
   /**
@@ -2509,6 +2572,7 @@ export class CloudSyncService {
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.
       sound: this.#bucketSound ?? cloud.soundState(),
+      soundMap: this.#bucketSoundMap ?? cloud.soundMapState(),
       // Likewise the bucket's months of plays, until they have been read back.
       plays: this.#bucketPlays ?? cloud.playsStates(),
       tags: tags.all(),
@@ -2695,6 +2759,7 @@ export class CloudSyncService {
     this.#adopted = false
     this.#coversSwept = false
     this.#bucketSound = undefined
+    this.#bucketSoundMap = undefined
     this.#bucketPlays = undefined
     this.#adopting = null
     this.#checkedAgainstBucket = false

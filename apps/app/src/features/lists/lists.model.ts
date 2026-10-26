@@ -33,6 +33,7 @@ import {
  * names it, but it is neither saved nor remembered as a list of its own, since
  * Recently played already is that list. `upnext` is Up next built by hand:
  * songs added to one song, or to the whole library (`sourceAfterAdding`).
+ * `map` is a spot or a drawn path on the sound map ("Near 晴る", "night → calm").
  */
 const SONGS_ORIGINS = [
   'search',
@@ -45,6 +46,7 @@ const SONGS_ORIGINS = [
   'liked',
   'upnext',
   'usual',
+  'map',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
@@ -793,6 +795,8 @@ export function recentKind(source: ListSource): string {
           return 'Lined up'
         case 'usual':
           return 'At this hour'
+        case 'map':
+          return 'Sound map'
       }
     case 'room':
       return 'Together'

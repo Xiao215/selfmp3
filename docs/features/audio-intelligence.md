@@ -169,6 +169,9 @@ ten idle minutes.
   songs are the answer, with no second model call; otherwise the model picks from the
   best-sounding 300 of them, with a `sound` column (0–100). The app shows the part as a chip,
   "Sounds like calm orchestral…", that can be taken away.
+- **The sound map** ([sound-map.md](sound-map.md)): every heard song placed on a plane by
+  how it sounds, the vectors folded down to two numbers on the server, for pressing a spot to
+  hear what is there or drawing a drift from one place to another.
 - **"More like this"** in Ask, with a song playing: when the router says they want music like
   it (`like`), the songs that fit are ordered by how close they sound to it, with no cutoff.
 
@@ -208,7 +211,7 @@ the next run.
   arithmetic, tested), `models.ts` (downloading and checking the files), `clamp3.ts`
   (onnxruntime), `clamp3Worker.ts` and `clamp3.worker.ts` (the model on a thread of its
   own), `pack.ts` (the vectors as one file for the bucket), `sound.ts` (hearing, "sounds
-  like", matching words), `eval.ts`
+  like", matching words), `map.ts` and `soundMap.ts` (the sound map), `eval.ts`
 - `apps/server/src/ai/describe.ts` (`soundOrder`, not exported) — Ask's songs in the order they sound
 - `scripts/sound-models/` — the export, its requirements and the model's licences
 - `packages/client/src/queue/autoMix.ts` — queue ordering and per-transition crossfade (tested)

@@ -18,6 +18,7 @@ import type {
   CloudArtistState,
   CloudPlaysState,
   CloudSongState,
+  CloudSoundMapState,
   CloudSoundState,
 } from '../repositories/cloud.js'
 import type { ImportRequest } from '../repositories/importRequests.js'
@@ -49,6 +50,8 @@ interface SnapshotInput {
   readonly coverPacks?: readonly CloudCoverPack[]
   /** Every song's sound vector, as one file in the bucket; null before there is one. */
   readonly sound?: Pick<CloudSoundState, 'model' | 'key' | 'size'> | null
+  /** Where every heard song sits on the sound map, as one file; null before there is one. */
+  readonly soundMap?: CloudSoundMapState | null
   /** When songs were played, a file a month in the bucket. */
   readonly plays?: readonly Pick<CloudPlaysState, 'month' | 'key' | 'size' | 'count'>[]
   readonly tags: readonly Tag[]
@@ -219,6 +222,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
     sound: input.sound
       ? { model: input.sound.model, key: input.sound.key, size: input.sound.size }
       : null,
+    ...(input.soundMap ? { soundMap: { key: input.soundMap.key, size: input.soundMap.size } } : {}),
     ...(input.plays && input.plays.length > 0
       ? {
           plays: input.plays.map(month => ({
@@ -404,7 +408,7 @@ export function storedSnapshotContentHash(body: Buffer): string {
  * What a snapshot says that a device needs promptly, as a hash: all of it but
  * what analysis, the listening model and the picture lookups add after a song
  * has arrived — its cover's colour, its motion curve, its tempo and key, the
- * pointer to every song's sound vector, artists' pictures, the packs of
+ * pointer to every song's sound vector and the sound map, artists' pictures, the packs of
  * covers, and the months of plays. A snapshot that
  * changes only those can wait a little to be published (cloudSync.ts,
  * `ENRICHMENT_DEFER_MS`): every snapshot is a download for every device, and
@@ -414,6 +418,7 @@ export function snapshotCoreHash(snapshot: {
   readonly writtenAt?: unknown
   readonly songs?: readonly object[]
   readonly sound?: unknown
+  readonly soundMap?: unknown
   readonly artists?: unknown
   readonly coverPacks?: unknown
   readonly plays?: unknown
@@ -421,6 +426,7 @@ export function snapshotCoreHash(snapshot: {
   const {
     writtenAt: _when,
     sound: _sound,
+    soundMap: _soundMap,
     artists: _artists,
     coverPacks: _packs,
     plays: _plays,

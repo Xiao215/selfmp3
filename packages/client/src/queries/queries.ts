@@ -33,6 +33,7 @@ import type {
   CloudUids,
   ScanResult,
   SimilarSongs,
+  SoundMap,
   ToolStatus,
   LyricsResponse,
   Motion,
@@ -143,6 +144,7 @@ export const queryKeys = {
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
   /** The limit is in the key: a different count is a different answer. */
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
+  soundMap: ['sound-map'] as const,
   /** By the server's address, as `settings` is. */
   analysis: (baseUrl: string | null) => ['analysis', baseUrl] as const,
   devices: ['devices'] as const,
@@ -1259,6 +1261,18 @@ export function useFixCovers(api: Api | null, baseUrl: string | null) {
  * songs laid out around "it has none" and rearrange itself when the answer
  * lands.
  */
+/** Every heard song's place on the sound map (docs/features/sound-map.md). */
+export function useSoundMap(): UseQueryResult<SoundMap, Error> {
+  const { ready } = useClientState()
+  return useQuery({
+    queryKey: queryKeys.soundMap,
+    queryFn: () => clientApi().soundMap(),
+    enabled: ready,
+    staleTime: STALE.minute,
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function useSimilar(
   songId: number | null,
   limit = SIMILAR_LIMIT,

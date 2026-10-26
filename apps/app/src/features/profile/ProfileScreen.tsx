@@ -7,7 +7,7 @@ import type { Stats } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { Download, Settings, ShareOut, Sparkles } from '../../ui/components/Icons'
+import { Download, Settings, ShareOut, SoundMap, Sparkles } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
@@ -41,6 +41,7 @@ import { NOTHING_PLAYED_YET, SHOWS_WHEN_REACHABLE } from '../library/library.mod
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
   report: Sparkles,
+  soundMap: SoundMap,
   links: ShareOut,
   settings: Settings,
 }

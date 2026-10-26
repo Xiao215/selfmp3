@@ -204,6 +204,7 @@ export function createCloudRoutes(
     cloudLyrics,
     cloudManifest,
     cloudMotion,
+    cloudSoundMap,
     cloudPlaylistSongs,
     cloudAllPlaylistSongs,
     loadCloudLibrary,
@@ -293,6 +294,7 @@ export function createCloudRoutes(
         return { source: 'cloud', kind: found.kind, text: found.text, romanized: found.romanized }
       },
     ],
+    ['GET', '/api/sound-map', ({ session }) => cloudSoundMap(session)],
     [
       'GET',
       '/api/songs/:id/motion',

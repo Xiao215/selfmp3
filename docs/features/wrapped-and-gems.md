@@ -142,7 +142,7 @@ time or strip is guessed.
 friend's song is brought home with Get it: from a room (who brought it, or whose shared
 playlist it is) or from a share link (who sent it). The import job carries it
 (`import_came_with`, beside the queue) until the song lands, then the song keeps it (`songs.came_with`,
-migration 51) and the snapshot carries it (`CloudSong.cameWith`), so a server made again from
+migration 52) and the snapshot carries it (`CloudSong.cameWith`), so a server made again from
 the bucket still knows. A song found and imported by hand has none, and its link says where it
 came from.
 

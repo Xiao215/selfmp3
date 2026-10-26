@@ -109,6 +109,51 @@ export function sourceAfterAdding(source: ListSource | null): ListSource | null 
   return source === null || source.kind === 'library' ? LINED_UP_SOURCE : source
 }
 
+/**
+ * What Up next is called while the songs played last play, from Home's
+ * Recently played row or Search before anything is typed. Not remembered as a
+ * list: Recently played already is that list.
+ */
+export const RECENTS_SOURCE: ListSource = {
+  kind: 'songs',
+  origin: 'recent',
+  name: 'Recently played',
+}
+
+/** How much of the words searched or asked names what plays from them. */
+const WORDS_SHOWN = 40
+
+/** Words as a name: in quotes, on one line, cut short when long ("“yoru”"). */
+function quotedWords(words: string): string {
+  const chars = Array.from(words.trim().replace(/\s+/g, ' '))
+  const shown =
+    chars.length > WORDS_SHOWN
+      ? `${chars
+          .slice(0, WORDS_SHOWN - 1)
+          .join('')
+          .trimEnd()}…`
+      : chars.join('')
+  return `“${shown}”`
+}
+
+/**
+ * What songs played from Search name Up next, and their tile in Recently
+ * played: the words searched ("“yoru”", kind "Search"), so one search's tile
+ * is told from another's and the same words searched again are the same tile.
+ * Before anything is typed Search's songs are the ones played last, and play
+ * as Recently played: nothing was searched for.
+ */
+export function searchSource(words: string): ListSource {
+  return words.trim()
+    ? { kind: 'songs', origin: 'search', name: quotedWords(words) }
+    : RECENTS_SOURCE
+}
+
+/** Songs Ask found for the words asked ("find", "explore", a question about the library), named for them. */
+export function foundSource(asked: string): ListSource {
+  return { kind: 'songs', origin: 'found', name: quotedWords(asked) }
+}
+
 /** What Up next is called while Liked plays, from its page, its tile or Library's chip. */
 export const LIKED_SOURCE: ListSource = { kind: 'liked' }
 
@@ -560,6 +605,9 @@ export function parseListSource(value: unknown): ListSource | null {
 /** How many lists Recently played remembers, and how many tiles Home shows. */
 const RECENT_LISTS = 12
 
+/** How many of a list's songs Recently played keeps, to play it again. */
+const RECENT_SONGS = 2000
+
 /** A list played on this device, as Recently played keeps it. */
 export interface RecentList {
   readonly key: string
@@ -611,7 +659,12 @@ export function sourceKey(source: ListSource, songIds: readonly number[]): strin
       ) {
         return null
       }
-      return `songs:${source.origin}:${songIds.join(',')}`
+      // A search is its words: searched again, it is the same tile, holding
+      // what they find now, whatever order the results came in.
+      if (source.origin === 'search' || source.origin === 'found') {
+        return `songs:${source.origin}:${source.name.toLowerCase()}`
+      }
+      return `songs:${source.origin}:${songIds.slice(0, RECENT_SONGS).join(',')}`
     case 'room':
       // Recently played already shows the room as a tile of its own.
       return null
@@ -633,7 +686,7 @@ export function withListStarted(
   const entry: RecentList = {
     key,
     source,
-    songIds: songIds.slice(0, 2000),
+    songIds: songIds.slice(0, RECENT_SONGS),
     played: before?.played ?? [],
     at: now,
     ...(kept ? { answer: kept } : {}),
@@ -688,13 +741,16 @@ export function parseRecentLists(raw: string | null): readonly RecentList[] {
           : []
       const key = v['key']
       const at = v['at']
-      if (!source || typeof key !== 'string' || typeof at !== 'number') return []
+      const songIds = ids('songIds')
+      // Kept under another key than its source has now — a search kept by its
+      // songs before searches were kept by their words — it is not this list.
+      if (!source || key !== sourceKey(source, songIds) || typeof at !== 'number') return []
       const answer = DescribeResultSchema.safeParse(v['answer'])
       return [
         {
           key,
           source,
-          songIds: ids('songIds'),
+          songIds,
           played: ids('played'),
           at,
           ...(answer.success ? { answer: answer.data } : {}),
@@ -783,8 +839,9 @@ export function recentKind(source: ListSource): string {
         // The tile's title is the words searched: this says what they were.
         case 'search':
           return 'Search'
+        // Songs Ask found: the tile's title is the words asked.
         case 'found':
-          return 'From Search'
+          return 'You asked'
         case 'untagged':
           return 'Need a tag'
         case 'recent':

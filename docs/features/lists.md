@@ -262,6 +262,16 @@ A song heard as part of a list shows as the list's tile, not a tile of its own. 
 device was in come first, once they ended (`room.past`, the newest eight), and open their
 page.
 
+Only listening moves it (2026-10-26): a list is remembered once a song of it is playing, not
+when Up next is set up. A list put back paused as the app opens, or a song's details edited
+while it sits in Up next, leaves the row as it was.
+
+A search is its words: songs played from Search are named "“yoru”" (kind "Search"), songs Ask
+found are named for the words asked (kind "You asked"), long words cut short. The same words
+searched again are the same tile, holding what they find now; words that found one song are
+that song. Before anything is typed, Search's songs are the ones played last, and play as
+Recently played.
+
 A tile opens its list's page on a tap, as any list's tile does, and playing it is that page's
 Play (Xiao, 2026-10-04): a tag's, an artist's, a playlist's, tags combined, an Ask answer's.
 An answer is kept with its own answer, so its page opens again after a reload. Songs with no

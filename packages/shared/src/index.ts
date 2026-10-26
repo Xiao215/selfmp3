@@ -79,6 +79,7 @@ export * from './throttle.js'
 export * from './exhaustive.js'
 export * from './room.js'
 export * from './soundVectors.js'
+export * from './soundMap.js'
 export * from './sharedPlaylist.js'
 export * from './shareLink.js'
 

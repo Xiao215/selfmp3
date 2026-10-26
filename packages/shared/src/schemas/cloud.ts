@@ -144,6 +144,18 @@ export const CloudSoundSchema = z.object({
 export type CloudSound = z.infer<typeof CloudSoundSchema>
 
 /**
+ * Where every heard song sits on the sound map (docs/features/sound-map.md),
+ * as one small file beside the vectors it was folded from
+ * (`lyrics/<sha256>.map`, shared soundMap.ts). Made on the server whenever
+ * the vectors change, and read by a device once a change.
+ */
+export const CloudSoundMapSchema = z.object({
+  key: fileKey('lyrics'),
+  size: z.number().int().nonnegative(),
+})
+export type CloudSoundMap = z.infer<typeof CloudSoundMapSchema>
+
+/**
  * One month of the library's plays, as one file in the bucket beside the
  * words (`lyrics/<sha256>.plays`, a `CloudPlaysFile`). A snapshot says how
  * often a song was played; these say when, which is what Stats is made of,
@@ -393,6 +405,8 @@ export const CloudSnapshotSchema = z.object({
   coverPacks: z.array(CloudCoverPackSchema),
   /** How every song sounds, as the server heard it; null before it has heard any. */
   sound: CloudSoundSchema.nullable(),
+  /** Where each heard song sits on the sound map; absent before a server first made one. */
+  soundMap: CloudSoundMapSchema.optional(),
   /** When each song was played, a file a month; absent before a server first sent any. */
   plays: z.array(CloudPlaysSchema).optional(),
   /**

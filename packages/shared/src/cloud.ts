@@ -145,6 +145,14 @@ export function soundVectorsKey(sha256: string): string {
 }
 
 /**
+ * Where every heard song sits on the sound map (`encodeSoundMap`), beside the
+ * vectors it was folded from, for the same reason. Named by its bytes' hash.
+ */
+export function soundMapKey(sha256: string): string {
+  return `lyrics/${sha256}.map`
+}
+
+/**
  * Where a month of plays goes (`CloudPlaysFileSchema`): beside the words, as
  * the sound vectors are, since a new top-level folder would need every
  * doorman redeployed before any server could write to it.

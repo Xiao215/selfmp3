@@ -9,6 +9,7 @@ import {
   CloudPlaysFileSchema,
   CloudSnapshotSchema,
   coverPackMembers,
+  FORMAT_KEY,
   formatHlc,
   logFile,
   logKey,
@@ -2819,6 +2820,31 @@ describe('CloudSyncService', () => {
         expect.arrayContaining(['format.json', `audio/${sha('one')}.m4a`]),
       )
       expect(latest().songs).toHaveLength(1)
+    })
+
+    /*
+     * A folder standing in for the bucket that went away — its drive
+     * unplugged, the folder moved — and then published to by hand: checking
+     * the bucket afresh found no format.json and wrote one, making the folder
+     * again, and a new song was sent into it and its copy let go (R3-m10, R4).
+     */
+    it('does not make a folder bucket again that went away, when published to by hand', async () => {
+      const folder = path.join(dataDir, 'bucket')
+      addSong('A - One', 'one')
+      const service = makeSync({ cloudDir: folder, analysed: () => true })
+      extras.push(service)
+      service.start()
+      await service.whenIdle()
+      expect(fs.existsSync(path.join(folder, FORMAT_KEY))).toBe(true)
+
+      fs.renameSync(folder, path.join(dataDir, 'bucket-away'))
+      addSong('B - Two', 'two')
+      await service.syncNow({ verify: true })
+      await service.whenIdle()
+
+      expect(fs.existsSync(folder)).toBe(false)
+      expect(service.status().lastError).toMatch(/is not there/)
+      expect(fs.existsSync(path.join(root, 'B - Two/B - Two.m4a'))).toBe(true)
     })
 
     it('trusts what it knows between checks, so an ordinary pass lists nothing', async () => {

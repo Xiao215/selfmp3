@@ -2869,7 +2869,12 @@ export class CloudSyncService {
   #useFolder(dir: string): void {
     const target = { endpoint: 'file://', bucket: dir, prefix: '' }
     this.#deps.cloud.adoptTarget(target)
-    this.#use(new LocalCloudStore(dir), { ...target, region: '', keyIdHint: 'folder' })
+    const published = () => this.#deps.cloud.totals().songsInCloud > 0
+    this.#use(new LocalCloudStore(dir, { published }), {
+      ...target,
+      region: '',
+      keyIdHint: 'folder',
+    })
   }
 
   /** With a folder as the bucket there is no account to sign in to or out of. */

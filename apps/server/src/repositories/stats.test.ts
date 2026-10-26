@@ -122,3 +122,37 @@ describe('Top artists, joined by other names', () => {
     expect(stats.build('all').topArtists).toHaveLength(3)
   })
 })
+
+describe('StatsRepository.songPlays', () => {
+  it('folds one song’s plays into totals and UTC hours, and leaves other songs out', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.prepare("INSERT INTO songs (id, path, title) VALUES (1, 'a', 'A'), (2, 'b', 'B')").run()
+    const insert = db.prepare(
+      'INSERT INTO play_events (song_id, played_at, ms_played) VALUES (?, ?, ?)',
+    )
+    insert.run(1, '2026-08-10 23:05:00', 60_000)
+    insert.run(1, '2026-08-10 23:50:00', 30_000)
+    insert.run(1, '2026-09-01 08:00:00', 90_000)
+    insert.run(2, '2026-08-11 12:00:00', 1_000)
+    const stats = new StatsRepository(db)
+
+    expect(stats.songPlays(1)).toEqual({
+      plays: 3,
+      msPlayed: 180_000,
+      firstPlayedAt: '2026-08-10 23:05:00',
+      lastPlayedAt: '2026-09-01 08:00:00',
+      hours: [
+        { at: '2026-08-10 23:00:00', plays: 2 },
+        { at: '2026-09-01 08:00:00', plays: 1 },
+      ],
+    })
+    expect(stats.songPlays(3)).toEqual({
+      plays: 0,
+      msPlayed: 0,
+      firstPlayedAt: null,
+      lastPlayedAt: null,
+      hours: [],
+    })
+  })
+})

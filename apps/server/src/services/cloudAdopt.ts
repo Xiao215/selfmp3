@@ -367,6 +367,7 @@ export class CloudAdopt {
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,
+      cameWith: song.cameWith ?? null,
     })
 
     for (const tagUid of song.tagUids) {

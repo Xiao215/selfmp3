@@ -44,6 +44,7 @@ const SONGS_ORIGINS = [
   'recent',
   'liked',
   'upnext',
+  'usual',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
@@ -790,6 +791,8 @@ export function recentKind(source: ListSource): string {
           return 'Liked songs'
         case 'upnext':
           return 'Lined up'
+        case 'usual':
+          return 'At this hour'
       }
     case 'room':
       return 'Together'

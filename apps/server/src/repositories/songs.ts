@@ -1,7 +1,7 @@
-import { fileEtag, type CoverTone, type Song, type SongPatch } from '@selfmp3/shared'
+import { fileEtag, type CameWith, type CoverTone, type Song, type SongPatch } from '@selfmp3/shared'
 import type Database from 'better-sqlite3'
 import type { Db } from '../db/index.js'
-import { toSong, type SongRow } from '../db/rows.js'
+import { readCameWith, toSong, type SongRow } from '../db/rows.js'
 
 /**
  * All SQL that touches the `songs` table lives here.
@@ -55,6 +55,7 @@ interface AdoptedSong {
   lastPlayedAt: string | null
   addedAt: string
   sourceUrl: string | null
+  cameWith: CameWith | null
 }
 
 interface NewSong {
@@ -86,6 +87,9 @@ export class SongRepository {
   readonly #updateScanned
   readonly #withSource
   readonly #setSourceUrl
+  readonly #setCameWith
+  readonly #cameWith
+  readonly #allCameWith
   readonly #deleteById
   readonly #recordPlay
   readonly #setArt
@@ -126,11 +130,11 @@ export class SongRepository {
       INSERT INTO songs (
         uid, path, title, artist, album, album_artist, track_no, year, duration,
         size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
-        play_count, loved, rest_until, source_url, last_played_at, added_at
+        play_count, loved, rest_until, source_url, last_played_at, added_at, came_with
       ) VALUES (
         @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
         @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
-        @playCount, @loved, @restUntil, @sourceUrl, @lastPlayedAt, @addedAt
+        @playCount, @loved, @restUntil, @sourceUrl, @lastPlayedAt, @addedAt, @cameWith
       )
     `)
 
@@ -149,6 +153,13 @@ export class SongRepository {
     `)
 
     this.#setSourceUrl = db.prepare('UPDATE songs SET source_url = ? WHERE id = ?')
+    this.#setCameWith = db.prepare('UPDATE songs SET came_with = ? WHERE id = ?')
+    this.#cameWith = db.prepare<[number], { came_with: string | null }>(
+      'SELECT came_with FROM songs WHERE id = ?',
+    )
+    this.#allCameWith = db.prepare<[], { id: number; came_with: string }>(
+      'SELECT id, came_with FROM songs WHERE came_with IS NOT NULL',
+    )
     this.#withSource = db.prepare<[], { id: number; source_url: string }>(
       'SELECT id, source_url FROM songs WHERE source_url IS NOT NULL',
     )
@@ -264,6 +275,7 @@ export class SongRepository {
       ...song,
       loved: song.loved ? 1 : 0,
       instrumental: song.instrumental ? 1 : 0,
+      cameWith: song.cameWith ? JSON.stringify(song.cameWith) : null,
     })
     return Number(info.lastInsertRowid)
   }
@@ -324,6 +336,25 @@ export class SongRepository {
   /** Where an imported song came from: how its own lyrics are found later. */
   setSourceUrl(id: number, url: string): void {
     this.#setSourceUrl.run(url, id)
+  }
+
+  /** Who handed the song over (schemas/song.ts, CameWith); the song's page says so. */
+  setCameWith(id: number, cameWith: CameWith | null): void {
+    this.#setCameWith.run(cameWith ? JSON.stringify(cameWith) : null, id)
+  }
+
+  cameWith(id: number): CameWith | null {
+    return readCameWith(this.#cameWith.get(id)?.came_with ?? null)
+  }
+
+  /** Every song someone handed over, by id: what the snapshot carries for each. */
+  allCameWith(): Map<number, CameWith> {
+    const out = new Map<number, CameWith>()
+    for (const row of this.#allCameWith.all()) {
+      const cameWith = readCameWith(row.came_with)
+      if (cameWith) out.set(row.id, cameWith)
+    }
+    return out
   }
 
   delete(id: number): void {

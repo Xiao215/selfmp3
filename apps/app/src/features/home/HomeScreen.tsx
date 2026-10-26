@@ -42,7 +42,7 @@ import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, ShelfCard, SongCard } from '../../ui/components/Shelf'
 import { FromFriends, ShareAsks } from '../share/FromFriends'
 import { TileGrid, useTileGrid } from '../../ui/components/TileGrid'
-import { ChevronRight, Download, Sparkle } from '../../ui/components/Icons'
+import { ChevronRight, Download, Play, Sparkle } from '../../ui/components/Icons'
 import { useAccent } from '../../ui/accent'
 import { useSongColor } from '../../ui/useSongColor'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -71,6 +71,8 @@ import { useRecentLists } from '../lists/recentLists.store'
 import { keepAnswer, reorderAnswer } from '../smart/answers.store'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { useStatsFor, useStatsSongs } from '../stats/statsSource'
+import { USUAL_LEAST_HERE, usualHue, usualName, usualPicks, usualSongs } from './usual.model'
+import { useSongByUid, useUsualHours } from './useUsualHours'
 import { statFigures } from '../stats/stats.model'
 import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
 import {
@@ -138,6 +140,29 @@ function useNow(): Date {
   return now
 }
 
+/** Home's hour tile: its name and colour, and the hour's songs on this device. */
+interface UsualTile {
+  readonly name: string
+  readonly hue: number
+  readonly songs: readonly Song[]
+}
+
+/**
+ * The hour tile for now, or null while there is too little history for this
+ * hour of this kind of day (`USUAL_LEAST_HERE`, and the server's own floor).
+ * It reads the kept answer when the server is away.
+ */
+function useUsualTile(now: Date): UsualTile | null {
+  const hours = useUsualHours()
+  const songByUid = useSongByUid()
+  return useMemo(() => {
+    const songs = usualSongs(hours, now, songByUid)
+    if (songs.length < USUAL_LEAST_HERE) return null
+    const hour = now.getHours()
+    return { name: usualName(hour), hue: usualHue(hour), songs }
+  }, [hours, now, songByUid])
+}
+
 function HomePage({
   stats,
   songFor,
@@ -157,10 +182,18 @@ function HomePage({
   const failure = useLibraryFailure(libraryQuery)
   // Three by two wherever the tiles go three across.
   const many = wide || roomy
+  const usual = useUsualTile(now)
+  // The hour's tile takes the first place, and one tag fewer keeps the rows full.
   const tiles = useMemo(
     () =>
-      library ? homeTiles(library.tags, library.songs, many ? HOME_TILES_WIDE : HOME_TILES) : [],
-    [library, many],
+      library
+        ? homeTiles(
+            library.tags,
+            library.songs,
+            (many ? HOME_TILES_WIDE : HOME_TILES) - (usual ? 1 : 0),
+          )
+        : [],
+    [library, many, usual],
   )
   const recentLists = useRecentLists()
   // Rooms listened in together, for a few days after they end (features/room).
@@ -260,7 +293,12 @@ function HomePage({
                 {library === undefined && failure !== null ? (
                   <CantReach error={failure} onRetry={() => void libraryQuery.refetch()} />
                 ) : (
-                  <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
+                  <Tiles
+                    tiles={tiles}
+                    usual={usual}
+                    loading={library === undefined}
+                    beside={beside}
+                  />
                 )}
               </>
             )}
@@ -457,10 +495,13 @@ function PhoneHeader(): ReactNode {
  */
 function Tiles({
   tiles,
+  usual,
   loading,
   beside,
 }: {
   tiles: readonly HomeTile[]
+  /** Home's hour tile, first, when there is enough history for one. */
+  usual: UsualTile | null
   loading: boolean
   /** Whether the card column stands beside the tiles, taking its width from theirs. */
   beside: boolean
@@ -483,8 +524,18 @@ function Tiles({
   })
   const small = tileWidth > 0 && tileWidth < SMALL_TILE
   if (loading) return <TilesWaiting columns={columns} />
+  const grid = (
+    <HomeTiles
+      tiles={tiles}
+      usual={usual}
+      columns={columns}
+      small={small}
+      artFor={tile => (tile.cover ? art(tile.cover) : null)}
+      onOpen={tile => openTag(tile.tag, { from: 'tile' })}
+    />
+  )
   if (tiles.length === 0) {
-    return (
+    const none = (
       <EmptyState
         compact
         style={styles.emptyTile}
@@ -493,16 +544,16 @@ function Tiles({
         line="Tag a song from its ⋯ menu."
       />
     )
+    return usual ? (
+      <View style={styles.stack}>
+        {grid}
+        {none}
+      </View>
+    ) : (
+      none
+    )
   }
-  return (
-    <HomeTiles
-      tiles={tiles}
-      columns={columns}
-      small={small}
-      artFor={tile => (tile.cover ? art(tile.cover) : null)}
-      onOpen={tile => openTag(tile.tag, { from: 'tile' })}
-    />
-  )
+  return grid
 }
 
 /** The tiles' shapes while the library is on its way: two rows of them, a tile high (AA1). */
@@ -545,12 +596,14 @@ function RecentsWaiting({ wide }: { wide: boolean }): ReactNode {
  */
 function HomeTiles({
   tiles,
+  usual,
   columns,
   small,
   artFor,
   onOpen,
 }: {
   tiles: readonly HomeTile[]
+  usual: UsualTile | null
   columns: number
   /** Whether a tile is narrower than `SMALL_TILE`, and its name a size down. */
   small: boolean
@@ -558,24 +611,94 @@ function HomeTiles({
   onOpen: (tile: HomeTile) => void
 }): ReactNode {
   const [arrive] = useState(() => session.first('home-tiles'))
+  const items = useMemo(
+    (): readonly (HomeTile | UsualTile)[] => (usual ? [usual, ...tiles] : tiles),
+    [usual, tiles],
+  )
   return (
     <TileGrid
-      items={tiles}
+      items={items}
       columns={columns}
       gap={TILE_GAP}
-      keyOf={tile => tile.tag.id}
-      renderItem={(tile, index) => (
-        <Tile
-          tile={tile}
-          index={index}
-          count={tiles.length}
-          arrive={arrive}
-          small={small}
-          artUri={artFor(tile)}
-          onPress={() => onOpen(tile)}
-        />
-      )}
+      keyOf={item => ('tag' in item ? item.tag.id : 'usual')}
+      renderItem={(item, index) =>
+        'tag' in item ? (
+          <Tile
+            tile={item}
+            index={index}
+            count={items.length}
+            arrive={arrive}
+            small={small}
+            artUri={artFor(item)}
+            onPress={() => onOpen(item)}
+          />
+        ) : (
+          <HourTile usual={item} index={index} count={items.length} arrive={arrive} small={small} />
+        )
+      }
     />
+  )
+}
+
+/**
+ * "Usually at this hour" (N5): a tag tile's sibling, first among them, named
+ * after the part of the day and drawn in its colour, that plays what you
+ * usually play around now instead of opening a page. Its play button sits
+ * where a tag's cover leans.
+ */
+function HourTile({
+  usual,
+  index,
+  count,
+  arrive,
+  small,
+}: {
+  usual: UsualTile
+  index: number
+  count: number
+  arrive: boolean
+  small: boolean
+}): ReactNode {
+  const { wide } = useLayoutFlags()
+  const arrival = useArrival(index, arrive, count)
+  const player = usePlayerCommands()
+  const colours = tagColors(usual.hue)
+  const play = (): void => {
+    const ids = usualPicks(usual.songs)
+    if (ids.length === 0) return
+    player.playFrom(ids, 0, { source: { kind: 'songs', origin: 'usual', name: usual.name } })
+  }
+  return (
+    <Animated.View style={arrival}>
+      <Press
+        testID="home-usual"
+        onPress={play}
+        accessibilityRole="button"
+        accessibilityLabel={`${usual.name}: play what you usually play around now`}
+        style={[styles.tile, wide && styles.tileWide, { backgroundColor: colours.tile }]}
+      >
+        <ToneWash color={colours.dot} diagonal />
+        <Text
+          style={[styles.tileName, small && styles.tileNameSmall, { color: colours.tileInk }]}
+          numberOfLines={2}
+        >
+          {usual.name}
+        </Text>
+        <Text style={[styles.tileCount, styles.usualLine, { color: colours.tileInk }]}>
+          What you play around now
+        </Text>
+        <View
+          style={[
+            styles.usualPlay,
+            wide && styles.usualPlayWide,
+            { backgroundColor: colours.tileInk },
+          ]}
+          pointerEvents="none"
+        >
+          <Play color={colours.tile} size={USUAL_PLAY_ICON} />
+        </View>
+      </Press>
+    </Animated.View>
   )
 }
 
@@ -936,6 +1059,9 @@ const RECENT_GAP = 10
 const RECENTS_LEAST = 12
 /** A tile narrower than this (Slide Over's 320, `T08`) sets its name a size down. */
 const SMALL_TILE = 140
+/** The hour tile's round play button, and the triangle in it. */
+const USUAL_PLAY = 34
+const USUAL_PLAY_ICON = 15
 /** The narrowest a computer's tile gets before the grid drops a column. */
 const WIDE_TILE_MIN = 190
 /**
@@ -1020,6 +1146,19 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.item,
   },
   tileCoverWide: { right: -6, bottom: -8 },
+  // Clear of the play button, which sits in the corner a tag's cover leans into.
+  usualLine: { paddingRight: USUAL_PLAY + space.sm },
+  usualPlay: {
+    position: 'absolute',
+    right: space.roomy,
+    bottom: space.roomy,
+    width: USUAL_PLAY,
+    height: USUAL_PLAY,
+    borderRadius: USUAL_PLAY / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  usualPlayWide: { right: space.lg, bottom: space.lg },
   recentsWaiting: { flexDirection: 'row', gap: RECENT_GAP, overflow: 'hidden' },
   recentWaiting: { gap: space.sm },
   emptyTile: card(theme.colors),

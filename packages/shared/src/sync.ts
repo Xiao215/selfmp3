@@ -513,6 +513,7 @@ export function mergedSong(kept: CloudSong, extra: CloudSong, hlc: string): Clou
   }
   if (!kept.lyrics && extra.lyrics) next['lyrics'] = extra.lyrics
   if (kept.sourceUrl === null && extra.sourceUrl !== null) next['sourceUrl'] = extra.sourceUrl
+  if (!kept.cameWith && extra.cameWith) next['cameWith'] = extra.cameWith
   const lastPlayedAt =
     kept.lastPlayedAt === null ||
     (extra.lastPlayedAt !== null && extra.lastPlayedAt > kept.lastPlayedAt)

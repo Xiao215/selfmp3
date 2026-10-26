@@ -4,6 +4,7 @@ import {
   CloudSnapshotSchema,
   playlistRules,
   toCloudRules,
+  type CameWith,
   type CloudCoverPack,
   type CloudPlaylist,
   type CloudServer,
@@ -34,6 +35,8 @@ import { sha256 } from '../util/hash.js'
  */
 interface SnapshotInput {
   readonly songs: readonly Song[]
+  /** Who handed each song over, for the songs someone did (`CameWith`). */
+  readonly cameWith?: ReadonlyMap<number, CameWith>
   readonly songUids: ReadonlyMap<number, string>
   readonly states: ReadonlyMap<number, CloudSongState>
   /** Each artist's picture in the bucket. */
@@ -103,6 +106,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
   for (const song of input.songs) {
     const state = input.states.get(song.id)
     const uid = input.songUids.get(song.id)
+    const cameWith = input.cameWith?.get(song.id)
     if (!state || !uid) continue
     published.set(song.id, uid)
 
@@ -133,6 +137,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,
       sourceUrl: song.sourceUrl,
+      ...(cameWith ? { cameWith } : {}),
       tagUids: song.tagIds.flatMap(id => {
         const tagUid = input.tagUids.get(id)
         return tagUid ? [tagUid] : []

@@ -240,7 +240,8 @@ keeps none, and draws the letter).
 
 A guest has no library, so they can paste a YouTube, YouTube Music or 网易云 link. It plays
 through the host's server, the same stream that import review previews from. Nothing is
-kept. *Get it* afterwards imports it properly.
+kept. *Get it* afterwards imports it properly, and the song remembers who brought it (its page
+says *from Mia, in a room*, docs/features/wrapped-and-gems.md).
 
 **How it reaches everyone.** The host's device reaches its own server directly. For everyone
 else, the first time a link comes in, the host tells the room where its server answers from

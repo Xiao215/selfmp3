@@ -205,7 +205,14 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
       signedIn={signedIn}
       toGet={toGet.length}
       getting={toGet.some(entry => getSongs.getting.has(entry.song.sourceUrl ?? ''))}
-      onGet={() => void getSongs.get(toGet.map(entry => entry.song))}
+      onGet={() =>
+        void getSongs.get(
+          toGet.map(entry => ({
+            song: entry.song,
+            cameWith: { kind: 'link', from: link.from.name },
+          })),
+        )
+      }
       source={link.kind === 'song' ? source : null}
     />
   )

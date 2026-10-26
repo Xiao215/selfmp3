@@ -32,6 +32,19 @@ export const CoverToneSchema = z.object({
 export type CoverTone = z.infer<typeof CoverToneSchema>
 
 /**
+ * Who handed a song over, when it came from someone rather than a link you
+ * found yourself: a friend's song in a room, or one from a share link, brought
+ * home with Get it. The song's page says "from Mia, in a room". Null for
+ * everything else, whose source link (or none) says where it came from.
+ */
+export const CameWithSchema = z.object({
+  kind: z.enum(['room', 'link']),
+  /** The friend's name as the room or the link showed it. */
+  from: z.string().trim().min(1).max(40),
+})
+export type CameWith = z.infer<typeof CameWithSchema>
+
+/**
  * A song as the API returns it.
  *
  * `path` is deliberately relative to the library root and never absolute — the

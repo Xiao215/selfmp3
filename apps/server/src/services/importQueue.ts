@@ -74,7 +74,7 @@ export class ImportQueueService {
   readonly #imports: ImportRepository
   readonly #songs: Pick<
     SongRepository,
-    'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental' | 'hasFolder'
+    'byId' | 'patch' | 'setSourceUrl' | 'setCameWith' | 'setInstrumental' | 'hasFolder'
   >
   readonly #tags: Pick<TagRepository, 'exists' | 'addToSong'>
   readonly #playlists: Pick<PlaylistRepository, 'byId' | 'add'>
@@ -112,7 +112,10 @@ export class ImportQueueService {
     config: Pick<Config, 'dataDir'>
     storage: Pick<StorageDriver, 'write' | 'exists'>
     imports: ImportRepository
-    songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental' | 'hasFolder'>
+    songs: Pick<
+      SongRepository,
+      'byId' | 'patch' | 'setSourceUrl' | 'setCameWith' | 'setInstrumental' | 'hasFolder'
+    >
     tags: Pick<TagRepository, 'exists' | 'addToSong'>
     playlists: Pick<PlaylistRepository, 'byId' | 'add'>
     settings: Pick<SettingsRepository, 'get'>
@@ -580,6 +583,7 @@ export class ImportQueueService {
         ...(album.trim() ? { album: album.trim() } : {}),
       })
       this.#songs.setSourceUrl(songId, job.url)
+      this.#songs.setCameWith(songId, this.#imports.cameWithFor(job.id))
       if (instrumental) this.#songs.setInstrumental(songId, true)
 
       /*

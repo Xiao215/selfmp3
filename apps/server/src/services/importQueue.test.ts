@@ -141,6 +141,7 @@ exit 1
         byId: () => null,
         patch: nothing,
         setSourceUrl: nothing,
+        setCameWith: nothing,
         setInstrumental: nothing,
         hasFolder: () => false,
       },

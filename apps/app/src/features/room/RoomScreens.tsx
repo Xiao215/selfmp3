@@ -35,9 +35,9 @@ import { BadRoomCode } from './BadRoomCode'
 import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
-import { useGetSongs } from './useGetSongs'
-import { joinRoom, useRoom } from './room.store'
-import { GUEST_NAME_KEY } from './room.model'
+import { useGetSongs, type GetSong } from './useGetSongs'
+import { joinRoom, leaveRoom, useRoom } from './room.store'
+import { GUEST_NAME_KEY, type PastRoom } from './room.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
@@ -275,6 +275,11 @@ export function PastRoomScreen(): ReactNode {
     fly(heroRef.current, ids.slice(at))
     player.playFrom(ids, at, { source })
   }
+  // Who brought each song, which the song keeps once it is got.
+  const gotFrom = (entry: PastRoom['songs'][number]): GetSong => ({
+    song: entry.song,
+    cameWith: { kind: 'room', from: entry.by },
+  })
   const seconds = past.songs.reduce((sum, entry) => sum + entry.song.duration, 0)
   const waiting = gettable.filter(
     entry => !getting.has(entry.song.sourceUrl ?? '') && !jobFor(entry.song.sourceUrl),
@@ -334,7 +339,7 @@ export function PastRoomScreen(): ReactNode {
                       label: `Get ${plural(waiting.length, 'song', 'songs')} from friends`,
                       icon: <Download tone="textSecondary" />,
                       testID: 'past-room-get-all',
-                      onPress: () => void get(waiting.map(entry => entry.song)),
+                      onPress: () => void get(waiting.map(gotFrom)),
                     },
                   ]
                 : []),
@@ -435,7 +440,7 @@ export function PastRoomScreen(): ReactNode {
                       title={entry.song.title}
                       asked={getting.has(sourceUrl)}
                       job={jobFor(sourceUrl)}
-                      onGet={() => void get([entry.song])}
+                      onGet={() => void get([gotFrom(entry)])}
                       onRetry={job => void retry(job)}
                       testID={`past-room-get-${at}`}
                     />

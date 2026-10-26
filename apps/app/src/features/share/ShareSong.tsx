@@ -34,6 +34,8 @@ import { useLayout, useWindowValue } from '../../shell/useLayout'
 import { PULL } from '../../ui/motion.model'
 import { artShadow, heroTitle } from '../../ui/surfaces'
 import { Cover } from '../../ui/components/Cover'
+import { IconButton } from '../../ui/components/IconButton'
+import { Next, Prev, Shuffle } from '../../ui/components/Icons'
 import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { Press } from '../../ui/components/Press'
 import { SeekBar } from '../../ui/components/SeekBar'
@@ -59,6 +61,24 @@ const PHONE_COVER_LEAST = 160
 const PHONE_COVER_MOST = 420
 /** What the line a link was shared from takes under the names, for the cover to give up. */
 const PHONE_LINE_ROOM = 112
+/** What a list's name and row of covers take over the song, for the cover to give up. */
+const PHONE_LIST_ROOM = 96
+/** What the line saying where the song is in its list takes over the title. */
+const CONTEXT_ROOM = 24
+
+/**
+ * A list link's song (R1, P1): where it is in the list, and the steps
+ * through it. Next and Previous stay among the list's songs.
+ */
+interface ShareSongList {
+  /** "jpop · 7 of 100", over the title. */
+  context: string
+  onPrevious: () => void
+  onNext: () => void
+  onShuffle: () => void
+  /** The list's name and its row of covers, over the song on a phone. */
+  covers: ReactNode
+}
 
 interface SongProps {
   song: RoomSong
@@ -88,6 +108,8 @@ interface SongProps {
   /** The phone's words over its cover. */
   wordsOpen: boolean
   onWords: (open: boolean) => void
+  /** A list link's: the song is one of its songs. */
+  list?: ShareSongList
 }
 
 /**
@@ -136,6 +158,44 @@ function Play({ song, songId, onPlay, size }: SongProps & { size?: number }): Re
   )
 }
 
+/**
+ * A list's steps either side of Play: Previous and Next, and on a phone
+ * Shuffle too, where the rail that holds it on a computer is not.
+ */
+function Steps(props: SongProps & { list: ShareSongList; phone: boolean }): ReactNode {
+  const { list, phone } = props
+  const { theme } = useUnistyles()
+  const step = phone ? 30 : 24
+  return (
+    <View style={[styles.steps, phone && styles.phoneSteps]}>
+      {phone ? (
+        <IconButton onPress={list.onShuffle} label="Shuffle" testID="share-shuffle">
+          <Shuffle size={20} color={theme.colors.textSecondary} />
+        </IconButton>
+      ) : null}
+      <IconButton
+        onPress={list.onPrevious}
+        label="Previous"
+        size={phone ? 52 : undefined}
+        testID="share-previous"
+      >
+        <Prev size={step} color={theme.colors.textPrimary} />
+      </IconButton>
+      <Play {...props} size={phone ? 64 : undefined} />
+      <IconButton
+        onPress={list.onNext}
+        label="Next"
+        size={phone ? 52 : undefined}
+        testID="share-next"
+      >
+        <Next size={step} color={theme.colors.textPrimary} />
+      </IconButton>
+      {/* Shuffle's width again on the other side, so Play sits in the middle. */}
+      {phone ? <View style={styles.stepsBalance} /> : null}
+    </View>
+  )
+}
+
 function bylineOf(song: RoomSong): string {
   return [artistOr(song.artist), song.album].filter(Boolean).join(' · ')
 }
@@ -149,6 +209,7 @@ function bylineOf(song: RoomSong): string {
  */
 function SongStage(props: SongProps): ReactNode {
   const { song, track, cover, tileHue, lyrics, lent, loaded, start, back, from, ways, foot } = props
+  const { list } = props
   const { theme } = useUnistyles()
   const layout = useLayout()
   const windowHeight = useWindowValue(window => window.height)
@@ -156,7 +217,7 @@ function SongStage(props: SongProps): ReactNode {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const geometry = stageGeometry(
     size?.width ?? layout.width,
-    (size?.height ?? windowHeight) - TRANSPORT_ROOM,
+    (size?.height ?? windowHeight) - TRANSPORT_ROOM - (list ? CONTEXT_ROOM : 0),
   )
   const words = lyrics.words
   const sides = { paddingLeft: geometry.pad, paddingRight: geometry.right }
@@ -201,6 +262,11 @@ function SongStage(props: SongProps): ReactNode {
             <Cover uri={cover} title={song.title} size={geometry.cover} hue={tileHue} />
           </View>
           <View style={styles.stageNames}>
+            {list ? (
+              <Text style={styles.context} numberOfLines={1} testID="share-context">
+                {list.context}
+              </Text>
+            ) : null}
             <Text
               style={[
                 styles.stageTitle,
@@ -221,7 +287,7 @@ function SongStage(props: SongProps): ReactNode {
           </View>
           <Seek song={song} loaded={loaded} />
           <View style={styles.stageTransport}>
-            <Play {...props} />
+            {list ? <Steps {...props} list={list} phone={false} /> : <Play {...props} />}
             <View style={styles.stageWays}>{ways}</View>
           </View>
           <View style={styles.stageFoot}>{foot}</View>
@@ -275,7 +341,7 @@ function SongStage(props: SongProps): ReactNode {
  */
 function SongPhone(props: SongProps): ReactNode {
   const { song, cover, tileHue, lyrics, lent, loaded, start, back, from, ways, foot } = props
-  const { wordsOpen, onWords } = props
+  const { wordsOpen, onWords, list } = props
   const line = start?.line ?? null
   const { width } = useLayout()
   const height = useWindowValue(window => window.height)
@@ -292,7 +358,13 @@ function SongPhone(props: SongProps): ReactNode {
     PHONE_COVER_LEAST,
     Math.min(
       column,
-      height - insets.top - insets.bottom - PHONE_ROOM - chrome - (line ? PHONE_LINE_ROOM : 0),
+      height -
+        insets.top -
+        insets.bottom -
+        PHONE_ROOM -
+        chrome -
+        (line ? PHONE_LINE_ROOM : 0) -
+        (list ? PHONE_LIST_ROOM : 0),
     ),
   )
 
@@ -343,6 +415,7 @@ function SongPhone(props: SongProps): ReactNode {
             {back}
             <View style={[styles.phoneColumn, { width: column }]}>
               {from}
+              {list?.covers}
               <View ref={coverTarget} collapsable={false} style={[styles.art, styles.phoneArt]}>
                 <Press
                   disabled={!lent}
@@ -353,6 +426,11 @@ function SongPhone(props: SongProps): ReactNode {
                 </Press>
               </View>
               <View style={styles.phoneNames}>
+                {list ? (
+                  <Text style={styles.context} numberOfLines={1} testID="share-context">
+                    {list.context}
+                  </Text>
+                ) : null}
                 <Text style={styles.phoneTitle} accessibilityRole="header" numberOfLines={2}>
                   {song.title}
                 </Text>
@@ -394,9 +472,13 @@ function SongPhone(props: SongProps): ReactNode {
 
       <View style={[styles.phoneControls, { width: column }]}>
         <Seek song={song} loaded={loaded} />
-        <View style={styles.phonePlay}>
-          <Play {...props} size={64} />
-        </View>
+        {list ? (
+          <Steps {...props} list={list} phone />
+        ) : (
+          <View style={styles.phonePlay}>
+            <Play {...props} size={64} />
+          </View>
+        )}
         {ways}
       </View>
       <View style={styles.phoneFoot}>{foot}</View>
@@ -492,6 +574,10 @@ const styles = StyleSheet.create(theme => ({
   stageTitle: { color: theme.colors.textPrimary, fontFamily: fonts.display },
   stageByline: { color: theme.colors.textSecondary, fontSize: type.sub },
   stageTransport: { flexDirection: 'row', alignItems: 'center', gap: space.lg },
+  context: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
+  steps: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  phoneSteps: { justifyContent: 'space-between' },
+  stepsBalance: { width: 44 },
   stageWays: { flex: 1, minWidth: 0 },
   stageFoot: { marginTop: 'auto', alignItems: 'flex-start' },
   stageWords: { flex: 1, minWidth: 0, position: 'relative' },

@@ -128,7 +128,7 @@ export const queryKeys = {
   gems: (limit: number) => ['gems', limit] as const,
   /** One song's history (`SongHistory`), under stats so a play's refresh of them reaches it. */
   songHistory: (songId: number) => ['stats', 'song', songId] as const,
-  usualHours: (offsetMinutes: number) => ['usual', offsetMinutes] as const,
+  usualHours: (zone: string) => ['usual', zone] as const,
   playlists: playlistsKey,
   playlistSongs: (id: number) => [...playlistsKey, id, 'songs'] as const,
   /** Where a members hook with no playlist to ask about sits, asking nothing. */
@@ -520,16 +520,14 @@ export function useSongHistory(songId: number, enabled = true): UseQueryResult<S
  * What you usually play at each hour, for Home's hour tile, asked of this
  * device's own client: a server answers, a cloud library's copy does not
  * (the app asks that library's server directly, and keeps the answer).
- * `offsetMinutes` is this device's clock against UTC, east positive.
+ * `zone` is this device's time zone (`readerTimeZone`), which the request
+ * sends and the answer is kept under.
  */
-export function useUsualHours(
-  offsetMinutes: number,
-  enabled = true,
-): UseQueryResult<UsualHours, Error> {
+export function useUsualHours(zone: string, enabled = true): UseQueryResult<UsualHours, Error> {
   const { ready } = useClientState()
   return useQuery({
-    queryKey: queryKeys.usualHours(offsetMinutes),
-    queryFn: () => clientApi().usualHours(offsetMinutes),
+    queryKey: queryKeys.usualHours(zone),
+    queryFn: () => clientApi().usualHours(),
     enabled: ready && enabled,
     retry: false,
     staleTime: STALE.fiveMinutes,

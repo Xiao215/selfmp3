@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { UsualHoursSchema, type Song, type UsualHours } from '@selfmp3/shared'
+import { readerTimeZone, UsualHoursSchema, type Song, type UsualHours } from '@selfmp3/shared'
 import { STALE, useDeviceUids, useUsualHours as useUsualHoursOf } from '@selfmp3/client'
 import { apiFor } from '../../api/client'
 import { noServer, useVia, viaKey } from '../../connection/via'
@@ -45,12 +45,12 @@ const snapshot = (): UsualHours | null => kept
 /** The latest answer, from the server when it gives one and the kept copy otherwise. */
 export function useUsualHours(): UsualHours | null {
   const via = useVia()
-  // The device's own clock against UTC, east positive: the hours are yours.
-  const offset = -new Date().getTimezoneOffset()
-  const own = useUsualHoursOf(offset, via === undefined)
+  // The device's own time zone, which the request sends: the hours are yours.
+  const zone = readerTimeZone() ?? ''
+  const own = useUsualHoursOf(zone, via === undefined)
   const server = useQuery({
-    queryKey: viaKey(via?.baseUrl, 'usual', offset),
-    queryFn: () => (via ? apiFor(via).usualHours(offset) : noServer()),
+    queryKey: viaKey(via?.baseUrl, 'usual', zone),
+    queryFn: () => (via ? apiFor(via).usualHours() : noServer()),
     enabled: via !== undefined,
     retry: false,
     staleTime: STALE.fiveMinutes,

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
-import { formatHlc, joinedNames } from '@selfmp3/shared'
+import { formatHlc, fromSqliteTime, joinedNames } from '@selfmp3/shared'
 import { NamesRepository } from './names.js'
 import { SongRepository } from './songs.js'
+import { zoneDayKey } from './listening.js'
 import { StatsRepository } from './stats.js'
 import { WrappedRepository } from './wrapped.js'
 
@@ -154,5 +155,40 @@ describe('StatsRepository.songPlays', () => {
       lastPlayedAt: null,
       hours: [],
     })
+  })
+})
+
+describe('StatsRepository zones', () => {
+  it('counts days and hours where the reader is', () => {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    db.prepare(
+      "INSERT INTO songs (id, path, title, artist, added_at) VALUES (1, 'a', 'Song', 'Artist', datetime('now', '-400 days'))",
+    ).run()
+    // 13:00 UTC, two days back: 21:00 in Shanghai, 06:00 or so in Los Angeles.
+    db.prepare(
+      `INSERT INTO play_events (song_id, played_at, ms_played)
+       VALUES (1, datetime('now', 'start of day', '-2 days', '+13 hours'), 60000)`,
+    ).run()
+    const stats = new StatsRepository(db)
+    const wrapped = new WrappedRepository(db)
+
+    const shanghai = stats.build('all', 'Asia/Shanghai')
+    expect(shanghai.hourly.find(slot => slot.plays > 0)?.hour).toBe(21)
+    expect(wrapped.build('month', 'Asia/Shanghai').peakHour?.hour).toBe(21)
+    expect(
+      stats.build('all', 'America/Los_Angeles').hourly.find(slot => slot.plays > 0)?.hour,
+    ).toBeLessThan(7)
+    expect(stats.build('all', 'UTC').hourly.find(slot => slot.plays > 0)?.hour).toBe(13)
+
+    // The play's day is the reader's, and so is the axis it sits on.
+    const week = stats.build('7d', 'Pacific/Kiritimati')
+    const at = db.prepare<[], { played_at: string }>('SELECT played_at FROM play_events').get()
+    const played = week.daily.filter(day => day.plays > 0)
+    expect(played.map(day => day.date)).toEqual([
+      zoneDayKey(fromSqliteTime(at?.played_at ?? ''), 'Pacific/Kiritimati'),
+    ])
+    expect(week.daily).toHaveLength(7)
+    expect(week.daily.at(-1)?.date).toBe(zoneDayKey(Date.now(), 'Pacific/Kiritimati'))
   })
 })

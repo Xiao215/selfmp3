@@ -13,8 +13,15 @@ import { CameWithSchema } from './song.js'
 export const StatsRangeSchema = z.enum(['7d', '30d', '90d', '365d', 'all'])
 export type StatsRange = z.infer<typeof StatsRangeSchema>
 
+/**
+ * The reader's time zone as an IANA name (`Asia/Shanghai`), sent with Stats,
+ * Wrapped and the usual hours so days and hours are counted where the reader
+ * is, not where the server is (`readerZone` on the server; `readerTimeZone` here).
+ */
+export const ZoneQuerySchema = z.string().max(64).optional()
+
 export const DailyPlaysSchema = z.object({
-  /** YYYY-MM-DD in local server time. */
+  /** YYYY-MM-DD in the reader's time zone. */
   date: z.string(),
   plays: z.number().int().nonnegative(),
   minutes: z.number().nonnegative(),

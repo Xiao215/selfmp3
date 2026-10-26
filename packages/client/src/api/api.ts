@@ -16,6 +16,7 @@
  * chances to change a route string nobody notices until a screen breaks.
  */
 import {
+  readerTimeZone,
   AffectedSchema,
   AllPlaylistSongsSchema,
   AnalysisStatusSchema,
@@ -148,6 +149,15 @@ async function inChunks<T>(
     answers.push(await send(ids.slice(offset, offset + BULK_IDS_MAX), offset))
   }
   return answers
+}
+
+/**
+ * The reader's zone for Stats, Wrapped and the usual hours (`readerTimeZone`),
+ * as a query parameter after `join`, the `?` or `&` before it.
+ */
+function zoneQuery(join: '?' | '&'): string {
+  const zone = readerTimeZone()
+  return zone ? `${join}zone=${encodeURIComponent(zone)}` : ''
 }
 
 const affectedIn = (parts: readonly Affected[]): Affected => ({
@@ -705,7 +715,8 @@ export function createApi({ context, fetch }: ApiOptions) {
     updateSettings: (patch: UpdateSettings) =>
       request('PATCH', '/api/settings', SettingsSchema, patch),
 
-    stats: (range: StatsRange) => request('GET', `/api/stats?range=${range}`, StatsSchema),
+    stats: (range: StatsRange) =>
+      request('GET', `/api/stats?range=${range}${zoneQuery('&')}`, StatsSchema),
 
     /**
      * Whether the server has a picture for this artist, finding one if it
@@ -724,14 +735,13 @@ export function createApi({ context, fetch }: ApiOptions) {
       request('PUT', '/api/artists/names', SetArtistNamesSchema, input),
 
     wrapped: (range: WrappedRange) =>
-      request('GET', `/api/stats/wrapped?range=${range}`, WrappedSchema),
+      request('GET', `/api/stats/wrapped?range=${range}${zoneQuery('&')}`, WrappedSchema),
 
     gems: (limit: number) =>
       request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
 
     /** What you usually play at each hour, by this device's clock (`UsualHours`). */
-    usualHours: (offsetMinutes: number) =>
-      request('GET', `/api/stats/usual?offset=${offsetMinutes}`, UsualHoursSchema),
+    usualHours: () => request('GET', `/api/stats/usual${zoneQuery('?')}`, UsualHoursSchema),
 
     /** One song's every play, which only a server keeps (`SongHistory`). */
     songHistory: (songId: number) =>

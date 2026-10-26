@@ -59,8 +59,9 @@ page headed "Last 7 days" would cheerfully report *8 days with music*, and the s
 read 8 out of 7. Snapping to midnight makes the label and the numbers agree. The Stats page
 keeps its own plain rolling window; the two can differ by a few plays near the boundary.
 
-Hours, dates and weekdays all use SQLite's `localtime`, so "peak hour" means your evening,
-not UTC's.
+Hours, dates and weekdays are counted in the reader's time zone, which the app sends with the
+request (`zone`, an IANA name), so "peak hour" means your evening wherever you are, not UTC's
+or the server's. With no zone, or one the server does not know, it counts in its own.
 
 ### Listening personality
 
@@ -97,7 +98,7 @@ around it.
 ### API
 
 ```
-GET /api/stats/wrapped?range=week|month|quarter|year|all   → Wrapped     (default: month)
+GET /api/stats/wrapped?range=week|month|quarter|year|all&zone=<IANA zone>   → Wrapped     (default: month)
 ```
 
 Asked of the server, through the reached address on a cloud library
@@ -175,7 +176,7 @@ songs** (`MIN_PLAYS`, `MIN_SONGS`), and the tile also needs **5 of the hour's so
 device** (`USUAL_LEAST_HERE`). Below that there is nothing to call a habit, and Home shows the
 tags as before.
 
-**Without a server.** `GET /api/stats/usual?offset=<minutes east of UTC>` answers every hour of
+**Without a server.** `GET /api/stats/usual?zone=<IANA zone>` answers every hour of
 both kinds of day at once (`UsualHoursSchema` in `packages/shared/src/schemas/stats.ts`), naming
 songs by uid, each once. The device keeps the latest answer (`home.usual`,
 `features/home/useUsualHours.ts`) and lines the uids up with its own songs, so the tile still

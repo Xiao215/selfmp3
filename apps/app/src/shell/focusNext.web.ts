@@ -30,11 +30,12 @@ function stopsIn(root: ParentNode, rows = false): HTMLElement[] {
 /**
  * Move focus to the next thing Tab would reach after `from`: the first of a
  * page's results, from its search field, when ↓ is pressed there. True if it
- * moved.
+ * moved. A song row counts, though it is not Tab's: a search whose first
+ * result is a song, with no "See all" over it, had ↓ go past the song.
  */
 export const focusNextStop: typeof SameShape = from => {
   if (!(from instanceof HTMLElement)) return false
-  const next = stopsIn(document).find(
+  const next = stopsIn(document, true).find(
     stop => from.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING,
   )
   if (!next) return false

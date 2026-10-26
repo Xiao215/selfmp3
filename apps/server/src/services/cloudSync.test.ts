@@ -2160,6 +2160,112 @@ describe('CloudSyncService', () => {
       expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
       expect(latest().songs.map(song => song.title)).toEqual(['One again'])
     })
+
+    it('does not count a song removed while the pass was sending it as a failure', async () => {
+      addSong('A - One', 'one')
+      const gone = addSong('B - Two', 'two')
+      // The first upload is where the delete lands: the second song's row and
+      // copy go before the pass reaches it.
+      const put = bucket.put.bind(bucket)
+      let removed = false
+      bucket.put = async (key, body, options) => {
+        if (!removed && key.startsWith('audio/')) {
+          removed = true
+          await removalService().remove([gone])
+        }
+        return put(key, body, options)
+      }
+      const service = lettingGo()
+      await service.connect(CONNECT)
+      await service.whenIdle()
+
+      expect(removed).toBe(true)
+      expect(service.status()).toMatchObject({ lastError: null })
+      expect(latest().songs.map(song => song.title)).toEqual(['One'])
+    })
+
+    /** Ten songs up and let go: a library big enough for the guard to watch over. */
+    const tenLetGo = async (service: CloudSyncService): Promise<number[]> => {
+      const ids = Array.from({ length: 10 }, (_, index) => addSong(`A - ${index}`, `song ${index}`))
+      for (const id of ids) analysed.add(id)
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(here('A - 0/A - 0.m4a')).toBe(false)
+      expect(latest().songs).toHaveLength(10)
+      return ids
+    }
+
+    /*
+     * Reached under another fingerprint (a folder moved, an endpoint spelt
+     * another way), the server forgot every upload; adoption left its own songs
+     * alone and with their copies let go nothing could be sent, so every pass
+     * refused to publish: "the bucket's library has 10 songs and this server has 0".
+     */
+    it('finds its own let-go songs in the bucket after the bucket stops looking like itself', async () => {
+      const first = lettingGo()
+      await tenLetGo(first)
+      first.stop()
+      await first.whenIdle()
+      const puts = bucket.puts.length
+
+      // The same bucket (the fake opens it by name) under another endpoint.
+      const service = lettingGo()
+      await service.connect({ ...CONNECT, endpoint: 's3.eu-central-003.backblazeb2.com' })
+      await service.whenIdle()
+      addSong('B - New', 'new')
+      await service.syncNow()
+
+      expect(service.status().lastError).toBeNull()
+      expect(latest().songs).toHaveLength(11)
+      expect(bucket.puts.slice(puts).filter(key => key.startsWith('audio/'))).toEqual([
+        `audio/${sha('new')}.m4a`,
+      ])
+    })
+
+    /*
+     * A restart after a big delete and before the snapshot without those songs
+     * went up: the bucket's newest still names them, and the guard took this
+     * server's own delete for a library it was about to lose, for good.
+     */
+    it('publishes its own big delete after a restart that came before the snapshot', async () => {
+      const first = lettingGo()
+      const ids = await tenLetGo(first)
+      first.stop()
+      await first.whenIdle()
+
+      await removalService().remove(ids.slice(0, 8))
+      // The process dies here; the next one starts from the database.
+      const service = lettingGo()
+      service.start()
+      await service.syncNow()
+
+      expect(service.status().lastError).toBeNull()
+      expect(
+        latest()
+          .songs.map(song => song.title)
+          .sort(),
+      ).toEqual(['8', '9'])
+      expect(bucket.keys('audio/')).toHaveLength(2)
+    })
+
+    it('takes back songs lost without a delete here to account for them', async () => {
+      const first = lettingGo()
+      const ids = await tenLetGo(first)
+      first.stop()
+      await first.whenIdle()
+
+      // Gone from the database without being removed: a restored backup, say.
+      // Only a removal made here is this server's to publish.
+      db.prepare(`DELETE FROM songs WHERE id IN (${ids.slice(0, 8).join(',')})`).run()
+      const service = lettingGo()
+      service.start()
+      await service.syncNow()
+
+      expect(service.status().lastError).toBeNull()
+      expect(songs.all()).toHaveLength(10)
+      expect(latest().songs).toHaveLength(10)
+      expect(bucket.keys('audio/')).toHaveLength(10)
+    })
   })
 
   describe('changes from other devices', () => {
@@ -2874,7 +2980,7 @@ describe('CloudSyncService', () => {
               uid: uidOf(id),
               playId: `play-${seq}-from-the-phone`,
               playedAt: at,
-              msPlayed: 1000,
+              msPlayed: 200_000,
               completed: true,
             },
           ])

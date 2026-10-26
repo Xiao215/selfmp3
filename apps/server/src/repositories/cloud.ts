@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { z } from 'zod'
 import {
   DoormanStorageSchema,
@@ -180,6 +181,35 @@ interface CloudTarget {
   readonly endpoint: string
   readonly bucket: string
   readonly prefix: string
+}
+
+/**
+ * One bucket and folder, however it was spelt: a folder standing in for the
+ * bucket by its resolved path (a trailing slash or a `..` is the same folder),
+ * an endpoint without case or a trailing slash, a prefix without slashes at
+ * either end. A difference in spelling alone used to read as another bucket,
+ * and forgot every upload.
+ */
+function targetFingerprint(target: CloudTarget): string {
+  const folder = target.endpoint === 'file://'
+  return JSON.stringify([
+    folder ? target.endpoint : target.endpoint.trim().replace(/\/+$/, '').toLowerCase(),
+    folder ? path.resolve(target.bucket) : target.bucket.trim(),
+    target.prefix.trim().replace(/^\/+|\/+$/g, ''),
+  ])
+}
+
+/** A fingerprint as stored, in today's spelling; one that will not read matches nothing. */
+function storedFingerprint(value: string): string | null {
+  try {
+    const [endpoint, bucket, prefix] = JSON.parse(value) as unknown[]
+    if (typeof endpoint !== 'string' || typeof bucket !== 'string' || typeof prefix !== 'string') {
+      return null
+    }
+    return targetFingerprint({ endpoint, bucket, prefix })
+  } catch {
+    return null
+  }
 }
 
 const CONNECTION_SECRET = 'cloud.connection'
@@ -483,9 +513,14 @@ export class CloudRepository {
    * there. A new key, or a new sign-in, for the same bucket keeps it all.
    */
   adoptTarget(target: CloudTarget): void {
-    const fingerprint = JSON.stringify([target.endpoint, target.bucket, target.prefix])
+    const fingerprint = targetFingerprint(target)
     this.#db.transaction(() => {
-      if (this.#getSecret.get(TARGET_SECRET)?.value === fingerprint) return
+      const before = this.#getSecret.get(TARGET_SECRET)?.value
+      if (before !== undefined && storedFingerprint(before) === fingerprint) {
+        // Written before spellings were tidied: kept in the tidy form from now on.
+        if (before !== fingerprint) this.#setSecret.run(TARGET_SECRET, fingerprint)
+        return
+      }
       this.#forgetUploads()
       this.#setSecret.run(TARGET_SECRET, fingerprint)
     })()

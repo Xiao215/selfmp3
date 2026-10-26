@@ -306,11 +306,22 @@ export function publishWouldLoseLibrary(inBucket: number, onThisDevice: number):
  *
  * Throws when the bytes are not a snapshot. That is deliberate — the caller
  * must treat "cannot read it" as a reason to stop, never as permission.
+ *
+ * A song `removedHere` says this server removed on purpose is not counted: the
+ * snapshot is only older than the removal (a restart before the next snapshot
+ * went up), and a server publishing its own deliberate delete is not losing
+ * the library. A song with no uid to tell by is counted.
  */
-export function snapshotSongCount(body: Buffer): number {
+export function snapshotSongCount(
+  body: Buffer,
+  removedHere: (uid: string) => boolean = () => false,
+): number {
   const songs = (JSON.parse(snapshotText(body)) as { songs?: unknown }).songs
   if (!Array.isArray(songs)) throw new Error('a snapshot with no songs array')
-  return songs.length
+  return songs.filter(song => {
+    const uid = (song as { uid?: unknown } | null)?.uid
+    return typeof uid !== 'string' || !removedHere(uid)
+  }).length
 }
 
 /**

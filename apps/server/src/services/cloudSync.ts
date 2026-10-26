@@ -1097,12 +1097,16 @@ export class CloudSyncService {
           // Offline, a refused key, no bucket, a used-up cap: nothing else
           // will work either, and every try against a cap is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
-          failed++
-          this.#lastError = `${file.title}: ${messageOf(error)}`
-          this.#logger.warn('could not upload a song', {
-            songId: file.id,
-            message: messageOf(error),
-          })
+          // Removed while the pass was sending it, its copy with it: what was
+          // asked, not a failure to try again over.
+          if (this.#deps.cloud.songFile(file.id)) {
+            failed++
+            this.#lastError = `${file.title}: ${messageOf(error)}`
+            this.#logger.warn('could not upload a song', {
+              songId: file.id,
+              message: messageOf(error),
+            })
+          }
         }
         done++
         this.#progress = { done, total, current: null }
@@ -1581,7 +1585,14 @@ export class CloudSyncService {
     }
 
     const result: AdoptionResult = await adopt.adopt(snapshot)
+    const reclaimed = await this.#reclaimLetGo(snapshot)
     this.#adopted = true
+    if (reclaimed > 0) {
+      this.#logger.info('found songs already in the bucket that this server had lost track of', {
+        from: newest.key,
+        songs: reclaimed,
+      })
+    }
     if (result.logsFrom > 0) {
       this.#logger.info('reads each device’s log from where the bucket’s snapshot left off', {
         from: newest.key,
@@ -1602,6 +1613,53 @@ export class CloudSyncService {
         songs: result.withoutAudio,
       })
     }
+  }
+
+  /**
+   * Songs this server has, whose copy here was let go, and that it has no
+   * record of having sent: the bucket's snapshot says where their files are.
+   *
+   * What the pass knows about a bucket is forgotten when the bucket looks like
+   * another one (`adoptTarget`) — a folder moved, an endpoint spelt another
+   * way. Adoption leaves a song it already has alone, and with its copy here
+   * gone the pass had nothing to send for it either, so it left every snapshot
+   * and the guard refused to publish for good. The bucket still holds its
+   * files, under the keys the snapshot gives, so they are this song's again,
+   * with the signatures the pass works out for it here: unchanged to the pass.
+   * A song whose copy is still here is sent the ordinary way.
+   */
+  async #reclaimLetGo(snapshot: CloudSnapshot): Promise<number> {
+    const { cloud, storage, sync } = this.#deps
+    if (!sync) return 0
+    let reclaimed = 0
+    for (const song of snapshot.songs) {
+      const songId = sync.songId(song.uid)
+      if (songId === null || cloud.wasRemoved(song.uid) || cloud.state(songId)) continue
+      if (!cloud.hasFile(song.audio.key)) continue
+      const file = cloud.songFile(songId)
+      if (!file || (await storage.exists(file.path))) continue
+      // Words kept nowhere here read as whatever was last sent (`#signatures`):
+      // the bucket's, as the snapshot names them. A cover or curve here that
+      // the snapshot has none of goes up (an empty signature matches nothing).
+      const signatures = await this.#signatures(file)
+      cloud.saveState({
+        songId,
+        audioKey: song.audio.key,
+        audioSize: song.audio.size,
+        audioSig: signatures.audio,
+        coverKey: song.cover?.key ?? null,
+        coverSize: song.cover?.size ?? null,
+        coverSig: song.cover || !file.hasArt ? signatures.cover : '',
+        lyricsKey: song.lyrics?.key ?? null,
+        lyricsSize: song.lyrics?.size ?? null,
+        lyricsKind: song.lyrics?.kind ?? null,
+        lyricsSig: signatures.lyrics,
+        motionKey: song.motion,
+        motionSig: song.motion || signatures.motion === NO_FILE_SIGNATURE ? signatures.motion : '',
+      })
+      reclaimed++
+    }
+    return reclaimed
   }
 
   /**
@@ -2337,7 +2395,7 @@ export class CloudSyncService {
           ? read.newest
           : await this.#newestSnapshot(store)
       if (!newest) return null
-      inBucket = snapshotSongCount(newest.body)
+      inBucket = snapshotSongCount(newest.body, uid => this.#deps.cloud.wasRemoved(uid))
     } catch (error) {
       return error instanceof CloudError
         ? error.message

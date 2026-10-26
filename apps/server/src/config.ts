@@ -358,9 +358,9 @@ export function loadConfig(): Config {
   const config = {
     ...parsed.data,
     cloudDir:
-      parsed.data.cloudDir === null || path.isAbsolute(parsed.data.cloudDir)
-        ? parsed.data.cloudDir
-        : path.join(parsed.data.dataDir, parsed.data.cloudDir),
+      parsed.data.cloudDir === null
+        ? null
+        : path.resolve(parsed.data.dataDir, parsed.data.cloudDir),
   }
 
   for (const dir of [config.libraryDir, config.dataDir, path.join(config.dataDir, 'covers')]) {

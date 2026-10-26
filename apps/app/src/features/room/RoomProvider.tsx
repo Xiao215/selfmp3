@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { router } from 'expo-router'
 import {
   clientApi,
   publicServerBase,
@@ -44,6 +45,7 @@ import {
   keepGoingPicks,
   namesOf,
   needsReport,
+  endedLine,
   pastRoomOf,
   positionNow,
   roomTracks,
@@ -152,9 +154,24 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   // A room that ended: kept for Recently played, and the host's player let go of it.
   useEffect(
     () =>
-      onRoomEnded(ended => {
+      onRoomEnded((ended, how) => {
         const past = pastRoomOf(ended, Date.now())
         if (past) rememberPastRoom({ ...past, shared: keptAsOf(ended.code) })
+        // Leaving says so where it was pressed (RoomSheets); the room ending
+        // under you, or being taken out of it, is said here.
+        if (how !== 'left') {
+          showToast(endedLine(ended, how), 'info', {
+            actions: past
+              ? [
+                  {
+                    label: 'See what played',
+                    onPress: () =>
+                      router.push({ pathname: '/past-room/[code]', params: { code: ended.code } }),
+                  },
+                ]
+              : [],
+          })
+        }
         if (roomTrack(live.current.playingId ?? 0)) {
           commands.setUpcoming([])
           if (live.current.playing) commands.toggle()

@@ -26,6 +26,8 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  keptTitle,
+  endedLine,
   upgradePastRooms,
   soundTarget,
   startingSongs,
@@ -361,6 +363,23 @@ describe('after the room', () => {
 
   it('is named after the others', () => {
     expect(pastTitle(as(room(), X))).toBe('With Mia and Ana')
+  })
+
+  it('names each person once, and a kept playlist only those still here who signed in', () => {
+    const K = 'eeeeeeeeeeee'
+    const M2 = 'ffffffffffff'
+    let doc = ok(addRoomMember(room(), { id: K, name: 'Kai', kind: 'friend', picture: null }, 1300))
+    doc = act(doc, K, { type: 'leave' })
+    // Mia leaves and comes back: a second member record, the same person.
+    doc = act(doc, M, { type: 'leave' })
+    doc = ok(addRoomMember(doc, { id: M2, name: 'Mia', kind: 'friend', picture: null }, 2100))
+    expect(pastTitle(as(doc, X))).toBe('With Ana, Kai and Mia')
+    expect(keptTitle(as(doc, X))).toBe('With Mia')
+    // Mia's own earlier record is not someone else she was with.
+    expect(pastTitle(as(doc, M2))).toBe('With Xiao, Ana and Kai')
+    expect(endedLine(as(doc, M2), 'ended')).toBe("Xiao's room ended")
+    expect(endedLine(as(doc, M2), 'removed')).toBe("You were taken out of Xiao's room")
+    expect(endedLine(as(doc, X), 'ended')).toBe('Your room ended')
   })
 
   it('invites to the join page', () => {

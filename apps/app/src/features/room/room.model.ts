@@ -432,7 +432,7 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
     endedAt: state.endedAt ?? now,
     // Not kept as one yet: RoomProvider says, as the room ends.
     shared: null,
-    people: state.members.map(member => ({
+    people: peopleOnce(state).map(member => ({
       name: nameOf(state, member),
       colour: member.colour,
       picture: member.picture,
@@ -449,12 +449,53 @@ export function pastRoomOf(state: RoomState, now: number): PastRoom | null {
   }
 }
 
+/** What a member is told when the room ends under them, or they are taken out of it. */
+export function endedLine(state: RoomState, how: 'ended' | 'removed'): string {
+  if (isHost(state)) return 'Your room ended'
+  const title = roomTitle(state)
+  return how === 'removed' ? `You were taken out of ${title}` : `${title} ended`
+}
+
+/**
+ * Everyone who was in the room, once each: someone who left and came back
+ * has a member record for each time, the latest kept. An earlier record of
+ * your own is you, and goes.
+ */
+function peopleOnce(state: RoomState): RoomMember[] {
+  const you = youOf(state)
+  const latest = new Map<string, RoomMember>()
+  for (const member of state.members) {
+    if (member.id !== state.you && member.name === you?.name) continue
+    latest.delete(member.name)
+    latest.set(member.name, member)
+  }
+  return [...latest.values()]
+}
+
+function withNames(names: readonly string[], state: RoomState): string {
+  if (names.length === 0) return roomTitle(state)
+  if (names.length === 1) return `With ${names[0]}`
+  return `With ${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 /** "With Mia, Ken and Ana": the others who were there. */
 export function pastTitle(state: RoomState): string {
-  const others = state.members.filter(member => member.id !== state.you).map(member => member.name)
-  if (others.length === 0) return roomTitle(state)
-  if (others.length === 1) return `With ${others[0]}`
-  return `With ${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}`
+  return withNames(
+    peopleOnce(state)
+      .filter(member => member.id !== state.you)
+      .map(member => member.name),
+    state,
+  )
+}
+
+/** "With Mia": the others a kept room is for — still here, and signed in. */
+export function keptTitle(state: RoomState): string {
+  return withNames(
+    peopleOnce(state)
+      .filter(member => member.id !== state.you && !member.left && member.kind !== 'guest')
+      .map(member => member.name),
+    state,
+  )
 }
 
 /** The room's invite link: opens the join page, in the app or a browser. */

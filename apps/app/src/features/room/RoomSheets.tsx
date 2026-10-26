@@ -32,7 +32,7 @@ import {
   isHost,
   namesOf,
   pastRoomOf,
-  pastTitle,
+  keptTitle,
   peopleHere,
   roomTitle,
   startingSongs,
@@ -604,7 +604,7 @@ function KeepAsShared({ state }: { state: RoomState }): ReactNode {
     setBusy(true)
     try {
       const session = await sharedSession()
-      const playlist = await sharedApi.keepRoom(pass, session, pastTitle(state).slice(0, 120))
+      const playlist = await sharedApi.keepRoom(pass, session, keptTitle(state).slice(0, 120))
       noteKeptAs(state.code, playlist.id)
       setKept(playlist.id)
       showToast(`Kept as “${playlist.name}”, for everyone here who signed in`, 'good', {

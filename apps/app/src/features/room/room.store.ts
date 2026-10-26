@@ -69,7 +69,13 @@ export const roomApi = createRoomApi(doormanUrl, plainFetch)
 
 let view: RoomView = { pass: readPass(), state: null, offset: 0, link: 'offline' }
 const listeners = new Set<() => void>()
-const endedListeners = new Set<(state: RoomState) => void>()
+/**
+ * How a room ended for this device: it left (or, as host, ended it), the host
+ * ended it (or it sat idle), or the host took this device out of it.
+ */
+export type RoomEnd = 'left' | 'ended' | 'removed'
+
+const endedListeners = new Set<(state: RoomState, how: RoomEnd) => void>()
 
 function set(next: Partial<RoomView>): void {
   view = { ...view, ...next }
@@ -96,8 +102,13 @@ function takeState(pass: RoomPass, state: RoomState): void {
  * answer or a timer that started for one room never finishes the next one,
  * nor a room already left.
  */
-function finishIfStill(pass: RoomPass): void {
-  if (view.pass === pass) finish()
+function finishIfStill(pass: RoomPass, how: RoomEnd): void {
+  if (view.pass === pass) finish(how)
+}
+
+/** How a refusal that says the room is over for this member came about. */
+function endOf(error: DoormanError): RoomEnd {
+  return error.code === DOORMAN_ERROR.roomLeft ? 'removed' : 'ended'
 }
 
 function readPass(): RoomPass | null {
@@ -137,7 +148,7 @@ export function useRoom(): RoomView {
 }
 
 /** Hear when a room this device was in ends, with how it ended: what Recently played keeps. */
-export function onRoomEnded(listener: (state: RoomState) => void): () => void {
+export function onRoomEnded(listener: (state: RoomState, how: RoomEnd) => void): () => void {
   endedListeners.add(listener)
   return () => endedListeners.delete(listener)
 }
@@ -267,11 +278,13 @@ export function connectRoom(): void {
         set({ offset: clockOffset(samples) })
         return
       }
-      case 'gone':
+      case 'gone': {
         // The final state follows the word, when the room ended; wait a beat
         // for it so the room is remembered as it finished.
-        setTimeout(() => finishIfStill(pass), 300)
+        const how = message.data.reason
+        setTimeout(() => finishIfStill(pass, how), 300)
         return
+      }
     }
   }
   // Closed, or a ping that went unanswered: the line is down either way.
@@ -308,7 +321,7 @@ export function connectRoom(): void {
         },
         (error: unknown) => {
           if (view.pass !== current) return
-          if (error instanceof DoormanError && error.gone) finish()
+          if (error instanceof DoormanError && error.gone) finish(endOf(error))
           else connectRoom()
         },
       )
@@ -319,10 +332,10 @@ export function connectRoom(): void {
 }
 
 /** The room is over for this device: remember it, and let it go. */
-function finish(): void {
+function finish(how: RoomEnd): void {
   const last = view.state
   forgetRoom()
-  if (last) for (const listener of endedListeners) listener(last)
+  if (last) for (const listener of endedListeners) listener(last, how)
 }
 
 /** Out of the room here, without telling it: what Leave does once the room has heard. */
@@ -428,7 +441,7 @@ async function leaveFor(code: string): Promise<void> {
   await roomApi.act(pass, { type: 'leave' }, null).catch(() => undefined)
   if (view.pass !== pass) return
   closeSocket()
-  if (ending) for (const listener of endedListeners) listener(ending)
+  if (ending) for (const listener of endedListeners) listener(ending, 'left')
 }
 
 /** Open a room: needs this device signed in. */
@@ -463,7 +476,7 @@ export async function roomAct(action: RoomAction): Promise<RoomState> {
     takeState(pass, state)
     return state
   } catch (error) {
-    if (error instanceof DoormanError && error.gone) finishIfStill(pass)
+    if (error instanceof DoormanError && error.gone) finishIfStill(pass, endOf(error))
     throw error
   }
 }
@@ -473,5 +486,5 @@ export async function leaveRoom(): Promise<void> {
   const ending = view.state
   await roomAct({ type: 'leave' }).catch(() => undefined)
   forgetRoom()
-  if (ending) for (const listener of endedListeners) listener(ending)
+  if (ending) for (const listener of endedListeners) listener(ending, 'left')
 }

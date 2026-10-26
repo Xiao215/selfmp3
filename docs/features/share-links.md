@@ -46,6 +46,34 @@ existed briefly and was removed on 2026-10-14 (share sheet rework, B1): its QR l
 same workers.dev address, which China blocks, and choosing between the two was a question
 the app should not ask.
 
+## Sharing from a line (N6a)
+
+Agreed with Xiao on 2026-10-25 in the feature review
+(<https://claude.ai/artifact/WEAZGxA7vxd7SiSYWynxSa>, pick N6a).
+
+In Now Playing's words, a timed line held on a phone, or right-clicked on a computer, opens a
+small menu (`features/nowPlaying/useLineMenu.tsx`): **Share from here**, **Play from here**,
+**Copy line**. Held, it is a sheet titled with the line; right-clicked, it opens at the pointer.
+A music break offers Play from here alone. A room's song cannot be shared, and a link's own
+page draws no menu.
+
+- **Share from here** is the song's Share link, from that line: the same sheet, and the same
+  link as sharing the song (below). The address says where to start, as a time:
+  `/l/<id>/<key>?t=0:42` (`formatShareStart`, whole seconds, a little before the line rather
+  than after). The sheet's row says *From 0:42 · the line*, and the words sent with it end
+  *· from 0:42*.
+- **The line goes with it** (`ShareLine`): where it starts, the line, and its romaji or pinyin
+  when that is on for the sender. The link keeps up to 20, one per start, so sharing a song from
+  two lines is still one link with two addresses.
+- **The friend's page** starts the song there when Play is pressed, and shows the line large
+  with the reading under it. On a computer it has the words' column until the song plays, then
+  the words in time take over on that line; on a phone it sits under the names.
+- **A chat's card** names the line: *“干杯 朋友” · 五月天 · Shared by Xiao*. A start the link
+  has no line for says *From 1:00*. Nothing is read from the sender's bucket for either.
+- **A `t` that does not read as a time** (`parseShareStart`: `0:42`, `1:02:03`, or plain
+  seconds), or one past the song's end, is no start: the link is as it is without one.
+- **Copy line** copies the line's words alone.
+
 Only an account with a bucket can share, since the doorman lends from it. A song not in
 storage yet cannot be shared.
 
@@ -245,7 +273,7 @@ You reach it from Profile, under Report. Each link's ⋯ holds:
 Each link is a Durable Object named by its id (`apps/doorman/src/share.ts`, bound as
 `SHARES`, class `ShareLink`, migration `v4`). It keeps:
 
-- the link (`ShareDoc`);
+- the link (`ShareDoc`), with the lines it was shared from;
 - its key;
 - whose bucket it lends from;
 - which signed-in accounts opened it, and which asked.
@@ -263,7 +291,7 @@ GET  /v1/share                                   → ShareSummary[] the links yo
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
 GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
-GET  /l/<id>/<key>                               a chat app: its card; anyone else: on to the app
+GET  /l/<id>/<key>[?t=0:42]                     a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
 ```
@@ -283,4 +311,5 @@ and Home and Settings then show nothing of them.
 | From a device | `packages/client/src/room/shareApi.ts` |
 | The app | `apps/app/src/features/share/`: the sheet, the link's page, Links you shared, From friends |
 | Routes | `apps/app/app/l/[id]/[key].tsx`, `apps/app/app/links.tsx` |
-| Tests | `apps/doorman/src/shareRoutes.test.ts` (the real doorman), `apps/app/src/features/share/share.model.test.ts` |
+| Sharing from a line | `apps/app/src/features/nowPlaying/useLineMenu.tsx`; the start's rules in `shareLink.ts` (`parseShareStart`, `formatShareStart`, `shareLineAt`) |
+| Tests | `apps/doorman/src/shareRoutes.test.ts` and `linkPage.test.ts` (the real doorman), `apps/app/src/features/share/share.model.test.ts` |

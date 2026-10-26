@@ -49,7 +49,9 @@ the same hue as its placeholder cover.
 
 - The line being sung stays at the same height; the list moves under it. Scroll by hand to
   read ahead and the auto-centring holds off for four seconds.
-- Click a line to jump there.
+- Click a line to jump there. Right-click a timed line, or hold it on a phone, for **Share
+  from here**, **Play from here** and **Copy line**
+  ([share-links.md](share-links.md#sharing-from-a-line-n6a)).
 - **Romaji** / **Pinyin** shows the romanization under each line (Chinese and Japanese
   only; see [lyrics-plus.md](lyrics-plus.md)).
 - In the last fifteen seconds of a song, a card says what is next; clicking it skips there.

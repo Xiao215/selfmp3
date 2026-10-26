@@ -18,8 +18,6 @@ export const SettingsSchema = z.object({
   autoFetchLyrics: z.boolean().default(true),
   /** How many downloads run at once. More is not always faster. */
   importConcurrency: z.number().int().min(1).max(4).default(2),
-  /** Tags applied to every imported song, on top of per-import tags. */
-  defaultImportTagIds: z.array(z.number().int().positive()).max(20).default([]),
   /** Watch the library folder and rescan when files change, no timer needed. */
   watchLibrary: z.boolean().default(true),
   /**
@@ -34,24 +32,11 @@ export const SettingsSchema = z.object({
   /** Absolute path to a cookies.txt, used when ytCookieSource is 'file'. */
   ytCookieFile: z.string().trim().max(1000).default(''),
   /**
-   * Smart features at all (Settings › Smart features' "Use smart features").
-   * Off, every one of them is off whatever its own switch says, and each
-   * keeps its own switch for when this is turned back on.
+   * The smart features, all of them (Settings › Smart features' "Use smart
+   * features", docs/features/ai.md). Off, their ways in are not drawn and the
+   * server refuses them, so nothing of the library goes to the model.
    */
   smartFeatures: z.boolean().default(true),
-  /**
-   * The smart features one at a time (Settings › Smart features,
-   * docs/features/ai.md). Off, a feature's way in is not drawn and the server
-   * refuses it, so nothing of the library goes to the model for it.
-   */
-  smartAsk: z.boolean().default(true),
-  smartTidy: z.boolean().default(true),
-  smartTags: z.boolean().default(true),
-  smartWritten: z.boolean().default(true),
-  /** Fix metadata's Suggested card: the model reads the song's names and the catalogues' listings. */
-  smartMetadata: z.boolean().default(true),
-  /** Import's review: the model reads the names of the songs about to come in, and suggests better ones. */
-  smartImport: z.boolean().default(true),
   /**
    * How you want things done, for every Ask ("Song names in Chinese only,
    * without the English after them"): saved from an Ask answer, removed in

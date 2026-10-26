@@ -36,7 +36,7 @@ import { tidy } from './tidy.js'
  * What the Search box's Ask can do (docs/features/ai.md, "S1"), one entry
  * each. An action says when the router should choose it and how to fill it
  * in, what its part of the router's form is, whether it reads Describe's
- * filters, which Settings switch it sits behind, and how it answers. The
+ * filters, and how it answers. The
  * router (ask.ts) builds its prompt and its form from this list and runs
  * whichever entry it chose; adding an action is adding an entry.
  *
@@ -63,12 +63,6 @@ export interface AskDeps extends DescribeDeps {
   readonly music?: MusicCatalogue
 }
 
-/** Features turned off in Settings that the router may still choose. */
-export interface AskAllowed {
-  readonly tidy: boolean
-  readonly tags: boolean
-}
-
 /** What every action is run with: the request, and the library as it was asked about. */
 export interface AskContext {
   readonly deps: AskDeps & { readonly remembered: Remembered }
@@ -92,8 +86,6 @@ export interface AskAction<F> {
   readonly fields: z.ZodType<F> | null
   /** Whether it reads the shared filters, and whether it cannot answer without them. */
   readonly filters: 'required' | 'optional' | 'unused'
-  /** The Settings switch it sits behind, and the feature's name for saying it is off. */
-  readonly switch?: { readonly key: keyof AskAllowed; readonly label: string }
   /** A method, so an entry fits the list whatever its fields are. */
   run(context: AskContext, fields: F, filters: Plan | null): AskAnswer | Promise<AskAnswer>
 }
@@ -282,7 +274,6 @@ const tags = action({
   when: 'anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn\'t Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. The request itself says which songs and tags. When they say how many songs to change, fill "filters" with that number as size and nothing else; otherwise filters is null.',
   fields: null,
   filters: 'optional',
-  switch: { key: 'tags', label: 'Tags' },
   run: async ({ deps, text, steps }, _fields, filters) => ({
     kind: 'tags',
     review: await tagReview(deps, { text, limit: filters?.size ?? null }, steps),
@@ -344,7 +335,6 @@ const tidyUp = action({
     lookUp: z.boolean(),
   }),
   filters: 'optional',
-  switch: { key: 'tidy', label: 'Tidy up' },
   run: async ({ deps, text, now, steps }, { what, lookUp }, filters) => {
     if (what === 'checkup') return { kind: 'tidy', tidy: await tidy(deps, steps) }
     const songs = deps.songs()

@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
 import { useRouter } from 'expo-router'
-import { useStartAnalysis } from '@selfmp3/client'
 import { useDownloads } from '../../offline/DownloadsProvider'
 import { session as cloudSession } from '../../replica'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { useServerApi } from '../../connection/useServerApi'
 import { STORAGE_ROUTE } from '../welcome/storage.model'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
 import { showFailure } from '../../ui/toast'
@@ -22,9 +20,6 @@ export function Confirmations({
   const router = useRouter()
   const { storageForgotten } = useConnection()
   const { removeAll } = useDownloads()
-  // Redo all is the server's pass, asked of it as Settings › Advanced › Library asks.
-  const server = useServerApi()
-  const startAnalysis = useStartAnalysis(server.api, server.via?.baseUrl ?? null)
   const place = thisPlace()
 
   const dialogs: Record<
@@ -36,12 +31,6 @@ export function Confirmations({
       body: 'The library itself is not touched. Downloading automatically is turned off too.',
       label: `Remove all from this ${place}`,
       run: () => void removeAll(),
-    },
-    'redo-analysis': {
-      title: 'Throw away existing analysis and redo every song?',
-      body: 'Tempo, key, energy and loudness are worked out again from each file.',
-      label: 'Redo all',
-      run: () => startAnalysis.mutate(true),
     },
     'forget-storage': {
       title: 'Disconnect your storage?',

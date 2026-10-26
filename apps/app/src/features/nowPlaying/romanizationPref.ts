@@ -5,7 +5,8 @@ import { prefs } from '../../ports/prefs'
 /**
  * Whether pinyin or romaji is drawn under the words: two preferences of this
  * device, one per language, since reading one script is no reason to want the
- * other.
+ * other. Off until turned on from the lyrics page, which is the only place
+ * they are switched; remembered from then until turned off there.
  *
  * The romanization itself always travels with the lyrics and is kept with
  * them; this only decides whether the line is shown, which is about the screen

@@ -17,7 +17,6 @@ has two steps; the first tap moves on.
 
 - Shown **once per device** and remembered the moment it appears (B1), through `prefs` under
   `guides`: the names seen, comma-separated, or `*` for all of them.
-- Settings › About › Tips › **Show tips again** forgets them all (B3).
 - Only when the gesture would work right now, about 0.7 s after the page settles, and one at a
   time. Under Reduce Motion the touch stands still.
 - Never over hands already busy (`guideBusy.ts`): it waits while a finger or button is down, a

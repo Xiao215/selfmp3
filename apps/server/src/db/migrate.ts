@@ -1268,6 +1268,17 @@ const MIGRATIONS: readonly Migration[] = [
       ) WITHOUT ROWID;
     `,
   },
+  {
+    // 57. Smart features are one switch, not one per feature, and there are no
+    // tags every import gets (2026-10-26): their rows go with the settings.
+    name: 'one smart switch, no tags for every import',
+    sql: `
+      DELETE FROM settings WHERE key IN (
+        'smartAsk', 'smartTidy', 'smartTags', 'smartWritten', 'smartMetadata', 'smartImport',
+        'defaultImportTagIds'
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

@@ -8,7 +8,7 @@ import { useServerSongIds } from '../../connection/useServerSongIds'
 import { noServer, useVia, viaKey } from '../../connection/via'
 import { useDebounced } from '../../ui/useDebounced'
 import { asksOnEnter } from '../smart/smart.model'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { lyricHitsHere, lyricsQueryFor } from './search.model'
 
 const NO_HITS: readonly LyricsSearchHit[] = []
@@ -70,7 +70,7 @@ export function useLibrarySearch<Found>(
     matches: (found: Found, lyricHits: number) => number
   },
 ): LibrarySearch<Found> {
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
   // The field keeps up with the fingers; the results, a search of the whole
   // library, follow when there is time, and are skipped for letters typed
   // faster than they can be drawn.
@@ -83,7 +83,7 @@ export function useLibrarySearch<Found>(
 
   const foundNow = (): Found => (shown === query ? found : search(query))
   const asks = (them: Found, text: string): boolean =>
-    switches.ask && asksOnEnter(text, matches(them, lyricHits.length))
+    smartOn && asksOnEnter(text, matches(them, lyricHits.length))
   return {
     shown,
     found,

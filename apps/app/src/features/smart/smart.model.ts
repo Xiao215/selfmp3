@@ -1,7 +1,5 @@
-import { ApiError } from '@selfmp3/client'
-import { plural, formatLongDuration, messageOf, tidyValue } from '@selfmp3/shared'
+import { plural, formatLongDuration, tidyValue } from '@selfmp3/shared'
 import type {
-  AiCheck,
   AskAnswer,
   AskOrder,
   AskPlaybackOp,
@@ -394,45 +392,6 @@ export function answerRecap(
     }
   })()
   return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
-}
-
-/** One leg of Settings' Test: this device to the server, or the server to the model. */
-export interface Hop {
-  readonly ok: boolean
-  readonly line: string
-  /** The endpoint's or the system's own words, under the line. */
-  readonly detail?: string
-}
-
-/** "24 ms" under a second, "1.3 s" over it. */
-export function took(ms: number): string {
-  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`
-}
-
-/** The first leg, from what asking the server for its smart setup did. */
-export function serverHop(result: { ms: number } | { error: unknown }): Hop {
-  if ('ms' in result)
-    return { ok: true, line: `This device reached your server in ${took(result.ms)}` }
-  const { error } = result
-  if (error instanceof ApiError && error.isOffline) {
-    return { ok: false, line: 'This device can’t reach your server.', detail: error.message }
-  }
-  return {
-    ok: false,
-    line: 'Your server answered with an error.',
-    detail: messageOf(error),
-  }
-}
-
-/** The second leg: the server's one small call to the model. */
-export function modelHop(check: AiCheck): Hop {
-  if (check.ok) {
-    return { ok: true, line: `Your server reached the model (${check.model}) in ${took(check.ms)}` }
-  }
-  // No model at all: the address above already says where one is set, and the
-  // server's detail only says "off" again.
-  if (check.failure === 'off') return { ok: false, line: check.message }
-  return { ok: false, line: check.message, detail: check.detail }
 }
 
 /**

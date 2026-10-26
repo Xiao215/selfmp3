@@ -13,9 +13,7 @@ import type {
   Playlist,
   ApplyMetadata,
   BulkEditSongs,
-  FixCoversStatus,
   Health,
-  AnalysisStatus,
   CloudServer,
   CloudStatus,
   DeviceList,
@@ -100,8 +98,7 @@ export const queryKeys = {
   serverGrants: ['cloud-grants'] as const,
   library: ['library'] as const,
   /**
-   * What only a library's server keeps — its settings, its analysis pass, its
-   * cover-fixing pass — asked of that server directly (`useServerApi` in the
+   * What only a library's server keeps — its settings — asked of that server directly (`useServerApi` in the
    * app), and so kept by its address. A device's cache is cleared when its own
    * address changes, but a cloud library reaching one server and then another
    * (a refused one passed over, a shared library joined, a new name) keeps the
@@ -139,14 +136,10 @@ export const queryKeys = {
   motion: (id: number) => ['motion', id] as const,
   health: ['health'] as const,
   metadataLookup: (songId: number) => ['metadata', 'lookup', songId] as const,
-  /** By the server's address, as `settings` is. */
-  fixCovers: (baseUrl: string | null) => ['metadata', 'fix-covers', baseUrl] as const,
   lyricsSearch: (query: string) => ['lyrics', 'search', query] as const,
   /** The limit is in the key: a different count is a different answer. */
   similar: (id: number | null, limit: number) => ['similar', id ?? 'none', limit] as const,
   soundMap: ['sound-map'] as const,
-  /** By the server's address, as `settings` is. */
-  analysis: (baseUrl: string | null) => ['analysis', baseUrl] as const,
   devices: ['devices'] as const,
   /**
    * The device list as a server reached directly from a cloud library tells
@@ -1228,34 +1221,6 @@ export const useApplyMetadata = () =>
     clientApi().applyMetadata(id, input),
   )
 
-/** The cover-art pass, polled only while it runs (same idea as the import queue). */
-export function useFixCoversStatus(
-  api: Api | null,
-  baseUrl: string | null,
-): UseQueryResult<FixCoversStatus, Error> {
-  return useQuery({
-    queryKey: queryKeys.fixCovers(baseUrl),
-    enabled: api !== null,
-    queryFn: () => serverOf(api).fixCoversStatus(),
-    refetchInterval: query => (query.state.data?.status === 'running' ? 1_000 : false),
-  })
-}
-
-export function useFixCovers(api: Api | null, baseUrl: string | null) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (action: 'start' | 'cancel') =>
-      action === 'start' ? serverOf(api).fixCoversStart() : serverOf(api).fixCoversCancel(),
-    meta: { failure: 'Couldn’t reach the cover fixing' },
-    onSuccess: status => {
-      client.setQueryData(queryKeys.fixCovers(baseUrl), status)
-      void client.invalidateQueries({ queryKey: queryKeys.library })
-      // A rule can ask for art (`hasArt`), so found covers are new members.
-      refetchLivePlaylists(client)
-    },
-  })
-}
-
 /**
  * Nearest neighbours of a song. Cheap on the server, so cached only briefly.
  *
@@ -1289,42 +1254,6 @@ export function useSimilar(
     enabled: ready && songId !== null,
     staleTime: STALE.minute,
     placeholderData: keepPreviousData,
-  })
-}
-
-/**
- * Background analysis progress, polled only while it is running — and the
- * library is refetched once it stops, so the new BPM and key badges appear,
- * with the members of any live playlist whose rules follow those.
- */
-export function useAnalysisStatus(
-  api: Api | null,
-  baseUrl: string | null,
-): UseQueryResult<AnalysisStatus, Error> {
-  const client = useQueryClient()
-  return useQuery({
-    queryKey: queryKeys.analysis(baseUrl),
-    queryFn: async () => {
-      const status = await serverOf(api).analysisStatus()
-      const previous = client.getQueryData<AnalysisStatus>(queryKeys.analysis(baseUrl))
-      if (previous?.running && !status.running) {
-        void client.invalidateQueries({ queryKey: queryKeys.library })
-        refetchLivePlaylists(client)
-      }
-      return status
-    },
-    enabled: api !== null,
-    refetchInterval: query => (query.state.data?.running ? 1_500 : false),
-  })
-}
-
-export function useStartAnalysis(api: Api | null, baseUrl: string | null) {
-  const client = useQueryClient()
-  return useMutation({
-    mutationFn: (force: boolean) => serverOf(api).analyze(force),
-    onSuccess: status => {
-      client.setQueryData(queryKeys.analysis(baseUrl), status)
-    },
   })
 }
 

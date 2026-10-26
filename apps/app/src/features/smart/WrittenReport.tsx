@@ -19,7 +19,7 @@ import { Refresh, Sparkle } from '../../ui/components/Icons'
 import { card, label } from '../../ui/surfaces'
 import { showFailure } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
-import { useSmartSwitches } from './useSmartSwitches'
+import { useSmartOn } from './useSmartOn'
 import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
@@ -31,7 +31,7 @@ import { reachedConnection, viaKey } from '../../connection/via'
  */
 export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
   const server = useSmartServer()
-  const { written } = useSmartSwitches()
+  const written = useSmartOn()
   const queryClient = useQueryClient()
   const via = reachedConnection(server.reach)?.baseUrl ?? null
   const key = viaKey(via, 'ai', 'written', range)

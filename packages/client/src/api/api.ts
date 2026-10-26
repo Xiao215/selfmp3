@@ -19,7 +19,6 @@ import {
   readerTimeZone,
   AffectedSchema,
   AllPlaylistSongsSchema,
-  AnalysisStatusSchema,
   ArtistBackdropSchema,
   SetArtistNamesSchema,
   DeviceCommandResultSchema,
@@ -43,10 +42,8 @@ import {
   LibrarySchema,
   LibraryVersionSchema,
   ApplyMetadataResultSchema,
-  FixCoversStatusSchema,
   MetadataLookupResponseSchema,
   MetadataSuggestionSchema,
-  AiCheckSchema,
   AiSetupSchema,
   AskAnswerSchema,
   AskProgressSchema,
@@ -364,11 +361,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     manifest: (scope: OfflineScope = 'library') =>
       request('GET', `/api/library/manifest?scope=${scope}`, SyncManifestSchema),
 
-    analyze: (force = false) =>
-      request('POST', '/api/library/analyze', AnalysisStatusSchema, { force }),
-
-    analysisStatus: () => request('GET', '/api/library/analyze', AnalysisStatusSchema),
-
     // --- songs --------------------------------------------------------------
 
     patchSong: (id: number, patch: SongPatch) =>
@@ -441,8 +433,6 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** A cover taken off again, leaving the song with none: a filled-in cover's Undo. */
     removeCover: (id: number) => request('DELETE', `/api/songs/${id}/cover`, OkSchema),
 
-    fixCoversStart: () => request('POST', '/api/library/fix-covers', FixCoversStatusSchema),
-
     // --- smart features (docs/features/ai.md): the server's, never the bucket's
 
     describePlaylist: (input: {
@@ -514,13 +504,6 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     /** Where the server asks a model; Settings › Smart features. */
     aiSetup: () => request('GET', '/api/ai', AiSetupSchema),
-
-    /** One small call to the model; a failure is the answer, not a thrown error. */
-    checkAi: () => request('POST', '/api/ai/check', AiCheckSchema),
-
-    fixCoversStatus: () => request('GET', '/api/library/fix-covers', FixCoversStatusSchema),
-
-    fixCoversCancel: () => request('POST', '/api/library/fix-covers/cancel', FixCoversStatusSchema),
 
     // --- tags ---------------------------------------------------------------
 

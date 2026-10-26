@@ -231,8 +231,10 @@ SELFMP3_AI_BASE_URL=http://127.0.0.1:8787/v1
 
 Add `SELFMP3_AI_API_KEY` only if you gave cli-bridge an `API_KEY`. The two model tiers are
 `SELFMP3_AI_MODEL_FAST` and `SELFMP3_AI_MODEL_SMART`, both `sonnet` unless you set them.
-Settings › Advanced › Model in the app shows the address and has a **Test** that checks
-both legs: the device to the server, then the server to the model.
+To check that the model answers, run an Ask from the app: a failure says in words whether the
+server could not reach the model, the key was refused or a limit was hit. With no model set
+up, the app dims **Use smart features** in Settings › Smart features and says "Your server
+has no model set up."
 
 cli-bridge runs on your own Claude subscription, and its README asks that it serve only you.
 A server that works for other people's accounts runs their Smart features on the same model.
@@ -399,9 +401,16 @@ npm run cli -- scan --library me@example.com
 ```
 
 From another computer, give the library's token with `--token` instead, and point the command
-at the server with `--url`. Any signed-in device copies it from **Settings › Advanced ›
-Importing › Copy token**, with **Copy address** beside it for `--url`. On the server it is in
-`data/hub.json`, and the server's log prints it when it works for one library:
+at the server with `--url`. The token is kept on the server, in `data/hub.json`: each
+library's entry under `workspaces` has the account's `email` and its `token` (not the
+one inside `grant`, which is the doorman session the account gave the server). The log also
+prints it when it works for one library. On the server, this lists them:
+
+```bash
+jq -r '.workspaces[] | "\(.email) \(.token)"' data/hub.json
+```
+
+`--url` is the address your devices reach the server at:
 
 ```bash
 npm run cli -- --url https://pi.tail1a2b.ts.net --token <token> scan
@@ -566,7 +575,7 @@ the `user:` line. Run `sudo chown -R 1000:1000 library data` in the compose fold
 "Sign in to confirm you're not a bot" on every link, the block may be on your network's
 address rather than on the request. The server's log has yt-dlp's own words.
 
-**Smart features say they are off, or the Test fails at the second leg.** Check
+**Smart features say there is no model, or Ask cannot reach it.** Check
 `SELFMP3_AI_BASE_URL` in `.env`, and that cli-bridge is running:
 `systemctl --user status cli-bridge`, then `curl -s http://127.0.0.1:8787/v1/models` on the
 server.

@@ -64,11 +64,9 @@ A token is asked for only if that server turns out to want one, so the page trie
 the address on its own first and the token field appears if the server refuses
 without it. Pointed at `localhost` on a server holding one library it will not:
 a server does not ask its own machine for a token. Anywhere else it will, and the
-token is your library's on that server. Copy it in the app from **Settings › Advanced
-› Importing › Copy token** on any signed-in device; the row shows the server's
-address beside it, and **Copy address** copies that. Without a device, it is in the
-server's `data/hub.json`, and the server's log prints it when it starts holding a
-single library.
+token is your library's on that server, kept in the server's `data/hub.json`
+([INSTALL.md](../INSTALL.md#the-selfmp3-command) says how to find it), and the server's
+log prints it when it starts holding a single library.
 
 The address is checked before it is kept: it has to answer, and the token, where
 there is one, has to be right. Every server needs a bucket, so a typed address
@@ -81,8 +79,8 @@ web page can read, not even the script it runs inside YouTube.
 **The pill, in the page.** On a YouTube, YouTube Music or m.youtube.com watch
 page there is a **self.mp3** pill beside Like, in the accent with the app's note
 mark. It says *In library* when the song is already yours; otherwise pressing it
-imports the song with the tags your last import went in with (and your
-defaults), and it follows it — *In the queue*
+imports the song with the tags your last import went in with, and it follows
+it — *In the queue*
 while the song waits its turn, then a turning ring and *Importing 40%* — to a
 green *Added*. Hovering a song on its way says the page can be left: the badge
 counts it and a notification says when it is in. Left in your bucket it says
@@ -95,10 +93,8 @@ the title tidied out of the video's own (see the importing section of the
 [README](../../README.md)) and the artist, both fields you can change before it
 is saved, and your tags, with the ones your last import went in with already
 picked, so a session of songs is tagged once. **+ new** makes a tag there and then; a name you already
-have picks that tag instead of making a second. The tags your server adds to
-every import are shown already on and cannot be turned off, because the server
-adds them whatever the popup sends. There is no playlist to choose: an import only
-ever tags, and playlists are made in the app from songs you have.
+have picks that tag instead of making a second. There is no playlist to choose:
+an import only ever tags, and playlists are made in the app from songs you have.
 
 It has a state for each way this goes: the song, one already in your library
 (*In your library since 12 Aug · played 41 times*), an import in progress, one
@@ -115,7 +111,7 @@ them. Long lists show the first eight and a link to the full review on the
 Import screen.
 
 **Right-click, anywhere.** *Import link to self.mp3* takes any link — a YouTube
-one, or anything else yt-dlp can read — with your defaults. *Import with tags…*
+one, or anything else yt-dlp can read — with no tags. *Import with tags…*
 opens the popup on that link instead. Both work on a link, on selected text
 holding one, or on the page you are reading.
 
@@ -338,7 +334,7 @@ sends — tags, and never a playlist.
 |---|---|---|
 | Not a music page | No YouTube link, or no page kind | Paste box (one link or twenty) and the last five imports |
 | Looking up | Preview running (yt-dlp, ~2–3 s) | The song card as a skeleton, with the page title |
-| Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the default tags on, "+ new", Import to your library |
+| Song (`E1`) | Single, not in the library | Card with the title and artist as fields, "Tidied from …" when `tidyVideoTitle` changed it, tag chips with the last import's tags on, "+ new", Import to your library |
 | Already in your library | Link index hit, or `alreadyHave` | "In your library since … · played N times", Open in self.mp3, Import anyway |
 | Playlist, album, artist (C, `E2`) | `kind: 'playlist'` | "4 of 6 coming in"; rows whose name opens title and artist fields and whose far end says "Left out" when clicked; "Yours already" rows dimmed; tags; "Import N songs"; "Open the full review" past eight |
 | Importing | A job for this link is not finished | Step label, a bar while downloading, Cancel while it can still be cancelled |
@@ -402,7 +398,7 @@ which the Import page understands from the share target.
   layout nor the Navigation API.
 - A click sends `quickImport {url}`. The background resolves the connection.
   Direct: preview, stop at "In library" if `alreadyHave`, otherwise enqueue
-  with the tidied title, no tags (the worker adds the defaults), no playlist.
+  with the tidied title, the last import's tags, no playlist.
   Bucket: `requestCloudImport({url})`. The pill follows the job through the
   same watcher as the badge.
 - v1 shows the pill on watch pages only. Playlist pages use the popup (C).

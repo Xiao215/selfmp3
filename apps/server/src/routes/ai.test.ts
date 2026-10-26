@@ -9,8 +9,8 @@ import { loadConfig, type ServingConfig } from '../config.js'
 import { createContainer, type Container } from '../container.js'
 
 /**
- * Settings › Smart features: a feature turned off is refused before anything
- * reaches the model. The model is a real endpoint on a free port that counts
+ * Settings › Smart features: turned off, every smart feature is refused before
+ * anything reaches the model. The model is a real endpoint on a free port that counts
  * what it is asked, so "nothing left the library" is measured, not assumed.
  */
 describe('smart features turned off in Settings', () => {
@@ -33,6 +33,12 @@ describe('smart features turned off in Settings', () => {
   let thinkingMs = 0
   /** What the model says about an import's names. */
   let importReply: unknown[] = []
+  /** What the router chooses for an Ask: a whole names checkup unless a test says otherwise. */
+  let routeReply: { action: string; say: string | null; tidy: unknown } = {
+    action: 'tidy',
+    say: null,
+    tidy: { what: 'checkup', lookUp: false },
+  }
 
   beforeAll(async () => {
     model = http.createServer(async (request, response) => {
@@ -49,7 +55,7 @@ describe('smart features turned off in Settings', () => {
         return
       }
       const content = JSON.stringify({
-        action: 'tidy',
+        action: routeReply.action,
         filters: null,
         songs: null,
         playback: null,
@@ -58,11 +64,11 @@ describe('smart features turned off in Settings', () => {
         playlists: null,
         playlistSongs: null,
         library: null,
-        tidy: { what: 'checkup', lookUp: false },
+        tidy: routeReply.tidy,
         remember: null,
         getMusic: null,
         open: null,
-        say: null,
+        say: routeReply.say,
         try: null,
       })
       response.end(JSON.stringify({ choices: [{ message: { content } }] }))
@@ -106,15 +112,8 @@ describe('smart features turned off in Settings', () => {
       body: body === undefined ? undefined : JSON.stringify(body),
     })
 
-  it('refuses each feature that is off, and asks the model nothing', async () => {
-    container.settings.update({
-      smartAsk: false,
-      smartTidy: false,
-      smartTags: false,
-      smartWritten: false,
-      smartMetadata: false,
-      smartImport: false,
-    })
+  it('refuses every feature while smart features are off, and asks the model nothing', async () => {
+    container.settings.update({ smartFeatures: false })
     for (const [method, url, body] of [
       ['POST', '/api/ai/ask', { text: 'check my song names' }],
       ['POST', '/api/ai/describe', { text: 'calm piano', understanding: null }],
@@ -129,46 +128,11 @@ describe('smart features turned off in Settings', () => {
       expect(((await response.json()) as { code: string }).code).toBe('ai_disabled')
     }
     expect(asked).toBe(0)
-  })
-
-  it('refuses every feature while smart features are off, whatever their own switches say', async () => {
-    container.settings.update({
-      smartFeatures: false,
-      smartAsk: true,
-      smartTidy: true,
-      smartTags: true,
-      smartWritten: true,
-      smartMetadata: true,
-      smartImport: true,
-    })
-    for (const [method, url, body] of [
-      ['POST', '/api/ai/ask', { text: 'check my song names' }],
-      ['GET', '/api/ai/tidy'],
-      ['GET', '/api/ai/tags/untagged'],
-    ] as const) {
-      const response = await call(method, url, body)
-      expect(response.status, url).toBe(403)
-      expect(((await response.json()) as { code: string }).code).toBe('ai_disabled')
-    }
-    expect(asked).toBe(0)
     container.settings.update({ smartFeatures: true })
   })
 
-  it('lets Ask through but not into Tidy up while Tidy up is off', async () => {
-    container.settings.update({ smartAsk: true, smartTidy: false })
-    const response = await call('POST', '/api/ai/ask', { text: 'check my song names' })
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      kind: 'none',
-      say: 'Tidy up is turned off in Settings › Smart features.',
-      try: [],
-    })
-    // The router was asked; the names pass was not.
-    expect(asked).toBe(1)
-  })
-
   it('goes on with an Ask whose connection closed, and keeps its answer under the ticket', async () => {
-    container.settings.update({ smartAsk: true, smartTidy: false })
+    routeReply = { action: 'none', say: 'Nothing to change.', tidy: null }
     thinkingMs = 300
     const ticket = 'phone-went-away-1'
     const hangUp = new AbortController()
@@ -195,12 +159,11 @@ describe('smart features turned off in Settings', () => {
     expect(progress).toMatchObject({
       done: true,
       failed: null,
-      answer: { kind: 'none', say: 'Tidy up is turned off in Settings › Smart features.' },
+      answer: { kind: 'none', say: 'Nothing to change.' },
     })
   })
 
   it('reads an import’s names, and keeps only the words the rows already had', async () => {
-    container.settings.update({ smartImport: true })
     importReply = [
       // The artist out of the title, the channel's name let go of.
       { n: 1, title: 'アイドル', artist: 'YOASOBI', album: '', why: 'Artist was in the title' },

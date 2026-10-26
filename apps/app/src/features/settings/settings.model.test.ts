@@ -3,7 +3,6 @@ import { ApiError } from '@selfmp3/client'
 
 import {
   activeSection,
-  addressForElsewhere,
   ALL_SECTIONS,
   crossfadeLabel,
   devicePlace,
@@ -12,11 +11,8 @@ import {
   indexIdFor,
   landingOffset,
   RECENT_DEVICE_WINDOW_MS,
-  soundHint,
-  analysisProgress,
   scanHint,
   sectionsFor,
-  serverTokenHint,
   settingsIndex,
   splitDevices,
 } from './settings.model'
@@ -37,7 +33,7 @@ describe('settings', () => {
     expect(ids).toEqual(expect.arrayContaining(['devices', 'smart', 'library', 'importing']))
     // The server's own page connects its bucket; a device's is under Account.
     expect(ids).not.toContain('cloud')
-    expect(sectionsFor()).toHaveLength(11)
+    expect(sectionsFor()).toHaveLength(9)
     expect(sectionsFor({ installed: false }).map(section => section.id)).not.toContain('offline')
   })
 
@@ -58,19 +54,17 @@ describe('settings', () => {
     expect(ALL_LABEL('shortcuts')).toBe('Keyboard shortcuts')
   })
 
-  it('leads with the account and the look, then what this device keeps (P38, C17)', () => {
+  it('leads with About, then the account and the look, then what this device keeps', () => {
     expect(sectionsFor().map(section => section.label)).toEqual([
+      'About',
       'Account',
       'Appearance',
       'On this phone',
       'Devices',
       'Playback',
       'Smart features',
-      'Lyrics',
-      'About',
       'Library',
       'Importing',
-      'Model',
     ])
     const computer = sectionsFor({
       shell: true,
@@ -89,21 +83,20 @@ describe('settings', () => {
   it('puts what runs the server under one Advanced chip at the end (O1)', () => {
     const sections = sectionsFor({ shell: true, keyboard: true })
     expect(settingsIndex(sections).map(section => section.label)).toEqual([
+      'About',
       'Account',
       'Appearance',
       'On this phone',
       'Devices',
       'Playback',
       'Smart features',
-      'Lyrics',
       'Keyboard shortcuts',
-      'About',
       'Advanced',
     ])
     expect(indexIdFor('importing', sections)).toBe('advanced')
     expect(indexIdFor('desktop', sections)).toBe('advanced')
-    expect(indexIdFor('lyrics', sections)).toBe('lyrics')
-    // Library, Importing and the model are on every device, so Advanced is never empty.
+    expect(indexIdFor('smart', sections)).toBe('smart')
+    // Library and Importing are on every device, so Advanced is never empty.
     expect(settingsIndex(sectionsFor()).at(-1)?.id).toBe('advanced')
   })
 
@@ -174,18 +167,18 @@ describe('settings', () => {
   })
 
   it('keeps a chosen section lit when the last one is tall enough to reach the line', () => {
-    // Lyrics, About, then an Advanced taller than the screen: landing on
-    // Lyrics and nudging the page must not light the section after it.
+    // Playback, Smart features, then an Advanced taller than the screen: landing
+    // on Playback and nudging the page must not light the section after it.
     const tall = [
       { id: 'a', top: 0 },
-      { id: 'lyrics', top: 2000 },
-      { id: 'about', top: 2300 },
+      { id: 'playback', top: 2000 },
+      { id: 'smart', top: 2300 },
       { id: 'advanced', top: 2500 },
     ]
     const landed = landingOffset(2000, 28)
-    expect(activeSection(tall, landed, 900, 3500)).toBe('lyrics')
-    expect(activeSection(tall, landed + 8, 900, 3500)).toBe('lyrics')
-    expect(activeSection(tall, landingOffset(2300, 28) + 8, 900, 3500)).toBe('about')
+    expect(activeSection(tall, landed, 900, 3500)).toBe('playback')
+    expect(activeSection(tall, landed + 8, 900, 3500)).toBe('playback')
+    expect(activeSection(tall, landingOffset(2300, 28) + 8, 900, 3500)).toBe('smart')
     expect(activeSection(tall, 2600, 900, 3500)).toBe('advanced')
   })
 
@@ -248,77 +241,5 @@ describe('settings', () => {
     expect(scanHint({ added: 1, updated: 2, total: 13, durationMs: 40 })).toBe(
       'Last scan: 1 new, 2 updated.',
     )
-  })
-})
-
-describe('soundHint', () => {
-  const sound = { state: 'ready' as const, heard: 40, pending: 2, message: null }
-
-  it('counts the songs heard and the ones to go', () => {
-    expect(soundHint(sound, 42)).toBe('40 of 42 songs heard · 2 to go')
-    expect(soundHint({ ...sound, heard: 42, pending: 0 }, 42)).toBe('42 of 42 songs heard')
-  })
-
-  it('says why the model is not there yet', () => {
-    expect(soundHint({ ...sound, state: 'fetching' }, 42)).toMatch(/about 750 MB/)
-    expect(soundHint({ ...sound, state: 'waiting' }, 42)).toMatch(/once every song has tempo/)
-    expect(soundHint({ ...sound, state: 'off' }, 42)).toBe('Switched off on this server.')
-    expect(
-      soundHint({ ...sound, state: 'failed', message: 'downloading mert.onnx failed: 404' }, 42),
-    ).toMatch(/get the model: downloading mert.onnx failed: 404\. Tries again hourly\.$/)
-  })
-})
-
-describe('analysisProgress', () => {
-  const status = {
-    running: true,
-    pending: 3,
-    done: 1,
-    failed: 0,
-    current: { id: 1, title: '晴天' },
-    sound: { state: 'ready' as const, heard: 0, pending: 40, message: null },
-  }
-
-  it('says it is measuring while songs still need their tempo and key', () => {
-    expect(analysisProgress(status)).toBe('Analysing — 晴天 · 3 to go')
-  })
-
-  it('says it is listening once they all have them', () => {
-    expect(analysisProgress({ ...status, pending: 0 })).toBe('Listening — 晴天 · 40 to go')
-    expect(
-      analysisProgress({
-        ...status,
-        pending: 0,
-        current: null,
-        sound: { ...status.sound, pending: 0 },
-      }),
-    ).toBe('Analysing…')
-  })
-})
-
-describe('the server row for a Shortcut or the extension', () => {
-  const TOKEN = 'kq3x0Vb7_secret-of-forty-three-characters-Ab3x'
-
-  it('gives the address the internet reaches, over the home and tailnet ones', () => {
-    const addresses = [
-      'http://localhost:4600',
-      'http://192.168.1.20:4600',
-      'http://100.101.102.103:4600',
-      'https://pi.tail1234.ts.net',
-    ]
-    expect(addressForElsewhere(addresses)).toBe('https://pi.tail1234.ts.net')
-    expect(serverTokenHint(addresses, TOKEN)).toBe('https://pi.tail1234.ts.net · token ending Ab3x')
-  })
-
-  it('falls back to an address beyond this computer, and to none', () => {
-    expect(addressForElsewhere(['http://localhost:4600', 'http://192.168.1.20:4600'])).toBe(
-      'http://192.168.1.20:4600',
-    )
-    expect(addressForElsewhere(['http://localhost:4600'])).toBeNull()
-    expect(serverTokenHint([], TOKEN)).toBe('token ending Ab3x')
-  })
-
-  it('never shows the token whole', () => {
-    expect(serverTokenHint(['https://pi.tail1234.ts.net'], TOKEN)).not.toContain(TOKEN.slice(0, 8))
   })
 })

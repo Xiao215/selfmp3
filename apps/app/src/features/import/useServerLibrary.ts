@@ -13,22 +13,16 @@ interface ServerLibrary {
 
 /**
  * A server's library, read from it directly, and a tag made there: what Import
- * offers when it is pointed at the server (`useImportSource`), and what the
- * tags every import gets are chosen from (Settings › Importing). One query
- * under one key (`viaKey(baseUrl, 'library')`), so a tag made in either is in
- * both.
+ * offers when it is pointed at the server (`useImportSource`). One query
+ * under one key (`viaKey(baseUrl, 'library')`).
  */
-export function useServerLibrary(
-  api: Api | null,
-  baseUrl: string | undefined,
-  enabled = true,
-): ServerLibrary {
+export function useServerLibrary(api: Api | null, baseUrl: string | undefined): ServerLibrary {
   const queryClient = useQueryClient()
   const key = useMemo(() => viaKey(baseUrl, 'library'), [baseUrl])
   const { data: library } = useQuery({
     queryKey: key,
     queryFn: () => (api ? api.library() : noServer()),
-    enabled: enabled && api !== null,
+    enabled: api !== null,
     staleTime: STALE.halfMinute,
   })
   // Steady between renders: the picker rebuilds its list around this.

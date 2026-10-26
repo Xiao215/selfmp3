@@ -11,7 +11,7 @@ export const PresenceConnection = createContext<ServerConnection | null>(null)
 /**
  * The server presence has found, or null while it has found none — and outside
  * a `DevicesProvider`. For what is worth knowing whenever the server is in
- * reach and not worth going to look for (`useSmartSwitches`): presence is
+ * reach and not worth going to look for (`useSmartOn`): presence is
  * already looking, so this costs no probe of its own.
  */
 export function usePresenceConnection(): ServerConnection | null {

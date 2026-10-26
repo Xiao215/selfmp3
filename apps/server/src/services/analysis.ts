@@ -217,20 +217,6 @@ export class AnalysisService {
     })
   }
 
-  /**
-   * (Re)analyse everything. With `force`, existing results are thrown away
-   * first — for when the algorithm changes, or the numbers just look wrong.
-   */
-  start(force = false): AnalysisStatus {
-    if (force) {
-      this.#audioFeatures.deleteAll()
-    }
-    this.#done = 0
-    this.#failed = 0
-    this.kick()
-    return this.status()
-  }
-
   /** The file changed underneath a song; its features and its curve are stale. */
   invalidate(songId: number): void {
     this.#audioFeatures.delete(songId)

@@ -47,7 +47,7 @@ import { PlaceLine } from '../../ui/components/PlaceLine'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { ASK_SUB, askable } from '../smart/smart.model'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { useLibrarySearch } from './useLibrarySearch'
 import {
   ALL_LIMITS,
@@ -184,8 +184,8 @@ export function SearchScreen(): ReactNode {
   const counts = sectionCounts(found, lyricHits.length)
   const matched = matchCount(found, lyricHits.length)
   const words = shown.trim()
-  const switches = useSmartSwitches()
-  const offerAsk = switches.ask && section === null && askable(words)
+  const smartOn = useSmartOn()
+  const offerAsk = smartOn && section === null && askable(words)
   // A YouTube or 网易云 link typed while adding: looked up, not searched for.
   const link = adding && youMay(adding, 'addLink') ? playableLink(words) : null
   // Ask is a page of its own (A1, 2026-10-24): Search stays under it, words and all, for Back.

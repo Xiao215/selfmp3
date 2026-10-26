@@ -100,10 +100,12 @@ test('a song page imports, and the popup follows the job until it is added', asy
   // The title is corrected before it is saved, not after.
   await page.getByLabel('Artist').fill('YOASOBI (Ayase)')
 
-  // The tag every import gets is on and stays on; the others are yours to pick.
-  const defaultTag = page.getByRole('button', { name: 'new', exact: true })
-  await expect(defaultTag).toBeDisabled()
-  await expect(defaultTag).toHaveAttribute('aria-pressed', 'true')
+  // Every tag starts off here, as nothing has been imported yet: the ones
+  // pressed are the ones sent.
+  const newTag = page.getByRole('button', { name: 'new', exact: true })
+  await expect(newTag).toHaveAttribute('aria-pressed', 'false')
+  await newTag.click()
+  await expect(newTag).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'j-pop', exact: true }).click()
 
   // A tag that is not there yet is made from here, and picked once it exists.

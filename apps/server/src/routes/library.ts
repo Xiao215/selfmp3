@@ -1,8 +1,6 @@
 import { Router } from 'express'
-import { z } from 'zod'
 import {
   SyncManifestQuerySchema,
-  type AnalysisStatus,
   type Library,
   type LibraryVersion,
   type ScanResult,
@@ -117,25 +115,6 @@ export function libraryRoutes(container: Container): Router {
       void container.lyricsIndex.backfill()
       return result
     }),
-  )
-
-  /**
-   * Audio analysis: start (or resume) analysing whatever is missing features.
-   *
-   * `force` throws existing results away first. The work happens in the
-   * background; poll the GET for progress.
-   */
-  router.post(
-    '/library/analyze',
-    route(
-      { body: z.object({ force: z.boolean().default(false) }).default({}) },
-      ({ body }): AnalysisStatus => container.analysis.start(body.force),
-    ),
-  )
-
-  router.get(
-    '/library/analyze',
-    route({}, (): AnalysisStatus => container.analysis.status()),
   )
 
   /**

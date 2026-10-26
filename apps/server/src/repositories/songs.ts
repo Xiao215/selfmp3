@@ -99,7 +99,6 @@ export class SongRepository {
   readonly #count
   readonly #manifest
   readonly #setLoved
-  readonly #withoutArt
   readonly #nextWithoutCoverTone
   readonly #setCoverTone
   readonly #allPaths
@@ -204,7 +203,6 @@ export class SongRepository {
     this.#setLoved = db.prepare(
       "UPDATE songs SET loved = ?, updated_at = datetime('now') WHERE id = ? AND loved != ?",
     )
-    this.#withoutArt = db.prepare<[], SongRow>(`${SONG_SELECT} WHERE s.has_art = 0 ORDER BY s.id`)
     this.#nextWithoutCoverTone = db.prepare<[], { id: number; art_rev: number }>(
       `SELECT id, art_rev FROM songs
         WHERE has_art = 1
@@ -494,11 +492,6 @@ export class SongRepository {
       sizeBytes: row.size_bytes,
       etag: fileEtag(row.size_bytes, row.mtime_ms),
     }))
-  }
-
-  /** Songs with no cover art, for the cover-art pass. */
-  withoutArt(): Song[] {
-    return this.#withoutArt.all().map(toSong)
   }
 
   /** The next song whose cover has not had its colour read, as the cover is now. */

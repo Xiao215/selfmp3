@@ -3,7 +3,6 @@ import {
   ApplyMetadataSchema,
   SONG_FIELDS,
   type ApplyMetadataResult,
-  type FixCoversStatus,
   type MetadataLookupResponse,
   type Ok,
   type SongPatch,
@@ -13,8 +12,8 @@ import { route } from '../http/route.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 
 /**
- * Metadata polish: look a song up on public databases, apply what the user
- * picked, and the library-wide cover-art pass.
+ * Metadata polish: look a song up on public databases, and apply what the
+ * user picked.
  *
  * Corrections go into the database exactly like a manual edit — the audio
  * file is never rewritten, so a rescan cannot undo them and a bad match is
@@ -73,21 +72,6 @@ export function metadataRoutes(container: Container): Router {
       container.bumpLibraryVersion()
       return { ok: true }
     }),
-  )
-
-  router.post(
-    '/library/fix-covers',
-    route({}, (): FixCoversStatus => container.fixCovers.start()),
-  )
-
-  router.get(
-    '/library/fix-covers',
-    route({}, (): FixCoversStatus => container.fixCovers.status()),
-  )
-
-  router.post(
-    '/library/fix-covers/cancel',
-    route({}, (): FixCoversStatus => container.fixCovers.cancel()),
   )
 
   return router

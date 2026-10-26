@@ -1,6 +1,5 @@
-import type { AnalysisStatus, DeviceKind, Health, ScanResult } from '@selfmp3/shared'
-import { clamp01, plural } from '@selfmp3/shared'
-import { publicServerBase } from '@selfmp3/client'
+import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
+import { clamp01 } from '@selfmp3/shared'
 import { bucketCapped, unreachableLabel, untilCapResets } from '../library/library.model'
 
 /**
@@ -9,7 +8,7 @@ import { bucketCapped, unreachableLabel, untilCapResets } from '../library/libra
  */
 
 /** Which destructive action is waiting to be confirmed, if any. */
-export type Confirming = 'remove-downloads' | 'redo-analysis' | 'sign-out' | 'forget-storage' | null
+export type Confirming = 'remove-downloads' | 'sign-out' | 'forget-storage' | null
 
 export type SectionId =
   | 'playback'
@@ -17,9 +16,7 @@ export type SectionId =
   | 'importing'
   | 'library'
   | 'account'
-  | 'lyrics'
   | 'smart'
-  | 'model'
   | 'devices'
   | 'desktop'
   | 'getApp'
@@ -29,13 +26,13 @@ export type SectionId =
   | 'advanced'
 
 /**
- * The groups, in page order (`P38`, `C17`): who you are and the look first,
- * then what this device keeps, then the rest. `advanced`: it is about running
+ * The groups, in page order (`P38`, `C17`): About first, then who you are and
+ * the look, then what this device keeps, then the rest. `advanced`: it is about running
  * the server or the Mac app rather than using self.mp3, so it sits under
  * Advanced at the end, behind one chip (O1).
  *
  * A section that acts on the server — Devices, Smart features, Library,
- * Importing, Model — is shown on every device: a cloud library reaches its
+ * Importing — is shown on every device: a cloud library reaches its
  * server for it, the way Import does, and says so when it cannot.
  */
 export const ALL_SECTIONS: readonly {
@@ -43,6 +40,7 @@ export const ALL_SECTIONS: readonly {
   label: string
   advanced?: boolean
 }[] = [
+  { id: 'about', label: 'About' },
   // Which library this is, and signing out of it.
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
@@ -51,14 +49,9 @@ export const ALL_SECTIONS: readonly {
   { id: 'devices', label: 'Devices' },
   { id: 'playback', label: 'Playback' },
   { id: 'smart', label: 'Smart features' },
-  // Not the server's: romaji is kept with the words in the cloud too, and the switches are this device's.
-  { id: 'lyrics', label: 'Lyrics' },
   { id: 'shortcuts', label: 'Keyboard shortcuts' },
-  { id: 'about', label: 'About' },
   { id: 'library', label: 'Library', advanced: true },
   { id: 'importing', label: 'Importing', advanced: true },
-  // Where the server asks a model, and the Test: Smart features' switches stay above.
-  { id: 'model', label: 'Model', advanced: true },
   { id: 'desktop', label: 'Desktop app', advanced: true },
   // The same place in the page as Desktop app, for the tab that could become it.
   { id: 'getApp', label: 'Mac app', advanced: true },
@@ -313,59 +306,4 @@ export function downloadHint(state: {
   // Which dmg is this Mac's, where the browser could not tell.
   const which = state.chip ? 'Media keys and a Dock icon.' : 'About This Mac names your chip.'
   return `${version}${which}`
-}
-
-/** What the listening model is doing, in the words Settings shows under its row. */
-export function soundHint(sound: AnalysisStatus['sound'], songs: number): string {
-  switch (sound.state) {
-    case 'off':
-      return 'Switched off on this server.'
-    case 'waiting':
-      return 'Starts once every song has tempo and key.'
-    case 'fetching':
-      return 'Downloading the listening model (about 750 MB).'
-    case 'failed':
-      return `Couldn’t get the model${sound.message ? `: ${sound.message}` : ''}. Tries again hourly.`
-    case 'ready':
-      return `${sound.heard} of ${plural(songs, 'song', 'songs')} heard${sound.pending > 0 ? ` · ${sound.pending} to go` : ''}`
-  }
-}
-
-/**
- * The line under Audio analysis while it runs: measuring tempo and key, or,
- * once every song has those, listening, which on a big library takes days.
- */
-export function analysisProgress(status: AnalysisStatus | undefined): string {
-  const listening = status?.pending === 0 && status.sound.pending > 0
-  const toGo = listening ? status.sound.pending : (status?.pending ?? 0)
-  return [
-    listening ? 'Listening' : 'Analysing',
-    status?.current ? ` — ${status.current.title}` : '…',
-    toGo > 0 ? ` · ${toGo} to go` : '',
-  ].join('')
-}
-
-/**
- * The address an iOS Shortcut or the extension's typed address should use
- * (docs/features/share-to-import.md): the one the internet can reach when the
- * server has one, else the first that is more than this computer talking to
- * itself. Null when the snapshot named only `localhost`, or nothing.
- */
-export function addressForElsewhere(addresses: readonly string[]): string | null {
-  return (
-    publicServerBase(addresses) ??
-    addresses.find(address => !/^https?:\/\/(localhost|127\.|\[::1\])/i.test(address)) ??
-    null
-  )
-}
-
-/**
- * The line under Copy token: where the server answers, and only the end of the
- * token, so the screen can be seen over a shoulder. The token itself goes
- * only to the clipboard.
- */
-export function serverTokenHint(addresses: readonly string[], token: string): string {
-  const address = addressForElsewhere(addresses)
-  const ending = `token ending ${token.slice(-4)}`
-  return address ? `${address} · ${ending}` : ending
 }

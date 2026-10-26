@@ -378,7 +378,7 @@ describe('ask', () => {
       asked: 'give the 原神纯音乐 songs their official Chinese names',
       answered: 'Proposed 8 name changes.',
     }
-    await ask(d, 'only the albums', null, undefined, undefined, [first])
+    await ask(d, 'only the albums', null, undefined, [first])
     const request = followed('only the albums', [first])
     expect(request).toBe(
       [
@@ -478,14 +478,6 @@ describe('ask', () => {
       kind: 'copies',
       copies: { copies: [{ keep: 7, songIds: [99], by: 'rule' }], looked: 18 },
     })
-  })
-
-  it('says so when Tags is turned off', async () => {
-    const d = deps({ 'ask-route': [route({ action: 'tags' })] })
-    expect(await ask(d, 'tidy my tags', null, { tidy: true, tags: false })).toMatchObject({
-      kind: 'none',
-    })
-    expect(d.llm.asked).toHaveLength(1)
   })
 
   it('finds a half-remembered song through titles and lyrics, then picks', async () => {

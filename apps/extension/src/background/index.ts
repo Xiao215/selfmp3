@@ -83,7 +83,7 @@ servePage(
 )
 
 /**
- * A right-click import: the defaults, no questions, and the badge to follow it.
+ * A right-click import: no tags, no questions, and the badge to follow it.
  *
  * With the server awake this reads the link first, so a song already in the
  * library is not fetched twice. With it asleep there is nothing to read the

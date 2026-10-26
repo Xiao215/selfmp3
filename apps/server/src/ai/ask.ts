@@ -1,12 +1,6 @@
 import { z } from 'zod/v4'
 import type { AskAnswer, AskTurn } from '@selfmp3/shared'
-import {
-  ASK_ACTIONS,
-  type AskAction,
-  type AskAllowed,
-  type AskContext,
-  type AskDeps,
-} from './askActions.js'
+import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './askActions.js'
 import { none } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
@@ -111,7 +105,6 @@ export async function ask(
   deps: AskDeps,
   text: string,
   playingId: number | null = null,
-  allowed: AskAllowed = { tidy: true, tags: true },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
   /** The conversation before this, when it follows up on an answer. */
@@ -155,9 +148,6 @@ export async function ask(
     (chosen.filters === 'required' && route.filters === null)
   ) {
     return none(route.say ?? FALLBACK, route.try ?? [])
-  }
-  if (chosen.switch && !allowed[chosen.switch.key]) {
-    return none(`${chosen.switch.label} is turned off in Settings › Smart features.`)
   }
   const context: AskContext = {
     deps: { ...deps, remembered },

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -79,19 +79,16 @@ export function TagChipRow({
  * Only the chosen tags are on show, so the row stays one line however many
  * tags the library has. The rest are in the picker a song uses.
  */
+const TITLE = 'Tag these songs'
+
 export function TagChooser({
   tags,
   selected,
   onChange,
-  title = 'Tag these songs',
-  from,
 }: {
   tags: readonly Tag[]
   selected: ReadonlySet<number>
   onChange: (next: ReadonlySet<number>) => void
-  title?: string
-  /** Another library's tags, when the ids chosen are not this device's (`TagSearchList`). */
-  from?: ComponentProps<typeof TagSearchList>['from']
 }): ReactNode {
   const [open, setOpen] = useState(false)
   const chosen = tags.filter(tag => selected.has(tag.id))
@@ -107,10 +104,10 @@ export function TagChooser({
       <TagChipRow
         tags={chosen}
         onRemove={remove}
-        add={{ onPress: () => setOpen(true), accessibilityLabel: title }}
+        add={{ onPress: () => setOpen(true), accessibilityLabel: TITLE }}
       />
-      <Sheet open={open} onClose={() => setOpen(false)} title={title} titleTone="label">
-        {open ? <TagSearchList selected={selected} onChange={onChange} from={from} /> : null}
+      <Sheet open={open} onClose={() => setOpen(false)} title={TITLE} titleTone="label">
+        {open ? <TagSearchList selected={selected} onChange={onChange} /> : null}
       </Sheet>
     </>
   )

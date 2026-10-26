@@ -40,6 +40,13 @@ type AttemptState = 'gone' | 'pending' | 'done'
 export const TOOK_TOO_LONG = 'That took too long. Try again.'
 
 /**
+ * A link back from Google with no sign-in waiting for it here: one already
+ * spent, one whose attempt ran out, or a stray. Nothing was slow, so it does
+ * not say so.
+ */
+export const LINK_SPENT = 'That sign-in link has run out or was already used. Try again.'
+
+/**
  * Why a sign-in could not go on, in words, for an error thrown while asking
  * the doorman.
  *

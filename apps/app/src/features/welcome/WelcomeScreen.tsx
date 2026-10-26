@@ -32,9 +32,9 @@ import {
   afterCheck,
   copyFor,
   endedMessage,
+  LINK_SPENT,
   refusalMessage,
   signInFailure,
-  TOOK_TOO_LONG,
   type SignInStage,
 } from '../signIn/signIn.model'
 import { useForgetEndedAccount } from '../settings/useSignOut'
@@ -189,7 +189,7 @@ export function WelcomeScreen(): ReactNode {
       try {
         const pending = await cloud.pendingSignIn()
         if (!pending) {
-          setStage({ kind: 'idle', message: TOOK_TOO_LONG })
+          setStage({ kind: 'idle', message: LINK_SPENT })
           return
         }
         const outcome = await cloud.claimSignIn(pending.attempt, code)

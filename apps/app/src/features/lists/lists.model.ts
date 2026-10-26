@@ -743,7 +743,8 @@ export function parseRecentLists(raw: string | null): readonly RecentList[] {
       const songIds = ids('songIds')
       // Kept under another key than its source has now — a search kept by its
       // songs before searches were kept by their words — it is not this list.
-      if (!source || key !== sourceKey(source, songIds) || typeof at !== 'number') return []
+      if (!source || typeof key !== 'string' || typeof at !== 'number') return []
+      if (key !== sourceKey(source, songIds)) return []
       const answer = DescribeResultSchema.safeParse(v['answer'])
       return [
         {

@@ -113,7 +113,7 @@ describe('Recently played, as things are heard', () => {
     }
     setTime('2026-10-26T10:10:00Z')
     await first.rerender({})
-    first.unmount()
+    await first.unmount()
     const before = remembered()
     expect(before.map(entry => entry.key)).toEqual(['tag:1', 'songs:search:“yoru”'])
 

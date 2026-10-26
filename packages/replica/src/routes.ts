@@ -166,6 +166,7 @@ export const SERVER_ONLY_ROUTES: readonly string[] = [
   'GET /api/cloud',
   'GET /api/stats',
   'GET /api/stats/wrapped',
+  'GET /api/stats/usual',
   'GET /api/artists/backdrop',
   'GET /api/settings',
   'PATCH /api/settings',

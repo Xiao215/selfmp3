@@ -117,6 +117,7 @@ const CALLS: Calls = {
   wrapped: api => api.wrapped('month' as never),
   gems: api => api.gems(5),
   songHistory: api => api.songHistory(1),
+  usualHours: api => api.usualHours(-420),
 }
 
 type Routes = Parameters<typeof createCloudRoutes>

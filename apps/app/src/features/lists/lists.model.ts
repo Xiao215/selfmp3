@@ -38,6 +38,7 @@ const SONGS_ORIGINS = [
   'untagged',
   'found',
   'recent',
+  'usual',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
@@ -648,6 +649,8 @@ export function recentKind(source: ListSource): string {
           return 'Need a tag'
         case 'recent':
           return 'Recently played'
+        case 'usual':
+          return 'At this hour'
       }
     case 'room':
       return 'Together'

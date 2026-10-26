@@ -94,3 +94,19 @@ export const SongHistorySchema = z.object({
   ),
 })
 export type SongHistory = z.infer<typeof SongHistorySchema>
+
+/**
+ * What you usually play at each hour, `/api/stats/usual` (Home's hour tile,
+ * docs/features/wrapped-and-gems.md, "Usually at this hour"). For each kind of
+ * day and each local hour, 0 to 23, the songs most played around it lately,
+ * most first, as places in `songs`: a song named once, however many hours it
+ * is in, so a device can keep the whole answer and play it with no server.
+ * An hour with too little history is an empty list.
+ */
+export const UsualHoursSchema = z.object({
+  /** The songs' uids, which a device lines up with its own songs. */
+  songs: z.array(z.string()),
+  weekday: z.array(z.array(z.number().int().nonnegative())).length(24),
+  weekend: z.array(z.array(z.number().int().nonnegative())).length(24),
+})
+export type UsualHours = z.infer<typeof UsualHoursSchema>

@@ -1,6 +1,6 @@
-# The Report, anytime, a song's story — and forgotten gems
+# The Report, anytime, a song's story, your hours — and forgotten gems
 
-Three ways of looking back at your own listening, built from what the library already records:
+Four ways of looking back at your own listening, built from what the library already records:
 every play, and each song's play count, last play and love.
 
 **Where the plays come from.** A play is written on the device that heard it, goes up to the
@@ -13,8 +13,9 @@ up with this device's by the uid both know them by, so a cover still draws and a
 plays. With no server in reach the page is still drawn and says why it is empty. See
 docs/SYNC.md, "Reaching the server for what only it can do".
 
-A song's story asks the server the same way, and says less when no server answers. Forgotten
-gems need no server: they are worked out on the device from its own copy of the library.
+A song's story and Home's hour tile ask the server the same way; the story says less when no
+server answers, and the tile plays from the last answer it kept. Forgotten gems need no
+server: they are worked out on the device from its own copy of the library.
 
 ---
 
@@ -144,6 +145,42 @@ playlist it is) or from a share link (who sent it). The import job carries it
 migration 51) and the snapshot carries it (`CloudSong.cameWith`), so a server made again from
 the bucket still knows. A song found and imported by hand has none, and its link says where it
 came from.
+
+## Usually at this hour (N5a)
+
+Home's first tile, before the tags (in **Your tags** on a computer, the same place on a phone),
+plays what you usually play around this hour on this kind of day. Its name follows the hour, cut
+as the greeting cuts the day: **Early morning** (5–8), **Morning** (8–12), **Afternoon** (12–17),
+**Evening** (17–22), **Late night** (22–5). It is a tag tile's sibling, the same size and
+corners, drawn in the part of the day's own hue with *What you play around now* under the name
+and a round play button where a tag's cover leans. One tag fewer is shown, so the rows stay
+full. A tap plays about forty minutes (`USUAL_SECONDS`) and Up next is named after the tile;
+Save makes a playlist of it, and Recently played keeps it.
+
+**What it plays.** For each hour of a weekday and of a weekend the server lists the songs played
+most around it in the last 180 days (`services/usualHours.ts`): a song's plays in that hour, and
+half its plays in the hour either side, each play worth half as much every eight weeks back. A
+day starts at 5 am (`DAY_STARTS_AT_HOUR` in `packages/shared/src/usual.ts`), so one in the
+morning on a Saturday is still Friday night, a weekday's. The hours are the asking device's,
+from its clock against UTC. The device takes this hour's list, keeps the songs it has, and draws
+about forty minutes of them at random, the most played more likely, with a different artist
+from the song before whenever one is left (`usualPicks` in
+`apps/app/src/features/home/usual.model.ts`). Songs set to rest (N1a, built apart from
+this) are not passed over yet: once both are in, `usualPicks` should leave them out as
+`playShuffled` does.
+
+**When there is no tile.** An hour's list is empty until its window (the hour and the hour either
+side, on that kind of day, in the last 180 days) holds **20 plays of at least 8 different
+songs** (`MIN_PLAYS`, `MIN_SONGS`), and the tile also needs **5 of the hour's songs on this
+device** (`USUAL_LEAST_HERE`). Below that there is nothing to call a habit, and Home shows the
+tags as before.
+
+**Without a server.** `GET /api/stats/usual?offset=<minutes east of UTC>` answers every hour of
+both kinds of day at once (`UsualHoursSchema` in `packages/shared/src/schemas/stats.ts`), naming
+songs by uid, each once. The device keeps the latest answer (`home.usual`,
+`features/home/useUsualHours.ts`) and lines the uids up with its own songs, so the tile still
+plays, from the last answer, while the server is away. A cloud library asks its server directly,
+as Stats does; its own copy of the library answers no such question (`SERVER_ONLY_ROUTES`).
 
 ---
 

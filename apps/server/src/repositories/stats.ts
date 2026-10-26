@@ -1,4 +1,5 @@
 import {
+  DAY_STARTS_AT_HOUR,
   localDayKey,
   toSqliteTime,
   type DailyPlays,
@@ -370,6 +371,37 @@ export class StatsRepository {
       )
       .all(from)
     return new Map(rows.map(row => [row.day, row.plays]))
+  }
+
+  /**
+   * The last `days` days of plays by song, local hour, kind of day and how
+   * many weeks ago, for "Usually at this hour" (services/usualHours.ts).
+   * `offsetMinutes` is the asking device's clock against UTC, east positive:
+   * the hours are the listener's, not the server's. A day starts at
+   * `DAY_STARTS_AT_HOUR` (shared usual.ts), so one on a Saturday morning is
+   * Friday night's.
+   */
+  usualPlays(
+    offsetMinutes: number,
+    days: number,
+  ): { uid: string; hour: number; weekend: boolean; weeksAgo: number; plays: number }[] {
+    return this.#db
+      .prepare<
+        [string, string, string],
+        { uid: string; hour: number; weekend: number; weeksAgo: number; plays: number }
+      >(
+        `SELECT s.uid AS uid,
+                CAST(strftime('%H', e.local) AS INTEGER) AS hour,
+                strftime('%w', e.local, ?) IN ('0', '6') AS weekend,
+                CAST((julianday('now') - julianday(e.played_at)) / 7 AS INTEGER) AS weeksAgo,
+                COUNT(*) AS plays
+           FROM (SELECT song_id, played_at, datetime(played_at, ?) AS local
+                   FROM play_events WHERE played_at >= datetime('now', ?)) e
+           JOIN songs s ON s.id = e.song_id
+          GROUP BY s.uid, hour, weekend, weeksAgo`,
+      )
+      .all(`-${DAY_STARTS_AT_HOUR} hours`, `${Math.round(offsetMinutes)} minutes`, `-${days} days`)
+      .map(row => ({ ...row, weekend: row.weekend === 1 }))
   }
 
   /**

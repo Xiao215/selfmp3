@@ -69,6 +69,7 @@ import {
   SettingsSchema,
   SimilarSongsSchema,
   SongHistorySchema,
+  UsualHoursSchema,
   SongSchema,
   StatsSchema,
   WrappedSchema,
@@ -706,6 +707,10 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     gems: (limit: number) =>
       request('GET', `/api/library/gems?limit=${limit}`, ForgottenGemsSchema),
+
+    /** What you usually play at each hour, by this device's clock (`UsualHours`). */
+    usualHours: (offsetMinutes: number) =>
+      request('GET', `/api/stats/usual?offset=${offsetMinutes}`, UsualHoursSchema),
 
     /** One song's every play, which only a server keeps (`SongHistory`). */
     songHistory: (songId: number) =>

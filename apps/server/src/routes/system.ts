@@ -1,10 +1,17 @@
 import { Router } from 'express'
 import { z } from 'zod'
-import { StatsRangeSchema, UpdateSettingsSchema, type Health, type Stats } from '@selfmp3/shared'
+import {
+  StatsRangeSchema,
+  UpdateSettingsSchema,
+  type Health,
+  type Stats,
+  type UsualHours,
+} from '@selfmp3/shared'
 import type { Container } from '../container.js'
 import { route } from '../http/route.js'
 import { isAuthenticated } from '../http/middleware.js'
 import { APP_VERSION } from '../config.js'
+import { USUAL_DAYS, usualHours } from '../services/usualHours.js'
 
 export function systemRoutes(container: Container): Router {
   const router = Router()
@@ -52,6 +59,19 @@ export function systemRoutes(container: Container): Router {
     '/stats',
     route({ query: z.object({ range: StatsRangeSchema.default('30d') }) }, ({ query }): Stats =>
       container.stats.build(query.range),
+    ),
+  )
+
+  /**
+   * What you usually play at each hour, for Home's hour tile. `offset` is the
+   * asking device's clock against UTC in minutes, east positive, so the hours
+   * are its own.
+   */
+  router.get(
+    '/stats/usual',
+    route(
+      { query: z.object({ offset: z.coerce.number().int().min(-900).max(900).default(0) }) },
+      ({ query }): UsualHours => usualHours(container.stats.usualPlays(query.offset, USUAL_DAYS)),
     ),
   )
 

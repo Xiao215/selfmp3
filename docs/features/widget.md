@@ -31,7 +31,14 @@ snapshot — plain JSON, colours as hex, times as seconds — through the App Gr
 A new snapshot is sent only when it has news — another song, play or pause, a seek, other
 tiles — because the system rations how often an app may reload its widgets, and the
 countdown needs none. Covers are kept at 640 points, so one goes along only when its file is
-under 120 KB; otherwise the tile is drawn in its colours alone.
+under 120 KB; otherwise the tile is drawn in its colours alone. Nothing is sent until the
+library has arrived, so a launch never hands the widget a moment of no tags.
+
+There is no choice of tags to make: the widget is a static one and follows Home's order
+(`homeTiles`), so it changes as Home's does. When it has nothing to draw it says which
+nothing: a build signed without the App Group ("can't share with its widgets" — the app
+writes into its own container and the widget never sees it), no snapshot yet ("Open
+self.mp3 once"), or truly no tags.
 
 ## Building it
 

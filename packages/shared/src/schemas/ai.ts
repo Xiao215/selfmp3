@@ -24,14 +24,17 @@ export type Range = z.infer<typeof RangeSchema>
  * away one at a time.
  *
  * Places widen and everything else narrows (the rule from combining tags):
- * a song is in if it carries any of `anyTags` or is by any of `artists` (or
- * there are neither), and then passes every other part that is set.
+ * a song is in if it carries any of `anyTags`, is by any of `artists` or is on
+ * any of `albums` (or there are none), and then passes every other part that
+ * is set.
  */
 export const UnderstandingSchema = z.object({
   /** A name for the playlist, from the words. */
   name: z.string().trim().min(1).max(60),
   anyTags: z.array(z.string()).max(12),
   artists: z.array(z.string()).max(12),
+  /** Album names, as the library spells them. */
+  albums: z.array(z.string()).max(12),
   noTags: z.array(z.string()).max(12),
   /** 0–1, from the audio analysis. A song not analysed yet does not pass a set range. */
   energy: RangeSchema,

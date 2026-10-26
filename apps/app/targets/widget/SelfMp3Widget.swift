@@ -44,6 +44,22 @@ enum SnapshotStore {
     else { return nil }
     return try? JSONDecoder().decode(Snapshot.self, from: data)
   }
+
+  /// Whether this build was signed with the App Group at all. Without it the
+  /// app writes its snapshot into its own container and the widget never sees
+  /// one, however many tags there are.
+  static var shared: Bool {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) != nil
+  }
+}
+
+/// What a widget says when it has nothing to draw: that this build cannot
+/// reach it, that the app has not handed it anything yet, or `empty`, which
+/// is the widget's own "there is nothing of this".
+private func waiting(_ snapshot: Snapshot?, empty: String) -> String {
+  if !SnapshotStore.shared { return "This build of self.mp3 can't share with its widgets." }
+  if snapshot == nil { return "Open self.mp3 once and this fills in." }
+  return empty
 }
 
 struct SnapshotEntry: TimelineEntry {
@@ -136,9 +152,10 @@ struct TagsView: View {
           }
         }
       } else {
-        Text("Tag a few songs in self.mp3 and they turn up here.")
+        Text(waiting(entry.snapshot, empty: "Tag a few songs in self.mp3 and they turn up here."))
           .font(.system(size: 13))
           .foregroundStyle(inkSecond)
+          .multilineTextAlignment(.center)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
     }
@@ -290,9 +307,10 @@ struct NowPlayingView: View {
         }
         .widgetURL(URL(string: now.link))
       } else {
-        Text("Nothing playing. Open self.mp3 to start something.")
+        Text(waiting(entry.snapshot, empty: "Nothing playing. Open self.mp3 to start something."))
           .font(.system(size: 13))
           .foregroundStyle(inkSecond)
+          .multilineTextAlignment(.center)
       }
     }
     .containerBackground(for: .widget) { Color("$widgetBackground") }

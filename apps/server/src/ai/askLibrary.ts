@@ -45,6 +45,7 @@ export const EVERYTHING: z.infer<typeof PlanOut> = {
   name: 'Your library',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -104,10 +105,11 @@ function top(values: Iterable<string>): { label: string; count: number }[] {
 
 /** Whether the filters choose anything, rather than letting every song in. */
 function chooses(understanding: Understanding): boolean {
-  const { anyTags, artists, noTags, energy, bpm, year } = understanding
+  const { anyTags, artists, albums, noTags, energy, bpm, year } = understanding
   return (
     anyTags.length > 0 ||
     artists.length > 0 ||
+    albums.length > 0 ||
     noTags.length > 0 ||
     energy.min !== null ||
     energy.max !== null ||
@@ -222,8 +224,8 @@ export async function playlistSongs(
   if (!chooses(understanding) && understanding.brief === null) {
     return none(
       adding
-        ? `Say which songs to add to ${playlist.name}: an artist, a tag, or a kind of song.`
-        : `Say which songs to take out of ${playlist.name}: an artist, a tag, or a kind of song.`,
+        ? `Say which songs to add to ${playlist.name}: an artist, an album, a tag, or a kind of song.`
+        : `Say which songs to take out of ${playlist.name}: an artist, an album, a tag, or a kind of song.`,
     )
   }
   const inPlaylist = new Set(members.map(song => song.id))

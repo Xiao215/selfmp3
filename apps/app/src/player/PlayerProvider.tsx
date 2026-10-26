@@ -120,8 +120,7 @@ interface PlayOptions {
    * what Save makes of it. Left out, Up next is nameless.
    *
    * A list with a source is played as a list: its resting songs are passed
-   * over (`passOverResting`), but for the one whose row was tapped. Songs you
-   * picked are played as picked.
+   * over (`passOverResting`), but for the one whose row was tapped.
    */
   readonly source?: ListSource | null
   /** The list's own Play, not a tapped row: a resting song where it starts is passed over too. */
@@ -797,7 +796,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   const listed = useCallback(
     (list: ListStart, options: PlayOptions): ListStart => {
       const { source } = options
-      if (!source || (source.kind === 'songs' && source.origin === 'selection')) return list
+      if (!source) return list
       return passOverResting(list, resting, options.whole !== true)
     },
     [resting],

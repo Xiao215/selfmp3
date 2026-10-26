@@ -298,7 +298,7 @@ const DISMISS_ACTIONS = [{ name: 'dismiss', label: 'Dismiss' }]
  * Undo — and is filled; one before it (Open) is the words alone.
  *
  * With `clock` the filled one is the message's timer too: its fill empties
- * towards its start as the time runs out, so the one thing to press says how
+ * towards its end as the time runs out, so the one thing to press says how
  * long it can be pressed (the restyle's C). On a toned ground the fill is the
  * ink's own, since the accent on green or red reads as a third colour.
  */
@@ -345,7 +345,7 @@ export function ToastButton({
   )
 }
 
-/** The fill of a button that keeps a message's time, emptying towards its start. */
+/** The fill of a button that keeps a message's time, emptying towards its end: its edge sweeps left to right. */
 function Draining({ since, ms, color }: { since: number; ms: number; color: string }): ReactNode {
   const left = useClock(since, ms)
   const width = useAnimatedStyle(() => ({ width: `${left.value * 100}%` }))
@@ -613,7 +613,7 @@ const styles = StyleSheet.create(theme => ({
   say: { color: theme.colors.textPrimary, fontSize: type.body, lineHeight: leading.body },
   subject: { fontWeight: '500' },
   under: { color: theme.colors.textSecondary, fontSize: type.sub, lineHeight: leading.sub },
-  draining: { position: 'absolute', left: 0, top: 0, bottom: 0 },
+  draining: { position: 'absolute', right: 0, top: 0, bottom: 0 },
   button: {
     height: BUTTON_HEIGHT,
     minWidth: 72,

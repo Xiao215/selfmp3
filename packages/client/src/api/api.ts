@@ -28,6 +28,7 @@ import {
   ErrorBodySchema,
   HealthSchema,
   ImportEnqueueResultSchema,
+  IMPORT_ENQUEUE_MAX,
   AlreadyHaveResponseSchema,
   ImportCoverToneSchema,
   ImportFindResultSchema,
@@ -623,8 +624,29 @@ export function createApi({ context, fetch }: ApiOptions) {
         })),
       }),
 
-    importEnqueue: (input: ImportEnqueue) =>
-      request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, input),
+    /**
+     * Songs put in the import queue: past `IMPORT_ENQUEUE_MAX`, as several
+     * requests, one after another, answered as one. A playlist the first part
+     * made is where the rest go.
+     */
+    importEnqueue: async (input: ImportEnqueue) => {
+      const enqueue = (part: ImportEnqueue) =>
+        request('POST', '/api/import/enqueue', ImportEnqueueResultSchema, part)
+      let answer = await enqueue({ ...input, items: input.items.slice(0, IMPORT_ENQUEUE_MAX) })
+      for (let at = IMPORT_ENQUEUE_MAX; at < input.items.length; at += IMPORT_ENQUEUE_MAX) {
+        const items = input.items.slice(at, at + IMPORT_ENQUEUE_MAX)
+        const into = answer.playlistId
+        const next = await enqueue(
+          into === null ? { ...input, items } : { ...input, items, playlistId: into },
+        )
+        answer = {
+          jobs: [...answer.jobs, ...next.jobs],
+          skipped: answer.skipped + next.skipped,
+          playlistId: answer.playlistId ?? next.playlistId,
+        }
+      }
+      return answer
+    },
 
     /** The queue, with the newest `finished` done jobs (the server's default when unsaid). */
     importQueue: (finished?: number) =>

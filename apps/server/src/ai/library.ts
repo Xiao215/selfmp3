@@ -74,7 +74,7 @@ export function shownArtist(
 }
 
 /**
- * Rung two: the library's size and spread, its tags, and who is in it most.
+ * Rung two: the library's size and spread, its tags, who is in it most and its albums.
  * An artist under two spellings joined by their other names is one artist.
  */
 export function libraryShape(
@@ -97,6 +97,10 @@ export function libraryShape(
   const withWords = songs.filter(hasWords).length
   const shownAs = joinedNames(songs, names)
   const artists = tally(songs.map(song => shownArtist(song, shownAs)))
+  // A single's album is its own title, which says nothing an album can.
+  const albums = tally(songs.map(song => song.album).filter(Boolean)).filter(
+    ([, count]) => count >= 2,
+  )
 
   return [
     `The library: ${songs.length} songs. ${withWords} have words, ${songs.length - withWords} have none.`,
@@ -114,6 +118,7 @@ export function libraryShape(
     tagCatalog(songs, tags),
     '',
     `Artists, most songs first: ${top(artists, 40)}`,
+    `Albums of two songs or more, most songs first: ${top(albums, 60) || '(none)'}`,
   ].join('\n')
 }
 

@@ -128,7 +128,7 @@ While it rests it is passed over by:
 - A list played as a list — a tag, a playlist, tags together, an artist, an answer, Library's
   Play: Up next is made without it (`passOverResting`). The song whose row was tapped plays
   even if it rests; the list's own Play passes over a resting first song too (`whole`).
-  Songs you ticked and played are played as picked, and a handoff or a resume keeps its list.
+  A handoff or a resume keeps its list.
 - **Ask's picks**, while any other song fits (`narrowAndPick`).
 - **Forgotten gems** (`forgottenGems`).
 - **Keep going**, above.
@@ -145,7 +145,7 @@ bucket written before songs could rest reads as every song awake.
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and
 `player.playShuffled(ids, source)` (`ListSource` in `lists.model.ts`). A tag, an artist, a
 playlist, Liked, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
-song, songs you picked, forgotten gems, found by a search, songs that need a tag, Home's
+song, forgotten gems, found by a search, songs that need a tag, Home's
 Recently played songs), or the whole library. Left out, Up next is nameless: a song played
 alone, or a handoff from another device. The source rides in the playback session
 (`player/session.model.ts`), so a reopened app comes back by the same name.
@@ -275,7 +275,7 @@ Recently played.
 A tile opens its list's page on a tap, as any list's tile does, and playing it is that page's
 Play (Xiao, 2026-10-04): a tag's, an artist's, a playlist's, tags combined, an Ask answer's.
 An answer is kept with its own answer, so its page opens again after a reload. Songs with no
-page of their own (similar ones, ones you picked) play.
+page of their own (similar ones) play.
 
 The row's **See all** opens Library sorted by Recently played (G1, 2026-10-25):
 `/library?sort=lastPlayedAt`, an order for that visit only (`linkedSort`). The order Library

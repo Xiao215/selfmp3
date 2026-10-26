@@ -38,7 +38,6 @@ import {
 const SONGS_ORIGINS = [
   'search',
   'similar',
-  'selection',
   'gems',
   'untagged',
   'found',
@@ -832,8 +831,6 @@ export function recentKind(source: ListSource): string {
       switch (source.origin) {
         case 'similar':
           return 'Similar songs'
-        case 'selection':
-          return 'Songs you picked'
         case 'gems':
           return 'Forgotten gems'
         // The tile's title is the words searched: this says what they were.

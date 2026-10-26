@@ -1,4 +1,13 @@
-import { plural, SHARE_LAST_DAY_MS, type ShareLink, type ShareSummary } from '@selfmp3/shared'
+import {
+  formatShareStart,
+  parseShareStart,
+  plural,
+  SHARE_LAST_DAY_MS,
+  shareLineAt,
+  type ShareLine,
+  type ShareLink,
+  type ShareSummary,
+} from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
 
@@ -73,14 +82,16 @@ export function shareHeadLine(link: ShareLink, now: number): { from: string; tim
 
 /**
  * The words that go with a link (D2): "干杯 · 五月天" for a song, "五月天 精选 ·
- * 12 songs" for a list. The link goes beside them, not inside them, so it is
- * sent once (ports/shareLink).
+ * 12 songs" for a list, and "干杯 · 五月天 · from 0:42" for a song shared from a
+ * line. The link goes beside them, not inside them, so it is sent once
+ * (ports/shareLink).
  */
 export function shareWords({
   name,
   kind,
   artist,
   songs,
+  start = null,
 }: {
   name: string
   kind: 'song' | 'list'
@@ -88,10 +99,30 @@ export function shareWords({
   artist: string | null
   /** How many songs the link holds. */
   songs: number
+  /** Where it starts, shared from a line. */
+  start?: number | null
 }): string {
   if (kind === 'list') return `${name} · ${plural(songs, 'song', 'songs')}`
   const by = artist?.trim()
-  return by ? `${name} · ${by}` : name
+  const from = start === null ? null : `from ${formatShareStart(start)}`
+  return [name, by, from].filter(Boolean).join(' · ')
+}
+
+/**
+ * Where a link's page starts its song, from the address's `t` (`?t=0:42`),
+ * and the line it was shared from there, if the link kept it. Null for no
+ * start: none given, one that does not read as a time, a list, or a start
+ * past the song's end. Then the page is as it is without one.
+ */
+export function shareStartOf(
+  link: Pick<ShareLink, 'kind' | 'entries' | 'lines'>,
+  t: string | readonly string[] | undefined,
+): { at: number; line: ShareLine | null } | null {
+  const at = parseShareStart(typeof t === 'string' ? t : t?.[0])
+  const song = link.kind === 'song' ? link.entries[0]?.song : undefined
+  if (at === null || !song) return null
+  if (song.duration > 0 && at >= song.duration) return null
+  return { at, line: shareLineAt(link, at) }
 }
 
 /**

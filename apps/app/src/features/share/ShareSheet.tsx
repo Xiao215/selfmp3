@@ -4,6 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import {
   artistOr,
+  formatShareStart,
   plural,
   SHARE_MAX_SONGS,
   type RoomSong,
@@ -89,6 +90,7 @@ export function ShareSheet(): ReactNode {
         kind: request.kind,
         you: nameToJoinWith(me),
         songs: given,
+        ...(request.line ? { line: request.line } : {}),
       })
       making.set(request, held)
     }
@@ -116,7 +118,8 @@ export function ShareSheet(): ReactNode {
   const count = request?.songIds.length ?? 0
   const left = Math.max(0, count - SHARE_MAX_SONGS)
   const link = shown && 'link' in shown ? shown.link : null
-  const url = link ? shareLinkUrl(linkAddress(), link) : null
+  const start = request?.line?.at ?? null
+  const url = link ? shareLinkUrl(linkAddress(), link, start) : null
   // Your own copies of what went in: the song's artist, and the cover.
   const yours =
     request && link
@@ -129,6 +132,7 @@ export function ShareSheet(): ReactNode {
           kind: request.kind,
           artist: yours[0]?.artist ?? null,
           songs: link.entries.length,
+          start,
         })
       : ''
 
@@ -162,11 +166,13 @@ export function ShareSheet(): ReactNode {
             sub={
               request.kind === 'list'
                 ? plural(link.entries.length, 'song', 'songs')
-                : artistOr(yours[0]?.artist)
+                : request.line
+                  ? `From ${formatShareStart(request.line.at)} · ${request.line.text}`
+                  : artistOr(yours[0]?.artist)
             }
             song={coverOf(yours)}
             url={url}
-            path={`/l/${link.id}/${link.key}`}
+            path={shareLinkUrl('', link, start)}
             words={words}
           />
         ) : (

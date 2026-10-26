@@ -51,7 +51,14 @@ import { GUEST_NAME_KEY } from '../room/room.model'
 import { sayRoomFailure } from '../room/roomFailure'
 import { useGetSongs } from '../room/useGetSongs'
 import { GoneLink } from './GoneLink'
-import { gettable, shareHeadLine, shareStage, shareTracks, sourceName } from './share.model'
+import {
+  gettable,
+  shareHeadLine,
+  shareStage,
+  shareStartOf,
+  shareTracks,
+  sourceName,
+} from './share.model'
 import { ShareSong, SongStill, useShareStage } from './ShareSong'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
@@ -82,7 +89,7 @@ function rememberAsked(id: string): void {
  * came from, and asking its sender again.
  */
 export function ShareLinkScreen(): ReactNode {
-  const params = useLocalSearchParams<{ id: string; key: string }>()
+  const params = useLocalSearchParams<{ id: string; key: string; t?: string }>()
   const id = ShareIdSchema.safeParse(params.id ?? '').success ? (params.id ?? null) : null
   const key = ShareKeySchema.safeParse(params.key ?? '').success ? (params.key ?? null) : null
   const { status } = useConnection()
@@ -99,7 +106,7 @@ export function ShareLinkScreen(): ReactNode {
     const wrongKey = !key || (error instanceof DoormanError && error.status === 403)
     return <GoneLink torn={!id || wrongKey} signedIn={status === 'ready'} />
   }
-  return <LinkPage link={link} />
+  return <LinkPage link={link} t={params.t} />
 }
 
 /**
@@ -107,9 +114,10 @@ export function ShareLinkScreen(): ReactNode {
  * its sender and how long it has at the top. A song that still plays is Now
  * Playing's own page (`ShareSong`): the stage on a computer, the phone's page
  * on a phone. A list, or a song that has ended, is one column: its covers,
- * its name, Play, and the ways on.
+ * its name, Play, and the ways on. Shared from a line (`?t=0:42`), its song
+ * starts there, and the page shows the line.
  */
-function LinkPage({ link }: { link: ShareLink }): ReactNode {
+function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): ReactNode {
   const router = useRouter()
   const { theme } = useUnistyles()
   const { status } = useConnection()
@@ -152,6 +160,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
   const source = first?.song.sourceUrl ?? null
   const head = shareHeadLine(link, now)
   const loaded = link.kind === 'song' && playing === firstId
+  const start = useMemo(() => shareStartOf(link, t), [link, t])
 
   // Washed in its first cover's colour, as Now Playing is; grey once it has ended.
   const lead = useMemo(
@@ -183,6 +192,9 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
     if (ids.length === 0) return
     const id = ids[at]
     if (id !== undefined && playing === id) player.toggle()
+    // Its song, from the line it was shared from: `position`, as a seek
+    // straight after would land before the song has loaded.
+    else if (start && at === 0) player.playFrom(ids, at, { position: start.at })
     else player.playFrom(ids, at)
   }
 
@@ -236,6 +248,7 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
             lyrics={lyrics}
             lent={first.song.lyrics !== null}
             loaded={loaded}
+            start={start}
             onPlay={() => play(0)}
             back={back}
             from={from}

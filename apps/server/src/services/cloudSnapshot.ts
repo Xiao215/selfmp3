@@ -128,6 +128,7 @@ export function buildSnapshot(input: SnapshotInput): CloudSnapshot {
       motion: state.motionKey,
       instrumental: song.instrumental,
       loved: song.loved,
+      restUntil: song.restUntil,
       playCount: song.playCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,

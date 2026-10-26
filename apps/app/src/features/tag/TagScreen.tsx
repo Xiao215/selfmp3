@@ -47,7 +47,10 @@ export function TagScreen(): ReactNode {
     if (play !== '1' || !tag || !library) return
     const ids = placeSongs([{ kind: 'tag', tag }], library.songs).map(song => song.id)
     if (ids.length > 0) {
-      player.playFrom(ids, 0, { source: { kind: 'tag', tagId: tag.id, name: tag.name } })
+      player.playFrom(ids, 0, {
+        source: { kind: 'tag', tagId: tag.id, name: tag.name },
+        whole: true,
+      })
     }
     router.setParams({ play: undefined })
   }, [play, tag, library, player, router])

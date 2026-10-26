@@ -28,6 +28,7 @@ const song = (id: number, patch: Partial<Song> = {}): Song => ({
   instrumental: false,
   playCount: 0,
   loved: false,
+  restUntil: null,
   sourceUrl: null,
   lastPlayedAt: null,
   addedAt: '2025-01-01T00:00:00.000Z',

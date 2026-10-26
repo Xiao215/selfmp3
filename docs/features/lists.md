@@ -30,6 +30,7 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 | Tag songs… | `apps/app/src/features/tag/TagScreen.tsx`, `apps/app/src/features/playlistDetail/AddSongsSheet.tsx` |
 | Ask's song answer: the card and the page | `apps/app/src/features/smart/SongsAnswerCard.tsx`, `AnswerScreen.tsx` (`/answer`) |
 | A room that ended, as a list page | `apps/app/src/features/room/RoomScreens.tsx` (`/past-room/[code]`) |
+| Resting songs: the rule, the list it starts, the menu | `packages/shared/src/rest.ts`, `apps/app/src/player/resting.model.ts`, `apps/app/src/ui/songActions.model.ts` |
 | Covers flying into the Up next button | `apps/app/src/ui/coverFlight.ts`, `apps/app/src/ui/components/CoverFlight.tsx`, `apps/app/src/features/queue/useFlyToUpNext.ts` |
 
 ## A song picked from Library
@@ -68,6 +69,32 @@ the ones played — and the music carries on (C1). It is an outlined pill, not a
 and is greyed when there is nothing to clear. The toast says "Cleared 30 songs" with Undo,
 which puts them all back in their places while the same song is playing; songs added since
 stay after them.
+
+## Resting songs
+
+A song you are tired of for now, but would not untag or delete, can rest (N1a, 2026-10-25).
+The song ⋯ — and the selection bar's More, for several — has **Rest for a month**; the toast
+says *Resting until 25 Nov* with **Undo**. A resting song's row shows a small ☾ and is faded a
+little (`OPACITY.resting`), and its ⋯ says **Wake up** instead. It wakes by itself 30 days
+later: nothing runs then, the time has simply passed (`isResting`, `REST_DAYS`).
+
+While it rests it is passed over by:
+
+- **Shuffle**, from anywhere (`playShuffled`).
+- A list played as a list — a tag, a playlist, tags together, an artist, an answer, Library's
+  Play: Up next is made without it (`passOverResting`). The song whose row was tapped plays
+  even if it rests; the list's own Play passes over a resting first song too (`whole`).
+  Songs you ticked and played are played as picked, and a handoff or a resume keeps its list.
+- **Ask's picks**, while any other song fits (`narrowAndPick`).
+- **Forgotten gems** (`forgottenGems`).
+- **Keep going**, below.
+
+Adding it to Up next, Play next, or opening it and pressing play still plays it: resting is
+about what the app chooses, never about what you choose.
+
+The rest is the song's `restUntil`, an ISO time, edited like any song field (`SONG_FIELDS`):
+stamped, in the change log and the snapshot, so it reaches every device (docs/SYNC.md). A
+bucket written before songs could rest reads as every song awake.
 
 ## Where a list came from
 

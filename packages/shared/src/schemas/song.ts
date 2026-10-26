@@ -71,6 +71,12 @@ export const SongSchema = z.object({
   instrumental: z.boolean(),
   playCount: z.number().int().nonnegative(),
   loved: z.boolean(),
+  /**
+   * Resting until then (docs/features/lists.md, "Resting songs"): Shuffle, a
+   * list played whole, Ask's picks, Forgotten gems and Keep going pass over
+   * it, and a tap still plays it. ISO time; null, or a time gone by, is awake.
+   */
+  restUntil: z.string().nullable(),
   sourceUrl: z.string().nullable(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),
@@ -94,6 +100,8 @@ export const SongFieldsSchema = z.object({
   loved: z.boolean(),
   /** Mark or unmark a song as having no words, so no lyrics are looked up. */
   instrumental: z.boolean(),
+  /** Rest a song until then, or wake it with null (`SongSchema.restUntil`). */
+  restUntil: z.string().datetime().nullable(),
 })
 export type SongFields = z.infer<typeof SongFieldsSchema>
 

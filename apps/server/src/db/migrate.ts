@@ -1181,6 +1181,13 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 51. A song can rest: until then, Shuffle, a list played whole, Ask's
+    // picks, Forgotten gems and Keep going pass over it (shared rest.ts). An
+    // ISO time, synced like any song field; null is awake.
+    name: 'a song can rest',
+    sql: `ALTER TABLE songs ADD COLUMN rest_until TEXT;`,
+  },
 ]
 
 /** Bring the schema to the latest version. */

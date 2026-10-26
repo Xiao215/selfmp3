@@ -119,6 +119,21 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(1)
   })
 
+  it('passes over resting songs, while any other song fits', async () => {
+    const yoasobi = { ...nothing, artists: ['YOASOBI'] }
+    const until = new Date(NOW + 86_400_000).toISOString()
+    const resting = (rest: readonly number[]) => ({
+      ...deps(scriptedLlm({})),
+      songs: () =>
+        SONGS.map(song => (rest.includes(song.id) ? { ...song, restUntil: until } : song)),
+    })
+    const one = await narrowAndPick(resting([7]), 'YOASOBI', yoasobi, [])
+    expect(one.picks.map(pick => pick.songId)).toEqual([8])
+    // Both resting: they come back rather than nothing.
+    const both = await narrowAndPick(resting([7, 8]), 'YOASOBI', yoasobi, [])
+    expect(both.picks.map(pick => pick.songId)).toEqual([7, 8])
+  })
+
   it('loosens one part at a time when together they let nothing in', async () => {
     const llm = scriptedLlm({
       'describe-plan': [

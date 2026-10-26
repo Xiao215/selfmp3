@@ -1,12 +1,13 @@
 import { gemsThresholdDays } from './schemas/gems.js'
 import { DAY_MS } from './math.js'
 import { fromSqliteTime } from './sync.js'
+import { isResting } from './rest.js'
 
 /**
  * Forgotten gems: songs you clearly liked that have gone quiet.
  *
- * A song qualifies when it is loved or has five or more plays and it has not
- * been played for at least the threshold (a loved song never played counts
+ * A song qualifies when it is loved or has five or more plays, is not
+ * resting (rest.ts), and it has not been played for at least the threshold (a loved song never played counts
  * from the day it was added). Ranking is `plays × days since`, nudged by a
  * random factor between 0.75 and 1.25 so the same handful does not sit at the
  * top forever.
@@ -25,6 +26,7 @@ interface GemFields {
   readonly playCount: number
   readonly lastPlayedAt: string | null
   readonly addedAt: string
+  readonly restUntil: string | null
 }
 
 interface Gem<S extends GemFields> {
@@ -61,6 +63,7 @@ export function forgottenGems<S extends GemFields>(
 
   const quiet = songs.flatMap(song => {
     if (!song.loved && song.playCount < MIN_PLAYS) return []
+    if (isResting(song, now)) return []
     const daysSince = (now - fromSqliteTime(song.lastPlayedAt ?? song.addedAt)) / DAY_MS
     if (daysSince < minDays) return []
     const score = Math.max(song.playCount, 1) * daysSince * (0.75 + random() * 0.5)

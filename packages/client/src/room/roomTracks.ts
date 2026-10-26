@@ -45,6 +45,7 @@ export function roomTrackSong(entry: Pick<RoomEntry, 'id' | 'song' | 'addedAt'>)
     instrumental: false,
     playCount: 0,
     loved: false,
+    restUntil: null,
     sourceUrl: song.sourceUrl,
     lastPlayedAt: null,
     addedAt: new Date(entry.addedAt).toISOString(),

@@ -119,6 +119,7 @@ export function TagsScreen(): ReactNode {
     noteTagUsed(standing.tag.id)
     latest.current.player.playFrom(ids, 0, {
       source: { kind: 'tag', tagId: standing.tag.id, name: standing.tag.name },
+      whole: true,
     })
   }, [])
   const [editing, setEditing] = useState<Tag | null>(null)

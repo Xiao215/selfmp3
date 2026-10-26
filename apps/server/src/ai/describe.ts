@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import {
   DAY_MS,
   fromSqliteTime,
+  isResting,
   splitArtists,
   UnderstandingSchema,
   type DescribePick,
@@ -441,6 +442,10 @@ export async function narrowAndPick(
     applied = unset(applied, part)
     fitting = songsFitting(songs, tags, applied, now)
   }
+
+  // Resting songs (shared rest.ts) stay out while anything else fits.
+  const awake = fitting.filter(song => !isResting(song, now))
+  if (awake.length > 0) fitting = awake
 
   // Different songs: the ones shown last time stay out while anything else fits.
   if (avoid.length > 0) {

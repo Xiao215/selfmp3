@@ -166,10 +166,11 @@ export const PRESS = { control: 0.96, row: 0.985 } as const
  * The opacities a press and a state are drawn with, one set for the app:
  * `pressed`, bare ink under the finger (`Press` `feedback="dim"`);
  * `disabled`, anything that cannot be pressed now; `dim`, what is there but
- * not live — a song that cannot play here, a step still to come. A pressed
- * veil (`feedback="wash"`) is a colour, the palette's `veilPressed`.
+ * not live — a song that cannot play here, a step still to come; `resting`,
+ * a song set aside for now, which still plays when pressed. A pressed veil
+ * (`feedback="wash"`) is a colour, the palette's `veilPressed`.
  */
-export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55 } as const
+export const OPACITY = { pressed: 0.6, disabled: 0.4, dim: 0.55, resting: 0.72 } as const
 
 /**
  * A curve that runs a little past its end and settles back: Penner's "back

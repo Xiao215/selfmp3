@@ -318,7 +318,7 @@ export function PlacePage({
             name={title}
             songIds={ids}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
             testPrefix="place"
           />

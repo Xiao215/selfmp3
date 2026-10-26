@@ -20,6 +20,8 @@ export const SONG_ACTION_LABELS = {
   playNext: 'Play next',
   playSimilar: 'Play similar songs',
   share: 'Share link',
+  rest: 'Rest for a month',
+  wake: 'Wake up',
   details: 'Song details',
   removeFromPlaylist: 'Remove from this playlist',
   fixInfo: 'Fix song info…',
@@ -36,6 +38,8 @@ export type SongActionId =
   | 'share'
   | 'download'
   | 'removeDownload'
+  | 'rest'
+  | 'wake'
   | 'details'
   | 'removeFromPlaylist'
   | 'delete'
@@ -48,6 +52,8 @@ interface SongActionFacts {
   readonly loved: number
   /** How many of them are kept on this device. */
   readonly held: number
+  /** How many of them are resting (shared rest.ts). */
+  readonly resting: number
   /** An installed app, which keeps songs; a browser streams and keeps none. */
   readonly installed: boolean
   /** A friend's song in a room is among them: not in your library, so nothing the library does applies. */
@@ -110,6 +116,17 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
       'song',
     )
   }
+  // Resting (docs/features/lists.md): one song is one or the other; several
+  // can be put to rest and woken, as they can be liked.
+  const { resting } = facts
+  if (resting < count) add('rest', SONG_ACTION_LABELS.rest, 'song')
+  if (resting > 0) {
+    add(
+      'wake',
+      many ? `Wake up ${resting === count ? 'all' : resting}` : SONG_ACTION_LABELS.wake,
+      'song',
+    )
+  }
   if (!many && (!facts.nowPlaying || facts.detailsInMenu)) {
     add('details', SONG_ACTION_LABELS.details, 'song')
   }
@@ -118,4 +135,10 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
 
   add('delete', many ? `Delete ${count} songs from library…` : 'Delete from library…', 'remove')
   return actions
+}
+
+/** What a resting song says of itself: "Resting until 25 Nov". */
+export function restingUntil(until: string): string {
+  const day = new Date(until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  return `Resting until ${day}`
 }

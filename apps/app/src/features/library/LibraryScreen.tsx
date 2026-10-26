@@ -180,7 +180,7 @@ export function LibraryScreen(): ReactNode {
   const playTags = (shuffled: boolean): void => {
     fly(transportRef.current, songIds)
     if (shuffled) player.playShuffled(songIds, source)
-    else player.playFrom(songIds, 0, { source })
+    else player.playFrom(songIds, 0, { source, whole: true })
   }
   // What the list is answering: a new answer plays its first rows in
   // (`SongList`'s `arrivalKey`); scrolling, selecting and playing do not.

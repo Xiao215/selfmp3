@@ -284,7 +284,7 @@ function GemsTile({ gems }: { gems: ForgottenGems }): ReactNode {
       }
       title="Forgotten gems"
       sub={`${plural(gems.songs.length, 'song', 'songs')} · ${formatLongDuration(duration)}`}
-      onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE })}
+      onPress={() => player.playFrom(ids, 0, { source: GEMS_SOURCE, whole: true })}
       label="Play forgotten gems"
       caption={`Liked or well played, quiet for ${gems.minDays}+ days`}
     />

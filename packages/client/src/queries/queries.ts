@@ -175,6 +175,7 @@ export const editKeys = {
   loved: ['edit', 'loved'],
   bulkTag: ['edit', 'bulk-tag'],
   bulkLoved: ['edit', 'bulk-loved'],
+  rest: ['edit', 'rest'],
   addToPlaylist: ['edit', 'add-to-playlist'],
   removeFromPlaylist: ['edit', 'remove-from-playlist'],
   reorderPlaylist: ['edit', 'reorder-playlist'],
@@ -187,6 +188,10 @@ const editFns = {
   bulkTag: (input: { songIds: number[]; tagId: number; action: 'add' | 'remove' }) =>
     clientApi().bulkTag(input),
   bulkLoved: (input: { songIds: number[]; loved: boolean }) => clientApi().bulkLoved(input),
+  rest: ({ songIds, until }: { songIds: number[]; until: string | null }) =>
+    clientApi().bulkEditSongs({
+      edits: songIds.map(songId => ({ songId, patch: { restUntil: until } })),
+    }),
   addToPlaylist: async ({ playlistId, songIds }: { playlistId: number; songIds: number[] }) => {
     // A removal still waiting on its Undo goes first: added back inside the
     // Undo's time, a song was added to a playlist that still had it, and
@@ -944,6 +949,41 @@ export function useToggleLoved() {
       )
       refetchLivePlaylists(client)
     },
+
+    onError: (_error, _variables, context) => {
+      if (context?.previous) client.setQueryData(queryKeys.library, context.previous)
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    },
+  })
+}
+
+/**
+ * Rest songs until a time, or wake them with null (shared rest.ts), shown at
+ * once: the row's moon is there before the answer, and gone again if it fails.
+ */
+export function useRestSongs() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationKey: [...editKeys.rest],
+    mutationFn: editFns.rest,
+    meta: { failure: 'Couldn’t save the change' },
+
+    onMutate: async ({ songIds, until }) => {
+      await client.cancelQueries({ queryKey: queryKeys.library })
+      const previous = client.getQueryData<Library>(queryKeys.library)
+      if (previous) {
+        const ids = new Set(songIds)
+        client.setQueryData<Library>(queryKeys.library, {
+          ...previous,
+          songs: previous.songs.map(song =>
+            ids.has(song.id) ? { ...song, restUntil: until } : song,
+          ),
+        })
+      }
+      return { previous }
+    },
+
+    onSuccess: () => void client.invalidateQueries({ queryKey: queryKeys.library }),
 
     onError: (_error, _variables, context) => {
       if (context?.previous) client.setQueryData(queryKeys.library, context.previous)

@@ -246,7 +246,7 @@ export function AnswerScreen(): ReactNode {
             // Changed and not yet picked again: what is shown is not the answer.
             disabled={edited !== null}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
             testPrefix="answer"
           />

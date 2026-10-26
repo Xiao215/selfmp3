@@ -278,6 +278,28 @@ describe('/api/cloud/uids', () => {
     expect(inMix.songIds).toEqual([idOf('a')])
   })
 
+  it('rests a song and wakes it again, as an edit of its own field', async () => {
+    const made = device()
+    await made.session.saveSession(SESSION)
+    const read = async () =>
+      (
+        (await made.cloudRequest('GET', '/api/library', undefined)) as {
+          songs: { id: number; restUntil: string | null }[]
+        }
+      ).songs
+    const songId = (await read())[0]!.id
+    const until = '2026-11-24T12:00:00.000Z'
+    const rest = (value: string | null) =>
+      made.cloudRequest('POST', '/api/songs/bulk/edit', {
+        edits: [{ songId, patch: { restUntil: value } }],
+      })
+
+    expect(await rest(until)).toEqual({ affected: 1 })
+    expect((await read()).find(each => each.id === songId)?.restUntil).toBe(until)
+    await rest(null)
+    expect((await read()).find(each => each.id === songId)?.restUntil).toBeNull()
+  })
+
   it('names the uid behind each id this device handed out', async () => {
     const made = device()
     await made.session.saveSession(SESSION)

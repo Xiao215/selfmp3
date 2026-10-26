@@ -142,10 +142,8 @@ export function FacesCover({
   const shown = people.slice(0, 4)
   const face = Math.max(16, Math.round(side * (FACE_SHARE[shown.length - 1] ?? 0.28)))
   // Each picture once: a room that played an album through is not four of its cover.
-  const withArt = covers.filter(
-    (cover, at) => cover.uri !== null && covers.findIndex(other => other.uri === cover.uri) === at,
-  )
-  const backdrop = withArt.length >= 4 ? withArt.slice(0, 4) : withArt.slice(0, 1)
+  const withArt = firstPictures(covers, 4)
+  const backdrop = withArt.length >= 4 ? withArt : withArt.slice(0, 1)
   const cell = backdrop.length === 4 ? Math.ceil(side / 2) : side
   return (
     <View
@@ -166,6 +164,23 @@ export function FacesCover({
       {side > 0 ? <RoomFaces people={shown} size={face} ring /> : null}
     </View>
   )
+}
+
+/**
+ * The first `count` covers with a picture, each picture once. It stops there,
+ * so a share link of a thousand songs looks at the first few, not at all of
+ * them against each other.
+ */
+function firstPictures(covers: readonly Backdrop[], count: number): Backdrop[] {
+  const seen = new Set<string | undefined>()
+  const found: Backdrop[] = []
+  for (const cover of covers) {
+    if (found.length === count) break
+    if (cover.uri === null || seen.has(cover.uri)) continue
+    seen.add(cover.uri)
+    found.push(cover)
+  }
+  return found
 }
 
 const styles = StyleSheet.create(theme => ({

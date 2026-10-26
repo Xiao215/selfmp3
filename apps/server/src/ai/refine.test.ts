@@ -10,6 +10,7 @@ const jpop: Understanding = {
   name: 'Jpop',
   anyTags: ['jpop'],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },

@@ -156,12 +156,12 @@ ten idle minutes.
   ("intense epic battle music"), written by the model in English whatever the request's
   language, in positive words only (the model does not understand "no vocals"; that is the
   words filter). The songs the other parts let in are put in the order they sound like it,
-  best first. With no tags or artists asked for, the sound is what chooses, and it keeps the
+  best first. With no tags, artists or albums asked for, the sound is what chooses, and it keeps the
   ones that sound like it: within 0.06 of the best match, a line drawn from the top because
   the scores only mean something against each other. A sound few songs have keeps few and a
   broad one many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces
   (three in four right), "Japanese pop" 86 (nineteen in twenty right). Songs not heard yet
-  stay out. Inside tags or artists asked for it only orders, since one song standing out
+  stay out. Inside tags, artists or albums asked for it only orders, since one song standing out
   inside a single kind of music would leave the rest below the line ("比较温和的jpop" once
   answered one song of a hundred jpop). When nothing else is wanted, the best-sounding are
   the answer, with no second model call; otherwise the model picks from the best-sounding

@@ -78,7 +78,8 @@ const CALLS: Calls = {
   importFind: api => api.importFind([]),
   importCoverTone: api => api.importCoverTone('https://i.ytimg.com/x.jpg'),
   importAlreadyHave: api => api.importAlreadyHave([]),
-  importEnqueue: api => api.importEnqueue({} as never),
+  importEnqueue: api =>
+    api.importEnqueue({ items: [], tagIds: [], playlistId: null, createPlaylistName: null }),
   importQueue: api => api.importQueue(),
   cancelImport: api => api.cancelImport('job-1'),
   retryImport: api => api.retryImport('job-1'),

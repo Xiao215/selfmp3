@@ -146,7 +146,9 @@ climbed when the one below cannot answer:
    "old songs" against the library's own spread, never "just added"), the tag naming conventions.
 2. **The library's shape** (about 1–3k tokens): each tag with its song count and the
    artists and albums it mostly holds; the size of the library; ranges of tempo and energy;
-   the years songs came out, by decade.
+   the years songs came out, by decade; the artists, and the albums of two songs or more.
+   An album is a place like an artist, so "jukebox songs" lets in every song on Jukebox
+   with no pick: a pick sees at most 300 songs, sampled from a big library, and lost some.
    This is how "a few Genshin ones" becomes the tag 原神纯音乐 without the model ever
    seeing a song.
 3. **A candidate table**: only the songs that survived the deterministic filter, capped by
@@ -330,7 +332,7 @@ A playlist's songs are the `playlistSongs` action (`ai/askLibrary.ts`): add, rem
 one manual playlist, found by `matchPlaylist` too. Add and remove choose their songs with
 Describe's filters — among the library's songs not in it, or among its own — and when the
 filters say it all, every song they let in is the answer, ticked, with no second call. Words
-the filters cannot say ("from second person", "the ones that aren't game music") go to
+the filters cannot say ("the ones named for rain", "the ones that aren't game music") go to
 Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
 so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
 the value, never analysed or never played, goes last either way). A live playlist fills
@@ -471,7 +473,7 @@ and nothing else, it can instead follow those tags and keep itself filled, which
 one kind of rule a playlist here follows (`follows.model.ts`).
 
 What it understood is an `Understanding` (`packages/shared/src/schemas/ai.ts`), not the Live
-rule set: places widen (any of these tags, any of these artists) and everything else
+rule set: places widen (any of these tags, artists or albums) and everything else
 narrows (energy, tempo, the years it came out, words, loved, when played or added). A Live rule set is all-or-any
 and cannot say "古典 or 原神纯音乐, and calm".
 
@@ -492,7 +494,7 @@ and cannot say "古典 or 原神纯音乐, and calm".
    put in the order they sound like it, best first. Over the whole library (no tags or
    artists asked for) a sound also keeps only the songs within 0.06 of the best match, so
    "violin songs" with six violin pieces answers six, not those six and nineteen near
-   misses; songs not heard yet cannot be vouched for and stay out. Inside the tags or artists
+   misses; songs not heard yet cannot be vouched for and stay out. Inside the tags, artists or albums
    asked for it only orders: they already chose the songs, and the line drawn from one best
    match left "比较温和的jpop" with one song of a hundred jpop. Steering from a song only
    orders. Nothing else in Ask touches the listening model.

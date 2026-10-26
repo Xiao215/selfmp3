@@ -6,7 +6,6 @@ import {
   artistOr,
   formatShareStart,
   plural,
-  SHARE_MAX_SONGS,
   type RoomSong,
   type ShareLink,
   type Song,
@@ -53,10 +52,9 @@ const making = new WeakMap<ShareRequest, Promise<ShareLink>>()
 
 type Made = { readonly link: ShareLink } | { readonly failed: string } | null
 
-/** The songs asked for that are in storage, as a link carries them: the first hundred. */
+/** The songs asked for that are in storage, as a link carries them: every one, however many. */
 function lendable(request: ShareRequest): RoomSong[] {
   return request.songIds
-    .slice(0, SHARE_MAX_SONGS)
     .map(id => cloudLibrary.cloudRoomSongNow(id))
     .filter((song): song is RoomSong => song !== null)
 }
@@ -115,16 +113,11 @@ export function ShareSheet(): ReactNode {
     }
   }, [request, me, made])
 
-  const count = request?.songIds.length ?? 0
-  const left = Math.max(0, count - SHARE_MAX_SONGS)
   const link = shown && 'link' in shown ? shown.link : null
   const start = request?.line?.at ?? null
   const url = link ? shareLinkUrl(linkAddress(), link, start) : null
   // Your own copies of what went in: the song's artist, and the cover.
-  const yours =
-    request && link
-      ? request.songIds.slice(0, SHARE_MAX_SONGS).flatMap(id => byId.get(id) ?? [])
-      : []
+  const yours = request && link ? request.songIds.flatMap(id => byId.get(id) ?? []) : []
   const words =
     request && link
       ? shareWords({
@@ -148,12 +141,6 @@ export function ShareSheet(): ReactNode {
       scroll
     >
       <View style={styles.body}>
-        {left > 0 ? (
-          <Text style={styles.text}>
-            A link holds {SHARE_MAX_SONGS} songs: the first {SHARE_MAX_SONGS} of these go in, and{' '}
-            {plural(left, 'song', 'songs')} stay out.
-          </Text>
-        ) : null}
         {nothing ? (
           <Text style={styles.text}>{nothing}</Text>
         ) : shown && 'failed' in shown ? (

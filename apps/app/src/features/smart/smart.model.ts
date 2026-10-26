@@ -90,6 +90,13 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
       without: u => ({ ...u, artists: u.artists.filter(other => other !== name) }),
     })
   }
+  for (const name of understanding.albums) {
+    out.push({
+      key: `album:${name}`,
+      label: name,
+      without: u => ({ ...u, albums: u.albums.filter(other => other !== name) }),
+    })
+  }
   for (const name of understanding.noTags) {
     out.push({
       key: `not:${name}`,

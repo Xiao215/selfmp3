@@ -1,6 +1,6 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Understanding } from '@selfmp3/shared'
-import { describe, groundPicks, narrowAndPick, songsFitting } from './describe.js'
+import { describe, groundPicks, groundPlan, narrowAndPick, songsFitting } from './describe.js'
 import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 import { libraryShape, songTable } from './library.js'
@@ -11,6 +11,7 @@ const nothing: Understanding = {
   name: 'Test',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -66,6 +67,25 @@ group('songsFitting', () => {
   it('splits words from no words', () => {
     const words = { ...nothing, anyTags: ['jpop', '古典'], words: 'with' as const }
     expect(ids(songsFitting(SONGS, TAGS, words, NOW))).toEqual([7, 8, 9])
+  })
+
+  it('counts an album as a place, every song on it in', () => {
+    const album = { ...nothing, albums: ['七里香'] }
+    expect(ids(songsFitting(SONGS, TAGS, album, NOW))).toEqual([14, 15])
+    const widened = { ...album, artists: ['YOASOBI'] }
+    expect(ids(songsFitting(SONGS, TAGS, widened, NOW))).toEqual([7, 8, 14, 15])
+  })
+})
+
+group('groundPlan', () => {
+  it('spells an album the library’s way and sets aside one it lacks', () => {
+    const { understanding, unknown } = groundPlan(
+      { ...nothing, albums: ['best of CHOPIN', 'Jukebox'] },
+      SONGS,
+      TAGS,
+    )
+    expect(understanding.albums).toEqual(['Best of Chopin'])
+    expect(unknown).toEqual(['Jukebox'])
   })
 })
 
@@ -258,6 +278,37 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(0)
   })
 
+  it('only orders the songs of the tags asked for by how they sound, never leaving one', async () => {
+    const llm = scriptedLlm({})
+    // "比较温和的jpop": song 8 stands well above the other jpop for "calm".
+    const scores = new Map([
+      [7, 0.18],
+      [8, 0.3],
+      [9, 0.2],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.filter(id => scores.has(id)).map(id => [id, scores.get(id)!]))),
+      closeTo: () => null,
+    }
+    const calmJpop = { ...nothing, anyTags: ['jpop'], sound: 'calm, soft Japanese pop' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, '比较温和的jpop', calmJpop, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([8, 9, 7])
+    expect(result.fit).toBe(3)
+    expect(llm.asked).toHaveLength(0)
+  })
+
+  it('only orders the songs of an album asked for by how they sound, too', async () => {
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 15 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const calmAlbum = { ...nothing, albums: ['七里香'], sound: 'calm Mandarin pop' }
+    const result = await narrowAndPick({ ...deps(scriptedLlm({})), sound }, '七里香', calmAlbum, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([15, 14])
+  })
+
   it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
     const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
     const sound = {
@@ -339,6 +390,12 @@ group('library', () => {
       '- 古典 · 3 songs · by Henrik Måwe 2, Vitaly Margulis 1 · albums Best of Chopin 3',
     )
     expect(shape).toContain('17 songs')
+  })
+
+  it('names the albums of two songs or more, most songs first', () => {
+    expect(libraryShape(SONGS, TAGS)).toContain(
+      'Albums of two songs or more, most songs first: Best of Chopin 4, 七里香 2',
+    )
   })
 
   it('gives the spread of years by decade', () => {

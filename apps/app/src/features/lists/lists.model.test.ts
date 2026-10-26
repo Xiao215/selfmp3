@@ -376,6 +376,7 @@ describe('Recently played', () => {
         name: 'Calm',
         anyTags: [],
         artists: [],
+        albums: [],
         noTags: [],
         energy: { min: null, max: 0.4 },
         bpm: { min: null, max: null },

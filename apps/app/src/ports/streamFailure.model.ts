@@ -1,4 +1,4 @@
-import { parseDoormanRefusal } from '@selfmp3/shared'
+import { DOORMAN_ERROR, parseDoormanRefusal } from '@selfmp3/shared'
 import type { DevicePlace } from '../features/settings/settings.model'
 
 /**
@@ -14,12 +14,19 @@ import type { DevicePlace } from '../features/settings/settings.model'
  * The service worker's 503 is always the same news — the song is not here and
  * the network did not bring it — so it is said in the app's words for this
  * device (`notHere`) rather than the worker's, which cannot know the place.
+ *
+ * A bucket busy for a moment is said in the app's words too (`STORAGE_BUSY`),
+ * so the player knows to wait for it rather than skip the song.
  */
 export function streamFailureMessage(status: number, body: string, place: DevicePlace): string {
   const text = body.trim()
   const plain = status === 404 || status === 503 ? notHere(place) : 'Could not play this song'
   // JSON is the doorman's, or nothing worth repeating.
-  if (text.startsWith('{')) return parseDoormanRefusal(text)?.error.trim() || plain
+  if (text.startsWith('{')) {
+    const refusal = parseDoormanRefusal(text)
+    if (refusal?.code === DOORMAN_ERROR.bucketBusy) return STORAGE_BUSY
+    return refusal?.error.trim() || plain
+  }
   if (status === 503) return plain
   if (text && text.length <= 300 && !text.startsWith('<')) return text.replace(/\.$/, '')
   return plain
@@ -41,6 +48,20 @@ export const LOST_CONNECTION = 'Lost connection to the library'
 export const TOOK_TOO_LONG = 'This song took too long to arrive'
 
 /**
+ * The bucket asked for fewer requests for a moment (Backblaze's SlowDown, the
+ * doorman's `bucket_busy`). Nothing is wrong with the song, and the next one
+ * would be refused the same way: the player waits, and asks for this one
+ * again (`recoverPlayback`). Skipped as a broken song, one Next walked three
+ * good songs in a second and stopped on "Couldn't play".
+ */
+export const STORAGE_BUSY = 'Your storage is busy'
+
+/** Whether a song failed because the storage was busy, and will most likely come if asked again. */
+export function isStorageBusy(error: string | null): boolean {
+  return error === STORAGE_BUSY
+}
+
+/**
  * Whether a song failed on the way to it rather than in it: nothing answered,
  * or it never came. The next song would most likely fail the same way, so the
  * player stops on it rather than skipping down the queue.
@@ -58,6 +79,8 @@ export function isUnreachable(error: string | null): boolean {
 export function stoppedOn(title: string, error: string | null): string {
   if (error === LOST_CONNECTION) return 'Can’t reach your library'
   if (error === TOOK_TOO_LONG) return `“${title}” took too long to load`
+  if (error === STORAGE_BUSY)
+    return `Your storage is still busy. Press Play to try “${title}” again`
   return `Couldn’t play “${title}”`
 }
 

@@ -56,6 +56,16 @@ Account › Storage (with Open Backblaze), and the sidebar under the library's n
 like a hundred other things — songs skipped one after another, letter tiles for covers, a song
 remembered for the session as having no words — and each of those asked the bucket again.
 
+**A busy bucket.** Backblaze answers a burst of requests with 503 SlowDown (or a 429): nothing is
+wrong with what was asked for, only the moment. The doorman passes it on as `bucket_busy`
+(packages/shared `classifyBucketRefusal`'s `busy`), and the player says "Storage is busy, trying
+again" and asks for the same song again after 2, 4, 8, 15 and then every 30 seconds, for about
+four minutes, before it stops and waits for Play (`recoverPlayback`'s `retry-later`). It never
+skips: the next song would get the same answer, and skipping it as a broken song walked three good
+songs in a second (bug bash R3-M2). A song already on the device plays as usual; Next lands on it.
+The server's upload pass stops at the first busy answer, as it does for a cap, rather than trying
+every song against it.
+
 What a song costs on its way up is kept small on purpose: the server sends each of its files
 without asking the bucket about it first, and so does the doorman (Backblaze takes
 `If-None-Match` on an upload and ignores it, and the server knows from its listing what the

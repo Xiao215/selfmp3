@@ -103,6 +103,7 @@ const BUCKET_CODES: Readonly<Record<BucketErrorKind, DoormanErrorCode>> = {
   missing: DOORMAN_ERROR.noSuchBucket,
   network: DOORMAN_ERROR.bucketUnreachable,
   cap: DOORMAN_ERROR.bucketCapExceeded,
+  busy: DOORMAN_ERROR.bucketBusy,
   other: DOORMAN_ERROR.bucketError,
 }
 

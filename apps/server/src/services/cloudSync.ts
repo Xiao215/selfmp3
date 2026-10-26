@@ -1094,8 +1094,9 @@ export class CloudSyncService {
             sidecarHere: signatures.sidecarHere,
           })
         } catch (error) {
-          // Offline, a refused key, no bucket, a used-up cap: nothing else
-          // will work either, and every try against a cap is one more call.
+          // Offline, a refused key, no bucket, a used-up cap, a bucket asking
+          // for fewer requests: nothing else will work either, and every try
+          // against a cap or a busy bucket is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
           // Removed while the pass was sending it, its copy with it: what was
           // asked, not a failure to try again over.

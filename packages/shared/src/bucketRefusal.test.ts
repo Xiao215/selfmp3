@@ -39,6 +39,32 @@ describe('classifyBucketRefusal', () => {
     expect(key.message).toMatch(/Backblaze said “The key is not valid”/)
   })
 
+  /*
+   * Bug bash R3-M2: Backblaze's SlowDown was "other", the same as a broken
+   * file, and the player skipped good songs past a bucket that only wanted a
+   * moment.
+   */
+  it('tells a bucket that is busy for a moment from one that refused', () => {
+    const slowDown = classifyBucketRefusal(
+      { status: 503, code: 'SlowDown', message: 'Please reduce your request rate.' },
+      WHERE,
+    )
+    expect(slowDown).toEqual({
+      kind: 'busy',
+      message: `${WHERE.host} is busy: Please reduce your request rate. (SlowDown)`,
+    })
+    expect(
+      classifyBucketRefusal({ status: 429, code: 'TooManyRequests', message: null }, WHERE).kind,
+    ).toBe('busy')
+    expect(classifyBucketRefusal({ status: 503, code: null, message: null }, WHERE).kind).toBe(
+      'busy',
+    )
+    // The SDK may give the code and no status.
+    expect(
+      classifyBucketRefusal({ status: undefined, code: 'SlowDown', message: null }, WHERE).kind,
+    ).toBe('busy')
+  })
+
   /* The server's copy repeated the bucket's words with the key still in them. */
   it('never repeats the key, whatever the bucket said', () => {
     const said = classifyBucketRefusal(

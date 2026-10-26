@@ -198,6 +198,8 @@ export class FakeBucket {
   revoked = false
   /** The account's daily cap is used up: Backblaze refuses everything, as a 403. */
   capped = false
+  /** Backblaze asks for fewer requests: everything is answered 503 SlowDown. */
+  busy = false
   #etags = 0
 
   put(key: string, body: Uint8Array | string, options: Partial<StoredObject> = {}): void {
@@ -222,6 +224,9 @@ export class FakeBucket {
 
     if (this.capped) {
       return s3Error(403, 'AccessDenied', incoming.method, 'Transaction cap exceeded')
+    }
+    if (this.busy) {
+      return s3Error(503, 'SlowDown', incoming.method, 'Please reduce your request rate.')
     }
     const refused = this.revoked
       ? 'InvalidAccessKeyId'

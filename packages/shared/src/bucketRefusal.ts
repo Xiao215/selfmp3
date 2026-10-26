@@ -13,9 +13,11 @@
  * - `missing`: there is no such bucket.
  * - `cap`: the account's allowance for the day is used up, so nothing else will
  *   get through either.
+ * - `busy`: the bucket asks for fewer requests for a moment (S3's SlowDown, a
+ *   503 or a 429). Nothing is wrong with what was asked for: ask again later.
  * - `other`: anything else, in the bucket's own words.
  */
-export type BucketRefusalKind = 'auth' | 'network' | 'missing' | 'cap' | 'other'
+export type BucketRefusalKind = 'auth' | 'network' | 'missing' | 'cap' | 'busy' | 'other'
 
 export interface BucketRefusal {
   readonly kind: BucketRefusalKind
@@ -29,6 +31,14 @@ const AUTH_CODES: ReadonlySet<string> = new Set([
   'AccessDenied',
   'Unauthorized',
   'Forbidden',
+])
+
+/** S3's codes for a bucket that wants fewer requests for a while. */
+const BUSY_CODES: ReadonlySet<string> = new Set([
+  'SlowDown',
+  'ServiceUnavailable',
+  'TooManyRequests',
+  'RequestLimitExceeded',
 ])
 
 /** How much of the bucket's own words is repeated. */
@@ -82,6 +92,11 @@ export function classifyBucketRefusal(
         `The bucket refused the key${code ? ` (${code})` : ''}. Check the key ID and the ` +
         `application key, and that the key is allowed to use “${where.bucket}”.${words}`,
     }
+  }
+  // Backblaze answers a burst of requests with 503 SlowDown. Read as "other",
+  // it was a broken song, and the player skipped good ones past it.
+  if (status === 503 || status === 429 || (code !== null && BUSY_CODES.has(code))) {
+    return { kind: 'busy', message: `${where.host} is busy: ${said}` }
   }
   return { kind: 'other', message: `${where.host}: ${said}` }
 }

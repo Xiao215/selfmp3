@@ -241,10 +241,13 @@ export function createCloudRoutes(
     [
       'GET',
       '/api/playlists/:id/songs',
-      async ({ params }) => ({
-        playlistId: id(params),
-        songIds: await cloudPlaylistSongs(id(params)),
-      }),
+      async ({ session, params }) => {
+        // Opened first: a device that has never held the library has no
+        // playlists until it does, and answered every one empty (a link to a
+        // playlist opened in a new browser said "Nothing here yet").
+        await loadCloudLibrary(session)
+        return { playlistId: id(params), songIds: await cloudPlaylistSongs(id(params)) }
+      },
     ],
     [
       'GET',

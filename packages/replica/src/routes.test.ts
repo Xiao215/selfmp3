@@ -396,6 +396,17 @@ describe('/api/cloud/uids', () => {
     expect(library.songs.find(row => row.id === a)?.playCount).toBe(1)
   })
 
+  it('answers a playlist asked for before the library with its songs, not none', async () => {
+    // Ids are handed out as the snapshot arrives, the same on every device.
+    const { a, mix } = await signedIn()
+    const fresh = device()
+    await fresh.session.saveSession(SESSION)
+    expect(await fresh.cloudRequest('GET', `/api/playlists/${mix}/songs`, undefined)).toEqual({
+      playlistId: mix,
+      songIds: [a],
+    })
+  })
+
   it('keeps when a playlist was last started, on this device', async () => {
     const { made, mix } = await signedIn()
     expect(await made.cloudRequest('POST', `/api/playlists/${mix}/played`, undefined)).toEqual({

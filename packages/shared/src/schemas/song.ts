@@ -71,6 +71,12 @@ export const SongSchema = z.object({
   instrumental: z.boolean(),
   playCount: z.number().int().nonnegative(),
   loved: z.boolean(),
+  /**
+   * When it was last liked (SQLite UTC time), from the stamp its love carries
+   * (docs/SYNC.md); null when it is not liked, or was liked before stamps.
+   * Liked lists newest first by it.
+   */
+  lovedAt: z.string().nullable(),
   sourceUrl: z.string().nullable(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),

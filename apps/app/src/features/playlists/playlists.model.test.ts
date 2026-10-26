@@ -84,6 +84,14 @@ describe('the lines a playlist is described by', () => {
     expect(playlistTileLine(made, NOW)).toBe('1 song · Tuesday')
   })
 
+  it('says what a playlist fills from, joined with & when a song needs all of them', () => {
+    const fills = playlist('Night', { songCount: 6 })
+    expect(playlistTileLine(fills, NOW, ['night', 'calm'])).toBe('Fills from night, calm · 6 songs')
+    expect(playlistTileLine(fills, NOW, ['night', 'calm'], 'all')).toBe(
+      'Fills from night & calm · 6 songs',
+    )
+  })
+
   it('gives the page its songs, length and last play, and leaves out a play that never was', () => {
     expect(playlistHeadLine(5, 1080, server(new Date(2026, 8, 17, 21)), NOW)).toBe(
       '5 songs · 18 min · played yesterday',

@@ -39,7 +39,7 @@ import type {
   CreateTag,
   SetArtistNames,
 } from '@selfmp3/shared'
-import { API_ERROR } from '@selfmp3/shared'
+import { API_ERROR, toSqliteTime } from '@selfmp3/shared'
 import { ApiError } from '../api/error.js'
 import type { Api } from '../api/api.js'
 import {
@@ -932,7 +932,12 @@ export function useToggleLoved() {
       if (previous) {
         client.setQueryData<Library>(queryKeys.library, {
           ...previous,
-          songs: previous.songs.map(song => (song.id === id ? { ...song, loved } : song)),
+          // Liked lists newest first, so the guess carries the time too.
+          songs: previous.songs.map(song =>
+            song.id === id
+              ? { ...song, loved, lovedAt: loved ? toSqliteTime(Date.now()) : null }
+              : song,
+          ),
         })
       }
 

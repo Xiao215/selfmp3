@@ -25,7 +25,8 @@ import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
-import { tagsWithIds } from '../lists/lists.model'
+import { combinedName, tagsWithIds, type TagMatch } from '../lists/lists.model'
+import { Segmented } from '../../ui/components/Segmented'
 import { AddSongsSheet } from '../playlistDetail/AddSongsSheet'
 import { SongsAnswer } from '../smart/SongsAnswer'
 import { useSmartServer } from '../smart/useSmartServer'
@@ -68,6 +69,8 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const [step, setStep] = useState<Step>('kind')
   const [kind, setKind] = useState<Kind>('pick')
   const [tagIds, setTagIds] = useState<readonly number[]>([])
+  // Songs with any of the tags, or with all of them (C1), as the Combined page has it.
+  const [match, setMatch] = useState<TagMatch>('any')
   const [words, setWords] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -84,12 +87,19 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
 
   const tags: readonly Tag[] = library?.tags ?? []
   const chosen = tagsWithIds(tagIds, tags)
-  const tagsName = chosen.map(tag => tag.name).join(' · ')
+  const tagsName = combinedName(
+    chosen.map(tag => tag.name),
+    match,
+  )
   const songs = library?.songs ?? []
   // What it would hold, worked out here rather than asked of the server: the
   // whole library is already in memory, and a count that lags behind the
   // choice is worse than no count.
-  const matching = songs.filter(song => tagIds.some(id => song.tagIds.includes(id)))
+  const matching = songs.filter(song =>
+    match === 'all'
+      ? tagIds.every(id => song.tagIds.includes(id))
+      : tagIds.some(id => song.tagIds.includes(id)),
+  )
   const seconds = matching.reduce((total, song) => total + song.duration, 0)
   const offered = [...tags].sort(
     (a, b) => b.songCount - a.songCount || a.name.localeCompare(b.name),
@@ -98,6 +108,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const reset = (): void => {
     setStep('kind')
     setTagIds([])
+    setMatch('any')
     setWords('')
     setName('')
     setError(null)
@@ -153,7 +164,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
     const title = name.trim() || tagsName
     try {
       const input = newPlaylist('live', title, {
-        rules: followRules({ tagIds, sort: 'addedAt', descending: true }),
+        rules: followRules({ tagIds, match, sort: 'addedAt', descending: true }),
       })
       if (!input) return
       finish((await createPlaylist({ input })).id)
@@ -266,6 +277,19 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 />
               ))}
             </ScrollView>
+            {chosen.length > 1 ? (
+              <Segmented
+                label="Songs with"
+                size="small"
+                value={match}
+                onChange={setMatch}
+                options={[
+                  { value: 'any', label: 'Any of them' },
+                  { value: 'all', label: 'All of them' },
+                ]}
+                style={styles.match}
+              />
+            ) : null}
             <Text style={styles.hint}>
               {chosen.length === 0
                 ? 'Choose one or more tags'
@@ -396,6 +420,7 @@ const styles = StyleSheet.create(theme => ({
   chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.tight },
   // A long tag list scrolls inside the sheet rather than pushing its buttons off.
   tagScroll: { maxHeight: 260 },
+  match: { alignSelf: 'flex-start' },
   hint: {
     color: theme.colors.textMuted,
     fontSize: type.small,

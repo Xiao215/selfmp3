@@ -20,8 +20,9 @@ Files:
 
 ## Picking tags, in the library
 
-Under the Library's head runs the tag strip: **All**, **On this phone** on a phone that
-keeps songs, the tags used lately, and **More tags**, which opens the picker
+Under the Library's head runs the tag strip: **All**, **Liked** once a song is liked (it
+narrows to the songs you like, whatever else is on; docs/features/lists.md), **On this phone**
+on a phone that keeps songs, the tags used lately, and **More tags**, which opens the picker
 (`ListenTags.tsx`) — in the page, not over it, so the head grows and the songs move down.
 With nothing typed it offers the tags used most and the few made lately; with something
 typed, only the matches. Every tag you turn on *adds* its songs (`filter.ts`: a song
@@ -30,6 +31,12 @@ the panel is what you have built. Once a tag is on, the head carries **Play thes
 and Shuffle; with none on there is Shuffle alone, since a tap on a row plays that song
 alone. Saving what you built as a playlist is Up next's Save, once it has been heard
 (docs/features/lists.md).
+
+The strip and the sidebar's tags keep their order for as long as you stay on the page (X6,
+2026-10-25): turning a tag on makes it the one used last, and tagging songs changes the
+counts the rest go by, and a chip or row that moved under the pointer was pressed by mistake.
+The next visit has them in their order then — Library each time it comes back to the front,
+the sidebar on a new page once the pointer has left its tags (`useSteadyOrder`'s `visit`).
 
 On a phone the picker's lane labels sit above their chips rather than beside them, the
 chips are finger-sized, and the count and **Done** take the panel's foot.

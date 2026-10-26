@@ -40,7 +40,7 @@ import {
   skipFailed,
   useSameArray,
 } from '@selfmp3/client'
-import type { ListSource } from '../features/lists/lists.model'
+import { sourceAfterAdding, type ListSource } from '../features/lists/lists.model'
 import { withOnlyPlaying, withRestRestored } from '../features/queue/queue.model'
 import {
   artAddress,
@@ -1093,13 +1093,21 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     [mutateQueue],
   )
 
+  // Songs added to one song or to the whole library make it a list of your own
+  // (`sourceAfterAdding`), which Up next can Save.
   const playNext = useCallback(
-    (songIds: readonly number[]) => mutateQueue(state => playNextIds(state, songIds)),
+    (songIds: readonly number[]) => {
+      mutateQueue(state => playNextIds(state, songIds))
+      setSource(sourceAfterAdding)
+    },
     [mutateQueue],
   )
 
   const addToQueue = useCallback(
-    (songIds: readonly number[]) => mutateQueue(state => mixed(enqueueIds(state, songIds))),
+    (songIds: readonly number[]) => {
+      mutateQueue(state => mixed(enqueueIds(state, songIds)))
+      setSource(sourceAfterAdding)
+    },
     [mutateQueue, mixed],
   )
 
@@ -1120,8 +1128,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   )
 
   const insertIntoQueue = useCallback(
-    (at: number, songIds: readonly number[]) =>
-      mutateQueue(state => insertAtIndex(state, songIds, at)),
+    (at: number, songIds: readonly number[]) => {
+      mutateQueue(state => insertAtIndex(state, songIds, at))
+      setSource(sourceAfterAdding)
+    },
     [mutateQueue],
   )
 

@@ -1,4 +1,4 @@
-import { CoverSwatchSchema, LyricsKindSchema } from '@selfmp3/shared'
+import { CoverSwatchSchema, LyricsKindSchema, lovedAt } from '@selfmp3/shared'
 import type { CoverSwatch, CoverTone, LyricsKind, Song, AudioFeatures, Tag } from '@selfmp3/shared'
 
 /**
@@ -42,6 +42,8 @@ export interface SongRow {
   updated_at: string
   /** Present only on the joined library query: "1,4,7" or null. */
   tag_ids?: string | null
+  /** The stamp on the song's love (`sync_stamps`), on the joined library query. */
+  loved_hlc?: string | null
   /** From the LEFT JOIN on song_audio_features; all null when not analysed yet. */
   feat_bpm?: number | null
   feat_energy?: number | null
@@ -146,6 +148,7 @@ export function toSong(row: SongRow): Song {
     instrumental: row.instrumental === 1,
     playCount: row.play_count,
     loved: row.loved === 1,
+    lovedAt: lovedAt(row.loved === 1, row.loved_hlc),
     sourceUrl: row.source_url,
     lastPlayedAt: row.last_played_at,
     addedAt: row.added_at,

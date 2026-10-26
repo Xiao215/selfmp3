@@ -62,11 +62,13 @@ export const UpNextSource = memo(function UpNextSource({
           onPress={open}
           disabled={!open}
           accessibilityRole={open ? 'link' : 'text'}
-          accessibilityLabel={open ? `Open ${line.label}` : `Playing from ${line.label}`}
+          accessibilityLabel={
+            open ? `Open ${line.label}` : line.yours ? line.label : `Playing from ${line.label}`
+          }
           style={[styles.name, oneLine && styles.nameFirst]}
         >
           {line.asked ? <Sparkle size={iconSize.small} /> : null}
-          {oneLine ? <Text style={styles.from}>From</Text> : null}
+          {oneLine && !line.yours ? <Text style={styles.from}>From</Text> : null}
           <Text
             style={[styles.label, oneLine && styles.labelNamed]}
             numberOfLines={1}

@@ -26,7 +26,7 @@ import { useLayoutFlags } from '../../shell/useLayout'
 import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/components/TileGrid'
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
-import { Live, Play, Plus } from '../../ui/components/Icons'
+import { Heart, Live, Play, Plus } from '../../ui/components/Icons'
 import { Menu } from '../../ui/components/MoreMenu'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
@@ -38,7 +38,7 @@ import { PageLoading } from '../../ui/components/PageLoading'
 import { CantReach } from '../library/CantReach'
 import { useSharedList } from '../shared/sharedPlaylists'
 import { SharedTile } from '../shared/SharedScreens'
-import { GEMS_SOURCE, tagsWithIds } from '../lists/lists.model'
+import { GEMS_SOURCE, LIKED_LINK, likedSongs, tagsWithIds } from '../lists/lists.model'
 import { followedTagIds } from '../playlistDetail/follows.model'
 import { NewPlaylist } from './NewPlaylist'
 import { DeletePlaylistDialog, usePlaylistMenu } from './playlistMenu'
@@ -66,7 +66,7 @@ const FAB = 38
 const SORT_PREF = 'playlists.sort'
 
 /**
- * Every playlist with a song in it, as tiles wearing their songs' covers
+ * Liked, then every playlist with a song in it, as tiles wearing their songs' covers
  * (docs/ui-mock `P16`, `C07`).
  *
  * In the order you last played them, so the ones in use are first without
@@ -130,8 +130,15 @@ export function PlaylistsScreen(): ReactNode {
 
   const { data: shared } = useSharedList()
   const gems = useGems(30)
-  // One grid, in this order: the way in, the built-in list, the shared ones, then yours.
+  const likedIds = useMemo(
+    () => likedSongs(library?.songs ?? []).map(song => song.id),
+    [library?.songs],
+  )
+  // One grid, in this order: Liked, the way in, the built-in list, the shared
+  // ones, then yours. Liked is there with no song in it too: its page says how
+  // one gets there.
   const tiles: GridItem[] = [
+    { kind: 'liked' },
     { kind: 'new' },
     // Hidden when there are none, or the server cannot say.
     ...(gems.data && !gems.isError && gems.data.songs.length > 0
@@ -186,7 +193,9 @@ export function PlaylistsScreen(): ReactNode {
             gap={GAP}
             keyOf={gridKey}
             renderItem={tile =>
-              tile.kind === 'new' ? (
+              tile.kind === 'liked' ? (
+                <LikedTile songIds={likedIds} onPress={() => router.push(LIKED_LINK)} />
+              ) : tile.kind === 'new' ? (
                 <NewTile onPress={() => setNewOpen(true)} />
               ) : tile.kind === 'gems' ? (
                 // Built in, and not a playlist: nothing to delete or rename.
@@ -197,7 +206,12 @@ export function PlaylistsScreen(): ReactNode {
               ) : (
                 <PlaylistTile
                   playlist={tile.playlist}
-                  line={playlistTileLine(tile.playlist, now, fillsFrom(tile.playlist))}
+                  line={playlistTileLine(
+                    tile.playlist,
+                    now,
+                    fillsFrom(tile.playlist),
+                    tile.playlist.kind === 'live' ? tile.playlist.rules.match : 'any',
+                  )}
                   index={playlists.indexOf(tile.playlist)}
                   width={tileWidth}
                   finePointer={finePointer}
@@ -226,6 +240,7 @@ export function PlaylistsScreen(): ReactNode {
 
 /** What the grid holds: the way in, the built-in list, a shared playlist, or one of yours. */
 type GridItem =
+  | { kind: 'liked' }
   | { kind: 'new' }
   | { kind: 'gems'; gems: ForgottenGems }
   | { kind: 'shared'; item: SharedSummary }
@@ -259,6 +274,42 @@ function NewTile({ onPress }: { onPress: () => void }): ReactNode {
       onPress={onPress}
       label="New playlist"
       testID="playlists-new-tile"
+    />
+  )
+}
+
+/**
+ * Liked, the grid's first tile: every song you like, newest like first. Not a
+ * playlist you made — it keeps itself, and has nothing to rename or delete —
+ * so it opens its page and has no menu.
+ */
+function LikedTile({
+  songIds,
+  onPress,
+}: {
+  songIds: readonly number[]
+  onPress: () => void
+}): ReactNode {
+  const { theme } = useUnistyles()
+  return (
+    <GridTile
+      cover={
+        <View>
+          <PlaylistCover songIds={songIds} />
+          <View style={styles.fillsMark}>
+            <Heart size={iconSize.field} filled color={theme.colors.danger} />
+          </View>
+        </View>
+      }
+      title="Liked"
+      sub={
+        songIds.length === 0
+          ? 'Songs you like'
+          : `${plural(songIds.length, 'song', 'songs')} · keeps itself`
+      }
+      onPress={onPress}
+      label="Liked"
+      testID="playlists-liked-tile"
     />
   )
 }

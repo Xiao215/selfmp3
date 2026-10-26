@@ -19,6 +19,8 @@ import { toSong, type SongRow } from '../db/rows.js'
 const SONG_SELECT = `
   SELECT s.*,
          (SELECT GROUP_CONCAT(tag_id) FROM song_tags WHERE song_id = s.id) AS tag_ids,
+         (SELECT hlc FROM sync_stamps
+           WHERE kind = 'song' AND uid = s.uid AND field = 'loved') AS loved_hlc,
          f.bpm           AS feat_bpm,
          f.energy        AS feat_energy,
          f.loudness_lufs AS feat_loudness_lufs,

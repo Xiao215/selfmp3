@@ -72,9 +72,12 @@ export function playlistTileLine(
   now: Date,
   /** The names of the tags a playlist that fills itself fills from; none for one you fill. */
   fillsFrom: readonly string[] = [],
+  /** Whether a song needs every one of them: "Fills from night & calm". */
+  match: 'any' | 'all' = 'any',
 ): string {
   if (fillsFrom.length > 0) {
-    return `Fills from ${fillsFrom.join(', ')} · ${songsWord(playlist.songCount)}`
+    const names = fillsFrom.join(match === 'all' ? ' & ' : ', ')
+    return `Fills from ${names} · ${songsWord(playlist.songCount)}`
   }
   const day = relativeDay(playlist.lastPlayedAt ?? playlist.createdAt, now)
   return day ? `${songsWord(playlist.songCount)} · ${day}` : songsWord(playlist.songCount)

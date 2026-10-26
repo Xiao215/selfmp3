@@ -19,12 +19,13 @@ import type { Place } from './tag.model'
  *
  * It opens over the tag or artist page it was combined from, so Back goes
  * there, and the Library tab's own filter is never touched. Its chips are the
- * address: taking one off or adding one rewrites it in place. Down to one, it
- * becomes that tag's or artist's own page.
+ * address: taking one off or adding one rewrites it in place, and so does
+ * Any / All (`match=all`, C1). Down to one, it becomes that tag's or artist's
+ * own page.
  */
 export function CombinedScreen(): ReactNode {
   const router = useRouter()
-  const params = useLocalSearchParams<{ tags?: string; artists?: string }>()
+  const params = useLocalSearchParams<{ tags?: string; artists?: string; match?: string }>()
   const { data: library } = useLibrary()
   const wanted = useMemo(() => parseCombinedParams(params), [params])
   const places = useMemo(
@@ -42,11 +43,22 @@ export function CombinedScreen(): ReactNode {
       router.replace(only.kind === 'tag' ? tagLink(only.tag.name) : artistLink(only.artist.name))
       return
     }
-    const source = placesSource(next)
+    const source = placesSource(next, wanted.match)
     if (source?.kind !== 'combined') return
     const link = combinedLink(source)
-    router.setParams({ tags: link.params?.['tags'], artists: link.params?.['artists'] })
+    router.setParams({
+      tags: link.params?.['tags'],
+      artists: link.params?.['artists'],
+      match: link.params?.['match'],
+    })
   }
 
-  return <PlacePage places={places} onChange={change} />
+  return (
+    <PlacePage
+      places={places}
+      onChange={change}
+      match={wanted.match}
+      onMatch={match => router.setParams({ match: match === 'all' ? 'all' : undefined })}
+    />
+  )
 }

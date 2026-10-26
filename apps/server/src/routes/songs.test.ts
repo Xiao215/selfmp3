@@ -127,6 +127,10 @@ describe('GET /api/songs/:id/similar', () => {
       body: JSON.stringify({ loved: true }),
     })
     expect(response.status).toBe(200)
+    // Timed by the stamp on the edit, so Liked can put it first.
+    expect(((await response.json()) as { lovedAt: string | null }).lovedAt).toMatch(
+      /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/,
+    )
     expect((await similar(1)).songs.find(song => song.id === 2)?.loved).toBe(true)
   })
 })

@@ -51,12 +51,14 @@ describe('a place’s songs', () => {
     expect(placeSongs(places, songs).map(item => item.id)).toEqual([4, 1])
   })
 
-  it('adds, never narrows: a second place brings its own songs in, each once', () => {
+  it('adds unless asked for all: a second place brings its own songs in, each once', () => {
     const places: Place[] = [
       { kind: 'tag', tag: tag(1, 'chill') },
       { kind: 'artist', artist: yorushika },
     ]
     expect(placeSongs(places, songs).map(item => item.id)).toEqual([4, 3, 1])
+    // All: only the songs every one of them holds.
+    expect(placeSongs(places, songs, 'all').map(item => item.id)).toEqual([4])
   })
 
   it('is nothing with no place chosen', () => {

@@ -285,7 +285,13 @@ function HomePage({
           <View style={styles.stack}>
             <SectionHead
               title="Recently played"
-              action={{ label: 'See all', onPress: () => router.navigate('/library') }}
+              // Library in the order this row is in, for this visit: the order
+              // Library keeps for itself stays as it was (G1).
+              action={{
+                label: 'See all',
+                onPress: () =>
+                  router.navigate({ pathname: '/library', params: { sort: 'lastPlayedAt' } }),
+              }}
             />
             <Recents recents={recents} rooms={rooms} wide={wide} />
           </View>

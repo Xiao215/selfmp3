@@ -79,7 +79,6 @@ export function libraryRoutes(container: Container): Router {
     '/library/scan',
     route({}, async (): Promise<ScanResult> => {
       const result = await container.scanner.scan()
-      if (result.added > 0 || result.updated > 0) container.bumpLibraryVersion()
       void container.lyricsIndex.backfill()
       return result
     }),

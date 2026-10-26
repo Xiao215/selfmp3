@@ -18,11 +18,15 @@ import type { CoverService } from './covers.js'
  * file it does not know, the cloud pass uploads it, and once every part of it
  * is in the bucket the pass deletes the copy here.
  *
- * Two rules shape this:
+ * Three rules shape this:
  *
  *  - A file that is new gets fully parsed and inserted.
  *  - A file whose time is unchanged is skipped entirely, so a sweep over a
  *    folder with nothing new in it costs a stat per file.
+ *  - A file changed in the last `SETTLE_MS` is still arriving — a copy, a
+ *    download, an encoder writing in place — and is left for a sweep of its
+ *    own once it has been still that long. Read half-written, it would be a
+ *    song cut short, or a read that never ends (`MetadataService.read`).
  *
  * A path the database knows and the folder does not is the ordinary state of
  * every uploaded song, and says nothing: a song leaves the library only when
@@ -31,6 +35,9 @@ import type { CoverService } from './covers.js'
  * bucket (`#isAnotherSong`): taken for the old song, its audio replaced the
  * old one's, and the old one was deleted from the bucket.
  */
+/** How long a file has to have been left alone before it is read: it may still be being written. */
+const SETTLE_MS = 2_000
+
 export class ScannerService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
@@ -38,7 +45,11 @@ export class ScannerService {
   readonly #lyrics: LyricsService
   readonly #covers: CoverService
   readonly #logger: Logger
+  readonly #settleMs: number
   #running = false
+  #stopped = false
+  /** The sweep that comes back for files still arriving. */
+  #again: ReturnType<typeof setTimeout> | null = null
 
   /**
    * Called after a file is ingested — `added` for a new song, `updated` when
@@ -50,7 +61,10 @@ export class ScannerService {
   isLeaving: ((key: string) => boolean) | null = null
   /** The key of this song's audio in the bucket, once it is up (`cloud_songs`). */
   bucketAudio: ((songId: number) => string | null) | null = null
-  /** Called once a full sweep finishes, whatever it found. */
+  /**
+   * Called once a full sweep finishes, whatever it found — one the scanner
+   * started itself for files that were still arriving as well.
+   */
   onScanComplete: ((result: ScanResult) => void) | null = null
 
   constructor(deps: {
@@ -60,6 +74,8 @@ export class ScannerService {
     lyrics: LyricsService
     covers: CoverService
     logger: Logger
+    /** `SETTLE_MS`, for tests that write a file and sweep at once. */
+    settleMs?: number
   }) {
     this.#storage = deps.storage
     this.#songs = deps.songs
@@ -67,10 +83,36 @@ export class ScannerService {
     this.#lyrics = deps.lyrics
     this.#covers = deps.covers
     this.#logger = deps.logger.child('scan')
+    this.#settleMs = deps.settleMs ?? SETTLE_MS
   }
 
   get isRunning(): boolean {
     return this.#running
+  }
+
+  /** No more sweeps: the library is closing. */
+  stop(): void {
+    this.#stopped = true
+    if (this.#again) clearTimeout(this.#again)
+    this.#again = null
+  }
+
+  /**
+   * Sweep again once the files still arriving have been still for long
+   * enough. One running then is left to finish first, and this one waits
+   * behind it rather than being its no-op.
+   */
+  #comeBack(inMs: number): void {
+    if (this.#stopped || this.#again) return
+    this.#again = setTimeout(() => {
+      this.#again = null
+      if (this.#stopped) return
+      if (this.#running) return this.#comeBack(this.#settleMs)
+      this.scan().catch((error: unknown) => {
+        this.#logger.warn('a sweep for files still arriving failed', { message: messageOf(error) })
+      })
+    }, inMs)
+    this.#again.unref()
   }
 
   /**
@@ -207,6 +249,9 @@ export class ScannerService {
     let added = 0
     let updated = 0
     let skipped = 0
+    let arriving = 0
+    /** How long until the newest file still arriving has been still for long enough. */
+    let settledIn = 0
 
     try {
       const onDisk = await this.#storage.list()
@@ -224,13 +269,22 @@ export class ScannerService {
         try {
           const existing = known.get(key)
           if (!existing && this.isLeaving?.(key)) continue
+          const stat = await this.#storage.stat(key)
+          const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
+          // Unchanged file: a sweep that finds nothing new must not touch
+          // anything, or the quiet sweep is a write per song and a refetch on
+          // every device.
+          if (existing && stat && mtimeMs === existing.mtimeMs) continue
+          // Either way of now: a file's time can be a moment ahead of this
+          // clock. One far ahead is a clock that is wrong, and waiting for it
+          // would be waiting for ever.
+          const still = startedAt - mtimeMs
+          if (stat && Math.abs(still) < this.#settleMs) {
+            arriving++
+            settledIn = Math.max(settledIn, this.#settleMs - still)
+            continue
+          }
           if (existing) {
-            const stat = await this.#storage.stat(key)
-            const mtimeMs = stat ? Math.floor(stat.modifiedAt.getTime()) : 0
-            // Unchanged file: a sweep that finds nothing new must not touch
-            // anything, or the quiet sweep is a write per song and a refetch on
-            // every device.
-            if (stat && mtimeMs === existing.mtimeMs) continue
             if ((await this.ingest(key)) === existing.id) updated++
             else added++
           } else {
@@ -248,6 +302,7 @@ export class ScannerService {
     } finally {
       this.#running = false
     }
+    if (arriving > 0) this.#comeBack(settledIn)
 
     const result: ScanResult = {
       added,
@@ -260,6 +315,7 @@ export class ScannerService {
       added,
       updated,
       ...(skipped > 0 ? { skipped } : {}),
+      ...(arriving > 0 ? { arriving } : {}),
       total: result.total,
       ms: result.durationMs,
     })

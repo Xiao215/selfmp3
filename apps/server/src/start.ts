@@ -62,9 +62,6 @@ export function startContainer(container: Container): void {
   // a large library should not delay that.
   void container.scanner
     .scan()
-    .then(result => {
-      if (result.added || result.updated) container.bumpLibraryVersion()
-    })
     .catch((error: unknown) => {
       logger.error('initial scan failed', {
         message: messageOf(error),

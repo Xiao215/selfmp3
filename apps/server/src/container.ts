@@ -504,7 +504,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     config,
     settings,
     scanner,
-    onChanged: bump,
     logger,
   })
 
@@ -568,7 +567,12 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     else analysis.kick()
   }
 
-  scanner.onScanComplete = () => analysis.kick()
+  // A sweep that changed something moves the version, whoever started it —
+  // the scanner too, coming back for files that were still arriving.
+  scanner.onScanComplete = result => {
+    if (result.added || result.updated) bump()
+    analysis.kick()
+  }
   scanner.isLeaving = key => songRemoval.isLeaving(key)
   scanner.bucketAudio = songId => cloudRepo.state(songId)?.audioKey ?? null
 
@@ -654,6 +658,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     stop: () => {
       stopped = true
       libraryWatcher.stop()
+      scanner.stop()
       devices.stop()
       analysis.stop()
       coverTones.stop()

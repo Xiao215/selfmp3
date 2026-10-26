@@ -9,7 +9,6 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button, PlayButton } from '../../ui/components/Button'
 import { ChevronRight, Play } from '../../ui/components/Icons'
 import { SONG_ACTION_LABELS } from '../../ui/songActions.model'
-import { useAccent } from '../../ui/accent'
 import { useSongsById } from '../../ui/songsById'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { addSongsToRoom } from '../room/addSongsToRoom'
@@ -17,7 +16,6 @@ import { AddingToRoom } from '../room/RoomPicks'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
-import { ListBeside } from './listBeside'
 import { answerSongs } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { Press } from '../../ui/components/Press'
@@ -27,9 +25,9 @@ import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
  * Ask's answer when it is songs, in its thread (docs/features/lists.md, C1):
  * one card. ▶ plays it straight away — Up next wears the question as its
  * name, and Save is there once you know you like it. The card itself opens the
- * list to look before listening: beside the thread on a computer (A2,
- * 2026-10-26), where the open one wears the accent, and as a page on a phone.
- * An answer about what plays after this song (A8) leads with Play next
+ * list as a page, to look before listening. Ask's stage shows a list answer
+ * as the list itself (`AnswerView`); this card is for one played next or
+ * added to a room. An answer about what plays after this song (A8) leads with Play next
  * instead. Asked while Search is adding to a room (A2), it adds them to the room.
  */
 export function SongsAnswerCard({
@@ -46,7 +44,6 @@ export function SongsAnswerCard({
   onOpen: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
-  const accent = useAccent()
   const router = useRouter()
   const server = useSmartServer()
   const player = usePlayerCommands()
@@ -62,7 +59,6 @@ export function SongsAnswerCard({
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
   const next = answer.lead === 'next'
   const room = useContext(AddingToRoom)
-  const beside = useContext(ListBeside)
 
   if (ids.length === 0) {
     return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
@@ -75,7 +71,6 @@ export function SongsAnswerCard({
     answerId: id,
   }
   const open = (): void => {
-    if (beside) return beside.show(id)
     onOpen()
     router.push({ pathname: '/answer', params: { id } })
   }
@@ -83,7 +78,7 @@ export function SongsAnswerCard({
   // The card opens the list and the button plays: siblings, since a button
   // cannot hold another one. Ask's field changes it (B1).
   return (
-    <View style={[styles.card, beside?.open === id && { borderColor: accent.accent }]}>
+    <View style={styles.card}>
       <Press
         feedback="dim"
         onPress={open}
@@ -150,9 +145,6 @@ const styles = StyleSheet.create(theme => ({
     padding: space.sm,
     borderRadius: radius.card,
     backgroundColor: theme.colors.surface2,
-    // Kept, so the card does not move when it is the list open beside the thread.
-    borderWidth: 1.5,
-    borderColor: 'transparent',
   },
   opens: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.md },
   text: textColumn,

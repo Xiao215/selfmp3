@@ -217,23 +217,28 @@ place named exactly what was typed leads the results, so "calm" opens the tag (D
 
 ### The Ask page
 
-`/ask?q=…` (`smart/AskScreen.tsx`; Xiao picked A1 B2 C1 D1 E1 F1, 2026-10-24, after the
-in-place answer kept the first question in the search box, shrank follow-ups to a grey
-trail and replaced each answer). It is a conversation: each turn is what you said, in an
-accent-tinted bubble on the right, and its answer under it, drawn as that kind of answer
-always is (`AnswerBody.tsx`). Earlier turns stay, oldest at the top. The field is docked at
-the foot ("Ask a follow-up…"); while a turn is worked on its send is the one Stop, which
-takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
-and the conversation is not kept after it (so there is no "new chat" button); the page drawn
-again any other way — a browser's Back from an answer's page — finds its turns as they were
-(`askThread.store.ts`). On a computer a list answered opens beside the thread (Xiao picked
-A2 B1 C1, 2026-10-26, from a canvas of A1–A4 layouts): the thread narrows to a 440 pane a
-step up from the ground and the list is the answer's page (`AnswerView`) with × for ‹;
-pressing another song card opens that one, and × gives the thread the page again. The
-newest list opens as it arrives. The field floats over the thread's fading foot with 24
-under it before the player bar (12 on a phone), rather than sitting on a line at the
-bottom. On a phone a card opens the answer's page, as before. When the
-keyboard rises, the thread's foot moves up with it, as a messages app keeps it. A
+`/ask?q=…` (`smart/AskScreen.tsx`). It is a stage (Xiao picked R1, 2026-10-26, from a
+canvas of four directions, after the chat column of 2026-10-24 — A1 B2 C1 D1 E1 F1 — and the
+split beside it of A2 the same day, which still left a chat column floating in an empty
+window until a list arrived). One turn fills the page at a time: what was asked is its
+title, in the serif (`AskedTitle`, a step down for a longer question), and its answer is
+under it. A list is the list itself — the answer's page (`AnswerView`) with the question
+as its title and the list's own name in the line under it — and anything else is drawn as
+that kind of answer always is (`AnswerBody.tsx`), in a reading column. While a turn is
+worked on, its title and the step running now stand in the middle of the page (`Working`
+with `stage`), so the wait reads as deliberate rather than empty.
+
+What was said before is a trail of chips beside ‹ (in the list's head when the stage is a
+list); pressing one puts that turn back on the stage, and a new question takes the stage
+again. Every turn stays drawn, hidden off the stage, so a question still being answered is
+not given up by looking at another. The field floats at the foot over the stage's fading
+edge, with 24 under it before the player bar (12 on a phone), in the reading column on a
+computer: "Ask a follow-up…", or on a list, the list's chip (Change it, below). While a turn
+is worked on its send is the one Stop, which takes that turn off the page and puts its
+words back in the field. ‹ goes back to Search, and the conversation is not kept after it
+(so there is no "new chat" button); the page drawn again any other way finds its turns as
+they were (`askThread.store.ts`). A list played next, or asked for a room, keeps its card,
+whose button says what it does; the card opens the answer's page. A
 question over 500 characters is not sent: the field stops there, and one from Search says
 it is too long. An answer that failed says why when the server said ("Your server couldn’t
 reach the model.", with Open Settings where Settings can help); Try again is worked on as a
@@ -242,8 +247,8 @@ it opens in the main column, and the palette's Ask row closes the palette and op
 Asked while Search adds to a room (`?to=room`), song answers go to the room. A review's keys
 work from the field while it is empty.
 
-Reviews in the thread (Xiao picked R3 T1 S1, 2026-10-24): nothing in the conversation
-scrolls on its own. A review is a card (`Review` with `card`): up to five changes whole, a
+Reviews on the stage (Xiao picked R3 T1 S1, 2026-10-24): nothing in an answer scrolls
+on its own. A review is a card (`Review` with `card`): up to five changes whole, a
 longer one its first three and "Review all", which opens the whole list on a sheet with
 the buttons at its foot, ticked as one with the card. The model's own words are drawn as
 the answer above it (T1; tidy's `reply` used to sit among the grey notes); grey is only
@@ -386,10 +391,9 @@ the rest is picked (Describe's step 3, around them), so "10 首" after two songs
 two and adds eight. A change to the brief is a change of taste and picks again from the
 start. Its stages report through the same ticket as Ask's.
 
-Said in Ask, a change is a turn of the thread like a question: your words in a bubble,
-then the changed list as a card of its own, kept beside the one it changed
-(`smart/answers.store.ts`), so the thread is the trail of versions and an older card opens
-the list as it was. The chip's ×, or ⌫ in the empty field, lets the list go, and the next
+Said in Ask, a change is a turn like a question: your words are its title and the changed
+list its stage, kept beside the one it changed (`smart/answers.store.ts`), so the chips
+beside ‹ are its versions and an earlier one shows the list as it was. The chip's ×, or ⌫ in the empty field, lets the list go, and the next
 words are a question (the field says so under it with a mouse). On the answer's own page
 the field itself says what is happening while it works, in the same place, so nothing
 moves; when it lands, the list there is the new one (Different songs does the same). Until

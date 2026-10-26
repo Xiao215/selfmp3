@@ -29,15 +29,6 @@ export interface Turn {
   readonly list: string | null
 }
 
-/** The newest answered turn's list: what the field's chip changes, and what a computer opens beside the thread. */
-export function newestList(turns: readonly Turn[]): string | null {
-  for (let at = turns.length - 1; at >= 0; at--) {
-    const list = turns[at]!.list
-    if (list !== null) return list
-  }
-  return null
-}
-
 /** Whether words are more than Ask takes: they are never sent, and the turn says so. */
 export function tooLongToAsk(asked: string): boolean {
   return asked.length > ASK_TEXT_MAX

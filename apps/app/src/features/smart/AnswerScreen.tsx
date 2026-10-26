@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
@@ -12,7 +12,6 @@ import {
   useLibrary,
   textStyle,
   tracking,
-  iconSize,
   space,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
@@ -22,8 +21,7 @@ import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { IconButton } from '../../ui/components/IconButton'
-import { ListMusic, Sparkle, X } from '../../ui/components/Icons'
+import { ListMusic } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { BackButton } from '../../ui/components/BackButton'
@@ -39,6 +37,7 @@ import { PlaylistCover } from '../playlists/PlaylistCover'
 import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { AskedLabel, AskedTitle } from './AskedTitle'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
 import { noServerToAsk } from '../../connection/via'
@@ -69,21 +68,24 @@ export function AnswerScreen(): ReactNode {
 }
 
 /**
- * An answer's songs and head: the page's, and Ask's on a computer, where the
- * list you're on opens beside the conversation (A2, 2026-10-26). There it
- * closes rather than going back, and has no Change it of its own: Ask's
- * field changes it.
+ * An answer's songs and head: its own page's, and Ask's stage when the answer
+ * is a list (R1, 2026-10-26). On the stage the question is the title, in the
+ * serif, and the list's own name joins the line under it; the corner holds
+ * Ask's way back and what was said before, and Ask's field changes the list,
+ * so it has no Change it of its own.
  */
 export function AnswerView({
   id,
-  onClose,
+  asked,
+  top,
 }: {
   id: string | undefined
-  /** Beside Ask's thread: what × does. */
-  onClose?: () => void
+  /** On Ask's stage: what was asked, as the title. */
+  asked?: string
+  /** On Ask's stage: the way back and the trail, in the corner. */
+  top?: ReactNode
 }): ReactNode {
   const router = useRouter()
-  const { theme } = useUnistyles()
   const { wide } = useLayoutFlags()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
@@ -133,7 +135,7 @@ export function AnswerView({
   })
 
   if (!kept || !result) {
-    if (onClose) return null
+    if (asked !== undefined) return null
     return (
       <MissingPage
         testID="answer-gone"
@@ -191,10 +193,8 @@ export function AnswerView({
       art={null}
       topBar={
         <>
-          {onClose ? (
-            <IconButton label="Close this list" onPress={onClose} filled testID="answer-close">
-              <X size={iconSize.field} color={theme.colors.textPrimary} />
-            </IconButton>
+          {top !== undefined ? (
+            <View style={styles.top}>{top}</View>
           ) : (
             <BackButton to="/search" always />
           )}
@@ -221,19 +221,29 @@ export function AnswerView({
       cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          <View style={listHeadText.kind}>
-            <Sparkle size={iconSize.tiny} />
-            <Text style={listHeadText.kindText}>Picked for you</Text>
-          </View>
-          <Text
-            style={[listHeadText.name, result.understanding.name.length > 24 && styles.nameLong]}
-            numberOfLines={2}
-            accessibilityRole="header"
-            testID="answer-name"
-          >
-            {result.understanding.name}
-          </Text>
+          {asked !== undefined ? (
+            <>
+              <AskedLabel label="You asked" />
+              <AskedTitle asked={asked} testID="answer-name" />
+            </>
+          ) : (
+            <>
+              <AskedLabel label="Picked for you" />
+              <Text
+                style={[
+                  listHeadText.name,
+                  result.understanding.name.length > 24 && styles.nameLong,
+                ]}
+                numberOfLines={2}
+                accessibilityRole="header"
+                testID="answer-name"
+              >
+                {result.understanding.name}
+              </Text>
+            </>
+          )}
           <Text style={listHeadText.summary}>
+            {asked !== undefined ? `${result.understanding.name} · ` : ''}
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
             {result.fit > ids.length ? ` · picked from ${result.fit} that fit` : ''}
@@ -285,7 +295,7 @@ export function AnswerView({
           />
         </>
       }
-      after={onClose ? undefined : <ChangeIt answerId={kept.id} />}
+      after={asked !== undefined ? undefined : <ChangeIt answerId={kept.id} />}
       wideOverrides={WIDE}
     />
   )
@@ -314,6 +324,8 @@ const WIDE = { titles: { flexBasis: 260 } } as const
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  // Ask's trail takes the corner's width, the ⋯ at its end.
+  top: { flex: 1, minWidth: 0, marginRight: space.sm },
   listArea: { flex: 1, minHeight: 0 },
   stale: { opacity: OPACITY.dim },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.

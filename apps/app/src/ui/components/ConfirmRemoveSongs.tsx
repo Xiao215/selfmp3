@@ -52,11 +52,7 @@ export function RemoveSongs({
     if (!gone || told.current) return
     told.current = true
     onDone()
-    const only = songs.length === 1 ? songs[0] : undefined
-    showToast(
-      only ? `Deleted “${only.title}”` : `Deleted ${plural(songs.length, 'song', 'songs')}`,
-      'good',
-    )
+    sayDeleted(songs)
   }, [gone, onDone, songs])
 
   const confirm = (): void => {
@@ -69,18 +65,21 @@ export function RemoveSongs({
       {
         onSuccess: result => {
           onDone()
-          // The summary: what went, and what did not.
-          const only = songs.length === 1 && result.removed === 1 ? songs[0] : undefined
-          const parts = [
-            only ? `Deleted “${only.title}”` : `Deleted ${plural(result.removed, 'song', 'songs')}`,
-          ]
-          // Why one could not go is the server's to log, not the toast's to quote.
           const trouble = result.failed.length
-          if (trouble > 0) {
-            parts.push(`${plural(trouble, 'song', 'songs')} couldn’t be deleted`)
-            console.warn('Songs not deleted:', result.failed)
+          if (trouble === 0) {
+            sayDeleted(songs)
+            return
           }
-          showToast(parts.join(', '), trouble > 0 ? 'warn' : 'good')
+          // What went, and what did not. Why one could not go is the server's
+          // to log, not the toast's to quote.
+          console.warn('Songs not deleted:', result.failed)
+          showToast(
+            {
+              say: `Deleted ${plural(result.removed, 'song', 'songs')}`,
+              under: `${plural(trouble, 'song', 'songs')} couldn’t be deleted`,
+            },
+            'warn',
+          )
         },
         onError: caught =>
           setError(
@@ -99,6 +98,20 @@ export function RemoveSongs({
       onCancel={onCancel}
       onConfirm={confirm}
     />
+  )
+}
+
+/**
+ * Songs deleted, said on the plain card with their covers and swept faintly in
+ * their colours: news, not good news. On the green "done" ground it read as a
+ * celebration (B, 2026-10-26).
+ */
+function sayDeleted(songs: readonly Song[]): void {
+  const only = songs.length === 1 ? songs[0] : undefined
+  showToast(
+    { over: 'Deleted', say: only ? only.title : plural(songs.length, 'song', 'songs') },
+    'info',
+    { songs, tinted: true },
   )
 }
 

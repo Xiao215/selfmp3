@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactNode } from 'react'
 import { Animated, PanResponder, StyleSheet as RNStyleSheet, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { Circle, Svg } from 'react-native-svg'
+import { Circle, Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg'
 import Reanimated, {
   cancelAnimation,
   Easing,
@@ -13,8 +13,10 @@ import Reanimated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated'
-import type { Song } from '@selfmp3/shared'
+import { hueFromString, type Song } from '@selfmp3/shared'
 import {
+  coverSweep,
+  currentColorScheme,
   hitSlopFor,
   leading,
   motion,
@@ -22,12 +24,15 @@ import {
   space,
   type,
   iconSize,
+  tileTone,
+  type SweepTone,
   type ThemePalette,
 } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useAccent } from '../accent'
+import { useSvgId } from '../useSvgId'
 import {
   currentToasts,
   dismissToast,
@@ -155,6 +160,7 @@ function ToastItem({
         tone={toast.tone}
         words={toast}
         art={toast.art ?? (toast.songs.length > 0 ? <ToastCovers songs={toast.songs} /> : null)}
+        ground={toast.tinted ? <ToastSweep songs={toast.songs} /> : null}
         // With a button to press, the button runs the clock and the ✕ is plain.
         timed={last < 0 ? clock : null}
         onDismiss={dismiss}
@@ -205,6 +211,7 @@ export function ToastCard({
   tone,
   words,
   art,
+  ground,
   timed,
   onDismiss,
   answered = false,
@@ -213,6 +220,8 @@ export function ToastCard({
   tone: ToastTone
   words: ToastWords
   art?: ReactNode
+  /** Drawn under everything on the card, edge to edge: its songs' colours (`ToastSweep`). */
+  ground?: ReactNode
   /** Its time, for the ring round its ✕: from `since`, `ms` long. Null for one that stays. */
   timed: { since: number; ms: number } | null
   onDismiss: () => void
@@ -247,6 +256,7 @@ export function ToastCard({
       onAccessibilityAction={onDismiss}
       onAccessibilityEscape={onDismiss}
     >
+      {ground}
       {art}
       <View style={styles.words}>
         {words.over ? (
@@ -374,6 +384,47 @@ function ToastCovers({ songs }: { songs: readonly Song[] }): ReactNode {
       })}
     </View>
   )
+}
+
+/**
+ * A plain message's songs, as a faint sweep across its card: one song's two
+ * main colours, or each of several songs' own, left to right as their covers
+ * are fanned (`coverSweep`). A song whose cover has not been read yet adds
+ * nothing; one with no cover, its letter tile's colour.
+ */
+function ToastSweep({ songs }: { songs: readonly Song[] }): ReactNode {
+  // Heard so a change of theme draws the sweep again in the new one.
+  useUnistyles()
+  const id = useSvgId('toastsweep')
+  const scheme = currentColorScheme()
+  const colours = coverSweep(songs.slice(-3).flatMap(sweepToneOf), scheme)
+  if (colours.length === 0) return null
+  // Fainter on Paper's white card, where the same colour shows more.
+  const strength = scheme === 'light' ? 0.14 : 0.18
+  return (
+    <View pointerEvents="none" style={RNStyleSheet.absoluteFill}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="0.2">
+            {colours.map((colour, index) => (
+              <Stop
+                key={index}
+                offset={index / (colours.length - 1)}
+                stopColor={colour}
+                stopOpacity={strength}
+              />
+            ))}
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" rx={radius.card} fill={`url(#${id})`} />
+      </Svg>
+    </View>
+  )
+}
+
+function sweepToneOf(song: Song): SweepTone[] {
+  if (!song.hasArt) return [tileTone(hueFromString(song.album || song.title))]
+  return song.coverTone ? [song.coverTone] : []
 }
 
 /** A message's picture: a cover, or a face. */

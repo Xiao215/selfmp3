@@ -489,7 +489,15 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const songRemoval = new SongRemovalService({
     storage,
     songs,
-    tags: { all: () => tags.all(), delete: id => void tagRemoval.remove(id) },
+    tags: {
+      all: () => tags.all(),
+      // Kept aside, as a tag another device empties is: a device tagging a
+      // song with it meanwhile brings it back (`tagEmptied`, docs/SYNC.md).
+      delete: id => {
+        syncRepo.keepEmptiedTag(id)
+        tagRemoval.remove(id)
+      },
+    },
     cloud: cloudRepo,
     lyrics,
     covers,

@@ -130,11 +130,24 @@ export class CloudIngest {
         }
       }
       // A tag whose last song another device removed is not pruned here: that
-      // device sent its own `tagRemoved` for it (shared `tagsEmptiedBy`), and
+      // device sent its own `tagEmptied` for it (shared `tagsEmptiedBy`), and
       // a sweep would also take a tag another device has only just made.
       alongside()
     })()
     return { applied, removed, requested }
+  }
+
+  /**
+   * A tag that went with its last songs, back as it was — or folded into the
+   * tag made under its name since — as the shared rule does (`broughtBack`).
+   */
+  #broughtBack(uid: string): boolean {
+    const tag = this.#sync.emptiedTag(uid)
+    if (!tag || !this.#sync.forgetEmptiedTag(uid)) return false
+    const same = this.#sync.tagNamed(tag.name)
+    if (same) this.#sync.addAlias(uid, same.id)
+    else this.#tags.insertSynced(uid, tag.name, tag.hue)
+    return true
   }
 
   #applyOne(change: Change, removed: { id: number; path: string }[]): boolean {
@@ -157,9 +170,12 @@ export class CloudIngest {
 
       case 'songTagged': {
         const song = this.#played(change.uid)
+        if (!song) return false
+        // A tag that went with its last songs comes back for a song tagged with it.
+        const back = change.on && this.#broughtBack(change.tagUid)
         const tag = this.#sync.tag(change.tagUid)
-        if (!song || !tag) return false
-        if (!hlcWins(change.hlc, this.#sync.stamp('songTag', song.uid, tag.uid))) return false
+        if (!tag) return false
+        if (!hlcWins(change.hlc, this.#sync.stamp('songTag', song.uid, tag.uid))) return back
         if (change.on) this.#tags.addToSong(song.id, tag.id)
         else this.#tags.removeFromSong(song.id, tag.id)
         this.#sync.setStamp('songTag', song.uid, tag.uid, change.hlc)
@@ -207,7 +223,7 @@ export class CloudIngest {
       }
 
       case 'tagCreated': {
-        if (this.#sync.tag(change.uid)) return false
+        if (this.#sync.tag(change.uid) || this.#sync.emptiedTag(change.uid)) return false
         // Made on two devices under one name before either heard of the
         // other: one tag, with the second uid kept to find it by.
         const same = this.#sync.tagNamed(change.name)
@@ -240,8 +256,18 @@ export class CloudIngest {
 
       case 'tagRemoved': {
         const tag = this.#sync.tag(change.uid)
-        if (!tag) return false
+        // For good, even if it had gone with its last songs already.
+        if (!tag) return this.#sync.forgetEmptiedTag(change.uid)
         // Its aliases, its place on songs and its stamps go with it.
+        this.#tags.delete(tag.id)
+        return true
+      }
+
+      case 'tagEmptied': {
+        const tag = this.#sync.tag(change.uid)
+        // Filled again since, here or on another device: it stays.
+        if (!tag || (this.#tags.byId(tag.id)?.songCount ?? 0) > 0) return false
+        this.#sync.keepEmptiedTag(tag.id)
         this.#tags.delete(tag.id)
         return true
       }

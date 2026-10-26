@@ -89,6 +89,15 @@ export const TagEditedSchema = z.object({
 
 export const TagRemovedSchema = z.object({ type: z.literal('tagRemoved'), ...at })
 
+/**
+ * The tag's last songs were removed, so it goes with them — unless a song has
+ * it by the time this is applied. Nobody asked for this the way `tagRemoved`
+ * is asked for: another device may be filling the tag that very moment, so a
+ * tag gone this way is kept aside (the snapshot's `emptiedTags`) and comes
+ * back when a song is tagged with it, whenever that change arrives.
+ */
+export const TagEmptiedSchema = z.object({ type: z.literal('tagEmptied'), ...at })
+
 export const PlaylistFieldsSchema = z.object({
   name: NameSchema,
   description: z.string().trim().max(500),
@@ -186,6 +195,7 @@ export const ChangeSchema = z.discriminatedUnion('type', [
   TagCreatedSchema,
   TagEditedSchema,
   TagRemovedSchema,
+  TagEmptiedSchema,
   PlaylistCreatedSchema,
   PlaylistEditedSchema,
   PlaylistRemovedSchema,

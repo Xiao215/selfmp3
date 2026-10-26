@@ -424,6 +424,12 @@ export const CloudSnapshotSchema = z.object({
    */
   aliases: z.record(UidSchema, UidSchema).optional(),
   /**
+   * Tags that went when their last songs were removed (`tagEmptied`), as
+   * they were then. A song tagged with one, by a change that arrives late,
+   * brings it back.
+   */
+  emptiedTags: z.array(CloudTagSchema).optional(),
+  /**
    * Songs folded into another copy of themselves (`songMerged`): the extra
    * copy's uid, and the song it went into. A late play, tag or playlist place
    * that names the extra copy lands on the song kept.

@@ -12,6 +12,7 @@ import {
 } from '@selfmp3/shared'
 import { EVERYTHING, libraryAnswer, none, playlistSongs, type AskPlaylist } from './askLibrary.js'
 import {
+  MAX_PICKS,
   PickOut,
   groundPicks,
   groundPlan,
@@ -21,7 +22,7 @@ import {
   type PlanOut,
 } from './describe.js'
 import { songTable } from './library.js'
-import { Remembered } from './llm.js'
+import { LlmError, Remembered } from './llm.js'
 import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import { findCopies } from './copies.js'
 import { fillGaps } from './fill.js'
@@ -165,18 +166,21 @@ const songs = action({
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
     const { understanding, unknown } = groundPlan(plan, deps.songs(), deps.tags())
+    // Steering from the song playing ("next", "more like this") leaves it out:
+    // it is what they move on from. Asked for any other way ("make a list of
+    // them" while one of them plays), it is one of the songs like any other.
+    const from = steering || like ? playing : undefined
     const found = await narrowAndPick(
       deps,
       `${text}${nowPlaying}`,
       understanding,
       unknown,
-      [],
+      from ? [from.id] : [],
       steps,
       // Only when they asked for music like it: what sounds close to it comes first.
       like && playing ? playing.id : null,
     )
-    // The song playing is what they are steering from, never one of the picks.
-    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playing?.id) }
+    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== from?.id) }
     return { kind: 'songs', lead: steering ? 'next' : play ? 'play' : 'save', describe }
   },
 })
@@ -324,7 +328,36 @@ const library = action({
     order: z.enum(AskOrderSchema.options),
   }),
   filters: 'optional',
-  run: ({ deps }, question, filters) => libraryAnswer(deps, filters, question),
+  run: async ({ deps, text, steps }, question, filters) => {
+    // How a song sounds or what it is about cannot be counted in code: the
+    // songs that are it are chosen as a playlist would be, then counted.
+    if (!filters || (filters.sound === null && filters.brief === null)) {
+      return libraryAnswer(deps, filters, question)
+    }
+    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
+    try {
+      const found = await narrowAndPick(
+        deps,
+        text,
+        { ...understanding, size: understanding.size ?? MAX_PICKS },
+        unknown,
+        [],
+        steps,
+      )
+      return libraryAnswer(
+        deps,
+        filters,
+        question,
+        found.picks.map(pick => pick.songId),
+      )
+    } catch (caught) {
+      // Choosing none is an answer here: none of their songs is that.
+      if (caught instanceof LlmError && caught.kind === 'invalid') {
+        return libraryAnswer(deps, filters, question, [])
+      }
+      throw caught
+    }
+  },
 })
 
 const tidyUp = action({
@@ -339,7 +372,7 @@ const tidyUp = action({
     if (what === 'checkup') return { kind: 'tidy', tidy: await tidy(deps, steps) }
     const songs = deps.songs()
     const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
-    const chosen = songsFitting(songs, deps.tags(), understanding, now)
+    const chosen = songsFitting(songs, deps.tags(), understanding, now, deps.artistNames?.())
     if (what === 'copies') {
       return { kind: 'copies', copies: await findCopies(deps, chosen, steps) }
     }

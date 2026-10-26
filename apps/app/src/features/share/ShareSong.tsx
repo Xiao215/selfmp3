@@ -40,6 +40,7 @@ import { PlayPauseButton } from '../../ui/components/PlayPauseButton'
 import { Press } from '../../ui/components/Press'
 import { SeekBar } from '../../ui/components/SeekBar'
 import { TouchFlag } from '../../ui/touchFlag'
+import { UP_NEXT_ROOM } from './ShareRail'
 
 /**
  * What the stage keeps under its title besides Now Playing's own: the link's
@@ -61,13 +62,13 @@ const PHONE_COVER_LEAST = 160
 const PHONE_COVER_MOST = 420
 /** What the line a link was shared from takes under the names, for the cover to give up. */
 const PHONE_LINE_ROOM = 112
-/** What a list's name and row of covers take over the song, for the cover to give up. */
-const PHONE_LIST_ROOM = 96
+/** What a list's Up next takes under Play, and its gap, for the cover to give up. */
+const PHONE_LIST_ROOM = UP_NEXT_ROOM + space.lg
 /** What the line saying where the song is in its list takes over the title. */
 const CONTEXT_ROOM = 24
 
 /**
- * A list link's song (R1, P1): where it is in the list, and the steps
+ * A list link's song (R1, C): where it is in the list, and the steps
  * through it. Next and Previous stay among the list's songs.
  */
 interface ShareSongList {
@@ -76,8 +77,8 @@ interface ShareSongList {
   onPrevious: () => void
   onNext: () => void
   onShuffle: () => void
-  /** The list's name and its row of covers, over the song on a phone. */
-  covers: ReactNode
+  /** What plays next and the way to the whole list, under Play on a phone. */
+  upNext: ReactNode
 }
 
 interface SongProps {
@@ -415,7 +416,6 @@ function SongPhone(props: SongProps): ReactNode {
             {back}
             <View style={[styles.phoneColumn, { width: column }]}>
               {from}
-              {list?.covers}
               <View ref={coverTarget} collapsable={false} style={[styles.art, styles.phoneArt]}>
                 <Press
                   disabled={!lent}
@@ -480,6 +480,7 @@ function SongPhone(props: SongProps): ReactNode {
           </View>
         )}
         {ways}
+        {list ? <View style={styles.upNext}>{list.upNext}</View> : null}
       </View>
       <View style={styles.phoneFoot}>{foot}</View>
 
@@ -614,6 +615,7 @@ const styles = StyleSheet.create(theme => ({
   phoneTitle: heroTitle(theme.colors, 'page'),
   phoneByline: { color: theme.colors.textSecondary, fontSize: type.body },
   phonePlay: { alignItems: 'center' },
+  upNext: { marginTop: space.sm },
   phoneFoot: { alignItems: 'center', paddingTop: space.md },
   // With the head's own top, the page's: the cover view's is the gutter.
   wordsPage: { paddingTop: space.xs },

@@ -232,7 +232,48 @@ describe('loops', () => {
     ).toBe(false)
   })
 
-  it('takes the songs inside, nearest the middle when there are too many, in auto-mix order', () => {
+  // A circle drawn by hand: round from the top, `turn` of the way.
+  const circle = (turn: number, r = 0.2) =>
+    Array.from({ length: 41 }, (_, step) => {
+      const angle = -Math.PI / 2 + (step / 40) * turn * Math.PI * 2
+      return { x: 0.5 + Math.cos(angle) * r, y: 0.5 + Math.sin(angle) * r }
+    })
+
+  it('takes a big circle left a little open, or gone on past its start, as a loop', () => {
+    // Nine tenths of the way round: its ends are well over a finger apart.
+    expect(isLoop(circle(0.9), 0.03)).toBe(true)
+    expect(isLoop(circle(1.15), 0.03)).toBe(true)
+    // A U, its ends as far apart as it is tall, is a line.
+    expect(
+      isLoop(
+        [
+          { x: 0.2, y: 0.2 },
+          { x: 0.2, y: 0.6 },
+          { x: 0.6, y: 0.6 },
+          { x: 0.6, y: 0.2 },
+        ],
+        0.03,
+      ),
+    ).toBe(false)
+  })
+
+  it('takes every song inside however many, the stretch a finger went past its start too', () => {
+    const grid: PlacedSong[] = []
+    for (let row = 0; row < 30; row++) {
+      for (let col = 0; col < 30; col++) {
+        grid.push({ id: row * 30 + col, x: 0.35 + col * 0.01, y: 0.35 + row * 0.01 })
+      }
+    }
+    const all = byId(grid.map(place => song(place.id)))
+    const within = (r: number) =>
+      grid.filter(place => Math.hypot(place.x - 0.5, place.y - 0.5) < r - 0.005).map(p => p.id)
+    const taken = songsInside(grid, circle(1.15, 0.12), all)
+    // Every song well inside, hundreds of them, none left out.
+    expect(within(0.12).length).toBeGreaterThan(400)
+    for (const id of within(0.12)) expect(taken).toContain(id)
+  })
+
+  it('takes every song inside, in auto-mix order from the middle', () => {
     const places: PlacedSong[] = [
       { id: 1, x: 0.3, y: 0.3 },
       { id: 2, x: 0.25, y: 0.35 },
@@ -248,7 +289,6 @@ describe('loops', () => {
     const loop = square(0.2, 0.2, 0.4, 0.4)
     // From the song nearest the middle, then the one that sounds closest.
     expect(songsInside(places, loop, songs)).toEqual([1, 3, 2])
-    expect(songsInside(places, loop, songs, 1)).toEqual([1])
   })
 
   it('names a loop by the tag most songs inside share, or the song at its middle', () => {

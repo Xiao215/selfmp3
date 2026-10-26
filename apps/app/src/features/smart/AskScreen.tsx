@@ -67,9 +67,15 @@ import { SelectableText } from '../../ports/selectableText'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
 import { forgetThread, keepThread, keptThread } from './askThread.store'
-import { keepAnswer, keptAnswer, shownOnServer, useKeptAnswer } from './answers.store'
+import {
+  keepAnswer,
+  keptAnswer,
+  shownOnServer,
+  understandingOf,
+  useKeptAnswer,
+} from './answers.store'
 import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
-import { answerRecap, askSuggestions } from './smart.model'
+import { answerRecap, askSuggestions, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { StopButton } from './StopButton'
@@ -78,13 +84,20 @@ import { useSmartServer } from './useSmartServer'
 import { Working } from './Working'
 
 /**
- * An ask's query key: the server it went to, every question of the
- * conversation up to this one, and the song playing then. The same
- * conversation asked again is the same answer, kept for as long as the app is
- * open: a model's answer is not something to fetch twice.
+ * An ask's query key: the server it went to, the turn, every question of the
+ * conversation up to this one, and the song playing then. A turn drawn again
+ * (Back from its list) is the same answer, kept for as long as the app is
+ * open; the same words in a new turn are asked again, so "pause" said twice
+ * pauses twice and a change said again changes the list as it is now. The
+ * server remembers what the model said, so asking again costs little.
  */
-function askKey(via: string | null, asked: readonly string[], playing: number | null) {
-  return viaKey(via, 'ai', 'ask', asked, playing)
+function askKey(
+  via: string | null,
+  turn: number,
+  asked: readonly string[],
+  playing: number | null,
+) {
+  return viaKey(via, 'ai', 'ask', turn, asked, playing)
 }
 
 /** Names each turn, across the app's life: two pages' turns never share one. */
@@ -330,7 +343,7 @@ export function AskScreen(): ReactNode {
               chip={
                 changing
                   ? {
-                      label: changingLabel(changing),
+                      label: changingLabel(changing, server.onDevice),
                       name: changing.result.understanding.name,
                       onLetGo: () => setLetGoOf(changing.id),
                     }
@@ -446,8 +459,12 @@ function Stage({
 }
 
 /** The chip's words: how many songs the field's words would change. */
-function changingLabel(list: NonNullable<ReturnType<typeof keptAnswer>>): string {
-  const count = list.order?.length ?? list.result.picks.length
+function changingLabel(
+  list: NonNullable<ReturnType<typeof keptAnswer>>,
+  onDevice: (serverId: number) => number | undefined,
+): string {
+  // The songs its list shows, as the list counts them.
+  const count = list.order?.length ?? picksHere(list.result, onDevice).length
   return count === 1 ? 'this song' : `these ${plural(count, 'song', 'songs')}`
 }
 
@@ -555,8 +572,8 @@ const TurnStage = memo(function TurnStage({
   const [ticket, setTicket] = useState<string | null>(null)
   const answer = useQuery<AskAnswer>({
     queryKey: turn.change
-      ? viaKey(via, 'ai', 'change', turn.change, turn.asked)
-      : askKey(via, [...said.map(each => each.asked), turn.asked], turn.playing),
+      ? viaKey(via, 'ai', 'change', turn.id, turn.change, turn.asked)
+      : askKey(via, turn.id, [...said.map(each => each.asked), turn.asked], turn.playing),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, the page left. The server stops asking the model with it.
     queryFn: async ({ signal }) => {
@@ -570,7 +587,7 @@ const TurnStage = memo(function TurnStage({
         const describe = await server.api!.refineAnswer(
           {
             text: list.text,
-            understanding: list.result.understanding,
+            understanding: understandingOf(list),
             change: turn.asked,
             shown: shownOnServer(list, server.onServer),
             ticket: named,
@@ -629,7 +646,7 @@ const TurnStage = memo(function TurnStage({
   if (list !== null && data?.kind === 'songs' && data.lead !== 'next' && !room) {
     return (
       <View style={[styles.stage, !onStage && styles.hidden]} testID={`ask-turn-${turn.id}`}>
-        <AnswerView id={list} asked={turn.asked} top={trail} />
+        <AnswerView key={list} id={list} asked={turn.asked} top={trail} />
       </View>
     )
   }

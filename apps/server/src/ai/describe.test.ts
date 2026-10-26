@@ -1,6 +1,7 @@
 import { describe as group, expect, it } from 'vitest'
 import type { Understanding } from '@selfmp3/shared'
 import { describe, groundPicks, groundPlan, narrowAndPick, songsFitting } from './describe.js'
+import { LlmError, Remembered } from './llm.js'
 import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
 import { libraryShape, songTable } from './library.js'
@@ -86,6 +87,19 @@ group('groundPlan', () => {
     )
     expect(understanding.albums).toEqual(['Best of Chopin'])
     expect(unknown).toEqual(['Jukebox'])
+  })
+
+  it('reads an empty sound or brief as none', () => {
+    const { understanding } = groundPlan({ ...nothing, sound: '', brief: '  ' }, SONGS, TAGS)
+    expect(understanding).toMatchObject({ sound: null, brief: null })
+  })
+
+  it('keeps an artist the library lacks as a wish when no place asked for is here', () => {
+    const lacking = groundPlan({ ...nothing, artists: ['Taylor Swift'] }, SONGS, TAGS)
+    expect(lacking.understanding.brief).toBe('by or from Taylor Swift')
+    expect(lacking.unknown).toEqual(['Taylor Swift'])
+    const alongside = groundPlan({ ...nothing, artists: ['Taylor Swift', 'yoasobi'] }, SONGS, TAGS)
+    expect(alongside.understanding).toMatchObject({ artists: ['YOASOBI'], brief: null })
   })
 })
 
@@ -296,6 +310,39 @@ group('describe', () => {
     expect(result.picks.map(pick => pick.songId)).toEqual([8, 9, 7])
     expect(result.fit).toBe(3)
     expect(llm.asked).toHaveLength(0)
+  })
+
+  it('asks the model again after it chose no song, rather than failing the same way', async () => {
+    const llm = scriptedLlm({
+      'describe-pick': [{ picks: [] }, { picks: [{ n: 1, why: 'rain' }] }],
+    })
+    const both = { ...deps(llm), remembered: new Remembered() }
+    const rain = { ...nothing, brief: 'named for rain' }
+    await expect(narrowAndPick(both, 'rain songs', rain, [])).rejects.toBeInstanceOf(LlmError)
+    expect((await narrowAndPick(both, 'rain songs', rain, [])).picks).toHaveLength(1)
+  })
+
+  it('draws the sound line from every song before leaving out the ones shown', async () => {
+    // Song 1 and 2 sound like it; 3 only nearly. "Different songs" after 1 is 2, not 2 and 3.
+    const scores = new Map([
+      [1, 0.3],
+      [2, 0.27],
+      [3, 0.22],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, scores.get(id) ?? 0.1]))),
+      closeTo: () => null,
+    }
+    const violin = { ...nothing, sound: 'solo violin' }
+    const result = await narrowAndPick(
+      { ...deps(scriptedLlm({})), sound },
+      'violin',
+      violin,
+      [],
+      [1],
+    )
+    expect(result.picks.map(pick => pick.songId)).toEqual([2])
   })
 
   it('only orders the songs of an album asked for by how they sound, too', async () => {

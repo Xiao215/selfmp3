@@ -122,6 +122,9 @@ describe('onlyTags', () => {
     expect(onlyTags({ ...base, anyTags: ['jpop'], words: 'with' })).toBe(false)
     expect(onlyTags({ ...base, anyTags: ['jpop'], brief: 'for running' })).toBe(false)
     expect(onlyTags(base)).toBe(false)
+    // A number of them is picks: a playlist following jpop would hold every one.
+    expect(onlyTags({ ...base, anyTags: ['jpop'], size: 10 })).toBe(false)
+    expect(onlyTags({ ...base, anyTags: ['jpop'], size: 2000 })).toBe(true)
   })
 })
 
@@ -176,6 +179,20 @@ describe('describeNotes', () => {
       'Picked 25 of the 40 that fit',
       'Nothing fit all of it, so it let go of the energy.',
       'Your library has no Lo-fi.',
+    ])
+  })
+
+  it('says when a song picked is not on this device yet, rather than counting it out', () => {
+    const result: DescribeResult = {
+      understanding: base,
+      fit: 5,
+      loosened: [],
+      unknown: [],
+      picks: [1, 2, 3, 4, 5].map(songId => ({ songId, why: null })),
+    }
+    expect(describeNotes(result, 4)).toEqual([
+      '5 songs fit',
+      'One of them isn’t on this device yet.',
     ])
   })
 })

@@ -67,7 +67,7 @@ import {
   sourceName,
 } from './share.model'
 import { ShareSong, SongStill, useShareStage } from './ShareSong'
-import { CoverRail, CoverRow, listSummary, RAIL_WIDTH } from './ShareRail'
+import { CoverRail, listSummary, RAIL_WIDTH, UpNext } from './ShareRail'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
@@ -174,7 +174,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   }
   const first = link.entries[0]
   const firstId = first ? roomTrackId(first.id) : 0
-  // A list's song the page is about (R1, P1): the one playing, or before
+  // A list's song the page is about (R1, C): the one playing, or before
   // that the one cued, the first until another is picked. A song's, its one.
   const trackAt = new Map(ids.map((id, at) => [id, at]))
   const playingAt = link.kind === 'list' && playing !== null ? trackAt.get(playing) : undefined
@@ -325,9 +325,9 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
             onWords={setWordsOpen}
           />
         ) : link.kind === 'list' && shown && lead && !ended ? (
-          // A list that plays (R1, P1): its song's own page, the song it is
-          // on, with the list's covers down the left on a computer and
-          // across the top on a phone. Only the music: no Back, no Get them.
+          // A list that plays (R1, C): its song's own page, the song it is
+          // on, with the list's covers down the left on a computer and what
+          // plays next under Play on a phone. Only the music: no Back, no Get them.
           <View style={styles.list} testID="share-list">
             <View style={[styles.listSong, onStage && styles.listSongBeside]}>
               <ShareSong
@@ -347,7 +347,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
                 foot={foot}
                 wordsOpen={wordsOpen}
                 onWords={setWordsOpen}
-                list={{ ...list, covers: onStage ? null : <CoverRow {...covers} /> }}
+                list={{ ...list, upNext: onStage ? null : <UpNext {...covers} ids={ids} /> }}
               />
             </View>
             {onStage ? <CoverRail {...covers} onShuffle={list.onShuffle} /> : null}

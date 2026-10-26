@@ -4,6 +4,8 @@ import {
   brightness,
   chainAlong,
   dustSpecks,
+  flareReach,
+  glowReach,
   lensTags,
   playTop,
   skyPoints,
@@ -58,7 +60,7 @@ describe('the night sky', () => {
     expect(starAlpha(point!, 8)).toBeLessThan(starAlpha(point!, null) / 4)
   })
 
-  it('offers a lens for each tag with songs on the map, most first, and names its region alone', () => {
+  it('offers a lens for each tag with songs on the map, most first, and keeps only its glow', () => {
     const songs = new Map([
       [1, song(1, { tagIds: [7] })],
       [2, song(2, { tagIds: [7, 8] })],
@@ -82,8 +84,8 @@ describe('the night sky', () => {
       { tagId: 7, name: 'night', hue: 230, x: 0.2, y: 0.5, r: 0.1 },
       { tagId: 8, name: 'calm', hue: 120, x: 0.35, y: 0.5, r: 0.1 },
     ]
-    expect(skyRegions(regions, points, null).map(region => region.count)).toEqual([2, 3])
-    expect(skyRegions(regions, points, 8).map(region => region.name)).toEqual(['calm'])
+    expect(skyRegions(regions, null)).toHaveLength(2)
+    expect(skyRegions(regions, 8).map(region => region.name)).toEqual(['calm'])
   })
 
   it('draws a line’s songs in the order the line passes them', () => {
@@ -117,5 +119,51 @@ describe('the night sky', () => {
       dustSpecks({ width: 300, height: 600 }, 50),
     )
     expect(dustSpecks({ width: 300, height: 600 }, 50)).toHaveLength(50)
+  })
+
+  it('keeps a crowded star’s glow to the room its neighbours leave', () => {
+    const crowd = skyPoints(
+      Array.from({ length: 30 }, (_, id) => ({
+        id,
+        x: 0.5 + (id % 6) * 0.002,
+        y: 0.5 + Math.floor(id / 6) * 0.002,
+      })),
+      new Map(Array.from({ length: 30 }, (_, id) => [id, song(id)])),
+    )
+    const [alone] = skyPoints(
+      [
+        { id: 1, x: 0.1, y: 0.1 },
+        { id: 2, x: 0.9, y: 0.9 },
+      ],
+      new Map([
+        [1, song(1)],
+        [2, song(2)],
+      ]),
+    )
+    // Inside the grid, its three nearest are all a step away.
+    expect(crowd[14]!.room).toBeCloseTo(0.002, 6)
+    // Alone, the whole glow; crowded, only twice its size.
+    expect(glowReach(alone!, 2, 1, 500)).toBe(10)
+    expect(glowReach(crowd[14]!, 2, 1, 500)).toBe(4)
+  })
+
+  it('gives a flare to the few most played, and none in a library never played', () => {
+    const many = (plays: (id: number) => number) =>
+      skyPoints(
+        Array.from({ length: 100 }, (_, id) => ({
+          id,
+          x: (id % 10) / 10,
+          y: Math.floor(id / 10) / 10,
+        })),
+        new Map(Array.from({ length: 100 }, (_, id) => [id, song(id, { playCount: plays(id) })])),
+      )
+    const flared = many(id => id)
+      .filter(point => point.flare)
+      .map(point => point.id)
+    expect(flared).toEqual([97, 98, 99])
+    expect(many(() => 0).some(point => point.flare)).toBe(false)
+    const [star] = many(id => id)
+    // Its arms reach past its glow where there is room, never across a crowd.
+    expect(flareReach(star!, 2, 1, 500)).toBeLessThanOrEqual(12)
   })
 })

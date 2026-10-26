@@ -12,7 +12,6 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
 import { linkAddress } from '../../ports/linkAddress'
 import { openInNewTab } from '../../ports/newTab'
-import { shareLink } from '../../ports/shareLink'
 import { modifiersOf, useSelection } from '../../selection/useSelection'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -44,7 +43,6 @@ import {
   sentCountLine,
   sentSections,
   shareStage,
-  shareWords,
 } from './share.model'
 import { shareApi, useSentLinks, useShareAct } from './shareLinks'
 import { useMinute } from './useMinute'
@@ -66,8 +64,8 @@ const RENEW_DETAIL = 'A week from now, a month if it keeps playing'
  * the way Library is so its rows read as ones you know: friends asking for an
  * ended link again at the head, with Share again; then the links, as Playing
  * and Ended (C3), each a Library row with no play (A1). A press opens the
- * link's page — a new tab in a browser (K1) — and ⋯ holds Share, Keep it
- * longer, End now and Remove.
+ * link's page — a new tab in a browser (K1) — the copy button beside ⋯ puts
+ * its address on the clipboard, and ⋯ holds Keep it longer, End now and Remove.
  *
  * They are picked as songs are, with the same selection bar. "All" is chosen
  * by the bar's checkbox, and each section's head selects just its own links,
@@ -140,6 +138,11 @@ export function LinksScreen(): ReactNode {
   // rather than opening a page (B).
   const pick = useCallback((link: ShareSummary) => selection.enter(link.id), [selection])
   const onMore = useCallback((link: ShareSummary) => setMenu(link), [])
+  const onCopy = useCallback((link: ShareSummary) => {
+    void copyText(shareLinkUrl(linkAddress(), link)).then(done =>
+      done ? showToast('Link copied', 'good') : showToast('Couldn’t copy it', 'error'),
+    )
+  }, [])
 
   /** A section's head: tick all of its links, or untick them once they all are. */
   const pickSection = (section: readonly ShareSummary[]): void => {
@@ -183,6 +186,7 @@ export function LinksScreen(): ReactNode {
         onLongPress={pick}
         onToggle={pick}
         onMore={onMore}
+        onCopy={onCopy}
       />
     ))
 
@@ -341,22 +345,6 @@ export function LinksScreen(): ReactNode {
       >
         {menu ? (
           <>
-            <SheetItem
-              label="Share link"
-              onPress={() => {
-                setMenu(null)
-                // A summary carries no songs, so a song's goes without its artist.
-                const words = shareWords({
-                  name: menu.name,
-                  kind: menu.kind,
-                  artist: null,
-                  songs: menu.songs,
-                })
-                void shareLink(words, shareLinkUrl(linkAddress(), menu)).then(how => {
-                  if (how === 'copied') showToast('Link copied', 'good')
-                })
-              }}
-            />
             {menu.ended?.why !== 'removed' ? (
               <SheetItem
                 label={shareStage(menu, now) === 'ended' ? 'Share it again' : 'Keep it longer'}

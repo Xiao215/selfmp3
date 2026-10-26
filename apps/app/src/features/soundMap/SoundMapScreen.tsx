@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { View } from 'react-native'
 import type { LayoutChangeEvent } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -18,14 +18,12 @@ import {
   songsInside,
   space,
   tagRegions,
-  type,
   uniqueName,
   useCreatePlaylist,
   useLibrary,
   useSoundMap,
 } from '@selfmp3/client'
 import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
-import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { useFloatingChrome } from '../../shell/bottomInset'
 import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutValue } from '../../shell/useLayout'
@@ -34,7 +32,9 @@ import { Chip } from '../../ui/components/Chip'
 import { EmptyState } from '../../ui/components/EmptyState'
 import { IconButton } from '../../ui/components/IconButton'
 import { DrawLine, Expand, Locate, Minus, Plus, SoundMap } from '../../ui/components/Icons'
+import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
+import { pageFrame } from '../../ui/surfaces'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
 import { showFailure, showToast, showUndoToast } from '../../ui/toast'
@@ -95,7 +95,7 @@ export function SoundMapScreen(): ReactNode {
   const points = useMemo(() => skyPoints(places, songs), [places, songs])
   const allRegions = useMemo(() => tagRegions(places, songs, tags), [places, songs, tags])
   const [lens, setLens] = useState<number | null>(null)
-  const regions = useMemo(() => skyRegions(allRegions, points, lens), [allRegions, points, lens])
+  const regions = useMemo(() => skyRegions(allRegions, lens), [allRegions, lens])
   const chips = useMemo(() => lensTags(tags, points), [tags, points])
   useEffect(() => {
     if (places.length === 0) return
@@ -195,10 +195,8 @@ export function SoundMapScreen(): ReactNode {
     const ids = loop
       ? songsInside(places, drawn, songs)
       : songsAlongPath(places, drawn, reach.current, songs)
-    if (ids.length === 0) {
-      showToast(loop ? 'No songs inside that loop' : 'No songs along that line')
-      return
-    }
+    // Nothing taken: the stroke simply goes, as it came, with no word about it.
+    if (ids.length === 0) return
     const take: MapTake = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),
@@ -276,18 +274,29 @@ export function SoundMapScreen(): ReactNode {
     control.flyToPlaces(points.filter(point => point.tagIds.includes(tagId)))
   }
 
-  // What the page lays over the field, which fitting and flying keep clear of.
+  // What the page lays over the field, which fitting and flying keep clear of:
+  // its head, and the tray as it is folded (opened, it lies over the map for a while).
   const [head, setHead] = useState(0)
-  const [foot, setFoot] = useState(0)
-  const footRoom = foot + (wide ? 0 : chrome)
+  const [tray, setTray] = useState(0)
+  const [folded, setFolded] = useState(0)
+  const [tools, setTools] = useState(0)
+  const bottom = (wide ? 0 : chrome) + space.md
+  const trayRoom = takes.length > 0 ? folded : 0
   useEffect(() => {
-    control.setInsets({ top: head, bottom: footRoom })
-  }, [control, head, footRoom])
-  // The tray, which fitting keeps clear of.
-  const onTray = (event: LayoutChangeEvent): void => setFoot(event.nativeEvent.layout.height)
-  // The toasts rise above the tray and the buttons over it rather than cover Play or the pen.
-  const onFoot = (event: LayoutChangeEvent): void =>
-    setPageFoot(event.nativeEvent.layout.height + space.md)
+    control.setInsets({ top: head, bottom: bottom + trayRoom })
+  }, [control, head, bottom, trayRoom])
+  const onTray = (event: LayoutChangeEvent): void => {
+    const height = event.nativeEvent.layout.height
+    setTray(height)
+    if (!trayOpen) setFolded(height)
+  }
+  // On a phone the buttons stand over the folded tray, and stay there when it
+  // opens over them; on a computer they are beside it, at the foot.
+  const toolsBottom = wide || trayRoom === 0 ? 0 : trayRoom + space.sm
+  // The toasts rise above the tray and the buttons rather than cover Play or the pen.
+  useEffect(() => {
+    setPageFoot(Math.max(tray, toolsBottom + tools) + space.md)
+  }, [tray, toolsBottom, tools])
 
   const [field, setField] = useState<{ width: number; height: number } | null>(null)
   const shown = places.length > 0
@@ -338,28 +347,21 @@ export function SoundMapScreen(): ReactNode {
 
             <SafeAreaView edges={['top']} style={styles.top} pointerEvents="box-none">
               <View
-                style={[styles.head, wide && styles.headWide]}
+                style={[styles.head, pageFrame(wide)]}
                 pointerEvents="box-none"
                 onLayout={event =>
                   setHead(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
                 }
               >
-                <View style={styles.titleRow} pointerEvents="box-none">
-                  <BackButton to="/" testID="sound-map-back" />
-                  <View style={[styles.title, glassBlur]}>
-                    <Text style={styles.name} accessibilityRole="header">
-                      Sound map
-                    </Text>
-                    <Text style={styles.count} testID="sound-map-count">
-                      {plural(places.length, 'song', 'songs')}
-                    </Text>
-                  </View>
-                </View>
+                <PageHeader title="Sound map" back={{ to: '/', testID: 'sound-map-back' }} />
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chips}
-                  style={styles.chipRow}
+                  contentContainerStyle={[
+                    styles.chips,
+                    wide ? styles.chipsWide : styles.chipsPhone,
+                  ]}
+                  style={wide ? styles.chipRowWide : styles.chipRowPhone}
                   testID="sound-map-lens"
                 >
                   {chips.map(tag => (
@@ -382,75 +384,78 @@ export function SoundMapScreen(): ReactNode {
             </SafeAreaView>
 
             <View
-              style={[styles.foot, { bottom: (wide ? 0 : chrome) + space.md }]}
+              style={[styles.tools, wide && styles.toolsWide, { bottom: bottom + toolsBottom }]}
               pointerEvents="box-none"
-              onLayout={onFoot}
+              onLayout={event => setTools(event.nativeEvent.layout.height)}
             >
-              <View style={[styles.tools, wide && styles.toolsWide]} pointerEvents="box-none">
-                {wide ? (
-                  <>
-                    <IconButton
-                      label="Zoom in"
-                      filled
-                      onPress={() => control.zoomBy(1.6)}
-                      testID="sound-map-zoom-in"
-                    >
-                      <Plus size={iconSize.item} tone="textPrimary" />
-                    </IconButton>
-                    <IconButton
-                      label="Zoom out"
-                      filled
-                      onPress={() => control.zoomBy(1 / 1.6)}
-                      testID="sound-map-zoom-out"
-                    >
-                      <Minus size={iconSize.item} tone="textPrimary" />
-                    </IconButton>
-                    <IconButton
-                      label="Show all"
-                      filled
-                      onPress={() => control.fit()}
-                      testID="sound-map-fit"
-                    >
-                      <Expand size={iconSize.item} tone="textPrimary" />
-                    </IconButton>
-                  </>
-                ) : null}
-                <IconButton
-                  label="Find the song playing"
-                  filled
-                  onPress={locate}
-                  testID="sound-map-locate"
-                >
-                  <Locate size={iconSize.item} tone="textPrimary" />
-                </IconButton>
-                <IconButton
-                  label={pen ? 'Stop drawing' : 'Draw a line or a loop'}
-                  caption={wide ? 'Draw (or hold Shift)' : undefined}
-                  filled={pen ? 'accent' : true}
-                  active={pen}
-                  onPress={() => setPen(on => !on)}
-                  testID="sound-map-pen"
-                >
-                  <DrawLine size={iconSize.item} tone={pen ? 'onAccent' : 'textPrimary'} />
-                </IconButton>
-              </View>
-              <View style={[styles.trayWrap, wide && styles.trayWide]} onLayout={onTray}>
-                {takes.length > 0 ? (
-                  <MapTray
-                    name={trayName}
-                    songs={traySongs}
-                    open={trayOpen}
-                    saving={saving}
-                    onOpen={setTrayOpen}
-                    onRemove={id => setLeft(before => new Set(before).add(id))}
-                    onClear={clearTray}
-                    onPlay={playTray}
-                    onSave={saveTray}
-                    onUpNext={upNextTray}
-                  />
-                ) : null}
-              </View>
+              {wide ? (
+                <>
+                  <IconButton
+                    label="Zoom in"
+                    filled
+                    onPress={() => control.zoomBy(1.6)}
+                    testID="sound-map-zoom-in"
+                  >
+                    <Plus size={iconSize.item} tone="textPrimary" />
+                  </IconButton>
+                  <IconButton
+                    label="Zoom out"
+                    filled
+                    onPress={() => control.zoomBy(1 / 1.6)}
+                    testID="sound-map-zoom-out"
+                  >
+                    <Minus size={iconSize.item} tone="textPrimary" />
+                  </IconButton>
+                  <IconButton
+                    label="Show all"
+                    filled
+                    onPress={() => control.fit()}
+                    testID="sound-map-fit"
+                  >
+                    <Expand size={iconSize.item} tone="textPrimary" />
+                  </IconButton>
+                </>
+              ) : null}
+              <IconButton
+                label="Find the song playing"
+                filled
+                onPress={locate}
+                testID="sound-map-locate"
+              >
+                <Locate size={iconSize.item} tone="textPrimary" />
+              </IconButton>
+              <IconButton
+                label={pen ? 'Stop drawing' : 'Draw a line or a loop'}
+                caption={wide ? 'Draw (or hold Shift)' : undefined}
+                filled={pen ? 'accent' : true}
+                active={pen}
+                onPress={() => setPen(on => !on)}
+                testID="sound-map-pen"
+              >
+                <DrawLine size={iconSize.item} tone={pen ? 'onAccent' : 'textPrimary'} />
+              </IconButton>
             </View>
+
+            {takes.length > 0 ? (
+              <View
+                style={[styles.tray, wide && styles.trayWide, { bottom }]}
+                pointerEvents="box-none"
+                onLayout={onTray}
+              >
+                <MapTray
+                  name={trayName}
+                  songs={traySongs}
+                  open={trayOpen}
+                  saving={saving}
+                  onOpen={setTrayOpen}
+                  onRemove={id => setLeft(before => new Set(before).add(id))}
+                  onClear={clearTray}
+                  onPlay={playTray}
+                  onSave={saveTray}
+                  onUpNext={upNextTray}
+                />
+              </View>
+            ) : null}
 
             {hint.shown && field ? <MapHint field={field} onDone={hint.done} /> : null}
           </>
@@ -465,26 +470,15 @@ const styles = StyleSheet.create(theme => ({
   empty: { flex: 1, backgroundColor: theme.colors.surface0 },
   emptyHead: { padding: space.md },
   top: { position: 'absolute', left: 0, right: 0, top: 0 },
-  head: { paddingHorizontal: space.md, paddingTop: space.sm, gap: space.sm },
-  headWide: { paddingHorizontal: space.gutterWide, paddingTop: space.lg },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, alignSelf: 'flex-start' },
-  title: {
-    backgroundColor: glassFill(theme.colors),
-    borderRadius: 999,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-  },
-  name: { fontSize: type.title, fontWeight: '700', color: theme.colors.textPrimary },
-  count: { fontSize: type.small, color: theme.colors.textSecondary },
-  chipRow: { flexGrow: 0, marginHorizontal: -space.md },
-  chips: { gap: space.xs, paddingHorizontal: space.md },
-  foot: { position: 'absolute', left: 0, right: 0, gap: space.sm },
-  tools: {
-    alignSelf: 'flex-end',
-    gap: space.sm,
-    paddingHorizontal: space.md,
-  },
-  toolsWide: { paddingHorizontal: space.gutterWide },
-  trayWrap: { paddingHorizontal: space.sm },
-  trayWide: { alignSelf: 'center', width: '100%', maxWidth: 560 },
+  head: { gap: space.md },
+  chipRowPhone: { flexGrow: 0, marginHorizontal: -space.gutter },
+  chipRowWide: { flexGrow: 0, marginHorizontal: -space.gutterWide },
+  chips: { gap: space.xs },
+  chipsPhone: { paddingHorizontal: space.gutter },
+  chipsWide: { paddingHorizontal: space.gutterWide },
+  tools: { position: 'absolute', right: space.md, gap: space.sm, zIndex: 1 },
+  toolsWide: { right: space.gutterWide },
+  // Over the buttons once opened, as a sheet is.
+  tray: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2 },
+  trayWide: { left: 0, right: 0, alignSelf: 'center', marginHorizontal: 'auto', maxWidth: 560 },
 }))

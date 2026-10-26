@@ -26,13 +26,13 @@ import { NO_STEPS, type Steps } from './progress.js'
  * picks again from the start.
  */
 
-const VERSION = 3
+const VERSION = 4
 
 const REFINE_SYSTEM = `You change the filters of a playlist someone already asked for, after they say what to change about it.
 
 You are given the library's shape, what they first asked, the filters as they stand now (JSON), and what they want changed. Reply with JSON only, in the schema given: the whole set of filters after the change.
 
-Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier moves energy; older or newer songs moves year; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change to the brief keeps what the brief already said unless the change contradicts it.
+Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier changes the sound, or energy when a level was asked for; older or newer songs moves year; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change to the brief keeps what the brief already said unless the change contradicts it.
 
 ${FILTERS_GUIDE}`
 
@@ -69,8 +69,19 @@ export async function refine(
   steps.done('Read what to change')
   const { understanding, unknown } = groundPlan(plan, songs, tags)
   // The songs shown that the changed filters still let in, while the taste is
-  // the same: as many as the count asked for, or as long as the length.
-  const sameTaste = (understanding.brief ?? '') === (request.understanding.brief ?? '')
+  // the same: as many as the count asked for, or as long as the length. A new
+  // place ("add some 周杰倫") or sound ("calmer") is a change of taste too: the
+  // songs shown all still fit, since places only widen and the sound is
+  // listened for after, so keeping them would answer the change with nothing.
+  const before = request.understanding
+  const widened = (names: readonly string[], was: readonly string[]): boolean =>
+    names.some(name => !was.some(other => other.toLowerCase() === name.toLowerCase()))
+  const sameTaste =
+    (understanding.brief ?? '') === (before.brief ?? '') &&
+    (understanding.sound ?? '') === (before.sound ?? '') &&
+    !widened(understanding.anyTags, before.anyTags) &&
+    !widened(understanding.artists, before.artists) &&
+    !widened(understanding.albums, before.albums)
   const fitting = new Set(
     songsFitting(songs, tags, understanding, now, deps.artistNames?.()).map(song => song.id),
   )

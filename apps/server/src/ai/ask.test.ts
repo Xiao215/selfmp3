@@ -205,6 +205,22 @@ describe('ask', () => {
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
   })
 
+  it('keeps the song playing when it is one of the songs asked for, not steered from', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: { play: false, next: false, like: false },
+          filters: { ...noFilters, albums: ['七里香'] },
+        }),
+      ],
+    })
+    const answer = await ask(d, 'make a list of them', 14)
+    expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
+      14, 15,
+    ])
+  })
+
   it('steers from the song playing: shown as "this", left out of the picks, led as next', async () => {
     const d = deps({
       'ask-route': [
@@ -660,6 +676,26 @@ describe('ask about the library', () => {
     expect(answer.count).toBe(17)
     expect(answer.songIds.slice(0, 2)).toEqual([7, 8])
     expect(answer.songIds.at(-1)).toBe(13)
+  })
+
+  it('counts what only a model can judge from the songs it chooses, not the whole library', async () => {
+    const d = deps({
+      'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'named for rain' } }],
+      'describe-pick': [{ picks: [{ n: 1, why: 'rain' }] }],
+    })
+    const answer = await ask(d, 'how many songs about rain do I have')
+    expect(answer).toMatchObject({ kind: 'library', count: 1 })
+  })
+
+  it('counts none when the model finds none, rather than failing', async () => {
+    const d = deps({
+      'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'named for rain' } }],
+      'describe-pick': [{ picks: [] }],
+    })
+    expect(await ask(d, 'how many songs about rain do I have')).toMatchObject({
+      kind: 'library',
+      count: 0,
+    })
   })
 })
 

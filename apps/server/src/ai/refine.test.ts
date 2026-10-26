@@ -77,6 +77,21 @@ describe('changing an answer', () => {
     expect(result.understanding.minutes).toBe(6)
   })
 
+  it('picks again when the change adds a place, rather than keeping every song shown', async () => {
+    const llm = scriptedLlm({
+      'refine-plan': [{ ...jpop, size: 2, artists: ['周杰倫'] }],
+      'describe-pick': [{ picks: [{ n: 1, why: 'a' }] }],
+    })
+    const result = await refine(deps(llm), {
+      text: 'some jpop',
+      understanding: { ...jpop, size: 2 },
+      change: 'add some 周杰倫',
+      shown: fitting.slice(0, 2),
+    })
+    expect(llm.asked.map(request => request.task)).toEqual(['refine-plan', 'describe-pick'])
+    expect(result.understanding.artists).toEqual(['周杰倫'])
+  })
+
   it('drops a song the change rules out', async () => {
     const llm = scriptedLlm({
       'refine-plan': [{ ...jpop, size: 2, anyTags: ['古典'] }],

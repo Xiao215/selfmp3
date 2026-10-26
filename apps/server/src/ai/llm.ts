@@ -390,6 +390,11 @@ export class Remembered {
     return this.put(key, make, now)
   }
 
+  /** An answer not to give again: the next `get` asks afresh. */
+  forget(key: string): void {
+    this.#entries.delete(key)
+  }
+
   /** A fresh answer, kept in place of the one before: "write it again". */
   async put<T>(key: string, make: () => Promise<T>, now = Date.now()): Promise<T> {
     const value = await make()

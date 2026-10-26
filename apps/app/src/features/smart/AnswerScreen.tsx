@@ -36,7 +36,7 @@ import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { changeAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { changeAnswer, editAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { AskedLabel, AskedTitle } from './AskedTitle'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
@@ -94,7 +94,6 @@ export function AnswerView({
   const { data: library } = useLibrary()
   const byId = useSongsById()
   const artFor = useArt()
-  const [edited, setEdited] = useState<Understanding | null>(null)
   const [saving, setSaving] = useState(false)
   const heroRef = useRef<View>(null)
   const fly = useFlyToUpNext()
@@ -118,20 +117,23 @@ export function AnswerView({
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const light = useSongColor(lead, lead ? artFor(lead) : null)
 
+  // The answer it was asked for goes with the request: the list beside Ask
+  // can be another one by the time the new songs come.
   const again = useMutation({
-    mutationFn: (understanding: Understanding) => {
-      if (!server.api || !kept) throw noServerToAsk()
-      // The songs shown, as the server knows them, stay out while others fit.
-      const shown = ids.flatMap(each => {
-        const serverId = server.onServer(each)
-        return serverId === undefined ? [] : [serverId]
+    mutationFn: (asked: {
+      answerId: string
+      text: string
+      understanding: Understanding
+      avoid: number[]
+    }) => {
+      if (!server.api) throw noServerToAsk()
+      return server.api.describePlaylist({
+        text: asked.text,
+        understanding: asked.understanding,
+        avoid: asked.avoid,
       })
-      return server.api.describePlaylist({ text: kept.text, understanding, avoid: shown })
     },
-    onSuccess: answer => {
-      if (kept) changeAnswer(kept.id, answer)
-      setEdited(null)
-    },
+    onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer),
   })
 
   if (!kept || !result) {
@@ -147,6 +149,7 @@ export function AnswerView({
     )
   }
 
+  const edited = kept.edited
   const understanding = edited ?? result.understanding
   const tags = library?.tags ?? []
   const seconds = songs.reduce((sum, song) => sum + song.duration, 0)
@@ -246,11 +249,11 @@ export function AnswerView({
             {asked !== undefined ? `${result.understanding.name} · ` : ''}
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
-            {result.fit > ids.length ? ` · picked from ${result.fit} that fit` : ''}
+            {result.fit > result.picks.length ? ` · picked from ${result.fit} that fit` : ''}
           </Text>
           <View style={styles.chips}>
             {parts(understanding, tags).map(part => {
-              const takeAway = (): void => setEdited(part.without(understanding))
+              const takeAway = (): void => editAnswer(kept.id, part.without(understanding))
               return (
                 <Chip
                   key={part.key}
@@ -290,7 +293,15 @@ export function AnswerView({
             label="Different songs"
             disabled={!server.api}
             busy={again.isPending}
-            onPress={() => again.mutate(understanding)}
+            onPress={() =>
+              again.mutate({
+                answerId: kept.id,
+                text: kept.text,
+                understanding,
+                // Every song picked stays out while others fit, shown here or not.
+                avoid: result.picks.map(pick => pick.songId),
+              })
+            }
             testID="answer-again"
           />
         </>

@@ -35,8 +35,8 @@ export interface AskPlaylist {
   readonly songIds: () => readonly number[]
 }
 
-/** How many songs a library question lists at most. */
-const LIST_SIZE = 50
+/** How many songs a library question lists at most: as many as a playlist answer holds. */
+const LIST_SIZE = 200
 /** How many artists, albums or tags a library question names. */
 const TOP = 8
 
@@ -144,6 +144,8 @@ export function libraryAnswer(
     sortBy: AskSort | null
     order: AskOrder
   },
+  /** The songs, when a model chose them (`chosenForLibrary`) rather than the filters alone. */
+  chosen?: readonly number[],
 ): AskAnswer {
   const songs = deps.songs()
   const tags = deps.tags()
@@ -151,7 +153,10 @@ export function libraryAnswer(
   const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
   const joins = deps.artistNames?.() ?? NO_JOINS
   const shownAs = joinedNames(songs, joins)
-  const fitting = songsFitting(songs, tags, understanding, now, joins)
+  const byId = new Map(songs.map(song => [song.id, song]))
+  const fitting = chosen
+    ? chosen.flatMap(id => byId.get(id) ?? [])
+    : songsFitting(songs, tags, understanding, now, joins)
   const sorted = sortSongs(
     fitting,
     question.sortBy ?? 'addedAt',
@@ -230,7 +235,7 @@ export async function playlistSongs(
   }
   const inPlaylist = new Set(members.map(song => song.id))
   const pool = adding ? songs.filter(song => !inPlaylist.has(song.id)) : members
-  const fitting = songsFitting(pool, tags, understanding, now)
+  const fitting = songsFitting(pool, tags, understanding, now, deps.artistNames?.())
   const answer = (
     chosen: { songId: number; why: string | null }[],
     by: 'rule' | 'model',
@@ -265,6 +270,9 @@ export async function playlistSongs(
     unknown,
     [],
     steps,
+    null,
+    // A playlist's songs are edited whether or not they are resting.
+    false,
   )
   try {
     return answer((await judging).picks, 'model')

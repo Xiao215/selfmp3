@@ -2,14 +2,26 @@ import { memo, useMemo } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Image, Text, View } from 'react-native'
 import type { View as ViewType } from 'react-native'
-import Svg, { Circle, Defs, Path, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg'
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  Path,
+  Polyline,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { MapPlace, Song } from '@selfmp3/shared'
 import { tagColors, type } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import {
+  CORE,
   dustSpecks,
-  GLOW,
+  flareReach,
+  glowReach,
   GLOW_STOPS,
   SKY_EDGE,
   SKY_INK,
@@ -35,10 +47,10 @@ const NAMES_FROM = 30
  * The sound map's sky on a phone or an iPad (`SkyLayer.web.tsx` is the
  * browser's): the stars drawn as one SVG at the view the map last held still
  * at, and moved and scaled as a whole while a finger moves it, so 1,500 stars
- * are drawn again only when it settles. Each star is a single circle filled
- * with its colour's glow, and the stars of one colour share one gradient.
- * What moves with the frame — names, the stroke, the playing song — is drawn
- * over it at screen size.
+ * are drawn again only when it settles. Each star is a dot over a glow that
+ * keeps to the room its neighbours leave, and the stars of one colour share
+ * one gradient. What moves with the frame — the stroke, the playing song —
+ * is drawn over it at screen size.
  */
 export function SkyLayer(
   props: SkyLayerProps & { pointerRef: RefObject<ViewType | null> },
@@ -173,47 +185,102 @@ const Stars = memo(function Stars({
       point.y <= seen.y1 + spanY,
   )
   const covers = tileSide(settled.scale) >= COVER_FROM
-  const tones = new Map<string, SkyPoint>()
-  for (const point of near) tones.set(`${point.glow}${point.core}`, point)
+  const tones = new Set(near.map(point => point.glow))
   return (
     <Svg width={field.width} height={field.height} style={StyleSheet.absoluteFill}>
       <Defs>
-        {[...tones].map(([key, point]) => (
-          <RadialGradient
-            key={key}
-            id={`glow-${key.replaceAll('#', '')}`}
-            cx="50%"
-            cy="50%"
-            r="50%"
-          >
-            {GLOW_STOPS.map(([offset, opacity, middle]) => (
-              <Stop
-                key={offset}
-                offset={offset}
-                stopColor={middle ? point.core : point.glow}
-                stopOpacity={opacity}
-              />
+        {[...tones].map(glow => (
+          <RadialGradient key={glow} id={`glow-${glow.slice(1)}`} cx="50%" cy="50%" r="50%">
+            {GLOW_STOPS.map(([offset, opacity]) => (
+              <Stop key={offset} offset={offset} stopColor={glow} stopOpacity={opacity} />
             ))}
           </RadialGradient>
         ))}
       </Defs>
       {near.map(point => {
         const at = toScreen(settled, base, point)
-        const r = starRadius(settled.scale, point.bright) * (covers ? 1.8 : 1) * GLOW
+        const r = starRadius(settled.scale, point.bright) * (covers ? 1.8 : 1)
+        const alpha = starAlpha(point, lens)
         return (
-          <Circle
-            key={point.id}
-            cx={at.x}
-            cy={at.y}
-            r={r}
-            opacity={starAlpha(point, lens)}
-            fill={`url(#glow-${point.glow.replace('#', '')}${point.core.replace('#', '')})`}
-          />
+          <G key={point.id} opacity={alpha}>
+            <Circle
+              cx={at.x}
+              cy={at.y}
+              r={glowReach(point, r, settled.scale, base)}
+              fill={`url(#glow-${point.glow.slice(1)})`}
+            />
+            {covers || !point.flare ? null : (
+              <Flare
+                x={at.x}
+                y={at.y}
+                reach={flareReach(point, r, settled.scale, base)}
+                color={point.core}
+              />
+            )}
+            {covers ? null : <Circle cx={at.x} cy={at.y} r={r * CORE} fill={point.core} />}
+          </G>
         )
       })}
     </Svg>
   )
 })
+
+/**
+ * A bright star's four-pointed flare: two thin strokes through it, the inner
+ * half of each a little brighter, so it fades towards its ends.
+ */
+function Flare({
+  x,
+  y,
+  reach,
+  color,
+}: {
+  x: number
+  y: number
+  reach: number
+  color: string
+}): ReactNode {
+  return (
+    <>
+      <Line
+        x1={x - reach}
+        y1={y}
+        x2={x + reach}
+        y2={y}
+        stroke={color}
+        strokeWidth={0.7}
+        strokeOpacity={0.35}
+      />
+      <Line
+        x1={x}
+        y1={y - reach}
+        x2={x}
+        y2={y + reach}
+        stroke={color}
+        strokeWidth={0.7}
+        strokeOpacity={0.35}
+      />
+      <Line
+        x1={x - reach / 2}
+        y1={y}
+        x2={x + reach / 2}
+        y2={y}
+        stroke={color}
+        strokeWidth={0.8}
+        strokeOpacity={0.5}
+      />
+      <Line
+        x1={x}
+        y1={y - reach / 2}
+        x2={x}
+        y2={y + reach / 2}
+        stroke={color}
+        strokeWidth={0.8}
+        strokeOpacity={0.5}
+      />
+    </>
+  )
+}
 
 /**
  * Close in, the covers on screen in place of their stars, and closer still
@@ -285,14 +352,13 @@ const Covers = memo(function Covers({
 /**
  * What moves with every frame, at screen size: the tray's lines and loops,
  * the stroke under the finger, the playing song wearing its cover, the
- * pressed spot, and the tags' names over their nebulae.
+ * pressed spot.
  */
 function Overlay({
   field,
   view,
   base,
   points,
-  regions,
   takes,
   stroke,
   playing,
@@ -395,28 +461,6 @@ function Overlay({
           {nowUri ? <Image source={{ uri: nowUri }} style={styles.coverImage} /> : null}
         </View>
       ) : null}
-      {regions.map(region => {
-        const middle = at(region)
-        return (
-          <View
-            key={region.tagId}
-            style={[
-              styles.region,
-              { left: middle.x - 70, top: middle.y - region.r * base * view.scale * 1.05 - 18 },
-            ]}
-          >
-            <Text
-              numberOfLines={1}
-              style={[styles.regionName, { color: tagColors(region.hue, 'dark').ink }]}
-            >
-              {region.name}
-            </Text>
-            <Text style={[styles.regionCount, { color: tagColors(region.hue, 'dark').ink }]}>
-              {region.count}
-            </Text>
-          </View>
-        )
-      })}
     </>
   )
 }
@@ -438,7 +482,4 @@ const styles = StyleSheet.create(() => ({
     borderWidth: 1.5,
     borderColor: SKY_INK,
   },
-  region: { position: 'absolute', width: 140, alignItems: 'center' },
-  regionName: { fontSize: type.small - 1, fontWeight: '600', letterSpacing: 2 },
-  regionCount: { fontSize: type.small - 4, opacity: 0.6, fontVariant: ['tabular-nums'] },
 }))

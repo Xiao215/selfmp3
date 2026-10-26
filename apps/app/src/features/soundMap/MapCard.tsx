@@ -56,7 +56,7 @@ export function MapCard(): ReactNode {
   if (places.length === 0) return null
   return (
     <View style={styles.section}>
-      <SectionHead title="Sound map" aside={plural(places.length, 'song', 'songs')} />
+      <SectionHead title="Sound map" />
       <Press
         depth="row"
         onPress={() => router.navigate('/sound-map')}

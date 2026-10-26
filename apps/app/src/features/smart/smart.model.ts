@@ -1,4 +1,4 @@
-import { plural, formatLongDuration, tidyValue } from '@selfmp3/shared'
+import { EVERY_SONG, plural, formatLongDuration, tidyValue } from '@selfmp3/shared'
 import type {
   AskAnswer,
   AskOrder,
@@ -173,12 +173,14 @@ export function parts(understanding: Understanding, tags: readonly Tag[]): Part[
 /**
  * Whether the understanding is tags and nothing else, which is the one kind a
  * playlist can follow and keep itself filled from. Anything more is a set of
- * picks, made once.
+ * picks, made once: "10 jpop songs" too, since a playlist following jpop
+ * holds every one of them. Every song (`EVERY_SONG`) is no number at all.
  */
 export function onlyTags(understanding: Understanding): boolean {
   return (
     understanding.anyTags.length > 0 &&
     understanding.brief === null &&
+    (understanding.size === null || understanding.size >= EVERY_SONG) &&
     parts(understanding, []).every(part => part.key.startsWith('tag:'))
   )
 }
@@ -230,14 +232,23 @@ export function answerSongs<S extends { readonly id: number }>(
   )
 }
 
-/** What a describe answer says beside its songs: what fit, and what it set aside. */
-export function describeNotes(result: DescribeResult, picked: number): string[] {
+/**
+ * What a describe answer says beside its songs: what fit, what it set aside,
+ * and the songs picked that this device does not have yet (`here` is how many
+ * it shows), so a song missing here never reads as one it chose to leave out.
+ */
+export function describeNotes(result: DescribeResult, here: number): string[] {
   const notes: string[] = []
+  const picked = Math.max(here, result.picks.length)
   notes.push(
     result.fit === picked
       ? `${plural(picked, 'song', 'songs')} fit`
       : `Picked ${picked} of the ${result.fit} that fit`,
   )
+  const away = picked - here
+  if (away > 0) {
+    notes.push(`${away === 1 ? 'One of them isn’t' : `${away} of them aren’t`} on this device yet.`)
+  }
   if (result.loosened.length > 0) {
     notes.push(`Nothing fit all of it, so it let go of ${result.loosened.join(', ')}.`)
   }

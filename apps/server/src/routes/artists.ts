@@ -5,6 +5,7 @@ import {
   NameSchema,
   SetArtistNamesSchema,
   findArtist,
+  libraryArtists,
   tidyArtistNames,
   type ArtistBackdrop,
   type SetArtistNames,
@@ -56,7 +57,7 @@ export function artistRoutes(container: Container): Router {
   router.put(
     '/artists/names',
     route({ body: SetArtistNamesSchema }, ({ body }): SetArtistNames => {
-      const artist = findArtist(container.songs.all(), body.artist)
+      const artist = findArtist(libraryArtists(container.songs.all()), body.artist)
       if (!artist) throw HttpError.notFound('no such artist')
       const names = tidyArtistNames(artist.name, body.names)
       container.names.takeArtistNames(artist.key, names, container.clock.tick())

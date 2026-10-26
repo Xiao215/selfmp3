@@ -72,9 +72,15 @@ export class StatsRepository {
   readonly #record
   readonly #playDates
   readonly #latestPlay
+  readonly #shownAs: () => ReadonlyMap<string, string>
 
-  constructor(db: Db) {
+  /**
+   * `shownAs`: each joined artist's key → the name it is shown by (shared
+   * `joinedNames`), so Top artists counts one artist under two spellings once.
+   */
+  constructor(db: Db, shownAs: () => ReadonlyMap<string, string> = () => new Map()) {
     this.#db = db
+    this.#shownAs = shownAs
     this.#record = db.prepare(
       `INSERT OR IGNORE INTO play_events (song_id, ms_played, completed, played_at, client_id)
        VALUES (?, ?, ?, COALESCE(?, datetime('now')), ?)`,
@@ -340,7 +346,7 @@ export class StatsRepository {
       longestStreakDays: streaks.longest,
       daily: filledDaily,
       hourly,
-      topArtists: topArtists(artistRows, 10),
+      topArtists: topArtists(artistRows, 10, this.#shownAs()),
       topTags,
       topSongs,
     }

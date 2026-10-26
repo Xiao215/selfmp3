@@ -2,8 +2,12 @@ import { z } from 'zod/v4'
 import {
   DAY_MS,
   fromSqliteTime,
+  artistKey,
+  joinedKeys,
+  NO_JOINS,
   splitArtists,
   UnderstandingSchema,
+  type ArtistJoinNames,
   type DescribePick,
   type DescribeRequest,
   type DescribeResult,
@@ -120,6 +124,8 @@ export interface DescribeDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly tags: () => Tag[]
+  /** Artists' other names, which join one artist's spellings (shared artistJoins.ts). */
+  readonly artistNames?: () => ArtistJoinNames
   /** Absent, or answering null, where no song has been heard: songs are then sampled. */
   readonly sound?: SoundRanker
   readonly now?: () => number
@@ -226,12 +232,14 @@ export function songsFitting(
   tags: readonly Tag[],
   understanding: Understanding,
   now: number,
+  names: ArtistJoinNames = NO_JOINS,
 ): Song[] {
   const tagIdsOf = (names: readonly string[]): Set<number> =>
     new Set(tags.filter(tag => names.some(name => sameName(name, tag.name))).map(tag => tag.id))
   const anyTags = tagIdsOf(understanding.anyTags)
   const noTags = tagIdsOf(understanding.noTags)
-  const artists = understanding.artists.map(name => name.toLowerCase())
+  // An artist asked for brings the spellings joined to it: Yorushika, and ヨルシカ.
+  const artists = new Set(understanding.artists.flatMap(name => joinedKeys(songs, names, name)))
   const hasPlaces = understanding.anyTags.length > 0 || understanding.artists.length > 0
   const within = (iso: string | null, n: number | null): boolean =>
     n === null || (iso !== null && now - fromSqliteTime(iso) <= n * DAY_MS)
@@ -239,7 +247,7 @@ export function songsFitting(
   return songs.filter(song => {
     if (hasPlaces) {
       const inTag = song.tagIds.some(id => anyTags.has(id))
-      const byArtist = splitArtists(song.artist).some(name => artists.includes(name.toLowerCase()))
+      const byArtist = splitArtists(song.artist).some(name => artists.has(artistKey(name)))
       if (!inTag && !byArtist) return false
     }
     if (song.tagIds.some(id => noTags.has(id))) return false
@@ -389,7 +397,7 @@ export async function describe(
   if (request.understanding) {
     understanding = request.understanding
   } else {
-    const shape = libraryShape(songs, tags)
+    const shape = libraryShape(songs, tags, deps.artistNames?.())
     const prompt = `${shape}\n\nThe description:\n${request.text}`
     const plan = await remembered.get(
       Remembered.key('describe-plan', PLAN_VERSION, prompt),
@@ -431,7 +439,7 @@ export async function narrowAndPick(
 
   // 2 · Narrow, with no model: and loosen, a part at a time, if nothing fits.
   steps.begin('Looking through your library')
-  let fitting = songsFitting(songs, tags, understanding, now)
+  let fitting = songsFitting(songs, tags, understanding, now, deps.artistNames?.())
   const loosened: string[] = []
   let applied = understanding
   for (const part of LOOSEN_ORDER) {

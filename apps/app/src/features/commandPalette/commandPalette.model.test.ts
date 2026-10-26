@@ -17,6 +17,7 @@ const library = {
   playlists: [{ id: 1, name: 'Reference — evening' }] as never,
   tags: [{ id: 7, name: 'yoasobi' }] as never,
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
 }
 

@@ -19,6 +19,7 @@ const library: Library = {
   tags: [],
   playlists: [],
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
   version: 1,
   generatedAt: '2026-10-07T00:00:00Z',

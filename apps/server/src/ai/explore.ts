@@ -1,5 +1,14 @@
 import { z } from 'zod/v4'
-import { splitArtists, type AskAnswer, type Song, type Tag } from '@selfmp3/shared'
+import {
+  artistKey,
+  joinedKeys,
+  NO_JOINS,
+  splitArtists,
+  type ArtistJoinNames,
+  type AskAnswer,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
 import { libraryShape } from './library.js'
 import { Remembered, tool, type Llm } from './llm.js'
 import type { CatalogueSearch } from './names.js'
@@ -45,6 +54,8 @@ interface ExploreDeps {
   readonly llm: Llm
   readonly songs: () => Song[]
   readonly tags: () => Tag[]
+  /** Artists' other names, which join one artist's spellings (shared artistJoins.ts). */
+  readonly artistNames?: () => ArtistJoinNames
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** 网易云's search, as `NeteaseMusic.search` gives it. */
   readonly catalogue?: CatalogueSearch
@@ -76,10 +87,12 @@ function toolsFor(deps: ExploreDeps, steps: Steps) {
   const by = (name: string | null): ((song: Song) => boolean) => {
     if (!name) return () => true
     const wanted = name.trim().toLowerCase()
+    // Yorushika brings ヨルシカ when one is the other's other name.
+    const keys = new Set(joinedKeys(songs, deps.artistNames?.() ?? NO_JOINS, name))
     return song =>
       song.artist.toLowerCase().includes(wanted) ||
       song.albumArtist.toLowerCase().includes(wanted) ||
-      splitArtists(song.artist).some(each => each.toLowerCase() === wanted)
+      splitArtists(song.artist).some(each => keys.has(artistKey(each)))
   }
 
   const search = tool({
@@ -184,7 +197,7 @@ export async function explore(
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const web = deps.web?.() ?? false
-  const prompt = `${libraryShape(songs, deps.tags())}\n\nThe question:\n${text}`
+  const prompt = `${libraryShape(songs, deps.tags(), deps.artistNames?.())}\n\nThe question:\n${text}`
   steps.begin('Looking into it')
   const answer = await remembered.get(
     Remembered.key('ask-explore', VERSION, web, prompt),

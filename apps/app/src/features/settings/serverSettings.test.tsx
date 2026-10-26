@@ -45,6 +45,7 @@ const serverLibrary: Library = {
   tags: [{ id: 7, name: 'night drive', hue: 200, songCount: 0 }],
   playlists: [],
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
   version: 1,
   generatedAt: '2026-10-14T00:00:00.000Z',

@@ -2,6 +2,7 @@ import { z } from 'zod/v4'
 import type {
   AiCheck,
   AiSetup,
+  ArtistJoinNames,
   AskAnswer,
   ImportNames,
   ImportNamesRequest,
@@ -21,6 +22,7 @@ import type {
 import type { Config } from '../config.js'
 import type { Logger } from '../logger.js'
 import type { LyricsSearchRepository } from '../repositories/lyricsSearch.js'
+import type { NamesRepository } from '../repositories/names.js'
 import type { PlaylistRepository } from '../repositories/playlists.js'
 import type { SettingsRepository } from '../repositories/settings.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -80,6 +82,7 @@ export class SmartFeatures {
     setup: AiSetup
     songs: () => Song[]
     tags: () => Tag[]
+    artistNames?: () => ArtistJoinNames
     sound?: AskDeps['sound']
     stats: (range: Stats['range']) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
@@ -227,6 +230,8 @@ export function smartFeaturesFor(sources: {
   readonly logger: Logger
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
+  /** Artists' other names, which join one artist's spellings; left out by `eval.ts`. */
+  readonly names?: Pick<NamesRepository, 'joinNames'>
   /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
   readonly sound?: AskDeps['sound']
   readonly stats: Pick<StatsRepository, 'build'>
@@ -249,6 +254,7 @@ export function smartFeaturesFor(sources: {
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
+    artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
     sound: sources.sound,
     stats: range => stats.build(range),
     lyrics: query =>

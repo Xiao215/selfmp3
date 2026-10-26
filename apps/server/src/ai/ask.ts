@@ -129,7 +129,7 @@ export async function ask(
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
   const playlists = deps.playlists?.() ?? []
-  const prompt = `${libraryShape(songs, tags)}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
+  const prompt = `${libraryShape(songs, tags, deps.artistNames?.())}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
   steps.begin('Reading what you asked')
   const route = await remembered.get(
     Remembered.key('ask-route', VERSION, prompt),

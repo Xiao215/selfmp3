@@ -31,9 +31,12 @@ interface SongPlaysRow {
 
 export class WrappedRepository {
   readonly #db: Db
+  readonly #shownAs: () => ReadonlyMap<string, string>
 
-  constructor(db: Db) {
+  /** `shownAs`: as Stats takes it, so the Report's top artists join the same spellings. */
+  constructor(db: Db, shownAs: () => ReadonlyMap<string, string> = () => new Map()) {
     this.#db = db
+    this.#shownAs = shownAs
   }
 
   build(range: WrappedRange): Wrapped {
@@ -177,7 +180,7 @@ export class WrappedRepository {
         activeDays: totals?.days ?? 0,
       },
       topSongs,
-      topArtists: topArtists(artistRows, 5),
+      topArtists: topArtists(artistRows, 5, this.#shownAs()),
       topTags,
       peakHour: peak(hourly, 'hour'),
       peakWeekday: peak(weekday, 'weekday'),

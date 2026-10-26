@@ -25,6 +25,7 @@ const library = {
   ],
   playlists: [] as never,
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
   tags: [
     { id: 7, name: 'yoasobi', hue: 1, songCount: 3 },

@@ -12,8 +12,8 @@ import { ARTIST_NAMES_MAX } from './schemas/artist.js'
  * songs say. A string that names several — "A feat. B", "A & B", "A, B",
  * "A × B", "A x B" — names each of them, and a song belongs to every artist
  * it names. Two spellings of one name are one artist when they differ only in
- * case or spacing; "ヨルシカ" and "Yorushika" stay two, and joining them is a
- * metadata fix, not something guessed here.
+ * case or spacing; "ヨルシカ" and "Yorushika" are two here, and are joined
+ * only by an artist's other names (artistJoins.ts), never guessed.
  */
 
 /**
@@ -34,6 +34,13 @@ export interface Artist {
   /** The spelling most of its songs use. */
   readonly name: string
   readonly songIds: readonly number[]
+  /**
+   * Every key a song is matched by: its own, then those of the artists joined
+   * to it by its other names (artistJoins.ts), "ヨルシカ" under "Yorushika".
+   */
+  readonly keys: readonly string[]
+  /** The artists joined to it, as their songs spell them, most songs first. */
+  readonly joined: readonly string[]
 }
 
 /** "(feat. B)" and "[ft. B]": the brackets go, the name stays as one more artist. */
@@ -141,17 +148,20 @@ export function libraryArtists(songs: readonly Song[]): readonly Artist[] {
         best = count
       }
     }
-    return { key, name, songIds: entry.songIds }
+    return { key, name, songIds: entry.songIds, keys: [key], joined: [] }
   })
   artists.sort((a, b) => b.songIds.length - a.songIds.length || a.name.localeCompare(b.name))
   cache.set(songs, artists)
   return artists
 }
 
-/** The artist with this name, spelt any way that compares equal, or undefined. */
-export function findArtist(songs: readonly Song[], name: string): Artist | undefined {
+/**
+ * The artist with this name, spelt any way that compares equal, or undefined.
+ * In a list of joined artists (`joinedArtists`), the artist it is joined to.
+ */
+export function findArtist(artists: readonly Artist[], name: string): Artist | undefined {
   const key = artistKey(name)
-  return libraryArtists(songs).find(artist => artist.key === key)
+  return artists.find(artist => artist.keys.includes(key))
 }
 
 /**

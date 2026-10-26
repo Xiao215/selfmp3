@@ -33,3 +33,18 @@ describe('topArtists', () => {
     expect(top.map(entry => entry.key)).toEqual(['A'])
   })
 })
+
+describe('topArtists with joined artists', () => {
+  it('counts a joined spelling under the name shown, and a song naming both once', () => {
+    const top = topArtists(
+      [
+        { artist: 'Yorushika', plays: 5, ms: null },
+        { artist: 'ヨルシカ', plays: 2, ms: null },
+        { artist: 'Yorushika, ヨルシカ', plays: 1, ms: null },
+      ],
+      10,
+      new Map([['ヨルシカ', 'Yorushika']]),
+    )
+    expect(top.map(entry => [entry.key, entry.plays])).toEqual([['Yorushika', 8]])
+  })
+})

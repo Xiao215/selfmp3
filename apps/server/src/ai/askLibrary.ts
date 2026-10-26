@@ -1,6 +1,7 @@
 import type { z } from 'zod/v4'
 import {
-  mainArtist,
+  joinedNames,
+  NO_JOINS,
   type AskAnswer,
   type AskOrder,
   type AskSort,
@@ -14,6 +15,7 @@ import {
   type DescribeDeps,
   type PlanOut,
 } from './describe.js'
+import { shownArtist } from './library.js'
 import { LlmError } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { tally } from './text.js'
@@ -133,7 +135,7 @@ export const none = (say: string, tries: readonly string[] = []): AskAnswer => (
 
 /** "How many YOASOBI songs do I have", "what did I add this week", "my longest song". */
 export function libraryAnswer(
-  deps: Pick<DescribeDeps, 'songs' | 'tags' | 'now'>,
+  deps: Pick<DescribeDeps, 'songs' | 'tags' | 'now' | 'artistNames'>,
   plan: z.infer<typeof PlanOut> | null,
   question: {
     show: 'count' | 'songs' | 'artists' | 'albums' | 'tags'
@@ -145,7 +147,9 @@ export function libraryAnswer(
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
   const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
-  const fitting = songsFitting(songs, tags, understanding, now)
+  const joins = deps.artistNames?.() ?? NO_JOINS
+  const shownAs = joinedNames(songs, joins)
+  const fitting = songsFitting(songs, tags, understanding, now, joins)
   const sorted = sortSongs(
     fitting,
     question.sortBy ?? 'addedAt',
@@ -162,7 +166,7 @@ export function libraryAnswer(
     songIds: sorted.slice(0, understanding.size ?? LIST_SIZE).map(song => song.id),
     sortBy: question.sortBy,
     order: question.order,
-    artists: top(fitting.map(song => mainArtist(song.artist))),
+    artists: top(fitting.map(song => shownArtist(song, shownAs))),
     albums: top(fitting.map(song => song.album).filter(Boolean)),
     tags: top(fitting.flatMap(song => song.tagIds.map(id => names.get(id) ?? '')).filter(Boolean)),
   }

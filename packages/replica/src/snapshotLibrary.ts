@@ -138,6 +138,7 @@ export function snapshotToLibrary(
       playCount: song.playCount,
       loved: song.loved,
       lovedAt: lovedAt(song.loved, song.stamps?.['loved']),
+      restUntil: song.restUntil,
       sourceUrl: song.sourceUrl,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,

@@ -31,6 +31,7 @@ export function song(
     instrumental: false,
     playCount: 0,
     loved: false,
+    restUntil: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-09-01 10:00:00',

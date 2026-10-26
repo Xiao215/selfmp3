@@ -15,6 +15,8 @@
  * songs the same way to within a rounding.
  */
 
+import { shuffleArray } from './queue.js'
+
 /** Dimensions of the listening model's vectors: what a pack and a packed vector must have. */
 export const SOUND_DIMENSIONS = 768
 
@@ -59,13 +61,18 @@ export function decodeSoundPack(
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
+/** A unit vector as a packed one holds it: one signed byte per dimension. */
+export function packedVector(vector: ArrayLike<number>): Int8Array {
+  const packed = new Int8Array(vector.length)
+  for (let index = 0; index < vector.length; index++) {
+    packed[index] = Math.round(Math.max(-1, Math.min(1, vector[index] ?? 0)) * 127)
+  }
+  return packed
+}
+
 /** A unit vector, small: one signed byte per dimension, in base64. */
 export function packVector(vector: ArrayLike<number>): string {
-  const bytes = new Uint8Array(vector.length)
-  for (let index = 0; index < vector.length; index++) {
-    const scaled = Math.round(Math.max(-1, Math.min(1, vector[index] ?? 0)) * 127)
-    bytes[index] = scaled & 0xff
-  }
+  const bytes = new Uint8Array(packedVector(vector).buffer)
   let text = ''
   for (let index = 0; index < bytes.length; index += 3) {
     const a = bytes[index] ?? 0
@@ -120,4 +127,25 @@ export function soundCentre(vectors: readonly Int8Array[]): Int8Array | null {
     centre[index] = Math.round((sums[index] ?? 0) / vectors.length)
   }
   return centre
+}
+
+/**
+ * Songs in the order Autoplay takes them: those with a closeness nearest
+ * first, then those with none (not heard yet, or nothing to be near), in no
+ * particular order. A listening room ranks each person's songs so
+ * (`keepGoingPicks`), and Keep going the library's (docs/features/lists.md).
+ */
+export function nearestFirst<T>(
+  items: readonly T[],
+  closeness: (item: T) => number | null,
+  random: () => number = Math.random,
+): T[] {
+  const scored = items.map(item => ({ item, near: closeness(item) }))
+  const heard = scored.filter(each => each.near !== null)
+  heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
+  const unheard = shuffleArray(
+    scored.filter(each => each.near === null),
+    random,
+  )
+  return [...heard, ...unheard].map(each => each.item)
 }

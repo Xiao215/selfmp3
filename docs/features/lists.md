@@ -31,6 +31,8 @@ The verbs: **Play** (replaces Up next, from anywhere), **Add to Up next**, **Sav
 | Tag songs… | `apps/app/src/features/tag/TagScreen.tsx`, `apps/app/src/features/playlistDetail/AddSongsSheet.tsx` |
 | Ask's song answer: the card and the page | `apps/app/src/features/smart/SongsAnswerCard.tsx`, `AnswerScreen.tsx` (`/answer`) |
 | A room that ended, as a list page | `apps/app/src/features/room/RoomScreens.tsx` (`/past-room/[code]`) |
+| Resting songs: the rule, the list it starts, the menu | `packages/shared/src/rest.ts`, `apps/app/src/player/resting.model.ts`, `apps/app/src/ui/songActions.model.ts` |
+| Keep going: what it picks, its switch, the worker | `apps/app/src/features/queue/keepGoing.model.ts`, `keepGoingPref.ts`, `useKeepGoing.ts`, `UpNextParts.tsx` |
 | Covers flying into the Up next button | `apps/app/src/ui/coverFlight.ts`, `apps/app/src/ui/components/CoverFlight.tsx`, `apps/app/src/features/queue/useFlyToUpNext.ts` |
 
 ## A song picked from Library
@@ -53,7 +55,27 @@ and Up next shows the same line under the song, now marked *Played*, with two bu
 **Songs like this** (the song menu's Play similar songs) and **Shuffle library** (Library's
 Shuffle with no tags on). Playing, seeking or Previous on the song puts both away. A list that
 runs out — a tag, a playlist — keeps its plain end: it was asked for whole
-(`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`).
+(`onlySongEnded` in `features/queue/queue.model.ts`, `OnlySongEnd.tsx`). All of this is with
+Keep going off, as it is until you turn it on; with it on, nothing runs out (below).
+
+## Keep going
+
+When Up next runs out, the music can carry on with songs from the library that sound like the
+last few played (N2a, 2026-10-25). **Keep going** is a switch at the foot of Up next, under
+Auto-mix, on the phone's sheet and the computer's rail alike; it is kept on this device and is
+off until turned on (`keepGoingPref.ts`). While it is on, Up next's last line, after the songs
+to come, reads *then songs like these*.
+
+As the last song in Up next starts playing, two songs are added after it, so a fade has a song
+to go into and the end never comes (`useKeepGoing`, `keepGoingDue`). They are picked the way a
+listening room's Autoplay picks (listen-together.md, "Autoplay"): the song playing and the two
+before it make one place in sound, from the bucket's sound pack beside this device's copy of
+the library (`cloudSoundVectors`, `cloudAudioKeyNow`), and the songs nearest it come first
+(`nearestFirst`, shared with the room). With no pack to go on — the server has heard nothing
+yet, or there is no copy here — they come in no particular order, as the room's do. Never a
+song Up next has had this time, its Played included, and never a resting one
+(`keepGoingSongs`). It does nothing in a room, whose Autoplay keeps its own list, nor with
+Repeat on, which never runs out.
 
 ## Taking songs out of Up next
 
@@ -91,6 +113,32 @@ Library's tag strip has a **Liked** chip right after All, once a song is liked. 
 whatever else is on, as On this phone does: alone it plays as Liked, with tags it is the liked
 songs among them ("Liked · calm", which Save keeps as songs). With it on, Library's head has
 **Play liked** and Shuffle, as it has Play these tags with tags on.
+
+## Resting songs
+
+A song you are tired of for now, but would not untag or delete, can rest (N1a, 2026-10-25).
+The song ⋯ — and the selection bar's More, for several — has **Rest for a month**; the toast
+says *Resting until 25 Nov* with **Undo**. A resting song's row shows a small ☾ and is faded a
+little (`OPACITY.resting`), and its ⋯ says **Wake up** instead. It wakes by itself 30 days
+later: nothing runs then, the time has simply passed (`isResting`, `REST_DAYS`).
+
+While it rests it is passed over by:
+
+- **Shuffle**, from anywhere (`playShuffled`).
+- A list played as a list — a tag, a playlist, tags together, an artist, an answer, Library's
+  Play: Up next is made without it (`passOverResting`). The song whose row was tapped plays
+  even if it rests; the list's own Play passes over a resting first song too (`whole`).
+  Songs you ticked and played are played as picked, and a handoff or a resume keeps its list.
+- **Ask's picks**, while any other song fits (`narrowAndPick`).
+- **Forgotten gems** (`forgottenGems`).
+- **Keep going**, above.
+
+Adding it to Up next, Play next, or opening it and pressing play still plays it: resting is
+about what the app chooses, never about what you choose.
+
+The rest is the song's `restUntil`, an ISO time, edited like any song field (`SONG_FIELDS`):
+stamped, in the change log and the snapshot, so it reaches every device (docs/SYNC.md). A
+bucket written before songs could rest reads as every song awake.
 
 ## Where a list came from
 

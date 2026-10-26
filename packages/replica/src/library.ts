@@ -306,6 +306,12 @@ export interface CloudLibraryApi {
    */
   cloudRoomSongNow: (songId: number) => RoomSong | null
   /**
+   * A song's audio in the bucket (`audio/<sha256>.<ext>`), from the library
+   * held in memory: what `cloudSoundVectors` names its sound by. Null for a
+   * song it does not hold, undefined while none is loaded.
+   */
+  cloudAudioKeyNow: (songId: number) => string | null | undefined
+  /**
    * How your library's songs sound (shared soundVectors.ts), by audio key,
    * from the pack the snapshot names; null before the server has heard any,
    * or with no library loaded. Read once per pack and kept in memory.
@@ -1233,6 +1239,12 @@ export function createCloudLibrary(
     return files[songId]?.cover ?? null
   }
 
+  function cloudAudioKeyNow(songId: number): string | null | undefined {
+    const files = replica?.view.files
+    if (!files) return undefined
+    return files[songId]?.audio ?? null
+  }
+
   function cloudArtistPictureNow(name: string): ArtistPictureKeys | null | undefined {
     const artists = replica?.view.artists
     if (!artists) return undefined
@@ -1392,6 +1404,7 @@ export function createCloudLibrary(
     cloudPicturesNow,
     cloudManifest,
     cloudRoomSongNow,
+    cloudAudioKeyNow,
     cloudSoundVectors,
     forgetCloudLibrary,
   }

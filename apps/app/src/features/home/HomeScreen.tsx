@@ -729,7 +729,7 @@ function Recents({
               const ids = recentSongIds(entry, library)
               if (ids.length === 0) return
               fly(covers.current.get(entry.key) ?? null, ids)
-              player.playFrom(ids, 0, { source: entry.source })
+              player.playFrom(ids, 0, { source: entry.source, whole: true })
             }}
             label={line.link || entry.answer ? `Open ${line.label}` : `Play ${line.label}`}
             cover={

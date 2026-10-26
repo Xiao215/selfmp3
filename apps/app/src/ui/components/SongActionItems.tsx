@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter, type Href } from 'expo-router'
-import { plural, type Song } from '@selfmp3/shared'
+import { isResting, plural, restUntilFrom, type Song } from '@selfmp3/shared'
 import {
   isDownloaded,
   isRoomTrackId,
@@ -13,6 +13,7 @@ import {
   useBulkLoved,
   useCreatePlaylist,
   useLibrary,
+  useRestSongs,
   iconSize,
 } from '@selfmp3/client'
 import { addedToPlaylist, playlistsToAddTo } from '../../features/playlists/playlists.model'
@@ -27,14 +28,15 @@ import { useDownloads } from '../../offline/DownloadsProvider'
 import { useDownloadRemoval } from '../../offline/useDownloadRemoval'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import type { PopoverAnchor } from '../rightClick'
-import { songActions, type SongAction, type SongActionId } from '../songActions.model'
-import { showFailure, showToast } from '../toast'
+import { restingUntil, songActions, type SongAction, type SongActionId } from '../songActions.model'
+import { showFailure, showToast, showUndoToast } from '../toast'
 import {
   CloudDownload,
   CloudRemove,
   Heart,
   Info,
   ListMusic,
+  Moon,
   Plus,
   QueueAdd,
   ShareOut,
@@ -57,6 +59,8 @@ const ICON: Record<SongActionId, ReactNode> = {
   share: <ShareOut size={iconSize.item} tone="textSecondary" />,
   download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
   removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
+  rest: <Moon size={iconSize.item} tone="textSecondary" />,
+  wake: <Moon size={iconSize.item} tone="textSecondary" />,
   details: <Info size={iconSize.item} tone="textSecondary" />,
   removeFromPlaylist: <X size={iconSize.item} tone="textSecondary" />,
   delete: <Trash size={iconSize.item} tone="danger" />,
@@ -114,6 +118,7 @@ export function SongActionItems({
   const player = usePlayerCommands()
   const fly = useFlyToUpNext()
   const bulkLoved = useBulkLoved()
+  const rest = useRestSongs()
   const addToPlaylist = useAddToPlaylist()
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const removeFromPlaylist = usePlaylistRemoval()
@@ -125,11 +130,13 @@ export function SongActionItems({
   const ids = songs.map(song => song.id)
   const held = songs.filter(song => isDownloaded(downloads.index, song.id))
   const loved = songs.filter(song => song.loved).length
+  const resting = songs.filter(song => isResting(song)).map(song => song.id)
   const count = songs.length
   const actions = songActions({
     count,
     loved,
     held: held.length,
+    resting: resting.length,
     installed,
     roomSong: songs.some(song => isRoomTrackId(song.id)),
     inPlaylist: playlist !== undefined,
@@ -201,6 +208,22 @@ export function SongActionItems({
     // mobile data or a large total is asked about first.
     download: () => requestDownload(ids),
     removeDownload: () => removeDownloads(held.map(song => song.id)),
+    // The awake ones rest; the Undo wakes just them.
+    rest: () => {
+      const awake = ids.filter(id => !resting.includes(id))
+      const until = restUntilFrom()
+      rest.mutate({ songIds: awake, until })
+      const first = songs.find(song => song.id === awake[0])
+      showUndoToast(
+        {
+          over: restingUntil(until),
+          say: awake.length === 1 && first ? first.title : plural(awake.length, 'song', 'songs'),
+        },
+        () => rest.mutateAsync({ songIds: awake, until: null }),
+        { songs: songs.filter(song => awake.includes(song.id)) },
+      )
+    },
+    wake: () => rest.mutate({ songIds: resting, until: null }),
     details: () => {
       const href = songLink(ids[0] ?? 0)
       if (onOpen) onOpen(href)

@@ -50,6 +50,7 @@ interface AdoptedSong {
   lyricsKind: string
   instrumental: boolean
   loved: boolean
+  restUntil: string | null
   playCount: number
   lastPlayedAt: string | null
   addedAt: string
@@ -125,11 +126,11 @@ export class SongRepository {
       INSERT INTO songs (
         uid, path, title, artist, album, album_artist, track_no, year, duration,
         size_bytes, mime, mtime_ms, has_art, art_ext, lyrics_kind, instrumental,
-        play_count, loved, source_url, last_played_at, added_at
+        play_count, loved, rest_until, source_url, last_played_at, added_at
       ) VALUES (
         @uid, @path, @title, @artist, @album, @albumArtist, @trackNo, @year, @duration,
         @sizeBytes, @mime, 0, 0, NULL, @lyricsKind, @instrumental,
-        @playCount, @loved, @sourceUrl, @lastPlayedAt, @addedAt
+        @playCount, @loved, @restUntil, @sourceUrl, @lastPlayedAt, @addedAt
       )
     `)
 
@@ -298,6 +299,7 @@ export class SongRepository {
       trackNo: 'track_no',
       loved: 'loved',
       instrumental: 'instrumental',
+      restUntil: 'rest_until',
     }
 
     for (const [key, column] of Object.entries(columns) as [keyof SongPatch, string][]) {

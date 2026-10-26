@@ -41,7 +41,8 @@ import {
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
 import {
-  AutoMixRow,
+  KeepGoingNext,
+  UpNextSwitches,
   ClearRestButton,
   PlayingNow,
   UpNextList,
@@ -436,6 +437,7 @@ function SheetPanel({
             raised={drag?.from ?? null}
             onHeights={listHeights}
             labelStyle={styles.labelInset}
+            afterNext={ended ? null : <KeepGoingNext style={styles.labelInset} />}
             head={
               ended && playing ? (
                 <OnlySongEnd song={playing.song} player={player} />
@@ -443,7 +445,9 @@ function SheetPanel({
                 <Text style={[styles.label, styles.labelInset]}>{nextLabel(rows.next)}</Text>
               )
             }
-            foot={<AutoMixRow player={player} upcoming={rows.next.length} style={styles.autoMix} />}
+            foot={
+              <UpNextSwitches player={player} upcoming={rows.next.length} style={styles.autoMix} />
+            }
           />
         )}
       </Animated.View>

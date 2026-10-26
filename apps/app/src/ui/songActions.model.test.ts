@@ -6,6 +6,7 @@ const one = {
   count: 1,
   loved: 0,
   held: 0,
+  resting: 0,
   installed: true,
   roomSong: false,
   inPlaylist: false,
@@ -26,6 +27,7 @@ describe('what can be done to songs', () => {
       'Add to Up next',
       'Play similar songs',
       'Download',
+      'Rest for a month',
       'Song details',
       'Delete from library…',
     ])
@@ -42,12 +44,22 @@ describe('what can be done to songs', () => {
       'Add to Up next',
       'Download the rest',
       'Remove 2 from this phone',
+      'Rest for a month',
       'Delete 3 songs from library…',
     ])
     expect(labels({ ...one, count: 2, loved: 2, held: 2 })).toContain('Unlike all')
     expect(labels({ ...one, count: 2, loved: 2, held: 2 })).toContain('Remove from this phone')
     expect(labels({ ...one, count: 2 })).toContain('Like all')
     expect(labels({ ...one, count: 2 })).toContain('Download all')
+  })
+
+  it('wakes a resting song, and rests or wakes several by their counts', () => {
+    expect(labels({ ...one, resting: 1 })).toContain('Wake up')
+    expect(labels({ ...one, resting: 1 })).not.toContain('Rest for a month')
+    expect(labels({ ...one, count: 3, resting: 1 })).toEqual(
+      expect.arrayContaining(['Rest for a month', 'Wake up 1']),
+    )
+    expect(labels({ ...one, count: 2, resting: 2 })).toContain('Wake up all')
   })
 
   it('keeps nothing on a browser', () => {
@@ -64,6 +76,7 @@ describe('what can be done to songs', () => {
       'addToPlaylist',
       'playSimilar',
       'download',
+      'rest',
       'delete',
     ])
   })
@@ -73,6 +86,7 @@ describe('what can be done to songs', () => {
       'addToPlaylist',
       'playSimilar',
       'download',
+      'rest',
       'details',
       'delete',
     ])
@@ -86,6 +100,7 @@ describe('what can be done to songs', () => {
       'Play similar songs',
       'Share link',
       'Download',
+      'Rest for a month',
       'Song details',
       'Delete from library…',
     ])

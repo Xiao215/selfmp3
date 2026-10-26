@@ -40,6 +40,7 @@ export function song(fields: Partial<Song> & Pick<Song, 'id' | 'title' | 'artist
     playCount: 0,
     loved: false,
     lovedAt: null,
+    restUntil: null,
     sourceUrl: null,
     lastPlayedAt: null,
     addedAt: '2026-09-01 12:00:00',

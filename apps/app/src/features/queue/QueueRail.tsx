@@ -32,7 +32,8 @@ import {
 } from './queue.model'
 import { useQueueEdits } from './useQueueEdits'
 import {
-  AutoMixRow,
+  KeepGoingNext,
+  UpNextSwitches,
   ClearRestButton,
   PlayingNow,
   UpNextList,
@@ -516,6 +517,7 @@ function Rail({
               rowHeight={ROW_HEIGHT}
               runsStyle={slide.rows}
               labelStyle={styles.labelInset}
+              afterNext={ended ? null : <KeepGoingNext style={styles.labelInset} />}
               head={
                 playing ? (
                   <>
@@ -570,7 +572,7 @@ function Rail({
               }}
             />
 
-            <AutoMixRow player={player} upcoming={rows.next.length} />
+            <UpNextSwitches player={player} upcoming={rows.next.length} />
           </>
         )}
 

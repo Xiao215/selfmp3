@@ -362,6 +362,7 @@ export class CloudAdopt {
       lyricsKind: song.lyrics?.kind ?? 'none',
       instrumental: song.instrumental,
       loved: song.loved,
+      restUntil: song.restUntil,
       playCount: song.playCount,
       lastPlayedAt: song.lastPlayedAt,
       addedAt: song.addedAt,

@@ -128,7 +128,7 @@ export function SongsAnswerCard({
             icon={<Play color={theme.colors.onPrimary} />}
             onPress={() => {
               fly(coverRef.current, ids)
-              player.playFrom(ids, 0, { source })
+              player.playFrom(ids, 0, { source, whole: true })
               onPlayed()
             }}
             testID="songs-answer-play"

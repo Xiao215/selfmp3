@@ -200,6 +200,9 @@ songs were played. Its switch says *When the list runs low, plays more of what p
 - **Where the room keeps them:** beside its state, never in it, so no socket carries them.
   Nobody can describe someone else's songs.
 - **Without vectors:** where the room has none for what played, it picks by turns alone.
+- **Alone:** Keep going picks the same way from your own library when Up next runs out
+  (lists.md, "Keep going"); the ordering is one function, `nearestFirst` in
+  `packages/shared/src/soundVectors.ts`.
 
 ## What friends see of you (S1)
 

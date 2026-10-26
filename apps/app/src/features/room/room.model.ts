@@ -5,13 +5,13 @@ import {
   ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
+  nearestFirst,
   soundCentre,
   type RoomAction,
   type RoomEntry,
   type RoomMember,
   type RoomSong,
   type RoomState,
-  shuffleArray,
 } from '@selfmp3/shared'
 import { roomTrackId, roomTrackSong, yoursOf, type LibraryIndex } from '@selfmp3/client'
 import type { RoomTrack } from '../../player/roomTracks'
@@ -352,12 +352,12 @@ export function keepGoingPicks(
   const waiting = new Set(
     state.entries.filter(entry => entry.playedAt === null).map(entry => keyOf(entry.song)),
   )
-  const byPerson = new Map<string, { action: RoomAction; near: number | null }[]>()
+  const byPerson = new Map<string, { action: RoomAction; song: RoomSong }[]>()
   const offer = (person: string, song: RoomSong, action: RoomAction): void => {
     const key = keyOf(song)
     if (recent.has(key) || waiting.has(key)) return
     const list = byPerson.get(person) ?? []
-    list.push({ action, near: closeness ? closeness(song) : null })
+    list.push({ action, song })
     byPerson.set(person, list)
   }
   for (const shelf of state.shelves) {
@@ -373,15 +373,11 @@ export function keepGoingPicks(
     offer(entry.owner ?? entry.addedBy, entry.song, { type: 'again', entryId: entry.id })
   }
 
-  const queues = [...byPerson.values()].map(list => {
-    const heard = list.filter(pick => pick.near !== null)
-    heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
-    const unheard = shuffleArray(
-      list.filter(pick => pick.near === null),
-      random,
-    )
-    return [...heard, ...unheard].map(pick => pick.action)
-  })
+  const queues = [...byPerson.values()].map(list =>
+    nearestFirst(list, pick => (closeness ? closeness(pick.song) : null), random).map(
+      pick => pick.action,
+    ),
+  )
   const picks: RoomAction[] = []
   for (let round = 0; picks.length < count; round++) {
     let any = false

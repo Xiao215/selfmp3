@@ -12,6 +12,7 @@ const song = (id: number, added: number, plays: number, loved: boolean, last: nu
   playCount: plays,
   loved,
   lastPlayedAt: last === null ? null : daysAgo(last),
+  restUntil: null as string | null,
 })
 
 // Library is a year old, so the threshold is the 60-day ceiling.
@@ -35,6 +36,16 @@ describe('forgottenGems', () => {
     // 3 is recent, 4 was never liked, 7 is one day short.
     expect(result.gems.map(gem => gem.song.id).sort((a, b) => a - b)).toEqual([1, 2, 5])
     expect(result.total).toBe(3)
+  })
+
+  it('passes over a resting song until it wakes', () => {
+    const until = (days: number) => new Date(NOW + days * DAY).toISOString()
+    const library = LIBRARY.map(each => (each.id === 1 ? { ...each, restUntil: until(5) } : each))
+    expect(
+      forgottenGems(library, { limit: 20, now: NOW }).gems.map(gem => gem.song.id),
+    ).not.toContain(1)
+    const woken = LIBRARY.map(each => (each.id === 1 ? { ...each, restUntil: until(-1) } : each))
+    expect(forgottenGems(woken, { limit: 20, now: NOW }).gems.map(gem => gem.song.id)).toContain(1)
   })
 
   it('ranks by plays times days since, within the random nudge', () => {

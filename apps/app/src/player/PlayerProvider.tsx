@@ -17,6 +17,7 @@ import {
   peekNext,
   playFrom,
   insertAt as insertAtIndex,
+  isResting,
   playNext as playNextIds,
   previous as previousInQueue,
   removeAt,
@@ -66,6 +67,7 @@ import { useConnection } from '../connection/ConnectionProvider'
 import { currentToasts, dismissToast, showToast, type ToastWords } from '../ui/toast'
 import { nowPlayingArtwork, type ArtSources } from './nowPlayingArt.model'
 import { handleRemoteCommands } from './remoteCommands'
+import { passOverResting, type ListStart } from './resting.model'
 import { useNowPlaying } from './useNowPlaying'
 import {
   createProgressStore,
@@ -115,8 +117,14 @@ interface PlayOptions {
   /**
    * What these songs are (docs/features/lists.md): the name Up next wears and
    * what Save makes of it. Left out, Up next is nameless.
+   *
+   * A list with a source is played as a list: its resting songs are passed
+   * over (`passOverResting`), but for the one whose row was tapped. Songs you
+   * picked are played as picked.
    */
   readonly source?: ListSource | null
+  /** The list's own Play, not a tapped row: a resting song where it starts is passed over too. */
+  readonly whole?: boolean
 }
 
 export interface PlayerApi {
@@ -755,9 +763,26 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     recoveryRef.current.skippedInARow = 0
   }, [])
 
+  /** Resting now (shared rest.ts): read when a list starts, so a song wakes by itself. */
+  const resting = useCallback((songId: number): boolean => {
+    const song = songsRef.current.get(songId)
+    return song !== undefined && isResting(song)
+  }, [])
+
+  /** What of a list plays (`PlayOptions.source`): resting songs are passed over. */
+  const listed = useCallback(
+    (list: ListStart, options: PlayOptions): ListStart => {
+      const { source } = options
+      if (!source || (source.kind === 'songs' && source.origin === 'selection')) return list
+      return passOverResting(list, resting, options.whole !== true)
+    },
+    [resting],
+  )
+
   const play = useCallback(
-    (songIds: readonly number[], startIndex: number, options: PlayOptions = {}) => {
+    (asked: readonly number[], at: number, options: PlayOptions = {}) => {
       const { shuffle, position, autoplay = true } = options
+      const { songIds, startIndex } = listed({ songIds: asked, startIndex: at }, options)
       const start = (): void => {
         // "Play" on a list means in order; a tapped row keeps whatever mode is
         // on.
@@ -774,7 +799,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, start)) return
       start()
     },
-    [loadIndex, checkPlay, mixed, commitQueue, freshRun],
+    [loadIndex, checkPlay, mixed, commitQueue, freshRun, listed],
   )
 
   /**
@@ -785,7 +810,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * than "always begins with track one".
    */
   const playShuffled = useCallback(
-    (songIds: readonly number[], listSource: ListSource | null = null) => {
+    (all: readonly number[], listSource: ListSource | null = null) => {
+      // Shuffle passes over resting songs, whatever the list.
+      const { songIds } = passOverResting({ songIds: all, startIndex: 0 }, resting, false)
       if (songIds.length === 0) return
       const begin = (start: number): void => {
         const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
@@ -804,7 +831,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (songId !== undefined && !checkPlay(songId, () => begin(start))) return
       begin(start)
     },
-    [loadIndex, checkPlay, mayPlay, commitQueue, freshRun],
+    [loadIndex, checkPlay, mayPlay, commitQueue, freshRun, resting],
   )
 
   const jumpTo = useCallback(

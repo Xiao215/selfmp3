@@ -35,6 +35,7 @@ jest.mock('@selfmp3/client', () => ({
   useLibrary: () => ({ data: { songs: [], playlists: [], tags: [] } }),
   useAddToPlaylist: () => ({ mutate: jest.fn() }),
   useBulkLoved: () => ({ mutate: jest.fn() }),
+  useRestSongs: () => ({ mutate: jest.fn(), mutateAsync: jest.fn() }),
   useCreatePlaylist: () => ({ mutateAsync: jest.fn() }),
   useBulkDeleteSongs: () => ({ mutate: mockDeleteSong, isPending: false }),
   useToggleLoved: () => ({ mutate: jest.fn() }),
@@ -85,6 +86,7 @@ const SONG = {
   duration: 224,
   sizeBytes: 4_000_000,
   loved: false,
+  restUntil: null,
   tagIds: [],
 } as unknown as Song
 
@@ -158,6 +160,7 @@ describe('what the menu offers', () => {
       /^Add to Up next$/,
       /^Play similar songs$/,
       /^Download$/,
+      /^Rest for a month$/,
       /^Song details$/,
       /^Delete from library…$/,
     ]
@@ -180,6 +183,7 @@ describe('what the menu offers', () => {
       /^Add to playlist/,
       /^Play similar songs$/,
       /^Download$/,
+      /^Rest for a month$/,
       /^Song details$/,
       /^Sleep timer/,
       /^Devices$/,
@@ -205,6 +209,7 @@ describe('what the menu offers', () => {
       /^Add to playlist/,
       /^Play similar songs$/,
       /^Download$/,
+      /^Rest for a month$/,
       /^Delete from library…$/,
     ]
     const names = itemNames()

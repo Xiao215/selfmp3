@@ -66,7 +66,7 @@ export function usePlaylistPlayback(): PlaylistPlayback {
   const play = useCallback(
     (playlistId: number, songIds: readonly number[]): void => {
       if (songIds.length === 0) return
-      player.playFrom(songIds, 0, { shuffle: false, source: sourceFor(playlistId) })
+      player.playFrom(songIds, 0, { shuffle: false, source: sourceFor(playlistId), whole: true })
       markPlayed(playlistId)
     },
     [player, markPlayed, sourceFor],

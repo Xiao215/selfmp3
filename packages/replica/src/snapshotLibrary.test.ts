@@ -28,6 +28,7 @@ const song = (u: string, overrides: Partial<CloudSong> = {}): CloudSong => ({
   motion: null,
   instrumental: false,
   loved: false,
+  restUntil: null,
   playCount: 0,
   lastPlayedAt: null,
   addedAt: '2026-09-01 10:00:00',

@@ -36,6 +36,8 @@ export interface SongRow {
   instrumental: number
   play_count: number
   loved: number
+  /** ISO time a resting song wakes, or null (shared rest.ts). */
+  rest_until: string | null
   source_url: string | null
   last_played_at: string | null
   added_at: string
@@ -149,6 +151,7 @@ export function toSong(row: SongRow): Song {
     playCount: row.play_count,
     loved: row.loved === 1,
     lovedAt: lovedAt(row.loved === 1, row.loved_hlc),
+    restUntil: row.rest_until,
     sourceUrl: row.source_url,
     lastPlayedAt: row.last_played_at,
     addedAt: row.added_at,

@@ -393,7 +393,7 @@ export function PastRoomScreen(): ReactNode {
             songIds={ids}
             empty={false}
             heroRef={heroRef}
-            onPlay={() => player.playFrom(ids, 0, { source })}
+            onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
             testPrefix="past-room"
           />

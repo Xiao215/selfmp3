@@ -18,6 +18,7 @@ import { Toggle } from '../../ui/components/Toggle'
 import { useRoom } from '../room/room.store'
 import { autoMixLine, upNextWindow, type QueueRow } from './queue.model'
 import { closeQueueSheet, useQueueSheetOpen } from './queueSheet.store'
+import { setKeepGoing, useKeepGoingOn } from './keepGoingPref'
 import { Press } from '../../ui/components/Press'
 
 /*
@@ -162,8 +163,50 @@ export function ClearRestButton({
   )
 }
 
+/**
+ * The switches at Up next's foot, one above the other: Auto-mix, and Keep
+ * going beside it (docs/features/lists.md), each kept on this device.
+ */
+export function UpNextSwitches({
+  player,
+  upcoming,
+  style,
+}: {
+  player: Pick<PlayerApi, 'autoMix' | 'setAutoMix' | 'canCrossfade' | 'nextCrossfadeSeconds'>
+  upcoming: number
+  style?: StyleProp<ViewStyle>
+}): ReactNode {
+  const keepGoing = useKeepGoingOn()
+  return (
+    <View style={[styles.switches, style]}>
+      <AutoMixRow player={player} upcoming={upcoming} />
+      <View style={styles.autoMix}>
+        <Toggle value={keepGoing} onChange={setKeepGoing} label="Keep going" testID="keep-going" />
+        <Text style={styles.autoMixLabel}>Keep going</Text>
+        <Text style={styles.autoMixHint} numberOfLines={1}>
+          When Up next ends
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+/**
+ * What comes after Up next's last song while Keep going is on: songs like
+ * these, which it adds as the last one plays. Nothing while it is off.
+ */
+export function KeepGoingNext({ style }: { style?: StyleProp<ViewStyle> }): ReactNode {
+  const keepGoing = useKeepGoingOn()
+  if (!keepGoing) return null
+  return (
+    <Text style={[styles.thenLike, style]} testID="keep-going-next">
+      then songs like these
+    </Text>
+  )
+}
+
 /** Auto-mix's switch, and what it will do next. */
-export function AutoMixRow({
+function AutoMixRow({
   player,
   upcoming,
   style,
@@ -222,6 +265,7 @@ export function UpNextList({
   rowHeight,
   renderRow,
   head,
+  afterNext,
   foot,
   overlay,
   raised,
@@ -239,6 +283,8 @@ export function UpNextList({
   rowHeight: number
   renderRow: (row: QueueRow, kind: 'next' | 'played') => ReactNode
   head?: ReactNode
+  /** Drawn after what is next and before what played: Keep going's line. */
+  afterNext?: ReactNode
   foot?: ReactNode
   overlay?: (songsTop: number) => ReactNode
   /** The queue index of a row drawn over its neighbours: the one being carried. */
@@ -262,6 +308,7 @@ export function UpNextList({
   const [viewport, setViewport] = useState(VIEWPORT_GUESS)
   const [headHeight, setHeadHeight] = useState(0)
   const [playedLabel, setPlayedLabel] = useState(0)
+  const [afterNextHeight, setAfterNextHeight] = useState(0)
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const y = event.nativeEvent.contentOffset.y
@@ -288,7 +335,7 @@ export function UpNextList({
   })
   const playedAt = upNextWindow({
     count: played.length,
-    runTop: headHeight + next.length * rowHeight + playedLabel,
+    runTop: headHeight + next.length * rowHeight + afterNextHeight + playedLabel,
     scrollTop,
     span,
     rowHeight,
@@ -323,6 +370,11 @@ export function UpNextList({
             .slice(nextAt.start, nextAt.end)
             .map((row, at) => place(row, nextAt.start + at, 'next'))}
         </View>
+        {afterNext ? (
+          <View onLayout={event => setAfterNextHeight(event.nativeEvent.layout.height)}>
+            {afterNext}
+          </View>
+        ) : null}
         {played.length > 0 ? (
           <>
             <Text
@@ -362,7 +414,14 @@ const styles = StyleSheet.create(theme => ({
   clearPressed: { backgroundColor: theme.colors.surface3 },
   clearText: smallTitle(theme.colors),
   clearTextDense: { fontSize: type.small },
+  switches: { gap: space.sm },
   autoMix: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  thenLike: {
+    color: theme.colors.textMuted,
+    fontSize: type.sub,
+    fontStyle: 'italic',
+    paddingVertical: space.sm,
+  },
   autoMixLabel: { color: theme.colors.textSecondary, fontSize: type.sub, fontWeight: '500' },
   autoMixHint: {
     flex: 1,

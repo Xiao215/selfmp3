@@ -645,7 +645,7 @@ describe('opening', () => {
   })
 
   it('brings a copy kept before the snapshot’s shape settled up to it, without the bucket', async () => {
-    // A copy kept before every song named its motion curve and every snapshot
+    // A copy kept before every song named its motion curve and its rest, and every snapshot
     // its artists, sound, artists' other names, spellings and cover packs, and
     // its server's id. Thrown away, it had to be read again — and on a
     // day the bucket refuses reads that left a phone with no library at all,
@@ -662,7 +662,13 @@ describe('opening', () => {
     } = SNAPSHOT
     const unnamed = { addresses: ['http://music.example.com'], token: 'library-token' }
     const songs = older.songs.map(
-      ({ motion: _motion, audioFeatures: _features, coverTone: _tone, ...song }) => song,
+      ({
+        motion: _motion,
+        audioFeatures: _features,
+        coverTone: _tone,
+        restUntil: _rest,
+        ...song
+      }) => song,
     )
     store.data.set('cloud-base', {
       key: SNAPSHOT_KEY,
@@ -812,6 +818,7 @@ const SNAPSHOT: CloudSnapshot = {
       motion: null,
       instrumental: false,
       loved: false,
+      restUntil: null,
       playCount: 0,
       lastPlayedAt: null,
       addedAt: '2026-09-01 10:00:00',

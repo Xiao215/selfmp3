@@ -4,7 +4,7 @@ import { Animated, Pressable, Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { GestureResponderEvent, StyleProp, ViewStyle } from 'react-native'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { plural, artistOr, formatDuration, type Song, type Tag } from '@selfmp3/shared'
+import { plural, artistOr, formatDuration, isResting, type Song, type Tag } from '@selfmp3/shared'
 import { HIT_TARGET, motion, radius, space, type, iconSize, coverSize } from '@selfmp3/client'
 import {
   chipBudget,
@@ -37,7 +37,7 @@ import { TagDot } from './TagDot'
 import { usePresence, usePressScale } from '../motion'
 import { EASE_OUT_CSS, MOVE_MS, OPACITY, PRESS } from '../motion.model'
 import { floating, rowTitle } from '../surfaces'
-import { Downloaded, More, Play, TagPlus } from './Icons'
+import { Downloaded, Moon, More, Play, TagPlus } from './Icons'
 import { useSvgId } from '../useSvgId'
 import { COLUMN_WIDTH, SIDEBAR_WIDTH } from '../../shell/widths'
 import { CONTROL_SCALE } from '../textScale'
@@ -197,6 +197,7 @@ export const SongRow = memo(function SongRow({
   listKey?: string
 }): ReactNode {
   const playback = useSongPlayback(song.id)
+  const resting = isResting(song)
   const active = activeOverride ?? playback !== null
   const playing = playback === 'playing'
   // The wash and the equaliser, arriving as this row becomes the playing one
@@ -276,6 +277,8 @@ export const SongRow = memo(function SongRow({
     // Selected: a translucent accent that reads as picked on the dark UI.
     selected && styles.selected,
     unavailable && styles.unavailable,
+    // Resting (shared rest.ts): set aside, a little faded, and still a tap from playing.
+    resting && !unavailable && styles.resting,
     // Held and moving: off the page, over the rows it is passing.
     lifted && styles.lifted,
   ]
@@ -295,7 +298,7 @@ export const SongRow = memo(function SongRow({
       {...press.handlers}
       delayLongPress={MOVE_MS.longPress}
       accessibilityRole="button"
-      accessibilityLabel={`${song.title}, ${artistOr(song.artist)}`}
+      accessibilityLabel={`${song.title}, ${artistOr(song.artist)}${resting ? ', resting' : ''}`}
       accessibilityState={{ selected: active }}
       {...(listKey ? ROW_PRESS : null)}
       {...untabbed}
@@ -322,6 +325,7 @@ export const SongRow = memo(function SongRow({
       </Waking>
     ) : null
   const hereMark = downloaded ? <Downloaded size={iconSize.sub} tone="good" /> : null
+  const restMark = resting ? <Moon size={iconSize.sub} tone="textMuted" /> : null
   const chips = (budget: number): ReactNode =>
     tags && tags.length > 0 ? (
       <RowTags
@@ -400,6 +404,7 @@ export const SongRow = memo(function SongRow({
                 <View style={styles.subtitleRow} pointerEvents="box-none">
                   <View style={styles.subtitleWords} pointerEvents="none" {...UNREAD}>
                     {hereMark}
+                    {restMark}
                     <Text style={styles.subtitle} numberOfLines={1}>
                       {artistOr(song.artist)}
                     </Text>
@@ -484,6 +489,7 @@ export const SongRow = memo(function SongRow({
               {title}
               <View style={styles.subtitleRow}>
                 {hereMark}
+                {restMark}
                 <Text style={styles.artist} numberOfLines={1}>
                   {artistOr(song.artist)}
                 </Text>
@@ -918,6 +924,9 @@ const styles = StyleSheet.create(theme => ({
   // The palette's own selected-row colour, so picking a row is recoloured by
   // the accent picker without re-rendering a list of them.
   selected: { backgroundColor: theme.colors.accentSelected },
+  resting: {
+    opacity: OPACITY.resting,
+  },
   unavailable: {
     opacity: OPACITY.dim,
   },

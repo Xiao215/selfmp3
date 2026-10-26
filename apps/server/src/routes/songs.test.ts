@@ -265,6 +265,27 @@ describe('POST /api/songs/merge', () => {
     expect(((await off.json()) as { tagIds: number[] }).tagIds).toEqual([alpha])
   })
 
+  it('rests songs in one request, and stamps the rest for every device', async () => {
+    const one = insert('群青')
+    const two = insert('夜に駆ける')
+    const until = '2026-11-24T12:00:00.000Z'
+    const response = await post('/api/songs/bulk/edit', {
+      edits: [one, two].map(songId => ({ songId, patch: { restUntil: until } })),
+    })
+    expect(await response.json()).toEqual({ affected: 2 })
+    expect(container.songs.byId(one)).toMatchObject({ restUntil: until })
+    expect(container.songs.byId(two)).toMatchObject({ restUntil: until })
+    const stamped = container.db
+      .prepare(
+        "SELECT s.uid FROM sync_stamps t JOIN songs s ON s.uid = t.uid WHERE t.kind = 'song' AND t.field = 'restUntil'",
+      )
+      .all() as { uid: string }[]
+    expect(stamped).toHaveLength(2)
+
+    await post('/api/songs/bulk/edit', { edits: [{ songId: one, patch: { restUntil: null } }] })
+    expect(container.songs.byId(one)).toMatchObject({ restUntil: null })
+  })
+
   it('counts a song already gone as deleted, for a delete asked again', async () => {
     const song = insert('Gone')
     const first = await post('/api/songs/bulk/delete', { songIds: [song] })

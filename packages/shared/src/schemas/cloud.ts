@@ -217,6 +217,12 @@ export const CloudSongSchema = z.object({
   motion: fileKey('lyrics').nullable(),
   instrumental: z.boolean(),
   loved: z.boolean(),
+  /**
+   * Resting until then, or null (schemas/song.ts). A bucket written before
+   * songs could rest names none, and reads as awake: a server must read its
+   * own last snapshot before it may publish the next one.
+   */
+  restUntil: z.string().nullable().default(null),
   playCount: z.number().int().nonnegative(),
   lastPlayedAt: z.string().nullable(),
   addedAt: z.string(),

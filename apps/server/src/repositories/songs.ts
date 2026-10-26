@@ -104,6 +104,9 @@ export class SongRepository {
   readonly #setCoverTone
   readonly #allPaths
   readonly #inFolder
+  readonly #leaving
+  readonly #allLeaving
+  readonly #copyGone
   /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
   readonly #patches = new Map<string, Database.Statement>()
 
@@ -214,6 +217,13 @@ export class SongRepository {
     this.#inFolder = db.prepare<[string, string], { n: number }>(
       'SELECT COUNT(*) AS n FROM (SELECT 1 FROM songs WHERE path >= ? AND path < ? LIMIT 1)',
     )
+    this.#leaving = db.prepare<[string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM leaving_copies WHERE path = ?',
+    )
+    this.#allLeaving = db.prepare<[], { song_id: number; path: string }>(
+      'SELECT song_id, path FROM leaving_copies ORDER BY path',
+    )
+    this.#copyGone = db.prepare<[string]>('DELETE FROM leaving_copies WHERE path = ?')
   }
 
   all(): Song[] {
@@ -505,5 +515,24 @@ export class SongRepository {
   allPaths(): Map<string, { id: number; mtimeMs: number }> {
     const rows = this.#allPaths.all()
     return new Map(rows.map(row => [row.path, { id: row.id, mtimeMs: row.mtime_ms }]))
+  }
+
+  /**
+   * Whether a removed song's copy at this path is still to be deleted. A row's
+   * deletion notes its path (migration 51), so the note outlives a server
+   * killed before the copy went.
+   */
+  isLeaving(path: string): boolean {
+    return (this.#leaving.get(path)?.n ?? 0) > 0
+  }
+
+  /** Removed songs whose copies are still to be deleted, for a start to finish. */
+  leaving(): { id: number; path: string }[] {
+    return this.#allLeaving.all().map(row => ({ id: row.song_id, path: row.path }))
+  }
+
+  /** A removed song's copy is gone: the sweep may make a song of that path again. */
+  copyGone(path: string): void {
+    this.#copyGone.run(path)
   }
 }

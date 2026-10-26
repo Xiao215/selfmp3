@@ -1222,6 +1222,25 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 54. A removed song's copy in the inbox is deleted after its row, and a
+    // copy not yet deleted is not the sweep's to make a new song of. That was
+    // held in memory only: a server killed during a big removal came back
+    // with the copies it had not reached as new songs (bug bash R3-M8). The
+    // row's deletion now notes its copy, in the same transaction however the
+    // row goes — a removal here, a fold, another device's — and the note goes
+    // once the copy has; a start finishes whatever is left.
+    name: 'a removed song’s copy is remembered until it has gone',
+    sql: `
+      CREATE TABLE IF NOT EXISTS leaving_copies (
+        path    TEXT    PRIMARY KEY,
+        song_id INTEGER NOT NULL
+      );
+      CREATE TRIGGER IF NOT EXISTS songs_leaving AFTER DELETE ON songs BEGIN
+        INSERT OR REPLACE INTO leaving_copies (path, song_id) VALUES (old.path, old.id);
+      END;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

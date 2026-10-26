@@ -61,7 +61,9 @@ interface RemovedElsewhere {
  *
  * The database is strict and the file system forgiving: the rows go first, in
  * one step, a copy that will not go never keeps the row, and the caller is told
- * which copies it was forgiving about.
+ * which copies it was forgiving about. Between the two, the row's deletion has
+ * noted its copy (`SongRepository.isLeaving`), so a sweep in the meantime — or
+ * the first one after a crash — does not make a new song of it.
  */
 export class SongRemovalService {
   readonly #storage: StorageDriver
@@ -75,7 +77,6 @@ export class SongRemovalService {
   readonly #lyricsIndex: Pick<LyricsIndexService, 'remove'>
   readonly #onChange: () => void
   readonly #logger: Logger
-  readonly #leaving = new Set<string>()
 
   constructor(deps: {
     storage: StorageDriver
@@ -151,8 +152,6 @@ export class SongRemovalService {
     // removing them takes them (shared `tagsEmptiedBy`): an empty tag made a
     // moment ago is nobody's leftover.
     for (const tagId of tagsEmptiedBy(tags, removed)) this.#tags.delete(tagId)
-    // Until its files are tidied, a copy still on disk is not a new song.
-    for (const song of removed) this.#leaving.add(song.path)
     return { songs: removed, alreadyGone }
   }
 
@@ -170,7 +169,7 @@ export class SongRemovalService {
         const problem = await this.#cleanUp(song)
         if (problem) failed.push({ songId: song.id, reason: problem, removed: true })
       } finally {
-        this.#leaving.delete(song.path)
+        this.#songs.copyGone(song.path)
       }
     }
     return { removed: taken.songs.map(song => song.id), alreadyGone: taken.alreadyGone, failed }
@@ -178,7 +177,39 @@ export class SongRemovalService {
 
   /** Whether this path's song has been removed and its copy is still being tidied away. */
   isLeaving(key: string): boolean {
-    return this.#leaving.has(key)
+    return this.#songs.isLeaving(key)
+  }
+
+  /**
+   * Finish tidying after songs whose rows went and whose copies had not by
+   * the time the server stopped — killed in the middle of a big removal, say.
+   * Before the first sweep, which would otherwise find those copies. A path a
+   * new song has taken since is that song's, and its file stays.
+   */
+  async finishLeaving(): Promise<void> {
+    const left = this.#songs.leaving()
+    if (left.length === 0) return
+    for (const song of left) {
+      try {
+        const problem = await this.#cleanUp(song, { copy: !this.#songs.byPath(song.path) })
+        if (problem) {
+          this.#logger.warn('could not delete a removed song’s copy', {
+            path: song.path,
+            message: problem,
+          })
+        }
+      } catch (error) {
+        this.#logger.warn('could not tidy up a removed song', {
+          path: song.path,
+          message: messageOf(error),
+        })
+      } finally {
+        this.#songs.copyGone(song.path)
+      }
+    }
+    this.#logger.info('finished tidying after songs removed before the server stopped', {
+      songs: left.length,
+    })
   }
 
   /**
@@ -204,6 +235,8 @@ export class SongRemovalService {
           path: song.path,
           message: messageOf(error),
         })
+      } finally {
+        this.#songs.copyGone(song.path)
       }
     }
   }
@@ -211,14 +244,20 @@ export class SongRemovalService {
   /**
    * Everything but the row. A problem with the copy on disk is reported rather
    * than thrown; what is derived from the row goes either way, since the row is
-   * going.
+   * going. `copy: false` leaves the file at the song's path, which another
+   * song has taken since.
    */
-  async #cleanUp(song: Pick<Song, 'id' | 'path'>): Promise<string | null> {
+  async #cleanUp(
+    song: Pick<Song, 'id' | 'path'>,
+    { copy = true }: { copy?: boolean } = {},
+  ): Promise<string | null> {
     let problem: string | null = null
     try {
-      if (await this.#storage.exists(song.path)) await this.#storage.delete(song.path)
-      await this.#lyrics.deleteSidecar(song.path)
-      await removeFolderIfEmpty(this.#storage, song.path)
+      if (copy) {
+        if (await this.#storage.exists(song.path)) await this.#storage.delete(song.path)
+        await this.#lyrics.deleteSidecar(song.path)
+        await removeFolderIfEmpty(this.#storage, song.path)
+      }
     } catch (error) {
       problem = error instanceof Error ? error.message : 'could not delete the copy on disk'
     }

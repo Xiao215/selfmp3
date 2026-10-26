@@ -9,6 +9,7 @@ import { useFieldPointer } from './fieldInput'
 import {
   CORE,
   dustSpecks,
+  flareReach,
   glowReach,
   GLOW_STOPS,
   SKY_EDGE,
@@ -174,6 +175,33 @@ function coverImage(uri: string | null | undefined, arrived: () => void): HTMLIm
   return null
 }
 
+/**
+ * A bright star's four-pointed flare: two thin strokes through it, brightest
+ * at the star and fading to nothing at their ends.
+ */
+function flare(
+  ctx: CanvasRenderingContext2D,
+  spot: { x: number; y: number },
+  reach: number,
+  color: string,
+): void {
+  ctx.lineWidth = 0.8
+  for (const [dx, dy] of [
+    [reach, 0],
+    [0, reach],
+  ] as const) {
+    const stroke = ctx.createLinearGradient(spot.x - dx, spot.y - dy, spot.x + dx, spot.y + dy)
+    stroke.addColorStop(0, withAlpha(color, 0))
+    stroke.addColorStop(0.5, withAlpha(color, 0.9))
+    stroke.addColorStop(1, withAlpha(color, 0))
+    ctx.strokeStyle = stroke
+    ctx.beginPath()
+    ctx.moveTo(spot.x - dx, spot.y - dy)
+    ctx.lineTo(spot.x + dx, spot.y + dy)
+    ctx.stroke()
+  }
+}
+
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -258,6 +286,7 @@ function draw(
     ctx.drawImage(glowOf(point.glow), spot.x - reach, spot.y - reach, reach * 2, reach * 2)
     if (covers) shown.push({ point, x: spot.x, y: spot.y })
     else {
+      if (point.flare) flare(ctx, spot, flareReach(point, r, view.scale, base), point.core)
       ctx.fillStyle = point.core
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, r * CORE, 0, Math.PI * 2)

@@ -75,7 +75,7 @@ export function ImportReview({
   // Songs known only by name — a Spotify list, 网易云's VIP songs — are found as the review shows.
   const finder = useFindSongs(source.lookUp, key, review)
   // A9: the model's names for the rows whose names look wrong, each offered under its row.
-  const suggestions = useImportNames(source.api, key, review)
+  const suggestions = useImportNames(source.lookUp, key, review)
   /** Imported or cancelled: the draft empties as the page leaves, which is not a review to go looking for. */
   const [leaving, setLeaving] = useState(false)
 

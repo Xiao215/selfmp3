@@ -47,6 +47,9 @@ const OPEN = 26
 const CARD_WHOLE = 5
 const CARD_SHOWS = 3
 
+/** Nothing left out: a count of everything in a list (`countOf`). */
+const NONE_LEFT_OUT: ReadonlySet<string> = new Set()
+
 /** How many changes a heading shows before "N more". */
 const SECTION_SHOWS = 3
 /** How many songs an opened change lists first; Ask's library answer lists as many. */
@@ -118,7 +121,8 @@ export function Review<T extends Reviewed>({
   changes,
   sectionOf,
   head,
-  tickedText = approved => `${approved.length} ticked.`,
+  countOf = list => list.length,
+  tickedText = (approved, leftOut) => `${countOf(approved, leftOut)} ticked.`,
   notes,
   bandText,
   drawChange,
@@ -140,6 +144,13 @@ export function Review<T extends Reviewed>({
   /** The heading a change is listed under in its band. */
   sectionOf: (change: T) => string
   head: string
+  /**
+   * What the review counts, the one count all its numbers are in — what is
+   * ticked, each band and section, "Review all": its changes, or a caller's
+   * own unit (the tags' songs, `tagCounter`). Its head and button count the
+   * same way.
+   */
+  countOf?: (list: readonly T[], leftOut: ReadonlySet<string>) => number
   /** What is ticked, in words, under the head. */
   tickedText?: (approved: readonly T[], leftOut: ReadonlySet<string>) => string
   /** Lines under the head, after the ticked count. */
@@ -500,7 +511,8 @@ export function Review<T extends Reviewed>({
   const small = (notes ?? []).map(note => <AnswerNote key={note}>{note}</AnswerNote>)
   const bandsDrawn = bands.map(band => {
     const list = band.sections.flatMap(section => section.changes)
-    const on = list.filter(isOn).length
+    const on = countOf(list.filter(isOn), leftOut)
+    const total = countOf(list, NONE_LEFT_OUT)
     const all = list.every(fullyOn)
     const id = `band:${band.by}`
     const model = band.by === 'model'
@@ -511,7 +523,7 @@ export function Review<T extends Reviewed>({
           ref={place(id)}
           checked={all}
           mixed={on > 0}
-          label={`${text.title}, ${on} of ${list.length} ticked`}
+          label={`${text.title}, ${on} of ${total} ticked`}
           onPress={() => {
             setAt(null)
             flip(list, !all)
@@ -524,7 +536,7 @@ export function Review<T extends Reviewed>({
           {model ? <Sparkle size={iconSize.field} /> : null}
           <Text style={styles.bandTitle}>{text.title}</Text>
           <Text style={styles.count}>
-            {on} of {list.length} ticked
+            {on} of {total} ticked
           </Text>
         </CheckRow>
         <Text style={styles.bandNote}>{text.note}</Text>
@@ -539,7 +551,7 @@ export function Review<T extends Reviewed>({
                   {section.title}
                 </Text>
                 <Text style={[styles.sectionText, styles.sectionCount]}>
-                  {section.changes.length}
+                  {countOf(section.changes, NONE_LEFT_OUT)}
                 </Text>
               </View>
               {shown.map(each => drawRow(each))}
@@ -549,7 +561,7 @@ export function Review<T extends Reviewed>({
                   indent={CHANGE_TEXT}
                   at={at}
                   place={place}
-                  text={`${section.changes.length - shown.length} more`}
+                  text={`${countOf(section.changes.slice(shown.length), NONE_LEFT_OUT)} more`}
                   onPress={() => setAllOf(toggle(allOf, section.title))}
                 />
               ) : null}
@@ -670,7 +682,7 @@ export function Review<T extends Reviewed>({
         <View style={styles.cardFoot}>
           {first ? (
             <Button
-              label={`Review all ${changes.length}`}
+              label={`Review all ${countOf(changes, NONE_LEFT_OUT)}`}
               variant="text"
               size="small"
               onPress={() => setWhole(true)}

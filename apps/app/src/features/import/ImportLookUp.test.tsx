@@ -126,6 +126,17 @@ describe('Import, coming back after a look-up', () => {
     await act(async () => draw())
     expect(screen.getByLabelText('Links to import').props['value']).toBe('https://youtu.be/abc')
   })
+
+  it('lets go of what went wrong once the box is edited', async () => {
+    mockImportPreview.mockRejectedValue(new ApiError(400, 'That is not a link this can read.'))
+    await act(async () => draw())
+    await lookUp()
+    await waitFor(() => expect(screen.getByText('That is not a link this can read.')).toBeTruthy())
+    await act(async () => {
+      await fireEvent.changeText(screen.getByLabelText('Links to import'), 'https://youtu.be/abd')
+    })
+    expect(screen.queryByText('That is not a link this can read.')).toBeNull()
+  })
 })
 
 /*

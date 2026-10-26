@@ -90,7 +90,11 @@ tile opens the tag's own page (`/tag/<name>`). With a pointer, the record slides
 songs another tag carries hangs off that tag's tile as a small chip ("Inside: ● late night
 drives… 3"), which opens it, and tags with only a song or two wait at the end, so the page opens on the ones in use. The header's **+** opens the new-tag card —
 a name field, the colours and **Create**, which stays open after each one because tags
-arrive in handfuls. The sidebar shows the four tags used last; its TAGS header opens this
+arrive in handfuls. A new tag left uncoloured — there, in Import, or from Ask's tag review —
+takes the palette's hue farthest from every tag's (`newTagHue`, `TAG_HUES` in
+`packages/shared/src/editRules.ts`; the server and a cloud library pick alike), the name
+choosing between hues as far; the first swatch shows it before Create. Its name alone once
+chose, and "calm" came out the red "live" already was (X5, 2026-10-25). The sidebar shows the four tags used last; its TAGS header opens this
 page.
 
 Combining is not here: a tag's or an artist's page has **Combine with…** (`AddSheet.tsx`),
@@ -100,6 +104,12 @@ tag strip is the one place a tag is still a filter.
 A tag whose name is an artist's asks first (`P11`): **Open the artist**, or **Make the tag
 anyway**. Closing the question any other way makes nothing. It runs wherever a tag is made by
 name — the new-tag card, the sidebar's **+** and the picker's **Create…**.
+
+An artist's page has, beside **Make a tag from this artist**, **Other names…**
+(`ArtistNamesEditor.tsx`): one field of names apart by commas that search finds the artist
+by too, in a popover beside the ⋯ (a sheet on a phone). Saved, it closes; a refusal keeps it
+open and says why (X8, 2026-10-25: it used to stay open with a tick on Save, and read as not
+saved).
 
 ## Tagging what is playing
 

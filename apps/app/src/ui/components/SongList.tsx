@@ -6,6 +6,8 @@ import {
   View,
   type FlatListProps,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native'
@@ -30,6 +32,9 @@ function keyOf(song: Song): string {
  * become a wait rather than an answer.
  */
 const ARRIVING = 12
+
+/** More than the selection bar's room ever is: how far past the window a list with it open may scroll. */
+const PINNED_ROOM = 96
 
 /**
  * A list of songs, wherever one is shown.
@@ -176,6 +181,39 @@ export function SongList({
   const onHeaderLayout = (event: LayoutChangeEvent): void =>
     setStayAfter(event.nativeEvent.layout.height)
 
+  /*
+   * `pinned` opening — the selection bar's room under the head — pushed every
+   * row on screen down by as much, so the next tick landed on the song above
+   * the one aimed at (X7, 2026-10-25). The list scrolls by what it grows, in
+   * the same frame, so the rows hold still under the pointer and the head
+   * gives up the room instead; closing gives it back. Where the offset is is
+   * kept here, and moved on at once by each step, since the scroll's own
+   * report of it arrives a frame late.
+   *
+   * A short list — a tag on three songs — cannot scroll that far, so while
+   * the room is open the list is at least a window and the room tall
+   * (`PINNED_ROOM`): there is always somewhere to scroll to, below the songs.
+   */
+  const offset = useRef(0)
+  const pinnedHeight = useRef<number | null>(null)
+  const [roomOpen, setRoomOpen] = useState(false)
+  const [viewport, setViewport] = useState(0)
+  const onPinnedLayout = (event: LayoutChangeEvent): void => {
+    const height = event.nativeEvent.layout.height
+    const was = pinnedHeight.current
+    pinnedHeight.current = height
+    // Its first size is where it starts, not a change.
+    if (was === null || height === was) return
+    if (was === 0) setRoomOpen(true)
+    if (height === 0) setRoomOpen(false)
+    offset.current = Math.max(0, offset.current + height - was)
+    listRef.current?.scrollToOffset({ offset: offset.current, animated: false })
+  }
+  const onListLayout = (event: LayoutChangeEvent): void => {
+    setViewport(event.nativeEvent.layout.height)
+    scrollbar.onLayout?.(event)
+  }
+
   const getItemLayout = useMemo<FlatListProps<Song>['getItemLayout']>(
     () =>
       rowHeight !== null && rowHeight > 0
@@ -200,7 +238,7 @@ export function SongList({
       <PinnedHeaderScope stayAfter={stayAfter}>
         <FlatList
           ref={listRef}
-          onLayout={scrollbar.onLayout}
+          onLayout={pinned ? onListLayout : scrollbar.onLayout}
           {...LIST_SEMANTICS}
           aria-label={label}
           aria-rowcount={songs.length}
@@ -215,7 +253,11 @@ export function SongList({
           keyboardDismissMode={keyboardDismissMode}
           scrollEnabled={scrollEnabled}
           style={pinned ? [style, styles.anchorless] : style}
-          contentContainerStyle={contentContainerStyle}
+          contentContainerStyle={
+            roomOpen
+              ? [contentContainerStyle, { minHeight: viewport + PINNED_ROOM }]
+              : contentContainerStyle
+          }
           // Room under the last song for a phone's floating tab bar and mini player.
           ListFooterComponent={ChromeSpacer}
           ListHeaderComponent={
@@ -230,13 +272,23 @@ export function SongList({
                 <View key="head" onLayout={onHeaderLayout}>
                   {header}
                 </View>
-                {pinned}
+                <View key="pinned" onLayout={onPinnedLayout}>
+                  {pinned}
+                </View>
               </>
             ) : (
               header
             )
           }
           {...(pinned ? pinnedHeaderProps(stayAfter) : null)}
+          {...(pinned
+            ? {
+                onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  offset.current = event.nativeEvent.contentOffset.y
+                },
+                scrollEventThrottle: 16,
+              }
+            : null)}
           onRefresh={onRefresh}
           refreshing={refreshing}
           ListEmptyComponent={empty}
@@ -264,8 +316,7 @@ function Arriving({ index, children }: { index: number; children: ReactNode }): 
 }
 
 const styles = StyleSheet.create({
-  // `pinned` opening above what is on screen moves it down, as it should, so
-  // the bar never lands on the song just ticked; a browser left to itself
-  // would scroll to keep what is on screen still under it.
+  // `pinned` opening above what is on screen is answered by `onPinnedLayout`;
+  // a browser left to itself would scroll for it as well, and twice is a jump.
   anchorless: { _web: { overflowAnchor: 'none' } },
 })

@@ -70,7 +70,8 @@ export class TagRepository {
     const existing = this.byName(name)
     if (existing) return existing
 
-    this.#insert.run(name, newTagHue(name, hue))
+    const inUse = this.#all.all().map(row => row.hue)
+    this.#insert.run(name, newTagHue(name, hue, inUse))
     const created = this.byName(name)
     if (!created) throw new Error(`failed to create tag ${JSON.stringify(name)}`)
     return created

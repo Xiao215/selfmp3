@@ -279,13 +279,13 @@ const find = action({
 
 const tags = action({
   name: 'tags',
-  when: 'anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn\'t Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. Nothing else to fill: the request itself is what is used.',
+  when: 'anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn\'t Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. The request itself says which songs and tags. When they say how many songs to change, fill "filters" with that number as size and nothing else; otherwise filters is null.',
   fields: null,
-  filters: 'unused',
+  filters: 'optional',
   switch: { key: 'tags', label: 'Tags' },
-  run: async ({ deps, text, steps }) => ({
+  run: async ({ deps, text, steps }, _fields, filters) => ({
     kind: 'tags',
-    review: await tagReview(deps, { text }, steps),
+    review: await tagReview(deps, { text, limit: filters?.size ?? null }, steps),
   }),
 })
 

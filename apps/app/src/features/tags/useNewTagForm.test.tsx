@@ -71,6 +71,16 @@ describe('useNewTagForm', () => {
     expect(hook.result.current.failed).toBe(false)
   })
 
+  it('offers a colour far from the tags there are, as the server would give it', async () => {
+    const red = { ...LATE, id: 2, name: 'live', hue: 0 }
+    const orange = { ...LATE, id: 3, name: 'rock', hue: 22 }
+    const hook = await renderHook(() =>
+      useNewTagForm({ tags: [red, orange], onExisting: jest.fn() }),
+    )
+    await act(() => hook.result.current.setName('calm'))
+    expect(hook.result.current.hue).toBe(192)
+  })
+
   it('makes it in the colour picked, then clears for the next', async () => {
     const onMade = jest.fn()
     const hook = await renderHook(() => useNewTagForm({ tags: [], onExisting: jest.fn(), onMade }))

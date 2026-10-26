@@ -3,11 +3,9 @@ import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { ARTIST_NAMES_MAX, namesFor, tidyArtistNames, type Artist } from '@selfmp3/shared'
-import { failureText, space, type, useLibrary, useSetArtistNames, iconSize } from '@selfmp3/client'
-import { useAccent } from '../../ui/accent'
+import { failureText, space, type, useLibrary, useSetArtistNames } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { TextField } from '../../ui/components/TextField'
-import { Check } from '../../ui/components/Icons'
 import { Popover } from '../../ui/components/Popover'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { label } from '../../ui/surfaces'
@@ -39,7 +37,7 @@ export function ArtistNamesEditor({
       width={320}
       testID="artist-names-editor"
     >
-      {artist ? <Editor key={artist.key} artist={artist} /> : null}
+      {artist ? <Editor key={artist.key} artist={artist} onSaved={onClose} /> : null}
     </Popover>
   )
 }
@@ -49,8 +47,11 @@ function namesTyped(text: string): string[] {
   return text.split(/[,，、]/)
 }
 
-function Editor({ artist }: { artist: Artist }): ReactNode {
-  const accent = useAccent()
+/**
+ * Saved, it closes: left open with a tick on Save, it read as not saved
+ * (X8, 2026-10-25). A refusal keeps it open and says why.
+ */
+function Editor({ artist, onSaved }: { artist: Artist; onSaved: () => void }): ReactNode {
   const { data: library } = useLibrary()
   const saved = library ? namesFor(library.artistNames, artist.key) : []
   const [text, setText] = useState(saved.join(', '))
@@ -60,7 +61,7 @@ function Editor({ artist }: { artist: Artist }): ReactNode {
   const changed = names.join('\n') !== saved.join('\n')
   const submit = (): void => {
     if (!changed) return
-    save.mutate({ artist: artist.name, names })
+    save.mutate({ artist: artist.name, names }, { onSuccess: onSaved })
   }
 
   return (
@@ -89,11 +90,6 @@ function Editor({ artist }: { artist: Artist }): ReactNode {
               variant="primary"
               disabled={!changed || save.isPending}
               onPress={submit}
-              icon={
-                save.isSuccess && !changed ? (
-                  <Check size={iconSize.sub} color={accent.onAccent} />
-                ) : undefined
-              }
             />
           }
         />

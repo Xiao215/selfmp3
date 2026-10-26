@@ -70,14 +70,17 @@ const setFloating = (change: 1 | -1): void => {
  * all and none, More and Done — and what is done to the selection is the
  * caller's: its `actions` in the bar, and its `menu` behind More.
  *
- * On a computer it takes a lane of its own at the top of the list area: the
- * list below it is that much shorter, so at no scroll position does the bar
- * cover a row. On a page whose head scrolls with its songs it is drawn in the
- * list instead, at the head's foot, and stays at the top once the head has gone
- * (`inline`, in `SongList`'s `pinned`). It never floats over the list: the row
- * it would land on is the one just ticked, which you could then neither read
- * nor untick. Instead the lane opens rather than
- * appearing: the room grows from nothing to the bar's height over `motion.base`
+ * On a computer it never floats over the list: the row it would land on is
+ * the one just ticked, which you could then neither read nor untick. Nor does
+ * it push the list down: the next tick then landed on the song above the one
+ * aimed at (X7, 2026-10-25). Library's takes the place of the page's title row
+ * (`overHead`): the title, the search and the order are about the view, and
+ * the view stays put while you act on what is ticked in it. On a page whose
+ * head scrolls with its songs it is drawn in the list instead, at the head's
+ * foot, and stays at the top once the head has gone (`inline`, in `SongList`'s
+ * `pinned`), and the list scrolls by the room it opens so the rows hold still.
+ * Elsewhere (Search) it takes a lane of its own at the top of the list area,
+ * which is that much shorter. A lane opens rather than appearing: the room grows from nothing to the bar's height over `motion.base`
  * and closes again over `motion.fast`, and the bar comes down into it. The room
  * is a height, so it is the one thing here on the JavaScript side (as the
  * up-next rail's room is, and for the same reason); the bar's own fade and
@@ -115,6 +118,7 @@ export function SelectionLane({
   onDone,
   shown,
   inline = false,
+  overHead = false,
   actions,
   moreRef,
   summary,
@@ -146,6 +150,11 @@ export function SelectionLane({
    * the head. The room it opens is then in the list, under the head.
    */
   inline?: boolean
+  /**
+   * On a computer, drawn over the page's title row, which it is laid in,
+   * rather than opening room: nothing under it moves.
+   */
+  overHead?: boolean
   /** What the bar itself offers, in order. */
   actions: readonly BarAction[]
   /** More's button, which the menu opens beside and the caller may anchor to. */
@@ -229,10 +238,10 @@ export function SelectionLane({
    */
   const [room] = useState(() => new Animated.Value(0))
   useEffect(() => {
-    if (!wide) return
+    if (!wide || overHead) return
     if (shown) timing(room, 1, motion.base, undefined, { easing: ease.out, native: false })
     else timing(room, 0, motion.fast, undefined, { easing: ease.in, native: false })
-  }, [wide, shown, room])
+  }, [wide, overHead, shown, room])
   const roomStyle = useMemo(
     () => ({
       height: room.interpolate({
@@ -340,7 +349,7 @@ export function SelectionLane({
   // faded and settled in over its room.
   const lane = (
     <Animated.View
-      style={[styles.laneOver, arrival]}
+      style={[overHead ? styles.laneOverHead : styles.laneOver, arrival]}
       pointerEvents={shown ? 'box-none' : 'none'}
       onLayout={event => setMeasured(event.nativeEvent.layout.height)}
     >
@@ -396,7 +405,10 @@ export function SelectionLane({
   )
 
   const bar = wide ? (
-    inline ? (
+    overHead ? (
+      // Over the title row: no room, so nothing moves.
+      lane
+    ) : inline ? (
       // In the list: the room is under the head, and the lane is over it.
       <Animated.View style={roomStyle}>{lane}</Animated.View>
     ) : (
@@ -495,6 +507,21 @@ const styles = StyleSheet.create(theme => ({
    * room it will sit in has been measured.
    */
   laneOver: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4 },
+  /*
+   * Over the page's title row (`overHead`), on the page's own ground so the
+   * title, search and order are gone under it rather than showing round the
+   * bar, which sits at the row's foot, by the songs.
+   */
+  laneOverHead: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+    justifyContent: 'flex-end',
+    backgroundColor: theme.colors.surface0,
+  },
   /*
    * Pinned at the top of a list whose head has scrolled away, the songs pass
    * under the lane: the page's own ground behind the bar, so they go beneath

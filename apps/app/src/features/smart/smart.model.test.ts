@@ -38,8 +38,9 @@ import {
   tagIdsFor,
   took,
   yearLabel,
-  shortTagsApply,
-  shortTagsTitle,
+  tagCounter,
+  tagsApply,
+  tagsTitle,
   shortTidyApply,
   shortTidyTitle,
 } from './smart.model'
@@ -452,6 +453,32 @@ describe('tag changes', () => {
     ])
   })
 
+  it('counts songs once each while every change is on songs, else changes', () => {
+    const songsOnly = tagChangesHere(
+      [
+        change({ key: 'a', songIds: [1, 2] }),
+        change({ key: 'n', tag: 'Mandopop', isNew: true, songIds: [2] }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    const count = tagCounter(songsOnly)
+    // Song 12 is in both changes: one song.
+    expect(count(songsOnly)).toBe(1)
+    expect(count(songsOnly, new Set([leftOutKey('a', 12), leftOutKey('n', 12)]))).toBe(0)
+    const withMerge = tagChangesHere(
+      [
+        change({ key: 'a', songIds: [1, 2] }),
+        change({ key: 'm', op: 'merge', tag: 'chinese pop', to: '中文流行' }),
+      ],
+      onDevice,
+      songsById,
+      tags,
+    )
+    expect(tagCounter(withMerge)(withMerge)).toBe(2)
+  })
+
   it('makes new tags first, then songs, renames, merges and deletes, with what Undo needs', () => {
     const here = tagChangesHere(
       [
@@ -552,22 +579,23 @@ describe('askSuggestions', () => {
 })
 
 describe('a short review, in words (AD1)', () => {
-  it('titles a handful of changes by what they do', () => {
-    expect(shortTagsTitle(['add'])).toBe('One tag to add')
-    expect(shortTagsTitle(['add', 'add', 'add'])).toBe('3 tags to add')
-    expect(shortTagsTitle(['remove', 'remove'])).toBe('2 tags to take off')
-    expect(shortTagsTitle(['add', 'rename'])).toBe('2 changes to your tags')
+  it('titles a tag review in songs, or in changes when a tag itself changes', () => {
+    expect(tagsTitle(['add'], 1)).toBe('Tags for one song')
+    expect(tagsTitle(['add', 'add', 'add'], 5)).toBe('Tags for 5 songs')
+    expect(tagsTitle(['remove', 'remove'], 2)).toBe('Tags to take off 2 songs')
+    expect(tagsTitle(['add', 'remove'], 3)).toBe('Tag changes for 3 songs')
+    expect(tagsTitle(['add', 'rename'], 2)).toBe('2 changes to your tags')
     expect(shortTidyTitle(1)).toBe('One thing to fix')
     expect(shortTidyTitle(4)).toBe('4 things to fix')
   })
 
   it('names the action on its button, by how many are ticked', () => {
-    expect(shortTagsApply(['add'], 1)).toBe('Add it')
-    expect(shortTagsApply(['add', 'add', 'add'], 3)).toBe('Add 3 tags')
+    expect(tagsApply(['add'], 1)).toBe('Tag 1 song')
+    expect(tagsApply(['add', 'add', 'add'], 5)).toBe('Tag 5 songs')
     // Nothing ticked keeps the verb; the button is disabled.
-    expect(shortTagsApply(['add', 'add'], 0)).toBe('Add')
-    expect(shortTagsApply(['remove'], 1)).toBe('Take it off')
-    expect(shortTagsApply(['add', 'merge'], 2)).toBe('Make 2 changes')
+    expect(tagsApply(['add', 'add'], 0)).toBe('Tag')
+    expect(tagsApply(['remove'], 2)).toBe('Take tags off 2 songs')
+    expect(tagsApply(['add', 'merge'], 2)).toBe('Make 2 changes')
     expect(shortTidyApply(1)).toBe('Fix it')
     expect(shortTidyApply(3)).toBe('Fix 3 things')
   })

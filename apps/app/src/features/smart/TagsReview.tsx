@@ -16,9 +16,10 @@ import {
   type ShortReview,
 } from './Review'
 import {
-  shortTagsApply,
-  shortTagsTitle,
   tagChangesHere,
+  tagCounter,
+  tagsApply,
+  tagsTitle,
   tagSection,
   tagSteps,
   type TagHere,
@@ -61,6 +62,9 @@ export function TagsReview({
     () => tagChangesHere(review.changes, server.onDevice, songsById, library?.tags ?? []),
     [review.changes, server.onDevice, songsById, library?.tags],
   )
+  // One count everywhere on the review: its songs, or its changes when a tag itself changes.
+  const count = useMemo(() => tagCounter(here), [here])
+  const ops = here.map(each => each.change.op)
 
   const notes: string[] = []
   if (review.note) notes.push(review.note)
@@ -103,7 +107,9 @@ export function TagsReview({
       showUndoToast('Some of the changes were made', done.undo, { tone: 'warn', after })
       return false
     }
-    const made = `Made ${plural(approved.length, 'change', 'changes')} to your tags`
+    const made = ops.every(op => op === 'add' || op === 'remove')
+      ? `Changed the tags on ${songCount(count(approved, leftOut))}`
+      : `Made ${plural(approved.length, 'change', 'changes')} to your tags`
     showUndoToast(made, done.undo, { tone: 'good', after })
     return made
   }
@@ -137,14 +143,10 @@ export function TagsReview({
       : first.title
   }
   const short: ShortReview<TagHere> = {
-    title: list => shortTagsTitle(list.map(each => each.change.op)),
+    title: list => tagsTitle(ops, count(list)),
     song: each => songsById.get(each.songIds[0]!),
     why: each => each.change.why,
-    apply: approved =>
-      shortTagsApply(
-        here.map(each => each.change.op),
-        approved.length,
-      ),
+    apply: (approved, leftOut) => tagsApply(ops, count(approved, leftOut)),
     line: each => {
       const { change: c } = each
       const hue = each.tag?.hue
@@ -195,10 +197,11 @@ export function TagsReview({
       // A change on one song has nothing to open, so its song shows from the start.
       openAtFirst={here.filter(each => each.songIds.length === 1).map(each => each.change.key)}
       sectionOf={each => tagSection(each.change)}
+      countOf={count}
       head={
         review.asked !== null
-          ? `${plural(here.length, 'change', 'changes')} to your tags`
-          : `${plural(here.length, 'suggestion', 'suggestions')} for ${songCount(review.looked)} without a tag`
+          ? tagsTitle(ops, count(here))
+          : `Tags for ${count(here)} of your ${songCount(review.looked)} without a tag`
       }
       notes={notes}
       bandText={{
@@ -258,9 +261,7 @@ export function TagsReview({
         }
       }}
       songLine={song => artistOr(song.artist)}
-      applyLabel={approved =>
-        approved.length === 0 ? 'Apply' : `Apply ${plural(approved.length, 'change', 'changes')}`
-      }
+      applyLabel={(approved, leftOut) => tagsApply(ops, count(approved, leftOut))}
       keyWord="apply"
       onApply={apply}
       height={height}

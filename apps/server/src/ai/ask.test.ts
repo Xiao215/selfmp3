@@ -267,6 +267,38 @@ describe('ask', () => {
     expect(d.llm.asked[1]!.prompt).toContain('tag the yorushika songs that should be jpop')
   })
 
+  it('hands the tag review the number of songs asked for', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'tags', filters: { ...noFilters, size: 2 } })],
+      'tags-plan': [
+        {
+          checkup: false,
+          ops: [],
+          focus: [],
+          newTag: null,
+          songs: 'untagged',
+          artists: [],
+        },
+      ],
+      'tags-groups': [
+        {
+          groups: ['g1', 'g2', 'g3'].map(g => ({
+            g,
+            add: ['jpop'],
+            remove: [],
+            newTag: null,
+            sure: 'high',
+            why: 'J-pop',
+          })),
+        },
+      ],
+    })
+    const answer = await ask(d, 'tag two of my untagged songs')
+    if (answer.kind !== 'tags') throw new Error('not tags')
+    expect(new Set(answer.review.changes.flatMap(change => change.songIds)).size).toBe(2)
+    expect(answer.review.note).toContain('Kept to 2 songs, as you asked.')
+  })
+
   it('changes names the way it was asked, on the songs the filters choose', async () => {
     const d = deps({
       'ask-route': [
@@ -548,7 +580,7 @@ describe('the router, built from the actions', () => {
   it('tells the model every action in its own words, and the filters only where they are read', () => {
     const system = routeSystem(ASK_ACTIONS)
     for (const each of ASK_ACTIONS) expect(system).toContain(`- ${each.name}: ${each.when}`)
-    expect(system).toContain('"filters", for songs, together, library, tidy, playlistSongs:')
+    expect(system).toContain('"filters", for songs, together, tags, library, tidy, playlistSongs:')
   })
 
   it('gives each action with fields its own part of the form, and the rest none', () => {

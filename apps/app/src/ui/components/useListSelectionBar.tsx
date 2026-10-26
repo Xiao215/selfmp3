@@ -10,9 +10,11 @@ interface ListSelectionBar {
   /**
    * Drawn before the list, in the box the list fills: a phone's bar, which
    * floats at the foot, and a computer's lane above a list with no head of
-   * its own (`placement="aboveList"`). Null where the bar is `pinned` instead.
+   * its own (`placement="aboveList"`). Null where the bar is elsewhere.
    */
   readonly beforeList: ReactElement | null
+  /** A computer's bar laid in the page's title row (`placement="overHead"`); null otherwise. */
+  readonly overHead: ReactElement | null
   /** The list's pinned lane on a computer, at the head's foot; null otherwise. */
   readonly pinned: ReactElement | null
   /** The list's bottom room on a phone while the bar is up, so the last row can scroll out from under it. */
@@ -27,8 +29,9 @@ const UNDER_THE_BAR: ViewStyle = { paddingBottom: SELECTION_BAR_SPACE }
  * to show, so it rises and sinks rather than appearing; floating at the foot
  * on a phone, with room left under the last row; on a computer either in the
  * list at the head's foot, staying at the top once the head has scrolled away
- * (a page whose head scrolls with its songs), or a lane of its own above the
- * list (Library and Search, whose heads stay put).
+ * (a page whose head scrolls with its songs), over the page's title row
+ * (Library, whose head stays put), or a lane of its own above the list
+ * (Search). None of them moves a row on screen (X7).
  *
  * Library and Search had mounted the bar by hand: Search worked out its
  * selected songs afresh every render and left the room under its rows twice.
@@ -49,13 +52,17 @@ export function useListSelectionBar({
   wide: boolean
   /** A search or filter is narrowing the list, which the bar says of "all". */
   narrowed?: boolean
-  /** On a computer: in the list under a head that scrolls away, or a lane above the list. */
-  placement?: 'underHead' | 'aboveList'
+  /**
+   * On a computer: in the list under a head that scrolls away, over the
+   * page's title row (the screen lays `overHead` in it), or a lane above the list.
+   */
+  placement?: 'underHead' | 'overHead' | 'aboveList'
   /** A playlist whose membership the bar may edit. */
   playlist?: { readonly id: number; readonly name: string }
 }): ListSelectionBar {
   const selected = useMemo(() => songs.filter(song => selection.has(song.id)), [songs, selection])
   const inList = wide && placement === 'underHead'
+  const overTitle = wide && placement === 'overHead'
   const bar = (
     <SelectionBar
       shown={selection.active}
@@ -69,10 +76,12 @@ export function useListSelectionBar({
       onDone={selection.clear}
       playlist={playlist}
       inline={inList}
+      overHead={overTitle}
     />
   )
   return {
-    beforeList: inList ? null : bar,
+    beforeList: inList || overTitle ? null : bar,
+    overHead: overTitle ? bar : null,
     pinned: inList ? bar : null,
     listPadding: selection.active && !wide ? UNDER_THE_BAR : undefined,
   }

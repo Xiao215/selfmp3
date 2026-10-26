@@ -226,16 +226,16 @@ describe('importErrorText', () => {
       importErrorText(new ApiError(422, 'This video isn’t on YouTube any more.', 'unprocessable')),
     ).toBe('This video isn’t on YouTube any more.')
     expect(importErrorText(new ApiError(0, TIMED_OUT, 'offline'))).toBe(
-      'Your server took too long to answer. Try again in a moment.',
+      'Your library took too long to answer. Try again in a moment.',
     )
     expect(importErrorText(new ApiError(0, 'signal is aborted without reason', 'offline'))).toBe(
-      'Your server isn’t reachable right now.',
+      'Your library isn’t reachable right now.',
     )
     expect(importErrorText(new ApiError(500, 'POST /api/import/preview failed (500)'))).toBe(
-      'Your server couldn’t do that. Try again.',
+      'Couldn’t do that. Try again.',
     )
     expect(importErrorText(new ApiError(404, 'POST /api/import/preview failed (404)'))).toBe(
-      'Your server couldn’t do that. Try again.',
+      'Couldn’t do that. Try again.',
     )
   })
 })

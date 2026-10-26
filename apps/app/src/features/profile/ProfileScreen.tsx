@@ -7,7 +7,7 @@ import type { Stats } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, type ServerConnection } from '@selfmp3/client'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
-import { Download, Settings, ShareOut, SoundMap, Sparkles } from '../../ui/components/Icons'
+import { BarChart, Download, Settings, ShareOut, SoundMap } from '../../ui/components/Icons'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useArt } from '../../offline/useArt'
 import { Avatar } from '../../ui/components/Avatar'
@@ -40,7 +40,7 @@ import { NOTHING_PLAYED_YET, SHOWS_WHEN_REACHABLE } from '../library/library.mod
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
-  report: Sparkles,
+  stats: BarChart,
   soundMap: SoundMap,
   links: ShareOut,
   settings: Settings,
@@ -48,7 +48,7 @@ const ICONS: Record<ProfileRowId, typeof Settings> = {
 
 /**
  * Profile (`P31`): the person and how big the library is, this month as one
- * card that opens Stats, then Import, Report, Links you shared and Settings
+ * card that opens Stats, then Import, Stats, Links you shared and Settings
  * (profile.model.ts).
  *
  * Behind the avatar on a phone's Home; a computer reaches it from the name row
@@ -165,7 +165,7 @@ function Month({
       onPress={() => router.push('/stats')}
       accessibilityRole="link"
       accessibilityLabel={monthCardSpoken(month)}
-      testID="profile-stats"
+      testID="profile-month"
       style={styles.month}
     >
       <View style={styles.monthHead}>

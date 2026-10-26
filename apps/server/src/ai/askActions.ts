@@ -165,18 +165,21 @@ const songs = action({
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
     const { understanding, unknown } = groundPlan(plan, deps.songs(), deps.tags())
+    // Steering from the song playing ("next", "more like this") leaves it out:
+    // it is what they move on from. Asked for any other way ("make a list of
+    // them" while one of them plays), it is one of the songs like any other.
+    const from = steering || like ? playing : undefined
     const found = await narrowAndPick(
       deps,
       `${text}${nowPlaying}`,
       understanding,
       unknown,
-      [],
+      from ? [from.id] : [],
       steps,
       // Only when they asked for music like it: what sounds close to it comes first.
       like && playing ? playing.id : null,
     )
-    // The song playing is what they are steering from, never one of the picks.
-    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== playing?.id) }
+    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== from?.id) }
     return { kind: 'songs', lead: steering ? 'next' : play ? 'play' : 'save', describe }
   },
 })

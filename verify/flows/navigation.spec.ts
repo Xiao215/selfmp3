@@ -83,15 +83,15 @@ test.describe('navigation', () => {
     await expect(page.getByTestId('home-screen')).toBeVisible({ timeout: 30_000 })
 
     // Profile is the avatar in Home's header (`P31`): the person, this month as one
-    // card that opens Stats, then Import, Report and Settings.
+    // card that opens Stats, then Import, Stats and Settings.
     await page.getByTestId('home-you').click()
     await expect(page.getByTestId('profile-screen')).toBeVisible()
     await expect(page.getByTestId('profile-import')).toBeVisible()
-    await expect(page.getByTestId('profile-report')).toBeVisible()
+    await expect(page.getByTestId('profile-stats')).toBeVisible()
     // Tags is Home's, through its tiles and "All N tags"; not a row here.
     await expect(page.getByTestId('profile-tags')).toHaveCount(0)
 
-    await page.getByTestId('profile-stats').click()
+    await page.getByTestId('profile-month').click()
     await expect(page.getByRole('heading', { name: 'Stats', exact: true })).toBeVisible({
       timeout: 30_000,
     })

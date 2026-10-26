@@ -57,7 +57,7 @@ export function useTileGrid({
   phoneColumns?: number
 }): { columns: number; tileWidth: number } {
   // The app's own width, not the window's: an iPad in Split View is handed
-  // half the screen and told about the whole of it (`shell/rootWidth.ts`).
+  // half the screen and told about the whole of it (`shell/layoutSize.model.ts`).
   const { wide, width } = useLayout()
   const column = useContentWidth()
   const rowWidth = !wide

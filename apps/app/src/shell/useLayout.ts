@@ -4,7 +4,7 @@ import { BREAKPOINT } from '@selfmp3/client'
 
 import { finePointer } from '../ports/pointer'
 import { createValueStore } from '../state/valueStore.model'
-import { readRootWidth, subscribeRootWidth } from './rootWidth'
+import { createLayoutSize, type Size } from './layoutSize.model'
 
 /**
  * Which layout the app is wearing, and the width it was decided from.
@@ -55,36 +55,40 @@ interface Layout {
  * its own listener and a render for every pixel a window is dragged.
  */
 const windowSize = createValueStore<ScaledSize>(Dimensions.get('window'))
+/** What the layout is decided from: the window or the root, whichever said last (`layoutSize.model.ts`). */
+const layoutSize = createLayoutSize(Dimensions.get('window'))
 let listening = false
 
+function listen(): void {
+  if (listening) return
+  listening = true
+  Dimensions.addEventListener('change', ({ window }) => {
+    windowSize.set(window)
+    layoutSize.window(window)
+  })
+}
+
 function subscribeWindow(listener: () => void): () => void {
-  if (!listening) {
-    listening = true
-    Dimensions.addEventListener('change', ({ window }) => windowSize.set(window))
-  }
+  listen()
   return windowSize.subscribe(listener)
 }
 
-function subscribeWidth(listener: () => void): () => void {
-  const stopWindow = subscribeWindow(listener)
-  const stopRoot = subscribeRootWidth(listener)
-  return () => {
-    stopWindow()
-    stopRoot()
-  }
+function subscribeSize(listener: () => void): () => void {
+  listen()
+  return layoutSize.size.subscribe(listener)
 }
 
-/**
- * The app's own root, where it has been measured: an iPad in Split View is
- * given half the screen, and the window it is told about can still be the
- * whole of it (`rootWidth.ts`).
- */
-const readWidth = (): number => readRootWidth() ?? windowSize.get().width
+/** The app's root view, measured: `app/_layout.tsx` reports it. */
+export function setRootSize(size: Size): void {
+  layoutSize.root(size)
+}
+
+const readWidth = (): number => layoutSize.size.get().width
 
 /** A finger, and a window taller than it is wide: an iPad held in portrait. */
 function readUpright(): boolean {
   if (finePointer) return false
-  const { width, height } = windowSize.get()
+  const { width, height } = layoutSize.size.get()
   return height > width
 }
 
@@ -102,8 +106,8 @@ function layoutAt(width: number, upright: boolean): Layout {
  * only asks `wide` or `dense` asks `useLayoutValue`.
  */
 export function useLayout(): Layout {
-  const width = useSyncExternalStore(subscribeWidth, readWidth, readWidth)
-  const upright = useSyncExternalStore(subscribeWindow, readUpright, readUpright)
+  const width = useSyncExternalStore(subscribeSize, readWidth, readWidth)
+  const upright = useSyncExternalStore(subscribeSize, readUpright, readUpright)
   return layoutAt(width, upright)
 }
 
@@ -128,7 +132,7 @@ export function useLayoutFlags(): Omit<Layout, 'width'> {
  */
 export function useLayoutValue<T>(select: (layout: Layout) => T): T {
   const read = (): T => select(layoutAt(readWidth(), readUpright()))
-  return useSyncExternalStore(subscribeWidth, read, read)
+  return useSyncExternalStore(subscribeSize, read, read)
 }
 
 /**

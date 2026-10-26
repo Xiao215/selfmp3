@@ -84,12 +84,23 @@ export function QueueSheet({ go }: { go?: (href: Href) => void }): ReactNode {
   // as `Sheet` is. Adjusted during render so opening never shows a frame without it.
   const [mounted, setMounted] = useState(shown)
   if (shown && !mounted) setMounted(true)
-  const gone = useCallback(() => setMounted(false), [])
+  /*
+   * Open before this sheet was: the rail beside an iPad's page, and the iPad
+   * turned upright. Drawn where it already is, as the page under it is,
+   * rather than rising again over the turn (R2-m17). Opened from here, it rises.
+   */
+  const [openBefore, setOpenBefore] = useState(shown)
+  const gone = useCallback(() => {
+    setMounted(false)
+    setOpenBefore(false)
+  }, [])
   // Here, above the panel, so an Undo raised before it shut still reaches the queue.
   const edits = useQueueEdits(mounted, go)
   useOnlySongEndNotice(edits.player)
 
-  return mounted ? <SheetPanel shown={shown} onGone={gone} edits={edits} go={go} /> : null
+  return mounted ? (
+    <SheetPanel shown={shown} risen={openBefore} onGone={gone} edits={edits} go={go} />
+  ) : null
 }
 
 /**
@@ -119,11 +130,14 @@ interface SheetRowActions {
 
 function SheetPanel({
   shown,
+  risen,
   onGone,
   edits,
   go,
 }: {
   shown: boolean
+  /** Already up when it came to be (`QueueSheet`): it starts there. */
+  risen: boolean
   onGone: () => void
   edits: ReturnType<typeof useQueueEdits>
   go?: (href: Href) => void
@@ -136,7 +150,7 @@ function SheetPanel({
   const factsOf = useQueueRowFacts()
   const { player, rows, remove, clearRest, openTag } = edits
   const inRoom = useRoom().state !== null
-  const [progress] = useState(() => new Animated.Value(0))
+  const [progress] = useState(() => new Animated.Value(risen ? 1 : 0))
   // Pulled down by its head, as every sheet is (`useSheetPull`): only the
   // head, not the list, so a pull on the rows is still a scroll.
   const { pull, gesture: pullDown } = useSheetPull(closeQueueSheet)
@@ -165,6 +179,13 @@ function SheetPanel({
     inRoom || sizes.panel === 0 || sizes.content === 0
       ? tallest
       : Math.min(tallest, Math.max(Math.round(height / 2), Math.ceil(wanted)))
+  /*
+   * Already up when it came to be, it waits out of sight until it knows how
+   * tall it is: drawn at once, it stood the whole height of the screen over
+   * the page until its list had been measured, a second and more on a busy
+   * iPad just turned upright.
+   */
+  const unseen = risen && !inRoom && (sizes.panel === 0 || sizes.content === 0)
   const listHeights = useCallback((frame: number | null, content: number | null) => {
     setSizes(now => {
       const next = { ...now, frame: frame ?? now.frame, content: content ?? now.content }
@@ -360,6 +381,7 @@ function SheetPanel({
             paddingBottom: insets.bottom + space.md,
             transform: [{ translateY: rise }],
           },
+          unseen && styles.unseen,
         ]}
         onLayout={event => {
           const panel = event.nativeEvent.layout.height
@@ -736,6 +758,7 @@ const GRABBER_HIT = 8
 const ROW_HEIGHT_GUESS = 64
 
 const styles = StyleSheet.create(theme => ({
+  unseen: { opacity: 0 },
   panel: {
     position: 'absolute',
     left: 0,

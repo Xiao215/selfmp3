@@ -101,7 +101,7 @@ export function PhoneWordsBody({
   onLineMenu?: (index: number, at: PopoverAnchor | null) => void
   style: StyleProp<ViewStyle>
 }): ReactNode {
-  // The app's own width, not the window's (`shell/rootWidth.ts`).
+  // The app's own width, not the window's (`shell/layoutSize.model.ts`).
   const { width } = useLayout()
   return (
     <View

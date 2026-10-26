@@ -427,7 +427,10 @@ const styles = StyleSheet.create(theme => ({
   },
   titles: { gap: space.tight, flexShrink: 1, minWidth: 0 },
   titlesOverArt: { alignItems: 'flex-start' },
-  titlesWide: { flexGrow: 1, flexBasis: 220 },
+  // Never narrower than the basis, which alone did not keep it: with Up next's
+  // rail beside a tag's page on an iPad the name and its summary were drawn
+  // ten points wide, a letter to a line, rather than the buttons wrapping.
+  titlesWide: { flexGrow: 1, flexBasis: 220, minWidth: 220 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
   nameSerif: nameTitle(theme.colors),

@@ -37,7 +37,7 @@ import { useLayout, useLayoutValue } from './useLayout'
 import { ease, timing, useFade, usePresence } from '../ui/motion'
 import { MOVE_MS } from '../ui/motion.model'
 import { isRoomTrackId, motion, space, useLibrary, useToggleLoved } from '@selfmp3/client'
-import { pageKey, stepSide } from './pageStep'
+import { pageKey, pageStepped, stepSide, type PageShown } from './pageStep'
 import { stackMoves } from '../ports/stackMoves'
 import { onDeepLinkRoute } from '../ports/deepLinks'
 import {
@@ -360,11 +360,15 @@ const PAGE_STEP_WIDE = 6
 function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): ReactNode {
   const pathname = usePathname()
   const key = pageKey(pathname, wide, stackMoves)
-  const [shown, setShown] = useState(key)
-  const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1 })
-  if (key !== null && key !== shown) {
-    setShown(key)
-    if (shown !== null) setStep({ count: step.count + 1, side: stepSide(shown, key) })
+  const [shown, setShown] = useState<PageShown | null>(key === null ? null : { key, wide })
+  // Under the layout it was taken in: the layout changing later is not a step.
+  const [step, setStep] = useState({ count: 0, side: 1 as -1 | 1, wide })
+  if (key !== null && (key !== shown?.key || wide !== shown.wide)) {
+    const now = { key, wide }
+    setShown(now)
+    if (shown !== null && pageStepped(shown, now)) {
+      setStep({ count: step.count + 1, side: stepSide(shown.key, key), wide })
+    }
   }
   const [value] = useState(() => new Animated.Value(1))
   // How far, and which way: a number sent to a node, so the step's nodes are
@@ -383,10 +387,10 @@ function PageStep({ wide, children }: { wide: boolean; children: ReactNode }): R
   // Before the paint, so the new page's first frame is already stepped aside.
   useLayoutEffect(() => {
     if (step.count === 0) return
-    distance.setValue(wide ? PAGE_STEP_WIDE : PAGE_STEP_PHONE * step.side)
+    distance.setValue(step.wide ? PAGE_STEP_WIDE : PAGE_STEP_PHONE * step.side)
     value.setValue(0)
-    timing(value, 1, wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
-  }, [step, value, distance, wide])
+    timing(value, 1, step.wide ? MOVE_MS.page : MOVE_MS.tab, undefined, { easing: ease.out })
+  }, [step, value, distance])
 
   return (
     <Animated.View style={[styles.content, wide ? moves.wide : moves.phone]}>

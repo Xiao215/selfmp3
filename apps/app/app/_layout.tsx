@@ -40,8 +40,7 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { useLayoutFlags } from '../src/shell/useLayout'
-import { setRootWidth } from '../src/shell/rootWidth'
+import { setRootSize, useLayoutFlags } from '../src/shell/useLayout'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { useRoom } from '../src/features/room/room.store'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
@@ -193,8 +192,8 @@ export default function RootLayout(): ReactNode {
     // gestures under, and a handler mounted outside one never fires.
     <GestureHandlerRootView
       style={styles.root}
-      // The width every screen lays out by, measured here (`shell/rootWidth`).
-      onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
+      // The size every screen lays out by, measured here (`shell/layoutSize.model.ts`).
+      onLayout={event => setRootSize(event.nativeEvent.layout)}
     >
       <SafeAreaProvider>
         {/* A narrow desktop window's traffic lights, as a phone's status bar. */}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_QUEUE, type Playlist, type QueueState, type Song, type Tag } from '@selfmp3/shared'
+import {
+  EMPTY_QUEUE,
+  NO_JOINS,
+  type Playlist,
+  type QueueState,
+  type Song,
+  type Tag,
+} from '@selfmp3/shared'
 
 import {
   combinedLink,
@@ -316,11 +323,28 @@ describe('Recently played', () => {
     const library = {
       songs: [song(1, { tagIds: [1] }), song(2, { tagIds: [1] }), song(3)],
       tags: TAGS,
+      ...NO_JOINS,
     }
     const fromTag = withListStarted([], tagSource, [1], 100)[0]!
     expect(recentSongIds(fromTag, library).sort()).toEqual([1, 2])
     const fromAnswer = withListStarted([], asked, [3, 99], 100)[0]!
     expect(recentSongIds(fromAnswer, library)).toEqual([3])
+  })
+
+  it('plays an artist kept from before a join as the artist it is joined to', () => {
+    const library = {
+      songs: [song(1, { artist: 'Yorushika' }), song(2, { artist: 'ヨルシカ' })],
+      tags: TAGS,
+      artistNames: { yorushika: ['ヨルシカ'] },
+      artistNamesFound: [],
+    }
+    const kept = withListStarted(
+      [],
+      { kind: 'artist', key: 'ヨルシカ', name: 'ヨルシカ' },
+      [2],
+      100,
+    )[0]!
+    expect(recentSongIds(kept, library).sort()).toEqual([1, 2])
   })
 
   it('keeps an answer with its list, so its page can open after a reload', () => {

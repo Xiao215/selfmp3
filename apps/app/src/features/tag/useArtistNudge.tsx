@@ -32,7 +32,7 @@ export function useArtistNudge(onLeave?: () => void): {
   const [pending, setPending] = useState<Pending | null>(null)
 
   const check = (name: string, make: () => void): void => {
-    const artist = library ? artistNamed(library.songs, name) : null
+    const artist = library ? artistNamed(library.songs, library, name) : null
     if (artist) setPending({ name, artist, make })
     else make()
   }

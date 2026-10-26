@@ -354,10 +354,11 @@ export function artistCoverSong<S extends { readonly artist: string; readonly ha
   name: string,
   played: readonly S[],
   library: readonly S[],
+  /** Every spelling joined to the artist (shared `joinedKeys`): theirs too. */
+  keys: readonly string[] = [artistKey(name)],
 ): S | undefined {
-  const key = artistKey(name)
   const theirs = (song: S): boolean =>
-    song.hasArt && splitArtists(song.artist).some(named => artistKey(named) === key)
+    song.hasArt && splitArtists(song.artist).some(named => keys.includes(artistKey(named)))
   return played.find(theirs) ?? library.find(theirs)
 }
 

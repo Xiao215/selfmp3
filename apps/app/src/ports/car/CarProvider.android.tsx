@@ -36,6 +36,7 @@ export function CarProvider({ children }: { children: ReactNode }): ReactNode {
         songs: libraryNow.current?.songs ?? [],
         playlists: libraryNow.current?.playlists ?? [],
         playlistSongIds: Object.fromEntries(members.current),
+        artistNames: libraryNow.current,
       })
     return connectAndroidAuto(getTree, {
       onPlay: (songIds, startIndex) => player.playFrom(songIds, startIndex),

@@ -28,7 +28,7 @@ export function CombinedScreen(): ReactNode {
   const { data: library } = useLibrary()
   const wanted = useMemo(() => parseCombinedParams(params), [params])
   const places = useMemo(
-    () => (library ? combinedPlaces(wanted, library.tags, library.songs) : []),
+    () => (library ? combinedPlaces(wanted, library.tags, library.songs, library) : []),
     [wanted, library],
   )
 

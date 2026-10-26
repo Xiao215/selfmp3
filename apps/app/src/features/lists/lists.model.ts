@@ -4,7 +4,9 @@ import {
   DescribeResultSchema,
   fromSqliteTime,
   artistKey,
-  libraryArtists,
+  joinedArtists,
+  type Artist,
+  type ArtistJoinNames,
   type Playlist,
   type QueueState,
   type DescribeResult,
@@ -145,9 +147,16 @@ export function combinedPlaces(
   source: { readonly tagIds: readonly number[]; readonly artistKeys: readonly string[] },
   tags: readonly Tag[],
   songs: readonly Song[],
+  names: ArtistJoinNames,
 ): Place[] {
   const byId = new Map(tags.map(tag => [tag.id, tag]))
-  const artists = new Map(libraryArtists(songs).map(artist => [artist.key, artist]))
+  // By any key an artist goes by: a list kept from before two artists were
+  // joined finds the one they are now, once.
+  const artists = new Map<string, Artist>()
+  for (const artist of joinedArtists(songs, names)) {
+    for (const key of artist.keys) artists.set(key, artist)
+  }
+  const found = new Set<Artist>()
   return [
     ...source.tagIds.flatMap(id => {
       const tag = byId.get(id)
@@ -155,7 +164,9 @@ export function combinedPlaces(
     }),
     ...source.artistKeys.flatMap(key => {
       const artist = artists.get(key)
-      return artist ? [{ kind: 'artist' as const, artist }] : []
+      if (!artist || found.has(artist)) return []
+      found.add(artist)
+      return [{ kind: 'artist' as const, artist }]
     }),
   ]
 }
@@ -661,7 +672,7 @@ export function recentKind(source: ListSource): string {
  */
 export function recentSongIds(
   entry: RecentList,
-  library: { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
+  library: ArtistJoinNames & { readonly songs: readonly Song[]; readonly tags: readonly Tag[] },
 ): number[] {
   const source = entry.source
   const parts =
@@ -672,7 +683,7 @@ export function recentSongIds(
         : source.kind === 'artist'
           ? { tagIds: [], artistKeys: [source.key] }
           : null
-  const places = parts ? combinedPlaces(parts, library.tags, library.songs) : []
+  const places = parts ? combinedPlaces(parts, library.tags, library.songs, library) : []
   if (places.length > 0) return placeSongs(places, library.songs).map(song => song.id)
   const known = new Set(library.songs.map(song => song.id))
   return entry.songIds.filter(id => known.has(id))

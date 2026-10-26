@@ -71,10 +71,13 @@ export function PlacePage({
   places,
   menuItems = [],
   menuAnchor,
+  notice,
   onChange,
 }: {
   /** One tag or artist; or, on `/combined`, the several put together. */
   places: readonly Place[]
+  /** A card under the head, before the songs: an artist's "Same artist as…?". */
+  notice?: ReactNode
   /** What this kind of place offers in its ⋯, after what every list offers. */
   menuItems?: readonly MenuItem[]
   /** The ⋯'s box, for a window of the place's own to hang from (a tag's editor). */
@@ -266,7 +269,7 @@ export function PlacePage({
     })
   }
 
-  const head = (
+  const listHead = (
     <ListHead
       wide={wide}
       light={tagLight ?? light.color}
@@ -334,6 +337,15 @@ export function PlacePage({
         </>
       }
     />
+  )
+
+  const head = notice ? (
+    <>
+      {listHead}
+      <View style={[styles.notice, wide && styles.noticeWide]}>{notice}</View>
+    </>
+  ) : (
+    listHead
   )
 
   return (
@@ -528,4 +540,6 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 1,
   },
   albumYear: { color: theme.colors.textMuted, fontSize: type.sub },
+  notice: { paddingHorizontal: space.gutter, paddingTop: space.md },
+  noticeWide: { paddingHorizontal: space.gutterWide },
 }))

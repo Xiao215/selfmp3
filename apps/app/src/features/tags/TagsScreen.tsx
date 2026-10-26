@@ -163,7 +163,7 @@ export function TagsScreen(): ReactNode {
     [standings],
   )
   const waiting = useMemo(
-    () => (library ? waitingArtists(library.songs, WAITING_SHOWN) : NOTHING_WAITING),
+    () => (library ? waitingArtists(library.songs, WAITING_SHOWN, library) : NOTHING_WAITING),
     [library],
   )
 

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 import { Text, useWindowDimensions, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { plural, libraryArtists } from '@selfmp3/shared'
+import { plural, joinedArtists, NO_JOINS } from '@selfmp3/shared'
 import { type, useLibrary, space } from '@selfmp3/client'
 import { useRecentTagIds } from '../library/recentTags.store'
 import { songsById } from '../../ui/songsById'
@@ -76,7 +76,7 @@ function AddSheetBody({
 
   const songs = useMemo(() => library?.songs ?? [], [library])
   const tags = useMemo(() => library?.tags ?? [], [library])
-  const artists = useMemo(() => libraryArtists(songs), [songs])
+  const artists = useMemo(() => joinedArtists(songs, library ?? NO_JOINS), [songs, library])
   // Each artist's first song with a cover: their face until the picture comes.
   const leads = useMemo(() => {
     const byId = songsById(songs)

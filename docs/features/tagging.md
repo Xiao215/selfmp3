@@ -32,6 +32,12 @@ and Shuffle; with none on there is Shuffle alone, since a tap on a row plays tha
 alone. Saving what you built as a playlist is Up next's Save, once it has been heard
 (docs/features/lists.md).
 
+The strip and the sidebar's tags keep their order for as long as you stay on the page (X6,
+2026-10-25): turning a tag on makes it the one used last, and tagging songs changes the
+counts the rest go by, and a chip or row that moved under the pointer was pressed by mistake.
+The next visit has them in their order then — Library each time it comes back to the front,
+the sidebar on a new page once the pointer has left its tags (`useSteadyOrder`'s `visit`).
+
 On a phone the picker's lane labels sit above their chips rather than beside them, the
 chips are finger-sized, and the count and **Done** take the panel's foot.
 

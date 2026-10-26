@@ -455,14 +455,17 @@ function Tags(): ReactNode {
    */
   const recent = useMemo(() => railTags(recentIds, tags, RAIL_TAGS), [recentIds, tags])
   /*
-   * Held in place while the pointer is over them, and always under a finger:
-   * opening a tag makes it the one used last, and the row that jumped to the
-   * top slid another tag under the pointer for the next click. Once the
-   * pointer leaves they take the order they now have.
+   * Held in place for as long as you stay on a page (X6): tagging songs
+   * changes their counts, and "live" jumped from 7th to 4th as soon as songs
+   * were tagged. Opening a tag makes it the one used last, and the row that
+   * jumped to the top slid another tag under the pointer for the next click,
+   * so a new page is taken as a new visit only once the pointer has left
+   * them; then they take the order they now have.
    */
-  const finePointer = useLayoutValue(layout => layout.finePointer)
   const [pointerOver, setPointerOver] = useState(false)
-  const rail = useSteadyOrder(recent, tagKey, pointerOver || !finePointer)
+  const [visit, setVisit] = useState(pathname)
+  if (visit !== pathname && !pointerOver) setVisit(pathname)
+  const rail = useSteadyOrder(recent, tagKey, true, visit)
   const more = tags.length - rail.length
   const openAll = (): void => {
     enterFromSidebar()

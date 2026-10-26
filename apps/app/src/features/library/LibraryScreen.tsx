@@ -59,7 +59,7 @@ import { sortLabel } from '../../ui/components/listScrollbar.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { FOCUS_INSIDE } from '../../shell/tabbing'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSteadyOrder } from '../../ui/useSteadyOrder'
 
 const tagKey = (tag: { readonly id: number }): number => tag.id
@@ -166,7 +166,12 @@ export function LibraryScreen(): ReactNode {
   )
   // In the order it had when the page opened, while it is open: turning a
   // tag on makes it the one used last, and a chip that jumped to the front
-  // slid another under the pointer for the press that meant to undo it.
+  // slid another under the pointer for the press that meant to undo it; and
+  // tagging songs changes the counts the rest go by (X6). Library stays
+  // mounted behind other pages, so each time it comes back to the front is a
+  // visit of its own, in the order it has then.
+  const [visit, setVisit] = useState(0)
+  useFocusEffect(useCallback(() => setVisit(count => count + 1), []))
   const strip = useSteadyOrder(
     useMemo(
       () => stripTags(model.tags, filter.tagIds, recentTagIds),
@@ -174,6 +179,7 @@ export function LibraryScreen(): ReactNode {
     ),
     tagKey,
     true,
+    visit,
   )
 
   const rowHeight = useSongRowHeight()

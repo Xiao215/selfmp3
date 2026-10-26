@@ -123,6 +123,7 @@ import {
 } from '@selfmp3/replica'
 
 import { ApiError } from './error.js'
+import { TIMED_OUT } from '../connection/reach.js'
 import type { ApiContext, ClientFetch, ClientSignal, CloudRequest } from '../platform.js'
 
 /**
@@ -148,6 +149,28 @@ async function inChunks<T>(
     answers.push(await send(ids.slice(offset, offset + BULK_IDS_MAX), offset))
   }
   return answers
+}
+
+/** How many times in all a part that sets a state is sent while its answer runs out of time. */
+const SETTING_TRIES = 3
+
+/**
+ * A part of an edit that sets a state — a tag on, a heart off — asked again
+ * when its answer ran out of time. A server busy with a scan applied every
+ * part of a 5,040-song tag but answered one after the deadline, and the app
+ * said the tag had failed (R3-m9). Setting the same thing twice is the same
+ * as setting it once, so asking again is how to find out whether it landed.
+ * A server that does not answer at all fails at once, as before.
+ */
+async function setting<T>(send: () => Promise<T>): Promise<T> {
+  for (let tried = 1; ; tried++) {
+    try {
+      return await send()
+    } catch (error) {
+      const late = error instanceof ApiError && error.isOffline && error.message === TIMED_OUT
+      if (!late || tried >= SETTING_TRIES) throw error
+    }
+  }
 }
 
 const affectedIn = (parts: readonly Affected[]): Affected => ({
@@ -391,7 +414,9 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkLoved: async (input: BulkLoved): Promise<Affected> =>
       affectedIn(
         await inChunks(input.songIds, songIds =>
-          request('POST', '/api/songs/bulk/loved', AffectedSchema, { ...input, songIds }),
+          setting(() =>
+            request('POST', '/api/songs/bulk/loved', AffectedSchema, { ...input, songIds }),
+          ),
         ),
       ),
 
@@ -501,7 +526,7 @@ export function createApi({ context, fetch }: ApiOptions) {
     bulkTag: async (input: BulkTag): Promise<Affected> =>
       affectedIn(
         await inChunks(input.songIds, songIds =>
-          request('POST', '/api/tags/bulk', AffectedSchema, { ...input, songIds }),
+          setting(() => request('POST', '/api/tags/bulk', AffectedSchema, { ...input, songIds })),
         ),
       ),
 

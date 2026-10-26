@@ -907,6 +907,13 @@ export function useUpdatePlaylist() {
 export function useCreatePlaylist() {
   const client = useQueryClient()
   return useMutation({
+    // Never paused for the network. Every caller waits for the new playlist's
+    // id, and a create is not an edit that can wait (`resumableEdits`): paused,
+    // it spun with no word while offline, was held only in memory, and went on
+    // when the network came back, after its sheet was cancelled (R3-M5). A
+    // cloud library makes it in the device's copy at once; a server out of
+    // reach fails it, and the caller says so.
+    networkMode: 'always',
     mutationFn: async ({
       input,
       songIds = [],

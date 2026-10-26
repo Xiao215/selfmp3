@@ -46,6 +46,7 @@ import {
 import { usePresenceServer } from './usePresenceServer'
 import { PresenceConnection } from './presenceConnection'
 import { useStreamWanted } from './useStreamWanted'
+import { showToast } from '../../ui/toast'
 
 /**
  * Presence and handoff.
@@ -115,8 +116,12 @@ interface DevicesContextValue {
   readonly canPlayOn: boolean
   /** Pull that device's queue and position over here, and stop it there. */
   readonly playHere: (device: Device) => void
-  /** Push this device's queue and position there, and stop here. */
-  readonly playOn: (device: Device) => void
+  /**
+   * Push this device's queue and position there, and stop here once it has
+   * them. A device that is not there any more is said so, and the music goes
+   * on here.
+   */
+  readonly playOn: (device: Device) => Promise<void>
 }
 
 const DevicesContext = createContext<DevicesContextValue | null>(null)
@@ -128,6 +133,9 @@ const DevicesContext = createContext<DevicesContextValue | null>(null)
  * never again, and the screen said "can't reach" for good while it was fine.
  */
 const RETRY_FAILED_MS = 30_000
+
+/** What a handoff that did not land says under why: the music never stopped. */
+const STILL_HERE = 'Still playing here.'
 
 /**
  * Ask again for whatever is on screen and failed: the library, Stats, a
@@ -351,21 +359,22 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
   }, [beat, server])
 
   /**
-   * Send a command, in the numbering the far side uses.
+   * Send a command, in the numbering the far side uses, and wait for the
+   * server to say it was delivered.
    *
    * False means it was not sent, and the only reason is that this device is
    * asking for a song the server has no number for — one it has never been
    * given, or one from before the two libraries were lined up. Guessing a
    * number there would start the wrong song somewhere else in the house.
+   * Rejects when the server could not deliver it: the device went away
+   * between the listing and the tap (`device_offline`), or the server did not
+   * answer.
    */
-  const send = useCallback((target: string, command: DeviceCommand): boolean => {
+  const send = useCallback(async (target: string, command: DeviceCommand): Promise<boolean> => {
     const sending = apiRef.current
     const translated = translateCommand(command, outboundRef.current)
     if (!sending || translated === null) return false
-    void sending.deviceCommand(target, translated).catch(() => {
-      // Target went away between the listing and the tap; the next device
-      // event corrects the list.
-    })
+    await sending.deviceCommand(target, translated)
     return true
   }, [])
 
@@ -482,22 +491,42 @@ export function DevicesProvider({ children }: { children: ReactNode }): ReactNod
       const target = heard ? handoffTarget(device, heard, Date.now()) : null
       if (!target) return
       playerRef.current.playFrom([...target.queueIds], target.index, { position: target.position })
-      send(device.id, { type: 'pause' })
+      // A device gone since the listing has stopped already.
+      void send(device.id, { type: 'pause' }).catch(() => undefined)
     },
     [send, heard],
   )
 
   const playOn = useCallback(
-    (device: Device): void => {
+    async (device: Device): Promise<void> => {
       const state = snapshot(playerRef.current, playerRef.current.getPosition())
       if (state.songId === null) return
-      const sent = send(device.id, {
-        type: 'playSong',
-        songId: state.songId,
-        queueIds: [...state.queueIds],
-        queueIndex: Math.max(0, state.queueIndex),
-        position: state.position,
-      })
+      let sent: boolean
+      try {
+        sent = await send(device.id, {
+          type: 'playSong',
+          songId: state.songId,
+          queueIds: [...state.queueIds],
+          queueIndex: Math.max(0, state.queueIndex),
+          position: state.position,
+        })
+      } catch (caught) {
+        // Stopped here before the answer, a device that had just closed left
+        // nothing playing anywhere and said nothing (R3-M6). The list goes on
+        // showing a closed tab for as long as its last heartbeat is fresh.
+        //
+        // The whole name: on a list of several "Mac · Chrome" tabs, the one it was.
+        const name = device.name
+        if (
+          caught instanceof ApiError &&
+          (caught.code === 'device_offline' || caught.status === 404)
+        ) {
+          showToast({ say: name, over: 'Isn’t connected any more', under: STILL_HERE }, 'warn')
+        } else {
+          showToast({ say: `Couldn’t play on ${name}`, under: STILL_HERE }, 'error')
+        }
+        return
+      }
       // Nothing left there, so nothing stops here either.
       if (!sent) return
       if (playerRef.current.isPlaying) playerRef.current.toggle()

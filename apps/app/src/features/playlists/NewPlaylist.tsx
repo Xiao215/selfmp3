@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -77,6 +77,14 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const [error, setError] = useState<string | null>(null)
   /** Named, and picking its songs: the playlist does not exist yet. */
   const [picking, setPicking] = useState<string | null>(null)
+  /**
+   * Which opening of the sheet this is; Cancel starts the next. A playlist
+   * still being made for a cancelled one is not opened, and its failure is
+   * not shown (R3-M5). The ref is what an answer checks, the state what it
+   * was asked in.
+   */
+  const [round, setRound] = useState(0)
+  const latestRound = useRef(0)
 
   const describe = useMutation({
     mutationFn: (text: string) => {
@@ -123,9 +131,18 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   const cancel = (): void => {
+    latestRound.current += 1
+    setRound(latestRound.current)
     reset()
     onClose()
   }
+
+  /** `finish`, unless the sheet was cancelled since `asked`. */
+  const finishFor =
+    (asked: number) =>
+    (id: number): void => {
+      if (latestRound.current === asked) finish(id)
+    }
 
   const choose = (next: Kind): void => {
     setKind(next)
@@ -154,7 +171,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const createWith = async (songIds: readonly number[]): Promise<void> => {
     const input = newPlaylist('manual', picking ?? '')
     if (!input) return
-    finish((await createPlaylist({ input, songIds })).id)
+    finishFor(round)((await createPlaylist({ input, songIds })).id)
   }
 
   const follow = async (): Promise<void> => {
@@ -167,9 +184,9 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
         rules: followRules({ tagIds, match, sort: 'addedAt', descending: true }),
       })
       if (!input) return
-      finish((await createPlaylist({ input })).id)
+      finishFor(round)((await createPlaylist({ input })).id)
     } catch (caught) {
-      setError(failureText(`Couldn’t make “${title}”`, caught))
+      if (latestRound.current === round) setError(failureText(`Couldn’t make “${title}”`, caught))
     } finally {
       setBusy(false)
     }
@@ -312,7 +329,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
             result={answer}
             text={words.trim()}
             name={name}
-            onSaved={finish}
+            onSaved={finishFor(round)}
             onCancel={cancel}
           />
         ) : (

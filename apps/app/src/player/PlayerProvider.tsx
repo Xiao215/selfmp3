@@ -82,7 +82,7 @@ import { createValueStore, type ValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import { useSongsById } from '../ui/songsById'
 import { roomTrack, useRoomTracks, withRoomSongs } from './roomTracks'
-import { roomTakes } from './roomTransport'
+import { pressed } from './roomTransport'
 import { checkRoomLink, currentRoom, subscribeRoom } from '../features/room/room.store'
 import { thisPlace } from '../ports/place'
 
@@ -1313,15 +1313,9 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     () => ({
       ...commands,
       // Pressed, in a room this device follows: the room's to answer (roomTransport.ts).
-      toggle: () => {
-        if (!roomTakes('toggle')) commands.toggle()
-      },
-      next: () => {
-        if (!roomTakes('next')) commands.next()
-      },
-      previous: () => {
-        if (!roomTakes('previous')) commands.previous()
-      },
+      toggle: () => pressed('toggle', commands.toggle),
+      next: () => pressed('next', commands.next),
+      previous: () => pressed('previous', commands.previous),
       queue,
       songs: resolved.queueSongs,
       current: resolved.currentSong,

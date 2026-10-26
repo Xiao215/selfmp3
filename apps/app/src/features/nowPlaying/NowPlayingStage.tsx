@@ -23,6 +23,7 @@ import { fonts } from '../../ports/fonts'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
+import { pressed } from '../../player/roomTransport'
 import { setStageExit } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
@@ -859,7 +860,7 @@ function StageUpNext({
     <Animated.View style={[styles.upNextAt, { right, bottom }, lowered]}>
       <Press
         depth="row"
-        onPress={player.next}
+        onPress={() => pressed('next', player.next)}
         accessibilityRole="button"
         accessibilityLabel={`Skip to the next song: ${upNext.title}`}
         style={styles.upNext}

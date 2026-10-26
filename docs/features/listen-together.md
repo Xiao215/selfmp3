@@ -60,7 +60,8 @@ for Cancel. The one box works as it does everywhere: a song of yours is added by
 its +, Ask's songs answer offers **Add to Xiao's room** in place of Play, and a YouTube or
 网易云 link is looked up and added (when friends may add links). Before anything is typed it
 shows what you played last and what the room's people brought (shelves, and songs that played).
-The room's own Add sheet, with its Mine / In the room / A link tabs, is gone.
+The room's own Add sheet, with its Mine / In the room / A link tabs, is gone. A guest, who has
+no library, opens the same page without signing in, for what is in the room and links.
 
 **The start sheet (C1, S1 + P1, 2026-10-14).** Your face, *Listen together* and one line
 (*Friends add songs from their phones. Invite them once it starts.*), **Starts with**, and
@@ -143,7 +144,21 @@ sheet:
 **Keeping in step.** The host's player is the clock. It reports what it is on and where.
 The room keeps the song and when it started, on the doorman's clock. Each device works the
 position out with its own clock's offset from the doorman's, measured by a ping on the
-socket. A device more than a third of a second out seeks.
+socket. A device more than a third of a second out seeks. On everyone's phones the host tells
+the room when its own song is more than half a second off the room's clock (a song that
+started late, loading after a skip); on one speaker only a jump of two seconds, a seek. A host
+whose app opens again, or whose page reloads, takes the room's song up where the room says it
+is.
+
+**A friend's own buttons.** On everyone's phones a friend's Previous, play/pause and Next,
+wherever they are pressed (the player bar, the lock screen, a key), are the room's: Next skips
+the room's song and play/pause pauses it, when **Friends can** allows; otherwise they say only
+the host can. A room only goes forward, so Previous says so.
+
+**One room at a time.** Joining or starting a room while in another leaves the one you were in,
+once the new one has let you in: an invite to a room that has ended changes nothing. When the
+host ends the room, or takes you out of it, you are told so (*Xiao's room ended*, with **See
+what played**).
 
 **A connection that drops.** A ping unanswered for six seconds is taken as the line gone, and
 the room says **Reconnecting…** (its head, Now Playing's pill, the line under the song) until
@@ -174,6 +189,8 @@ left, the room adds songs that sound like the last ones, taking turns between th
 songs were played. Its switch says *When the list runs low, plays more of what people brought*.
 
 - **Where the songs come from:** shelves, and songs that played, leaving out the last dozen.
+  A young room with nothing of its own to bring back yet takes songs from the host's library
+  that it does not have, nearest in sound where the host's vectors say.
 - **How a song is picked:** each person's turn is the song of theirs whose sound is nearest
   to the songs playing and just played.
 - **Where the sound comes from:** every member who brings songs reads their own bucket's sound
@@ -254,8 +271,10 @@ Its page:
 
 - **Play** plays it on this device: each song lent by the doorman, or your own copy.
 - **Play together** opens a room filled with it. Its songs are lent from each owner's bucket
-  even when the owner is not in the room, and named for them.
-- **Add songs** adds from your library.
+  even when the owner is not in the room, and named for them, for as long as they are in the
+  playlist: the doorman asks the playlist on every read, so a song taken out, or an owner who
+  leaves, stops playing in the room at once.
+- **Add songs** adds from your library; songs already in it are marked *Already in*.
 - **Invite** shares a link and a QR code: `/shared/<id>/join/<invite>`. Joining needs an
   account; an invite opened before signing in opens again after.
 - **More** holds Rename and Leave.

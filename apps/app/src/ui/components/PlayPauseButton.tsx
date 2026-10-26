@@ -6,6 +6,7 @@ import {
   usePlayerStalled,
   usePlayingSongId,
 } from '../../player/PlayerProvider'
+import { pressed } from '../../player/roomTransport'
 import { PlayButton, playGlyph } from './Button'
 import { IconButton } from './IconButton'
 import { PlayPauseIcon } from './PlayPauseIcon'
@@ -70,7 +71,7 @@ export function PlayPauseButton({
   const busy = ours && stalled
   const label = playing ? 'Pause' : playLabel
   const id = typeof testID === 'function' ? testID(playing) : testID
-  const press = onPress ?? player.toggle
+  const press = onPress ?? (() => pressed('toggle', player.toggle))
 
   if (bare) {
     return (

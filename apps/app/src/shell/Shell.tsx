@@ -46,6 +46,7 @@ import {
   usePlayingSongId,
   useSongLoaded,
 } from '../player/PlayerProvider'
+import { pressed } from '../player/roomTransport'
 import { desktop } from '../ports/desktop/bridge'
 import { SEEK_STEP_SECONDS, VOLUME_STEP } from '../player/progress.model'
 import { QueueRail, useQueueRailCover, useQueueRailRoom } from '../features/queue/QueueRail'
@@ -448,9 +449,10 @@ function MenuCommands(): ReactNode {
       const song = library?.songs.find(one => one.id === playingId)
       if (song) toggleLoved.mutate({ id: song.id, loved: !song.loved })
     },
-    'play-pause': () => player.toggle(),
-    next: () => player.next(),
-    previous: () => player.previous(),
+    // Pressed, so in a room this device follows they are the room's (roomTransport.ts).
+    'play-pause': () => pressed('toggle', player.toggle),
+    next: () => pressed('next', player.next),
+    previous: () => pressed('previous', player.previous),
     'seek-forward': () => player.seekBy(SEEK_STEP_SECONDS),
     'seek-back': () => player.seekBy(-SEEK_STEP_SECONDS),
     shuffle: () => player.toggleShuffle(),

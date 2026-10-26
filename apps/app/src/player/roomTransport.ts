@@ -5,8 +5,9 @@
  * says what such a press does instead — asks the host's player, or says only
  * the host may — and the press goes no further.
  *
- * Only presses: the player's own commands, which the room's provider drives
- * the player with, never come here.
+ * Only presses — `usePlayer()`'s three, and `pressed` where a control holds
+ * the bare commands — never the commands themselves, which the room's
+ * provider drives the player with.
  */
 
 export type TransportStep = 'previous' | 'toggle' | 'next'
@@ -23,4 +24,9 @@ export function setRoomTransport(next: Taker | null): void {
 /** Whether the room took this press. */
 export function roomTakes(step: TransportStep): boolean {
   return taker?.(step) ?? false
+}
+
+/** A press of Previous, play/pause or Next: the room's when it takes it, else `run`. */
+export function pressed(step: TransportStep, run: () => void): void {
+  if (!roomTakes(step)) run()
 }

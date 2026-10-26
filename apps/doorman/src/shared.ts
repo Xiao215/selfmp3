@@ -144,6 +144,11 @@ export class Shared {
           return await this.#act(ActSchema.parse(await request.json()))
         case 'GET /lend':
           return await this.#lend(SubSchema.parse(url.searchParams.get('sub')))
+        case 'GET /lends':
+          return await this.#lends(
+            SubSchema.parse(url.searchParams.get('sub')),
+            z.string().min(1).parse(url.searchParams.get('audio')),
+          )
         case 'GET /file':
           return await this.#file(url)
         default:
@@ -315,6 +320,23 @@ export class Shared {
       }),
     }
     return Response.json(body)
+  }
+
+  /**
+   * Whether a room may still lend a song it took from here: `sub` is still
+   * one of its people, and still has that song (by its audio) in it. Taking a
+   * song out, or leaving, stops it from the next read on.
+   */
+  async #lends(sub: string, audio: string): Promise<Response> {
+    const found = await this.#found(sub)
+    if (found instanceof Response) {
+      return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
+    }
+    const held = found.doc.entries.some(
+      entry => entry.owner === found.member && entry.song.audio?.key === audio,
+    )
+    if (!held) return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
+    return new Response(null, { status: 204 })
   }
 
   /** `GET /file?t=&entry=&part=`: whose bucket, and which key, for one of its people. */

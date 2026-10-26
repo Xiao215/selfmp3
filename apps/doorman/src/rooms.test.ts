@@ -289,6 +289,10 @@ describe('a link a guest pastes', () => {
     expect(sent.pathname).toBe('/api/import/listen')
     expect(sent.searchParams.get('url')).toBe('https://youtu.be/abc')
     expect(sent.searchParams.get('token')).toBe('server-secret')
+
+    // Someone joining afterwards keeps the host's server where it was.
+    const ben = await join(s, 'Ben')
+    expect((await file(s, ben, entry, 'audio', 'bytes=0-2')).status).toBe(206)
   })
 
   it('keeps the host’s server and its token from every member', async () => {

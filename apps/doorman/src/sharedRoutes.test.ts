@@ -287,6 +287,12 @@ describe('a room and a shared playlist', () => {
     const played = await s.h.call(`/v1/rooms/${host.code}/files/${mias}/audio?t=${host.token}`)
     expect(await played.text()).toBe('two')
 
+    // Someone joining keeps the room's lending as it was.
+    const ana = await s.h.call(`/v1/rooms/${host.code}/join`, { json: { name: 'Ana' } })
+    const guest = RoomJoinedSchema.parse(await ana.json())
+    const again = await s.h.call(`/v1/rooms/${host.code}/files/${mias}/audio?t=${guest.token}`)
+    expect(await again.text()).toBe('two')
+
     // Someone not in the playlist cannot fill a room from it.
     const kens = await s.h.call('/v1/rooms', {
       token: s.ken,
@@ -298,5 +304,50 @@ describe('a room and a shared playlist', () => {
       json: { shared: made.id },
     })
     expect(refused.status).toBe(403)
+  })
+
+  it('stops lending a song once it is out of the playlist, or its owner is', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/shared/${made.id}/join`, {
+      token: s.mia,
+      json: { invite: made.invite, name: 'Mia' },
+    })
+    s.h.bucket.put(`mia/${song(3).audio?.key}`, 'three')
+    for (const n of [2, 3]) {
+      await s.h.call(`/v1/shared/${made.id}/act`, {
+        token: s.mia,
+        json: { type: 'add', song: song(n) },
+      })
+    }
+    const kept = await playlist(await s.h.call(`/v1/shared/${made.id}`, { token: s.mia }))
+    const { host } = await room(s)
+    const filled = RoomStateSchema.parse(
+      await (
+        await s.h.call(`/v1/rooms/${host.code}/from-shared?t=${host.token}`, {
+          token: s.me,
+          json: { shared: made.id },
+        })
+      ).json(),
+    )
+    const entry = (title: string) =>
+      filled.entries.find(item => item.song.title === title && item.owner === null)?.id ?? ''
+    const read = (title: string) =>
+      s.h.call(`/v1/rooms/${host.code}/files/${entry(title)}/audio?t=${host.token}`)
+    expect(await (await read('Song 2')).text()).toBe('two')
+
+    // Mia takes Song 2 out: the room no longer has it to lend.
+    const two = kept.entries.find(item => item.song.title === 'Song 2')?.id ?? ''
+    await s.h.call(`/v1/shared/${made.id}/act`, {
+      token: s.mia,
+      json: { type: 'remove', entryId: two },
+    })
+    expect((await read('Song 2')).status).toBe(404)
+    expect(await (await read('Song 3')).text()).toBe('three')
+
+    // Mia leaves: none of hers are lent any more.
+    await s.h.call(`/v1/shared/${made.id}/act`, { token: s.mia, json: { type: 'leave' } })
+    expect((await read('Song 3')).status).toBe(404)
+    expect(await (await read('Song 1')).text()).toBe('one')
   })
 })

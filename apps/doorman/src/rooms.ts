@@ -107,6 +107,16 @@ export async function rooms(ctx: Context): Promise<Response> {
     const lent = await ask(withToken('/file', { entry, part }))
     if (!lent.ok) return relayed(lent)
     const file = LentFileSchema.parse(await lent.json())
+    if ('shared' in file && file.shared) {
+      // A shared playlist's song is lent for as long as it is in it and its
+      // owner is too: the playlist says so on every read, not once at import.
+      const query = new URLSearchParams({ sub: file.sub, audio: file.shared.audio })
+      const still = await sharedObject(ctx, file.shared.id).fetch(
+        `https://shared/lends?${query.toString()}`,
+      )
+      if (!still.ok) return relayed(still)
+      await still.body?.cancel()
+    }
     return lentAnswer(
       'listen' in file
         ? await listenThrough(ctx, file.listen, method)
@@ -153,7 +163,7 @@ export async function rooms(ctx: Context): Promise<Response> {
     )
     if (!lent.ok) return relayed(lent)
     const songs = LentSongsSchema.parse(await lent.json())
-    return relayed(await ask(withToken('/import'), post(songs)))
+    return relayed(await ask(withToken('/import'), post({ shared: body.shared, ...songs })))
   }
   if (action === 'link-server' && entry === undefined) {
     if (method !== 'PUT') return methodNotAllowed(['PUT'])

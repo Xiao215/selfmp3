@@ -66,8 +66,18 @@ interface Secrets {
   readonly subs: Record<string, string>
   /** Where the host's server answers from the internet, for playing links (`RoomLinkServer`). */
   readonly linkServer?: RoomLinkServer
-  /** Entry id → the account a shared playlist's song is lent from, when its owner is not in the room. */
-  readonly entrySubs?: Record<string, string>
+  /**
+   * Entry id → where a shared playlist's song is lent from, when its owner is
+   * not in the room: their account, and the playlist, which is asked on every
+   * read whether the song is still in it and they still are (rooms.ts).
+   */
+  readonly entryLends?: Record<string, EntryLend>
+}
+
+/** Whose account a shared playlist's song is lent from, and which playlist lends it. */
+interface EntryLend {
+  readonly sub: string
+  readonly shared: string
 }
 
 const EMPTY_SECRETS: Secrets = { tokens: {}, subs: {} }
@@ -124,6 +134,7 @@ const LinkServerRequestSchema = z.object({ server: RoomLinkServerSchema })
 
 /** A shared playlist's songs coming into the room, each with whose account lends it. */
 const ImportSchema = z.object({
+  shared: z.string().min(1),
   items: z
     .array(
       z.object({
@@ -155,7 +166,13 @@ type LinkServerRequest = z.infer<typeof LinkServerRequestSchema>
  * Where a lent file comes from: a key in its owner's bucket, or — for a link —
  * the host's server's stream of it, token and all, which only the Worker sees.
  */
-export const LentFileSchema = z.union([BucketFileSchema, z.object({ listen: z.string().url() })])
+export const LentFileSchema = z.union([
+  BucketFileSchema.extend({
+    /** A shared playlist's song: the playlist to ask first whether it still lends it. */
+    shared: z.object({ id: z.string(), audio: z.string() }).optional(),
+  }),
+  z.object({ listen: z.string().url() }),
+])
 type LentFile = z.infer<typeof LentFileSchema>
 
 /** A refusal's code, by what was refused. */
@@ -297,6 +314,7 @@ export class Room {
     )
     if (isRoomRefusal(joined)) return refusal(joined)
     await this.#runtime.storage.put<Secrets>('secrets', {
+      ...secrets,
       tokens: { ...secrets.tokens, [await sha256Hex(token)]: member },
       subs: input.sub ? { ...secrets.subs, [member]: input.sub } : secrets.subs,
     })
@@ -350,11 +368,12 @@ export class Room {
       return answer(404, DOORMAN_ERROR.roomMissing, 'that song is not in the room')
     }
     const secrets = await this.#secrets()
-    const lentFrom = secrets.entrySubs?.[entry.id]
-    if (entry.owner === null && lentFrom) {
+    const lend = secrets.entryLends?.[entry.id]
+    if (entry.owner === null && lend) {
       const key = keyOf(entry.song, part.data)
-      if (!key) return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
-      const body: LentFile = { sub: lentFrom, key }
+      const audio = entry.song.audio?.key
+      if (!key || !audio) return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
+      const body: LentFile = { sub: lend.sub, key, shared: { id: lend.shared, audio } }
       return Response.json(body)
     }
     if (entry.owner === null) {
@@ -394,7 +413,7 @@ export class Room {
         return sub && !other.left ? [{ sub, name: other.name, picture: other.picture }] : []
       }),
       items: doc.entries.flatMap(entry => {
-        const sub = entry.owner ? secrets.subs[entry.owner] : secrets.entrySubs?.[entry.id]
+        const sub = entry.owner ? secrets.subs[entry.owner] : secrets.entryLends?.[entry.id]?.sub
         return sub && entry.song.audio ? [{ song: entry.song, sub }] : []
       }),
     }
@@ -416,10 +435,10 @@ export class Room {
     const now = this.#runtime.now()
     const room = Math.max(0, ROOM_MAX_WAITING - waitingEntries(doc).length)
     const secrets = await this.#secrets()
-    const entrySubs = { ...secrets.entrySubs }
+    const entryLends = { ...secrets.entryLends }
     const added = input.items.slice(0, room).map(item => {
       const id = this.#newId()
-      entrySubs[id] = item.sub
+      entryLends[id] = { sub: item.sub, shared: input.shared }
       return {
         id,
         song: item.song,
@@ -432,7 +451,7 @@ export class Room {
         playedAt: null,
       }
     })
-    await this.#runtime.storage.put<Secrets>('secrets', { ...secrets, entrySubs })
+    await this.#runtime.storage.put<Secrets>('secrets', { ...secrets, entryLends })
     const next = { ...doc, entries: [...doc.entries, ...added], activeAt: now }
     await this.#save(next, null)
     return Response.json(this.#stateFor(next, member))

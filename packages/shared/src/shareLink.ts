@@ -6,7 +6,6 @@ import {
   SHARE_MAX_ASKS,
   SHARE_MAX_LINES,
   SHARE_MAX_OPENED,
-  SHARE_MAX_SONGS,
   SHARE_START_MOST,
   type ShareAction,
   type ShareDoc,
@@ -58,9 +57,7 @@ export function newShareDoc(input: {
     name: input.name,
     kind: input.kind,
     from: input.from,
-    entries: input.songs
-      .slice(0, SHARE_MAX_SONGS)
-      .map(({ id, song }) => ({ id, song, gone: false })),
+    entries: input.songs.map(({ id, song }) => ({ id, song, gone: false })),
     createdAt: input.now,
     startedAt: input.now,
     playedAt: null,

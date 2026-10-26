@@ -778,6 +778,15 @@ export class FakeShares {
     return this.#link(id).values
   }
 
+  /**
+   * The link's object started again, as after a deploy or a quiet spell: what
+   * it held in memory is gone, and it reads its storage afresh.
+   */
+  restart(id: string): void {
+    const held = this.#link(id)
+    held.share = this.#share(held)
+  }
+
   /** Every alarm that is due by the clock, as the runtime would ring them. */
   async runAlarms(): Promise<void> {
     for (const held of this.links.values()) {
@@ -791,36 +800,39 @@ export class FakeShares {
   #link(name: string) {
     let held = this.links.get(name)
     if (!held) {
-      const values = new Map<string, unknown>()
       const entry: { share: Share; values: Map<string, unknown>; alarm: number | null } = {
-        values,
+        values: new Map<string, unknown>(),
         alarm: null,
         share: null as unknown as Share,
       }
-      entry.share = new Share({
-        storage: {
-          get: <T>(key: string) =>
-            Promise.resolve(structuredClone(values.get(key)) as T | undefined),
-          put: <T>(key: string, value: T) => {
-            values.set(key, structuredClone(value))
-            return Promise.resolve()
-          },
-          deleteAll: () => {
-            values.clear()
-            entry.alarm = null
-            return Promise.resolve()
-          },
-          setAlarm: when => {
-            entry.alarm = when
-            return Promise.resolve()
-          },
-        },
-        now: () => this.clock.now,
-      })
+      entry.share = this.#share(entry)
       held = entry
       this.links.set(name, held)
     }
     return held
+  }
+
+  #share(entry: { values: Map<string, unknown>; alarm: number | null }): Share {
+    const { values } = entry
+    return new Share({
+      storage: {
+        get: <T>(key: string) => Promise.resolve(structuredClone(values.get(key)) as T | undefined),
+        put: <T>(key: string, value: T) => {
+          values.set(key, structuredClone(value))
+          return Promise.resolve()
+        },
+        deleteAll: () => {
+          values.clear()
+          entry.alarm = null
+          return Promise.resolve()
+        },
+        setAlarm: when => {
+          entry.alarm = when
+          return Promise.resolve()
+        },
+      },
+      now: () => this.clock.now,
+    })
   }
 }
 

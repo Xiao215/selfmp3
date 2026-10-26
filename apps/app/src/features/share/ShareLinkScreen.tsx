@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Image, Linking, Text, View } from 'react-native'
+import {
+  Image,
+  Linking,
+  Text,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
@@ -70,6 +77,13 @@ const ASKED_KEY = 'share.asked'
 
 /** The page's column at its widest, on a computer. */
 const PAGE_WIDTH = 520
+
+/**
+ * How many of a list's songs the page draws at first, and how many more each
+ * time its foot comes near: a link holds every song of a tag, a thousand or
+ * more, and only the rows drawn read their covers from its sender's bucket.
+ */
+const ROWS_AT_ONCE = 60
 
 function askedHere(id: string): boolean {
   return (prefs.get(ASKED_KEY) ?? '').split(',').includes(id)
@@ -147,6 +161,16 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
 
   const entries = link.entries.filter(entry => !entry.gone)
   const ids = entries.map(entry => roomTrackId(entry.id))
+  // Where each song plays from in `ids`, found once rather than searched for per row.
+  const playsAt = new Map(entries.map((entry, at) => [entry.id, at]))
+  const [rows, setRows] = useState(ROWS_AT_ONCE)
+  const moreRows = link.kind === 'list' && rows < link.entries.length
+  const drawMore = (event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
+    if (contentOffset.y + layoutMeasurement.height * 2 >= contentSize.height) {
+      setRows(shown => shown + ROWS_AT_ONCE)
+    }
+  }
   const first = link.entries[0]
   const firstId = first ? roomTrackId(first.id) : 0
   // From the link itself, not the player's tracks: those are filled after this
@@ -268,6 +292,8 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
         ) : (
           <ScrollView
             contentContainerStyle={[styles.page, wide && styles.pageWide]}
+            onScroll={moreRows ? drawMore : undefined}
+            scrollEventThrottle={moreRows ? 100 : undefined}
             testID="share-link"
           >
             {back}
@@ -316,7 +342,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
 
             {link.kind === 'list' ? (
               <View>
-                {link.entries.map((entry, at) => {
+                {link.entries.slice(0, rows).map((entry, at) => {
                   const from = entry.song.sourceUrl
                   return (
                     <RoomEntryLine
@@ -328,7 +354,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
                       dim={ended || entry.gone}
                       onPress={
                         !ended && !entry.gone
-                          ? () => play(entries.indexOf(entry))
+                          ? () => play(playsAt.get(entry.id))
                           : from
                             ? () => void Linking.openURL(from)
                             : undefined

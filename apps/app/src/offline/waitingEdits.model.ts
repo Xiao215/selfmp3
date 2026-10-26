@@ -28,13 +28,38 @@ export function isWaitingEdit(mutation: Mutation<unknown, Error, unknown, unknow
   )
 }
 
-/** What to keep: the waiting edits, for this library. */
-export function keptEdits(client: QueryClient, library: string): Kept {
+/** An edit on its way, not answered yet: one that can wait, sent and not back. */
+function isSendingEdit(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  return mutation.state.status === 'pending' && isResumableEdit(mutation.options.mutationKey)
+}
+
+/**
+ * What to keep: the waiting edits, for this library.
+ *
+ * `sending` keeps the edits on their way as well, as the page goes, for a
+ * library nothing outlives the page for. A cloud library's edit lands in the
+ * device's own outbox (IndexedDB), and a tab closing or reloading cuts that
+ * write off however it was begun; a server's is a request marked `keepalive`
+ * (`api/client.ts`), which the browser carries on with. Kept as waiting, so
+ * the next open sends it again: each says only what it sets, a song on or
+ * off a playlist, so one that did land is sent a second time for nothing.
+ */
+export function keptEdits(
+  client: QueryClient,
+  library: string,
+  { sending = false }: { sending?: boolean } = {},
+): Kept {
   const { mutations } = dehydrate(client, {
-    shouldDehydrateMutation: isWaitingEdit,
+    shouldDehydrateMutation: sending ? isSendingEdit : isWaitingEdit,
     shouldDehydrateQuery: () => false,
   })
-  return { library, mutations }
+  return {
+    library,
+    mutations: mutations.map(mutation => ({
+      ...mutation,
+      state: { ...mutation.state, isPaused: true },
+    })),
+  }
 }
 
 export function parseKept(raw: string | null): Kept | null {

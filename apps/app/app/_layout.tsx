@@ -19,7 +19,7 @@ import { DevicesProvider } from '../src/features/devices/DevicesProvider'
 import { LibraryFilterProvider } from '../src/features/library/libraryFilter'
 import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
-import { useKeepWaitingEdits } from '../src/offline/waitingEdits'
+import { keepEditsAsLeaving, useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
 import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
@@ -77,11 +77,13 @@ hideScrollbars()
 listenForAppFocus()
 
 // Leaving it sends what was waiting on its Undo, so closing the app loses none
-// of it: as requests that outlive the page, since a closing tab cancels the rest.
+// of it: as requests that outlive the page, since a closing tab cancels the rest,
+// and for a cloud library, whose edits go to IndexedDB, also kept to send again.
 onAppLeaving(
   () => {
     sendingAsLeaving(true)
     sendPending()
+    keepEditsAsLeaving()
   },
   () => sendingAsLeaving(false),
 )

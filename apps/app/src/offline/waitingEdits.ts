@@ -22,6 +22,19 @@ import { isWaitingEdit, keptEdits, parseKept, restoreEdits } from './waitingEdit
 
 const KEY = 'waitingEdits'
 
+/** Writes down the edits on their way as well, for a library they would not reach as the page goes. */
+let keepSending: (() => void) | null = null
+
+/**
+ * The page is going: what it sent as it went is kept to send again on the
+ * next open, where nothing carries it past the page (`keptEdits`' `sending`).
+ * Called after `sendPending`, whose sends have begun by then. Written at
+ * once: the page is gone before any timer runs.
+ */
+export function keepEditsAsLeaving(): void {
+  keepSending?.()
+}
+
 /** Keep the waiting edits for as long as the app is open on one library. */
 export function useKeepWaitingEdits(): void {
   const client = useQueryClient()
@@ -38,11 +51,16 @@ export function useKeepWaitingEdits(): void {
       prefs.set(KEY, JSON.stringify(keptEdits(client, library)))
     }
     keep()
+    keepSending =
+      library === 'cloud'
+        ? () => prefs.set(KEY, JSON.stringify(keptEdits(client, library, { sending: true })))
+        : null
     const unsubscribe = client.getMutationCache().subscribe(() => {
       if (timer === null) timer = setTimeout(keep, 200)
     })
     return () => {
       unsubscribe()
+      keepSending = null
       if (timer !== null) clearTimeout(timer)
     }
   }, [client, library])

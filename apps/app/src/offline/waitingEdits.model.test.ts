@@ -77,6 +77,29 @@ describe('edits kept while the library is out of reach', () => {
     expect(sent).toEqual([])
   })
 
+  it('keeps an edit still on its way as the page goes, and sends it again on the next open', async () => {
+    // Sent as the tab reloads: the outbox's write never finishes.
+    const before = new QueryClient()
+    const observer = new MutationObserver<
+      unknown,
+      Error,
+      { songId: number; add: number[]; remove: number[] }
+    >(before, {
+      mutationKey: [...editKeys.songTags],
+      mutationFn: () => new Promise(() => undefined),
+    })
+    void observer.mutate({ songId: 9, add: [], remove: [2] })
+    expect(keptEdits(before, 'cloud').mutations).toEqual([])
+    const kept = parseKept(JSON.stringify(keptEdits(before, 'cloud', { sending: true })))
+    expect(kept?.mutations).toHaveLength(1)
+
+    const after = new QueryClient()
+    after.mount()
+    restoreEdits(after, kept, 'cloud')
+    await vi.waitFor(() => expect(sent).toEqual([{ songId: 9, change: { add: [], remove: [2] } }]))
+    after.unmount()
+  })
+
   it('keeps nothing that is not waiting', () => {
     const client = new QueryClient()
     expect(keptEdits(client, 'cloud').mutations).toEqual([])

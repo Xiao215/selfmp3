@@ -5,6 +5,7 @@ import {
   ROOM_MAX_WAITING,
   roomPosition,
   roomTitle,
+  shuffleArray,
   nearestFirst,
   soundCentre,
   type RoomAction,

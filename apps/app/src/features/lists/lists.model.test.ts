@@ -441,7 +441,7 @@ describe('Liked', () => {
       played: [],
       at: 1,
     }
-    expect(recentSongIds(entry, { songs, tags: TAGS })).toEqual([3, 1, 5, 4])
+    expect(recentSongIds(entry, { songs, tags: TAGS, ...NO_JOINS })).toEqual([3, 1, 5, 4])
   })
 
   it('is what Library plays with its Liked chip on, and with tags too it is a list of its own', () => {
@@ -513,6 +513,6 @@ describe('tags combined: any or all', () => {
     expect(sourceKey(any, [])).not.toBe(sourceKey(all, []))
     const songs = [song(1, { tagIds: [3] }), song(2, { tagIds: [2, 3] })]
     const entry: RecentList = { key: 'k', source: all, songIds: [], played: [], at: 1 }
-    expect(recentSongIds(entry, { songs, tags: TAGS })).toEqual([2])
+    expect(recentSongIds(entry, { songs, tags: TAGS, ...NO_JOINS })).toEqual([2])
   })
 })

@@ -17,6 +17,8 @@ export interface PlacedSong extends MapPlace {
 export const NEAR_COUNT = 25
 /** The most songs a drawn path lines up. */
 export const PATH_MOST = 40
+/** The most songs a loop takes: the ones nearest its middle, when more are inside. */
+export const LOOP_MOST = 100
 /** A path's songs are smoothed this many at a time, so the drift keeps its direction. */
 const PATH_STRETCH = 5
 
@@ -115,6 +117,88 @@ export function songsAlongPath(
     ordered.push(...orderPath(ordered[ordered.length - 1], stretch, byId))
   }
   return ordered
+}
+
+/**
+ * Whether a stroke closes on itself: it ends within `closeWithin` of where it
+ * began, having gone well round (four times that), so a short scribble that
+ * comes back is still a line.
+ */
+export function isLoop(path: readonly MapPlace[], closeWithin: number): boolean {
+  if (path.length < 4) return false
+  let length = 0
+  for (let at = 1; at < path.length; at++) length += Math.sqrt(distance2(path[at - 1]!, path[at]!))
+  return length > closeWithin * 4 && distance2(path[0]!, path[path.length - 1]!) <= closeWithin ** 2
+}
+
+/** Inside a closed shape, by the even–odd rule (its last point joins its first). */
+function inside(loop: readonly MapPlace[], place: MapPlace): boolean {
+  let within = false
+  for (let at = 0, before = loop.length - 1; at < loop.length; before = at++) {
+    const a = loop[at]!
+    const b = loop[before]!
+    if (
+      a.y > place.y !== b.y > place.y &&
+      place.x < ((b.x - a.x) * (place.y - a.y)) / (b.y - a.y) + a.x
+    ) {
+      within = !within
+    }
+  }
+  return within
+}
+
+const middleOf = (points: readonly MapPlace[]): MapPlace => ({
+  x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+  y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+})
+
+/**
+ * The songs inside a loop, as Up next: at most `most` of them, the ones
+ * nearest its middle when more are inside, in auto-mix order
+ * (queue/autoMix.ts) from the one nearest the middle, so each step is gentle.
+ */
+export function songsInside(
+  places: readonly PlacedSong[],
+  loop: readonly MapPlace[],
+  byId: ReadonlyMap<number, Song>,
+  most = LOOP_MOST,
+): number[] {
+  if (loop.length < 3) return []
+  const middle = middleOf(loop)
+  const kept = places
+    .filter(place => inside(loop, place))
+    .map(place => ({ id: place.id, d: distance2(place, middle) }))
+    .sort((a, b) => a.d - b.d || a.id - b.id)
+    .slice(0, most)
+    .map(entry => entry.id)
+  return orderPath(undefined, kept, byId)
+}
+
+/**
+ * A loop's name: the tag most of the songs inside share, when at least half
+ * of them do ("jpop"), or else the title of the song nearest its middle.
+ */
+export function loopName(
+  places: readonly PlacedSong[],
+  ids: readonly number[],
+  songs: ReadonlyMap<number, Pick<Song, 'title' | 'tagIds'>>,
+  tags: readonly Pick<Tag, 'id' | 'name'>[],
+): string {
+  if (ids.length === 0) return ''
+  const counts = new Map<number, number>()
+  for (const id of ids) {
+    for (const tagId of songs.get(id)?.tagIds ?? []) counts.set(tagId, (counts.get(tagId) ?? 0) + 1)
+  }
+  let best: [number, number] | null = null
+  for (const entry of counts) {
+    if (!best || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0])) best = entry
+  }
+  const tag = best && best[1] >= ids.length / 2 ? tags.find(t => t.id === best[0]) : undefined
+  if (tag) return tag.name
+  const taken = new Set(ids)
+  const own = places.filter(place => taken.has(place.id))
+  const nearest = own.length > 0 ? nearestSongs(own, middleOf(own), 1)[0] : ids[0]
+  return songs.get(nearest ?? -1)?.title ?? ''
 }
 
 /** Where a tag's songs gather on the map: a soft circle, and the tag. */

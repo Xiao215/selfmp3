@@ -9,16 +9,9 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useSongColor } from '../useSongColor'
-import {
-  MINI_PLAYER_HEIGHT,
-  motion,
-  NAV_HEIGHT,
-  radius,
-  space,
-  type,
-  iconSize,
-} from '@selfmp3/client'
-import { MINI_PLAYER_GAP, navBottom, useFloatingBarSide } from '../../shell/bottomInset'
+import { MINI_PLAYER_HEIGHT, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import { miniPlayerBottom, useFloatingBarSide } from '../../shell/bottomInset'
+import { usePageTabs } from '../../shell/pageChrome'
 import { useLayoutValue } from '../../shell/useLayout'
 import { openQueueSheet } from '../../features/queue/queueSheet.store'
 import { Cover } from './Cover'
@@ -54,6 +47,7 @@ function MiniPlayerInner(): ReactNode {
   const side = useFloatingBarSide(EDGE)
   const song = player.current
   const insets = useSafeAreaInsets()
+  const tabs = usePageTabs()
 
   // The first song of a session: the card rises from under the tab bar and
   // runs a few points past its place before settling (`M1`, 3). After that the
@@ -150,7 +144,7 @@ function MiniPlayerInner(): ReactNode {
       style={[
         styles.bar,
         {
-          bottom: navBottom(insets.bottom) + NAV_HEIGHT + MINI_PLAYER_GAP,
+          bottom: miniPlayerBottom(insets.bottom, tabs),
           left: side,
           right: side,
         },

@@ -40,6 +40,7 @@ import {
   Plus,
   QueueAdd,
   ShareOut,
+  SoundMap,
   Sparkles,
   Tag as TagIcon,
   Trash,
@@ -56,6 +57,7 @@ const ICON: Record<SongActionId, ReactNode> = {
   addToPlaylist: <ListMusic size={iconSize.item} tone="textSecondary" />,
   addToUpNext: <QueueAdd size={iconSize.item} tone="textSecondary" />,
   playSimilar: <Sparkles size={iconSize.item} tone="textSecondary" />,
+  showOnMap: <SoundMap size={iconSize.item} tone="textSecondary" />,
   share: <ShareOut size={iconSize.item} tone="textSecondary" />,
   download: <CloudDownload size={iconSize.item} tone="textSecondary" />,
   removeDownload: <CloudRemove size={iconSize.item} tone="textSecondary" />,
@@ -194,6 +196,11 @@ export function SongActionItems({
     },
     playSimilar: () => {
       if (songs[0]) playSimilar(player, songs[0])
+    },
+    showOnMap: () => {
+      const href: Href = { pathname: '/sound-map', params: { song: String(ids[0] ?? 0) } }
+      if (onOpen) onOpen(href)
+      else router.navigate(href)
     },
     share: () =>
       openShareSheet({

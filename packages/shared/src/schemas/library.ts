@@ -100,12 +100,11 @@ export type SimilarSongs = z.infer<typeof SimilarSongsSchema>
 
 /**
  * `/api/sound-map`: every heard song's place on the sound map
- * (docs/features/sound-map.md), 0–1 across and down, and how many songs of
- * the library have no place yet because they have not been heard.
+ * (docs/features/sound-map.md), 0–1 across and down. A song not heard yet
+ * has no place and is left out.
  */
 export const SoundMapSchema = z.object({
   places: z.array(z.object({ id: IdSchema, x: z.number(), y: z.number() })),
-  unheard: z.number().int().nonnegative(),
 })
 export type SoundMap = z.infer<typeof SoundMapSchema>
 

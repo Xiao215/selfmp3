@@ -435,6 +435,23 @@ export const Copy = icon(() => (
   </>
 ))
 
+/** A line drawn between two places: drawing on the sound map. */
+export const DrawLine = icon(color => (
+  <>
+    <Path d="M5 18c3-1 4.5-5 7-7.5S16.5 7 19 6" />
+    <Circle cx="5" cy="18" r="1.6" fill={color} stroke="none" />
+    <Circle cx="19" cy="6" r="1.6" fill={color} stroke="none" />
+  </>
+))
+
+/** A crosshair round a dot: finding where something is, the song playing on the map. */
+export const Locate = icon(() => (
+  <>
+    <Circle cx="12" cy="12" r="4" />
+    <Path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+  </>
+))
+
 export const Pencil = icon(() => (
   <>
     <Path d="M12 20h9" />

@@ -15,7 +15,6 @@ export class SoundMapRepository {
   readonly #save
   readonly #clear
   readonly #audioKeys
-  readonly #songCount
 
   constructor(db: Db) {
     this.#get = db.prepare<[], { sig: string; data: string; made_at: string }>(
@@ -30,7 +29,6 @@ export class SoundMapRepository {
     this.#audioKeys = db.prepare<[], { song_id: number; audio_key: string }>(
       'SELECT c.song_id, c.audio_key FROM cloud_songs c JOIN songs s ON s.id = c.song_id',
     )
-    this.#songCount = db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM songs')
   }
 
   get(): StoredSoundMap | null {
@@ -49,9 +47,5 @@ export class SoundMapRepository {
   /** Each song whose audio is in the bucket, with its audio's key: how the map names it. */
   audioKeys(): { songId: number; audioKey: string }[] {
     return this.#audioKeys.all().map(row => ({ songId: row.song_id, audioKey: row.audio_key }))
-  }
-
-  songCount(): number {
-    return this.#songCount.get()?.n ?? 0
   }
 }

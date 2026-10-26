@@ -132,17 +132,18 @@ export function tagFlips<T>(had: readonly T[], wanted: readonly T[]): { on: T[];
 // --- Removing tags ----------------------------------------------------------------
 
 /**
- * A live playlist's rules once this tag is deleted: its rules about the tag
- * go and the rest stay. Undefined when no rule names the tag; null when none
- * would be left, and the playlist then keeps the songs it shows and stops
- * following. Left alone, a rule about a tag nobody can see or remove made
- * "has" playlists empty (and so hidden) and "does not have" ones the whole
- * library.
+ * Whether a live playlist's rules name this tag, so that deleting it changes
+ * the playlist: it keeps the songs it shows and stops following.
+ *
+ * Left alone, a rule about a tag nobody can see or remove made "has" playlists
+ * empty (and so hidden) and "does not have" ones the whole library. Taking
+ * just that rule out is no better whenever there are others: under "all" a
+ * dropped rule widens the playlist ("has chill and not loved" became every
+ * song not loved), under "any" it narrows it. Either way the playlist would
+ * silently show other songs, so it keeps the ones it has instead.
  */
-export function rulesWithoutTag(rules: SmartRules, tagId: number): SmartRules | null | undefined {
-  const kept = rules.rules.filter(rule => rule.field !== 'tag' || rule.tagId !== tagId)
-  if (kept.length === rules.rules.length) return undefined
-  return kept.length > 0 ? { ...rules, rules: kept } : null
+export function followsTag(rules: SmartRules, tagId: number): boolean {
+  return rules.rules.some(rule => rule.field === 'tag' && rule.tagId === tagId)
 }
 
 // --- Removing songs --------------------------------------------------------------

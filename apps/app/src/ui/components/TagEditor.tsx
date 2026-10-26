@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { plural, rulesWithoutTag, TAG_NAME_MAX, type Playlist, type Tag } from '@selfmp3/shared'
+import { followsTag, plural, TAG_NAME_MAX, type Playlist, type Tag } from '@selfmp3/shared'
 import {
   failureText,
   space,
@@ -161,7 +161,7 @@ function Editor({
               ? `Delete “${isolated(tag.name)}”? No song has it.`
               : `Delete “${isolated(tag.name)}”? Its ${plural(tag.songCount, 'song stays', 'songs stay')} in your library.`}
             {following.length > 0
-              ? ` ${quoted(following)} ${following.length === 1 ? 'fills' : 'fill'} from it, and will go on without it.`
+              ? ` ${quoted(following)} ${following.length === 1 ? 'fills from it, and keeps the songs it has now' : 'fill from it, and keep the songs they have now'}.`
               : null}
           </Text>
           <SheetItem
@@ -181,10 +181,10 @@ function Editor({
   )
 }
 
-/** The playlists that fill from this tag, by name: what deleting it changes (`rulesWithoutTag`). */
+/** The playlists that fill from this tag, by name: what deleting it changes (`followsTag`). */
 function followersOf(playlists: readonly Playlist[], tagId: number): string[] {
   return playlists
-    .filter(playlist => playlist.rules && rulesWithoutTag(playlist.rules, tagId) !== undefined)
+    .filter(playlist => playlist.rules && followsTag(playlist.rules, tagId))
     .map(playlist => playlist.name)
 }
 

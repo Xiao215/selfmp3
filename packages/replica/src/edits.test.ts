@@ -294,15 +294,16 @@ describe('deleting a tag playlists follow', () => {
     expect(view.playlistSongs[chill]).toEqual([d.idOf('songs', 'a')])
   })
 
-  it('takes only its rule out of a playlist that follows other things too', () => {
+  // Dropping only the tag's rule widened an "all" playlist and narrowed an "any" one.
+  it('keeps the songs of a playlist that follows other things too', () => {
     const d = device()
     const both = follow(d, 'Chill and loved')
     const changes = edits.removeTag(d.ctx(), d.idOf('tags', '1'))
-    expect(changes.map(change => change.type)).toEqual(['playlistEdited', 'tagRemoved'])
+    expect(changes.map(change => change.type)).toEqual(['playlistUnfollowed', 'tagRemoved'])
     const view = d.apply(changes)
     expect(view.library.playlists.find(p => p.id === both)).toMatchObject({
-      kind: 'live',
-      rules: { rules: [{ field: 'loved', op: 'is', value: true }] },
+      kind: 'manual',
+      rules: null,
     })
   })
 

@@ -87,22 +87,47 @@ describe('TagRemoval', () => {
     expect(stamped(has.id)).toEqual(['order', 'rules'])
   })
 
-  it('takes only its rule out of a playlist that follows something else too', () => {
+  /*
+   * Only the rule about the tag used to go, and the rest stayed live: under
+   * "all" that widened the playlist — "has chill and not loved", four songs,
+   * became every song not loved — and under "any" it narrowed it.
+   */
+  it('keeps the songs of a playlist that follows something else too', () => {
+    const [a, b, c] = [song('a'), song('b'), song('c')]
     const chill = tags.create('chill').id
     const rain = tags.create('rain').id
-    const both = live('chill and rain', [
+    tags.bulk([a!, b!], chill, 'add')
+    tags.bulk([b!, c!], rain, 'add')
+    songs.patch(b!, { loved: true })
+    const notLoved = live('chill, not loved', [
       { field: 'tag', op: 'has', tagId: chill },
-      { field: 'tag', op: 'has', tagId: rain },
+      { field: 'loved', op: 'is', value: false },
     ])
+    const either = playlists.create({
+      name: 'chill or rain',
+      description: '',
+      kind: 'live',
+      rules: {
+        match: 'any',
+        rules: [
+          { field: 'tag', op: 'has', tagId: chill },
+          { field: 'tag', op: 'has', tagId: rain },
+        ],
+        orderBy: 'title',
+        order: 'asc',
+        limit: null,
+      },
+    })
     const other = live('rain only', [{ field: 'tag', op: 'has', tagId: rain }])
 
-    expect(removal.remove(chill)).toEqual(['chill and rain'])
+    expect(removal.remove(chill).sort()).toEqual(['chill or rain', 'chill, not loved'])
 
-    expect(playlists.byId(both.id)).toMatchObject({
-      kind: 'live',
-      rules: { rules: [{ field: 'tag', op: 'has', tagId: rain }] },
-    })
-    expect(stamped(both.id)).toEqual(['rules'])
+    const kept = playlists.byId(notLoved.id)!
+    expect(kept).toMatchObject({ kind: 'manual', rules: null })
+    expect(playlists.songIds(kept)).toEqual([a])
+    expect(playlists.songIds(playlists.byId(either.id)!)).toEqual([a, b, c])
+    expect(stamped(notLoved.id)).toEqual(['order', 'rules'])
+    expect(playlists.byId(other.id)).toMatchObject({ kind: 'live' })
     expect(stamped(other.id)).toEqual([])
   })
 })

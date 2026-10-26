@@ -1,12 +1,12 @@
 import {
   findArtist,
+  followsTag,
   insertedAt,
   newTagHue,
   newUid,
   noSongsProblem,
   playlistPatchProblem,
   playlistSongsProblem,
-  rulesWithoutTag,
   tagFlips,
   tagsAfter,
   tagNamed,
@@ -19,7 +19,6 @@ import {
   type Playlist,
   type PlayEvent,
   type SetArtistNames,
-  type SmartRules,
   type Song,
   type SongPatch,
   type UpdatePlaylist,
@@ -282,9 +281,8 @@ const cloudRules = (ctx: EditContext, rules: NonNullable<CreatePlaylist['rules']
 
 /**
  * What deleting these tags does to the playlists that follow them, as the
- * server's `TagRemoval` does (shared `rulesWithoutTag`): the rules about them
- * go, and a playlist left with none keeps the songs it shows — but for `gone`,
- * songs removed in the same edit — and stops following.
+ * server's `TagRemoval` does (shared `followsTag`): each keeps the songs it
+ * shows — but for `gone`, songs removed in the same edit — and stops following.
  */
 function lettingGoOf(
   ctx: EditContext,
@@ -294,34 +292,17 @@ function lettingGoOf(
   const changes: Change[] = []
   for (const found of ctx.view.library.playlists) {
     const uid = ctx.view.uids.playlists.get(found.id)
-    if (found.kind !== 'live' || !found.rules || !uid) continue
-    let rules: SmartRules | null = found.rules
-    let touched = false
-    for (const tagId of tagIds) {
-      if (!rules) break
-      const next: SmartRules | null | undefined = rulesWithoutTag(rules, tagId)
-      if (next === undefined) continue
-      rules = next
-      touched = true
-    }
-    if (!touched) continue
-    changes.push(
-      rules
-        ? {
-            type: 'playlistEdited',
-            hlc: ctx.stamp(),
-            uid,
-            fields: { rules: cloudRules(ctx, rules) },
-          }
-        : {
-            type: 'playlistUnfollowed',
-            hlc: ctx.stamp(),
-            uid,
-            songUids: (ctx.view.playlistSongs[found.id] ?? [])
-              .map(songId => songUid(ctx, songId))
-              .filter(songUid => !gone.has(songUid)),
-          },
-    )
+    const rules = found.rules
+    if (found.kind !== 'live' || !rules || !uid) continue
+    if (!tagIds.some(tagId => followsTag(rules, tagId))) continue
+    changes.push({
+      type: 'playlistUnfollowed',
+      hlc: ctx.stamp(),
+      uid,
+      songUids: (ctx.view.playlistSongs[found.id] ?? [])
+        .map(songId => songUid(ctx, songId))
+        .filter(songUid => !gone.has(songUid)),
+    })
   }
   return changes
 }

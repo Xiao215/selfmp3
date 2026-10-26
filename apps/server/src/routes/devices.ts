@@ -14,6 +14,19 @@ import { HttpError } from '../http/errors.js'
 
 const ParamsWithDevice = z.object({ id: DeviceIdSchema })
 
+/** How many tabs one browser's stream may speak for (more than anyone keeps open). */
+const MAX_STREAM_DEVICES = 64
+
+/**
+ * Whose commands a stream carries: `deviceId` once for a phone, once per tab
+ * for a browser, whose tabs share one stream (r1 M19), or not at all.
+ */
+const EventsQuery = z.object({
+  deviceId: z
+    .union([DeviceIdSchema.transform(id => [id]), z.array(DeviceIdSchema).max(MAX_STREAM_DEVICES)])
+    .default([]),
+})
+
 /**
  * Devices, presence, handoff commands and the event stream.
  *
@@ -63,7 +76,7 @@ export function deviceRoutes(container: Container): Router {
 
   router.get(
     '/events',
-    route({ query: z.object({ deviceId: DeviceIdSchema.optional() }) }, ({ query, req, res }) => {
+    route({ query: EventsQuery }, ({ query, req, res }) => {
       res.status(200)
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -72,7 +85,7 @@ export function deviceRoutes(container: Container): Router {
       res.setHeader('X-Accel-Buffering', 'no')
       res.flushHeaders()
 
-      const unsubscribe = container.devices.connect(res, query.deviceId ?? null)
+      const unsubscribe = container.devices.connect(res, query.deviceId)
       req.on('close', unsubscribe)
       // Headers are sent, so the route helper will not try to respond.
     }),

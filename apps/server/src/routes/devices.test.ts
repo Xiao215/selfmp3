@@ -115,6 +115,24 @@ describe('POST /api/devices/:id/command', () => {
     expect(text).not.toContain('fromDeviceId')
   })
 
+  it('carries every device named on one stream, which is how a browser’s tabs share one', async () => {
+    expect((await heartbeat('browser-tab-1')).status).toBe(200)
+    expect((await heartbeat('browser-tab-2')).status).toBe(200)
+
+    const stream = new AbortController()
+    const events = await fetch(
+      `${origin}/api/events?deviceId=browser-tab-1&deviceId=browser-tab-2`,
+      { headers: auth(), signal: stream.signal },
+    )
+    expect(events.status).toBe(200)
+
+    for (const id of ['browser-tab-1', 'browser-tab-2']) {
+      const sent = await post(`/api/devices/${id}/command`, { type: 'pause' })
+      expect(await sent.json()).toEqual({ ok: true, delivered: 1 })
+    }
+    stream.abort()
+  })
+
   it('says a known device with no stream open is not connected', async () => {
     expect((await heartbeat('phone-00001')).status).toBe(200)
     const response = await post('/api/devices/phone-00001/command', { type: 'pause' })

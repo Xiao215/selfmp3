@@ -5,13 +5,11 @@ import { useTabHidden } from '../../ports/tabHidden'
 /**
  * How long a hidden tab keeps its stream before letting it go.
  *
- * A browser opens at most six connections to one address over plain HTTP, and
- * each tab's stream holds one for as long as it is open: six tabs took every
- * one, and every other request from every tab — playing, Stats, an edit —
- * waited behind them without end. A hidden tab that is not playing has no use
- * for live news, so after this it closes its stream and opens it again when it
- * is looked at; the replay then brings it up to date. A tab that is playing
- * keeps it, to hear "pause" from another device taking over.
+ * A browser's tabs share one stream (`ports/events.web.ts`), and a hidden tab
+ * that is not playing has no use for its news: after this it leaves, so the
+ * stream is held by a tab someone is looking at and stops speaking for this
+ * one, and it joins again when it is looked at and is told how things stand.
+ * A tab that is playing stays, to hear "pause" from another device taking over.
  */
 const HIDDEN_STREAM_GRACE_MS = 30_000
 

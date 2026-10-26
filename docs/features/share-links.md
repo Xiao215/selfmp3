@@ -14,11 +14,11 @@ A link is the quick way to share. A [shared playlist](listen-together.md#shared-
 is the lasting one: everyone in it adds to it, and it lasts until they leave. A link is
 made in one tap, holds what you picked, and ends by itself.
 
-| | Rooms | Shared playlists | Share links |
-|---|---|---|---|
-| Who it is for | Friends listening now | Friends adding over time | Anyone you send it to |
-| Needs an account to open | No (a guest gives a name) | Yes | No |
-| Lasts | Until the host ends it | Until everyone leaves | A week from the last play, a month at most |
+|                          | Rooms                     | Shared playlists         | Share links                                |
+| ------------------------ | ------------------------- | ------------------------ | ------------------------------------------ |
+| Who it is for            | Friends listening now     | Friends adding over time | Anyone you send it to                      |
+| Needs an account to open | No (a guest gives a name) | Yes                      | No                                         |
+| Lasts                    | Until the host ends it    | Until everyone leaves    | A week from the last play, a month at most |
 
 ## What a link holds (A1)
 
@@ -61,16 +61,16 @@ page draws no menu.
 - **Share from here** is the song's Share link, from that line: the same sheet, and the same
   link as sharing the song (below). The address says where to start, as a time:
   `/l/<id>/<key>?t=0:42` (`formatShareStart`, whole seconds, a little before the line rather
-  than after). The sheet's row says *From 0:42 · the line*, and the words sent with it end
-  *· from 0:42*.
+  than after). The sheet's row says _From 0:42 · the line_, and the words sent with it end
+  _· from 0:42_.
 - **The line goes with it** (`ShareLine`): where it starts, the line, and its romaji or pinyin
   when that is on for the sender. The link keeps up to 20, one per start, so sharing a song from
   two lines is still one link with two addresses.
 - **The friend's page** starts the song there when Play is pressed, and shows the line large
   with the reading under it. On a computer it has the words' column until the song plays, then
   the words in time take over on that line; on a phone it sits under the names.
-- **A chat's card** names the line: *“干杯 朋友” · 五月天 · Shared by Xiao*. A start the link
-  has no line for says *From 1:00*. Nothing is read from the sender's bucket for either.
+- **A chat's card** names the line: _“干杯 朋友” · 五月天 · Shared by Xiao_. A start the link
+  has no line for says _From 1:00_. Nothing is read from the sender's bucket for either.
 - **A `t` that does not read as a time** (`parseShareStart`: `0:42`, `1:02:03`, or plain
   seconds), or one past the song's end, is no start: the link is as it is without one.
 - **Copy line** copies the line's words alone.
@@ -108,11 +108,11 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
 
 - **The ground** is washed in the first cover's colour, the way the phone's Now Playing is:
   the colour, the cover blurred over it, a veil of the ground on top. Grey once it ends.
-- **The top line** is the sender's face and *Xiao sent you a song · 6 days left*
+- **The top line** is the sender's face and _Xiao sent you a song · 6 days left_
   (`shareHeadLine`). On your own link it says who opened it.
 - **One song, on a computer (A1)**, is Now Playing's stage at its measurements
   (`stageGeometry`, `features/share/ShareSong.tsx`): the cover at the top of the left column,
-  the title and *artist · album* under it, then the seek bar and Play, all the cover's width.
+  the title and _artist · album_ under it, then the seek bar and Play, all the cover's width.
   The words take the column on the right and scroll in time (`StageLyrics`). A song without
   words, or whose words would not read, has its visual there instead, as Now Playing's does
   (`SongVisual`, following the sound it plays), so the page is laid out the same either way.
@@ -126,21 +126,25 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   phone they are read once the song is loaded or its words view is opened.
   The bar is there before Play, so nothing moves when it starts.
 - **A song that has ended** is its cover, faded, and its names, with the ways on under them.
-- **A list that plays** (R1 and P1, agreed with Xiao on 2026-10-26) is the one-song page
+- **A list that plays** (R1 and C, agreed with Xiao on 2026-10-26) is the one-song page
   for one of its songs: the one playing, or before Play the one cued, the first until another
-  is picked. Only the music: no Back, no Get them. *jpop · 7 of 100* sits over the title,
+  is picked. Only the music: no Back, no Get them. _jpop · 7 of 100_ sits over the title,
   and Previous and Next beside Play step through the list's songs (before Play they only
   move the cue). The wash and the words follow the song.
   - **On a computer** the songs are a rail of covers down the window's left edge, 76 points
     wide, with Shuffle at its head and the page's song ringed (`CoverRail`). Under the
-    pointer it opens over the page to 320 with the list's name, *300 songs · 17 hr 26 min*
+    pointer it opens over the page to 320 with the list's name, _300 songs · 17 hr 26 min_
     and each song's title and artist, and shuts when the pointer leaves; the page never
     moves. A press plays the song.
-  - **On a phone** the list's name and that line sit over a row of its covers across the
-    page (`CoverRow`), above the song. A press plays one; the name opens all of them as a
-    sheet. Shuffle joins Previous, Play and Next at the foot.
-  - Both draw only the covers in sight, so a link of a thousand songs reads about a dozen
-    covers from its sender's bucket as it opens.
+  - **On a phone** the song's page keeps the screen, and one slim line under Play says
+    what plays next: its cover, title and artist, and _All 100_ (`UpNext`). It is the
+    player's own next song once the list plays, Shuffle and all, and the one after the cue
+    before it does. A tap or a pull up opens every song with its name as a sheet, at the
+    page's song, which wears the equaliser; a press plays one. Shuffle joins Previous, Play
+    and Next at the foot. (A row of bare covers over the song came first, and was dropped:
+    nothing said which song was which.)
+  - The rail and the sheet draw only the songs in sight, so a link of a thousand songs
+    reads about a dozen covers from its sender's bucket as it opens.
 - **A list that has ended:** a 2×2 mosaic of its covers, its name, how many songs and the
   ways on, then the songs, dimmed, each opening where it came from. The rows are drawn sixty
   at a time as the page is scrolled. **Get them** asks your server in parts of 500
@@ -152,9 +156,9 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
 A chat app (Discord, Messages, Slack, Telegram) draws a card for a link from tags in the
 page it fetches. It runs no JavaScript. Agreed with Xiao on 2026-10-14, picks A1, B1, C1 and G1.
 
-- **The card (A1)** leads with the song, as Apple Music's does: *干杯*, then *五月天 · Song
-  · Shared by Xiao*. A list says *12 songs · Shared by Xiao*. Once the link has ended the
-  line says *Link ended · ask Xiao for it again*, since a chat keeps its card long after.
+- **The card (A1)** leads with the song, as Apple Music's does: _干杯_, then _五月天 · Song
+  · Shared by Xiao_. A list says _12 songs · Shared by Xiao_. Once the link has ended the
+  line says _Link ended · ask Xiao for it again_, since a chat keeps its card long after.
 - **The picture (B1)** is the cover, as the link already lends it, so Discord shows it
   beside the words and Messages shows it big. Discord's stripe is the cover's colour.
 - **Where it comes from (C1).** GitHub Pages cannot answer for a link: it has no file for
@@ -193,7 +197,7 @@ and **Get it** becomes the main button. There is no notification.
 
 **Get it** is a room's Get it (`features/room/useGetSongs.ts`). Your own server imports the
 song from its source link into your bucket, and the song remembers who sent the link (its
-page says *from a link Mia sent*, docs/features/wrapped-and-gems.md). It needs you signed in
+page says _from a link Mia sent_, docs/features/wrapped-and-gems.md). It needs you signed in
 and your server reachable. A song with no source link, such as a file you dropped in, has no Get
 it.
 
@@ -207,7 +211,7 @@ The page stays, with three ways on:
 
 The cover stays, faded, and the names stay. The doorman keeps this card for **ninety days**
 after the link ends (`SHARE_KEPT_MS`), then forgets the link entirely. A forgotten link's
-page says *This link is gone* and asks the reader to have it shared again. Nothing of the link
+page says _This link is gone_ and asks the reader to have it shared again. Nothing of the link
 is left to draw, so the page shows an empty sleeve, its record half out, in the middle of the
 page (`GoneLink`). A link cut short when it was copied gets the same page with a torn sleeve.
 Agreed with Xiao on 2026-10-24
@@ -229,7 +233,7 @@ The same person asking twice is one ask. A guest's device remembers that it aske
 
 The sender sees asks in two places:
 
-- **On Home**: one ask as a card, *Ken asked for 晴天 again*, with **Share again** and **Not
+- **On Home**: one ask as a card, _Ken asked for 晴天 again_, with **Share again** and **Not
   now**. Several asks show as one row that opens Links you shared.
 - **In Links you shared**.
 
@@ -243,7 +247,7 @@ rows are familiar, but there is no play. Agreed with Xiao on 2026-10-23
 I1 J2 K1):
 
 - **Two sections.** **Playing** comes first, the link ending soonest on top. **Ended** follows,
-  the latest first. Past five, the ended ones fold under *Show 3 more*.
+  the latest first. Past five, the ended ones fold under _Show 3 more_.
 - **A row** is Library's. On a computer it has the name over who opened it, how many songs it
   holds, and how long it has where a song's length would be. That time is amber on the last
   day. Once a link has ended, its line says how often it played, and its cover fades. On a
@@ -255,7 +259,7 @@ I1 J2 K1):
   **Select 8**, which unfolds Ended first, so nothing ticked is out of sight. The bar's checkbox
   selects every link.
 - **The bar** has one button, **Remove**. It takes playing links too, after asking once
-  (*1 of them is still playing and stops for everyone*). **More** holds **Share again**, **End**
+  (_1 of them is still playing and stops for everyone_). **More** holds **Share again**, **End**
   and **Copy links**.
 
 You reach it from Profile, under Report. Each link's ⋯ holds:
@@ -267,11 +271,11 @@ You reach it from Profile, under Report. Each link's ⋯ holds:
 ## At the edges
 
 - **You remove the song.** The first play that finds its file gone from your bucket marks it
-  gone. When all of a link's songs are gone, the link ends: *Xiao removed this song*, with no
+  gone. When all of a link's songs are gone, the link ends: _Xiao removed this song_, with no
   Ask again.
 - **Your bucket hits its daily cap.** The audio read is refused for the day, as any read is.
-  The link does not end because of it. Whoever opens it is told *Whoever sent it has run out
-  of their daily quota* (`lender_cap_exceeded`, not `bucket_cap_exceeded`, so their own bucket
+  The link does not end because of it. Whoever opens it is told _Whoever sent it has run out
+  of their daily quota_ (`lender_cap_exceeded`, not `bucket_cap_exceeded`, so their own bucket
   is not held), and its cover is a letter in the page's colour. Your own Links you shared and
   From friends draw your own copy's cover when you have the song (`coverSong`), so they need
   no read of the bucket.
@@ -327,13 +331,13 @@ and Home and Settings then show nothing of them.
 
 ## Where the code lives
 
-| What | Where |
-|---|---|
-| The contract | `packages/shared/src/schemas/share.ts` |
-| The rules: when it ends, asks, renewing | `packages/shared/src/shareLink.ts` |
-| The doorman | `apps/doorman/src/share.ts`, `shareRoutes.ts` |
-| From a device | `packages/client/src/room/shareApi.ts` |
-| The app | `apps/app/src/features/share/`: the sheet, the link's page, Links you shared, From friends |
-| Routes | `apps/app/app/l/[id]/[key].tsx`, `apps/app/app/links.tsx` |
-| Sharing from a line | `apps/app/src/features/nowPlaying/useLineMenu.tsx`; the start's rules in `shareLink.ts` (`parseShareStart`, `formatShareStart`, `shareLineAt`) |
-| Tests | `apps/doorman/src/shareRoutes.test.ts` and `linkPage.test.ts` (the real doorman), `apps/app/src/features/share/share.model.test.ts` |
+| What                                    | Where                                                                                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| The contract                            | `packages/shared/src/schemas/share.ts`                                                                                                         |
+| The rules: when it ends, asks, renewing | `packages/shared/src/shareLink.ts`                                                                                                             |
+| The doorman                             | `apps/doorman/src/share.ts`, `shareRoutes.ts`                                                                                                  |
+| From a device                           | `packages/client/src/room/shareApi.ts`                                                                                                         |
+| The app                                 | `apps/app/src/features/share/`: the sheet, the link's page, Links you shared, From friends                                                     |
+| Routes                                  | `apps/app/app/l/[id]/[key].tsx`, `apps/app/app/links.tsx`                                                                                      |
+| Sharing from a line                     | `apps/app/src/features/nowPlaying/useLineMenu.tsx`; the start's rules in `shareLink.ts` (`parseShareStart`, `formatShareStart`, `shareLineAt`) |
+| Tests                                   | `apps/doorman/src/shareRoutes.test.ts` and `linkPage.test.ts` (the real doorman), `apps/app/src/features/share/share.model.test.ts`            |

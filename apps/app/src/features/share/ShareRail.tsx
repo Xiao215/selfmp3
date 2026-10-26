@@ -1,17 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { Animated, PanResponder, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
-import { artistOr, plural, type ShareEntry } from '@selfmp3/shared'
+import { artistOr, peekNext, plural, type ShareEntry } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
 import { MOVE_MS } from '../../ui/motion.model'
 import { ease, timing } from '../../ui/motion'
+import { usePlayer } from '../../player/PlayerProvider'
 import { Cover } from '../../ui/components/Cover'
+import { Equalizer } from '../../ui/components/Equalizer'
 import { IconButton } from '../../ui/components/IconButton'
-import { Shuffle } from '../../ui/components/Icons'
+import { ChevronUp, Shuffle } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Sheet } from '../../ui/components/Sheet'
 import { FlatList } from '../../ui/components/Scroll'
+import { isVerticalPull } from '../nowPlaying/nowPlaying.model'
 import { RoomEntryLine } from '../room/RoomEntryLine'
 
 /** The rail's width shut: its covers alone, so the song's page keeps the window. */
@@ -24,9 +27,12 @@ const RAIL_ROW = RAIL_COVER + space.md
 /** The cover's way in from the rail's edge, centring it while the rail is shut. */
 const RAIL_INSET = (RAIL_WIDTH - RAIL_COVER) / 2
 
-/** The phone's row of covers over the song. */
-const ROW_COVER = 44
-const ROW_GAP = space.sm
+/** Up next's cover, on a phone. */
+const UP_NEXT_COVER = 40
+/** How far up Up next is pulled to open the list. */
+const UP_NEXT_PULL = 32
+/** Up next's height on a phone: its cover and its padding, for the song's cover to give up. */
+export const UP_NEXT_ROOM = UP_NEXT_COVER + space.sm * 2
 
 /** What the rail and the row are given: the link's songs, and which one the page shows. */
 interface ListProps {
@@ -169,76 +175,83 @@ export function CoverRail({
 }
 
 /**
- * A list link's songs on a phone (P1): the rail turned on its side, a row of
- * covers over the song, the list's name over that. A swipe browses them, a
- * press plays one, and the name opens all of them as a sheet, for a long list.
+ * A list link's songs on a phone (C, Xiao 2026-10-26): the song's own page
+ * keeps the screen, and under its controls one line says what plays next,
+ * its cover, title and artist. A tap or a pull up opens every song with its
+ * name as a sheet, the one on the page marked, and a press there plays it.
+ *
+ * What plays next is the player's own while the list plays, Shuffle and all,
+ * and the song after the cued one before it does.
  */
-export function CoverRow({
+export function UpNext({
   entries,
+  ids,
   coverOf,
   tileHue,
   shown,
   onPick,
   name,
   summary,
-}: ListProps): ReactNode {
+}: ListProps & {
+  /** The player's id for each of `entries`, in the same order. */
+  ids: readonly number[]
+}): ReactNode {
+  const { theme } = useUnistyles()
+  const player = usePlayer()
   const [sheet, setSheet] = useState(false)
   const list = useRef<FlatList<ShareEntry>>(null)
-  const step = ROW_COVER + ROW_GAP
-
-  useEffect(() => {
-    if (shown < 0 || shown >= entries.length) return
-    // The first at the row's start, past its inset, rather than a third of the way in.
-    if (shown === 0) list.current?.scrollToOffset({ offset: 0, animated: true })
-    else list.current?.scrollToIndex({ index: shown, viewPosition: 0.3, animated: true })
-  }, [shown, entries.length])
+  const inList = player.current !== null && ids.includes(player.current.id)
+  const nextId = inList ? peekNext(player.queue) : (ids[shown + 1] ?? null)
+  const nextAt = nextId === null ? -1 : ids.indexOf(nextId)
+  const next = entries[nextAt]
+  const pull = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          gesture.dy < 0 && isVerticalPull(gesture.dx, gesture.dy),
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy < -UP_NEXT_PULL || gesture.vy < -0.5) setSheet(true)
+        },
+      }),
+    [],
+  )
 
   return (
-    <View style={styles.row} testID="share-row">
+    <View {...pull.panHandlers}>
       <Press
         feedback="dim"
         onPress={() => setSheet(true)}
         accessibilityRole="button"
-        accessibilityLabel={`All of ${name}`}
-        style={styles.rowHead}
-        testID="share-list-name"
+        accessibilityLabel={next ? `Up next, ${next.song.title}. All of ${name}` : `All of ${name}`}
+        style={styles.upNext}
+        testID="share-up-next"
       >
-        <Text style={styles.rowName} numberOfLines={1}>
-          {name}
-        </Text>
-        <Text style={styles.railSummary} numberOfLines={1}>
-          {summary}
-        </Text>
+        {next ? (
+          <Cover uri={coverOf(next)} title={next.song.title} size={UP_NEXT_COVER} hue={tileHue} />
+        ) : null}
+        <View style={styles.upNextNames}>
+          <Text style={styles.upNextLabel} numberOfLines={1}>
+            {next ? 'Up next' : name}
+          </Text>
+          <Text style={styles.upNextSong} numberOfLines={1}>
+            {next ? (
+              <>
+                {next.song.title}
+                <Text style={styles.upNextArtist}>
+                  {' · '}
+                  {artistOr(next.song.artist)}
+                </Text>
+              </>
+            ) : (
+              summary
+            )}
+          </Text>
+        </View>
+        <View style={styles.upNextAll}>
+          <Text style={styles.upNextAllText}>All {entries.length}</Text>
+          <ChevronUp size={16} color={theme.colors.textSecondary} />
+        </View>
       </Press>
-      <FlatList
-        ref={list}
-        horizontal
-        data={entries}
-        keyExtractor={entry => String(entry.id)}
-        getItemLayout={(_data, index) => ({ length: step, offset: step * index, index })}
-        initialNumToRender={10}
-        windowSize={5}
-        showsHorizontalScrollIndicator={false}
-        // Past the column's edges to the page's, so the row runs off the screen as it scrolls.
-        style={styles.rowList}
-        contentContainerStyle={styles.rowContent}
-        renderItem={({ item, index }) => (
-          <Press
-            onPress={() => onPick(index)}
-            accessibilityRole="button"
-            accessibilityLabel={`Play ${item.song.title}`}
-            accessibilityState={{ selected: index === shown }}
-            style={[
-              styles.rowCover,
-              index === shown && styles.ring,
-              index !== shown && styles.resting,
-            ]}
-            testID={`share-cover-${index}`}
-          >
-            <Cover uri={coverOf(item)} title={item.song.title} size={ROW_COVER} hue={tileHue} />
-          </Press>
-        )}
-      />
       <Sheet
         open={sheet}
         onClose={() => setSheet(false)}
@@ -247,16 +260,44 @@ export function CoverRow({
         testID="share-list-sheet"
       >
         <FlatList
+          ref={list}
           data={entries}
           keyExtractor={entry => String(entry.id)}
           initialNumToRender={12}
           windowSize={5}
           style={styles.sheetList}
+          // Opened on the song the page shows, a third of the way down, not at the list's top.
+          onLayout={() => {
+            if (shown > 0)
+              list.current?.scrollToIndex({ index: shown, viewPosition: 0.3, animated: false })
+          }}
+          onScrollToIndexFailed={failed => {
+            list.current?.scrollToOffset({
+              offset: failed.averageItemLength * failed.index,
+              animated: false,
+            })
+            setTimeout(() => {
+              list.current?.scrollToIndex({
+                index: failed.index,
+                viewPosition: 0.3,
+                animated: false,
+              })
+            }, 50)
+          }}
           renderItem={({ item, index }) => (
             <RoomEntryLine
               song={item.song}
               uri={coverOf(item)}
               face={null}
+              trailing={
+                index === shown ? (
+                  <Equalizer
+                    paused={!player.isPlaying || !inList}
+                    size={16}
+                    color={theme.colors.textPrimary}
+                  />
+                ) : null
+              }
               onPress={() => {
                 setSheet(false)
                 onPick(index)
@@ -326,16 +367,20 @@ const styles = StyleSheet.create(theme => ({
   railTitle: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
   railArtist: { color: theme.colors.textSecondary, fontSize: type.small },
 
-  row: { gap: space.sm },
-  rowHead: { flexDirection: 'row', alignItems: 'baseline', gap: space.sm },
-  rowName: {
-    color: theme.colors.textPrimary,
-    fontSize: type.sub,
-    fontWeight: '700',
-    flexShrink: 1,
+  upNext: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    height: UP_NEXT_ROOM,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.card,
+    backgroundColor: withAlpha(theme.colors.surface0, 0.32),
   },
-  rowList: { marginHorizontal: -space.gutter, flexGrow: 0 },
-  rowContent: { paddingHorizontal: space.gutter, paddingVertical: 4, gap: ROW_GAP },
-  rowCover: { borderRadius: radius.cover },
+  upNextNames: { flex: 1, minWidth: 0, gap: 1 },
+  upNextLabel: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
+  upNextSong: { color: theme.colors.textPrimary, fontSize: type.sub, fontWeight: '600' },
+  upNextArtist: { color: theme.colors.textSecondary, fontWeight: '400' },
+  upNextAll: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingRight: space.xs },
+  upNextAllText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   sheetList: { maxHeight: 480 },
 }))

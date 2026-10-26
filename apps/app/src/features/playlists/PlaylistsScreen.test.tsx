@@ -180,7 +180,7 @@ describe('the grid', () => {
     await renderScreen()
     const order = screen
       .getAllByTestId(/^(playlists-new-tile|playlists-liked-tile|playlist-row-\d+)$/)
-      .map(tile => tile.props.testID as string)
+      .map(tile => tile.props['testID'] as string)
     expect(order).toEqual(['playlists-new-tile', 'playlists-liked-tile', 'playlist-row-0'])
   })
 })

@@ -21,6 +21,7 @@ import { CarProvider } from '../src/ports/car/CarProvider'
 import { DownloadsProvider } from '../src/offline/DownloadsProvider'
 import { useKeepWaitingEdits } from '../src/offline/waitingEdits'
 import { useKeepAlongside } from '../src/offline/useKeepAlongside'
+import { useKeepGoing } from '../src/features/queue/useKeepGoing'
 import { RoomProvider } from '../src/features/room/RoomProvider'
 import { PlayerProvider } from '../src/player/PlayerProvider'
 import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
@@ -254,6 +255,8 @@ function Keeping(): ReactNode {
   useKeepAlongside()
   // Edits made while the library was out of reach, kept through a reload.
   useKeepWaitingEdits()
+  // Songs like the last ones, when Up next runs out and Keep going is on.
+  useKeepGoing()
   return null
 }
 

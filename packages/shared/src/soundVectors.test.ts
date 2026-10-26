@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   SOUND_DIMENSIONS,
   decodeSoundPack,
+  nearestFirst,
+  packedVector,
   packVector,
   soundCentre,
   soundCloseness,
@@ -81,5 +83,25 @@ describe('a packed vector', () => {
     if (!centre) throw new Error('no centre')
     expect(soundCloseness(centre, a)).toBeGreaterThan(soundCloseness(centre, c))
     expect(soundCentre([])).toBeNull()
+  })
+})
+
+describe('nearestFirst', () => {
+  it('puts those nearest first, and those with no closeness after them', () => {
+    const near: Record<string, number | null> = { a: 0.2, b: null, c: 0.9, d: null, e: 0.5 }
+    const order = nearestFirst(
+      ['a', 'b', 'c', 'd', 'e'],
+      item => near[item] ?? null,
+      () => 0.5,
+    )
+    expect(order.slice(0, 3)).toEqual(['c', 'e', 'a'])
+    expect(new Set(order.slice(3))).toEqual(new Set(['b', 'd']))
+  })
+})
+
+describe('packedVector', () => {
+  it('holds a vector as the packed text does', () => {
+    const vector = Array.from({ length: SOUND_DIMENSIONS }, (_, at) => Math.sin(at) / 20)
+    expect([...packedVector(vector)]).toEqual([...unpackVector(packVector(vector))!])
   })
 })

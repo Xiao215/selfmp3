@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
@@ -22,7 +22,8 @@ import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Chip } from '../../ui/components/Chip'
 import { ListHead, listHeadText } from '../../ui/components/ListHead'
-import { ListMusic, Sparkle } from '../../ui/components/Icons'
+import { IconButton } from '../../ui/components/IconButton'
+import { ListMusic, Sparkle, X } from '../../ui/components/Icons'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { BackButton } from '../../ui/components/BackButton'
@@ -63,9 +64,27 @@ import { OPACITY } from '../../ui/motion.model'
  * Different songs picks again from what is left.
  */
 export function AnswerScreen(): ReactNode {
-  const router = useRouter()
-  const { wide } = useLayoutFlags()
   const { id } = useLocalSearchParams<{ id?: string }>()
+  return <AnswerView id={id} />
+}
+
+/**
+ * An answer's songs and head: the page's, and Ask's on a computer, where the
+ * list you're on opens beside the conversation (A2, 2026-10-26). There it
+ * closes rather than going back, and has no Change it of its own: Ask's
+ * field changes it.
+ */
+export function AnswerView({
+  id,
+  onClose,
+}: {
+  id: string | undefined
+  /** Beside Ask's thread: what × does. */
+  onClose?: () => void
+}): ReactNode {
+  const router = useRouter()
+  const { theme } = useUnistyles()
+  const { wide } = useLayoutFlags()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
   const player = usePlayerCommands()
@@ -108,12 +127,13 @@ export function AnswerScreen(): ReactNode {
       return server.api.describePlaylist({ text: kept.text, understanding, avoid: shown })
     },
     onSuccess: answer => {
-      if (kept) changeAnswer(kept.id, 'Different songs', answer)
+      if (kept) changeAnswer(kept.id, answer)
       setEdited(null)
     },
   })
 
   if (!kept || !result) {
+    if (onClose) return null
     return (
       <MissingPage
         testID="answer-gone"
@@ -171,7 +191,13 @@ export function AnswerScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <BackButton to="/search" always />
+          {onClose ? (
+            <IconButton label="Close this list" onPress={onClose} filled testID="answer-close">
+              <X size={iconSize.field} color={theme.colors.textPrimary} />
+            </IconButton>
+          ) : (
+            <BackButton to="/search" always />
+          )}
           <MoreMenu
             name={result.understanding.name}
             title={result.understanding.name}
@@ -259,8 +285,7 @@ export function AnswerScreen(): ReactNode {
           />
         </>
       }
-      // The page is the version showing: no trail of the ones before it.
-      after={<ChangeIt answerId={kept.id} trail={false} large />}
+      after={onClose ? undefined : <ChangeIt answerId={kept.id} />}
       wideOverrides={WIDE}
     />
   )

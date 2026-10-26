@@ -57,9 +57,7 @@ export function libraryRoutes(container: Container): Router {
         songs: container.songs.all(),
         tags: container.tags.all(),
         playlists: container.playlists.all(),
-        artistNames: Object.fromEntries(
-          [...container.names.artistNames()].map(([artist, row]) => [artist, [...row.names]]),
-        ),
+        ...container.names.joinNames(),
         spellings: container.spellings.current(),
         version: container.libraryVersion(),
         generatedAt: generatedAt(),

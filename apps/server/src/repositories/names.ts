@@ -1,4 +1,4 @@
-import { ArtistNamesSchema, hlcWins } from '@selfmp3/shared'
+import { ArtistNamesSchema, hlcWins, namesFound, type ArtistJoinNames } from '@selfmp3/shared'
 import { z } from 'zod'
 import type { Db } from '../db/index.js'
 
@@ -65,6 +65,18 @@ export class NamesRepository {
         .all()
         .map(row => [row.artist, { names: readNames(row.names), hlc: row.hlc }]),
     )
+  }
+
+  /**
+   * Every artist's other names as the library carries them, with the artists
+   * whose names are MusicBrainz's as found: what joins artists (shared artistJoins.ts).
+   */
+  joinNames(): ArtistJoinNames {
+    const rows = this.artistNames()
+    return {
+      artistNames: Object.fromEntries([...rows].map(([artist, row]) => [artist, [...row.names]])),
+      artistNamesFound: [...rows].flatMap(([artist, row]) => (namesFound(row.hlc) ? [artist] : [])),
+    }
   }
 
   /** One artist's, or null when nobody has named them, nor the lookup. */

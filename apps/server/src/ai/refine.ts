@@ -48,7 +48,7 @@ export async function refine(
 
   steps.begin('Reading what to change')
   const prompt = [
-    libraryShape(songs, tags),
+    libraryShape(songs, tags, deps.artistNames?.()),
     `What they first asked:\n${request.text}`,
     `The filters now:\n${JSON.stringify(request.understanding)}`,
     `What to change:\n${request.change}`,
@@ -71,7 +71,9 @@ export async function refine(
   // The songs shown that the changed filters still let in, while the taste is
   // the same: as many as the count asked for, or as long as the length.
   const sameTaste = (understanding.brief ?? '') === (request.understanding.brief ?? '')
-  const fitting = new Set(songsFitting(songs, tags, understanding, now).map(song => song.id))
+  const fitting = new Set(
+    songsFitting(songs, tags, understanding, now, deps.artistNames?.()).map(song => song.id),
+  )
   const duration = new Map(songs.map(song => [song.id, song.duration]))
   const stillFit = sameTaste ? request.shown.filter(id => fitting.has(id)) : []
   const target = understanding.minutes === null ? null : understanding.minutes * 60

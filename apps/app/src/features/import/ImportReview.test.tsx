@@ -107,7 +107,14 @@ configureClient({
   api: {
     onCloudLibraryChanged: () => () => undefined,
     answersFromCloud: () => true,
-    library: () => Promise.resolve({ songs: [], tags: [], playlists: [] }),
+    library: () =>
+      Promise.resolve({
+        songs: [],
+        tags: [],
+        playlists: [],
+        artistNames: {},
+        artistNamesFound: [],
+      }),
   } as unknown as Api,
 })
 

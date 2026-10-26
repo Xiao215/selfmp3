@@ -14,7 +14,9 @@ import { label } from '../../ui/surfaces'
  * The names an artist also goes by, from the ⋯ on their page: search finds
  * them by these too — 周杰伦 as "Jay Chou", 幾田りら as "ikura". The server
  * fills them in from MusicBrainz where it can; what is typed here replaces
- * that, on every device. One field, the names apart by commas.
+ * that, on every device. One field, the names apart by commas. Another
+ * artist of the library named here, with fewer songs, is joined to this one
+ * (shared artistJoins.ts); taking the name out parts them again.
  *
  * A popover beside the ⋯ at desktop width and a sheet on a phone, as the tag
  * editor is.
@@ -99,7 +101,8 @@ function Editor({ artist, onSaved }: { artist: Artist; onSaved: () => void }): R
           </StatusLine>
         ) : (
           <Text style={styles.hint}>
-            Search finds {artist.name} by these too. Up to {ARTIST_NAMES_MAX}.
+            Search finds {artist.name} by these too. Name another artist here to join them. Up to{' '}
+            {ARTIST_NAMES_MAX}.
           </Text>
         )}
       </View>

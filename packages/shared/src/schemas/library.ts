@@ -19,6 +19,12 @@ export const LibrarySchema = z.object({
   playlists: z.array(PlaylistSchema),
   /** The names each artist also goes by, by `artistKey`: what search finds them by besides their own. */
   artistNames: z.record(z.string(), ArtistNamesSchema),
+  /**
+   * The artists whose other names are MusicBrainz's as it found them, which
+   * nobody has saved since, by `artistKey`. They find songs like any other
+   * names, but join no artists until somebody says so (packages/shared/src/artistJoins.ts).
+   */
+  artistNamesFound: z.array(z.string()),
   /** Chinese and Japanese titles, artists and albums in Latin letters: as written → each way it is spelt. */
   spellings: z.record(z.string(), z.array(z.string())),
   /** Bumped whenever anything changes, so clients can skip redundant work. */

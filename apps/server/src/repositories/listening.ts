@@ -41,13 +41,25 @@ export interface ArtistPlaysRow {
  * suis, as everywhere else in the app (`splitArtists`), and two spellings
  * that compare equal are one artist, under the spelling played most. A song
  * with no artist counts for `UNKNOWN_ARTIST`. Rows come most played first.
+ *
+ * Artists joined by their other names (shared artistJoins.ts) are one entry,
+ * under the name they are shown by, their plays summed: `shownAs` maps each
+ * joined artist's key to it. A song credited to both counts once.
  */
-export function topArtists(rows: readonly ArtistPlaysRow[], limit: number): TopEntry[] {
+export function topArtists(
+  rows: readonly ArtistPlaysRow[],
+  limit: number,
+  shownAs: ReadonlyMap<string, string> = new Map(),
+): TopEntry[] {
   const byKey = new Map<string, { key: string; plays: number; ms: number }>()
   for (const row of rows) {
     const names = splitArtists(row.artist)
-    for (const name of names.length > 0 ? names : [UNKNOWN_ARTIST]) {
+    const counted = new Set<string>()
+    for (const written of names.length > 0 ? names : [UNKNOWN_ARTIST]) {
+      const name = shownAs.get(artistKey(written)) ?? written
       const key = artistKey(name)
+      if (counted.has(key)) continue
+      counted.add(key)
       const had = byKey.get(key)
       if (had) {
         had.plays += row.plays

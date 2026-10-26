@@ -5,9 +5,11 @@ import {
   type Song,
   type Tag,
   artistKey,
-  libraryArtists,
+  findArtist,
+  joinedArtists,
   songArtistKeys,
   type Artist,
+  type ArtistJoinNames,
 } from '@selfmp3/shared'
 
 /**
@@ -51,7 +53,7 @@ export function placeSongs<S extends Song>(
   const artistKeys = new Set<string>()
   for (const place of places) {
     if (place.kind === 'tag') tagIds.add(place.tag.id)
-    else artistKeys.add(place.artist.key)
+    else for (const key of place.artist.keys) artistKeys.add(key)
   }
   const holds =
     match === 'all'
@@ -174,10 +176,13 @@ export function noTagsLine(): string {
  * The artist a new tag's name would shadow (`P11`): making a tag called
  * exactly what the songs already call an artist first offers the artist.
  */
-export function artistNamed(songs: readonly Song[], name: string): Artist | null {
-  const key = artistKey(name)
-  if (!key) return null
-  return libraryArtists(songs).find(artist => artist.key === key) ?? null
+export function artistNamed(
+  songs: readonly Song[],
+  names: ArtistJoinNames,
+  name: string,
+): Artist | null {
+  if (!artistKey(name)) return null
+  return findArtist(joinedArtists(songs, names), name) ?? null
 }
 
 /** One row of the Add sheet's list: a heading, or a place to turn on. */

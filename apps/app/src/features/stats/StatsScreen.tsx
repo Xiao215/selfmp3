@@ -4,7 +4,7 @@ import { Animated, Image, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import Svg, { Path } from 'react-native-svg'
-import type { Song, Stats, Tag } from '@selfmp3/shared'
+import { joinedKeys, type Song, type Stats, type Tag } from '@selfmp3/shared'
 import {
   motion,
   radius,
@@ -361,7 +361,12 @@ function RankedList({
       .map(top => songFor(top.songId))
       .filter((song): song is Song => song !== undefined)
     for (const row of rows) {
-      const song = artistCoverSong(row.name, played, library?.songs ?? [])
+      const song = artistCoverSong(
+        row.name,
+        played,
+        library?.songs ?? [],
+        library ? joinedKeys(library.songs, library, row.name) : undefined,
+      )
       if (song) covers.set(row.key, song)
     }
     return covers

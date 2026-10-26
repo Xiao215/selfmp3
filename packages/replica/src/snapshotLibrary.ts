@@ -1,6 +1,7 @@
 import {
   fromCloudRules,
   lovedAt,
+  namesFound,
   playlistRules,
   type CloudSnapshot,
   type Library,
@@ -189,6 +190,9 @@ export function snapshotToLibrary(
       playlists: libraryPlaylists,
       artistNames: Object.fromEntries(
         snapshot.artistNames.map(entry => [entry.artist, entry.names]),
+      ),
+      artistNamesFound: snapshot.artistNames.flatMap(entry =>
+        namesFound(entry.stamps?.['names']) ? [entry.artist] : [],
       ),
       spellings: snapshot.spellings,
       version,

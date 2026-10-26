@@ -126,7 +126,12 @@ interface PaletteContext {
  */
 export function paletteResults(
   query: string,
-  library: Pick<Library, 'songs' | 'playlists' | 'tags' | 'artistNames' | 'spellings'> | undefined,
+  library:
+    | Pick<
+        Library,
+        'songs' | 'playlists' | 'tags' | 'artistNames' | 'artistNamesFound' | 'spellings'
+      >
+    | undefined,
   fromCloud = false,
   context: PaletteContext = {},
 ): PaletteResults {

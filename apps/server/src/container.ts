@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { ANALYSIS_VERSION } from '@selfmp3/shared'
+import { ANALYSIS_VERSION, joinedNames } from '@selfmp3/shared'
 import type { Config, ServingConfig } from './config.js'
 import { createLogger, type Logger } from './logger.js'
 import { createShared, type SharedServices } from './shared.js'
@@ -214,8 +214,10 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const tags = new TagRepository(db)
   const playlists = new PlaylistRepository(db)
   const settings = new SettingsRepository(db)
-  const stats = new StatsRepository(db)
-  const wrapped = new WrappedRepository(db)
+  const names = new NamesRepository(db)
+  const shownAs = (): ReadonlyMap<string, string> => joinedNames(songs.all(), names.joinNames())
+  const stats = new StatsRepository(db, shownAs)
+  const wrapped = new WrappedRepository(db, shownAs)
   const imports = new ImportRepository(db)
   const lyricsSearch = new LyricsSearchRepository(db)
   const audioFeatures = new AudioFeaturesRepository(db)
@@ -230,7 +232,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
   const syncRepo = new SyncRepository(db)
-  const names = new NamesRepository(db)
   const importRequests = new ImportRequestRepository(db)
 
   const metadata = new MetadataService(storage, logger)
@@ -497,6 +498,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     logger,
     songs,
     tags,
+    names,
     sound,
     stats,
     wrapped,

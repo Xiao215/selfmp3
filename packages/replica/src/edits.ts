@@ -1,6 +1,7 @@
 import {
   findArtist,
   followsTag,
+  libraryArtists,
   insertedAt,
   newTagHue,
   newUid,
@@ -280,7 +281,7 @@ export function nameArtist(
   artist: string,
   names: readonly string[],
 ): { changes: Change[]; named: SetArtistNames } {
-  const found = findArtist(ctx.view.library.songs, artist)
+  const found = findArtist(libraryArtists(ctx.view.library.songs), artist)
   if (!found) throw notFound('artist')
   const named = { artist: found.key, names: tidyArtistNames(found.name, names) }
   return { changes: [{ type: 'artistNamed', hlc: ctx.stamp(), ...named }], named }

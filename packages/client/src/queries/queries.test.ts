@@ -55,6 +55,7 @@ const library = (playlists: Playlist[]): Library =>
     ],
     playlists,
     artistNames: {},
+    artistNamesFound: [],
     spellings: {},
     version: 3,
     generatedAt: '2026-09-14T10:00:00.000Z',

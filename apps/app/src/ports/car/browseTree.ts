@@ -1,4 +1,11 @@
-import { libraryArtists, plural, type Playlist, type Song } from '@selfmp3/shared'
+import {
+  joinedArtists,
+  NO_JOINS,
+  plural,
+  type ArtistJoinNames,
+  type Playlist,
+  type Song,
+} from '@selfmp3/shared'
 import { listedPlaylists } from '../../features/playlists/playlists.model'
 import { albumsOf } from '../../features/tag/tag.model'
 
@@ -55,6 +62,8 @@ export interface BrowseInput {
   readonly playlists: readonly Playlist[]
   /** Resolved playlist contents, in playlist order. */
   readonly playlistSongIds: Readonly<Record<number, readonly number[]>>
+  /** Artists' other names, which make one artist of two spellings (shared artistJoins.ts). */
+  readonly artistNames?: ArtistJoinNames
 }
 
 interface BrowseOptions {
@@ -155,7 +164,7 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
   // --- artists ------------------------------------------------------------
 
   const artistItems: BrowseItem[] = []
-  for (const artist of libraryArtists(songs)) {
+  for (const artist of joinedArtists(songs, input.artistNames ?? NO_JOINS)) {
     const id = nodeId('artist', artist.name)
     const theirs = artist.songIds.flatMap(songId => byId.get(songId) ?? [])
     const sorted = albumsOf(theirs).flatMap(group => group.songs)

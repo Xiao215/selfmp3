@@ -8,7 +8,7 @@ import {
   type LyricsSearchHit,
   type Song,
   type Tag,
-  libraryArtists,
+  joinedArtists,
   type Artist,
 } from '@selfmp3/shared'
 import { searchSongs } from '@selfmp3/client'
@@ -43,7 +43,10 @@ export const SECTION_TITLES: Readonly<Record<SearchSection, string>> = {
   lyrics: 'Lyrics',
 }
 
-type SearchLibrary = Pick<Library, 'songs' | 'tags' | 'artistNames' | 'spellings'>
+type SearchLibrary = Pick<
+  Library,
+  'songs' | 'tags' | 'artistNames' | 'artistNamesFound' | 'spellings'
+>
 
 interface SearchFound {
   /** What was typed, trimmed and lowercased: what a place's name is compared with. */
@@ -74,8 +77,9 @@ export function searchLibrary(query: string, library: SearchLibrary | undefined)
     words: trimmed.toLowerCase(),
     songs: searchSongs(trimmed, library.songs, library).map(match => match.item),
     tags,
-    artists: fuzzyRankNames(trimmed, libraryArtists(library.songs), artist =>
-      artistSearchNames(artist.name, library),
+    // One row for an artist under two spellings, found by either (shared artistJoins.ts).
+    artists: fuzzyRankNames(trimmed, joinedArtists(library.songs, library), artist =>
+      [artist.name, ...artist.joined].flatMap(name => artistSearchNames(name, library)),
     ).map(match => match.item),
     named: tagsNamedIn(trimmed, library.tags, tags),
   }

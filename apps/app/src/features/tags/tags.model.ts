@@ -1,4 +1,12 @@
-import { plural, artistKey, splitArtists, type Song } from '@selfmp3/shared'
+import {
+  plural,
+  artistKey,
+  joinedNames,
+  NO_JOINS,
+  splitArtists,
+  type ArtistJoinNames,
+  type Song,
+} from '@selfmp3/shared'
 import { untaggedSongs, type TagStanding } from '../tag/tag.model'
 
 /**
@@ -131,12 +139,17 @@ export interface WaitingArtist {
 export function waitingArtists(
   songs: readonly Song[],
   shown: number,
+  names: ArtistJoinNames = NO_JOINS,
 ): { readonly artists: readonly WaitingArtist[]; readonly rest: number } {
   const waiting = untaggedSongs(songs)
+  // An artist under two spellings joined by their other names counts as one.
+  const shownAs = joinedNames(songs, names)
+  const shownName = (name: string): string => shownAs.get(artistKey(name)) ?? name
   const byKey = new Map<string, { count: number; song: Song; spellings: Map<string, number> }>()
   for (const song of waiting) {
     const seen = new Set<string>()
-    for (const name of splitArtists(song.artist)) {
+    for (const written of splitArtists(song.artist)) {
+      const name = shownName(written)
       const key = artistKey(name)
       if (!key || seen.has(key)) continue
       seen.add(key)
@@ -156,7 +169,7 @@ export function waitingArtists(
     .slice(0, shown)
   const keys = new Set(ranked.map(entry => entry.key))
   const rest = waiting.filter(
-    song => !splitArtists(song.artist).some(name => keys.has(artistKey(name))),
+    song => !splitArtists(song.artist).some(name => keys.has(artistKey(shownName(name)))),
   ).length
   return {
     artists: ranked.map(({ name, count, song }) => ({ name, count, song })),

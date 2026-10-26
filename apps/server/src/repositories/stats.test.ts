@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import Database from 'better-sqlite3'
 import { migrate } from '../db/migrate.js'
 import { createLogger } from '../logger.js'
+import { formatHlc, joinedNames } from '@selfmp3/shared'
+import { NamesRepository } from './names.js'
+import { SongRepository } from './songs.js'
 import { StatsRepository } from './stats.js'
 import { WrappedRepository } from './wrapped.js'
 
@@ -47,5 +50,75 @@ describe('StatsRepository windows', () => {
 
   it('counts everything for all time', () => {
     expect(stats.build('all').totals.plays).toBe(3)
+  })
+})
+
+/**
+ * One artist under two spellings, joined by their other names (shared
+ * artistJoins.ts), is one entry in Stats and the Report, plays summed —
+ * counted the way the container wires it, from the songs and the names kept.
+ */
+describe('Top artists, joined by other names', () => {
+  function joinedDb(): {
+    stats: StatsRepository
+    wrapped: WrappedRepository
+    names: NamesRepository
+  } {
+    const db = new Database(':memory:')
+    migrate(db, createLogger('silent'))
+    const song = db.prepare(
+      "INSERT INTO songs (id, path, title, artist, added_at) VALUES (?, ?, 'Song', ?, datetime('now'))",
+    )
+    song.run(1, 'a', 'Yorushika')
+    song.run(2, 'b', 'Yorushika')
+    song.run(3, 'c', 'ヨルシカ')
+    song.run(4, 'd', 'YOASOBI')
+    const play = db.prepare(
+      "INSERT INTO play_events (song_id, played_at, ms_played) VALUES (?, datetime('now'), 60000)",
+    )
+    for (const id of [1, 3, 3, 4, 4, 4, 4]) play.run(id)
+    const songs = new SongRepository(db)
+    const names = new NamesRepository(db)
+    const shownAs = () => joinedNames(songs.all(), names.joinNames())
+    return {
+      stats: new StatsRepository(db, shownAs),
+      wrapped: new WrappedRepository(db, shownAs),
+      names,
+    }
+  }
+  const top = (entries: readonly { key: string; plays: number }[]) =>
+    entries.map(entry => [entry.key, entry.plays])
+
+  it('keeps two spellings apart while nothing joins them', () => {
+    const { stats } = joinedDb()
+    expect(top(stats.build('all').topArtists)).toEqual([
+      ['YOASOBI', 4],
+      ['ヨルシカ', 2],
+      ['Yorushika', 1],
+    ])
+  })
+
+  it('sums the plays under the bigger artist once its other names hold the smaller', () => {
+    const { stats, wrapped, names } = joinedDb()
+    names.takeArtistNames(
+      'yorushika',
+      ['ヨルシカ'],
+      formatHlc({ ms: 1_000, counter: 0, device: 'web-1' }),
+    )
+    expect(top(stats.build('all').topArtists)).toEqual([
+      ['YOASOBI', 4],
+      ['Yorushika', 3],
+    ])
+    expect(top(wrapped.build('all').topArtists)).toEqual(top(stats.build('all').topArtists))
+  })
+
+  it('leaves names MusicBrainz found to ask first', () => {
+    const { stats, names } = joinedDb()
+    names.takeArtistNames(
+      'yorushika',
+      ['ヨルシカ'],
+      formatHlc({ ms: 0, counter: 0, device: 'server-1' }),
+    )
+    expect(stats.build('all').topArtists).toHaveLength(3)
   })
 })

@@ -63,6 +63,7 @@ const library = (overrides: Partial<Library> = {}): Library => ({
   tags: [tag(10, { songCount: 1 }), tag(11)],
   playlists: [playlist(20)],
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
   version: 3,
   generatedAt: '2026-09-14T10:00:00.000Z',

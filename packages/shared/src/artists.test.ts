@@ -101,12 +101,18 @@ describe('libraryArtists', () => {
 
   it('groups by name however it is cased, most songs first', () => {
     const artists = libraryArtists(songs)
-    expect(artists[0]).toEqual({ key: 'yorushika', name: 'Yorushika', songIds: [1, 2, 3, 5] })
+    expect(artists[0]).toEqual({
+      key: 'yorushika',
+      name: 'Yorushika',
+      songIds: [1, 2, 3, 5],
+      keys: ['yorushika'],
+      joined: [],
+    })
     expect(artists.map(artist => artist.name)).toEqual(['Yorushika', 'YOASOBI', 'ヨルシカ'])
   })
 
   it('keeps two spellings in two scripts apart', () => {
-    expect(findArtist(songs, 'ヨルシカ')?.songIds).toEqual([4])
+    expect(findArtist(libraryArtists(songs), 'ヨルシカ')?.songIds).toEqual([4])
   })
 
   it('works once per library', () => {

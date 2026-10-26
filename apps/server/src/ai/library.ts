@@ -1,6 +1,10 @@
 import {
+  artistKey,
   artistOr,
   DAY_MS,
+  joinedNames,
+  NO_JOINS,
+  type ArtistJoinNames,
   formatDuration,
   fromSqliteTime,
   mainArtist,
@@ -57,8 +61,27 @@ function quantile(sorted: readonly number[], q: number): number {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0
 }
 
-/** Rung two: the library's size and spread, its tags, and who is in it most. */
-export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): string {
+/**
+ * Who a song is mostly by, as the library shows them: the first name it gives,
+ * or the artist that name is joined to (`shownAs`, shared `joinedNames`).
+ */
+export function shownArtist(
+  song: Pick<Song, 'artist'>,
+  shownAs: ReadonlyMap<string, string>,
+): string {
+  const main = mainArtist(song.artist)
+  return shownAs.get(artistKey(main)) ?? main
+}
+
+/**
+ * Rung two: the library's size and spread, its tags, and who is in it most.
+ * An artist under two spellings joined by their other names is one artist.
+ */
+export function libraryShape(
+  songs: readonly Song[],
+  tags: readonly Tag[],
+  names: ArtistJoinNames = NO_JOINS,
+): string {
   const energies = songs
     .map(song => song.audioFeatures?.energy)
     .filter((value): value is number => typeof value === 'number')
@@ -72,7 +95,8 @@ export function libraryShape(songs: readonly Song[], tags: readonly Tag[]): stri
     .filter((value): value is number => typeof value === 'number' && value > 0)
     .sort((a, b) => a - b)
   const withWords = songs.filter(hasWords).length
-  const artists = tally(songs.map(song => mainArtist(song.artist)))
+  const shownAs = joinedNames(songs, names)
+  const artists = tally(songs.map(song => shownArtist(song, shownAs)))
 
   return [
     `The library: ${songs.length} songs. ${withWords} have words, ${songs.length - withWords} have none.`,

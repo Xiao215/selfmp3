@@ -12,7 +12,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { AI_ERROR, ASK_TEXT_MAX, splitArtists, type AskAnswer } from '@selfmp3/shared'
+import { AI_ERROR, ASK_TEXT_MAX, joinedArtists, type AskAnswer } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -380,14 +380,8 @@ function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
   const lines = useMemo(() => {
     if (!library) return []
     const tags = tagsMostPlayed(library.tags, library.songs).map(standing => standing.tag)
-    const untagged = waitingArtists(library.songs, 1).artists[0]?.name ?? null
-    const byArtist = new Map<string, number>()
-    for (const song of library.songs) {
-      for (const name of splitArtists(song.artist)) {
-        byArtist.set(name, (byArtist.get(name) ?? 0) + 1)
-      }
-    }
-    const top = [...byArtist].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    const untagged = waitingArtists(library.songs, 1, library).artists[0]?.name ?? null
+    const top = joinedArtists(library.songs, library)[0]?.name ?? null
     return askSuggestions(tags, untagged, top)
   }, [library])
   if (lines.length === 0) return null

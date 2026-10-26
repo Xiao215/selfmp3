@@ -26,6 +26,7 @@ const library = {
   ],
   playlists: [] as never,
   artistNames: {},
+  artistNamesFound: [],
   spellings: {},
   tags: [
     { id: 7, name: 'yoasobi', hue: 1, songCount: 3 },
@@ -93,6 +94,21 @@ describe('searchLibrary', () => {
     expect(searchLibrary('calm', moods).songs.map(found => found.id)).toEqual([1])
     expect(searchLibrary('down', moods).songs.map(found => found.id)).toEqual([1])
     expect(searchLibrary('chl', moods).tags).toEqual([])
+  })
+
+  it('shows an artist under two spellings as one row, found by either', () => {
+    const joined = {
+      ...library,
+      songs: [...library.songs, song(5, 'ただ君に晴れ', 'ヨルシカ')],
+      artistNames: { ヨルシカ: ['Yorushika'] },
+    }
+    // Only the smaller naming the bigger: two rows until somebody joins them.
+    expect(searchLibrary('yorushika', joined).artists).toHaveLength(2)
+    const both = { ...joined, artistNames: { yorushika: ['ヨルシカ'] } }
+    for (const typed of ['ヨルシカ', 'yorushika']) {
+      const found = searchLibrary(typed, both).artists
+      expect(found.map(artist => [artist.name, artist.songIds.length])).toEqual([['Yorushika', 2]])
+    }
   })
 
   it('finds nothing for nothing typed', () => {

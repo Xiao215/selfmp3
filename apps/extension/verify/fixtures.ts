@@ -82,6 +82,7 @@ export function fixtureLibrary(): Library {
     tags: [tag(1, 'new', 150), tag(2, 'j-pop', 330)],
     playlists: [playlist(1, 'Gym rotation', 'manual', true), playlist(2, 'Loved', 'live', false)],
     artistNames: {},
+    artistNamesFound: [],
     spellings: {},
     version: 1,
     generatedAt: '2026-09-15 12:00:00',

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { REPOSITORY } from '@selfmp3/shared'
@@ -18,7 +18,9 @@ import { REPOSITORY } from '@selfmp3/shared'
  * profile named for each bundle from Xcode's profiles, the certificate those
  * profiles were made with, and the key in ~/.ios-signing that matches it, and
  * sets IOS_SIGNING, IOS_P12, IOS_P12_PASSWORD, IOS_PROFILE_APP and
- * IOS_PROFILE_WIDGET with `gh secret set`. Nothing is printed: the key goes
+ * IOS_PROFILE_WIDGET with `gh secret set`; ASC_KEY_ID, ASC_ISSUER_ID and
+ * ASC_KEY from ~/.ios-signing/asc.json when there is one; and
+ * DOORMAN_ADMIN_TOKEN from SELFMP3_DOORMAN_ADMIN_TOKEN when it is set. Nothing is printed: the key goes
  * from here to GitHub's encrypted secrets and nowhere else.
  */
 
@@ -115,6 +117,19 @@ try {
     IOS_PROFILE_APP: readFileSync(app.path).toString('base64'),
     IOS_PROFILE_WIDGET: readFileSync(widget.path).toString('base64'),
   }
+  // The App Store Connect key, once there is one: ~/.ios-signing/asc.json is
+  // { "keyId", "issuerId", "keyFile" }, the .p8 beside it. With it the
+  // workflow registers added iPhones and makes the profiles itself.
+  const ascPath = join(folder, 'asc.json')
+  if (existsSync(ascPath)) {
+    const asc = JSON.parse(readFileSync(ascPath, 'utf8'))
+    secrets.ASC_KEY_ID = asc.keyId
+    secrets.ASC_ISSUER_ID = asc.issuerId
+    secrets.ASC_KEY = readFileSync(resolve(folder, asc.keyFile), 'utf8')
+  }
+  // The doorman's admin key, for the workflow to read which iPhones were added.
+  const doormanKey = process.env.SELFMP3_DOORMAN_ADMIN_TOKEN?.trim()
+  if (doormanKey) secrets.DOORMAN_ADMIN_TOKEN = doormanKey
   for (const [name, value] of Object.entries(secrets)) {
     if (!check) sh('gh', ['secret', 'set', name, '--repo', repo], value)
     console.log(`${check ? 'would set' : 'set'} ${name} (${value.length} characters)`)

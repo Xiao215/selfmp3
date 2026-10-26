@@ -29,22 +29,21 @@ const stats: Stats = {
 }
 
 describe('the Profile page', () => {
-  it('lists Import, Stats, Sound map and Settings, and nothing else, with no links to show', () => {
+  it('lists Import, Stats and Settings, and nothing else, with no links to show', () => {
     const rows = profileRows({ linksHint: null })
     expect(rows.map(row => [row.id, row.label, row.href])).toEqual([
       ['import', 'Import', '/import'],
       ['stats', 'Stats', '/stats'],
-      ['soundMap', 'Sound map', '/sound-map'],
       ['settings', 'Settings', '/settings'],
     ])
     expect(rows[0]?.hint).toBe('From a link or a search')
-    expect(rows[3]?.hint).toBe('Account, look, devices')
+    expect(rows[2]?.hint).toBe('Account, look, devices')
   })
 
   it('puts Links you shared before Settings for an account that can send one', () => {
     const rows = profileRows({ linksHint: '2 links playing' })
-    expect(rows.map(row => row.id)).toEqual(['import', 'stats', 'soundMap', 'links', 'settings'])
-    expect(rows[3]).toEqual({
+    expect(rows.map(row => row.id)).toEqual(['import', 'stats', 'links', 'settings'])
+    expect(rows[2]).toEqual({
       id: 'links',
       label: 'Links you shared',
       href: '/links',

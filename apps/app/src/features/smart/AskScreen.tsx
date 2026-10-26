@@ -12,7 +12,7 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
-import { AI_ERROR, ASK_TEXT_MAX, joinedArtists, type AskAnswer } from '@selfmp3/shared'
+import { AI_ERROR, ASK_TEXT_MAX, joinedArtists, plural, type AskAnswer } from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -27,7 +27,7 @@ import { ServerAway } from '../../connection/ServerAway'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { usePlayer } from '../../player/PlayerProvider'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { NarrowerContentWidth } from '../../shell/contentWidth'
+import { NarrowerContentWidth, useContentWidth } from '../../shell/contentWidth'
 import { isComposing } from '../../shell/composing'
 import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutFlags } from '../../shell/useLayout'
@@ -36,7 +36,7 @@ import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, Sparkle } from '../../ui/components/Icons'
+import { Check, ChevronRight, Sparkle, X } from '../../ui/components/Icons'
 import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
@@ -44,18 +44,29 @@ import { ScrollView, type ScrollView as ScrollNode } from '../../ui/components/S
 import { StatusLine } from '../../ui/components/StatusLine'
 import { NO_AUTOFILL } from '../../ui/noAutofill'
 import { useSongsById } from '../../ui/songsById'
-import { PAGE_TOP_PHONE, PAGE_TOP_WIDE } from '../../ui/surfaces'
+import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, floating } from '../../ui/surfaces'
+import { useSvgId } from '../../ui/useSvgId'
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
 import { AnswerBody } from './AnswerBody'
+import { AnswerView } from './AnswerScreen'
 import { AnswerActions, CLOSED } from './AnswerParts'
 import { SelectableText } from '../../ports/selectableText'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
 import { forgetThread, keepThread, keptThread } from './askThread.store'
-import { keepAnswer, useKeptAnswer } from './answers.store'
-import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
+import { keepAnswer, keptAnswer, shownOnServer, useKeptAnswer } from './answers.store'
+import {
+  afterStop,
+  beforeTurn,
+  newestList,
+  retried,
+  tooLongToAsk,
+  type Turn,
+} from './askTurns.model'
+import { ListBeside } from './listBeside'
 import { answerRecap, askSuggestions } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
@@ -115,6 +126,11 @@ const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
  *
  * `?to=room` asks for the room you are in, as Search does when adding to it
  * (A2): songs answered are added there rather than played.
+ *
+ * Redone 2026-10-26 (Xiao picked A2 B1 C1): on a computer a list answered
+ * opens beside the thread (`AnswerView`), the thread a pane at its side; the
+ * one field changes that list while it wears the list's chip, and floats over
+ * the thread's fading foot with room under it.
  */
 export function AskScreen(): ReactNode {
   const params = useLocalSearchParams<{ q?: string; to?: string }>()
@@ -122,6 +138,7 @@ export function AskScreen(): ReactNode {
   const adding = params.to === 'room' ? room : null
   const addingTo = useMemo(() => (adding ? { title: roomTitle(adding) } : null), [adding])
   const { wide, finePointer } = useLayoutFlags()
+  const { theme } = useUnistyles()
   const window = useWindowDimensions()
   const server = useSmartServer()
   const player = usePlayer()
@@ -131,13 +148,15 @@ export function AskScreen(): ReactNode {
     const id = player.current?.id
     return id === undefined ? null : (server.onServer(id) ?? null)
   }
-  const turnFor = (asked: string, was: readonly Turn[]): Turn => ({
+  const turnFor = (asked: string, was: readonly Turn[], change: string | null = null): Turn => ({
     id: nextTurn++,
     asked,
     playing: playingNow(),
     before: beforeTurn(was, was.length),
     answered: null,
     outcome: null,
+    change,
+    list: null,
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
   // A page drawn again finds the conversation it had (`askThread.store`).
@@ -175,6 +194,33 @@ export function AskScreen(): ReactNode {
 
   const latest = turns.at(-1)
   const working = latest !== undefined && latest.answered === null
+  // The list a computer shows beside the thread (A2), and the one the field's
+  // chip changes (B1): the newest, until another card is pressed; × closes it.
+  const newest = newestList(turns)
+  // A card pressed, or ×, chooses while that list is the newest; a newer one opens itself.
+  const [chosen, setChosen] = useState<{ newest: string | null; open: string | null }>({
+    newest,
+    open: newest,
+  })
+  const open = chosen.newest === newest ? chosen.open : newest
+  // The list whose chip was let go (its ×, or ⌫ in an empty field): the next words are a question.
+  const [letGoOf, setLetGoOf] = useState<string | null>(null)
+  const besideHere = wide && !adding
+  const target = besideHere ? open : newest
+  const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
+  const beside = useMemo(
+    () =>
+      besideHere
+        ? {
+            open,
+            show: (id: string) => {
+              setChosen({ newest, open: id })
+              setLetGoOf(null)
+            },
+          }
+        : null,
+    [besideHere, open, newest],
+  )
   // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
   const answerKeys = !typing && !working ? keys : null
 
@@ -183,7 +229,9 @@ export function AskScreen(): ReactNode {
   const ask = (words: string, fromField = false): void => {
     const asked = words.trim()
     if (!asked || working || !server.api) return
-    setTurns(was => [...was, turnFor(asked, was)])
+    // Typed while the chip is on, the words change that list.
+    const change = fromField && changing ? changing.id : null
+    setTurns(was => [...was, turnFor(asked, was, change)])
     setKeys(null)
     if (fromField) draft.current?.write('')
   }
@@ -202,8 +250,8 @@ export function AskScreen(): ReactNode {
     askNow.current = ask
   })
   const askFromAnswer = useCallback((words: string) => askNow.current(words), [])
-  const answered = useCallback((id: number, recap: string) => {
-    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, answered: recap } : turn)))
+  const answered = useCallback((id: number, recap: string, list: string | null) => {
+    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, answered: recap, list } : turn)))
   }, [])
   const settle = useCallback((id: number, outcome: string) => {
     setTurns(was => was.map(turn => (turn.id === id ? { ...turn, outcome } : turn)))
@@ -254,119 +302,190 @@ export function AskScreen(): ReactNode {
 
   const listHeight = Math.max(240, window.height * 0.55)
   useEffect(() => () => setPageFoot(0), [])
+  const pageWidth = useContentWidth()
+  const listOpen = beside !== null && open !== null
+  // Beside a list the thread is a pane a step up from the ground; alone, it is the page.
+  const ground = listOpen ? theme.colors.surface1 : theme.colors.surface0
 
   return (
     <AddingToRoom.Provider value={addingTo}>
-      <NarrowerContentWidth max={COLUMN}>
+      <ListBeside.Provider value={beside}>
         <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
-          <KeyboardAvoidingView
-            style={[styles.page, wide && styles.pageWide]}
-            behavior={keyboardAvoidBehavior}
-            testID="ask-screen"
-            // A computer's keys for a review on the page, the field keeping the focus.
-            {...(answerKeys ? { onKeyDownCapture: passToAnswer } : {})}
-          >
-            <View style={styles.head}>
-              <View style={styles.headSide}>
-                <BackButton
-                  to="/search"
-                  always
-                  // ‹ lets the conversation go: the same question asked again starts afresh.
-                  onPress={() => {
-                    forgetThread(opened)
-                    back()
-                  }}
-                  testID="ask-back"
-                />
-              </View>
-              <View style={styles.title}>
-                <Sparkle size={iconSize.small} />
-                <Text style={styles.titleText} accessibilityRole="header">
-                  {adding ? `Ask for ${roomTitle(adding)}` : 'Ask'}
-                </Text>
-              </View>
-              {/* Balances the ‹, so the title sits in the middle. */}
-              <View style={styles.headSide} />
-            </View>
-
-            {server.reach.state !== 'reachable' ? (
-              <View style={styles.away}>
-                <ServerAway reach={server.reach} need="ai" testID="ask-server" />
-              </View>
-            ) : (
-              <ScrollView
-                ref={scroll}
-                style={styles.thread}
-                contentContainerStyle={styles.turns}
-                keyboardDismissMode="interactive"
-                keyboardShouldPersistTaps="handled"
-                onScroll={event => {
-                  scrolled.current = event.nativeEvent.contentOffset.y
-                }}
-                scrollEventThrottle={16}
-                onLayout={event => {
-                  const height = event.nativeEvent.layout.height
-                  if (height < threadHeight.current) {
-                    shrank.current = { by: threadHeight.current - height, at: scrolled.current }
-                  }
-                  threadHeight.current = height
-                }}
+          <View style={styles.split}>
+            <NarrowerContentWidth max={listOpen ? THREAD : COLUMN}>
+              <KeyboardAvoidingView
+                style={[
+                  styles.page,
+                  wide && styles.pageWide,
+                  listOpen && styles.pageBeside,
+                  { backgroundColor: ground },
+                ]}
+                behavior={keyboardAvoidBehavior}
+                testID="ask-screen"
+                // A computer's keys for a review on the page, the field keeping the focus.
+                {...(answerKeys ? { onKeyDownCapture: passToAnswer } : {})}
               >
-                {turns.length === 0 ? <Suggestions onAsk={ask} /> : null}
-                {turns.map((turn, index) => (
-                  <TurnView
-                    key={turn.id}
-                    turn={turn}
-                    latest={index === turns.length - 1}
-                    via={reachedConnection(server.reach)?.baseUrl ?? null}
-                    titleOf={titleOf}
-                    listHeight={listHeight}
-                    onAnswered={answered}
-                    onSettle={settle}
-                    onRetry={retry}
-                    // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
-                    onAsk={askFromAnswer}
-                    onKeys={index === turns.length - 1 ? setKeys : undefined}
-                    onTop={index === turns.length - 1 ? markTop : undefined}
-                  />
-                ))}
-              </ScrollView>
-            )}
-
-            <View
-              style={styles.dock}
-              // The toasts rise above the field rather than cover it.
-              onLayout={event => setPageFoot(event.nativeEvent.layout.height)}
-            >
-              <AskField
-                inputRef={field}
-                draftRef={draft}
-                onTyping={setTyping}
-                onSend={words => ask(words, true)}
-                onStop={working ? stop : null}
-                placeholder={turns.length === 0 ? 'Ask anything…' : 'Ask a follow-up…'}
-                autoFocus={turns.length === 0}
-              />
-              {finePointer && answerKeys ? (
-                <View style={styles.keys}>
-                  {answerKeys.hints.map(([caps, word]) => (
-                    <Text key={word} style={styles.keysText}>
-                      {caps.map((cap, at) => (
-                        <Text key={cap}>
-                          {at > 0 ? ' ' : ''}
-                          <Kbd>{cap}</Kbd>
-                        </Text>
-                      ))}{' '}
-                      {word}
+                <View style={styles.head}>
+                  <View style={styles.headSide}>
+                    <BackButton
+                      to="/search"
+                      always
+                      // ‹ lets the conversation go: the same question asked again starts afresh.
+                      onPress={() => {
+                        forgetThread(opened)
+                        back()
+                      }}
+                      testID="ask-back"
+                    />
+                  </View>
+                  <View style={styles.title}>
+                    <Sparkle size={iconSize.small} />
+                    <Text style={styles.titleText} accessibilityRole="header">
+                      {adding ? `Ask for ${roomTitle(adding)}` : 'Ask'}
                     </Text>
-                  ))}
+                  </View>
+                  {/* Balances the ‹, so the title sits in the middle. */}
+                  <View style={styles.headSide} />
                 </View>
-              ) : null}
-            </View>
-          </KeyboardAvoidingView>
+
+                {server.reach.state !== 'reachable' ? (
+                  <View style={styles.away}>
+                    <ServerAway reach={server.reach} need="ai" testID="ask-server" />
+                  </View>
+                ) : (
+                  <View style={styles.thread}>
+                    <ScrollView
+                      ref={scroll}
+                      style={styles.thread}
+                      contentContainerStyle={styles.turns}
+                      keyboardDismissMode="interactive"
+                      keyboardShouldPersistTaps="handled"
+                      onScroll={event => {
+                        scrolled.current = event.nativeEvent.contentOffset.y
+                      }}
+                      scrollEventThrottle={16}
+                      onLayout={event => {
+                        const height = event.nativeEvent.layout.height
+                        if (height < threadHeight.current) {
+                          shrank.current = {
+                            by: threadHeight.current - height,
+                            at: scrolled.current,
+                          }
+                        }
+                        threadHeight.current = height
+                      }}
+                    >
+                      {turns.length === 0 ? <Suggestions onAsk={ask} /> : null}
+                      {turns.map((turn, index) => (
+                        <TurnView
+                          key={turn.id}
+                          turn={turn}
+                          latest={index === turns.length - 1}
+                          via={reachedConnection(server.reach)?.baseUrl ?? null}
+                          titleOf={titleOf}
+                          listHeight={listHeight}
+                          onAnswered={answered}
+                          onSettle={settle}
+                          onRetry={retry}
+                          // A dead end's suggestions, and Tidy up's "ask about the rest": the next turn.
+                          onAsk={askFromAnswer}
+                          onKeys={index === turns.length - 1 ? setKeys : undefined}
+                          onTop={index === turns.length - 1 ? markTop : undefined}
+                        />
+                      ))}
+                    </ScrollView>
+                    {/* The thread goes under the field rather than stopping at a line (C1). */}
+                    <FootFade color={ground} />
+                  </View>
+                )}
+
+                <View
+                  style={[styles.dock, wide && styles.dockWide]}
+                  // The toasts rise above the field rather than cover it.
+                  onLayout={event => setPageFoot(event.nativeEvent.layout.height)}
+                >
+                  <AskField
+                    inputRef={field}
+                    draftRef={draft}
+                    onTyping={setTyping}
+                    onSend={words => ask(words, true)}
+                    onStop={working ? stop : null}
+                    chip={
+                      changing
+                        ? {
+                            label: changingLabel(changing),
+                            name: changing.result.understanding.name,
+                            onLetGo: () => setLetGoOf(changing.id),
+                          }
+                        : null
+                    }
+                    placeholder={
+                      changing
+                        ? 'Change these songs…'
+                        : turns.length === 0
+                          ? 'Ask anything…'
+                          : 'Ask a follow-up…'
+                    }
+                    autoFocus={turns.length === 0}
+                  />
+                  {finePointer && (answerKeys || (changing && !typing)) ? (
+                    <View style={styles.keys}>
+                      {(answerKeys?.hints ?? LET_GO_HINT).map(([caps, word]) => (
+                        <Text key={word} style={styles.keysText}>
+                          {caps.map((cap, at) => (
+                            <Text key={cap}>
+                              {at > 0 ? ' ' : ''}
+                              <Kbd>{cap}</Kbd>
+                            </Text>
+                          ))}{' '}
+                          {word}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </KeyboardAvoidingView>
+            </NarrowerContentWidth>
+            {listOpen ? (
+              <NarrowerContentWidth max={Math.max(0, (pageWidth ?? 0) - THREAD)}>
+                <View style={styles.listPane} testID="ask-list">
+                  <AnswerView id={open} onClose={() => setChosen({ newest, open: null })} />
+                </View>
+              </NarrowerContentWidth>
+            ) : null}
+          </View>
         </SafeAreaView>
-      </NarrowerContentWidth>
+      </ListBeside.Provider>
     </AddingToRoom.Provider>
+  )
+}
+
+/** The chip's words: how many songs the field's words would change. */
+function changingLabel(list: NonNullable<ReturnType<typeof keptAnswer>>): string {
+  const count = list.order?.length ?? list.result.picks.length
+  return count === 1 ? 'this song' : `these ${plural(count, 'song', 'songs')}`
+}
+
+/** Under an empty field with the chip on: how to ask something new instead. */
+const LET_GO_HINT: readonly (readonly [readonly string[], string])[] = [
+  [['⌫'], 'asks something new instead'],
+]
+
+/** The thread's foot fading into the ground the field floats over. */
+function FootFade({ color }: { color: string }): ReactNode {
+  const id = useSvgId('ask-foot')
+  return (
+    <View pointerEvents="none" style={styles.fade}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={color} stopOpacity={0} />
+            <Stop offset="1" stopColor={color} stopOpacity={1} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill={`url(#${id})`} />
+      </Svg>
+    </View>
   )
 }
 
@@ -420,7 +539,7 @@ const TurnView = memo(function TurnView({
   via: string | null
   titleOf: (serverId: number) => string | undefined
   listHeight: number
-  onAnswered: (id: number, recap: string) => void
+  onAnswered: (id: number, recap: string, list: string | null) => void
   onSettle: (id: number, outcome: string) => void
   /** Try again, before it is asked again. */
   onRetry: (id: number) => void
@@ -432,19 +551,43 @@ const TurnView = memo(function TurnView({
   const server = useSmartServer()
   const router = useRouter()
   const said = turn.before
+  // A change is told by what the list was first asked as: its page, its Save
+  // and its Up next carry those words.
+  const [text] = useState(() =>
+    turn.change ? (keptAnswer(turn.change)?.text ?? turn.asked) : turn.asked,
+  )
   // More than the server takes is said here rather than sent to be refused.
   const tooLong = tooLongToAsk(turn.asked)
   // Names the request, so how it is going can be asked after while it runs,
   // and its answer collected if the response is lost (`askKept`). A new one
   // each time: a Stop meant for one request must not reach the next.
   const [ticket, setTicket] = useState<string | null>(null)
-  const answer = useQuery({
-    queryKey: askKey(via, [...said.map(each => each.asked), turn.asked], turn.playing),
+  const answer = useQuery<AskAnswer>({
+    queryKey: turn.change
+      ? viaKey(via, 'ai', 'change', turn.change, turn.asked)
+      : askKey(via, [...said.map(each => each.asked), turn.asked], turn.playing),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, the page left. The server stops asking the model with it.
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       const named = newTicket()
       setTicket(named)
+      if (turn.change) {
+        // Said with the chip: the list changed as Change it changes one, the
+        // songs shown that still fit kept in their places (B1).
+        const list = keptAnswer(turn.change)
+        if (!list) throw new Error('That list is gone. Ask for it again.')
+        const describe = await server.api!.refineAnswer(
+          {
+            text: list.text,
+            understanding: list.result.understanding,
+            change: turn.asked,
+            shown: shownOnServer(list, server.onServer),
+            ticket: named,
+          },
+          signal,
+        )
+        return { kind: 'songs', lead: 'play', describe }
+      }
       return askKept(
         server.api!,
         { text: turn.asked, playing: turn.playing, ticket: named, before: said },
@@ -460,7 +603,7 @@ const TurnView = memo(function TurnView({
   const live = useAskProgress(ticket, waiting)
   const data = answer.data
   // A list changed in words (Change it) is told as it is now shown, not as it first came.
-  const keptId = data?.kind === 'songs' ? keepAnswer(turn.asked, data.describe) : undefined
+  const keptId = data?.kind === 'songs' ? keepAnswer(text, data.describe) : undefined
   const kept = useKeptAnswer(keptId)
   const shown = data?.kind === 'songs' && kept ? { ...data, describe: kept.result } : data
   // A playback answer is told as what it came to on this device ("Nothing is playing.").
@@ -474,9 +617,14 @@ const TurnView = memo(function TurnView({
       : answer.isError || tooLong
         ? FAILED
         : null
+  // Its list, once it has songs to show: the chip's and the one opened beside the thread.
+  const list =
+    keptId !== undefined && data?.kind === 'songs' && data.describe.picks.length > 0 ? keptId : null
   useEffect(() => {
-    if (recap !== null && recap !== turn.answered) onAnswered(turn.id, recap)
-  }, [recap, turn.answered, turn.id, onAnswered])
+    if (recap !== null && (recap !== turn.answered || list !== turn.list)) {
+      onAnswered(turn.id, recap, list)
+    }
+  }, [recap, list, turn.answered, turn.list, turn.id, onAnswered])
   const settled = turn.outcome !== null
   // Only the newest answer's keys work, and only while it is shown whole.
   useEffect(() => {
@@ -526,7 +674,7 @@ const TurnView = memo(function TurnView({
         <View testID={`ask-answer-${data.kind}`}>
           <AnswerBody
             answer={data}
-            text={turn.asked}
+            text={text}
             // A proposal acted on or put aside becomes what came of it; anything
             // else stays to come back to.
             onDone={outcome => (settles && outcome ? onSettle(turn.id, outcome) : undefined)}
@@ -600,6 +748,11 @@ interface DraftHandle {
  * The field at the foot of the page: one line with a send once there are
  * words, and while an answer is worked on, a Stop where the send was. Enter
  * sends; a browser keeps the focus in it, since the next follow-up is likely.
+ *
+ * After a list it wears the list as a chip, "↳ these 19 songs" (B1,
+ * 2026-10-26): what is typed then changes that list. Its ×, or ⌫ in the
+ * empty field, lets the list go, and the words are a question again. The one
+ * field does what the song card's own Change it did.
  */
 function AskField({
   inputRef,
@@ -607,6 +760,7 @@ function AskField({
   onTyping,
   onSend,
   onStop,
+  chip,
   placeholder,
   autoFocus,
 }: {
@@ -617,6 +771,8 @@ function AskField({
   onSend: (words: string) => void
   /** While an answer is worked on: what Stop does. */
   onStop: (() => void) | null
+  /** The list what is typed changes, and how to let it go. */
+  chip: { label: string; name: string; onLetGo: () => void } | null
   placeholder: string
   autoFocus: boolean
 }): ReactNode {
@@ -634,13 +790,35 @@ function AskField({
   const words = value.trim().length > 0
   return (
     <View style={[styles.field, focused && { borderColor: accent.accent }]}>
-      <Sparkle size={iconSize.small} />
+      {chip ? (
+        <View style={styles.chip} testID="ask-chip" accessibilityLabel={`Changing ${chip.name}`}>
+          <Text style={styles.chipText} numberOfLines={1}>
+            {`↳ ${chip.label}`}
+          </Text>
+          <IconButton
+            label="Ask something new instead"
+            size={22}
+            onPress={() => {
+              chip.onLetGo()
+              inputRef.current?.focus()
+            }}
+            testID="ask-chip-let-go"
+          >
+            <X size={iconSize.tiny} color={theme.colors.textSecondary} />
+          </IconButton>
+        </View>
+      ) : (
+        <Sparkle size={iconSize.small} />
+      )}
       <TextInput
         {...NO_AUTOFILL}
         ref={inputRef}
         value={value}
         onChangeText={change}
         onSubmitEditing={onStop ? undefined : () => onSend(value)}
+        onKeyPress={event => {
+          if (chip && event.nativeEvent.key === 'Backspace' && typed.current === '') chip.onLetGo()
+        }}
         maxLength={ASK_TEXT_MAX}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -676,15 +854,30 @@ function AskField({
 /** The column a computer's Ask keeps to, as Search's does. */
 const COLUMN = 760
 
+/** The thread's width with a list open beside it (A2). */
+const THREAD = 440
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  split: { flex: 1, flexDirection: 'row' },
   page: { flex: 1 },
+  // Alone, the thread keeps to the middle column of the row.
   pageWide: {
     maxWidth: COLUMN,
     width: '100%',
-    alignSelf: 'center',
+    marginHorizontal: 'auto',
     paddingTop: PAGE_TOP_WIDE - PAGE_TOP_PHONE,
   },
+  // The thread as a pane beside the list (A2). A flex basis, not `flex: 0`,
+  // which the web reads as a basis of nothing.
+  pageBeside: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: THREAD,
+    maxWidth: THREAD,
+    marginHorizontal: 0,
+  },
+  listPane: { flex: 1, minWidth: 0 },
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -702,7 +895,8 @@ const styles = StyleSheet.create(theme => ({
   },
   titleText: { color: theme.colors.textPrimary, fontSize: type.body, fontWeight: '600' },
   away: { flex: 1, paddingHorizontal: space.md },
-  thread: { flex: 1 },
+  thread: { flex: 1, minHeight: 0 },
+  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: space.xl },
   turns: {
     flexGrow: 1,
     paddingHorizontal: space.lg,
@@ -740,13 +934,15 @@ const styles = StyleSheet.create(theme => ({
   },
   outcomeDone: { color: theme.colors.textPrimary, ...textStyle('body') },
   outcomeClosed: { color: theme.colors.textSecondary, ...textStyle('body') },
+  // The field floats over the thread's fading foot (C1), with room under it
+  // before the player bar or the phone's edge.
   dock: {
     paddingHorizontal: space.lg,
-    paddingTop: space.sm,
-    paddingBottom: space.sm,
+    paddingTop: space.xs,
+    paddingBottom: space.md,
     gap: space.sm,
-    backgroundColor: theme.colors.surface0,
   },
+  dockWide: { paddingBottom: space.xl },
   field: {
     minHeight: 50,
     flexDirection: 'row',
@@ -758,7 +954,22 @@ const styles = StyleSheet.create(theme => ({
     backgroundColor: theme.colors.surface2,
     borderWidth: 1,
     borderColor: theme.colors.surface3,
+    ...floating(theme.colors),
   },
+  chip: {
+    flexShrink: 1,
+    maxWidth: '45%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingLeft: space.snug,
+    paddingRight: space.xs,
+    paddingVertical: space.xs,
+    marginLeft: -space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: theme.colors.accentPill,
+  },
+  chipText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.small },
   input: {
     flex: 1,
     minWidth: 0,

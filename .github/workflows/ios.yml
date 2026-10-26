@@ -2,15 +2,24 @@
 # the install page and the installed apps find it (docs/MOBILE.md, "Sharing the
 # iPhone app").
 #
-# Nightly rather than on every push: each published build makes every friend's
-# app say there is a newer one, and main moves many times a day. So once a
-# night, and only when the app has changed since the build on the release; or
-# at once from "Run workflow". The signing is the repository's secrets, set
-# from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.
+# On every push that changes the app, so a fix reaches "Check for updates"
+# within the hour rather than the next morning (Xiao, 2026-10-26). One build at
+# a time: while one runs, GitHub keeps only the newest push waiting and drops
+# the ones before it, so a busy day is a few builds, the last one main's. The
+# app says so in a toast at most once a day (`announcesIosBuild`). Nightly
+# too, which builds only when the app has changed since the build on the
+# release; and at once from "Run workflow". The signing is the repository's
+# secrets, set from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.
 
 name: iPhone
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package-lock.json'
   schedule:
     # 08:00 UTC: four in the morning in Toronto, midnight in Vancouver.
     - cron: '0 8 * * *'
@@ -37,17 +46,36 @@ jobs:
           persist-credentials: false
 
       - id: since
-        name: Has the app changed since the build on the release?
+        name: Has the app changed, or an iPhone been added, since the build on the release?
         env:
           EVENT: ${{ github.event_name }}
           LATEST: https://github.com/${{ github.repository }}/releases/download/ios/ios.json
+          DOORMAN: ${{ vars.DOORMAN_URL || 'https://selfmp3-doorman.xiaozhang20030215.workers.dev' }}
+          DOORMAN_ADMIN_TOKEN: ${{ secrets.DOORMAN_ADMIN_TOKEN }}
         run: |
-          published=$(curl -fsSL "$LATEST" | jq -r '.commit // empty' || true)
+          latest=$(curl -fsSL "$LATEST" || echo '{}')
+          published=$(printf '%s' "$latest" | jq -r '.commit // empty')
+
+          # An iPhone added on the admin page that the build on the release leaves out.
+          waiting=0
+          if [ -n "$DOORMAN_ADMIN_TOKEN" ]; then
+            added=$(curl -fsSL -H "authorization: Bearer $DOORMAN_ADMIN_TOKEN" "$DOORMAN/v1/iphones" \
+              | jq -r '.iphones[] | select(.state == "added") | .udid' || true)
+            for udid in $added; do
+              key=$(printf '%s' "$udid" | tr '[:lower:]' '[:upper:]' | shasum -a 256 | cut -d' ' -f1)
+              printf '%s' "$latest" | jq -e --arg key "$key" '(.devices // []) | index($key)' > /dev/null \
+                || waiting=$((waiting + 1))
+            done
+          fi
+
           if [ "$EVENT" = workflow_dispatch ]; then
-            echo "Asked for by hand."
+            echo "Asked for by hand, or by adding an iPhone."
             echo build=true >> "$GITHUB_OUTPUT"
           elif [ -z "$published" ]; then
             echo "Nothing on the release yet."
+            echo build=true >> "$GITHUB_OUTPUT"
+          elif [ "$waiting" -gt 0 ]; then
+            echo "$waiting added iPhone(s) not in the build on the release."
             echo build=true >> "$GITHUB_OUTPUT"
           elif git diff --quiet "$published" HEAD -- apps/app packages package-lock.json 2>/dev/null; then
             echo "The app is as it was at ${published:0:8}; nothing to build."
@@ -73,6 +101,9 @@ jobs:
     permissions:
       # The release, and moving its tag to the commit built.
       contents: write
+    env:
+      # A step's `if` cannot read secrets; this can.
+      APPLE_KEY_SET: ${{ secrets.ASC_KEY != '' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -128,6 +159,28 @@ jobs:
 
           printf '%s' "$IOS_SIGNING" > "$RUNNER_TEMP/release.json"
           xcodebuild -version
+
+      - name: Register added iPhones with Apple, and make the profiles again
+        # Only once the App Store Connect key is set up; until then the
+        # profiles are the ones in IOS_PROFILE_APP and IOS_PROFILE_WIDGET.
+        if: env.APPLE_KEY_SET == 'true'
+        working-directory: apps/app
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          SELFMP3_DOORMAN_ADMIN_TOKEN: ${{ secrets.DOORMAN_ADMIN_TOKEN }}
+          SELFMP3_DOORMAN_URL: ${{ vars.DOORMAN_URL }}
+          SELFMP3_IOS_SIGNING: ${{ runner.temp }}/release.json
+          IOS_P12: ${{ secrets.IOS_P12 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$IOS_P12" | base64 --decode \
+            | openssl pkcs12 -nokeys -clcerts -passin env:IOS_P12_PASSWORD \
+            > "$RUNNER_TEMP/certificate.pem"
+          node scripts/ios-provision.mjs --certificate "$RUNNER_TEMP/certificate.pem"
+          rm "$RUNNER_TEMP/certificate.pem"
 
       - name: Build, sign and publish
         working-directory: apps/app

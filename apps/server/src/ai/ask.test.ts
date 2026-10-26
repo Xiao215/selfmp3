@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 import { ask, followed, routeForm, routeSystem, withNotes } from './ask.js'
 import { ASK_ACTIONS, matchPlaylist, songsMatching } from './askActions.js'
-import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
+import { SONGS, TAGS, scriptedLlm, song } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
 
@@ -10,6 +10,7 @@ const noFilters = {
   name: 'x',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -176,6 +177,34 @@ describe('ask', () => {
     expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
   })
 
+  it('gives every song on an album asked for, however big the library', async () => {
+    // More songs than a pick's table holds: an album left to the pick lost songs to the sample.
+    const jukebox = new Set([37, 205, 411, 598, 760])
+    const library = Array.from({ length: 800 }, (_, i) =>
+      jukebox.has(i + 1)
+        ? song(i + 1, { title: `Track ${i + 1}`, artist: '幾田りら', album: 'JUKEBOX' })
+        : song(i + 1, { title: `Other ${i + 1}`, artist: `Artist ${i % 60}`, album: 'Other' }),
+    )
+    const d = {
+      ...deps({
+        'ask-route': [
+          route({
+            action: 'songs',
+            songs: { play: true, next: false, like: false },
+            filters: { ...noFilters, albums: ['Jukebox'] },
+          }),
+        ],
+      }),
+      songs: () => library,
+    }
+    const answer = await ask(d, 'jukebox songs')
+    expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
+      ...jukebox,
+    ])
+    expect(String(d.llm.asked[0]!.prompt)).toContain('JUKEBOX 5')
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
+  })
+
   it('steers from the song playing: shown as "this", left out of the picks, led as next', async () => {
     const d = deps({
       'ask-route': [
@@ -278,6 +307,7 @@ describe('ask', () => {
           newTag: null,
           songs: 'untagged',
           artists: [],
+          albums: [],
         },
       ],
       'tags-groups': [
@@ -685,7 +715,7 @@ describe('ask about a playlist’s songs', () => {
     const d = deps({ 'ask-route': [edit({}, noFilters)] })
     expect(await ask(d, 'add songs to running')).toMatchObject({
       kind: 'none',
-      say: 'Say which songs to add to running: an artist, a tag, or a kind of song.',
+      say: 'Say which songs to add to running: an artist, an album, a tag, or a kind of song.',
     })
   })
 })

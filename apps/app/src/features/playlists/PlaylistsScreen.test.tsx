@@ -175,6 +175,16 @@ beforeEach(() => {
   deletePlaylist.mockClear()
 })
 
+describe('the grid', () => {
+  it('starts with New, then Liked, then yours', async () => {
+    await renderScreen()
+    const order = screen
+      .getAllByTestId(/^(playlists-new-tile|playlists-liked-tile|playlist-row-\d+)$/)
+      .map(tile => tile.props['testID'] as string)
+    expect(order).toEqual(['playlists-new-tile', 'playlists-liked-tile', 'playlist-row-0'])
+  })
+})
+
 describe('a playlist tile’s menu', () => {
   it('offers what the playlist page’s ⋯ does, but Select songs', async () => {
     await renderScreen()

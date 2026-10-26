@@ -26,6 +26,7 @@ describe('what can be done to songs', () => {
       'Add to playlist',
       'Add to Up next',
       'Play similar songs',
+      'Show on the map',
       'Download',
       'Rest for a month',
       'Song details',
@@ -75,6 +76,7 @@ describe('what can be done to songs', () => {
     expect(ids({ ...one, nowPlaying: true })).toEqual([
       'addToPlaylist',
       'playSimilar',
+      'showOnMap',
       'download',
       'rest',
       'delete',
@@ -85,6 +87,7 @@ describe('what can be done to songs', () => {
     expect(ids({ ...one, nowPlaying: true, detailsInMenu: true })).toEqual([
       'addToPlaylist',
       'playSimilar',
+      'showOnMap',
       'download',
       'rest',
       'details',
@@ -98,6 +101,7 @@ describe('what can be done to songs', () => {
       'Add to playlist',
       'Add to Up next',
       'Play similar songs',
+      'Show on the map',
       'Share link',
       'Download',
       'Rest for a month',

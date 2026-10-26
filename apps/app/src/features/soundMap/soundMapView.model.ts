@@ -69,19 +69,35 @@ function unorient(place: MapPlace, turned: boolean | undefined): MapPlace {
 /** A map this much wider than tall, on a field as much taller than wide, is turned. */
 const TURN_RATIO = 1.25
 
+/** What the page lays over the field's top and foot: its head, and the tray or player. */
+export interface FieldInsets {
+  readonly top: number
+  readonly bottom: number
+}
+
+const NO_INSETS: FieldInsets = { top: 0, bottom: 0 }
+
 /**
  * Every song in view, centred and as large as the field allows: a map wider
  * than it is tall fills a wide window rather than sitting in a square, and
- * stands up on a phone held upright.
+ * stands up on a phone held upright. Centred in what the page leaves clear
+ * (`insets`), since the field runs under its head and foot. `turned` keeps a
+ * map already drawn one way that way, so flying to a tag never spins it.
  */
 export function fitView(
   field: FieldSize,
   given: MapBounds = { x0: 0, y0: 0, x1: 1, y1: 1 },
+  { insets = NO_INSETS, turned: keep }: { insets?: FieldInsets; turned?: boolean } = {},
 ): MapView {
   const base = baseOf(field)
+  const clear = {
+    width: field.width,
+    height: Math.max(1, field.height - insets.top - insets.bottom),
+  }
   const turned =
-    field.height > field.width * TURN_RATIO &&
-    given.x1 - given.x0 > (given.y1 - given.y0) * TURN_RATIO
+    keep ??
+    (clear.height > clear.width * TURN_RATIO &&
+      given.x1 - given.x0 > (given.y1 - given.y0) * TURN_RATIO)
   const bounds = turned ? { x0: 1 - given.y1, y0: given.x0, x1: 1 - given.y0, y1: given.x1 } : given
   const width = Math.max(bounds.x1 - bounds.x0, 0.05) * base
   const height = Math.max(bounds.y1 - bounds.y0, 0.05) * base
@@ -89,12 +105,45 @@ export function fitView(
     MAX_SCALE,
     Math.max(
       MIN_SCALE,
-      Math.min((field.width - FIT_INSET * 2) / width, (field.height - FIT_INSET * 2) / height),
+      Math.min((clear.width - FIT_INSET * 2) / width, (clear.height - FIT_INSET * 2) / height),
     ),
   )
   const cx = ((bounds.x0 + bounds.x1) / 2) * base * scale
   const cy = ((bounds.y0 + bounds.y1) / 2) * base * scale
-  return { scale, x: field.width / 2 - cx, y: field.height / 2 - cy, turned }
+  return { scale, x: clear.width / 2 - cx, y: insets.top + clear.height / 2 - cy, turned }
+}
+
+/** The view with `place` in the middle of what the page leaves clear, at `scale`. */
+export function centredOn(
+  view: MapView,
+  field: FieldSize,
+  place: MapPlace,
+  scale: number,
+  insets: FieldInsets = NO_INSETS,
+): MapView {
+  const base = baseOf(field)
+  const next = { ...view, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)), x: 0, y: 0 }
+  const at = toScreen(next, base, place)
+  const middle = {
+    x: field.width / 2,
+    y: insets.top + (field.height - insets.top - insets.bottom) / 2,
+  }
+  return { ...next, x: middle.x - at.x, y: middle.y - at.y }
+}
+
+/**
+ * A step of the way from one view to another, `t` 0–1: the scale is eased on
+ * its logarithm so a long zoom feels even, and the point under the middle of
+ * the field moves in a straight line.
+ */
+export function between(from: MapView, to: MapView, t: number, field: FieldSize): MapView {
+  const scale = Math.exp(Math.log(from.scale) + (Math.log(to.scale) - Math.log(from.scale)) * t)
+  const base = baseOf(field)
+  const middle = { x: field.width / 2, y: field.height / 2 }
+  const a = toMap(from, base, middle)
+  const b = toMap(to, base, middle)
+  const spot = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+  return centredOn({ ...to, scale }, field, spot, scale)
 }
 
 export function toScreen(view: MapView, base: number, place: MapPlace): { x: number; y: number } {

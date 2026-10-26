@@ -41,8 +41,49 @@ export const iosLatestSchema = z.object({
   build: z.number().int().positive(),
   commit: z.string(),
   publishedAt: z.string(),
+  /** The iPhones it installs on, each as `iphoneKey` of its ID: never the IDs themselves. */
+  devices: z.array(z.string()),
 })
 export type IosLatest = z.infer<typeof iosLatestSchema>
+
+/**
+ * An iPhone's ID as a build lists it: SHA-256 of the ID in capitals, in hex.
+ * The release is public, so a friend's page can ask whether a build is theirs
+ * without the release naming anybody's iPhone.
+ */
+export async function iphoneKey(udid: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(udid.toUpperCase()))
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** An iPhone's ID: 40 hex digits on older iPhones, `00008140-00094D0436F3001C` since. */
+export const IPHONE_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{8}-[0-9a-f]{16})$/i
+
+/**
+ * A friend's iPhone, asked for from the install page and kept by the doorman
+ * (apps/doorman/src/device.ts) until the owner adds it from the admin page:
+ * `waiting`, then `added` — registered with Apple by the next build, which the
+ * adding starts.
+ */
+export const IphoneRequestSchema = z.object({
+  udid: z.string().regex(IPHONE_ID),
+  /** What they called themselves on the install page; empty when they left it. */
+  name: z.string().max(40),
+  askedAt: z.number(),
+  state: z.enum(['waiting', 'added']),
+  addedAt: z.number().optional(),
+})
+export type IphoneRequest = z.infer<typeof IphoneRequestSchema>
+
+export const IphoneListSchema = z.object({ iphones: z.array(IphoneRequestSchema) })
+export type IphoneList = z.infer<typeof IphoneListSchema>
+
+/** What adding an iPhone did about a build: started one, or could not (no token, GitHub said no). */
+export const IphoneAddedSchema = z.object({
+  iphone: IphoneRequestSchema,
+  build: z.enum(['started', 'not-set-up', 'failed']),
+})
+export type IphoneAdded = z.infer<typeof IphoneAddedSchema>
 
 /**
  * The build on the release, or null when there is none yet or it says
@@ -63,6 +104,25 @@ export async function fetchIosLatest(fetchImpl: typeof fetch = fetch): Promise<I
 /** Whether the release has a build this one should be replaced by. */
 export function isNewerIosBuild(latest: IosLatest | null, currentBuild: number): boolean {
   return latest !== null && Number.isFinite(currentBuild) && latest.build > currentBuild
+}
+
+/** How long the app keeps quiet after saying a newer build is ready. */
+export const IOS_ANNOUNCE_GAP_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Whether the app should say, in a toast, that this newer build is ready: a
+ * build it has not said yet, and not within a day of the last it did. A build
+ * is published with every push that changes the app, several on a busy day,
+ * and a friend hears of them at most once a day; Settings › About has the
+ * newest at any time.
+ */
+export function announcesIosBuild(
+  build: number,
+  last: { readonly build: number; readonly at: number } | null,
+  now: number,
+): boolean {
+  if (!last) return true
+  return build !== last.build && now - last.at >= IOS_ANNOUNCE_GAP_MS
 }
 
 const xml = (text: string): string =>

@@ -17,7 +17,6 @@ import {
   type ShareCreate,
   type ShareSummary,
 } from '@selfmp3/shared'
-import { z } from 'zod'
 import { requireSession, type Context } from './context.js'
 import {
   BucketFileSchema,
@@ -33,6 +32,7 @@ import {
 import { secureHex, sha256Hex } from './encoding.js'
 import { json, methodNotAllowed, notFound, readJson } from './http.js'
 import { facePicture, type Session } from './sessions.js'
+import { YOURS_HEADER } from './share.js'
 
 /**
  * Share links (docs/features/share-links.md; the contract is
@@ -56,9 +56,6 @@ import { facePicture, type Session } from './sessions.js'
  */
 
 const SHARE = DOORMAN_PATHS.share
-
-/** Whether the link opened was the opener's own, which is no friend's link to remember. */
-const YoursSchema = z.object({ yours: z.boolean() })
 
 type Side = 'out' | 'in'
 
@@ -201,11 +198,8 @@ export async function share(ctx: Context): Promise<Response> {
         visitor: ctx.url.searchParams.get('v'),
       }),
     )
-    if (opened.ok && session) {
-      const body = YoursSchema.safeParse(await opened.clone().json())
-      if (body.success && !body.data.yours) {
-        await linkIndex(ctx, 'in', session.sub).remember(id.data)
-      }
+    if (opened.ok && session && opened.headers.get(YOURS_HEADER) === 'no') {
+      await linkIndex(ctx, 'in', session.sub).remember(id.data)
     }
     return relayed(opened)
   }
@@ -305,8 +299,12 @@ async function forgetIfUnused(ctx: Context, sub: string, id: string): Promise<vo
   if (gone.ok) await linkIndex(ctx, 'out', sub).forget(id)
 }
 
-/** A hundred songs, each a few hundred bytes of names and keys. */
-const CREATE_MAX_BYTES = 256 * 1024
+/**
+ * A link holds every song it is made of, so this is no count of songs but a
+ * guard on what one request may make the Worker hold: a song is under a
+ * kilobyte of names and keys, so a whole library of ten thousand fits.
+ */
+const CREATE_MAX_BYTES = 8 * 1024 * 1024
 
 /**
  * `GET /v1/share` and `/v1/share/received`: your links, newest first.

@@ -20,7 +20,6 @@ import {
   Plus,
   Shuffle,
   SortLines,
-  SoundMap,
 } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
 import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
@@ -386,7 +385,7 @@ export function LibraryScreen(): ReactNode {
                     <Shuffle size={iconSize.item} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
-                <LibraryMore wide={false} />
+                <LibraryMore />
               </>
             )
           }
@@ -463,7 +462,7 @@ export function LibraryScreen(): ReactNode {
                     testID="library-play-tags"
                   />
                 ) : null}
-                <LibraryMore wide />
+                <LibraryMore />
               </View>
             </View>
           ) : null}
@@ -685,25 +684,14 @@ export function LibraryScreen(): ReactNode {
 }
 
 /**
- * Library's ⋯. On a computer, the Sound map (docs/features/sound-map.md). On
- * an installed app, "Download all", with what it would take. It had been a
+ * Library's ⋯. On an installed app, "Download all", with what it would take. It had been a
  * strip over the songs on every visit — "109 not on this computer · 528.2 MB ·
  * Download" — for a wait only a tap ends (AL1). Settings › On this phone keeps
- * the totals and the same button. With neither, there is no ⋯.
+ * the totals and the same button. Without it, there is no ⋯.
  */
-function LibraryMore({ wide }: { wide: boolean }): ReactNode {
-  const router = useRouter()
+function LibraryMore(): ReactNode {
   const { installed, absentIds, absentBytes, requestDownload } = useDownloads()
   const items: MenuItem[] = []
-  if (wide) {
-    items.push({
-      key: 'sound-map',
-      label: 'Sound map',
-      icon: <SoundMap tone="textSecondary" />,
-      testID: 'library-sound-map',
-      onPress: () => router.push('/sound-map'),
-    })
-  }
   if (installed) {
     items.push({
       key: 'download-all',

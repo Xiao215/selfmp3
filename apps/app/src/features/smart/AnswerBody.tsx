@@ -13,6 +13,7 @@ import { Button } from '../../ui/components/Button'
 import { Copy as CopyIcon, Sparkle } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
+import { foundSource } from '../lists/lists.model'
 import { rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
@@ -65,7 +66,7 @@ export function AnswerBody({
     case 'together':
       return <TogetherAnswer answer={answer} text={text} onDone={onDone} onOpen={onOpenPage} />
     case 'find':
-      return <Found answer={answer} onDone={onDone} />
+      return <Found answer={answer} text={text} onDone={onDone} />
     case 'explore':
       return (
         <>
@@ -77,6 +78,7 @@ export function AnswerBody({
           />
           <SongPicks
             picks={answer.songIds.slice(0, 20).map(songId => ({ songId, why: null }))}
+            text={text}
             onDone={onDone}
           />
         </>
@@ -125,7 +127,7 @@ export function AnswerBody({
         <PlaylistSongsAnswer answer={answer} height={listHeight} onDone={onDone} onKeys={onKeys} />
       )
     case 'library':
-      return <LibraryAnswer answer={answer} height={listHeight} onDone={onDone} />
+      return <LibraryAnswer answer={answer} text={text} height={listHeight} onDone={onDone} />
     case 'stats':
       return (
         <>
@@ -249,9 +251,11 @@ function Words({
 /** A half-remembered song: the few that fit, best first. Pressing one plays them from it. */
 function Found({
   answer,
+  text,
   onDone,
 }: {
   answer: Extract<Answer, { kind: 'find' }>
+  text: string
   onDone: () => void
 }): ReactNode {
   const server = useSmartServer()
@@ -266,17 +270,22 @@ function Found({
   return (
     <>
       <AnswerHead>{here.length === 1 ? 'Found one' : `Found ${here.length}`}</AnswerHead>
-      <SongPicks picks={here} onDone={onDone} />
+      <SongPicks picks={here} text={text} onDone={onDone} />
     </>
   )
 }
 
-/** Songs an answer names (server ids), as rows: pressing one plays them from it. */
+/**
+ * Songs an answer names (server ids), as rows: pressing one plays them from
+ * it, named for the words asked (`foundSource`).
+ */
 function SongPicks({
   picks,
+  text,
   onDone,
 }: {
   picks: readonly { songId: number; why: string | null }[]
+  text: string
   onDone: () => void
 }): ReactNode {
   const server = useSmartServer()
@@ -297,9 +306,7 @@ function SongPicks({
           key={song.id}
           song={song}
           onPlay={() => {
-            player.playFrom(ids, index, {
-              source: { kind: 'songs', origin: 'found', name: 'Search' },
-            })
+            player.playFrom(ids, index, { source: foundSource(text) })
             onDone()
           }}
           artUri={artFor(song)}

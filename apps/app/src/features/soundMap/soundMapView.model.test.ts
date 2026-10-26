@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   baseOf,
+  between,
   boundsOf,
+  centredOn,
   fitView,
   MAX_SCALE,
   tileSide,
@@ -60,5 +62,30 @@ describe('the sound map’s view', () => {
     expect(tileSide(1)).toBe(8)
     expect(tileSide(8)).toBeGreaterThan(tileSide(1) * 2)
     expect(tileSide(8)).toBeLessThan(tileSide(1) * 8)
+  })
+
+  it('fits clear of what the page lays over the field, and keeps a turned map turned', () => {
+    const tall = { width: 400, height: 800 }
+    const bounds = { x0: 0.1, y0: 0.4, x1: 0.9, y1: 0.6 }
+    const view = fitView(tall, bounds, { insets: { top: 120, bottom: 200 } })
+    const tallBase = baseOf(tall)
+    const middle = toScreen(view, tallBase, { x: 0.5, y: 0.5 })
+    expect(middle.y).toBeCloseTo(120 + (800 - 120 - 200) / 2, 5)
+    expect(fitView(tall, bounds, { turned: false }).turned).toBe(false)
+  })
+
+  it('centres a song in what is left clear, and flies there in a straight line', () => {
+    const start = fitView(field)
+    const song = { x: 0.7, y: 0.3 }
+    const there = centredOn(start, field, song, 6, { top: 100, bottom: 0 })
+    const at = toScreen(there, base, song)
+    expect(at.x).toBeCloseTo(500, 5)
+    expect(at.y).toBeCloseTo(100 + 250, 5)
+    expect(there.scale).toBe(6)
+    expect(between(start, there, 0, field)).toMatchObject({ scale: start.scale })
+    const done = between(start, there, 1, field)
+    expect(done.scale).toBeCloseTo(6, 5)
+    // Halfway, the scale is halfway on its logarithm.
+    expect(between(start, there, 0.5, field).scale).toBeCloseTo(Math.sqrt(start.scale * 6), 5)
   })
 })

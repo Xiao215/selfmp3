@@ -134,17 +134,17 @@ export function PlaylistsScreen(): ReactNode {
     () => likedSongs(library?.songs ?? []).map(song => song.id),
     [library?.songs],
   )
-  // One grid, in this order: Liked, the way in, the built-in list, the shared
-  // ones, then yours. Liked is there with no song in it too: its page says how
-  // one gets there.
+  // One grid, in this order: the way in, the ones from links, Liked, the
+  // built-in list, then yours. Liked is there with no song in it too: its page
+  // says how one gets there.
   const tiles: GridItem[] = [
-    { kind: 'liked' },
     { kind: 'new' },
+    ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
+    { kind: 'liked' },
     // Hidden when there are none, or the server cannot say.
     ...(gems.data && !gems.isError && gems.data.songs.length > 0
       ? [{ kind: 'gems' as const, gems: gems.data }]
       : []),
-    ...(shared ?? []).map(item => ({ kind: 'shared' as const, item })),
     ...playlists.map(playlist => ({ kind: 'playlist' as const, playlist })),
   ]
   // A screenful or two of tiles, and more as the scroll nears the end: six
@@ -279,7 +279,7 @@ function NewTile({ onPress }: { onPress: () => void }): ReactNode {
 }
 
 /**
- * Liked, the grid's first tile: every song you like, newest like first. Not a
+ * Liked, after the way in and the ones from links: every song you like, newest like first. Not a
  * playlist you made — it keeps itself, and has nothing to rename or delete —
  * so it opens its page and has no menu.
  */

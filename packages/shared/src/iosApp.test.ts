@@ -4,7 +4,10 @@ import {
   IOS_INSTALL_PAGE_URL,
   fetchIosLatest,
   iosAssetUrl,
+  announcesIosBuild,
+  IOS_ANNOUNCE_GAP_MS,
   isNewerIosBuild,
+  iphoneKey,
   renderIosManifest,
   type IosLatest,
 } from './iosApp.js'
@@ -14,6 +17,7 @@ const latest = (build: number): IosLatest => ({
   build,
   commit: 'abc1234',
   publishedAt: '2026-10-24T00:00:00Z',
+  devices: [],
 })
 
 const answer = (status: number, body: unknown = {}): typeof fetch =>
@@ -33,12 +37,27 @@ describe('the iPhone app for friends', () => {
     )
   })
 
+  it('lists an iPhone by a hash of its ID, the same however the ID is written', async () => {
+    const key = await iphoneKey('00008140-00094D0436F3001C')
+    expect(key).toMatch(/^[0-9a-f]{64}$/)
+    expect(await iphoneKey('00008140-00094d0436f3001c')).toBe(key)
+    expect(key).not.toContain('00008140')
+  })
+
   it('offers a build only when it is later than this one', () => {
     expect(isNewerIosBuild(latest(120), 119)).toBe(true)
     expect(isNewerIosBuild(latest(120), 120)).toBe(false)
     expect(isNewerIosBuild(latest(120), 121)).toBe(false)
     expect(isNewerIosBuild(null, 1)).toBe(false)
     expect(isNewerIosBuild(latest(120), Number.NaN)).toBe(false)
+  })
+
+  it('says a newer build is ready at most once a day, and each build once', () => {
+    const day = IOS_ANNOUNCE_GAP_MS
+    expect(announcesIosBuild(120, null, 0)).toBe(true)
+    expect(announcesIosBuild(121, { build: 120, at: 0 }, day - 1)).toBe(false)
+    expect(announcesIosBuild(121, { build: 120, at: 0 }, day)).toBe(true)
+    expect(announcesIosBuild(120, { build: 120, at: 0 }, day * 3)).toBe(false)
   })
 
   it('reads the release’s build, and takes no release or a strange answer as none', async () => {

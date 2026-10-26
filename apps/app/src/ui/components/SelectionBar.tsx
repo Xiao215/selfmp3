@@ -9,15 +9,12 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayoutValue } from '../../shell/useLayout'
 import { SONG_ACTION_LABELS } from '../songActions.model'
 import { RemoveSongs } from './ConfirmRemoveSongs'
-import { Play, QueueAdd, X } from './Icons'
+import { QueueAdd, X } from './Icons'
 import { SelectionLane, type BarAction } from './SelectionLane'
 import { SelectionTagPicker } from './TagPicker'
 import { SongActionItems } from './SongActionItems'
 
 export { SELECTION_BAR_SPACE, selectionBarLift } from './SelectionLane'
-
-/** What Up next is called when the ticked songs are played: they can be saved from there. */
-const PICKED = { kind: 'songs', origin: 'selection', name: 'Songs you picked' } as const
 
 const SONG_NOUN = { one: 'song', many: 'songs' } as const
 
@@ -25,11 +22,11 @@ const SONG_NOUN = { one: 'song', many: 'songs' } as const
  * The bar that runs a multi-selection of songs: the lane every selection has
  * (`SelectionLane`), with what is done to songs in it.
  *
- * Play and Add to Up next are in the bar because they are harmless and
- * frequent: drawn as labelled buttons on a computer and as icons on a phone,
- * where Play is the filled one. A computer has room for a playlist's Remove
- * beside them; a phone keeps it in More. Everything that edits the library
- * sits behind More — a popover at desktop width, a sheet on a phone — and is
+ * Add to Up next is in the bar because it is harmless and frequent: a
+ * labelled button on a computer, an icon on a phone. A computer has room for
+ * a playlist's Remove beside it; a phone keeps it in More. There is no Play:
+ * the ticked songs are not a list worth hearing in tick order (Xiao,
+ * 2026-10-26). Everything that edits the library sits behind More — a popover at desktop width, a sheet on a phone — and is
  * the song menu's own items for many songs (`SongActionItems`), with "Delete
  * from library" last and in red, and behind a confirmation.
  */
@@ -84,13 +81,6 @@ export function SelectionBar({
   const ids = songs.map(song => song.id)
 
   const actions: readonly BarAction[] = [
-    {
-      key: 'play',
-      label: 'Play',
-      Glyph: Play,
-      filled: true,
-      onPress: () => player.playFrom(ids, 0, { source: PICKED }),
-    },
     {
       key: 'queue',
       label: SONG_ACTION_LABELS.addToUpNext,

@@ -117,6 +117,116 @@ export function songsAlongPath(
   return ordered
 }
 
+/** A loop may be left this open: its ends this share of its size apart. */
+const LOOP_GAP = 0.35
+/**
+ * A stroke this many times as long as it is across has gone round something:
+ * a circle is about 2.2, a line 1, a U about 2 but with its ends wide apart.
+ */
+const LOOP_ROUND = 1.6
+
+/**
+ * Whether a stroke goes round something rather than from one place to
+ * another: it has gone well round (`LOOP_ROUND`) and its ends come back near
+ * each other — within `closeWithin` (a finger's reach or so), or within a
+ * third of its own size, since a big circle is rarely closed exactly. A short
+ * scribble that comes back is still a line.
+ */
+export function isLoop(path: readonly MapPlace[], closeWithin: number): boolean {
+  if (path.length < 4) return false
+  let length = 0
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (let at = 0; at < path.length; at++) {
+    const point = path[at]!
+    if (at > 0) length += Math.sqrt(distance2(path[at - 1]!, point))
+    x0 = Math.min(x0, point.x)
+    y0 = Math.min(y0, point.y)
+    x1 = Math.max(x1, point.x)
+    y1 = Math.max(y1, point.y)
+  }
+  const across = Math.hypot(x1 - x0, y1 - y0)
+  const gap = Math.sqrt(distance2(path[0]!, path[path.length - 1]!))
+  return (
+    length > closeWithin * 4 &&
+    length >= across * LOOP_ROUND &&
+    gap <= Math.max(closeWithin, across * LOOP_GAP)
+  )
+}
+
+/**
+ * Inside a closed shape (its last point joins its first), by how many times
+ * it winds round the place: any number but none is inside. So the stretch
+ * where a finger went on past where it began, round twice there, is inside
+ * as well, which the even–odd rule would leave out.
+ */
+function inside(loop: readonly MapPlace[], place: MapPlace): boolean {
+  let winding = 0
+  for (let at = 0; at < loop.length; at++) {
+    const a = loop[at]!
+    const b = loop[(at + 1) % loop.length]!
+    const side = (b.x - a.x) * (place.y - a.y) - (place.x - a.x) * (b.y - a.y)
+    if (a.y <= place.y) {
+      if (b.y > place.y && side > 0) winding += 1
+    } else if (b.y <= place.y && side < 0) winding -= 1
+  }
+  return winding !== 0
+}
+
+const middleOf = (points: readonly MapPlace[]): MapPlace => ({
+  x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+  y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+})
+
+/**
+ * Every song inside a loop, as Up next: in auto-mix order (queue/autoMix.ts)
+ * from the one nearest its middle, so each step is gentle. All of them, however
+ * many: a loop round a whole island means the whole island.
+ */
+export function songsInside(
+  places: readonly PlacedSong[],
+  loop: readonly MapPlace[],
+  byId: ReadonlyMap<number, Song>,
+): number[] {
+  if (loop.length < 3) return []
+  const middle = middleOf(loop)
+  const kept = places
+    .filter(place => inside(loop, place))
+    .map(place => ({ id: place.id, d: distance2(place, middle) }))
+    .sort((a, b) => a.d - b.d || a.id - b.id)
+    .map(entry => entry.id)
+  return orderPath(undefined, kept, byId)
+}
+
+/**
+ * A loop's name: the tag most of the songs inside share, when at least half
+ * of them do ("jpop"), or else the title of the song nearest its middle.
+ */
+export function loopName(
+  places: readonly PlacedSong[],
+  ids: readonly number[],
+  songs: ReadonlyMap<number, Pick<Song, 'title' | 'tagIds'>>,
+  tags: readonly Pick<Tag, 'id' | 'name'>[],
+): string {
+  if (ids.length === 0) return ''
+  const counts = new Map<number, number>()
+  for (const id of ids) {
+    for (const tagId of songs.get(id)?.tagIds ?? []) counts.set(tagId, (counts.get(tagId) ?? 0) + 1)
+  }
+  let best: [number, number] | null = null
+  for (const entry of counts) {
+    if (!best || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0])) best = entry
+  }
+  const tag = best && best[1] >= ids.length / 2 ? tags.find(t => t.id === best[0]) : undefined
+  if (tag) return tag.name
+  const taken = new Set(ids)
+  const own = places.filter(place => taken.has(place.id))
+  const nearest = own.length > 0 ? nearestSongs(own, middleOf(own), 1)[0] : ids[0]
+  return songs.get(nearest ?? -1)?.title ?? ''
+}
+
 /** Where a tag's songs gather on the map: a soft circle, and the tag. */
 export interface TagRegion {
   readonly tagId: number

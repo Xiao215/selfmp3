@@ -74,6 +74,10 @@ test.describe('selecting songs', () => {
       await page.waitForTimeout(400)
       expect((await rows.nth(1).boundingBox())?.y).toBe(before?.y)
     }
+    // What is ticked goes into Up next; the bar does not play it as a list of its own.
+    const bar = page.getByTestId('selection-bar').filter({ visible: true })
+    await expect(bar.getByRole('button', { name: 'Add to Up next' })).toBeVisible()
+    await expect(bar.getByRole('button', { name: 'Play', exact: true })).toHaveCount(0)
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(selectionCount(page, 2)).toBeVisible()
 

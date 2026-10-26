@@ -146,7 +146,9 @@ climbed when the one below cannot answer:
    "old songs" against the library's own spread, never "just added"), the tag naming conventions.
 2. **The library's shape** (about 1–3k tokens): each tag with its song count and the
    artists and albums it mostly holds; the size of the library; ranges of tempo and energy;
-   the years songs came out, by decade.
+   the years songs came out, by decade; the artists, and the albums of two songs or more.
+   An album is a place like an artist, so "jukebox songs" lets in every song on Jukebox
+   with no pick: a pick sees at most 300 songs, sampled from a big library, and lost some.
    This is how "a few Genshin ones" becomes the tag 原神纯音乐 without the model ever
    seeing a song.
 3. **A candidate table**: only the songs that survived the deterministic filter, capped by
@@ -224,7 +226,13 @@ the foot ("Ask a follow-up…"); while a turn is worked on its send is the one S
 takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
 and the conversation is not kept after it (so there is no "new chat" button); the page drawn
 again any other way — a browser's Back from an answer's page — finds its turns as they were
-(`askThread.store.ts`). When the
+(`askThread.store.ts`). On a computer a list answered opens beside the thread (Xiao picked
+A2 B1 C1, 2026-10-26, from a canvas of A1–A4 layouts): the thread narrows to a 440 pane a
+step up from the ground and the list is the answer's page (`AnswerView`) with × for ‹;
+pressing another song card opens that one, and × gives the thread the page again. The
+newest list opens as it arrives. The field floats over the thread's fading foot with 24
+under it before the player bar (12 on a phone), rather than sitting on a line at the
+bottom. On a phone a card opens the answer's page, as before. When the
 keyboard rises, the thread's foot moves up with it, as a messages app keeps it. A
 question over 500 characters is not sent: the field stops there, and one from Search says
 it is too long. An answer that failed says why when the server said ("Your server couldn’t
@@ -330,7 +338,7 @@ A playlist's songs are the `playlistSongs` action (`ai/askLibrary.ts`): add, rem
 one manual playlist, found by `matchPlaylist` too. Add and remove choose their songs with
 Describe's filters — among the library's songs not in it, or among its own — and when the
 filters say it all, every song they let in is the answer, ticked, with no second call. Words
-the filters cannot say ("from second person", "the ones that aren't game music") go to
+the filters cannot say ("the ones named for rain", "the ones that aren't game music") go to
 Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
 so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
 the value, never analysed or never played, goes last either way). A live playlist fills
@@ -365,9 +373,11 @@ rather than looking finished.
 
 ## Change it
 
-A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer" —
-in one field under its card in Search and under its page's head (`smart/ChangeIt.tsx`). No
-suggested changes are offered: what to say is yours (Xiao, 2026-10-04).
+A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer".
+On the Ask page that is the page's one field while it wears the list's chip ("↳ these 19
+songs", B1, 2026-10-26); on the answer's own page it is a field under its head
+(`smart/ChangeIt.tsx`, "Change these songs…"). No suggested changes are offered: what to
+say is yours (Xiao, 2026-10-04).
 
 `POST /api/ai/refine` (`ai/refine.ts`) gets what was first asked, the filters as they stand,
 the change, and the songs shown. One fast-tier call returns the filters changed, everything
@@ -376,14 +386,15 @@ the rest is picked (Describe's step 3, around them), so "10 首" after two songs
 two and adds eight. A change to the brief is a change of taste and picks again from the
 start. Its stages report through the same ticket as Ask's.
 
-While it works the field itself says what is happening, in the same place, so nothing
-moves; when it lands, the words join a trail above the field ("旅途日语歌 → 10首 →
-不要动漫的"), the newest fading in, and the field is empty again. Every version is kept
-while the app is open (`smart/answers.store.ts`): a name in the trail goes back to it, and
-changing from an earlier one lets go of the ones after, as undo does. Different songs on
-the page is a version in the trail too. The answer's page shows no trail (Xiao,
-2026-10-04): it is the version showing, titled by the list's own name, with the field as
-a full-width bar under its head ("Change these songs…").
+Said in Ask, a change is a turn of the thread like a question: your words in a bubble,
+then the changed list as a card of its own, kept beside the one it changed
+(`smart/answers.store.ts`), so the thread is the trail of versions and an older card opens
+the list as it was. The chip's ×, or ⌫ in the empty field, lets the list go, and the next
+words are a question (the field says so under it with a mouse). On the answer's own page
+the field itself says what is happening while it works, in the same place, so nothing
+moves; when it lands, the list there is the new one (Different songs does the same). Until
+2026-10-26 a song card in Ask had its own Change it under it, beside the page's field, and
+a trail of versions above that.
 
 ## Looking things up (`explore`)
 
@@ -443,8 +454,8 @@ and asks for the newest
 they say …"), so the model neither looks everything up again nor re-answers it, and "only
 the albums" after a song list is still that request changed. Until 2026-10-24 only the
 earlier questions were sent, as one request to "answer all of it together": a third
-question got its answer in the last sentence of a re-answer of all three. A song answer
-keeps its own Change it, which keeps the songs it already chose.
+question got its answer in the last sentence of a re-answer of all three. A list answer's
+chip sends the words as a change instead (above), which keeps the songs it already chose.
 
 A tidy answer that changes nothing still answers: the model says which song it took them to
 mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change
@@ -471,7 +482,7 @@ and nothing else, it can instead follow those tags and keep itself filled, which
 one kind of rule a playlist here follows (`follows.model.ts`).
 
 What it understood is an `Understanding` (`packages/shared/src/schemas/ai.ts`), not the Live
-rule set: places widen (any of these tags, any of these artists) and everything else
+rule set: places widen (any of these tags, artists or albums) and everything else
 narrows (energy, tempo, the years it came out, words, loved, when played or added). A Live rule set is all-or-any
 and cannot say "古典 or 原神纯音乐, and calm".
 
@@ -489,10 +500,13 @@ and cannot say "古典 or 原神纯音乐, and calm".
    songs loosens the energy and leaves "slow" to the pick.
 3. **Listen** (the listening model, no language model), only when the plan has a sound, or
    the router says they want music like the song playing (`like`): the songs that fit are
-   put in the order they sound like it, best first. A sound also keeps only the songs within
-   0.06 of the best match, so "violin songs" with six violin pieces answers six, not those
-   six and nineteen near misses; songs not heard yet cannot be vouched for and stay out.
-   Steering from a song only orders. Nothing else in Ask touches the listening model.
+   put in the order they sound like it, best first. Over the whole library (no tags or
+   artists asked for) a sound also keeps only the songs within 0.06 of the best match, so
+   "violin songs" with six violin pieces answers six, not those six and nineteen near
+   misses; songs not heard yet cannot be vouched for and stay out. Inside the tags, artists or albums
+   asked for it only orders: they already chose the songs, and the line drawn from one best
+   match left "比较温和的jpop" with one song of a hundred jpop. Steering from a song only
+   orders. Nothing else in Ask touches the listening model.
 4. **Pick** (smart tier), only when there is a brief or more songs fit than were asked for
    (25 when not said). With a sound and no brief, the best-sounding are taken as they are,
    with no call. Otherwise shown your words, the brief, the sound and the candidate table

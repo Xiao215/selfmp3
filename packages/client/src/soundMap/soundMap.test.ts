@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { AudioFeatures, Song } from '@selfmp3/shared'
 import {
+  isLoop,
+  loopName,
   nearestSongs,
+  songsInside,
   pathName,
   placeName,
   songsAlongPath,
@@ -189,5 +192,114 @@ describe('tagRegions and names', () => {
     // No tag holds the spot: the nearest song's title.
     const untagged = byId(songs.map(s => ({ ...s, tagIds: [] })))
     expect(placeName(places, { x: 0.2, y: 0.2 }, untagged, [])).toBe('Night 1')
+  })
+})
+
+describe('loops', () => {
+  const square = (x0: number, y0: number, x1: number, y1: number) => [
+    { x: x0, y: y0 },
+    { x: x1, y: y0 },
+    { x: x1, y: y1 },
+    { x: x0, y: y1 },
+    { x: x0 + 0.01, y: y0 + 0.01 },
+  ]
+
+  it('tells a stroke that comes back round from a line', () => {
+    expect(isLoop(square(0.2, 0.2, 0.4, 0.4), 0.03)).toBe(true)
+    // A line ends far from where it began.
+    expect(
+      isLoop(
+        [
+          { x: 0.1, y: 0.1 },
+          { x: 0.3, y: 0.2 },
+          { x: 0.5, y: 0.3 },
+          { x: 0.7, y: 0.4 },
+        ],
+        0.03,
+      ),
+    ).toBe(false)
+    // A short scribble that comes back has not gone round anything.
+    expect(
+      isLoop(
+        [
+          { x: 0.5, y: 0.5 },
+          { x: 0.51, y: 0.5 },
+          { x: 0.51, y: 0.51 },
+          { x: 0.5, y: 0.505 },
+        ],
+        0.03,
+      ),
+    ).toBe(false)
+  })
+
+  // A circle drawn by hand: round from the top, `turn` of the way.
+  const circle = (turn: number, r = 0.2) =>
+    Array.from({ length: 41 }, (_, step) => {
+      const angle = -Math.PI / 2 + (step / 40) * turn * Math.PI * 2
+      return { x: 0.5 + Math.cos(angle) * r, y: 0.5 + Math.sin(angle) * r }
+    })
+
+  it('takes a big circle left a little open, or gone on past its start, as a loop', () => {
+    // Nine tenths of the way round: its ends are well over a finger apart.
+    expect(isLoop(circle(0.9), 0.03)).toBe(true)
+    expect(isLoop(circle(1.15), 0.03)).toBe(true)
+    // A U, its ends as far apart as it is tall, is a line.
+    expect(
+      isLoop(
+        [
+          { x: 0.2, y: 0.2 },
+          { x: 0.2, y: 0.6 },
+          { x: 0.6, y: 0.6 },
+          { x: 0.6, y: 0.2 },
+        ],
+        0.03,
+      ),
+    ).toBe(false)
+  })
+
+  it('takes every song inside however many, the stretch a finger went past its start too', () => {
+    const grid: PlacedSong[] = []
+    for (let row = 0; row < 30; row++) {
+      for (let col = 0; col < 30; col++) {
+        grid.push({ id: row * 30 + col, x: 0.35 + col * 0.01, y: 0.35 + row * 0.01 })
+      }
+    }
+    const all = byId(grid.map(place => song(place.id)))
+    const within = (r: number) =>
+      grid.filter(place => Math.hypot(place.x - 0.5, place.y - 0.5) < r - 0.005).map(p => p.id)
+    const taken = songsInside(grid, circle(1.15, 0.12), all)
+    // Every song well inside, hundreds of them, none left out.
+    expect(within(0.12).length).toBeGreaterThan(400)
+    for (const id of within(0.12)) expect(taken).toContain(id)
+  })
+
+  it('takes every song inside, in auto-mix order from the middle', () => {
+    const places: PlacedSong[] = [
+      { id: 1, x: 0.3, y: 0.3 },
+      { id: 2, x: 0.25, y: 0.35 },
+      { id: 3, x: 0.38, y: 0.22 },
+      { id: 4, x: 0.6, y: 0.6 },
+    ]
+    const songs = byId([
+      song(1, { audioFeatures: feat(120, 0.5) }),
+      song(2, { audioFeatures: feat(90, 0.2) }),
+      song(3, { audioFeatures: feat(121, 0.52) }),
+      song(4, { audioFeatures: feat(120, 0.5) }),
+    ])
+    const loop = square(0.2, 0.2, 0.4, 0.4)
+    // From the song nearest the middle, then the one that sounds closest.
+    expect(songsInside(places, loop, songs)).toEqual([1, 3, 2])
+  })
+
+  it('names a loop by the tag most songs inside share, or the song at its middle', () => {
+    const places: PlacedSong[] = [
+      { id: 1, x: 0.3, y: 0.3 },
+      { id: 2, x: 0.25, y: 0.35 },
+      { id: 3, x: 0.38, y: 0.22 },
+    ]
+    const jpop = { id: 7, name: 'jpop' }
+    const tagged = byId([song(1, { tagIds: [7] }), song(2, { tagIds: [7] }), song(3)])
+    expect(loopName(places, [1, 2, 3], tagged, [jpop])).toBe('jpop')
+    expect(loopName(places, [1, 2, 3], byId([song(1), song(2), song(3)]), [jpop])).toBe('Song 1')
   })
 })

@@ -7,7 +7,8 @@
  * tab of its own is reached from Home: the tags from its tiles (and a tag's
  * or an artist's own page, and tags combined from one), a room that ended
  * from Recently played, Profile from its avatar and, through it, Stats and
- * Settings; Import from its +. A shared playlist sits among your playlists.
+ * Settings; Import from its +; the Sound map from its card. A shared playlist
+ * sits among your playlists.
  * So those pages light Home, and a shared one Playlists: the bar says
  * where you are in the app, not only which page answered the address.
  *
@@ -32,13 +33,14 @@ interface NavPlace {
 export const NAV: readonly NavPlace[] = [
   { id: 'home', href: '/', label: 'Home', tab: true, rail: 'row' },
   { id: 'library', href: '/library', label: 'Library', tab: true, rail: 'row' },
+  // Under Library: the same songs, drawn by how they sound, to listen and make lists from.
+  { id: 'soundMap', href: '/sound-map', label: 'Sound map', tab: false, rail: 'row' },
   { id: 'playlists', href: '/playlists', label: 'Playlists', tab: true, rail: 'section' },
   // Import and Stats both need the server itself. A cloud library reaches it by
   // the addresses in its last sync and says so when it cannot, which is the
   // page's business — leaving the row out would say the feature did not exist.
   { id: 'import', href: '/import', label: 'Import', tab: false, rail: 'row' },
   { id: 'stats', href: '/stats', label: 'Stats', tab: false, rail: 'row' },
-  { id: 'soundMap', href: '/sound-map', label: 'Sound map', tab: false, rail: 'row' },
 ]
 
 export type TabHref = '/' | '/library' | '/playlists'

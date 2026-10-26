@@ -1,79 +1,160 @@
 # Sound map
 
-The whole library drawn as a field of covers placed by how they sound: songs the listening
-model hears as alike sit together, and the tags tint the places they gather. Press a spot
-and the songs there play. Drag a path from one place to another and Up next drifts between
-them. Picked by Xiao on 2026-10-25 from the feature review
-(<https://claude.ai/artifact/WEAZGxA7vxd7SiSYWynxSa>, card N9, option N9a: its own page).
+The whole library drawn as a night sky, placed by how it sounds: songs the listening model
+hears as alike sit together, each a star in its cover's colour, and the tags glow where they
+gather. Tap a spot and the songs there play. Hold, then draw a line from one place to
+another and Up next drifts between them, or draw a loop round a place and take what is
+inside, then play it or keep it as a playlist. Picked by Xiao on 2026-10-25 from the feature
+review (<https://claude.ai/artifact/WEAZGxA7vxd7SiSYWynxSa>, card N9, option N9a: its own
+page) and redrawn on 2026-10-26 (<https://claude.ai/artifact/TKmRe32T6Y9YxLsmJQP4fm>: A1 B1
+C2 D1 E1–E5, E6 as "no count at all", P1 with the app's own mini player, K1 with the player
+bar).
 
-**Where:** the phone, the computer and the web. On a computer it is a row in the sidebar and
-an item in Library's ⋯; on a phone it is a row on Profile. A cloud library draws it offline
-from a file in the bucket.
+**Where:** the phone, the computer, the web and the desktop app, at `/sound-map`. Ways in:
+
+- a **card on Home** under Your tags, a small still sky of the library with the song playing
+  lit (`MapCard.tsx`), shown once there are songs on the map;
+- a **sidebar row** on a computer, under Library;
+- **Draw it on the map** in New playlist, which opens the map with the pen ready
+  (`?draw=1`);
+- **Show on the map** in a song's ⋯, Now Playing's included, which opens the map on that
+  song (`?song=<id>`).
+
+A cloud library draws it offline from a file in the bucket.
 
 ## The page
 
-`/sound-map` (`apps/app/src/features/soundMap/SoundMapScreen.tsx`). Under the title, how
-many songs are on the map and, quietly, how many are not heard yet ("64 songs · 45 not heard
-yet"). A song the listening model has not heard, or could not hear, has no place and is left
-off.
+`SoundMapScreen.tsx`. The map is the page. On a phone the tab bar goes and the mini player
+stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`); on a
+computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
+every page has it (`PageHeader`: the way back on a phone, and the name, with no count
+under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); bottom right the buttons (the song playing,
+the pen, and on a computer +, − and show all); at the foot, once something is taken, the
+tray. The buttons hold their place: on a phone they stand over the folded tray and the
+opened tray lies over them as a sheet does; on a computer they are beside it. The page is dark in either theme, since the
+sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
+off; nothing counts them.
 
-**The field** (`SoundField.tsx`) draws every placed song as a small square of its cover's
-colour (the dominant swatch of `coverTone`; a song with no cover gets its letter tile's
-colour). Zoomed in, the squares grow, more slowly than the songs spread apart so gaps open
-(`tileSide`), and once a square is 18 points wide (`COVER_FROM`) the ones on screen show
-their covers. Only those ask for a picture: the whole library at once would be 1,500 covers
-fetched to be drawn eight points wide, and in a browser tab each is a read from the bucket.
+### The sky
 
-**Tags tint where they gather** (`tagRegions`, packages/client): for each tag, the cell of a
-24 × 24 grid holding most of its songs, provided they are at least 35 % of the songs around
-it; around it, a soft round in the tag's colour (`tagColors(hue).dot`), as wide as those
-songs spread, with the tag's name over it. One region a tag, the eight strongest, and none
-too close to a stronger one, so names never pile up.
+`sky.model.ts` works out what is drawn; `SkyLayer.web.tsx` draws it in a browser and
+`SkyLayer.tsx` on a phone or an iPad.
 
-**Press** (tap on a phone) plays the 25 songs nearest the spot, nearest first
-(`nearestSongs`), and Up next names the place after the nearest song: "Near 晴る". A light
-ring marks where you pressed, and a ring follows the song playing.
+- **Stars.** Each song a small sharp dot over a faint wider glow in its cover's main colour,
+  so the sky reads as points of light rather than soft blobs, lifted so a
+  black cover is a pale star (`starTones`), rounded to steps of hue, tone and strength so a
+  few dozen glows serve every star. **Brighter and larger the more it has been played**,
+  against the library's 95th percentile of plays on a log scale (`brightness`, `playTop`), so
+  one favourite does not leave the rest dim. Stars grow as you zoom in, more slowly than the
+  songs spread, so they part (`starRadius`). A glow reaches five times its star's size where
+  it has the room and is held to most of the way to its three nearest neighbours where it has
+  not (`room`, `glowReach`), and glows are laid over each other as paint, never added up as
+  light: added, a place of a few hundred songs was one white blur (2026-10-26).
+- **Flares.** The 3 % most played songs (by plays; only songs played at all) wear a thin
+  four-pointed flare, brightest at the star and fading out, about six times its size and
+  never more than twice the room its neighbours leave (`flare`, `flareReach`).
+- **Tag glows.** Each tag's region (`tagRegions`, packages/client: for each tag the cell of a
+  24 × 24 grid holding most of its songs, provided they are at least 35 % of the songs
+  around; one region a tag, the eight strongest, none too close to a stronger one) is a soft
+  cloud in the tag's colour, without its name: a tag's songs are not all where it gathers,
+  and a name over one place said they were (Xiao, 2026-10-26). The lens says where a tag's
+  songs are.
+- **Close in,** once a star would be 18 points wide (`COVER_FROM`), the stars on screen show
+  their covers, and from 30 points their titles. Only those on screen ask for a picture.
+- **The song playing** is the one star wearing its cover, ringed.
+- **What the tray holds** is drawn over the sky: a line's songs joined as a constellation in
+  the order the line passes them (`chainAlong`), a loop as its dashed outline.
+- **On a computer,** the star under the pointer is ringed and named (title and artist)
+  before it is pressed.
 
-**Drag** draws a path. Every song within about a finger's width of the line (28 points on
-screen, whatever the zoom: `pathReach`) is taken, in the order the line passes it, at most
-40 spread evenly along the line (`songsAlongPath`). The songs are then put in auto-mix order
-([audio-intelligence.md](audio-intelligence.md), `orderPath`) five at a time, each five
-starting from the song before: each step is as gentle as tempo, key and energy allow, and the
-whole still drifts from where the path starts to where it ends (a plain auto-mix of all of
-them would hop back and forth across the map). Rings mark the songs taken, and the foot says
-what it made — the path's name, and under it "14 songs, 52 min", so a long name never hides
-the count — with Play and a way to clear the line ("night → calm · 14 songs, 52 min ▶ Play"
-in the review's mock). The toasts rise above that line (`setPageFoot`), so a "Continue
-from…" never covers Play.
+**Why a canvas in a browser.** The first page drew 1,500 views and moved each one as the map
+moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a
+tile was moved to became a new rule, and a few minutes of zooming filled Chrome's memory
+until the tab died (Xiao, 2026-10-26). The browser now draws the sky into one `<canvas>`, at
+most once a frame while it moves and not at all while it holds still; nothing a song is drawn
+with is a style. It keeps a glow picture per colour and at most 240 covers (the oldest let
+go). Measured in Chrome on the test library: zooming and moving for a minute left the CSS
+rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 355 → 389
+nodes; 31 → 34 MB).
 
-A path's name is the tag most of the eight songs at each end share, when at least half of
-them do, or else the nearest song's title (`pathName`). Up next is named the same.
+**On a phone** the stars are one SVG, a circle a star filled with its colour's gradient,
+drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
+moves it; their sizes and covers are worked out again when it settles. The stroke and the song
+playing are drawn over it at screen size each frame.
 
-**Fitting.** The map opens with every song in view and as large as the field allows. A map
-wider than it is tall, on a field taller than it is wide (a phone held upright), is drawn a
-quarter turn clockwise so it fills the screen (`MapView.turned`); which songs sit beside
-which is the same either way.
-
-### Moving and zooming
-
-A drag already draws, so moving the map is something else:
+### Gestures
 
 | | Phone | Computer |
 |---|---|---|
-| Move | two fingers | scroll (a trackpad's two fingers, a mouse's wheel) |
-| Zoom | pinch | trackpad pinch, or ⌘ / Ctrl + scroll |
-| Either | the +, − and fit buttons in the corner | the same |
+| Move | one finger (or two) | drag, or scroll (a trackpad's two fingers, a mouse's wheel) |
+| Zoom | pinch; double tap zooms in | trackpad pinch, ⌘ / Ctrl + scroll, double click; +, − |
+| Play what's there | tap | click |
+| Draw | hold still a moment, then drag; or the pen, for one stroke | the same, or Shift-drag |
 
-This is how design tools that draw with a drag work (Figma, for one), and it was chosen over
-the alternatives: a mode switch between drawing and moving is a state to forget; holding
-Space to move would take Space from play and pause, which it is everywhere in the app; and
-a mouse wheel that zooms, as on a street map, leaves a drag to move the map, which is the
-path. A mouse with no trackpad zooms with the buttons or ⌘-scroll.
+A map is moved with one finger everywhere else, so it is here (B1). Drawing waits for a
+hold: a ring fills under the still finger (from 90 ms, so a tap or a move never flickers
+one) and at 320 ms (`HOLD_MS`) the phone gives a light tap and the drag draws. The pen
+button arms the next stroke without the hold, and moving then takes two fingers; it goes
+back to moving after the stroke. On a computer, Shift held does what the pen does
+(`useShiftHeld`), and the pointer is a hand, or a crosshair while drawing is armed.
 
-The tiles are drawn once into a layer the size of the map, which a gesture moves and scales
-whole; tile sizes and covers are worked out again only when the map holds still
-(`FieldControl`, `fieldInput.web.ts` for the wheel), so 1,500 songs are not drawn again on
-every frame.
+The first visit acts it out once (`MapHint.tsx`, guide `sound-map-draw`): a finger's circle
+holds and draws a line between two places, then holds and goes round a loop, each with its
+line of words; a tap or the first stroke drawn closes it. Settings › About brings it back
+with the other guides.
+
+### What a stroke takes
+
+**Tap** plays the 25 songs nearest the spot, nearest first (`nearestSongs`), and Up next is
+named after the nearest song: "Near 晴る". A light ring marks where you pressed.
+
+**A line** takes every song within about a finger's width of it (28 points on screen,
+whatever the zoom: `pathReach`), in the order the line passes it, at most 40 spread evenly
+along it (`songsAlongPath`), then put in auto-mix order ([audio-intelligence.md](audio-intelligence.md),
+`orderPath`) five at a time, each five starting from the song before: each step is as gentle
+as tempo, key and energy allow, and the whole still drifts from where the line starts to
+where it ends. Its name is the tag most of the eight songs at each end share, when at least
+half of them do, or else the nearest song's title (`pathName`): "night → calm".
+
+**A loop** is a stroke that goes round something (`isLoop`): at least 1.6 times as long as
+it is across (a circle is about 2.2, a line 1), with its ends back within two and a half
+reaches of each other or a third of its own size, whichever is more, since a big circle is
+rarely closed exactly; a U, its ends as far apart as it is tall, is still a line. It takes
+**every** song inside, however many: a loop round a whole island is the whole island
+(2026-10-26: a cap of 100 and a stricter close left most of a big circle out). Inside is
+counted by winding, not the even–odd rule, so where a finger went on past its start the
+overlap is inside too. They play in auto-mix order from the one nearest the middle
+(`songsInside`). Its name is the tag at least half the songs inside share, or the
+title of the song nearest its middle (`loopName`).
+
+A stroke that takes nothing says "No songs along that line" or "…inside that loop".
+
+### The tray
+
+`MapTray.tsx`. Each stroke adds to it; it holds every stroke since it was last cleared, each
+song once. Folded: the first three covers, its name (the strokes' names joined with " · "),
+how many songs and how long, **Save** and **Play**. Pressed or pulled up: the songs in the
+order they will play, each with a × to leave it out, and **Up next**, **Save as playlist** and
+**Play**; × in its head clears it. Save makes a playlist of exactly those songs named after
+the strokes (made unique), with Undo and Open, and empties the tray. Play plays them as "Map"
+under that name. The toasts rise above the tray and the buttons over it (`setPageFoot`).
+
+### The lens
+
+The tags with songs on the map, as chips, most songs first (`lensTags`). Choosing one lights
+its songs and dims the rest to an eighth, leaves only its glow, and flies the map to fit its
+songs (`flyToPlaces`). Choosing it again shows every tag and flies back to the whole map.
+
+### Moving the map
+
+`fieldControl.ts` holds where the map is, outside React, so a pinch reads the view the last
+frame left. The map opens with every song in view, fitted to what the page leaves clear of
+its head and the tray (`fitView`'s `insets`), and stays as it is once a hand has moved it.
+A map wider than it is tall, on a field taller than it is wide (a phone held upright), is
+drawn a quarter turn clockwise so it fills the screen (`MapView.turned`); a flight to a tag
+keeps it turned. Flights (the lens, the song playing, a song opened from its ⋯, show all,
++ and −) take 420 ms, the scale eased on its logarithm and the middle moving in a straight
+line (`between`); a finger stops one where it is.
 
 ## How the map is made
 
@@ -134,7 +215,7 @@ published at once. In the doorman's `lyrics/` folder, so no doorman needed redep
 server starting again from the bucket with no map of its own reads the bucket's back once
 and starts its next fold from it, so the map every device was drawing holds still.
 
-**On a device.** `GET /api/sound-map` answers `{ places: [{ id, x, y }], unheard }` from the
+**On a device.** `GET /api/sound-map` answers `{ places: [{ id, x, y }] }` from the
 server, and in a cloud library from the replica (`cloudSoundMap`, packages/replica), which
 reads the file once per change and keeps it on the device by its hash like a song's words
 (`textCache`), so it is drawn offline and costs one read from the bucket each time the map
@@ -151,6 +232,9 @@ changes, never one a visit.
   `schemas/cloud.ts` `CloudSoundMapSchema`; `schemas/library.ts` `SoundMapSchema`
 - `packages/replica/src/library.ts` (`cloudSoundMap`) and `routes.ts` — a cloud library's
   answer (tested in `routes.test.ts`)
-- `packages/client/src/soundMap/soundMap.ts` — nearest songs, songs along a path, tag
-  regions, names (tested)
-- `apps/app/src/features/soundMap/` — the page, the field, gestures, the view's arithmetic
+- `packages/client/src/soundMap/soundMap.ts` — nearest songs, songs along a line and inside a
+  loop, tag regions, names (tested)
+- `apps/app/src/features/soundMap/` — the page (`SoundMapScreen`), the field and its gestures
+  (`SoundField`, `fieldControl`, `fieldInput`), the sky (`sky.model`, `SkyLayer` and
+  `SkyLayer.web`), the tray, the hint, Home's card, the view's arithmetic
+  (`soundMapView.model`); the pure parts tested

@@ -159,6 +159,7 @@ describe('what the menu offers', () => {
       /^Add to playlist/,
       /^Add to Up next$/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
       /^Rest for a month$/,
       /^Song details$/,
@@ -182,6 +183,7 @@ describe('what the menu offers', () => {
     const order = [
       /^Add to playlist/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
       /^Rest for a month$/,
       /^Song details$/,
@@ -208,6 +210,7 @@ describe('what the menu offers', () => {
     const order = [
       /^Add to playlist/,
       /^Play similar songs$/,
+      /^Show on the map$/,
       /^Download$/,
       /^Rest for a month$/,
       /^Delete from library…$/,

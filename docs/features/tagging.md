@@ -17,6 +17,7 @@ Files:
 | Tagging what is playing | `apps/app/src/shell/PlayerBar.tsx`, `apps/app/src/features/nowPlaying/SongTagsLine.tsx`, `useTagging.ts`, `apps/app/src/ui/components/TagPicker.tsx` |
 | Songs with no tag, tagged while they play | `apps/app/src/features/tag/usePlayAndTag.ts`, `apps/app/src/features/tags/TagsScreen.tsx` |
 | A tag named like an artist | `apps/app/src/features/tag/ArtistNudge.tsx`, `apps/app/src/features/tag/useArtistNudge.tsx` |
+| One artist under two spellings | `packages/shared/src/artistJoins.ts`, `apps/app/src/features/tag/SameArtistCard.tsx`, `ArtistNamesEditor.tsx` |
 
 ## Picking tags, in the library
 
@@ -100,6 +101,30 @@ tag strip is the one place a tag is still a filter.
 A tag whose name is an artist's asks first (`P11`): **Open the artist**, or **Make the tag
 anyway**. Closing the question any other way makes nothing. It runs wherever a tag is made by
 name — the new-tag card, the sidebar's **+** and the picker's **Create…**.
+
+## One artist under two spellings
+
+An artist is what the songs say, so a library from YouTube and 网易云 has Yorushika (78 songs)
+and ヨルシカ (6) as two artists. An artist's **Other names…** (the ⋯ on their page) joins
+them (pick E1, 2026-10-25): when an artist's other names hold the name of an artist with
+fewer songs, the two are one artist everywhere — one page under the bigger name with the
+songs credited under either spelling, one row in Search found by either, one entry in Stats'
+top artists and the Report with the plays summed, one artist in Ask's view of the library
+and in **Combine with…**. The songs' own artist fields are never rewritten, and the other
+spelling stays listed in Other names…; taking it out there parts them again. The address of
+the smaller one opens the joined page.
+
+Only names somebody saved join artists. The names the server finds on MusicBrainz still find
+songs in Search but join nothing (`Library.artistNamesFound`); instead, the smaller artist's
+page asks once, under its head: **Same artist as Yorushika?** "6 songs here, 78 under
+Yorushika", **Join them** or **Not the same**. It asks too when the smaller artist's own
+names hold the bigger one's. Join saves the smaller name among the bigger artist's names;
+Not the same takes out the names that linked them, so the question does not come back.
+
+It is worked out from the songs and the names that travel with the library
+(`joinedArtists`, `joinedNames`, `sameArtistAsk`), the same on the server and on a device
+away from it, and a join made anywhere syncs as any change to an artist's names does
+(docs/SYNC.md).
 
 ## Tagging what is playing
 

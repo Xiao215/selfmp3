@@ -128,6 +128,24 @@ describe('the sidebar foot', () => {
     )
   })
 
+  // R3-M1: "All saved", then "Saving…" with a green dot, over edits the bucket refused.
+  it('says edits the storage did not take are not sent, whatever else answers', () => {
+    expect(footNotice({ ...base, unsent: 2, stuck: true })).toEqual({
+      title: 'Not sent yet',
+      body: 'Your 2 changes didn’t go through. They’re sent again by themselves.',
+    })
+    expect(footNotice({ ...base, unsent: 1, stuck: true })?.body).toBe(
+      'Your change didn’t go through. It’s sent again by itself.',
+    )
+    // Made a moment ago and on their way: nothing to say yet.
+    expect(footNotice({ ...base, unsent: 2 })).toBeNull()
+    expect(footSummary({ songs: 40, here: 40, place: 'computer', unsent: 2 })).toBe(
+      'Saving 2 changes… · 40 songs · 40 on this computer',
+    )
+    // Offline says it its own way.
+    expect(footNotice({ ...base, unsent: 1, stuck: true, offline: true })?.title).toBe('Offline')
+  })
+
   it('says a server library’s edits wait for it to come back', () => {
     expect(footNotice({ ...base, error: offline, fromCloud: false })).toEqual({
       title: 'Can’t reach your library',

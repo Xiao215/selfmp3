@@ -402,6 +402,32 @@ describe('the outbox', () => {
     expect(made.library.pendingCloudChanges()).toBeGreaterThan(0)
   })
 
+  // R3-M1: the foot said "All saved", then "Saving…" with a green dot, while
+  // the bucket refused every write: a doorman answering for itself cleared it.
+  it('says its edits are stuck while sending them fails, and not once one goes up', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'waiting', undefined).changes,
+      answer: () => undefined,
+    }))
+    expect(made.library.cloudChangesStuck()).toBe(false)
+
+    made.bucket.failNextPutWith(502)
+    await made.library.flushCloudChanges()
+    // The doorman answering a look for itself says nothing of the writes.
+    made.library.markCloudLibraryStale()
+    await made.library.loadCloudLibrary(SESSION)
+    expect(made.library.pendingCloudChanges()).toBe(1)
+    expect(made.library.cloudChangesStuck()).toBe(true)
+
+    await made.library.flushCloudChanges()
+    expect(made.library.pendingCloudChanges()).toBe(0)
+    expect(made.library.cloudChangesStuck()).toBe(false)
+  })
+
   it('stops trying when the doorman says the session is gone', async () => {
     // 401 and 409 are not worth retrying: signing in again is what fixes them,
     // and a retry loop against them is just noise.
@@ -516,6 +542,29 @@ describe('two tabs of one browser', () => {
 })
 
 describe('a session the doorman ended', () => {
+  // R3-M4: a session ended elsewhere read as "Can't reach your library", and
+  // Try again asked the doorman again, to be refused again.
+  it('is signed out when opening the library is refused, with the copy here or without', async () => {
+    for (const kept of [false, true]) {
+      const store = memoryStore()
+      const made = build(store)
+      await signedIn(made)
+      if (kept) {
+        await made.library.loadCloudLibrary(SESSION)
+        later(6 * 60_000)
+      }
+      made.bucket.refuseSession(true)
+      const opened = build(store, made.bucket)
+      const heard: unknown[] = []
+      opened.session.onSessionEnded(ended => heard.push(ended))
+      await opened.library.loadCloudLibrary(SESSION).catch(() => undefined)
+      // What sends the app back to Welcome, saying who was signed out.
+      await vi.waitFor(() => expect(heard).toEqual([{ account: ME.account, email: ME.email }]))
+      expect(await opened.session.loadSession()).toBeNull()
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the changes not sent yet, and sends them once the same account is back', async () => {
     const store = memoryStore()
     const made = build(store)
@@ -1065,6 +1114,24 @@ describe('what looking costs the bucket', () => {
     await made.library.loadCloudLibrary(SESSION)
     await heard
     expect(made.bucket.lists.length).toBe(listed + 2)
+    const view = await made.library.loadCloudLibrary(SESSION)
+    expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
+  })
+
+  // R3-M10: the last look was "in the future", so no look was ever due again.
+  it('looks again after this device’s clock is put back', async () => {
+    const made = build(memoryStore(), fakeBucket({ counting: true }))
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+
+    later(-60 * 60_000)
+    await tagFromElsewhere(made.bucket, 'from elsewhere')
+    const heard = new Promise<void>(resolve => {
+      made.library.onCloudLibraryChanged(resolve)
+    })
+    later(61_000)
+    await made.library.loadCloudLibrary(SESSION)
+    await heard
     const view = await made.library.loadCloudLibrary(SESSION)
     expect(view.library.tags.map(tag => tag.name)).toEqual(['from elsewhere'])
   })

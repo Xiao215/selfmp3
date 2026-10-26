@@ -137,6 +137,16 @@ type Look = z.infer<typeof StoredLookSchema>
 
 const NEVER_LOOKED: Look = { checkedAt: 0, listedAt: 0, changes: null }
 
+/**
+ * Whether a moment is less than `ms` ago. One after now is not: the clock was
+ * put back since (a fast clock corrected, a wrong date fixed), and taking it
+ * for recent kept a look from being due again until the clock caught up — a
+ * tab that saw no other device's edit for an hour, or a day.
+ */
+function within(at: number, ms: number, now = Date.now()): boolean {
+  return at <= now && now - at < ms
+}
+
 /** The outbox's envelope; each change in it is checked on its own (`knownChanges`). */
 const StoredOutboxSchema = z.object({
   device: CloudDeviceIdSchema,
@@ -261,6 +271,12 @@ export interface CloudLibraryApi {
   /** A playlist was started: this device's "Recently played" order. False for one it does not have. */
   markPlaylistPlayed: (session: CloudSession, playlistId: number) => Promise<boolean>
   pendingCloudChanges: () => number
+  /**
+   * Whether those are waiting because sending them failed — the bucket
+   * refusing writes, a network that answers nothing — and not just because
+   * they were made a moment ago. Retried by itself; true until a send goes up.
+   */
+  cloudChangesStuck: () => boolean
   /**
    * The same, read from what this device keeps rather than the library in
    * memory: for a device with none open — signed out by the doorman, and
@@ -720,7 +736,7 @@ export function createCloudLibrary(
       !list &&
       counter !== null &&
       counter === r.look.changes &&
-      startedAt - r.look.listedAt < COUNTER_TRUSTED_MS
+      within(r.look.listedAt, COUNTER_TRUSTED_MS, startedAt)
     ) {
       // Kept as it stands when the look settles: an upload of this device's
       // own may have moved it on meanwhile.
@@ -872,10 +888,7 @@ export function createCloudLibrary(
         r.mustCheck = false
         r.look = { ...r.look, checkedAt: Date.now() }
       }
-    } else if (
-      Date.now() - r.look.checkedAt >
-      (r.look.changes === null ? LISTED_FRESH_MS : FRESH_MS)
-    ) {
+    } else if (!within(r.look.checkedAt, r.look.changes === null ? LISTED_FRESH_MS : FRESH_MS)) {
       lookInBackground(r, session)
     }
     return currentView(r)
@@ -1013,6 +1026,10 @@ export function createCloudLibrary(
   /** How many changes made here have not reached the bucket yet. */
   function pendingCloudChanges(): number {
     return replica ? localChanges(replica.outbox).length : 0
+  }
+
+  function cloudChangesStuck(): boolean {
+    return retries > 0 && pendingCloudChanges() > 0
   }
 
   async function keptCloudChanges(): Promise<number> {
@@ -1424,6 +1441,7 @@ export function createCloudLibrary(
     recordChanges,
     markPlaylistPlayed,
     pendingCloudChanges,
+    cloudChangesStuck,
     keptCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,

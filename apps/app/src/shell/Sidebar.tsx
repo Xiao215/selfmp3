@@ -52,6 +52,7 @@ import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
 import {
   useAskBucketAgain,
+  useCloudStuck,
   useCloudUnsent,
   useDoormanTrouble,
 } from '../connection/useDoormanTrouble'
@@ -822,6 +823,7 @@ function Foot(): ReactNode {
   // the doorman answers is what the requests that go out found (reach.ts).
   const trouble = useDoormanTrouble()
   const cloudUnsent = useCloudUnsent(fromCloud)
+  const stuck = useCloudStuck(fromCloud)
   const askBucketAgain = useAskBucketAgain()
   /*
    * Of this library, what is here — not how many files the device is keeping.
@@ -849,6 +851,7 @@ function Foot(): ReactNode {
     keepsSongs: installed,
     place,
     unsent,
+    stuck,
   })
   // A cap raised at backblaze.com is not noticed until the hold is up: this asks now.
   const capped = held || trouble?.kind === 'capped'

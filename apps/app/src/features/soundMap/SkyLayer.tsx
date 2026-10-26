@@ -2,7 +2,17 @@ import { memo, useMemo } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Image, Text, View } from 'react-native'
 import type { View as ViewType } from 'react-native'
-import Svg, { Circle, Defs, G, Path, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg'
+import Svg, {
+  Circle,
+  Defs,
+  G,
+  Line,
+  Path,
+  Polyline,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import type { MapPlace, Song } from '@selfmp3/shared'
 import { tagColors, type } from '@selfmp3/client'
@@ -10,6 +20,7 @@ import { useArt } from '../../offline/useArt'
 import {
   CORE,
   dustSpecks,
+  flareReach,
   glowReach,
   GLOW_STOPS,
   SKY_EDGE,
@@ -198,6 +209,14 @@ const Stars = memo(function Stars({
               r={glowReach(point, r, settled.scale, base)}
               fill={`url(#glow-${point.glow.slice(1)})`}
             />
+            {covers || !point.flare ? null : (
+              <Flare
+                x={at.x}
+                y={at.y}
+                reach={flareReach(point, r, settled.scale, base)}
+                color={point.core}
+              />
+            )}
             {covers ? null : <Circle cx={at.x} cy={at.y} r={r * CORE} fill={point.core} />}
           </G>
         )
@@ -205,6 +224,63 @@ const Stars = memo(function Stars({
     </Svg>
   )
 })
+
+/**
+ * A bright star's four-pointed flare: two thin strokes through it, the inner
+ * half of each a little brighter, so it fades towards its ends.
+ */
+function Flare({
+  x,
+  y,
+  reach,
+  color,
+}: {
+  x: number
+  y: number
+  reach: number
+  color: string
+}): ReactNode {
+  return (
+    <>
+      <Line
+        x1={x - reach}
+        y1={y}
+        x2={x + reach}
+        y2={y}
+        stroke={color}
+        strokeWidth={0.7}
+        strokeOpacity={0.35}
+      />
+      <Line
+        x1={x}
+        y1={y - reach}
+        x2={x}
+        y2={y + reach}
+        stroke={color}
+        strokeWidth={0.7}
+        strokeOpacity={0.35}
+      />
+      <Line
+        x1={x - reach / 2}
+        y1={y}
+        x2={x + reach / 2}
+        y2={y}
+        stroke={color}
+        strokeWidth={0.8}
+        strokeOpacity={0.5}
+      />
+      <Line
+        x1={x}
+        y1={y - reach / 2}
+        x2={x}
+        y2={y + reach / 2}
+        stroke={color}
+        strokeWidth={0.8}
+        strokeOpacity={0.5}
+      />
+    </>
+  )
+}
 
 /**
  * Close in, the covers on screen in place of their stars, and closer still

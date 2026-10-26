@@ -355,12 +355,7 @@ export function SoundMapScreen(): ReactNode {
                   setHead(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
                 }
               >
-                <PageHeader
-                  title="Sound map"
-                  subtitle={plural(places.length, 'song', 'songs')}
-                  subtitleTestID="sound-map-count"
-                  back={{ to: '/', testID: 'sound-map-back' }}
-                />
+                <PageHeader title="Sound map" back={{ to: '/', testID: 'sound-map-back' }} />
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}

@@ -17,8 +17,6 @@ export interface PlacedSong extends MapPlace {
 export const NEAR_COUNT = 25
 /** The most songs a drawn path lines up. */
 export const PATH_MOST = 40
-/** The most songs a loop takes: the ones nearest its middle, when more are inside. */
-export const LOOP_MOST = 100
 /** A path's songs are smoothed this many at a time, so the drift keeps its direction. */
 const PATH_STRETCH = 5
 
@@ -119,32 +117,62 @@ export function songsAlongPath(
   return ordered
 }
 
+/** A loop may be left this open: its ends this share of its size apart. */
+const LOOP_GAP = 0.35
 /**
- * Whether a stroke closes on itself: it ends within `closeWithin` of where it
- * began, having gone well round (four times that), so a short scribble that
- * comes back is still a line.
+ * A stroke this many times as long as it is across has gone round something:
+ * a circle is about 2.2, a line 1, a U about 2 but with its ends wide apart.
+ */
+const LOOP_ROUND = 1.6
+
+/**
+ * Whether a stroke goes round something rather than from one place to
+ * another: it has gone well round (`LOOP_ROUND`) and its ends come back near
+ * each other — within `closeWithin` (a finger's reach or so), or within a
+ * third of its own size, since a big circle is rarely closed exactly. A short
+ * scribble that comes back is still a line.
  */
 export function isLoop(path: readonly MapPlace[], closeWithin: number): boolean {
   if (path.length < 4) return false
   let length = 0
-  for (let at = 1; at < path.length; at++) length += Math.sqrt(distance2(path[at - 1]!, path[at]!))
-  return length > closeWithin * 4 && distance2(path[0]!, path[path.length - 1]!) <= closeWithin ** 2
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (let at = 0; at < path.length; at++) {
+    const point = path[at]!
+    if (at > 0) length += Math.sqrt(distance2(path[at - 1]!, point))
+    x0 = Math.min(x0, point.x)
+    y0 = Math.min(y0, point.y)
+    x1 = Math.max(x1, point.x)
+    y1 = Math.max(y1, point.y)
+  }
+  const across = Math.hypot(x1 - x0, y1 - y0)
+  const gap = Math.sqrt(distance2(path[0]!, path[path.length - 1]!))
+  return (
+    length > closeWithin * 4 &&
+    length >= across * LOOP_ROUND &&
+    gap <= Math.max(closeWithin, across * LOOP_GAP)
+  )
 }
 
-/** Inside a closed shape, by the even–odd rule (its last point joins its first). */
+/**
+ * Inside a closed shape (its last point joins its first), by how many times
+ * it winds round the place: any number but none is inside. So the stretch
+ * where a finger went on past where it began, round twice there, is inside
+ * as well, which the even–odd rule would leave out.
+ */
 function inside(loop: readonly MapPlace[], place: MapPlace): boolean {
-  let within = false
-  for (let at = 0, before = loop.length - 1; at < loop.length; before = at++) {
+  let winding = 0
+  for (let at = 0; at < loop.length; at++) {
     const a = loop[at]!
-    const b = loop[before]!
-    if (
-      a.y > place.y !== b.y > place.y &&
-      place.x < ((b.x - a.x) * (place.y - a.y)) / (b.y - a.y) + a.x
-    ) {
-      within = !within
-    }
+    const b = loop[(at + 1) % loop.length]!
+    const side = (b.x - a.x) * (place.y - a.y) - (place.x - a.x) * (b.y - a.y)
+    if (a.y <= place.y) {
+      if (b.y > place.y && side > 0) winding += 1
+    } else if (b.y <= place.y && side < 0) winding -= 1
   }
-  return within
+  return winding !== 0
 }
 
 const middleOf = (points: readonly MapPlace[]): MapPlace => ({
@@ -153,15 +181,14 @@ const middleOf = (points: readonly MapPlace[]): MapPlace => ({
 })
 
 /**
- * The songs inside a loop, as Up next: at most `most` of them, the ones
- * nearest its middle when more are inside, in auto-mix order
- * (queue/autoMix.ts) from the one nearest the middle, so each step is gentle.
+ * Every song inside a loop, as Up next: in auto-mix order (queue/autoMix.ts)
+ * from the one nearest its middle, so each step is gentle. All of them, however
+ * many: a loop round a whole island means the whole island.
  */
 export function songsInside(
   places: readonly PlacedSong[],
   loop: readonly MapPlace[],
   byId: ReadonlyMap<number, Song>,
-  most = LOOP_MOST,
 ): number[] {
   if (loop.length < 3) return []
   const middle = middleOf(loop)
@@ -169,7 +196,6 @@ export function songsInside(
     .filter(place => inside(loop, place))
     .map(place => ({ id: place.id, d: distance2(place, middle) }))
     .sort((a, b) => a.d - b.d || a.id - b.id)
-    .slice(0, most)
     .map(entry => entry.id)
   return orderPath(undefined, kept, byId)
 }

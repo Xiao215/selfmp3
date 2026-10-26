@@ -27,8 +27,8 @@ A cloud library draws it offline from a file in the bucket.
 `SoundMapScreen.tsx`. The map is the page. On a phone the tab bar goes and the mini player
 stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`); on a
 computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
-every page has it (`PageHeader`: the way back on a phone, the name, how many songs are on
-the map); under it the tags as chips (the lens); bottom right the buttons (the song playing,
+every page has it (`PageHeader`: the way back on a phone, and the name, with no count
+under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); bottom right the buttons (the song playing,
 the pen, and on a computer +, − and show all); at the foot, once something is taken, the
 tray. The buttons hold their place: on a phone they stand over the folded tray and the
 opened tray lies over them as a sheet does; on a computer they are beside it. The page is dark in either theme, since the
@@ -40,15 +40,19 @@ off; nothing counts them.
 `sky.model.ts` works out what is drawn; `SkyLayer.web.tsx` draws it in a browser and
 `SkyLayer.tsx` on a phone or an iPad.
 
-- **Stars.** Each song a solid dot over a soft glow in its cover's main colour, lifted so a
+- **Stars.** Each song a small sharp dot over a faint wider glow in its cover's main colour,
+  so the sky reads as points of light rather than soft blobs, lifted so a
   black cover is a pale star (`starTones`), rounded to steps of hue, tone and strength so a
   few dozen glows serve every star. **Brighter and larger the more it has been played**,
   against the library's 95th percentile of plays on a log scale (`brightness`, `playTop`), so
   one favourite does not leave the rest dim. Stars grow as you zoom in, more slowly than the
-  songs spread, so they part (`starRadius`). A glow reaches four times its star's size where
+  songs spread, so they part (`starRadius`). A glow reaches five times its star's size where
   it has the room and is held to most of the way to its three nearest neighbours where it has
   not (`room`, `glowReach`), and glows are laid over each other as paint, never added up as
   light: added, a place of a few hundred songs was one white blur (2026-10-26).
+- **Flares.** The 3 % most played songs (by plays; only songs played at all) wear a thin
+  four-pointed flare, brightest at the star and fading out, about six times its size and
+  never more than twice the room its neighbours leave (`flare`, `flareReach`).
 - **Tag glows.** Each tag's region (`tagRegions`, packages/client: for each tag the cell of a
   24 × 24 grid holding most of its songs, provided they are at least 35 % of the songs
   around; one region a tag, the eight strongest, none too close to a stronger one) is a soft
@@ -112,10 +116,15 @@ as tempo, key and energy allow, and the whole still drifts from where the line s
 where it ends. Its name is the tag most of the eight songs at each end share, when at least
 half of them do, or else the nearest song's title (`pathName`): "night → calm".
 
-**A loop** is a stroke that ends within two and a half reaches of where it began, having
-gone four times that far (`isLoop`). It takes the songs inside (even–odd rule), at most 100,
-the ones nearest its middle when more are inside, in auto-mix order from the one nearest the
-middle (`songsInside`). Its name is the tag at least half the songs inside share, or the
+**A loop** is a stroke that goes round something (`isLoop`): at least 1.6 times as long as
+it is across (a circle is about 2.2, a line 1), with its ends back within two and a half
+reaches of each other or a third of its own size, whichever is more, since a big circle is
+rarely closed exactly; a U, its ends as far apart as it is tall, is still a line. It takes
+**every** song inside, however many: a loop round a whole island is the whole island
+(2026-10-26: a cap of 100 and a stricter close left most of a big circle out). Inside is
+counted by winding, not the even–odd rule, so where a finger went on past its start the
+overlap is inside too. They play in auto-mix order from the one nearest the middle
+(`songsInside`). Its name is the tag at least half the songs inside share, or the
 title of the song nearest its middle (`loopName`).
 
 A stroke that takes nothing says "No songs along that line" or "…inside that loop".

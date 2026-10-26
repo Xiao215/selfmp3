@@ -25,6 +25,8 @@ export interface SkyPoint extends PlacedSong {
    * cluster of coloured stars rather than one white blur.
    */
   readonly room: number
+  /** Among the most played (`FLARE_SHARE`): drawn with a four-pointed flare, as a bright star is. */
+  readonly flare: boolean
 }
 
 /** What a stroke took: the songs along a line or inside a loop, and what to call them. */
@@ -60,21 +62,34 @@ export interface SkyLayerProps {
 }
 
 /** A glow reaches at most this many times a star's size, where it has the room. */
-const GLOW = 4
+const GLOW = 5
 
 /**
  * A glow's falloff, from the middle out, as offset and opacity: the star's
- * colour fading to nothing. The star itself is a solid dot over it
- * (`CORE`), so a glow cut short by its neighbours still has its star.
+ * colour, faint, fading to nothing. The star itself is a small sharp dot over
+ * it (`CORE`), so the sky reads as points of light rather than soft blobs, and
+ * a glow cut short by its neighbours still has its star.
  */
 export const GLOW_STOPS: readonly (readonly [offset: number, opacity: number])[] = [
-  [0, 0.55],
-  [0.35, 0.22],
+  [0, 0.42],
+  [0.22, 0.16],
   [1, 0],
 ]
 
 /** The star's dot, as a share of its size. */
-export const CORE = 0.55
+export const CORE = 0.42
+
+/** The share of the most played songs that wear a flare, and only those played at all. */
+const FLARE_SHARE = 0.03
+
+/**
+ * A flare's arms, in points, from the star's middle: about six times its
+ * size, kept within twice the room its neighbours leave so a crowd is not
+ * scratched over.
+ */
+export function flareReach(point: SkyPoint, size: number, scale: number, base: number): number {
+  return Math.min(size * 6, Math.max(size * 2.5, point.room * base * scale * 2))
+}
 
 /** The ground, from its middle out: the same in either theme, since the sky is the point. */
 export const SKY_TOP = '#0e1328'
@@ -117,7 +132,7 @@ export function starTones(song: Pick<Song, 'coverTone' | 'title'>): {
   const tone = Math.min(0.88, Math.max(0.66, round(swatch?.l ?? 0.72, 0.1)))
   return {
     glow: oklchToHex(tone, strength, hue),
-    core: oklchToHex(Math.min(0.95, tone + 0.1), strength * 0.8, hue),
+    core: oklchToHex(Math.min(0.97, tone + 0.14), strength * 0.6, hue),
   }
 }
 
@@ -137,10 +152,23 @@ export function skyPoints(
       bright: brightness(song.playCount, top),
       tagIds: song.tagIds,
       room: 0,
+      flare: false,
     })
   }
   const rooms = roomOf(out)
-  return out.map((point, index) => ({ ...point, room: rooms[index]! }))
+  // By plays, not brightness, which every song past the 95th percentile shares.
+  const plays = (id: number): number => songs.get(id)?.playCount ?? 0
+  const played = out
+    .filter(point => plays(point.id) > 0)
+    .sort((a, b) => plays(b.id) - plays(a.id) || a.id - b.id)
+  const flares = new Set(
+    played.slice(0, Math.ceil(out.length * FLARE_SHARE)).map(point => point.id),
+  )
+  return out.map((point, index) => ({
+    ...point,
+    room: rooms[index]!,
+    flare: flares.has(point.id),
+  }))
 }
 
 /** Each point's mean distance to its three nearest, by a grid so a big library stays quick. */
@@ -181,7 +209,7 @@ function roomOf(points: readonly MapPlace[]): number[] {
 }
 
 /**
- * How far a star's glow reaches, in points: four times its size where it has
+ * How far a star's glow reaches, in points: five times its size where it has
  * the room, less in a crowd (most of the way to its neighbours), and never
  * less than twice its size.
  */

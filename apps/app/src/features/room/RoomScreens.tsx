@@ -36,7 +36,7 @@ import { RoomEntryLine } from './RoomEntryLine'
 import { RoomHead, RoomList } from './RoomList'
 import { sayRoomFailure } from './roomFailure'
 import { useGetSongs } from './useGetSongs'
-import { joinRoom, leaveRoom, useRoom } from './room.store'
+import { joinRoom, useRoom } from './room.store'
 import { GUEST_NAME_KEY } from './room.model'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useArt } from '../../offline/useArt'
@@ -85,8 +85,7 @@ export function JoinScreen(): ReactNode {
     if (!code.success || !name.trim()) return
     setBusy(true)
     try {
-      // One room at a time: the one you are in hears you leave first.
-      if (room.pass && room.pass.code !== code.data) await leaveRoom()
+      // One room at a time: the one you are in hears you leave once this one lets you in.
       await joinRoom(code.data, name.trim().slice(0, 40))
       if (!signedIn) prefs.set(GUEST_NAME_KEY, name.trim())
       router.replace('/room')

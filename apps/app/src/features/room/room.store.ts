@@ -416,12 +416,28 @@ async function sessionToken(): Promise<string | null> {
   return signedIn?.token ?? null
 }
 
+/**
+ * One room at a time: the room this device was in hears it leave, once the
+ * next one has let it in. A code that turns out dead (an ended room, an old
+ * invite) is refused before anything is given up.
+ */
+async function leaveFor(code: string): Promise<void> {
+  const pass = view.pass
+  const ending = view.state
+  if (!pass || pass.code === code) return
+  await roomApi.act(pass, { type: 'leave' }, null).catch(() => undefined)
+  if (view.pass !== pass) return
+  closeSocket()
+  if (ending) for (const listener of endedListeners) listener(ending)
+}
+
 /** Open a room: needs this device signed in. */
 export async function startRoom(input: RoomCreate): Promise<RoomState> {
   const token = await sessionToken()
   if (!token) throw new DoormanError(401, DOORMAN_ERROR.unauthorized, 'sign in to open a room')
   const joined = await roomApi.create(token, input)
   countUse('room')
+  await leaveFor(joined.code)
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }
@@ -429,6 +445,7 @@ export async function startRoom(input: RoomCreate): Promise<RoomState> {
 /** Join with a code: as a friend who can bring songs when signed in, else as a guest. */
 export async function joinRoom(code: string, name: string): Promise<RoomState> {
   const joined = await roomApi.join(code, name, await sessionToken())
+  await leaveFor(joined.code)
   enter({ code: joined.code, member: joined.member, token: joined.token }, joined.state)
   return joined.state
 }

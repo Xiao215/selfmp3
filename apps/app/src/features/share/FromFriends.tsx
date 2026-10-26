@@ -134,7 +134,7 @@ export function ShareAsks(): ReactNode {
           void act(first.link.id, { type: 'dismiss', askId: first.ask.id }).catch(sayRoomFailure)
         }
       />
-      <Text style={styles.text}>The same link works again, for another month.</Text>
+      <Text style={styles.text}>The same link works again, from now.</Text>
     </View>
   )
 }

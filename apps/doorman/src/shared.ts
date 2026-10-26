@@ -335,7 +335,8 @@ export class Shared {
     const held = found.doc.entries.some(
       entry => entry.owner === found.member && entry.song.audio?.key === audio,
     )
-    if (!held) return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
+    if (!held)
+      return answer(404, DOORMAN_ERROR.roomMissing, 'that song is no longer lent to this room')
     return new Response(null, { status: 204 })
   }
 

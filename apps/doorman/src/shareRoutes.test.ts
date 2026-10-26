@@ -303,6 +303,39 @@ describe('a share link', () => {
     expect((await file(s, made, 'audio')).status).toBe(200)
   })
 
+  it('leaves one link for the same songs when an ended one is shared again beside a newer one', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'end' } })
+    // Ended by its sender: sharing the songs again makes a new link…
+    const fresh = await make(s)
+    expect(fresh.id).not.toBe(made.id)
+    // …and then the old one is shared again, from a friend's ask: the new one, unopened, goes.
+    const renewed = await s.h.call(`/v1/share/${made.id}/act`, {
+      token: s.me,
+      json: { type: 'renew' },
+    })
+    expect(renewed.status).toBe(200)
+    const mine = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share', { token: s.me })).json(),
+    )
+    expect(mine.map(each => each.id)).toEqual([made.id])
+    expect((await make(s)).id).toBe(made.id)
+  })
+
+  it('keeps a newer link someone opened, though an older one is shared again', async () => {
+    const s = await setup()
+    const made = await make(s)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'end' } })
+    const fresh = await make(s)
+    await open(s, fresh, s.mia)
+    await s.h.call(`/v1/share/${made.id}/act`, { token: s.me, json: { type: 'renew' } })
+    const mine = ShareSummariesSchema.parse(
+      await (await s.h.call('/v1/share', { token: s.me })).json(),
+    )
+    expect(mine.map(each => each.id).sort()).toEqual([made.id, fresh.id].sort())
+  })
+
   it('is ended by its sender at once', async () => {
     const s = await setup()
     const made = await make(s)

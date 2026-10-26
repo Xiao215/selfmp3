@@ -186,9 +186,9 @@ The sender sees asks in two places:
   now**. Several asks show as one row that opens Links you shared.
 - **In Links you shared**.
 
-**Share again** renews the **same** link for another month, so the tab your friend already
-has just works again. A link whose songs are no longer in your library cannot be asked for
-or shared again.
+**Share again** renews the **same** link: it starts again from now (a week from its last
+play, a month at most, as a new link), so the tab your friend already has just works again.
+A link whose songs are no longer in your library cannot be asked for or shared again.
 
 **Links you shared** (`/links`) lists every link you sent. It is drawn like Library, so the
 rows are familiar, but there is no play. Agreed with Xiao on 2026-10-23

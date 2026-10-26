@@ -266,12 +266,37 @@ export async function share(ctx: Context): Promise<Response> {
         name: renewed.name,
         songs: renewed.entries.map(each => each.song),
       })
+      const other = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
+      if (other.success && other.data !== renewed.id) {
+        await forgetIfUnused(ctx, session.sub, other.data)
+      }
       await ctx.env.KV.put(same, renewed.id, { expirationTtl: SAME_TTL_SECONDS })
     }
     return relayed(done)
   }
 
   throw notFound()
+}
+
+/**
+ * An older link shared again while a newer one of the same songs and name
+ * plays: the newer one, made once the older ended, goes, so one link is
+ * left for the same songs — when nobody has opened or played it yet. One
+ * someone has is theirs to keep, and stays.
+ */
+async function forgetIfUnused(ctx: Context, sub: string, id: string): Promise<void> {
+  const object = shareObject(ctx, id)
+  const answer = await object.fetch(`https://share/summary?sub=${encodeURIComponent(sub)}`)
+  if (!answer.ok) {
+    await answer.body?.cancel()
+    return
+  }
+  const newer = ShareSummarySchema.parse(await answer.json())
+  const unused = newer.plays === 0 && newer.opened.length === 0 && newer.guests === 0
+  if (!newer.yours || newer.ended || !unused) return
+  const gone = await object.fetch('https://share/act', post({ sub, action: { type: 'forget' } }))
+  await gone.body?.cancel()
+  if (gone.ok) await linkIndex(ctx, 'out', sub).forget(id)
 }
 
 /** A hundred songs, each a few hundred bytes of names and keys. */

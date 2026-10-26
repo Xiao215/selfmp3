@@ -55,6 +55,13 @@ const LINK_NOUN = { one: 'link', many: 'links' } as const
 const ROW_EDGE_WIDE = space.sm + space.snug
 
 /**
+ * What Keep it longer and Share again do (shareLink.ts's `renew`): the link
+ * starts again from now, so it lasts a week from its last play, as a new one
+ * does, and a month at most.
+ */
+const RENEW_DETAIL = 'A week from now, a month if it keeps playing'
+
+/**
  * `/links`, Links you shared (docs/features/share-links.md, F1 + F2), drawn
  * the way Library is so its rows read as ones you know: friends asking for an
  * ended link again at the head, with Share again; then the links, as Playing
@@ -210,13 +217,13 @@ export function LinksScreen(): ReactNode {
               {renewable.length > 0 ? (
                 <SheetItem
                   label={`Share again ${renewable.length}`}
-                  detail="Another month, from now"
+                  detail={RENEW_DETAIL}
                   onPress={() => {
                     close()
                     actOnMany(
                       renewable,
                       'renew',
-                      `${plural(renewable.length, 'link', 'links')} last another month`,
+                      `${plural(renewable.length, 'link', 'links')} start their week again`,
                     )
                   }}
                 />
@@ -353,10 +360,10 @@ export function LinksScreen(): ReactNode {
             {menu.ended?.why !== 'removed' ? (
               <SheetItem
                 label={shareStage(menu, now) === 'ended' ? 'Share it again' : 'Keep it longer'}
-                detail="Another month, from now"
+                detail={RENEW_DETAIL}
                 onPress={() => {
                   setMenu(null)
-                  renew(menu, `“${menu.name}” lasts another month`)
+                  renew(menu, `“${menu.name}” starts its week again`)
                 }}
               />
             ) : null}

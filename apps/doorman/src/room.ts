@@ -372,7 +372,8 @@ export class Room {
     if (entry.owner === null && lend) {
       const key = keyOf(entry.song, part.data)
       const audio = entry.song.audio?.key
-      if (!key || !audio) return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
+      if (!key || !audio)
+        return answer(404, DOORMAN_ERROR.roomMissing, 'that song has no such file')
       const body: LentFile = { sub: lend.sub, key, shared: { id: lend.shared, audio } }
       return Response.json(body)
     }

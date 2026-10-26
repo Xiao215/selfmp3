@@ -64,9 +64,12 @@ export function followerPress(
   if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
   const host = state.members.find(member => member.kind === 'host')?.name ?? 'the host'
   if (step === 'previous') return { say: 'A room only goes forward' }
-  if (step === 'next') return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
+  if (step === 'next')
+    return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
   const act = state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
-  return youMay(state, act) ? { act } : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
+  return youMay(state, act)
+    ? { act }
+    : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
 }
 
 /** The people still in the room, the host first. */
@@ -311,8 +314,7 @@ export function needsReport(
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
   return (
-    Math.abs(roomPosition(playing, now + offset) - player.position) >
-    HOST_DRIFT_SECONDS[state.mode]
+    Math.abs(roomPosition(playing, now + offset) - player.position) > HOST_DRIFT_SECONDS[state.mode]
   )
 }
 

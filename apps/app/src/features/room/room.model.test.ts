@@ -282,7 +282,9 @@ describe('a friend’s own transport, on everyone’s phones', () => {
   it('asks the room to skip, and says only the host may pause', () => {
     const doc = playingRoom()
     expect(followerPress(as(doc, M), 'next', true)).toEqual({ act: 'skip' })
-    expect(followerPress(as(doc, M), 'toggle', true)).toEqual({ say: 'Only Xiao can pause the room' })
+    expect(followerPress(as(doc, M), 'toggle', true)).toEqual({
+      say: 'Only Xiao can pause the room',
+    })
     expect(followerPress(as(doc, M), 'previous', true)).toEqual({ say: 'A room only goes forward' })
   })
 

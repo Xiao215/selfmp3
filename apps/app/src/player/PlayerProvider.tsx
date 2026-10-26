@@ -901,6 +901,14 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         recovery.retriedSongId = null
         recovery.skippedInARow = 0
       }
+      // Sound again, whichever song it is: "Couldn’t play …" is no longer
+      // true, and an error is kept up until dismissed, so it sat over the
+      // song now playing — the one it named, once Play found it, or the next.
+      if (state.playing && state.error === null && recovery.toastId !== null) {
+        const up = currentToasts().find(toast => toast.id === recovery.toastId)
+        if (up?.tone === 'error') dismissToast(up.id)
+        if (!up || up.tone === 'error') recovery.toastId = null
+      }
 
       // Each load clears the error first, so a failure is the error arriving.
       // A second report of the same failure — in other words, or late — is

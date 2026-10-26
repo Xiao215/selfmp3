@@ -61,13 +61,14 @@ function handlers(actions: MediaSessionActions | null): void {
       media.setActionHandler(action, handler)
     } catch {
       // A browser that does not know this action. Chromium knows them all;
-      // this is here so one unknown action cannot cost the other six.
+      // this is here so one unknown action cannot cost the others.
     }
   }
   if (!actions) {
     for (const action of [
       'play',
       'pause',
+      'stop',
       'nexttrack',
       'previoustrack',
       'seekto',
@@ -80,6 +81,9 @@ function handlers(actions: MediaSessionActions | null): void {
   }
   set('play', () => actions.play())
   set('pause', () => actions.pause())
+  // A headset's or the OS's Stop: the app has no stop of its own, and a pause
+  // keeps the song where it is for Play to go on with, as its own button does.
+  set('stop', () => actions.pause())
   set('nexttrack', () => actions.next())
   set('previoustrack', () => actions.previous())
   set('seekto', details => {

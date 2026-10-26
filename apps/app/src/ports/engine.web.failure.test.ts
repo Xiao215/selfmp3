@@ -170,3 +170,26 @@ describe('a crossfade into a song taken out of Up next', () => {
     expect(primary.volume).toBe(1)
   })
 })
+
+describe('a crossfade longer than the song it fades into', () => {
+  it('is cut to half of that song, so it fades in once and has a moment of its own', async () => {
+    const { audioEngine, primary, secondary } = await engine(() => 8)
+    audioEngine.configure({ crossfadeSeconds: 12 })
+    await audioEngine.load(7)
+    primary.duration = 229
+    primary.currentTime = 215
+    primary.dispatchEvent(new Event('timeupdate'))
+    // Fetched, and four seconds long.
+    expect(secondary.src).toBe('/api/stream/8')
+    secondary.duration = 4
+
+    // Twelve seconds from the end: the whole of song 8 would play under 7.
+    primary.currentTime = 217
+    primary.dispatchEvent(new Event('timeupdate'))
+    expect(secondary.paused).toBe(true)
+
+    primary.currentTime = 227
+    primary.dispatchEvent(new Event('timeupdate'))
+    expect(secondary.paused).toBe(false)
+  })
+})

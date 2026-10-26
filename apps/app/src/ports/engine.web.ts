@@ -536,8 +536,9 @@ class AudioEngine implements PlaybackEngine {
     // Begin the crossfade, or hand over cleanly for gapless. Armed only if one
     // actually began: there is nothing to fade into with repeat-one or at the
     // end of the queue, and claiming otherwise loses the end of the track.
-    if (!this.#handoverArmed && this.#crossfadeSeconds > 0 && remaining <= this.#crossfadeSeconds) {
-      this.#handoverArmed = this.#startCrossfade()
+    const fade = this.#fadeSeconds(duration)
+    if (!this.#handoverArmed && fade > 0 && remaining <= fade) {
+      this.#handoverArmed = this.#startCrossfade(fade)
     }
   }
 
@@ -582,16 +583,38 @@ class AudioEngine implements PlaybackEngine {
   }
 
   /**
+   * How long the fade between this song and the next is: the one chosen, cut
+   * to half of either song where that is shorter. A twelve-second fade into a
+   * four-second song played all of it under the song before, ended, and then
+   * started it again from the top as the song now playing. Half, so each song
+   * also has a moment of its own between fading in and fading out.
+   */
+  #fadeSeconds(duration: number): number {
+    if (this.#crossfadeSeconds <= 0) return 0
+    const id = this.#preloadedId
+    const next = Number.isFinite(this.#secondary.duration)
+      ? this.#secondary.duration
+      : id === null
+        ? undefined
+        : this.#hub.wiring.trackMetadata?.(id)?.duration
+    return Math.min(
+      this.#crossfadeSeconds,
+      duration / 2,
+      next !== undefined && next > 0 ? next / 2 : Infinity,
+    )
+  }
+
+  /**
    * Ramp the outgoing element down and the incoming one up.
    *
    * Equal-power curves (sin/cos) rather than linear: a linear crossfade dips
    * audibly in the middle, because perceived loudness follows power, not
    * amplitude.
    */
-  #startCrossfade(): boolean {
+  #startCrossfade(seconds: number): boolean {
     if (this.#preloadedId === null) return false
 
-    const durationMs = this.#crossfadeSeconds * 1000
+    const durationMs = seconds * 1000
     const startedAt = performance.now()
 
     void this.#secondary.play().catch(() => undefined)

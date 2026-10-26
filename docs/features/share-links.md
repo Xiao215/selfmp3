@@ -126,10 +126,24 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   phone they are read once the song is loaded or its words view is opened.
   The bar is there before Play, so nothing moves when it starts.
 - **A song that has ended** is its cover, faded, and its names, with the ways on under them.
-- **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then
-  the songs. Play and Shuffle play all of them; the rows are drawn sixty at a time as the
-  page is scrolled, so a long list opens as fast as a short one and only the covers shown
-  are read from its sender's bucket. **Get them** asks your server in parts of 500
+- **A list that plays** (R1 and P1, agreed with Xiao on 2026-10-26) is the one-song page
+  for one of its songs: the one playing, or before Play the one cued, the first until another
+  is picked. Only the music: no Back, no Get them. *jpop · 7 of 100* sits over the title,
+  and Previous and Next beside Play step through the list's songs (before Play they only
+  move the cue). The wash and the words follow the song.
+  - **On a computer** the songs are a rail of covers down the window's left edge, 76 points
+    wide, with Shuffle at its head and the page's song ringed (`CoverRail`). Under the
+    pointer it opens over the page to 320 with the list's name, *300 songs · 17 hr 26 min*
+    and each song's title and artist, and shuts when the pointer leaves; the page never
+    moves. A press plays the song.
+  - **On a phone** the list's name and that line sit over a row of its covers across the
+    page (`CoverRow`), above the song. A press plays one; the name opens all of them as a
+    sheet. Shuffle joins Previous, Play and Next at the foot.
+  - Both draw only the covers in sight, so a link of a thousand songs reads about a dozen
+    covers from its sender's bucket as it opens.
+- **A list that has ended:** a 2×2 mosaic of its covers, its name, how many songs and the
+  ways on, then the songs, dimmed, each opening where it came from. The rows are drawn sixty
+  at a time as the page is scrolled. **Get them** asks your server in parts of 500
   (`IMPORT_ENQUEUE_MAX`), as many as it takes.
 - **Signed out**, a quiet line at the foot says what self.mp3 is and opens it.
 

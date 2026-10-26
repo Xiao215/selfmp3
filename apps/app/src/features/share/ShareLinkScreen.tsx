@@ -12,6 +12,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   DoormanError,
+  formatLongDuration,
   hasColour,
   plural,
   type CoverTone,
@@ -46,7 +47,6 @@ import { BackButton } from '../../ui/components/BackButton'
 import { BrandMark } from '../../ui/components/BrandMark'
 import { Button } from '../../ui/components/Button'
 import { PageLoading } from '../../ui/components/PageLoading'
-import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { Press } from '../../ui/components/Press'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
@@ -67,6 +67,7 @@ import {
   sourceName,
 } from './share.model'
 import { ShareSong, SongStill, useShareStage } from './ShareSong'
+import { CoverRail, CoverRow, listSummary, RAIL_WIDTH } from './ShareRail'
 import { shareApi, useShareAct, useShareAsk, useShareLink } from './shareLinks'
 import { useLentWords } from './useLentWords'
 import { useMinute } from './useMinute'
@@ -173,27 +174,36 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   }
   const first = link.entries[0]
   const firstId = first ? roomTrackId(first.id) : 0
+  // A list's song the page is about (R1, P1): the one playing, or before
+  // that the one cued, the first until another is picked. A song's, its one.
+  const trackAt = new Map(ids.map((id, at) => [id, at]))
+  const playingAt = link.kind === 'list' && playing !== null ? trackAt.get(playing) : undefined
+  const [cued, setCued] = useState(0)
+  // Kept on the song playing, so the page stays on it once the list stops.
+  // Adjusted during render, as React has a value follow another.
+  if (playingAt !== undefined && playingAt !== cued) setCued(playingAt)
+  const shownAt = playingAt ?? Math.min(cued, Math.max(0, entries.length - 1))
+  const shown = link.kind === 'list' && !ended ? (entries[shownAt] ?? first) : first
+  const shownId = shown ? roomTrackId(shown.id) : 0
   // From the link itself, not the player's tracks: those are filled after this
   // first draw. Your own copy's where you have the song, as the player plays it.
   const coverOf = (entry: ShareLink['entries'][number]): string | null => {
     const lent = entry.song.cover ? shareApi.fileUrl(link, entry.id, 'cover') : null
     return ownCover(entry.song, lent) ?? lent
   }
-  const cover = first ? coverOf(first) : null
+  const cover = shown ? coverOf(shown) : null
   const toGet = gettable(link, index)
   const source = first?.song.sourceUrl ?? null
   const head = shareHeadLine(link, now)
-  const loaded = link.kind === 'song' && playing === firstId
+  const loaded = playing === shownId
   const start = useMemo(() => shareStartOf(link, t), [link, t])
 
-  // Washed in its first cover's colour, as Now Playing is; grey once it has ended.
-  const lead = useMemo(
-    () =>
-      first ? roomTrackSong({ id: first.id, song: first.song, addedAt: link.createdAt }) : null,
-    [first, link.createdAt],
-  )
+  // Washed in its song's cover colour, as Now Playing is; grey once it has ended.
+  const lead = shown
+    ? roomTrackSong({ id: shown.id, song: shown.song, addedAt: link.createdAt })
+    : null
   const light = useSongColor(lead, cover, !ended)
-  const tone = first?.song.coverTone ?? null
+  const tone = shown?.song.coverTone ?? null
   const wash = ended ? (tone ? neutralWash(tone) : theme.colors.surface2) : light.color
   // A cover that would not come — its sender's bucket out of reads for the
   // day — is a letter in the wash's hue: the cover's colour, which the link
@@ -204,11 +214,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   // on a phone once it is loaded or its words view is opened.
   const onStage = useShareStage()
   const [wordsOpen, setWordsOpen] = useState(false)
-  const lyrics = useLentWords(
-    link,
-    link.kind === 'song' && !ended ? first : undefined,
-    onStage || loaded || wordsOpen,
-  )
+  const lyrics = useLentWords(link, ended ? undefined : shown, onStage || loaded || wordsOpen)
   // As big as the column allows, short of pushing Play out of sight.
   const coverSide = Math.min(wide ? 360 : 340, Math.min(width, PAGE_WIDTH) - space.gutter * 2)
 
@@ -222,8 +228,37 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
     else player.playFrom(ids, at)
   }
 
-  // The page has no sidebar, even on a computer: Back is the way into your own library.
-  const back = signedIn ? <BackButton to="/" always /> : null
+  // A list's song, picked from its covers: played there, or paused when it is the one playing.
+  const pick = (at: number): void => {
+    setCued(at)
+    play(at)
+  }
+  // Next and Previous: the player's own once it has the list, the cue's before.
+  const step = (by: 1 | -1): void => {
+    if (playingAt !== undefined) {
+      if (by > 0) player.next()
+      else player.previous()
+    } else setCued(Math.min(entries.length - 1, Math.max(0, shownAt + by)))
+  }
+  const covers = {
+    entries,
+    coverOf,
+    tileHue,
+    shown: shownAt,
+    onPick: pick,
+    name: link.name,
+    summary: listSummary(entries, formatLongDuration),
+  }
+  const list = {
+    context: `${link.name} · ${shownAt + 1} of ${entries.length}`,
+    onPrevious: () => step(-1),
+    onNext: () => step(1),
+    onShuffle: () => player.playShuffled(ids),
+  }
+
+  // The page has no sidebar, even on a computer: Back is the way into your own
+  // library. Not on a list's, which is only its music (Xiao, 2026-10-26).
+  const back = signedIn && (link.kind === 'song' || ended) ? <BackButton to="/" always /> : null
   const from = (
     <View style={styles.from} testID={`share-stage-${stage}`}>
       <RoomFace name={link.from.name} colour={0} picture={link.from.picture} size={28} />
@@ -289,6 +324,34 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
             wordsOpen={wordsOpen}
             onWords={setWordsOpen}
           />
+        ) : link.kind === 'list' && shown && lead && !ended ? (
+          // A list that plays (R1, P1): its song's own page, the song it is
+          // on, with the list's covers down the left on a computer and
+          // across the top on a phone. Only the music: no Back, no Get them.
+          <View style={styles.list} testID="share-list">
+            <View style={[styles.listSong, onStage && styles.listSongBeside]}>
+              <ShareSong
+                song={shown.song}
+                track={lead}
+                songId={shownId}
+                cover={cover}
+                tileHue={tileHue}
+                lyrics={lyrics}
+                lent={shown.song.lyrics !== null}
+                loaded={loaded}
+                start={null}
+                onPlay={() => play(shownAt)}
+                back={null}
+                from={from}
+                ways={null}
+                foot={foot}
+                wordsOpen={wordsOpen}
+                onWords={setWordsOpen}
+                list={{ ...list, covers: onStage ? null : <CoverRow {...covers} /> }}
+              />
+            </View>
+            {onStage ? <CoverRail {...covers} onShuffle={list.onShuffle} /> : null}
+          </View>
         ) : (
           <ScrollView
             contentContainerStyle={[styles.page, wide && styles.pageWide]}
@@ -325,18 +388,6 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
                 </View>
               </View>
             )}
-
-            {!ended && link.kind === 'list' ? (
-              <View style={styles.actions}>
-                <PlayShuffle
-                  name={link.name}
-                  songIds={ids}
-                  onPlay={() => play(0)}
-                  onShuffle={() => player.playShuffled(ids)}
-                  testPrefix="share"
-                />
-              </View>
-            ) : null}
 
             {ways}
 
@@ -559,6 +610,10 @@ const styles = StyleSheet.create(theme => ({
     flexGrow: 1,
   },
   pageWide: { paddingTop: space.gutterWide },
+  list: { flex: 1 },
+  listSong: { flex: 1 },
+  // Beside the rail shut, which opens over it rather than pushing it along.
+  listSongBeside: { paddingLeft: RAIL_WIDTH },
   from: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   fromText: { ...lineSub(theme.colors), flex: 1, minWidth: 0 },
   warn: { color: theme.colors.warning },
@@ -569,7 +624,6 @@ const styles = StyleSheet.create(theme => ({
   title: heroTitle(theme.colors, 'page'),
   titleWide: heroTitle(theme.colors),
   byline: { color: theme.colors.textSecondary, fontSize: type.body },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   ways: { gap: space.sm, alignItems: 'stretch' },
   fine: { color: theme.colors.textMuted, fontSize: type.small },
   // At the foot of a short page too: the page grows to the screen and this sits at its end.

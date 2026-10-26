@@ -22,7 +22,8 @@ export function GoneLink({ torn, signedIn }: { torn: boolean; signedIn: boolean 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <View style={[styles.page, pageFrame(wide)]} testID="share-missing">
-        {signedIn ? <BackButton to="/" /> : null}
+        {/* No sidebar here, even on a computer: Back is the way into your own library. */}
+        {signedIn ? <BackButton to="/" always /> : null}
         <View style={styles.middle}>
           <Sleeve size={wide ? 200 : 160} torn={torn} />
           <View style={styles.words}>

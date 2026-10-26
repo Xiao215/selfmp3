@@ -15,7 +15,6 @@ import {
   packVector,
   soundCloseness,
   unpackVector,
-  type RoomSong,
   type RoomState,
 } from '@selfmp3/shared'
 import type { RoomPass } from '@selfmp3/client'
@@ -45,6 +44,7 @@ import {
   hostPlan,
   isHost,
   keepGoingPicks,
+  libraryPicks,
   namesOf,
   needsReport,
   endedLine,
@@ -318,10 +318,24 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
     void (async () => {
       // By sound where the room knows how its songs sound; by turns alone otherwise.
       const closeness = await closenessTo(state, pass).catch(() => undefined)
-      const picks = keepGoingPicks(state, wanted, closeness ? { closeness } : {})
+      const picks = keepGoingPicks(
+        state,
+        wanted,
+        closeness ? { closeness: song => (song.audio ? closeness(song.audio.key) : null) } : {},
+      )
       for (const action of picks) await roomAct(action).catch(() => undefined)
+      // A young room has nothing of its own to bring back yet: the host's
+      // library keeps it going rather than letting it run dry.
+      if (picks.length >= wanted) return
+      const yours = libraryPicks(state, index.byAudio, wanted - picks.length, {
+        ...(closeness ? { closeness } : {}),
+      })
+      for (const id of yours) {
+        const song = cloudLibrary.cloudRoomSongNow(id)
+        if (song) await roomAct({ type: 'add', song }).catch(() => undefined)
+      }
     })()
-  }, [state, host, pass])
+  }, [state, host, pass, index])
 
   // How your own songs in the room sound, told to the room once each: what
   // the host's Autoplay ranks by. Read from your bucket's pack.
@@ -420,13 +434,15 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
 }
 
 /**
- * How near a song sounds to what the room just played, from the vectors the
- * room keeps; undefined when it has none for what played.
+ * How near a song, by its audio key, sounds to what the room just played:
+ * from the vectors the room keeps, and the host's own pack for the songs of
+ * its library the room has not heard (`libraryPicks`). Undefined when the
+ * room has none for what played.
  */
 async function closenessTo(
   state: RoomState,
   pass: RoomPass | null,
-): Promise<((song: RoomSong) => number | null) | undefined> {
+): Promise<((audioKey: string) => number | null) | undefined> {
   if (!pass) return undefined
   const kept = await roomApi.vectors(pass)
   const vectors = new Map<string, Int8Array>()
@@ -436,8 +452,13 @@ async function closenessTo(
   }
   const target = soundTarget(state, vectors)
   if (!target) return undefined
-  return song => {
-    const vector = song.audio ? vectors.get(song.audio.key) : undefined
+  const session = await cloudSession.loadSession().catch(() => null)
+  const pack = session ? await cloudLibrary.cloudSoundVectors(session).catch(() => null) : null
+  // Another model's vectors are not comparable with the room's.
+  const own = pack && pack.model === kept.model ? pack.vectors : null
+  return key => {
+    const mine = own?.get(key)
+    const vector = vectors.get(key) ?? (mine ? unpackVector(packVector(mine)) : null)
     return vector ? soundCloseness(vector, target) : null
   }
 }

@@ -26,6 +26,7 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  libraryPicks,
   followerPress,
   keptTitle,
   endedLine,
@@ -329,6 +330,24 @@ describe('keep it going', () => {
     expect(
       keepGoingPicks(as(doc, X), 4, { random: () => 0 }).some(pick => pick.type === 'again'),
     ).toBe(false)
+  })
+})
+
+describe('keep it going, from the host’s library', () => {
+  it('brings songs of the host’s the room does not have, nearest in sound first', () => {
+    const doc = act(room(), M, { type: 'add', song: song(1) })
+    const library = new Map([
+      [song(1).audio?.key ?? '', 1],
+      [song(2).audio?.key ?? '', 2],
+      [song(3).audio?.key ?? '', 3],
+      [song(4).audio?.key ?? '', 4],
+    ])
+    const near = (key: string): number | null => (key === song(4).audio?.key ? 0.9 : null)
+    const picks = libraryPicks(as(doc, X), library, 2, { closeness: near, random: () => 0 })
+    expect(picks[0]).toBe(4)
+    expect(picks).toHaveLength(2)
+    expect(picks).not.toContain(1)
+    expect(libraryPicks(as(doc, X), library, 0)).toEqual([])
   })
 })
 

@@ -186,7 +186,8 @@ function LinkPage({ link }: { link: ShareLink }): ReactNode {
     else player.playFrom(ids, at)
   }
 
-  const back = signedIn ? <BackButton to="/" /> : null
+  // The page has no sidebar, even on a computer: Back is the way into your own library.
+  const back = signedIn ? <BackButton to="/" always /> : null
   const from = (
     <View style={styles.from} testID={`share-stage-${stage}`}>
       <RoomFace name={link.from.name} colour={0} picture={link.from.picture} size={28} />

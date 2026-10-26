@@ -56,27 +56,38 @@ export async function linkPage(ctx: Context): Promise<Response> {
   if (l !== 'l' || rest.length > 0) throw notFound()
   const ids = ShareIdSchema.safeParse(id)
   const keys = ShareKeySchema.safeParse(key)
-  if (!ids.success || !keys.success) throw notFound('no such link')
+  const previewer = isPreviewer(ctx.request.headers.get('user-agent'))
+  const gone: Card = {
+    // Forgotten, cut short, or a key that is not its own: none says anything about the link.
+    title: 'self.mp3',
+    description: 'This link is gone.',
+    kind: 'website',
+    image: appIcon(app),
+    color: ACCENT,
+  }
+  if (!ids.success || !keys.success) {
+    // Cut short when it was copied: a person goes on to the app all the same,
+    // whose page for it is the torn sleeve.
+    const cut = `${app}/l/${segment(id)}/${segment(key)}`
+    if (!previewer) return onTo(cut)
+    return previewPage({ ...gone, url: ctx.url.href, open: cut })
+  }
 
   const there = `${app}/l/${ids.data}/${keys.data}`
-  if (!isPreviewer(ctx.request.headers.get('user-agent'))) return onTo(there)
+  if (!previewer) return onTo(there)
 
   const peeked = await shareObject(ctx, ids.data).fetch(
     `https://share/peek?k=${encodeURIComponent(keys.data)}`,
   )
   const link = peeked.ok ? ShareLinkSchema.safeParse(await peeked.json()) : null
   if (!peeked.ok) await peeked.body?.cancel()
-  const card = link?.success
-    ? linkCard(link.data, { doorman: ctx.url.origin, app })
-    : {
-        // Forgotten, or a key that is not its own: neither says anything about the link.
-        title: 'self.mp3',
-        description: 'This link is gone.',
-        kind: 'website',
-        image: appIcon(app),
-        color: ACCENT,
-      }
+  const card = link?.success ? linkCard(link.data, { doorman: ctx.url.origin, app }) : gone
   return previewPage({ ...card, url: ctx.url.href, open: there })
+}
+
+/** What is left of a cut-short link's part, as the app's address can carry it: `-` for nothing. */
+function segment(part: string | undefined): string {
+  return part && /^[A-Za-z0-9]{1,64}$/.test(part) ? part : '-'
 }
 
 /** The app's own accent, for a card with no cover colour to take. */

@@ -395,6 +395,36 @@ export function keepGoingPicks(
   return picks
 }
 
+/**
+ * When the room's own songs give Autoplay nothing — a room younger than a
+ * dozen songs, with no shelf up — songs from the host's library, so the room
+ * does not run dry: the nearest in sound to what is playing where the host's
+ * vectors say, the rest in no particular order. Never one the room already
+ * has. `library` is the host's songs by audio key (`LibraryIndex.byAudio`);
+ * the answer is their ids.
+ */
+export function libraryPicks(
+  state: RoomState,
+  library: ReadonlyMap<string, number>,
+  count: number,
+  options: {
+    readonly random?: () => number
+    readonly closeness?: (audioKey: string) => number | null
+  } = {},
+): number[] {
+  const random = options.random ?? Math.random
+  const inRoom = new Set(state.entries.map(entry => keyOf(entry.song)))
+  const offered = [...library].filter(([key]) => !inRoom.has(key))
+  const rated = offered.map(([key, id]) => ({ id, near: options.closeness?.(key) ?? null }))
+  const heard = rated.filter(pick => pick.near !== null)
+  heard.sort((a, b) => (b.near ?? 0) - (a.near ?? 0))
+  const unheard = shuffleArray(
+    rated.filter(pick => pick.near === null),
+    random,
+  )
+  return [...heard, ...unheard].slice(0, Math.max(0, count)).map(pick => pick.id)
+}
+
 function keyOf(song: RoomSong): string {
   return song.audio?.key ?? song.link ?? song.title
 }

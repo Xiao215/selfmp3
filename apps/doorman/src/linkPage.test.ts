@@ -69,6 +69,20 @@ describe("a share link's own address", () => {
     )
   })
 
+  it('sends a person on with a link cut short when it was copied, for the app to say so', async () => {
+    const { h, link } = await made()
+    const half = await visit(h, `/l/${link.id}/${link.key.slice(0, 8)}`, SAFARI)
+    expect(half.status).toBe(302)
+    expect(half.headers.get('location')).toBe(
+      `https://xiao215.github.io/selfmp3/l/${link.id}/${link.key.slice(0, 8)}`,
+    )
+    expect((await visit(h, `/l/${link.id}`, SAFARI)).headers.get('location')).toBe(
+      `https://xiao215.github.io/selfmp3/l/${link.id}/-`,
+    )
+    const card = tags(await (await visit(h, `/l/${link.id}`, DISCORD)).text())
+    expect(card['og:description']).toBe('This link is gone.')
+  })
+
   it('shows a chat app the song, who sent it and its cover, and counts nothing', async () => {
     const { h, link, me } = await made()
     const page = await visit(h, `/l/${link.id}/${link.key}`, DISCORD)

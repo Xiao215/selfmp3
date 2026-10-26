@@ -2,7 +2,7 @@ import { useContext } from 'react'
 import { SafeAreaInsetsContext } from 'react-native-safe-area-context'
 import { MINI_PLAYER_HEIGHT, NAV_HEIGHT, space } from '@selfmp3/client'
 import { useSongLoaded } from '../player/PlayerProvider'
-import { usePageChrome } from './pageChrome'
+import { usePageChrome, usePageTabs } from './pageChrome'
 import { useLayoutValue } from './useLayout'
 
 /**
@@ -42,11 +42,19 @@ export function navBottom(safeBottom: number): number {
   return safeBottom > 0 ? safeBottom + 2 : 16
 }
 
-/** The height the floating chrome takes from the foot of the display. */
-function floatingChromeHeight(safeBottom: number, miniPlayer: boolean): number {
-  return (
-    navBottom(safeBottom) + NAV_HEIGHT + (miniPlayer ? MINI_PLAYER_GAP + MINI_PLAYER_HEIGHT : 0)
-  )
+/**
+ * The height the floating chrome takes from the foot of the display: the tab
+ * bar and the mini player over it, or the mini player alone on a page that
+ * puts the tab bar away (`pageChrome.ts`).
+ */
+function floatingChromeHeight(safeBottom: number, miniPlayer: boolean, tabs: boolean): number {
+  const player = miniPlayer ? MINI_PLAYER_HEIGHT + (tabs ? MINI_PLAYER_GAP : 0) : 0
+  return navBottom(safeBottom) + (tabs ? NAV_HEIGHT : 0) + player
+}
+
+/** Where the mini player floats from the foot: over the tab bar, or where the tab bar would be. */
+export function miniPlayerBottom(safeBottom: number, tabs: boolean): number {
+  return navBottom(safeBottom) + (tabs ? NAV_HEIGHT + MINI_PLAYER_GAP : 0)
 }
 
 /**
@@ -62,7 +70,8 @@ export function useFloatingChrome(): number {
   // Nothing floats over a page that owns the display (`pageChrome.ts`), so it
   // keeps no room at its foot for a bar that is not there.
   const chrome = usePageChrome()
-  return wide || !chrome ? 0 : floatingChromeHeight(safeBottom, loaded)
+  const tabs = usePageTabs()
+  return wide || !chrome ? 0 : floatingChromeHeight(safeBottom, loaded, tabs)
 }
 
 /**

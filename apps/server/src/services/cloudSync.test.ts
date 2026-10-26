@@ -1288,7 +1288,6 @@ describe('CloudSyncService', () => {
       expect([...mapOf(snapshot)!.keys()].sort()).toEqual(
         ids.map(id => cloud.state(id)!.audioKey).sort(),
       )
-      expect(soundMap.forLibrary().unheard).toBe(1)
       expect(soundMap.forLibrary().places.map(place => place.id)).not.toContain(unheard)
 
       // Nothing new heard: nothing folded or sent again.

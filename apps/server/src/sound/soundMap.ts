@@ -43,7 +43,7 @@ export class SoundMapService {
     return this.#deps.repo.get()?.data ?? null
   }
 
-  /** `/api/sound-map`: each placed song by id, and how many are not heard yet. */
+  /** `/api/sound-map`: each placed song by id. */
   forLibrary(): SoundMap {
     const { repo } = this.#deps
     const stored = repo.get()
@@ -56,7 +56,7 @@ export class SoundMapService {
       }
     }
     out.sort((a, b) => a.id - b.id)
-    return { places: out, unheard: Math.max(0, repo.songCount() - out.length) }
+    return { places: out }
   }
 
   /**

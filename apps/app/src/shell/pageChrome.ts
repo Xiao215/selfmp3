@@ -41,11 +41,30 @@ export function pageOwnsScreen(pathname: string, wide: boolean): boolean {
   return PHONE_FULL_SCREEN.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
+/**
+ * On a phone, the pages that keep the mini player but not the tab bar: the
+ * sound map, whose field is the whole page and whose song is still to hand.
+ */
+const PHONE_NO_TABS = ['/sound-map']
+
+/** Does this page put the tab bar away, keeping the mini player? */
+export function pageHidesTabs(pathname: string, wide: boolean): boolean {
+  return !wide && PHONE_NO_TABS.includes(pathname)
+}
+
 const shown = createValueStore(true)
+const tabs = createValueStore(true)
 
 export const setPageChrome = shown.set
 
 /** True while the mini player and the tab bar are on the page. */
 export function usePageChrome(): boolean {
   return useValueStore(shown)
+}
+
+export const setPageTabs = tabs.set
+
+/** True while the tab bar is on the page, under the mini player: with the chrome, unless the page puts it away. */
+export function usePageTabs(): boolean {
+  return useValueStore(tabs)
 }

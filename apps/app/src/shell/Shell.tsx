@@ -24,6 +24,7 @@ import { PlaybackNotices } from '../offline/PlaybackNotices'
 import { ToastHost } from '../ui/components/ToastHost'
 import { OverlayProvider } from './Overlay'
 import { PLAYER_BAR_HEIGHT, PlayerBar } from './PlayerBar'
+import { usePageTabs } from './pageChrome'
 import { FocusStyle } from './FocusStyle'
 import { TooltipHost } from './TooltipHost'
 import { Sidebar } from './Sidebar'
@@ -194,6 +195,8 @@ function Frame({
   // sheet does (P2 B): heard, not taken, so the tap still lands where it was.
   const pageRef = useRef<View>(null)
   const pageTap = usePageTap(pageRef, wide && railCover > 0, closeQueueSheet)
+  // A page that puts the tab bar away keeps the mini player (`pageChrome.ts`).
+  const tabs = usePageTabs()
   const contentWidth = useDeferredValue(wide ? width - SIDEBAR_WIDTH - railRoom : null)
   // Told to the page's readers once it has settled: a store, so that a row
   // asking only whether its album column fits is not rendered for every pixel.
@@ -223,7 +226,7 @@ function Frame({
       </View>
       {wide ? <BarSlot hidden={barHidden} /> : null}
       {!wide && chrome ? <MiniPlayer /> : null}
-      {!wide && chrome ? <BottomNav /> : null}
+      {!wide && chrome && tabs ? <BottomNav /> : null}
       {wide || covered ? null : <QueueSheet />}
       {/* On every compact page, chrome or not: a toast raised by a full-screen
           page (Now Playing, the import review) has nowhere else to land, and

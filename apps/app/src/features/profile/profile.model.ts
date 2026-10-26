@@ -17,7 +17,7 @@ import {
  * sidebar, and keeps Stats as a sidebar row as well.
  */
 
-export type ProfileRowId = 'import' | 'stats' | 'soundMap' | 'links' | 'settings'
+export type ProfileRowId = 'import' | 'stats' | 'links' | 'settings'
 
 export interface ProfileRow {
   readonly id: ProfileRowId
@@ -55,12 +55,6 @@ export function profileRows({
       label: 'Stats',
       href: '/stats',
       hint: STATS_HINT,
-    },
-    {
-      id: 'soundMap',
-      label: 'Sound map',
-      href: '/sound-map',
-      hint: 'Your songs, placed by how they sound',
     },
     ...(linksHint === null
       ? []

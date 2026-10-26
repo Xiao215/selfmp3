@@ -93,6 +93,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { CantReach } from '../library/CantReach'
 import { useLibraryFailure } from '../library/useLibraryFailure'
+import { MapCard } from '../soundMap/MapCard'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -305,6 +306,8 @@ function HomePage({
                     beside={beside}
                   />
                 )}
+                {/* Under the tags: the same songs, drawn by how they sound (A1). */}
+                <MapCard />
               </>
             )}
           </View>

@@ -22,7 +22,7 @@ import { Button } from '../../ui/components/Button'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartOn } from '../smart/useSmartOn'
-import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
+import { DrawLine, ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
 import { combinedName, tagsWithIds, type TagMatch } from '../lists/lists.model'
@@ -57,6 +57,8 @@ type Kind = 'pick' | 'follow' | 'describe'
  * - **Describe it**, when Ask is on: what you want to hear, then a name (the
  *   words, to start with), then the songs it picked from your own, each with a
  *   reason (SongsAnswer).
+ * - **Draw it on the map**: the Sound map, the pen ready; what is drawn is
+ *   saved from its tray (docs/features/sound-map.md).
  */
 export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => void }): ReactNode {
   const { theme } = useUnistyles()
@@ -274,6 +276,16 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
                 testID="new-playlist-describe"
               />
             ) : null}
+            <Option
+              icon={<DrawLine size={iconSize.item} color={theme.colors.textSecondary} />}
+              title="Draw it on the map"
+              sub="A line between places, or a loop round one"
+              onPress={() => {
+                cancel()
+                router.push({ pathname: '/sound-map', params: { draw: '1' } })
+              }}
+              testID="new-playlist-map"
+            />
           </>
         ) : step === 'tags' ? (
           <>

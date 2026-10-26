@@ -1,11 +1,13 @@
-import { useEffect, useEffectEvent, type RefObject } from 'react'
+import { useEffect, useEffectEvent, useState, type RefObject } from 'react'
 import type { View, ViewStyle } from 'react-native'
 import type { FieldWheel } from './fieldInput'
 
 export type { FieldWheel } from './fieldInput'
 
-/** A crosshair: a drag over the map draws a path. React Native's types leave the value out. */
-export const DRAWING_CURSOR = { cursor: 'crosshair' } as unknown as ViewStyle
+/** A hand where a drag moves the map, a crosshair where it draws. React Native's types leave the value out. */
+export function fieldCursor(armed: boolean): ViewStyle {
+  return { cursor: armed ? 'crosshair' : 'grab' } as unknown as ViewStyle
+}
 
 /** A wheel's lines and pages, in points, as a browser scrolls them. */
 const LINE = 16
@@ -40,5 +42,68 @@ export function useFieldWheel(
     }
     node.addEventListener('wheel', listener, { passive: false })
     return () => node.removeEventListener('wheel', listener)
+  }, [ref])
+}
+
+/**
+ * Shift held down: a drag draws rather than moves, as the pen does for one
+ * stroke. Let go of when the window loses focus too, or a Shift released in
+ * another window would leave it stuck.
+ */
+export function useShiftHeld(): boolean {
+  const [held, setHeld] = useState(false)
+  useEffect(() => {
+    const key = (event: KeyboardEvent): void => setHeld(event.shiftKey)
+    const off = (): void => setHeld(false)
+    window.addEventListener('keydown', key)
+    window.addEventListener('keyup', key)
+    window.addEventListener('blur', off)
+    return () => {
+      window.removeEventListener('keydown', key)
+      window.removeEventListener('keyup', key)
+      window.removeEventListener('blur', off)
+    }
+  }, [])
+  return held
+}
+
+/**
+ * The pointer over the field, a frame at a time at most, and null as it
+ * leaves: what names the star under it. A mouse only; a touch has no hover.
+ */
+export function useFieldPointer(
+  ref: RefObject<View | null>,
+  onPointer: (point: { x: number; y: number } | null) => void,
+): void {
+  const handle = useEffectEvent(onPointer)
+  useEffect(() => {
+    const node = ref.current as unknown as HTMLElement | null
+    if (!node) return
+    let frame: number | null = null
+    let last: PointerEvent | null = null
+    const move = (event: PointerEvent): void => {
+      if (event.pointerType !== 'mouse') return
+      last = event
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        if (!last) return
+        // A button held is a drag, not a look.
+        if (last.buttons !== 0) return handle(null)
+        const rect = node.getBoundingClientRect()
+        handle({ x: last.clientX - rect.left, y: last.clientY - rect.top })
+      })
+    }
+    const leave = (): void => {
+      last = null
+      handle(null)
+    }
+    node.addEventListener('pointermove', move)
+    node.addEventListener('pointerleave', leave)
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      node.removeEventListener('pointermove', move)
+      node.removeEventListener('pointerleave', leave)
+    }
   }, [ref])
 }

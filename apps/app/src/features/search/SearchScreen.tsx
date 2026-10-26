@@ -26,7 +26,7 @@ import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { isComposing } from '../../shell/composing'
-import { focusNextStop } from '../../shell/focusNext'
+import { focusNextStop, useArrowsBetweenStops } from '../../shell/focusNext'
 import { useEscape } from '../../shell/useEscape'
 import { NarrowerContentWidth } from '../../shell/contentWidth'
 import { useLayoutFlags } from '../../shell/useLayout'
@@ -94,6 +94,9 @@ function fromSearch(words: string) {
 const SearchedWords = createContext('')
 
 const NO_SONGS: readonly Song[] = []
+
+/** The results' element, which ↑ and ↓ move through (`useArrowsBetweenStops`). */
+const RESULTS_ID = 'search-results'
 
 /** How long typing has to stop before the words go into the address. */
 const WORDS_SETTLE_MS = 400
@@ -163,6 +166,8 @@ export function SearchScreen(): ReactNode {
     return () => clearTimeout(timer)
   }, [router, params.q, typing])
   const field = useRef<TextInput>(null)
+  // ↓ from the field into the results goes on through them; ↑ from the top back up.
+  useArrowsBetweenStops(RESULTS_ID, () => field.current?.focus())
   // Cancel, the last thing in the head: what ↓ moves on from into the results.
   const cancelRef = useRef<View>(null)
   // The palette's search too, so the two find the same and Enter decides alike.
@@ -342,7 +347,10 @@ export function SearchScreen(): ReactNode {
                   adds={adding ? adds : null}
                 />
               ) : (
-                <ScrollView contentContainerStyle={[styles.results, bar.listPadding]}>
+                <ScrollView
+                  nativeID={RESULTS_ID}
+                  contentContainerStyle={[styles.results, bar.listPadding]}
+                >
                   {!link && offerAsk && counts.all === 0 ? (
                     <AskCard words={words} first onAsk={() => ask(words)} />
                   ) : null}

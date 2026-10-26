@@ -5,3 +5,9 @@
 export function focusNextStop(_from: unknown): boolean {
   return false
 }
+
+/**
+ * ↑ and ↓ between the stops inside the element named `rootId`
+ * (`focusNext.web.ts`). Nothing to move on a phone.
+ */
+export function useArrowsBetweenStops(_rootId: string, _above: () => void): void {}

@@ -12,6 +12,7 @@ import { NoticeCard } from '../../ui/components/NoticeCard'
 import { BACKBLAZE_CAPS_URL } from '@selfmp3/shared'
 import { bucketCapped, unreachableCopy } from './library.model'
 import { countShownError } from '../usage/usage'
+import { ACCOUNT_ROUTE } from '../settings/settings.model'
 
 /**
  * What stands where the library would, when it did not answer and nothing is
@@ -77,7 +78,7 @@ export function CantReach({
           ) : (
             <Button
               label={wide ? 'Connection settings' : 'Settings'}
-              onPress={() => router.push({ pathname: '/settings', params: { section: 'account' } })}
+              onPress={() => router.push(ACCOUNT_ROUTE)}
             />
           )}
         </>

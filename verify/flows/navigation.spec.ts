@@ -62,13 +62,13 @@ test.describe('navigation', () => {
     })
     // As long as the heading: the settings query answers within a second, but
     // the dev build draws this page in about 3 s alone and 5 to 7 s in the
-    // middle of a full run, past the 5 s default.
+    // middle of a full run, past the 5 s default. The Smart features tile
+    // says "Loading…" until the server's settings come, then on, off or why
+    // it can be neither.
     await expect(
       page
-        .getByRole('spinbutton')
-        .or(page.getByRole('checkbox'))
-        .or(page.getByRole('switch'))
-        .first(),
+        .getByRole('switch', { name: /^Smart features, (On|Off)$/ })
+        .or(page.getByRole('button', { name: /^Smart features, Not set up$/ })),
     ).toBeVisible({ timeout: 30_000 })
   })
 

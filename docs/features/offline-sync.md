@@ -146,6 +146,7 @@ changes no file — a tag, a rename — skips reading every cached entry's size 
   or over 500 MB) is no news, and says nothing there.
 - **Only a song that is here is marked**, with a small filled mark before its artist. A song
   that is not carries nothing: in a library that lives in its storage that is most of them.
-- **Settings › On this phone** (*On this computer* in the desktop app) has the switch, what is
-  on the device and how much room it takes, the reason for any wait with a Download button,
-  and the removal buttons.
+- **Settings** has the switches as two quick tiles, Wi-Fi downloads and Stream the rest. Its
+  **On this phone** card (*On this computer* in the desktop app) shows how much of the library
+  is on the device and the room it takes, with one Download button and the leftover files;
+  removing every song is at the foot of Settings.

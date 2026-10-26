@@ -205,6 +205,20 @@ export const CloudDownload = icon(() => (
   </>
 ))
 
+/** A cloud alone: what is not on this device and plays from your storage. */
+export const Cloud = icon(() => (
+  <Path d="M7 19a4.5 4.5 0 0 1-.4-9A6 6 0 0 1 18 11a4 4 0 0 1-1 8Z" />
+))
+
+export const Wifi = icon(color => (
+  <>
+    <Path d="M2.5 9a14 14 0 0 1 19 0" />
+    <Path d="M5.5 12.5a9.5 9.5 0 0 1 13 0" />
+    <Path d="M8.6 16a5 5 0 0 1 6.8 0" />
+    <Circle cx="12" cy="19.3" r="1.2" fill={color} stroke="none" />
+  </>
+))
+
 /**
  * Taking a song off this device: the same cloud, with the arrow replaced by a
  * cross rather than a different shape altogether — undownloading is the

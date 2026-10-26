@@ -111,7 +111,7 @@ text field, where it selects the words (the palette's box, Library's search), in
 dialog or list box, and while a sheet, popover or dialog is open over the page
 (`shell/layers.ts`), so the songs under an open More are not changed beneath it. Only the
 page in front listens: a page pushed over Library leaves Library mounted, and its ⌘A must not
-select Library's songs. Settings › Keyboard shortcuts lists these keys after the menu's.
+select Library's songs. Settings › Advanced › Keyboard shortcuts lists these keys after the menu's.
 
 On an iPad or an iPhone with a hardware keyboard, ⌘A and Escape alone, as key commands
 (`useListKeys.ts`, [MOBILE.md](../MOBILE.md), "A hardware keyboard"): ⌘A stands aside in a

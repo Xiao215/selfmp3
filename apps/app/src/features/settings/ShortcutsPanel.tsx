@@ -4,7 +4,7 @@ import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import type { MenuCommand } from '../../ports/menuKeys'
 import { Kbd } from '../../ui/components/Kbd'
-import { Panel, partStyles } from './SettingsParts'
+import { Card, partStyles } from './SettingsParts'
 import { LIST_ROWS_TAKE_KEYS } from '../../selection/useListKeys'
 import { listShortcutRows, shortcutRows } from './shortcuts.model'
 import { space } from '@selfmp3/client'
@@ -15,19 +15,13 @@ import { space } from '@selfmp3/client'
  * it registers from the same list — and then a song list's keys. Nowhere else:
  * a browser tab has no shortcuts of its own, and a finger has no keys.
  */
-export function ShortcutsPanel({
-  items,
-  anchor,
-}: {
-  items: readonly MenuCommand[]
-  anchor: (node: View | null) => void
-}): ReactNode {
+export function ShortcutsPanel({ items }: { items: readonly MenuCommand[] }): ReactNode {
   const rows = useMemo(
     () => [...shortcutRows(items), ...listShortcutRows(LIST_ROWS_TAKE_KEYS)],
     [items],
   )
   return (
-    <Panel title="Keyboard shortcuts" anchor={anchor}>
+    <Card title="Keyboard shortcuts">
       {rows.map(row => (
         <View key={row.label} style={styles.shortcut}>
           <View style={styles.keys}>
@@ -38,7 +32,7 @@ export function ShortcutsPanel({
           <Text style={partStyles.hint}>{row.label}</Text>
         </View>
       ))}
-    </Panel>
+    </Card>
   )
 }
 

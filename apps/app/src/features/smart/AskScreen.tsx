@@ -508,12 +508,7 @@ const TurnView = memo(function TurnView({
           {latest ? (
             <AnswerActions>
               {settingsHelp(answer.error) ? (
-                <Button
-                  label="Open Settings"
-                  onPress={() =>
-                    router.navigate({ pathname: '/settings', params: { section: 'smart' } })
-                  }
-                />
+                <Button label="Open Settings" onPress={() => router.navigate('/settings')} />
               ) : null}
               <Button
                 label="Try again"

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Linking, type View } from 'react-native'
+import { Linking } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { MAC_CHIP_NAMES, MAC_CHIPS, RELEASES_URL, type MacChip } from '@selfmp3/shared'
 import { macApp } from '../../ports/macApp'
 import { Button } from '../../ui/components/Button'
-import { Panel, Row } from './SettingsParts'
+import { Card, Row } from './SettingsParts'
 import { downloadHint } from './settings.model'
 import { STALE } from '@selfmp3/client'
 
@@ -19,7 +19,7 @@ import { STALE } from '@selfmp3/client'
  * tell. With no release to offer, or no answer from GitHub, the one button is
  * the releases page, which always exists.
  */
-export function GetAppPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
+export function GetAppPanel(): ReactNode {
   const release = useQuery({
     queryKey: ['github', 'latest-release'],
     queryFn: () => macApp.latest(),
@@ -44,7 +44,7 @@ export function GetAppPanel({ anchor }: { anchor: (node: View | null) => void })
   const offers = installers ? chips.filter(one => installers.dmg[one] !== null) : []
 
   return (
-    <Panel title="Mac app" anchor={anchor}>
+    <Card title="Mac app">
       <Row
         label="self.mp3 for Mac"
         hint={downloadHint({
@@ -75,6 +75,6 @@ export function GetAppPanel({ anchor }: { anchor: (node: View | null) => void })
           />
         )}
       </Row>
-    </Panel>
+    </Card>
   )
 }

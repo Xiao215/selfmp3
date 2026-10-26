@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { DEFAULT_SETTINGS, type Settings } from '@selfmp3/shared'
 import { configureClient, type Api } from '@selfmp3/client'
 import { ImportingPanel } from './ImportingPanel'
-import { SmartPanel } from './SmartPanel'
+import { RememberedCard, SmartTile } from './SmartPanel'
 
 /**
  * The settings a server acts on, changed from a signed-in device (2026-10-14).
@@ -99,13 +99,9 @@ const draw = async (ui: ReactNode) => {
   return { ...drawn, client }
 }
 
-const anchor = (): void => undefined
-
-it('turns smart features off on the server itself, with one switch', async () => {
-  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  const smart = await screen.findByRole('switch', { name: 'Use smart features' })
-  expect(screen.getByRole('switch', { name: 'Use smart features', checked: true })).toBe(smart)
-  expect(screen.getAllByRole('switch')).toHaveLength(1)
+it('turns smart features off on the server itself, with one tile', async () => {
+  const { unmount, client } = await draw(<SmartTile />)
+  const smart = await screen.findByRole('switch', { name: 'Smart features, On', checked: true })
 
   await fireEvent.press(smart)
   await waitFor(() => expect(stored.smartFeatures).toBe(false))
@@ -122,26 +118,37 @@ it('turns smart features off on the server itself, with one switch', async () =>
   client.clear()
 })
 
-it('dims the switch and says so when the server has no model', async () => {
+it('says it is not set up, rather than being a switch, when the server has no model', async () => {
   modelAddress = null
-  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  expect(await screen.findByText('Your server has no model set up.')).toBeTruthy()
-  expect(screen.getByRole('switch', { name: 'Use smart features', disabled: true })).toBeTruthy()
-  await unmount()
-  client.clear()
-})
-
-it('says the computer is away rather than drawing a switch that goes nowhere', async () => {
-  up = false
-  const { unmount, client } = await draw(<SmartPanel anchor={anchor} />)
-  expect(await screen.findByText('Your library’s computer')).toBeTruthy()
+  const { unmount, client } = await draw(<SmartTile />)
+  const tile = await screen.findByRole('button', { name: 'Smart features, Not set up' })
+  expect(tile).toBeDisabled()
   expect(screen.queryByRole('switch')).toBeNull()
   await unmount()
   client.clear()
 })
 
+it('says it cannot reach the computer rather than drawing a switch that goes nowhere', async () => {
+  up = false
+  const { unmount, client } = await draw(<SmartTile />)
+  expect(await screen.findByRole('button', { name: 'Smart features, Can’t reach' })).toBeTruthy()
+  expect(screen.queryByRole('switch')).toBeNull()
+  await unmount()
+  client.clear()
+})
+
+it('lists what Ask remembers, and forgets one on the server', async () => {
+  stored = { ...DEFAULT_SETTINGS, smartNotes: ['Song names in Chinese only', 'No live versions'] }
+  const { unmount, client } = await draw(<RememberedCard />)
+  expect(await screen.findByText('Song names in Chinese only')).toBeTruthy()
+  await fireEvent.press(screen.getAllByRole('button', { name: 'Remove' })[0]!)
+  await waitFor(() => expect(stored.smartNotes).toEqual(['No live versions']))
+  await unmount()
+  client.clear()
+})
+
 it('changes how the server imports', async () => {
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  const { unmount, client } = await draw(<ImportingPanel />)
   const lyrics = await screen.findByRole('switch', { name: 'Look up lyrics automatically' })
 
   await fireEvent.press(lyrics)
@@ -153,7 +160,7 @@ it('changes how the server imports', async () => {
 
 it('says it cannot reach the server when the library names none', async () => {
   named = null
-  const { unmount, client } = await draw(<ImportingPanel anchor={anchor} />)
+  const { unmount, client } = await draw(<ImportingPanel />)
   // Away, which it is only once the device's copy has answered that it names none.
   expect(await screen.findByRole('button', { name: 'Look again' })).toBeTruthy()
   await unmount()

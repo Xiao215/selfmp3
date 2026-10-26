@@ -1,19 +1,17 @@
 import { useEffect } from 'react'
-import type { ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { isNewerIosBuild, type IosLatest } from '@selfmp3/shared'
 import { STALE } from '@selfmp3/client'
 import { iosUpdate } from '../../ports/iosUpdate'
 import { prefs } from '../../ports/prefs'
-import { Button } from '../../ui/components/Button'
 import { showToast } from '../../ui/toast'
-import { Row } from './SettingsParts'
+import type { UpdateStatus } from './AboutCard'
 
 /**
  * A newer build of the iPhone app, shared from the `ios` release
- * (packages/shared/src/iosApp.ts): said once per build in a toast, and in
- * Settings › About an Updates row, as the Mac app has, that checks on asking
- * and installs what it finds. Nothing anywhere else, where `iosUpdate.offered`
+ * (packages/shared/src/iosApp.ts): said once per build in a toast, and on
+ * Settings' About card, as the Mac app's is, checked on asking and installed
+ * from there. Nothing anywhere else, where `iosUpdate.offered`
  * is false.
  */
 
@@ -48,34 +46,32 @@ export function IosUpdateNotice(): null {
   return null
 }
 
-/** Settings › About: where the check has got to, and the one thing to do about it. */
-export function IosUpdateRow(): ReactNode {
+/**
+ * Settings › About: where the check has got to, and the one thing to do about
+ * it. Null where builds are not shared this way (`iosUpdate.offered`).
+ */
+export function useIosUpdateStatus(): UpdateStatus | null {
   const latest = useLatestBuild()
   if (!iosUpdate.offered) return null
   const newer = newerThanThis(latest.data)
-  const hint = latest.isFetching
-    ? 'Looking…'
-    : newer
-      ? `Build ${newer.build} is ready. iOS asks before it replaces this one; your music and settings stay.`
-      : latest.isError
-        ? 'Could not check: no answer from GitHub.'
-        : latest.isSuccess
-          ? 'This is the latest build.'
-          : 'Not checked yet.'
-  return (
-    <Row label="Updates" hint={hint} last>
-      {newer ? (
-        <Button label="Install" variant="primary" onPress={install} testID="settings-ios-update" />
-      ) : (
-        <Button
-          label={latest.isFetching ? 'Checking…' : 'Check for updates'}
-          onPress={() => void latest.refetch()}
-          disabled={latest.isFetching}
-          testID="settings-ios-update-check"
-        />
-      )}
-    </Row>
-  )
+  if (newer) {
+    return {
+      tone: 'ready',
+      line: `Build ${newer.build} is ready`,
+      action: { label: 'Install', onPress: install, primary: true, testID: 'settings-ios-update' },
+    }
+  }
+  const check = {
+    label: latest.isFetching ? 'Checking…' : latest.isSuccess ? 'Check again' : 'Check',
+    onPress: () => void latest.refetch(),
+    busy: latest.isFetching,
+    testID: 'settings-ios-update-check',
+  }
+  return latest.isError
+    ? { tone: 'error', line: 'Couldn’t check', action: check }
+    : latest.isSuccess
+      ? { tone: 'good', line: 'Up to date', action: check }
+      : { tone: 'quiet', line: 'Not checked yet', action: check }
 }
 
 /** The version as About shows it: with the build number where builds are shared. */

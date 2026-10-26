@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react'
-import type { View } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { STALE, useScanLibrary, type Api } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerApi } from '../../connection/useServerApi'
 import { viaKey } from '../../connection/via'
 import { Button } from '../../ui/components/Button'
-import { Refresh } from '../../ui/components/Icons'
-import { Panel, Row } from './SettingsParts'
+import { Card, PathRow, Row } from './SettingsParts'
 import { scanHint } from './settings.model'
 
 /**
@@ -16,16 +14,16 @@ import { scanHint } from './settings.model'
  * and a rescan of it. All of it is the server's, so a cloud library reaches
  * the server for it, as Import does, and says so when it cannot.
  */
-export function LibraryPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
+export function LibraryPanel(): ReactNode {
   const server = useServerApi()
   return (
-    <Panel title="Library" anchor={anchor}>
+    <Card title="Library">
       {server.reach.state !== 'reachable' || !server.api ? (
         <ServerAway reach={server.reach} need="settings" row testID="library-server" />
       ) : (
         <LibraryRows api={server.api} baseUrl={server.via?.baseUrl} />
       )}
-    </Panel>
+    </Card>
   )
 }
 
@@ -43,12 +41,12 @@ function LibraryRows({ api, baseUrl }: { api: Api; baseUrl: string | undefined }
 
   return (
     <>
-      {libraryPath !== undefined ? <Row label="Folder" hint={libraryPath} /> : null}
+      {libraryPath !== undefined ? <PathRow label="Folder" path={libraryPath} /> : null}
       <Row label="Rescan the folder" hint={scanHint(scan.data)} last>
         <Button
           label={scan.isPending ? 'Scanning…' : 'Rescan'}
-          icon={<Refresh tone="textPrimary" />}
-          disabled={scan.isPending}
+          variant="text"
+          busy={scan.isPending}
           onPress={() => scan.mutate()}
         />
       </Row>

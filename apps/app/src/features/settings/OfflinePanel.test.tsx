@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import type { Library, Song, SyncManifest } from '@selfmp3/shared'
 
-import { OfflinePanel } from './OfflinePanel'
+import { OfflinePanel, RemoveAllFromDevice } from './OfflinePanel'
 
 /**
  * The numbers in Settings → On this phone, and the buttons that delete things.
@@ -100,8 +100,14 @@ function downloads(
   }
 }
 
-const draw = () =>
-  render(<OfflinePanel title="On this phone" anchor={() => undefined} onConfirm={jest.fn()} />)
+/** The card, and the foot of the page where "Remove all" is. */
+const draw = (onConfirm = jest.fn()) =>
+  render(
+    <>
+      <OfflinePanel title="On this phone" />
+      <RemoveAllFromDevice onConfirm={onConfirm} />
+    </>,
+  )
 
 describe('On this phone counts', () => {
   beforeEach(() => {
@@ -116,8 +122,7 @@ describe('On this phone counts', () => {
     mockDownloads = downloads(all.slice(0, 43))
     await draw()
 
-    expect(screen.getByText('43')).toBeTruthy()
-    expect(screen.getByText('of 45 songs on this phone')).toBeTruthy()
+    expect(screen.getByText('43 of 45 songs')).toBeTruthy()
   })
 
   /*
@@ -131,8 +136,7 @@ describe('On this phone counts', () => {
     mockDownloads = downloads(all.slice(0, 43).filter(id => id !== 7 && id !== 8))
     await draw()
 
-    expect(screen.getByText('41')).toBeTruthy()
-    expect(screen.getByText('of 43 songs on this phone')).toBeTruthy()
+    expect(screen.getByText('41 of 43 songs')).toBeTruthy()
   })
 
   /*
@@ -147,9 +151,8 @@ describe('On this phone counts', () => {
     mockDownloads = downloads(all.slice(0, 43))
     await draw()
 
-    expect(screen.getByText('41')).toBeTruthy()
-    expect(screen.getByText('of 43 songs on this phone')).toBeTruthy()
-    expect(screen.queryByText('43')).toBeNull()
+    expect(screen.getByText('41 of 43 songs')).toBeTruthy()
+    expect(screen.queryByText('43 of 45 songs')).toBeNull()
   })
 
   it('offers to remove everything the device keeps, library or not', async () => {
@@ -158,7 +161,7 @@ describe('On this phone counts', () => {
     mockDownloads = downloads([90, 91])
     await draw()
 
-    expect(screen.getByText('0')).toBeTruthy()
+    expect(screen.getByText('0 of 2 songs')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Remove all from this phone' })).toBeTruthy()
   })
 })
@@ -177,9 +180,7 @@ describe('the buttons that delete things', () => {
     // Nothing leftover, so "Remove all downloads" is the only button here.
     mockManifest = { data: undefined }
     mockDownloads = downloads([1, 2], { removing: true })
-    await render(
-      <OfflinePanel title="On this phone" anchor={() => undefined} onConfirm={onConfirm} />,
-    )
+    await draw(onConfirm)
 
     const button = screen.getByRole('button', { name: 'Removing…' })
     expect(button).toBeDisabled()

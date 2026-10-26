@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
-import type { View } from 'react-native'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerApi } from '../../connection/useServerApi'
-import { Select } from '../../ui/components/Select'
 import { Toggle } from '../../ui/components/Toggle'
-import { Panel, Row, SettingsWaiting } from './SettingsParts'
+import { Card, Row, SettingsWaiting, Stepper } from './SettingsParts'
 import { useServerSettings } from './useServerSettings'
 
 /**
@@ -12,23 +10,24 @@ import { useServerSettings } from './useServerSettings'
  * from and written to that server — reached directly from a cloud library, the
  * way Import is, and said to be away when it is.
  */
-export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void }): ReactNode {
+export function ImportingPanel(): ReactNode {
   const server = useServerApi()
   const { settings, failed, retry, set } = useServerSettings(
     server.api,
     server.via?.baseUrl ?? null,
   )
   return (
-    <Panel title="Importing" anchor={anchor}>
+    <Card title="Importing">
       {server.reach.state !== 'reachable' ? (
         <ServerAway reach={server.reach} need="settings" row testID="importing-server" />
       ) : settings ? (
         <>
           <Row label="Downloads at once">
-            <Select<number>
+            <Stepper
               value={settings.importConcurrency}
+              min={1}
+              max={4}
               onChange={value => set('importConcurrency', value)}
-              options={[1, 2, 3, 4].map(value => ({ value, label: String(value) }))}
               label="Downloads at once"
             />
           </Row>
@@ -53,6 +52,6 @@ export function ImportingPanel({ anchor }: { anchor: (node: View | null) => void
       ) : (
         <SettingsWaiting failed={failed} onRetry={retry} />
       )}
-    </Panel>
+    </Card>
   )
 }

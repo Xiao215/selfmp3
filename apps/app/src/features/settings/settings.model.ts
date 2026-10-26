@@ -1,84 +1,30 @@
 import type { DeviceKind, Health, ScanResult } from '@selfmp3/shared'
-import { clamp01 } from '@selfmp3/shared'
 import { bucketCapped, unreachableLabel, untilCapResets } from '../library/library.model'
 
 /**
- * Settings' rules, with nothing drawn: which sections a device shows, which one
- * the reader is looking at, and the short phrases the rows are made of.
+ * Settings' rules, with nothing drawn: its pages, crossfade's steps, and the
+ * short phrases the rows are made of.
  */
 
 /** Which destructive action is waiting to be confirmed, if any. */
 export type Confirming = 'remove-downloads' | 'sign-out' | 'forget-storage' | null
 
-export type SectionId =
-  | 'playback'
-  | 'offline'
-  | 'importing'
-  | 'library'
-  | 'account'
-  | 'smart'
-  | 'devices'
-  | 'desktop'
-  | 'getApp'
-  | 'appearance'
-  | 'shortcuts'
-  | 'about'
-  | 'advanced'
+/** Settings' own pages, under the one page (B, 2026-10-26). */
+export const ACCOUNT_ROUTE = '/settings/account'
+export const ADVANCED_ROUTE = '/settings/advanced'
+export const REMEMBERED_ROUTE = '/settings/remembered'
 
 /**
- * The groups, in page order (`P38`, `C17`): About first, then who you are and
- * the look, then what this device keeps, then the rest. `advanced`: it is about running
- * the server or the Mac app rather than using self.mp3, so it sits under
- * Advanced at the end, behind one chip (O1).
- *
- * A section that acts on the server — Devices, Smart features, Library,
- * Importing — is shown on every device: a cloud library reaches its
- * server for it, the way Import does, and says so when it cannot.
+ * Crossfade's steps (C4a): a handful of lengths worth telling apart, rather
+ * than a slider whose every second sounds the same as the next. A length kept
+ * from before that is not one of them shows as the nearest.
  */
-export const ALL_SECTIONS: readonly {
-  id: SectionId
-  label: string
-  advanced?: boolean
-}[] = [
-  { id: 'about', label: 'About' },
-  // Which library this is, and signing out of it.
-  { id: 'account', label: 'Account' },
-  { id: 'appearance', label: 'Appearance' },
-  // Named for the device it is on; see `sectionsFor`.
-  { id: 'offline', label: 'On this phone' },
-  { id: 'devices', label: 'Devices' },
-  { id: 'playback', label: 'Playback' },
-  { id: 'smart', label: 'Smart features' },
-  { id: 'shortcuts', label: 'Keyboard shortcuts' },
-  { id: 'library', label: 'Library', advanced: true },
-  { id: 'importing', label: 'Importing', advanced: true },
-  { id: 'desktop', label: 'Desktop app', advanced: true },
-  // The same place in the page as Desktop app, for the tab that could become it.
-  { id: 'getApp', label: 'Mac app', advanced: true },
-]
+export const CROSSFADE_STEPS = [0, 2, 4, 6, 10] as const
 
-/** One shown section: where the page can land, and whether it is under Advanced. */
-export interface Section {
-  readonly id: SectionId
-  readonly label: string
-  readonly advanced: boolean
-}
-
-/** The chip, or the index link, a section is read under: Advanced for its own. */
-export function indexIdFor(id: SectionId, sections: readonly Section[]): SectionId {
-  return sections.find(section => section.id === id)?.advanced ? 'advanced' : id
-}
-
-/**
- * The page's index: every section that is not under Advanced, then Advanced
- * itself when anything is under it. The sections under it are still places a
- * link can land (`/settings?section=cloud`); they share its chip.
- */
-export function settingsIndex(sections: readonly Section[]): readonly Section[] {
-  const index = sections.filter(section => !section.advanced)
-  return sections.some(section => section.advanced)
-    ? [...index, { id: 'advanced', label: 'Advanced', advanced: false }]
-    : index
+export function nearestStep(seconds: number): (typeof CROSSFADE_STEPS)[number] {
+  return CROSSFADE_STEPS.reduce((best, step) =>
+    Math.abs(step - seconds) < Math.abs(best - seconds) ? step : best,
+  )
 }
 
 /**
@@ -102,108 +48,6 @@ export function devicePlace(kind: DeviceKind, installed: boolean, iPad = false):
 /** "On this phone", "On this iPad", "On this computer", "On this browser": what this device keeps. */
 export function onThisDevice(place: DevicePlace): string {
   return `On this ${place}`
-}
-
-/**
- * `crossfade`: Playback holds only crossfade, which a phone's engine cannot do.
- * `installed`: a browser streams and keeps no songs, so it has nothing on it.
- * `keyboard`: there are keys to list and a keyboard to press them on — the
- * installed desktop app's menu, or an iPad's or an iPhone's while a hardware
- * keyboard is attached. A browser tab has only Space, for play and pause, and
- * a finger has no keys to press.
- * `shell`: only the installed desktop app can open at login, and a section with
- * nothing in it is worse than one that is not there — so it defaults to absent.
- * `place`: names the group of what this device keeps.
- * `offered`: a browser tab on a Mac is offered the desktop app to install
- * (`ports/macApp`); the app itself, a phone and a Windows browser are not.
- */
-export function sectionsFor({
-  crossfade = true,
-  installed = true,
-  keyboard = false,
-  shell = false,
-  place = 'phone',
-  offered = false,
-}: {
-  readonly crossfade?: boolean
-  readonly installed?: boolean
-  readonly keyboard?: boolean
-  readonly shell?: boolean
-  readonly place?: DevicePlace
-  readonly offered?: boolean
-} = {}): readonly Section[] {
-  return ALL_SECTIONS.filter(
-    section =>
-      (crossfade || section.id !== 'playback') &&
-      (installed || section.id !== 'offline') &&
-      (keyboard || section.id !== 'shortcuts') &&
-      (shell || section.id !== 'desktop') &&
-      (offered || section.id !== 'getApp'),
-  ).map(section => ({
-    id: section.id,
-    label: section.id === 'offline' ? onThisDevice(place) : section.label,
-    advanced: section.advanced ?? false,
-  }))
-}
-
-/** How far below the top of the page a section counts as the one being read. */
-const READING_LINE = 96
-
-/**
- * Where to scroll so a section chosen from the index lands at the top of what
- * can be read.
- *
- * `top` is the section's top in the scroll content, measured as it is now: a
- * panel above it that has since loaded its data has pushed it down, and an
- * offset kept from the first layout would stop a panel or two short.
- * `clearance` is what covers the top of the scroll area — the page's top
- * padding beside the index column, the sticky chips and their gap on a narrow
- * screen — so the heading sits where the first panel sits unscrolled. Never
- * above the start of the page; the end of the page is the scroll view's to clamp.
- */
-export function landingOffset(top: number, clearance: number): number {
-  return Math.max(0, Math.round(top - clearance))
-}
-
-/**
- * Which section the reader is looking at.
- *
- * Normally the last section whose top has passed a line near the top. When the
- * last few sections are short, the page runs out before their tops reach that
- * line, so once the last section that can reach it has had its turn, the line
- * slides down to the bottom edge over the rest of the page and each of the
- * short ones gets its turn on the way down. Where every section reaches the
- * line (a tall last section, as Advanced is) nothing slides: sliding anyway
- * lit the section below the one just chosen at the first nudge of the page.
- */
-export function activeSection<T extends string>(
-  sections: readonly { id: T; top: number }[],
-  scrollY: number,
-  viewHeight: number,
-  contentHeight: number,
-): T | null {
-  const first = sections[0]
-  if (!first || viewHeight <= 0) return null
-  const maxScroll = Math.max(0, contentHeight - viewHeight)
-  const reaches = (section: { top: number }): boolean => section.top - READING_LINE <= maxScroll
-  let line = scrollY + READING_LINE
-  if (!sections.every(reaches)) {
-    // From where the last section that can reach the line reaches it.
-    const lastReaching = sections.filter(reaches).at(-1)
-    const from = Math.min(maxScroll, Math.max(0, (lastReaching?.top ?? 0) - READING_LINE))
-    const approach =
-      maxScroll > from
-        ? clamp01((scrollY - from) / (maxScroll - from))
-        : scrollY >= maxScroll
-          ? 1
-          : 0
-    line += (viewHeight - READING_LINE) * approach
-  }
-  let current = first.id
-  for (const section of sections) {
-    if (section.top <= line) current = section.id
-  }
-  return current
 }
 
 export const crossfadeLabel = (seconds: number): string => (seconds === 0 ? 'Off' : `${seconds}s`)

@@ -525,8 +525,8 @@ under the message about self.mp3, or run this once:
 xattr -dr com.apple.quarantine "/Applications/self.mp3.app"
 ```
 
-An unsigned copy cannot replace itself with a new version. Settings › Advanced › Desktop app ›
-**Check for updates** then offers the release page instead.
+An unsigned copy cannot replace itself with a new version. The update check on Settings'
+About card then offers the release page instead.
 
 **If the keychain asks for your password after every install.** An unsigned build is signed
 ad hoc, by a hash of that exact binary, so macOS treats each build as a different app. Build

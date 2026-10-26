@@ -96,7 +96,7 @@ and ⌘, for Settings. Escape — or ⌘., since a Magic Keyboard has no Escape 
 menu or dialog on top, or with none open clears the
 selection and, at a computer's width, closes Now Playing's stage. ⌘A in a song list selects every song. Holding ⌘ shows
 them all in iPadOS's own list, named as the menu names them, and while a keyboard is attached
-Settings › Keyboard shortcuts lists them and the sidebar shows ⌘K beside Search.
+Settings › Advanced › Keyboard shortcuts lists them and the sidebar shows ⌘K beside Search.
 
 React Native delivers no key presses on iOS, so these are the app's own Expo module,
 `apps/app/modules/key-commands`: Swift that puts a `UIKeyCommand` for each key on the root
@@ -404,8 +404,8 @@ signs without the widget's App Group, for profiles made before it was assigned.
 
 **Updates.** The build number is main's commit count (`app.config.js`; the workflow
 checks out all of history for it). An installed release build reads `ios.json` and,
-when the release's build is larger, says so once in a toast; Settings › About has an
-Updates row that checks on asking and installs (`features/settings/IosUpdate.tsx`).
+when the release's build is larger, says so once in a toast; Settings' About card says
+whether it is up to date, checks on asking and installs (`features/settings/IosUpdate.tsx`).
 Install brings up the same iOS question as the page; the app's data stays. A new
 friend's iPhone needs a new build: an existing install keeps working, but the old build
 will not install on the new iPhone.

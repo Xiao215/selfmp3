@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { configureClient, queryKeys, type Api } from '@selfmp3/client'
 import type { Library, Playlist, PlaylistSongs, Song } from '@selfmp3/shared'
@@ -216,5 +216,63 @@ describe('a playlist tile’s menu', () => {
       await fireEvent.press(screen.getByText('Delete'))
     })
     expect(deletePlaylist).toHaveBeenCalledWith(7)
+  })
+})
+
+describe('making a playlist by picking songs', () => {
+  async function pickOneAndMake(): Promise<void> {
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('playlists-new-tile'))
+    })
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('new-playlist-pick'))
+    })
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('new-playlist-next'))
+    })
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('Add Song 1'))
+    })
+    await act(async () => {
+      await fireEvent.press(screen.getByTestId('add-songs-create'))
+    })
+  }
+
+  beforeEach(() => createPlaylist.mockReset())
+
+  it('is made at once while offline, rather than waiting in memory for the network (R3-M5)', async () => {
+    createPlaylist.mockResolvedValue({ ...evening, id: 9, name: 'New playlist' })
+    onlineManager.setOnline(false)
+    try {
+      await renderScreen()
+      await pickOneAndMake()
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 20))
+      })
+      expect(createPlaylist).toHaveBeenCalledTimes(1)
+      expect(mockPush).toHaveBeenCalledWith({ pathname: '/playlists/[id]', params: { id: '9' } })
+    } finally {
+      onlineManager.setOnline(true)
+    }
+  })
+
+  it('never opens the playlist of a sheet that was cancelled while it was being made (R3-M5)', async () => {
+    let answer: (playlist: Playlist) => void = () => undefined
+    createPlaylist.mockReturnValue(
+      new Promise<Playlist>(resolve => {
+        answer = resolve
+      }),
+    )
+    await renderScreen()
+    await pickOneAndMake()
+    expect(createPlaylist).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await fireEvent.press(screen.getByText('Cancel'))
+    })
+    await act(async () => {
+      answer({ ...evening, id: 9, name: 'New playlist' })
+      await new Promise(resolve => setTimeout(resolve, 20))
+    })
+    expect(mockPush).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,4 @@
-import { z } from 'zod/v4'
 import type {
-  AiCheck,
   AiSetup,
   ArtistJoinNames,
   AskAnswer,
@@ -38,15 +36,7 @@ import { AskProgress, type Seen } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { fixSong } from './fixSong.js'
 import { refine } from './refine.js'
-import {
-  LlmError,
-  llmFailureWords,
-  noLlm,
-  openAiCompatible,
-  Remembered,
-  type GenerateRequest,
-  type Llm,
-} from './llm.js'
+import { noLlm, openAiCompatible, Remembered, type GenerateRequest, type Llm } from './llm.js'
 import { importNames } from './importNames.js'
 import {
   catalogueFinder,
@@ -106,14 +96,13 @@ export class SmartFeatures {
   ask(
     text: string,
     playing: number | null = null,
-    allowed: { tidy: boolean; tags: boolean } = { tidy: true, tags: true },
     ticket?: string,
     before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
   ): Promise<AskAnswer> {
     return this.#progress.outlast(ticket, signal, (steps, stop) =>
-      ask(this.#stoppedBy(stop), text, playing, allowed, steps, before),
+      ask(this.#stoppedBy(stop), text, playing, steps, before),
     )
   }
 
@@ -147,33 +136,6 @@ export class SmartFeatures {
     return this.#deps.setup
   }
 
-  /**
-   * Settings' Test: the smallest call that goes the whole way — the fast tier,
-   * a JSON schema, the reply checked — so passing means the features can run.
-   */
-  async check(): Promise<AiCheck> {
-    try {
-      const { ms } = await this.#deps.llm.generate({
-        task: 'check',
-        tier: 'fast',
-        system: 'You check that a connection works. Reply with JSON only.',
-        prompt: 'Reply {"ok": true}.',
-        schema: CheckReplySchema,
-        timeoutMs: CHECK_TIMEOUT_MS,
-      })
-      return { ok: true, model: this.#deps.setup.models.fast, ms }
-    } catch (caught) {
-      // Nothing stops a check: it has no signal.
-      if (!(caught instanceof LlmError) || caught.kind === 'stopped') throw caught
-      return {
-        ok: false,
-        failure: caught.kind,
-        message: llmFailureWords[caught.kind],
-        detail: caught.message,
-      }
-    }
-  }
-
   /** A5 · the Report in a few sentences; `again` writes it afresh. */
   written(range: WrappedRange, again = false, signal?: AbortSignal): Promise<WrittenReport> {
     return written(this.#stoppedBy(signal), range, again)
@@ -202,11 +164,6 @@ export class SmartFeatures {
     return this.#untagged
   }
 }
-
-/** Long enough for the claude CLI to start a process; short enough to be watched. */
-const CHECK_TIMEOUT_MS = 60_000
-
-const CheckReplySchema = z.object({ ok: z.boolean() })
 
 /**
  * The server's settings as Settings shows them. A base URL can carry a user and
@@ -305,7 +262,7 @@ function counted(llm: Llm, metrics: Pick<ServerMetrics, 'count'>): Llm {
 }
 
 /** The configured model, or the stand-in that says smart features are off. */
-export function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
+function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
   const { ai } = config
   if (!ai.baseUrl) return noLlm
   return openAiCompatible(

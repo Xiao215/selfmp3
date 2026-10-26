@@ -1,4 +1,4 @@
-import { ApplyMetadataSchema, type FixCoversStatus, type MetadataCandidate } from '@selfmp3/shared'
+import { ApplyMetadataSchema, type MetadataCandidate } from '@selfmp3/shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -6,15 +6,11 @@ import {
   applyLabel,
   appliedCount,
   candidateLine,
-  coverArtHint,
-  coverProgress,
-  coverResult,
   defaultTicked,
   diffFields,
   diffLabel,
   editable,
   handEdits,
-  missingArtCount,
   scorePercent,
 } from './metadata.model'
 
@@ -107,35 +103,5 @@ describe('metadata changes', () => {
   it('describes a suggestion on one line', () => {
     expect(candidateLine(CANDIDATE)).toBe('YOASOBI · アイドル · 2023 · 3:32')
     expect(scorePercent(0.451)).toBe('45%')
-  })
-})
-
-describe('the cover-art pass', () => {
-  const status = (patch: Partial<FixCoversStatus>): FixCoversStatus => ({
-    status: 'running',
-    total: 12,
-    done: 2,
-    found: 1,
-    currentTitle: 'アイドル',
-    startedAt: null,
-    finishedAt: null,
-    ...patch,
-  })
-
-  it('counts the songs that have no art', () => {
-    expect(missingArtCount([{ hasArt: false }, { hasArt: true }])).toBe(1)
-    expect(coverArtHint(0)).toBe('Every song has artwork.')
-    expect(coverArtHint(1)).toMatch(/^1 song has none/)
-  })
-
-  it('says where it is while running, and what it found after', () => {
-    expect(coverProgress(status({}))).toBe('Checking 3 of 12 — アイドル · 1 found')
-    expect(coverResult(status({}))).toBeNull()
-    expect(coverResult(status({ status: 'done', done: 12, found: 4 }))).toBe(
-      'Found artwork for 4 of 12 songs.',
-    )
-    expect(coverResult(status({ status: 'cancelled', done: 5, found: 1 }))).toBe(
-      'Stopped. Found artwork for 1 of 5 songs (7 not checked).',
-    )
   })
 })

@@ -112,13 +112,12 @@ the import's address (`sourceOf`).
 
 ### What apps report
 
-While **Count features I use** is on (Settings › About, on by default), an app counts a few
-named features as they are used (Now Playing, Search, Lyrics, Import, Ask, Up next, a share
-link, a room) and the problems it showed (the cloud out of reach, the server away, the bucket
-full for the day). Once a day it sends the day's counts to its library's server
-(`POST /api/usage`, `UsageReportSchema`). The server adds them to that day's totals and keeps
-nothing else, not even which library sent them. Nothing about what was played, searched or
-asked is ever counted.
+An app always counts a few named features as they are used (Now Playing, Search, Lyrics,
+Import, Ask, Up next, a share link, a room) and the problems it showed (the cloud out of
+reach, the server away, the bucket full for the day). Once a day it sends the day's counts
+to its library's server (`POST /api/usage`, `UsageReportSchema`). The server adds them to
+that day's totals and keeps nothing else, not even which library sent them. Nothing about
+what was played, searched or asked is ever counted.
 
 ## Deploying
 

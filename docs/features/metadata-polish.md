@@ -39,14 +39,6 @@ what the library has; the right lists candidates with artwork thumbnails, a sour
 and a match percentage. Pick a candidate, and the diff below it lists only the fields that
 would change — untick anything you do not want, then **Apply**.
 
-**Whole library.** In *Settings → Advanced → Library → Cover art*, **Find missing art** starts a
-background pass over every song without artwork. That panel is drawn only for a device
-talking to a server by its address (development builds); otherwise start it with
-`POST /api/library/fix-covers`. It stores art only from candidates scoring at least
-0.85 — a missing cover is a placeholder gradient, a wrong one is misleading. Progress is
-shown live and covers fill in as they land; **Stop looking** cancels. The pass is safe to
-re-run: it only ever looks at songs that still lack art.
-
 **What is missing, as a review.** Ask's "Fill in what's missing" (or Tidy up's checkup, which
 counts the songs lacking an album, a year or a cover) looks the songs up through these same
 lookups and 网易云, and offers each missing album, year and cover as a change to tick rather
@@ -59,9 +51,6 @@ than storing anything: [ai.md](ai.md), "Filling in what's missing".
 | `GET` | `/api/songs/:id/lookup` | `{ candidates: MetadataCandidate[] }`, best first |
 | `POST` | `/api/songs/:id/apply-metadata` | Partial `{ title, artist, album, albumArtist, year, trackNo, artworkUrl }`; returns `{ ok, artworkSaved }` |
 | `DELETE` | `/api/songs/:id/cover` | Take the song's cover off, leaving none: the Undo of a filled-in cover ([ai.md](ai.md)) |
-| `POST` | `/api/library/fix-covers` | Start the cover-art pass (idempotent while running) |
-| `GET` | `/api/library/fix-covers` | `FixCoversStatus` — `idle | running | done | cancelled`, counts, current title |
-| `POST` | `/api/library/fix-covers/cancel` | Stop after the current song |
 
 Schemas live in `packages/shared/src/schemas/metadata.ts`.
 
@@ -84,12 +73,9 @@ closes. A new cover arrives with the server's next sync, not at once.
 - `apps/server/src/services/lookupParsers.ts` — pure JSON → candidate parsers
 - `apps/server/src/services/lookupScore.ts` — pure normalisation and scoring
 - `apps/server/src/services/rateLimiter.ts` — the 1 req/s gate for MusicBrainz
-- `apps/server/src/services/fixCovers.ts` — the background pass
 - `apps/server/src/routes/metadata.ts` — the routes above
 - `apps/app/src/features/metadata/` — the UI: `FixMetadata.tsx` (which library answers),
-  `MetadataDialog.tsx`, `metadataSource.ts`, `metadata.model.ts`; and the cover-fixing
-  controls in `apps/app/src/features/settings/LibraryPanel.tsx` (`useFixCovers`,
-  `useFixCoversStatus`)
+  `MetadataDialog.tsx`, `metadataSource.ts`, `metadata.model.ts`
 
 Tests cover scoring, the rate limiter, the parsers (against fixture JSON in
 `services/fixtures/`) and the service's failure modes with a fake `fetch`. A live iTunes

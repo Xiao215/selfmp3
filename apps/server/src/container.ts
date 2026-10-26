@@ -36,7 +36,6 @@ import { ImportQueueService } from './services/importQueue.js'
 import { LibraryWatcherService } from './services/libraryWatcher.js'
 import type { MetadataLookupService } from './services/lookup.js'
 import { smartFeaturesFor, type SmartFeatures } from './ai/smart.js'
-import { FixCoversService } from './services/fixCovers.js'
 import { LyricsSearchRepository } from './repositories/lyricsSearch.js'
 import type { KeepAwakeService } from './services/keepAwake.js'
 import { LyricsCache } from './services/lyricsCache.js'
@@ -125,7 +124,6 @@ export interface Container {
   readonly libraryWatcher: LibraryWatcherService
   readonly lookup: MetadataLookupService
   readonly smart: SmartFeatures
-  readonly fixCovers: FixCoversService
   readonly keepAwake: KeepAwakeService
   readonly lyricsCache: LyricsCache
   /** Each song's motion curve, written by analysis (services/motionStore.ts). */
@@ -140,7 +138,6 @@ export interface Container {
   readonly tagRemoval: TagRemoval
   /** What this server stamps its own edits with (docs/SYNC.md). */
   readonly clock: SyncClock
-  readonly analysis: AnalysisService
   /** How songs sound, as the listening model hears them (sound/sound.ts). */
   readonly sound: SoundService
   /** Where every heard song sits on the sound map (sound/soundMap.ts). */
@@ -533,13 +530,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     lookup,
     metrics: shared.metrics,
   })
-  const fixCovers = new FixCoversService({
-    songs,
-    covers,
-    lookup,
-    logger,
-    onChange: bump,
-  })
   const analysis = new AnalysisService({
     config,
     storage,
@@ -642,7 +632,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     libraryWatcher,
     lookup,
     smart,
-    fixCovers,
     keepAwake,
     lyricsCache,
     motion,
@@ -652,7 +641,6 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     songMerge,
     tagRemoval,
     clock,
-    analysis,
     sound,
     soundMap,
     devices,

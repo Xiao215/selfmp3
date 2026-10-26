@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import {
-  type AiCheck,
   type AiSetup,
   type TidyResult,
   type WrittenReport,
@@ -28,9 +27,6 @@ import { HttpError } from '../http/errors.js'
 import { ParamsWithId, requireSong } from '../http/params.js'
 import { route } from '../http/route.js'
 
-type SmartSwitch =
-  'smartAsk' | 'smartTidy' | 'smartTags' | 'smartWritten' | 'smartMetadata' | 'smartImport'
-
 /**
  * The smart features (docs/features/ai.md). Each answer is a proposal: nothing
  * here writes to the library. Taking a suggestion is the ordinary edit a device
@@ -40,15 +36,14 @@ export function aiRoutes(container: Container): Router {
   const router = Router()
 
   /**
-   * A feature turned off in Settings › Smart features, or all of them with
-   * "Use smart features", is refused before any model is asked.
+   * Smart features turned off in Settings › Smart features are refused before
+   * any model is asked.
    */
-  const allowed = (feature: SmartSwitch): void => {
-    const settings = container.settings.get()
-    if (!settings.smartFeatures || !settings[feature]) {
+  const allowed = (): void => {
+    if (!container.settings.get().smartFeatures) {
       throw new HttpError(
         403,
-        'This smart feature is turned off in Settings › Smart features.',
+        'Smart features are turned off in Settings › Smart features.',
         'ai_disabled',
       )
     }
@@ -59,16 +54,10 @@ export function aiRoutes(container: Container): Router {
     route({}, (): AiSetup => container.smart.setup()),
   )
 
-  /** Settings' Test: a failed call is the answer, not an error. */
-  router.post(
-    '/ai/check',
-    route({}, (): Promise<AiCheck> => container.smart.check()),
-  )
-
   router.post(
     '/ai/describe',
     route({ body: DescribeRequestSchema }, ({ body, res }): Promise<DescribeResult> => {
-      allowed('smartAsk')
+      allowed()
       return answering(container.smart.describe(body, whileWaited(res)))
     }),
   )
@@ -76,19 +65,9 @@ export function aiRoutes(container: Container): Router {
   router.post(
     '/ai/ask',
     route({ body: AskRequestSchema }, ({ body, res }): Promise<AskAnswer> => {
-      allowed('smartAsk')
-      const { smartFeatures, smartTidy, smartTags } = container.settings.get()
-      const tidy = smartFeatures && smartTidy
-      const tags = smartFeatures && smartTags
+      allowed()
       return answering(
-        container.smart.ask(
-          body.text,
-          body.playing,
-          { tidy, tags },
-          body.ticket,
-          body.before,
-          whileWaited(res),
-        ),
+        container.smart.ask(body.text, body.playing, body.ticket, body.before, whileWaited(res)),
       )
     }),
   )
@@ -97,7 +76,7 @@ export function aiRoutes(container: Container): Router {
   router.post(
     '/ai/refine',
     route({ body: RefineRequestSchema }, ({ body, res }): Promise<DescribeResult> => {
-      allowed('smartAsk')
+      allowed()
       return answering(container.smart.refine(body, whileWaited(res)))
     }),
   )
@@ -143,7 +122,7 @@ export function aiRoutes(container: Container): Router {
         }),
       },
       ({ query, res }): Promise<WrittenReport> => {
-        allowed('smartWritten')
+        allowed()
         return answering(container.smart.written(query.range, query.again, whileWaited(res)))
       },
     ),
@@ -158,7 +137,7 @@ export function aiRoutes(container: Container): Router {
         query: z.object({ again: BooleanQuerySchema }),
       },
       ({ params, query, res }): Promise<MetadataSuggestion> => {
-        allowed('smartMetadata')
+        allowed()
         const song = requireSong(container.songs, params.id)
         return answering(container.smart.fixSong(song, query.again, whileWaited(res)))
       },
@@ -168,7 +147,7 @@ export function aiRoutes(container: Container): Router {
   router.get(
     '/ai/tidy',
     route({}, ({ res }): Promise<TidyResult> => {
-      allowed('smartTidy')
+      allowed()
       return answering(container.smart.tidy(whileWaited(res)))
     }),
   )
@@ -177,7 +156,7 @@ export function aiRoutes(container: Container): Router {
   router.post(
     '/ai/import/names',
     route({ body: ImportNamesRequestSchema }, ({ body, res }): Promise<ImportNames> => {
-      allowed('smartImport')
+      allowed()
       return answering(container.smart.importNames(body, whileWaited(res)))
     }),
   )
@@ -185,7 +164,7 @@ export function aiRoutes(container: Container): Router {
   router.get(
     '/ai/tags/untagged',
     route({}, (): Promise<TagReview> => {
-      allowed('smartTags')
+      allowed()
       return answering(container.smart.untaggedTags())
     }),
   )

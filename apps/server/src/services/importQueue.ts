@@ -599,8 +599,7 @@ export class ImportQueueService {
         await this.#covers.saveFromUrl(songId, thumbnail)
       }
 
-      const tagIds = new Set([...job.tagIds, ...settings.defaultImportTagIds])
-      for (const tagId of this.#tags.exists([...tagIds])) {
+      for (const tagId of this.#tags.exists([...new Set(job.tagIds)])) {
         this.#tags.addToSong(songId, tagId)
       }
 

@@ -108,8 +108,6 @@ export async function startFakeServer(): Promise<FakeServer> {
         return send(res, 200, { version: library.version, songCount: library.songs.length })
       case 'GET /api/library':
         return send(res, 200, library)
-      case 'GET /api/settings':
-        return send(res, 200, { defaultImportTagIds: [1] })
       case 'POST /api/tags': {
         const body = (await readJson(req)) as { name: string }
         const made = { id: library.tags.length + 1, name: body.name, hue: 200, songCount: 0 }

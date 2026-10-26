@@ -7,17 +7,16 @@ import { useLocalSearchParams } from 'expo-router'
 import Constants from 'expo-constants'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { radius, space, type, useHealth } from '@selfmp3/client'
-import { setRomanizationOn, useRomanizationOn } from '../nowPlaying/romanizationPref'
 import { loginItem } from '../../ports/loginItem'
 import { macApp } from '../../ports/macApp'
 import { installedApp } from '../../ports/install'
+import { iosUpdate } from '../../ports/iosUpdate'
 import { bucketCapped } from '../library/library.model'
 import { useBucketHold } from '../profile/useBucketHold'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { useContentWidthValue } from '../../shell/contentWidth'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { Chip } from '../../ui/components/Chip'
-import { Toggle } from '../../ui/components/Toggle'
 import { engineCapabilities } from '../../ports/engine'
 import { CROSSFADE_MAX, setCrossfadeSeconds, useCrossfadeSeconds } from '../../player/crossfadePref'
 import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageFrame, label } from '../../ui/surfaces'
@@ -25,9 +24,6 @@ import { SectionHead } from '../../ui/components/SectionHead'
 import { createValueStore, type ValueStore } from '../../state/valueStore.model'
 import { useValueStore } from '../../state/useValueStore'
 import { useMenuCommands } from '../../ports/menuKeys'
-import { Button } from '../../ui/components/Button'
-import { showToast } from '../../ui/toast'
-import { forgetGuides } from '../guide/guideMemory'
 import { Panel, partStyles, Row, SliderSetting, StackedRows } from './SettingsParts'
 import { AppearancePanel } from './AppearancePanel'
 import { Confirmations } from './Confirmations'
@@ -40,7 +36,7 @@ import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
 import { OfflinePanel } from './OfflinePanel'
 import { ShortcutsPanel } from './ShortcutsPanel'
-import { SmartModelPanel, SmartPanel } from './SmartPanel'
+import { SmartPanel } from './SmartPanel'
 import {
   activeSection,
   crossfadeLabel,
@@ -57,7 +53,6 @@ import {
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
 import { COLUMN_WIDTH } from '../../shell/widths'
-import { UsageRow } from '../usage/UsageRow'
 import { thisPlace } from '../../ports/place'
 
 /** The index column itself, and the gutter on either side of it. */
@@ -95,11 +90,10 @@ const LINKED_HOLD_MS = 2500
 /**
  * Settings (`P38`, `C17`).
  *
- * Grouped as the boards group it: the account and the look first, then what
- * this device keeps — "On this phone", "On this computer" — and its devices,
- * then playback, smart features and lyrics. What is about running the server
- * or the Mac app — the library folder, importing, the model — is under one
- * Advanced at the end (O1). What the server acts on is asked of the server,
+ * About first, then the account and the look, then what this device keeps —
+ * "On this phone", "On this computer" — and its devices, then playback and
+ * smart features. What is about running the server or the Mac app — the
+ * library folder, importing — is under one Advanced at the end (O1). What the server acts on is asked of the server,
  * reached directly from a cloud library (`useServerApi`). Each group is a label over a card, its
  * rows told apart by space, and each row says at most one short line. The
  * page carries its own index — a column beside the panels on a wide screen, a
@@ -107,8 +101,6 @@ const LINKED_HOLD_MS = 2500
  * its section (`/settings?section=account`) and lands there.
  */
 export function SettingsScreen(): ReactNode {
-  const pinyinOn = useRomanizationOn('zh')
-  const romajiOn = useRomanizationOn('ja')
   const { wide } = useLayoutFlags()
   const health = useHealth()
   // The bucket refusing for the day, which the health cannot see: in the cloud
@@ -166,7 +158,7 @@ export function SettingsScreen(): ReactNode {
    * time. Only the index reads it (`SectionIndex`).
    */
   const [active] = useState(() =>
-    createValueStore<SectionId>(linkedSection ? indexIdFor(linkedSection, sections) : 'account'),
+    createValueStore<SectionId>(linkedSection ? indexIdFor(linkedSection, sections) : 'about'),
   )
   const chipsRef = useRef<ScrollView>(null)
   const chipsWidth = useRef(0)
@@ -359,6 +351,15 @@ export function SettingsScreen(): ReactNode {
 
         <StackedRows value={!rowsBeside}>
           <View style={styles.panels}>
+            <Panel title="About" anchor={anchorAt('about')}>
+              <Row label="Version" last={!iosUpdate.offered}>
+                <Text style={partStyles.valueText}>
+                  {versionLabel(String(Constants.expoConfig?.version ?? '1.0.0'))}
+                </Text>
+              </Row>
+              <IosUpdateRow />
+            </Panel>
+
             <ConnectionPanel anchor={anchorAt('account')} onConfirm={setConfirming} />
 
             <AppearancePanel anchor={anchorAt('appearance')} />
@@ -382,52 +383,13 @@ export function SettingsScreen(): ReactNode {
 
             <SmartPanel anchor={anchorAt('smart')} />
 
-            <Panel title="Lyrics" anchor={anchorAt('lyrics')}>
-              <Row label="Show pinyin" hint="A romanized line under Chinese lyrics.">
-                <Toggle
-                  value={pinyinOn}
-                  onChange={on => setRomanizationOn('zh', on)}
-                  label="Show pinyin"
-                />
-              </Row>
-              <Row label="Show romaji" hint="A romanized line under Japanese lyrics." last>
-                <Toggle
-                  value={romajiOn}
-                  onChange={on => setRomanizationOn('ja', on)}
-                  label="Show romaji"
-                />
-              </Row>
-            </Panel>
-
             {shortcuts ? <ShortcutsPanel items={shortcuts} anchor={anchorAt('shortcuts')} /> : null}
-
-            <Panel title="About" anchor={anchorAt('about')}>
-              <Row label="Version">
-                <Text style={partStyles.valueText}>
-                  {versionLabel(String(Constants.expoConfig?.version ?? '1.0.0'))}
-                </Text>
-              </Row>
-              <IosUpdateRow />
-              {/* Each guide shows once on a device; this brings them all back, once each. */}
-              <Row label="Tips">
-                <Button
-                  label="Show tips again"
-                  onPress={() => {
-                    forgetGuides()
-                    showToast('Tips will show again.', 'good')
-                  }}
-                  testID="settings-show-tips"
-                />
-              </Row>
-              <UsageRow />
-            </Panel>
 
             {indexed.some(section => section.id === 'advanced') ? (
               <View ref={anchorAt('advanced')} style={styles.advanced}>
                 <SectionHead title="Advanced" />
-                <LibraryPanel anchor={anchorAt('library')} onConfirm={setConfirming} />
+                <LibraryPanel anchor={anchorAt('library')} />
                 <ImportingPanel anchor={anchorAt('importing')} />
-                <SmartModelPanel anchor={anchorAt('model')} />
                 {shown('desktop') ? <DesktopPanel anchor={anchorAt('desktop')} /> : null}
                 {shown('getApp') ? <GetAppPanel anchor={anchorAt('getApp')} /> : null}
               </View>

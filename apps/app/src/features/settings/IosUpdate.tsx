@@ -63,7 +63,7 @@ export function IosUpdateRow(): ReactNode {
           ? 'This is the latest build.'
           : 'Not checked yet.'
   return (
-    <Row label="Updates" hint={hint}>
+    <Row label="Updates" hint={hint} last>
       {newer ? (
         <Button label="Install" variant="primary" onPress={install} testID="settings-ios-update" />
       ) : (

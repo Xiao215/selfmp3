@@ -119,18 +119,12 @@ function parseInput<S extends z.ZodTypeAny>(schema: S, value: unknown): z.output
  */
 export const SERVER_ONLY_ROUTES: readonly string[] = [
   'POST /api/library/scan',
-  'GET /api/library/analyze',
-  'POST /api/library/analyze',
-  'GET /api/library/fix-covers',
-  'POST /api/library/fix-covers',
-  'POST /api/library/fix-covers/cancel',
   'GET /api/lyrics/search',
   'GET /api/songs/:id/lookup',
   'GET /api/songs/:id/history',
   'POST /api/songs/:id/apply-metadata',
   'DELETE /api/songs/:id/cover',
   'GET /api/ai',
-  'POST /api/ai/check',
   'POST /api/ai/describe',
   'POST /api/ai/refine',
   'POST /api/ai/ask',

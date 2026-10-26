@@ -554,25 +554,6 @@ export const AiSetupSchema = z.object({
 })
 export type AiSetup = z.infer<typeof AiSetupSchema>
 
-/** Why the model did not answer, as `LlmError` names it on the server. */
-export const AiFailureSchema = z.enum(['off', 'unreachable', 'busy', 'refused', 'invalid'])
-export type AiFailure = z.infer<typeof AiFailureSchema>
-
-/**
- * One small call through the same door the features use, JSON schema and all:
- * how long it took, or why it failed in words and in the endpoint's own.
- */
-export const AiCheckSchema = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true), model: z.string(), ms: z.number().nonnegative() }),
-  z.object({
-    ok: z.literal(false),
-    failure: AiFailureSchema,
-    message: z.string(),
-    detail: z.string(),
-  }),
-])
-export type AiCheck = z.infer<typeof AiCheckSchema>
-
 /**
  * A5 · the Report in a few sentences. Every number in them is one of the
  * report's; `dropped` counts the sentences left out for saying one that is not.

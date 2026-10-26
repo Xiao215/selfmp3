@@ -204,11 +204,6 @@ code {
   font-weight: 600;
 }
 
-/* A default tag is on and stays on: drawn as on, not as disabled. */
-.chip:disabled {
-  opacity: 1;
-}
-
 /*
  * The dashed add chip. Its dash is the one edge `S2` keeps: it marks a place
  * to add something, and separates nothing.

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { STALE, type Api, type Review } from '@selfmp3/client'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import type { DraftSource } from './importDraft.model'
 import {
   rowsToAsk,
@@ -28,7 +28,7 @@ export function useImportNames(
   key: DraftSource,
   review: Review | null,
 ): ReadonlyMap<number, NameSuggestion> {
-  const on = useSmartSwitches().import
+  const on = useSmartOn()
   const [asked, setAsked] = useState<readonly AskedRow[] | null>(() =>
     review ? rowsToAsk(review) : null,
   )

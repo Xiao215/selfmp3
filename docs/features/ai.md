@@ -78,18 +78,17 @@ Measured on the real library (1,342 songs) through cli-bridge: Describe 8–15 s
 4–15 s, pick 4–8 s); "tag the songs that should be 中文流行" 12 s over 1,336 songs (route,
 plan, two group calls), proposing 99 songs, every one Mandarin or Cantonese pop.
 
-**Settings › Advanced › Model** shows the address (`GET /api/ai`: scheme, host and path only,
-never the key) and the two models, and its **Test** goes the whole way a leg at a time:
-this device to the server, timed, then `POST /api/ai/check`, one fast-tier call with a JSON
-schema like every feature makes, timed or failed with the endpoint's own words. So "couldn't
-reach" always says which leg: the server away, the server answering with an error, or the
-model's endpoint down, refusing the key, or over a limit.
+The app has no page for the model. `GET /api/ai` says where the server asks (scheme, host
+and path only, never the key) and which two models; with no address, Settings › Smart
+features dims its switch and says "Your server has no model set up." A feature whose call
+fails says so in words: the endpoint down, the key refused, or a limit reached
+([INSTALL.md](../INSTALL.md#smart-features-cli-bridge-beside-the-server)).
 
 **The sparkle.** Every way into a model carries the four-pointed sparkle (`Sparkle` in
 `Icons.tsx`, filled, in the accent): Ask in the Search box and the palette, Describe it,
 Suggest tags, the Report's "In words", Fix song info's Suggest, a model's guesses in a
 review, a model's names under an import row, Tidy up's "Fill them in", and the Smart
-features and Model headings. An Ask answer kept in Home's recents or
+features heading. An Ask answer kept in Home's recents or
 named as Up next's source carries it too. A press with a sparkle asks a model; one without
 only searches, sorts or edits.
 
@@ -262,15 +261,15 @@ what that action needs, as JSON. Then the action runs as code.
 The list is a **registry** (`ai/askActions.ts`, `ASK_ACTIONS`). Each entry has a name, a
 `when` paragraph telling the router when to choose it and what to fill in, its own fields
 (a schema, or none when the request itself is all it needs), whether it reads Describe's
-filters (`required`, `optional`, `unused`), the Settings switch it sits behind, and `run`.
+filters (`required`, `optional`, `unused`), and `run`.
 The router's prompt (`routeSystem`) and the form the model fills (`routeForm`) are built
 from the list, and the router's own code is the same for every action: route, fall back to
-`none` when the chosen action is missing its fields or its required filters, refuse it when
-its switch is off, run it. Adding an action is adding an entry. The form is one object with
-every action's part, the ones not chosen null, rather than one shape per action, because
-that is what an OpenAI-style `json_schema` endpoint takes reliably. An entry is the shape a
-tool has (name, description, parameters), so a model that calls tools can be handed the
-list as it is: what would change is the loop, not the actions.
+`none` when the chosen action is missing its fields or its required filters, run it.
+Adding an action is adding an entry. The form is one object with every action's part, the
+ones not chosen null, rather than one shape per action, because that is what an
+OpenAI-style `json_schema` endpoint takes reliably. An entry is the shape a tool has
+(name, description, parameters), so a model that calls tools can be handed the list as it
+is: what would change is the loop, not the actions.
 
 | Action | The words | What runs | Second call |
 |---|---|---|---|
@@ -296,8 +295,7 @@ review's Apply, Open Stats, a found song to play, Play these. The one exception 
 
 A dead end is not one: `none` carries `try`, at most two requests in the asker's language
 that the box can do and that come closest ("tag the good ones" → "tag the songs that should
-be 中文流行"). Each is a button that puts its words in the box and asks them. The ones the
-server says in code ("Tags is turned off…") carry none.
+be 中文流行"). Each is a button that puts its words in the box and asks them.
 
 While it works, the wait says what is happening (`ai/progress.ts`): the device names its
 request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
@@ -834,23 +832,18 @@ MusicBrainz — where 网易云's listing is often the only one there is. One ca
 tier, remembered against its exact question; Ask again asks afresh. Standing preferences
 ("Chinese names only") go with it.
 
-## Settings › Smart features: a switch per feature
+## Settings › Smart features: one switch
 
-One switch over six, kept in the server's settings: "Use smart features" (`smartFeatures`),
-which says what leaves the library at all ("Song names and tags only. Never audio.") and off,
-turns every feature off and greys the six while each keeps its own setting; then
-`smartAsk`, `smartTidy`, `smartTags`, `smartWritten`, `smartMetadata`, `smartImport`, all on by
-default: Ask in Search (which
-also covers New playlist's Describe it and Up next), Tidy up (with filling in what's missing
-and copies), Tags (Suggest tags, and Ask's tag changes), the Report in words, Fix song info's
-Suggested card, and Names at import, which has a switch of its own because it runs by itself
-whenever a review opens. Searching the web has no switch: it is part of smart features. The
-remembered preferences are listed under them. What
-each shows the model is a line under "What each one sends", folded under the switches,
-because "the model sees your library" is too vague to agree to and each sees less than that. Settings reads and writes them
-on the server itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy
-of the library keeps no settings. Off, the way in is not drawn (`useSmartSwitches`, which asks
-the server presence has already found, so it costs no probe) and the server refuses the route with 403 `ai_disabled` before any
-model is asked; Ask routing to Tidy up or Tags while it is off answers that it is off.
+One switch, kept in the server's settings: "Use smart features" (`smartFeatures`, on by
+default), which says what leaves the library at all ("Song names and tags only. Never
+audio."). It covers every feature on this page: Ask (with New playlist's Describe it and Up
+next), Tidy up, Suggest tags, the Report in words, Fix song info's Suggested card, names at
+import, and searching the web. With no model set up on the server the switch is dimmed and
+its hint says "Your server has no model set up." What Ask remembers is listed under it, each
+note with Remove, when there are any. Settings reads and writes the switch on the server
+itself, reached as Ask reaches it (`useServerApi`): a signed-in device's own copy of the
+library keeps no settings. Off, no way in is drawn (`useSmartOn`, which asks the server
+presence has already found, so it costs no probe), and the server refuses every smart route
+with 403 `ai_disabled` (`allowed()` in `routes/ai.ts`) before any model is asked.
 `routes/ai.test.ts` counts the calls a real endpoint on a free port receives: none.
 

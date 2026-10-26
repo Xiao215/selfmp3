@@ -4,9 +4,8 @@ import { clamp01, editDistance, type MetadataCandidate } from '@selfmp3/shared'
  * Scoring lookup candidates against what the library currently believes.
  *
  * Pure functions, so they are cheap to test and independent of which provider
- * produced the candidate. A score is 0..1; the cover-art pass only trusts
- * candidates at or above `CONFIDENT_SCORE`, while the dialog shows everything
- * and lets the user judge.
+ * produced the candidate. A score is 0..1; the dialog shows everything and
+ * lets the user judge.
  */
 
 export interface LookupQuery {
@@ -16,9 +15,6 @@ export interface LookupQuery {
   /** Seconds; zero means unknown. */
   readonly duration: number
 }
-
-/** Below this the cover-art pass leaves a song alone rather than guessing. */
-export const CONFIDENT_SCORE = 0.85
 
 /**
  * Bring a title or artist down to something comparable.

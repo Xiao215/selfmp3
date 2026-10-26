@@ -37,7 +37,7 @@ import {
 } from '../../ui/components/Icons'
 import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../ui/surfaces'
 import { ASK_SUB, askable } from '../smart/smart.model'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { playAlone } from '../lists/lists.model'
 import { placesOf } from '../search/search.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
@@ -103,7 +103,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const { finePointer, width } = useLayout()
   const window = useWindowDimensions()
   const playAndTag = usePlayAndTag()
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   const input = useRef<TextInput>(null)
@@ -205,7 +205,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
   const groupsFor = (found: PaletteResults, text: string): RowGroup[] => {
     const groups = matchedGroups(found)
     const words = text.trim()
-    if (!switches.ask || !askable(words)) return groups
+    if (!smartOn || !askable(words)) return groups
     const ask: RowGroup = {
       title: 'Ask',
       rows: [

@@ -45,8 +45,7 @@ Content-Type: application/json
 ```
 
 - `url` — one link, or free text containing links (what a share sheet hands over).
-- `tagIds` — optional, the server's tag ids (`GET /api/tags`); the server's default
-  import tags (`defaultImportTagIds` in its settings) are always added too.
+- `tagIds` — optional, the server's tag ids (`GET /api/tags`).
 - `createPlaylist` — when the link is a playlist, also create (or reuse) a playlist with
   the same name and drop the tracks into it.
 
@@ -60,13 +59,10 @@ returns `422` with the reason (private, not signed in, wrong link…).
 Every request to the server carries a token, and the server routes it to your library by
 that token ([shared-server.md](shared-server.md)): each library on a server has its own,
 which reaches your devices in the bucket's snapshot so nobody types it. A Shortcut is not
-one of those devices, so it needs the token written into it. Any signed-in device has
-it: **Settings › Advanced › Importing** has a *Shortcut and extension* row that shows
-the server's public address and the token's last four characters, **Copy token**
-puts the whole token on the clipboard, and **Copy address** (there whenever an address
-is shown) puts the address there too, so neither has to be typed on a phone. Without a device, it is your library's `token`
-in the server's `data/hub.json`, and the server prints it in its log when it starts
-holding a single library (`its token is …`). Send it as an
+one of those devices, so it needs the token written into it. It is kept on the server:
+your library's `token` in the server's `data/hub.json`
+([INSTALL.md](../INSTALL.md#the-selfmp3-command) says how to find it), and the server
+prints it in its log when it starts holding a single library (`its token is …`). Send it as an
 `Authorization: Bearer <token>` header (or `?token=<token>` on the URL). A request
 without one is refused with `401`.
 
@@ -77,11 +73,10 @@ without one is refused with `401`.
    keep **URLs** and **Text** ticked. This makes the Shortcut receive whatever was shared.
 3. Add action **Get Contents of URL**:
    - URL: `https://<your server's public address>/api/import/share` — the `https://…ts.net`
-     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)). Tap
-     **Copy address** under Settings › Advanced › Importing, paste it, and add
+     address Tailscale Funnel gives the server ([INSTALL.md](../INSTALL.md)), with
      `/api/import/share` after it.
    - Method: **POST**
-   - Headers: `Authorization` → `Bearer <your token>` (from **Copy token** there)
+   - Headers: `Authorization` → `Bearer <your token>` (from the server, as above)
    - Request Body: **JSON**, add a field `url` of type **Text** and set its value to the
      **Shortcut Input** variable.
      Optional: `createPlaylist` (Boolean) → true if you want shared playlists mirrored.

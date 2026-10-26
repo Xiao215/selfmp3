@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '@selfmp3/client'
 import type {
   DescribeResult,
   Playlist,
@@ -16,13 +15,11 @@ import {
   askable,
   asksOnEnter,
   describeNotes,
-  modelHop,
   onlyTags,
   parts,
   picksHere,
   playlistEditHere,
   sortWords,
-  serverHop,
   tickedAtFirst,
   tidyEdits,
   tidyCovers,
@@ -36,7 +33,6 @@ import {
   tagChangesHere,
   tagSteps,
   tagIdsFor,
-  took,
   yearLabel,
   tagCounter,
   tagsApply,
@@ -218,49 +214,6 @@ describe('asksOnEnter', () => {
     expect(asksOnEnter('yoru', 13)).toBe(false)
     expect(asksOnEnter('something calm for studying', 0)).toBe(true)
     expect(asksOnEnter('ab', 0)).toBe(false)
-  })
-})
-
-describe('Settings’ Test', () => {
-  it('says how long each leg took', () => {
-    expect(took(24.4)).toBe('24 ms')
-    expect(took(1340)).toBe('1.3 s')
-    expect(serverHop({ ms: 24 })).toEqual({
-      ok: true,
-      line: 'This device reached your server in 24 ms',
-    })
-    expect(modelHop({ ok: true, model: 'sonnet', ms: 1300 }).line).toBe(
-      'Your server reached the model (sonnet) in 1.3 s',
-    )
-  })
-
-  it('tells the device not reaching the server from the server not reaching the model', () => {
-    expect(serverHop({ error: new ApiError(0, 'Failed to fetch', 'offline') }).line).toBe(
-      'This device can’t reach your server.',
-    )
-    expect(
-      modelHop({
-        ok: false,
-        failure: 'unreachable',
-        message: 'Your server couldn’t reach the model.',
-        detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
-      }),
-    ).toEqual({
-      ok: false,
-      line: 'Your server couldn’t reach the model.',
-      detail: 'The model at http://127.0.0.1:8787/v1 did not answer: fetch failed',
-    })
-  })
-
-  it('says no model once, not twice', () => {
-    expect(
-      modelHop({
-        ok: false,
-        failure: 'off',
-        message: 'Smart features aren’t set up on your server.',
-        detail: 'Smart features are off: set SELFMP3_AI_BASE_URL on the server',
-      }),
-    ).toEqual({ ok: false, line: 'Smart features aren’t set up on your server.' })
   })
 })
 

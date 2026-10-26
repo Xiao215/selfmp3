@@ -308,7 +308,7 @@ export class CoverService {
    *
    * The ten seconds cover the whole thing, headers and body together: a host
    * that answers promptly and then trickles could otherwise hold this open
-   * indefinitely, and the fix-covers pass waits on this one song at a time.
+   * indefinitely, and whatever asked waits on this one song.
    * The size cap is for the same reason from the other direction: a cover is
    * tens of kilobytes, and nothing says the thing at the end of that URL is a
    * cover.

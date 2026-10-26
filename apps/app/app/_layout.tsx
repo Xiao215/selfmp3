@@ -59,7 +59,7 @@ import { WidgetSync } from '../src/features/widget/WidgetSync'
 import { BucketHoldNotice } from '../src/features/profile/BucketHoldNotice'
 import { sendPending, showToast } from '../src/ui/toast'
 import { SIDEBAR_WIDTH } from '../src/shell/widths'
-import { UsageReporter } from '../src/features/usage/UsageRow'
+import { UsageReporter } from '../src/features/usage/UsageReporter'
 
 /**
  * The app shell.

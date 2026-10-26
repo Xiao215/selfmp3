@@ -41,13 +41,8 @@ The queue is the database itself (`song_audio_features` rows), so a restart lose
 
 ## Using it
 
-**Settings › Advanced › Library** has an "Audio analysis" row with **Analyse new songs** and
-**Redo all**, and live progress. The same thing over HTTP:
-
-```
-POST /api/library/analyze          { "force": false }   start / resume
-GET  /api/library/analyze                               progress
-```
+The analyser runs on its own, over every song still missing its tempo and key; there is
+nothing to start by hand.
 
 **A song's sound** (`SoundStrip` in `apps/app/src/features/song/SongFacts.tsx`: on the song's
 own page under its buttons, and at the head of the Details tab of Now Playing on a computer)
@@ -179,9 +174,8 @@ The listening model is used only for those. A request with no sound in it, and n
 never loads the text half of the model; the songs' vectors are made in the background either
 way.
 
-**Settings › Advanced › Library** shows it under "How songs sound": waiting (while songs still need their
-tempo and key), downloading, how many songs are heard and how many are to go, or why the model
-could not be had.
+It runs on its own too: it waits while songs still need their tempo and key, downloads the
+model, then hears every song. The server's log says why, when the model could not be had.
 
 `npx tsx apps/server/src/sound/eval.ts <models> <folder of songs> "calm orchestral" …` hears a
 folder of songs and prints what each description finds, for a person to judge.

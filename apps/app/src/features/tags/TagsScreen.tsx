@@ -41,7 +41,7 @@ import { Menu } from '../../ui/components/MoreMenu'
 import { useOpenTag } from '../tag/useOpenTag'
 import { tagLine, tagsMostPlayed, untaggedCardTitle, type TagStanding } from '../tag/tag.model'
 import { usePlayAndTag } from '../tag/usePlayAndTag'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
 import {
@@ -109,7 +109,7 @@ export function TagsScreen(): ReactNode {
     newButton.current?.focus()
   }, [adding])
   const [suggesting, setSuggesting] = useState(false)
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
   const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
   /*
    * The tile handlers are made once and take the tag they act on, so a render
@@ -262,7 +262,7 @@ export function TagsScreen(): ReactNode {
             artists={waiting.artists}
             wide={wide}
             onStart={playAndTag.start}
-            onSuggest={switches.tags ? () => setSuggesting(true) : undefined}
+            onSuggest={smartOn ? () => setSuggesting(true) : undefined}
           />
         ) : null}
         <SuggestTagsSheet open={suggesting} onClose={() => setSuggesting(false)} />

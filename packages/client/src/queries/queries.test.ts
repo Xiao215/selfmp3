@@ -286,26 +286,26 @@ describe('useUpdateSettings', () => {
   const BASE = 'http://pi:4600'
 
   it('moves the switch at once, and two quick taps leave it where it started', async () => {
-    const server = heldSettings({ smartTags: true })
+    const server = heldSettings({ smartFeatures: true })
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     client.setQueryData(queryKeys.settings(BASE), server.server())
     const held = () => client.getQueryData<Settings>(queryKeys.settings(BASE))
     const mutation = mount(client, () => useUpdateSettings(server.api, BASE))
 
-    await act(async () => mutation().mutate({ smartTags: !held()?.smartTags }))
-    expect(held()?.smartTags).toBe(false)
-    await act(async () => mutation().mutate({ smartTags: !held()?.smartTags }))
-    expect(held()?.smartTags).toBe(true)
+    await act(async () => mutation().mutate({ smartFeatures: !held()?.smartFeatures }))
+    expect(held()?.smartFeatures).toBe(false)
+    await act(async () => mutation().mutate({ smartFeatures: !held()?.smartFeatures }))
+    expect(held()?.smartFeatures).toBe(true)
 
     // One at a time, and the first answer does not put the switch back.
     await vi.waitFor(() => expect(server.answers).toHaveLength(1))
     await act(async () => server.answers[0]?.())
-    expect(held()?.smartTags).toBe(true)
+    expect(held()?.smartFeatures).toBe(true)
     await vi.waitFor(() => expect(server.answers).toHaveLength(2))
     await act(async () => server.answers[1]?.())
-    expect(server.sent).toEqual([{ smartTags: false }, { smartTags: true }])
-    expect(held()?.smartTags).toBe(true)
-    expect(server.server().smartTags).toBe(true)
+    expect(server.sent).toEqual([{ smartFeatures: false }, { smartFeatures: true }])
+    expect(held()?.smartFeatures).toBe(true)
+    expect(server.server().smartFeatures).toBe(true)
   })
 
   it('removes two notes pressed quickly, the second from what the first left', async () => {
@@ -329,16 +329,16 @@ describe('useUpdateSettings', () => {
   })
 
   it('puts back what was held when a change fails', async () => {
-    const server = heldSettings({ smartTags: true })
+    const server = heldSettings({ smartFeatures: true })
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     client.setQueryData(queryKeys.settings(BASE), server.server())
     const held = () => client.getQueryData<Settings>(queryKeys.settings(BASE))
     const mutation = mount(client, () => useUpdateSettings(server.api, BASE))
 
-    await act(async () => mutation().mutate({ smartTags: false }))
-    expect(held()?.smartTags).toBe(false)
+    await act(async () => mutation().mutate({ smartFeatures: false }))
+    expect(held()?.smartFeatures).toBe(false)
     await vi.waitFor(() => expect(server.fail).toHaveLength(1))
     await act(async () => server.fail[0]?.())
-    expect(held()?.smartTags).toBe(true)
+    expect(held()?.smartFeatures).toBe(true)
   })
 })

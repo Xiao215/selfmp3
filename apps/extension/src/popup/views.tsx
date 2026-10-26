@@ -22,7 +22,6 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { Choices } from '../bridge.js'
 import { AddTag, Logo, TagChip } from '../ui/parts.js'
 import {
-  chipState,
   connectionLabel,
   countLabel,
   comingIn,
@@ -34,7 +33,6 @@ import {
   rowState,
   songNote,
   songRequest,
-  tagIdsFor,
   toggleId,
   toggleLeftOut,
   type Connection,
@@ -293,8 +291,8 @@ function usePicked(tagging: Tagging): [ReadonlySet<number>, (next: ReadonlySet<n
 }
 
 /**
- * The tags to add (`E1`): every tag as a dot chip, the ones the server adds
- * to every import already on, and "+ new". Never a playlist.
+ * The tags to add (`E1`): every tag as a dot chip and "+ new". Never a
+ * playlist.
  */
 function TagPicker({
   heading,
@@ -311,19 +309,13 @@ function TagPicker({
   inline?: boolean
 }): ReactNode {
   const { choices } = tagging
-  const defaults = choices?.defaultTagIds ?? []
   const pick = (id: number): void => {
-    if (chipState(id, defaults, picked) === 'off') onToggle(id)
+    if (!picked.has(id)) onToggle(id)
   }
   const chips = choices ? (
     <>
       {choices.tags.map(tag => (
-        <TagChip
-          key={tag.id}
-          tag={tag}
-          state={chipState(tag.id, defaults, picked)}
-          onToggle={() => onToggle(tag.id)}
-        />
+        <TagChip key={tag.id} tag={tag} on={picked.has(tag.id)} onToggle={() => onToggle(tag.id)} />
       ))}
       <AddTag
         tags={choices.tags}
@@ -352,9 +344,6 @@ function TagPicker({
           <span className="label">{heading}</span>
           <div className="chips">{chips}</div>
         </>
-      )}
-      {defaults.length > 0 && (
-        <p className="hint">Tags from Settings → Advanced → Importing are always added.</p>
       )}
       {tagging.error && (
         <p className="error" role="alert">
@@ -434,12 +423,7 @@ export function SongForm({
         type="button"
         className="commit"
         disabled={pending || !title.trim()}
-        onClick={() =>
-          onImport(
-            songRequest(item, { title, artist }, tagIdsFor(tagging.choices?.defaultTagIds, picked)),
-            null,
-          )
-        }
+        onClick={() => onImport(songRequest(item, { title, artist }, picked), null)}
       >
         <DownloadMark />
         {pending ? 'Importing…' : 'Import to your library'}
@@ -755,12 +739,7 @@ export function ListReview({
         type="button"
         className="commit"
         disabled={pending || count === 0}
-        onClick={() =>
-          onImport(
-            listRequest(review, tagIdsFor(tagging.choices?.defaultTagIds, picked)),
-            review.playlistTitle,
-          )
-        }
+        onClick={() => onImport(listRequest(review, picked), review.playlistTitle)}
       >
         {pending ? 'Importing…' : importLabel(count)}
       </button>
@@ -849,9 +828,7 @@ export function RequestForm({
         type="button"
         className="commit"
         disabled={pending}
-        onClick={() =>
-          onRequest({ tagIds: [...tagIdsFor(tagging.choices?.defaultTagIds, picked)] })
-        }
+        onClick={() => onRequest({ tagIds: [...picked] })}
       >
         {pending ? 'Keeping it…' : 'Keep it for later'}
       </button>

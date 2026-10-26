@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react'
 import {
   USAGE_ERRORS,
   USAGE_FEATURES,
@@ -13,42 +12,14 @@ import { prefs } from '../../ports/prefs'
  * What this device counts for its server owner's admin page
  * (docs/features/admin.md): how many times each feature was used today, and
  * which problems it showed. Names only, never what was played, searched or
- * asked. Kept on the device a day at a time, sent once a day (useUsageReport),
- * and only while "Count features I use" is on (Settings › About, on unless
- * turned off).
+ * asked. Kept on the device a day at a time, sent once a day (useUsageReport).
  */
 
-const ON_KEY = 'usageCounting'
 const COUNTS_KEY = 'usageCounts'
 /** A day not sent within a week is let go: the server would not take it any more. */
 const DAYS_KEPT = 7
 
 type Counts = Record<string, UsageReport>
-
-let on: boolean | null = null
-const listeners = new Set<() => void>()
-
-function isOn(): boolean {
-  on ??= prefs.get(ON_KEY) !== 'off'
-  return on
-}
-
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-/** Turn counting on or off. Off also forgets what was counted and not sent. */
-export function setUsageCounting(next: boolean): void {
-  on = next
-  prefs.set(ON_KEY, next ? 'on' : 'off')
-  if (!next) prefs.set(COUNTS_KEY, '{}')
-  for (const listener of listeners) listener()
-}
-
-export function useUsageCounting(): boolean {
-  return useSyncExternalStore(subscribe, isOn, isOn)
-}
 
 /** Today, as the server counts days: in UTC. */
 function usageDay(now = Date.now()): string {
@@ -65,7 +36,6 @@ function read(): Counts {
 }
 
 function bump(kind: 'uses' | 'errors', name: string): void {
-  if (!isOn()) return
   const counts = read()
   const day = usageDay()
   const today = counts[day] ?? { day, uses: {}, errors: {} }

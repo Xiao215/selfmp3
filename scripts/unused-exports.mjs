@@ -118,6 +118,7 @@ const ALLOWED = new Map([
   // Module state a test empties between cases; nothing the app runs needs it.
   ['forgetChipWidths', 'rowTags.ts, emptied between its tests'],
   ['resetImportDraft', 'importDraft.ts, emptied between the review tests'],
+  ['forgetGuides', 'guideMemory.ts, emptied between the guide tests'],
   // A whole app a test stands up; a running server is the hub's (hub/app.ts).
   ['createApp', 'app.ts: one library behind its token, what the route tests serve'],
 ])

@@ -5,7 +5,7 @@ import { useConnection } from './ConnectionProvider'
 import { useServerDirect } from './useServerDirect'
 import { reachedConnection } from './via'
 
-export interface ServerApi {
+interface ServerApi {
   readonly reach: Reach & { readonly lookAgain: () => void }
   /** The server, once it answers. */
   readonly via: ServerConnection | undefined

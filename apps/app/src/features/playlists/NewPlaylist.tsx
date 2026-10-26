@@ -21,7 +21,7 @@ import { TextField } from '../../ui/components/TextField'
 import { Button } from '../../ui/components/Button'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
-import { useSmartSwitches } from '../smart/useSmartSwitches'
+import { useSmartOn } from '../smart/useSmartOn'
 import { ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
@@ -64,7 +64,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
   const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const server = useSmartServer()
   const { data: library } = useLibrary()
-  const switches = useSmartSwitches()
+  const smartOn = useSmartOn()
 
   const [step, setStep] = useState<Step>('kind')
   const [kind, setKind] = useState<Kind>('pick')
@@ -265,7 +265,7 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
               onPress={() => choose('follow')}
               testID="new-playlist-follow"
             />
-            {switches.ask ? (
+            {smartOn ? (
               <Option
                 icon={<Sparkle size={iconSize.item} />}
                 title="Describe it"

@@ -184,7 +184,8 @@ cli-bridge on the same computer:
 ssh pi 'systemctl --user is-active cli-bridge.service; curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8787/v1/models'
 ```
 
-- [ ] `active` and 200; Settings → Smart features → Test says it answered.
+- [ ] `active` and 200, and an Ask from the app answers
+      ([INSTALL.md](INSTALL.md#smart-features-cli-bridge-beside-the-server)).
 
 **YouTube.** Imports fail in ways that look like bugs and are not. If one fails with
 "needs a signed-in account", compare the address families on the server before believing it:

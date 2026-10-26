@@ -39,7 +39,9 @@ describe('moveOldCrossfade', () => {
   beforeEach(() => mocks.prefs.clear())
 
   it('keeps the crossfade the old record had, and drops the record', async () => {
-    const store = memoryStore({ 'selfmp3.cloud.settings': { crossfadeSeconds: 6, smartAsk: true } })
+    const store = memoryStore({
+      'selfmp3.cloud.settings': { crossfadeSeconds: 6, smartFeatures: true },
+    })
     await moveOldCrossfade(store)
     expect(mocks.prefs.get('crossfadeSeconds')).toBe('6')
     expect(store.kept.has('selfmp3.cloud.settings')).toBe(false)

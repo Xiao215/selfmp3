@@ -36,10 +36,10 @@ device reading the bucket has them, with one read, without asking the server.
 A server answers them inside the lyrics response itself, as its `romanized` field
 (`GET /api/songs/:id/lyrics`); there is no separate route.
 
-Whether they are shown is two switches, **Show pinyin** and **Show romaji** under
-Settings → Lyrics, each a preference of the device rather than a synced setting
-(`apps/app/src/features/nowPlaying/romanizationPref.ts`); the pill flips the one for the
-song's language.
+Whether they are shown is switched only by that pill beside the words: off until it is
+pressed, then on for every song in that language until it is pressed again. Pinyin and
+romaji are remembered apart, each a preference of the device rather than a synced setting
+(`apps/app/src/features/nowPlaying/romanizationPref.ts`).
 
 ## Search by name
 

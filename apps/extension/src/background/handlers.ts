@@ -279,19 +279,14 @@ export function createHandlers({
     },
 
     async choices() {
-      const { route, api, identity } = await answering()
-      // The tags every import gets are the server's setting, in its numbering:
-      // asked of the server when it answers. A link left in the bucket gets
-      // them all the same, when the server takes it.
-      const [snapshot, settings, last] = await Promise.all([
+      const { api, identity } = await answering()
+      const [snapshot, last] = await Promise.all([
         library.get(identity, api),
-        route.mode === 'server' ? api.settings() : null,
         lastTagsFor(store, identity),
       ])
       const known = new Set(snapshot.tags.map(tag => tag.id))
       return {
         tags: snapshot.tags,
-        defaultTagIds: settings?.defaultImportTagIds ?? [],
         // A tag deleted since is not offered back.
         lastTagIds: last.filter(id => known.has(id)),
       }

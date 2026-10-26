@@ -62,8 +62,6 @@ function fakeServer(token: string | null) {
         return Promise.resolve(json(200, { version, songCount: library.songs.length }))
       case 'GET /api/library':
         return Promise.resolve(json(200, { ...library, tags }))
-      case 'GET /api/settings':
-        return Promise.resolve(json(200, { defaultImportTagIds: [1] }))
       case 'GET /api/import/queue':
         return Promise.resolve(
           json(200, {
@@ -186,11 +184,10 @@ describe('asking about a link', () => {
     expect(calls.filter(call => call === 'GET /api/library')).toHaveLength(1)
   })
 
-  it('offers the tags, and the ones every import gets — never a playlist', async () => {
+  it('offers the tags — never a playlist', async () => {
     const { handlers } = await connected()
     const choices = await handlers.choices({ type: 'choices' })
     expect(choices.tags.map(tag => tag.name)).toEqual(['new', 'j-pop'])
-    expect(choices.defaultTagIds).toEqual([1])
     expect(choices).not.toHaveProperty('playlists')
   })
 
@@ -289,17 +286,11 @@ describe('explain', () => {
 })
 
 describe('from the bucket', () => {
-  it('offers the bucket’s tags, and asks nothing of settings only the server keeps', async () => {
-    const asked: string[] = []
-    // This device's copy of the library answers; settings are the server's,
-    // which the replica refuses (`needs_server`), so nothing here may ask for them.
+  it('offers the bucket’s tags', async () => {
+    // This device's copy of the library answers, with no server asked.
     const api = {
       libraryVersion: () => Promise.resolve({ version: 1, songCount: library.songs.length }),
       library: () => Promise.resolve(library),
-      settings: () => {
-        asked.push('settings')
-        return Promise.reject(new ApiError(501, 'This needs your server.', 'needs_server'))
-      },
     } as unknown as Cloud['api']
     const handlers = createHandlers({
       store: memoryStore(),
@@ -312,8 +303,6 @@ describe('from the bucket', () => {
     })
     const choices = await handlers.choices({ type: 'choices' })
     expect(choices.tags.map(tag => tag.name)).toEqual(library.tags.map(tag => tag.name))
-    expect(choices.defaultTagIds).toEqual([])
-    expect(asked).toEqual([])
   })
 })
 

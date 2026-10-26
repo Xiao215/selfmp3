@@ -1,5 +1,5 @@
 import { artistOr, formatDuration, plural } from '@selfmp3/shared'
-import type { ApplyMetadata, FixCoversStatus, MetadataCandidate, Song } from '@selfmp3/shared'
+import type { ApplyMetadata, MetadataCandidate, Song } from '@selfmp3/shared'
 
 /**
  * Fixing a song's metadata, without the dialog.
@@ -193,31 +193,3 @@ export function candidateLine(candidate: MetadataCandidate): string {
 }
 
 export const scorePercent = (score: number): string => `${Math.round(score * 100)}%`
-
-// --- the cover-art pass (Settings → Library) ----------------------------------
-
-export function missingArtCount(songs: readonly Pick<Song, 'hasArt'>[]): number {
-  return songs.filter(song => !song.hasArt).length
-}
-
-export function coverArtHint(missing: number): string {
-  return missing === 0
-    ? 'Every song has artwork.'
-    : `${plural(missing, 'song has', 'songs have')} none. Looks up confident matches.`
-}
-
-/** "Checking 3 of 12 — アイドル · 2 found", while the pass runs. */
-export function coverProgress(status: FixCoversStatus): string {
-  const at = Math.min(status.done + 1, status.total)
-  return `Checking ${at} of ${status.total}${status.currentTitle ? ` — ${status.currentTitle}` : ''}${
-    status.found > 0 ? ` · ${status.found} found` : ''
-  }`
-}
-
-/** The result once it has finished or been stopped; nothing before. */
-export function coverResult(status: FixCoversStatus): string | null {
-  if (status.status !== 'done' && status.status !== 'cancelled') return null
-  const stopped = status.status === 'cancelled' ? 'Stopped. ' : ''
-  const unchecked = status.done < status.total ? ` (${status.total - status.done} not checked)` : ''
-  return `${stopped}Found artwork for ${status.found} of ${plural(status.done, 'song', 'songs')}${unchecked}.`
-}

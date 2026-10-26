@@ -2,7 +2,7 @@ import { DEFAULT_LOCAL_SERVER_URL, plural, signInCodeFromUrl } from '@selfmp3/sh
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
 import { ask, BridgeError, type Status } from '../bridge.js'
-import { Logo, TagChip } from '../ui/parts.js'
+import { Logo } from '../ui/parts.js'
 import { signInFailure } from './signIn.js'
 
 /**
@@ -84,18 +84,6 @@ export function Options(): ReactNode {
   const mode = status.data?.mode ?? 'none'
   const noServer = status.data?.noServer ?? false
 
-  // The tags every import gets, to show under "When you import". They are the
-  // server's setting, so they are shown here and changed in the app.
-  const choices = useQuery({
-    queryKey: ['choices'],
-    queryFn: () => ask({ type: 'choices' }),
-    enabled: mode === 'server' || mode === 'bucket',
-    retry: false,
-  })
-  const defaults = (choices.data?.tags ?? []).filter(tag =>
-    choices.data?.defaultTagIds.includes(tag.id),
-  )
-
   return (
     <main className="options">
       <div className="options-intro">
@@ -153,23 +141,6 @@ export function Options(): ReactNode {
       </div>
 
       <div className="options-side">
-        {defaults.length > 0 && (
-          <section className="group">
-            <h2 className="label">When you import</h2>
-            <div className="card setting">
-              <span>Always tag with</span>
-              <span className="chips">
-                {defaults.map(tag => (
-                  <TagChip key={tag.id} tag={tag} state="fixed" />
-                ))}
-              </span>
-            </div>
-            <p className="hint">
-              Your server adds these; change them in the app, Settings → Advanced → Importing.
-            </p>
-          </section>
-        )}
-
         {server?.typed && (
           <section className="group">
             <h2 className="label">This server</h2>

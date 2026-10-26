@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { isNewerIosBuild, type IosLatest } from '@selfmp3/shared'
+import { announcesIosBuild, isNewerIosBuild, type IosLatest } from '@selfmp3/shared'
 import { STALE } from '@selfmp3/client'
 import { iosUpdate } from '../../ports/iosUpdate'
 import { prefs } from '../../ports/prefs'
@@ -9,14 +9,21 @@ import type { UpdateStatus } from './AboutCard'
 
 /**
  * A newer build of the iPhone app, shared from the `ios` release
- * (packages/shared/src/iosApp.ts): said once per build in a toast, and on
- * Settings' About card, as the Mac app's is, checked on asking and installed
+ * (packages/shared/src/iosApp.ts): said in a toast at most once a day
+ * (`announcesIosBuild`), and on Settings' About card, as the Mac app's is, checked on asking and installed
  * from there. Nothing anywhere else, where `iosUpdate.offered`
  * is false.
  */
 
-/** The build last announced in a toast, so each is announced once. */
+/** The build last announced in a toast, and when, so the toasts come at most once a day. */
 const ANNOUNCED_KEY = 'iosUpdateAnnounced'
+const ANNOUNCED_AT_KEY = 'iosUpdateAnnouncedAt'
+
+function lastAnnounced(): { build: number; at: number } | null {
+  const build = Number(prefs.get(ANNOUNCED_KEY))
+  const at = Number(prefs.get(ANNOUNCED_AT_KEY) ?? 0)
+  return Number.isFinite(build) && prefs.get(ANNOUNCED_KEY) !== null ? { build, at } : null
+}
 
 function useLatestBuild() {
   return useQuery({
@@ -37,8 +44,10 @@ const install = () => void iosUpdate.install()
 export function IosUpdateNotice(): null {
   const newer = newerThanThis(useLatestBuild().data)
   useEffect(() => {
-    if (!newer || prefs.get(ANNOUNCED_KEY) === String(newer.build)) return
+    const now = Date.now()
+    if (!newer || !announcesIosBuild(newer.build, lastAnnounced(), now)) return
     prefs.set(ANNOUNCED_KEY, String(newer.build))
+    prefs.set(ANNOUNCED_AT_KEY, String(now))
     showToast('A newer self.mp3 is ready.', 'info', {
       actions: [{ label: 'Install', onPress: install }],
     })

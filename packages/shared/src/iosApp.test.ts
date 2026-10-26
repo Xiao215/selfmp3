@@ -4,6 +4,8 @@ import {
   IOS_INSTALL_PAGE_URL,
   fetchIosLatest,
   iosAssetUrl,
+  announcesIosBuild,
+  IOS_ANNOUNCE_GAP_MS,
   isNewerIosBuild,
   iphoneKey,
   renderIosManifest,
@@ -48,6 +50,14 @@ describe('the iPhone app for friends', () => {
     expect(isNewerIosBuild(latest(120), 121)).toBe(false)
     expect(isNewerIosBuild(null, 1)).toBe(false)
     expect(isNewerIosBuild(latest(120), Number.NaN)).toBe(false)
+  })
+
+  it('says a newer build is ready at most once a day, and each build once', () => {
+    const day = IOS_ANNOUNCE_GAP_MS
+    expect(announcesIosBuild(120, null, 0)).toBe(true)
+    expect(announcesIosBuild(121, { build: 120, at: 0 }, day - 1)).toBe(false)
+    expect(announcesIosBuild(121, { build: 120, at: 0 }, day)).toBe(true)
+    expect(announcesIosBuild(120, { build: 120, at: 0 }, day * 3)).toBe(false)
   })
 
   it('reads the release’s build, and takes no release or a strange answer as none', async () => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
 import type { ReactNode } from 'react'
-import { Stack, usePathname, useRouter } from 'expo-router'
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import { useFonts } from 'expo-font'
 import {
@@ -268,7 +268,7 @@ function Keeping(): ReactNode {
 
 /** Which page is showing, and the frame around it: where sign-in sends you, and the stack. */
 function RootRoutes(): ReactNode {
-  const { theme } = useUnistyles()
+  const { theme, rt } = useUnistyles()
   const { status, fromCloud, needsStorage } = useConnection()
   const router = useRouter()
   const pathname = usePathname()
@@ -382,21 +382,33 @@ function RootRoutes(): ReactNode {
 
   const nowPlaying = useMemo(() => nowPlayingOptions(wide, reduced), [wide, reduced])
 
+  // The stack paints its native container in the navigator's background, and
+  // with no theme given that is React Navigation's light grey. iOS 26's swipe
+  // back rounds both pages' corners as they part, and the grey showed in the
+  // gaps — so the container wears the page's own ground, in either theme.
+  const light = rt.themeName === 'light'
+  const navTheme = useMemo(() => {
+    const base = light ? DefaultTheme : DarkTheme
+    return { ...base, colors: { ...base.colors, background: surface } }
+  }, [light, surface])
+
   return (
     <Shell chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
-      <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
-        <Stack.Screen name="now-playing" options={nowPlaying} />
-        {PLACES.map(name => (
-          <Stack.Screen
-            key={name}
-            name={name}
-            dangerouslySingular={name === 'search' ? singularSearch : singularPlaces}
-          />
-        ))}
-        {PAGES.map(name => (
-          <Stack.Screen key={name} name={name} dangerouslySingular={singularPage} />
-        ))}
-      </Stack>
+      <ThemeProvider value={navTheme}>
+        <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
+          <Stack.Screen name="now-playing" options={nowPlaying} />
+          {PLACES.map(name => (
+            <Stack.Screen
+              key={name}
+              name={name}
+              dangerouslySingular={name === 'search' ? singularSearch : singularPlaces}
+            />
+          ))}
+          {PAGES.map(name => (
+            <Stack.Screen key={name} name={name} dangerouslySingular={singularPage} />
+          ))}
+        </Stack>
+      </ThemeProvider>
       {/*
        * Nothing shows until it is decided where the library comes from — the
        * bucket, a server, or nowhere yet. The library is the first route, and a

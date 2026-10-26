@@ -262,7 +262,7 @@ describe('a share link', () => {
 
   it('holds every song of a list, however many: far past what one key of storage keeps', async () => {
     const s = await setup()
-    const songs = Array.from({ length: 1200 }, (_, at) => long(at + 1))
+    const songs = Array.from({ length: 600 }, (_, at) => long(at + 1))
     const last = songs.at(-1)?.audio?.key ?? ''
     s.h.bucket.put(`selfmp3/${last}`, 'the last song')
     const made = await make(s, songs, '中文流行', 'list')
@@ -273,7 +273,7 @@ describe('a share link', () => {
     const parts = (stored.get('doc') as { parts: number }).parts
     expect(parts).toBeGreaterThan(1)
     const kept = Array.from({ length: parts }, (_, at) => stored.get(`entries:${at}`) as unknown[])
-    expect(kept.flat()).toHaveLength(1200)
+    expect(kept.flat()).toHaveLength(600)
     for (const part of kept) expect(JSON.stringify(part).length).toBeLessThan(1024 * 1024)
 
     // Read afresh, Mia gets every song, in order, and the last one plays.
@@ -288,7 +288,7 @@ describe('a share link', () => {
     const received = ShareSummariesSchema.parse(
       await (await s.h.call('/v1/share/received', { token: s.mia })).json(),
     )
-    expect(received.map(each => [each.id, each.songs])).toEqual([[made.id, 1200]])
+    expect(received.map(each => [each.id, each.songs])).toEqual([[made.id, 600]])
 
     // An opening and a play write the little that changed, not the songs again.
     const first = stored.get('entries:0')

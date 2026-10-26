@@ -15,11 +15,24 @@ interface Picture {
   extension: string
 }
 
-/** How long a file has to have been left alone before it is read: it may still be being written. */
-const SETTLE_MS = 2_000
+/**
+ * How long a file has to have been left alone before it is read: it may still
+ * be being written. Not a moment: an encoder fed slowly writes in bursts with
+ * seconds between them — ffmpeg at 30× wrote every 2.2 s, and at 2 s it was
+ * read, sent and let go a quarter of the way in (bug bash R4 NEW).
+ */
+const SETTLE_MS = 10_000
 
 /** How soon to try again to keep a cover that could not be written: a full disk takes a while to clear. */
 const COVER_RETRY_MS = 60_000
+
+/** A file that changed while it was being read: it is still being written. */
+class StillArriving extends Error {
+  constructor(key: string) {
+    super(`still being written: ${key}`)
+    this.name = 'StillArriving'
+  }
+}
 
 /**
  * Sweeping the inbox folder.
@@ -39,7 +52,9 @@ const COVER_RETRY_MS = 60_000
  *  - A file changed in the last `SETTLE_MS` is still arriving — a copy, a
  *    download, an encoder writing in place — and is left for a sweep of its
  *    own once it has been still that long. Read half-written, it would be a
- *    song cut short, or a read that never ends (`MetadataService.read`).
+ *    song cut short, or a read that never ends (`MetadataService.read`). One
+ *    that is not the same size and time after the read as before it was
+ *    still arriving too, and waits the same way.
  *
  * A path the database knows and the folder does not is the ordinary state of
  * every uploaded song, and says nothing: a song leaves the library only when
@@ -108,6 +123,14 @@ export class ScannerService {
   }
 
   /**
+   * Sweep again in a while: a file was found changed since it was read, and
+   * no watch event may come to say so — they are missed now and then.
+   */
+  lookAgain(): void {
+    this.#comeBack(this.#settleMs)
+  }
+
+  /**
    * Sweep again once the files still arriving have been still for long
    * enough. One running then is left to finish first, and this one waits
    * behind it rather than being its no-op.
@@ -136,6 +159,17 @@ export class ScannerService {
     const metadata = await this.#metadata.read(key)
     const lyricsKind = await this.#lyrics.detectKind(key, metadata.embeddedLyrics)
     const mime = mimeForExtension(path.extname(key))
+
+    // A second look, after the read: a file that moved while it was read was
+    // read part-written, and what was read is not the song.
+    const after = await this.#storage.stat(key)
+    if (
+      !after ||
+      after.sizeBytes !== stat.sizeBytes ||
+      after.modifiedAt.getTime() !== stat.modifiedAt.getTime()
+    ) {
+      throw new StillArriving(key)
+    }
 
     /*
      * Look the song up only now that the slow part is done.
@@ -340,6 +374,11 @@ export class ScannerService {
             added++
           }
         } catch (error) {
+          if (error instanceof StillArriving) {
+            arriving++
+            settledIn = Math.max(settledIn, this.#settleMs)
+            continue
+          }
           skipped++
           this.#logger.warn('could not read a file, skipping it', {
             path: key,

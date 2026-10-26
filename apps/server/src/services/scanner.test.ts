@@ -379,6 +379,92 @@ describe('a sweep while a file is still arriving', () => {
     }
   })
 
+  /*
+   * An encoder fed slowly writes in bursts: ffmpeg at 30× wrote every 2.2 s,
+   * and a file still for 2 s was read a quarter of the way in, sent, and its
+   * copy let go while the rest was still being written (bug bash R4 NEW).
+   */
+  it('waits longer than the gap between an encoder’s writes', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-arriving-'))
+    const logger = createLogger('silent')
+    const db = new Database(':memory:')
+    migrate(db, logger)
+    const songs = new SongRepository(db)
+    const storage = new LocalStorageDriver(root)
+    const scanner = new ScannerService({
+      storage,
+      songs,
+      metadata: new MetadataService(storage, logger),
+      lyrics: { detectKind: () => Promise.resolve('none') } as never,
+      covers: { save: () => Promise.resolve() } as never,
+      logger,
+    })
+    try {
+      const file = path.join(root, 'Long - Hour.wav')
+      fs.writeFileSync(file, wav())
+      const lastWrite = new Date(Date.now() - 5_000)
+      fs.utimesSync(file, lastWrite, lastWrite)
+
+      expect(await scanner.scan()).toMatchObject({ added: 0 })
+      expect(songs.byPath('Long - Hour.wav')).toBeNull()
+    } finally {
+      scanner.stop()
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('takes nothing from a file that grew while it was read, and reads it again', async () => {
+    const logger = createLogger('silent')
+    const db = new Database(':memory:')
+    migrate(db, logger)
+    const songs = new SongRepository(db)
+    let size = 100
+    const storage = {
+      list: () => Promise.resolve(['Long - Hour.mp3']),
+      stat: (key: string) =>
+        Promise.resolve({ sizeBytes: size, modifiedAt: new Date(1_700_000_000_000), key }),
+    } as unknown as StorageDriver
+    let reads = 0
+    const metadata = {
+      read: () => {
+        // The first read meets the writer still going.
+        if (reads++ === 0) size = 400
+        return Promise.resolve({
+          title: 'Hour',
+          artist: 'Long',
+          album: '',
+          albumArtist: '',
+          trackNo: null,
+          year: null,
+          duration: reads === 1 ? 900 : 3600,
+          picture: null,
+          embeddedLyrics: null,
+        })
+      },
+    }
+    const scanner = new ScannerService({
+      storage,
+      songs,
+      metadata: metadata as never,
+      lyrics: { detectKind: () => Promise.resolve('none') } as never,
+      covers: { save: () => Promise.resolve() } as never,
+      logger,
+      settleMs: 50,
+    })
+    try {
+      expect(await scanner.scan()).toMatchObject({ added: 0 })
+      expect(songs.count()).toBe(0)
+
+      // Back by itself, it reads the whole of it.
+      await vi.waitFor(() => expect(songs.byPath('Long - Hour.mp3')).not.toBeNull(), {
+        timeout: 2_000,
+      })
+      expect(songs.byPath('Long - Hour.mp3')).toMatchObject({ duration: 3600, sizeBytes: 400 })
+    } finally {
+      scanner.stop()
+    }
+  })
+
   it('comes back no more once stopped', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-arriving-'))
     const logger = createLogger('silent')

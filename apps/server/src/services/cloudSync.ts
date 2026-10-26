@@ -134,6 +134,19 @@ const DEFAULT_DEBOUNCE_MS = 4_000
 const FIRST_RETRY_MS = 60_000
 const RETRY_DELAYS_MS = [FIRST_RETRY_MS, 120_000, 300_000, 900_000, 1_800_000]
 
+/**
+ * How long a copy here has to have been left alone before a pass sends it,
+ * and before it lets it go. Something may still be writing it: an encoder
+ * fed slowly, a copy over a slow link. Sent too soon, the bucket has part of
+ * the song; let go too soon, the writer goes on into a file nothing names,
+ * and the rest of the song is lost (bug bash R4 NEW). Until it is sent, a
+ * change to the copy is the song changing (scanner.ts); after, it is
+ * another song beside it, but nothing is lost while the copy is here. An
+ * import's own download is sent at once (`uploadSong`): this server wrote it.
+ */
+const SEND_WHEN_STILL_MS = 60_000
+const LET_GO_WHEN_STILL_MS = 10 * 60_000
+
 /** Snapshots this server keeps in the bucket; older ones are deleted. */
 const SNAPSHOTS_KEPT = 3
 /** Passes in a row a log file is found broken before the server goes past it (`#givenUpOn`). */
@@ -394,6 +407,8 @@ interface CloudSyncDeps {
   readonly retryDelaysMs?: readonly number[]
   /** How long a snapshot of nothing but enrichment waits (`ENRICHMENT_DEFER_MS`); a test's own. */
   readonly enrichmentDeferMs?: number
+  /** `SEND_WHEN_STILL_MS` and `LET_GO_WHEN_STILL_MS`; tests that write a copy and send it at once make them 0. */
+  readonly stillMs?: { readonly send: number; readonly letGo: number }
 }
 
 /**
@@ -412,12 +427,18 @@ export class CloudSyncService {
   readonly #logPollMs: number
   readonly #retryDelaysMs: readonly number[]
   readonly #enrichmentDeferMs: number
+  readonly #stillMs: { readonly send: number; readonly letGo: number }
 
   /**
    * Called after a pass has applied other devices' changes, so the library
    * version moves and the files of songs removed elsewhere go too.
    */
   onIngested: ((result: IngestResult) => void | Promise<void>) | null = null
+  /**
+   * A copy here was found written to since the sweep read it. What was read
+   * is not sent or let go; the sweep reads it again (`ScannerService.lookAgain`).
+   */
+  onCopyChanged: (() => void) | null = null
 
   /** Where uploads go, for display and for the bookkeeping's sake. */
   #target: CloudStatus['target'] = null
@@ -484,6 +505,9 @@ export class CloudSyncService {
   #bucketPlays: readonly CloudPlays[] | null | undefined = undefined
   /** The pass that sends this month's plays once the hour since the last is up. */
   #playsTimer: NodeJS.Timeout | null = null
+  /** The pass for copies here not yet still for long enough to send or let go, and when it is due. */
+  #stillTimer: NodeJS.Timeout | null = null
+  #stillAt = 0
   #adopting: Promise<void> | null = null
   #preparing: Promise<void> | null = null
 
@@ -590,6 +614,7 @@ export class CloudSyncService {
     this.#logPollMs = deps.logPollMs ?? LOG_POLL_MS
     this.#retryDelaysMs = deps.retryDelaysMs ?? RETRY_DELAYS_MS
     this.#enrichmentDeferMs = deps.enrichmentDeferMs ?? ENRICHMENT_DEFER_MS
+    this.#stillMs = deps.stillMs ?? { send: SEND_WHEN_STILL_MS, letGo: LET_GO_WHEN_STILL_MS }
     if (deps.cloudDir) this.#useFolder(deps.cloudDir)
   }
 
@@ -1068,6 +1093,7 @@ export class CloudSyncService {
       /** Songs wholly in the bucket as they are here: what may be let go of below. */
       const settled: Settled[] = []
       let withoutCopy = 0
+      let stillWriting = 0
       for (const [index, file] of files.entries()) {
         const state = states.get(file.id)
         const signatures = signed[index] as Signatures
@@ -1090,6 +1116,16 @@ export class CloudSyncService {
           withoutCopy++
           continue
         }
+        // A copy something may still be writing is sent once it has been
+        // left alone a while, and a pass comes back for it then.
+        if (!state || state.audioSig !== signatures.audio) {
+          const wait = stillIn(file.mtimeMs, this.#stillMs.send)
+          if (wait > 0) {
+            stillWriting++
+            this.#passOnceStill(wait)
+            continue
+          }
+        }
         changed.push({ file, signatures })
       }
       if (withoutCopy > 0) {
@@ -1097,9 +1133,16 @@ export class CloudSyncService {
           songs: withoutCopy,
         })
       }
+      if (stillWriting > 0) {
+        this.#logger.debug('songs whose copies changed a moment ago, sent once left alone', {
+          songs: stillWriting,
+        })
+      }
 
       const total = changed.length
       let done = 0
+      /** Copies found written to since the sweep read them: not sent, and not failures either. */
+      let notAsRead = 0
       this.#progress = { done, total, current: null }
       for (const { file, signatures } of changed) {
         if (generation !== this.#generation || this.#stopped) return
@@ -1116,6 +1159,18 @@ export class CloudSyncService {
           // for fewer requests: nothing else will work either, and every try
           // against a cap or a busy bucket is one more call.
           if (error instanceof CloudError && error.kind !== 'other') throw error
+          // Written to since the sweep read it: not sent, and not a failure.
+          // The sweep reads it again once it is still, and that sends it.
+          if (error instanceof CopyChanged) {
+            this.#logger.info('a copy changed since it was read; it goes up once read again', {
+              path: file.path,
+            })
+            this.onCopyChanged?.()
+            notAsRead++
+            done++
+            this.#progress = { done, total, current: null }
+            continue
+          }
           // Removed while the pass was sending it, its copy with it: what was
           // asked, not a failure to try again over.
           if (this.#deps.cloud.songFile(file.id)) {
@@ -1164,8 +1219,11 @@ export class CloudSyncService {
         await this.#tidyLogs(store, logs.keys)
       }
 
-      if (changed.length > 0) {
-        this.#logger.info('cloud pass complete', { uploaded: changed.length - failed, failed })
+      if (changed.length > notAsRead) {
+        this.#logger.info('cloud pass complete', {
+          uploaded: changed.length - notAsRead - failed,
+          failed,
+        })
       }
       // The names artists also go by, for any nobody has named: found ones go
       // up with the pass this starts.
@@ -1768,6 +1826,17 @@ export class CloudSyncService {
       audio = { key: state.audioKey, size: state.audioSize }
     } else {
       const data = await this.#deps.storage.read(file.path)
+      // What was read is the song as the sweep read it, or it is not sent:
+      // the row's size and time are what every later look compares with.
+      const after = await this.#deps.storage.stat(file.path)
+      if (
+        data.length !== file.sizeBytes ||
+        !after ||
+        after.sizeBytes !== file.sizeBytes ||
+        Math.floor(after.modifiedAt.getTime()) !== file.mtimeMs
+      ) {
+        throw new CopyChanged(file.path)
+      }
       const key = audioKey(sha256(data), path.extname(file.path))
       await this.#putOnce(store, key, data, file.mime)
       audio = { key, size: data.length }
@@ -2192,6 +2261,22 @@ export class CloudSyncService {
     this.#playsTimer.unref()
   }
 
+  /** A pass in `wait` ms, or sooner if one is already due sooner. */
+  #passOnceStill(wait: number): void {
+    const at = Date.now() + wait
+    if (this.#stopped || (this.#stillTimer && this.#stillAt <= at)) return
+    if (this.#stillTimer) clearTimeout(this.#stillTimer)
+    this.#stillAt = at
+    this.#stillTimer = setTimeout(
+      () => {
+        this.#stillTimer = null
+        this.kick()
+      },
+      Math.max(0, at - Date.now()),
+    )
+    this.#stillTimer.unref()
+  }
+
   #soundLater(wait: number): void {
     if (this.#soundTimer || this.#stopped) return
     this.#soundTimer = setTimeout(() => {
@@ -2277,6 +2362,11 @@ export class CloudSyncService {
    * will play from now on. A song whose audio is not there — a bucket emptied
    * by hand, a folder standing in for one that went away — keeps its copy,
    * and the next pass checks the whole bucket and sends what it lost.
+   *
+   * Nor while something may still be writing it: the copy is let go only as
+   * it was sent — its size and time unchanged — and once it has been left
+   * alone `LET_GO_WHEN_STILL_MS`, with a pass coming back for it then. A
+   * writer that went on into a deleted file lost the rest of the song.
    */
   async #letGo(store: CloudStore, settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
@@ -2284,6 +2374,7 @@ export class CloudSyncService {
     const { storage, lyrics, cloud } = this.#deps
     let released = 0
     let notThere = 0
+    let changed = 0
     for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
       if (!audioHere && !sidecarHere) continue
@@ -2291,6 +2382,20 @@ export class CloudSyncService {
       if (this.#deps.coverToRead?.(file.id)) continue
       try {
         if (audioHere) {
+          const copy = await storage.stat(file.path)
+          if (
+            !copy ||
+            copy.sizeBytes !== file.sizeBytes ||
+            Math.floor(copy.modifiedAt.getTime()) !== file.mtimeMs
+          ) {
+            changed++
+            continue
+          }
+          const wait = stillIn(file.mtimeMs, this.#stillMs.letGo)
+          if (wait > 0) {
+            this.#passOnceStill(wait)
+            continue
+          }
           const state = cloud.state(file.id)
           const object = state ? await store.head(state.audioKey) : null
           if (!state || object?.size !== state.audioSize) {
@@ -2310,6 +2415,12 @@ export class CloudSyncService {
       }
     }
     if (released > 0) this.#logger.info('let go of copies now in the bucket', { songs: released })
+    if (changed > 0) {
+      this.#logger.warn('kept copies written to since they were sent; reading them again', {
+        songs: changed,
+      })
+      this.onCopyChanged?.()
+    }
     if (notThere > 0) {
       this.#logger.warn('kept copies whose audio the bucket does not have; checking it next pass', {
         songs: notThere,
@@ -2839,12 +2950,33 @@ export class CloudSyncService {
     if (this.#logPoll) clearInterval(this.#logPoll)
     if (this.#soundTimer) clearTimeout(this.#soundTimer)
     if (this.#playsTimer) clearTimeout(this.#playsTimer)
+    if (this.#stillTimer) clearTimeout(this.#stillTimer)
     if (this.#enrichmentTimer) clearTimeout(this.#enrichmentTimer)
     this.#retry = null
     this.#logPoll = null
     this.#soundTimer = null
     this.#playsTimer = null
+    this.#stillTimer = null
     this.#enrichmentTimer = null
+  }
+}
+
+/**
+ * How long until a copy last written at `mtimeMs` has been left alone for
+ * `forMs`; 0 once it has. Either way of now, as the sweep counts it
+ * (scanner.ts): a time far ahead of this clock is a clock that is wrong, not
+ * a writer, and waiting for it would be waiting for ever.
+ */
+function stillIn(mtimeMs: number, forMs: number): number {
+  const since = Math.abs(Date.now() - mtimeMs)
+  return since < forMs ? forMs - since : 0
+}
+
+/** A copy here written to since the sweep read it: what was read is not the song any more. */
+class CopyChanged extends Error {
+  constructor(key: string) {
+    super(`changed since it was read: ${key}`)
+    this.name = 'CopyChanged'
   }
 }
 

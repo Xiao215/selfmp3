@@ -46,7 +46,7 @@ import { useDownloads } from '../offline/DownloadsProvider'
 import { useOpenTag } from '../features/tag/useOpenTag'
 import { onTagPage } from '../features/tag/placePath.model'
 import { existingTag, noTagsLine } from '../features/tag/tag.model'
-import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
+import { TagNameField, useNewTagForm } from '../features/tags/useNewTagForm'
 import { StatusLine } from '../ui/components/StatusLine'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
@@ -553,7 +553,7 @@ function Tags(): ReactNode {
           <View style={styles.tagHues}>
             <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} size={16} />
           </View>
-          {form.failed ? <StatusLine>{NEW_TAG_FAILED}</StatusLine> : null}
+          {form.failure ? <StatusLine>{form.failure}</StatusLine> : null}
           {suggestions.length > 0 ? (
             <View style={styles.suggestions}>
               <Text style={styles.hint}>{exact ? 'already exists:' : 'similar:'}</Text>

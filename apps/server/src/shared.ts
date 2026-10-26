@@ -67,7 +67,9 @@ export function createShared(
 ): SharedServices {
   const soundModel = new SoundModelHost({ config, logger })
   const keepAwake = createKeepAwake(logger)
-  const metrics = new ServerMetrics(config.dataDir)
+  const metrics = new ServerMetrics(config.dataDir, undefined, error => {
+    logger.warn('could not count for the admin page', { message: messageOf(error) })
+  })
   const musicBrainzPace = new RateLimiter(MUSICBRAINZ_PACE_MS)
   return {
     soundModel,

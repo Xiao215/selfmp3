@@ -56,7 +56,7 @@ import {
 } from './tags.model'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from './useNewTagForm'
+import { TagNameField, useNewTagForm } from './useNewTagForm'
 import { ScrollView } from '../../ui/components/Scroll'
 import { useDrawnAhead } from '../../ui/useDrawnAhead'
 import { TagDot } from '../../ui/components/TagDot'
@@ -408,8 +408,8 @@ function NewTag({
         <Text style={styles.fieldLabel}>Colour</Text>
         <HueSwatches value={form.hue} first={form.autoHue} onChange={form.setHue} />
       </View>
-      {form.failed ? (
-        <StatusLine>{NEW_TAG_FAILED}</StatusLine>
+      {form.failure ? (
+        <StatusLine>{form.failure}</StatusLine>
       ) : (
         <Text style={styles.newHint}>A word or two.</Text>
       )}

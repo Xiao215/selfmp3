@@ -1,5 +1,12 @@
+import { EventEmitter } from 'node:events'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import Database from 'better-sqlite3'
+import type { Request, Response } from 'express'
 import { describe, expect, it } from 'vitest'
-import { routeOf } from '../http/middleware.js'
+import { createLogger } from '../logger.js'
+import { requestLogger, routeOf } from '../http/middleware.js'
 import { METRIC, ServerMetrics, failureOf, sourceOf, type FinishedImport } from './metrics.js'
 
 /**
@@ -137,5 +144,58 @@ describe('reading an import', () => {
     expect(failureOf('No match found on YouTube for this Spotify song')).toBe('no-match')
     expect(failureOf('The download timed out')).toBe('timeout')
     expect(failureOf('ffmpeg exited with code 1')).toBe('other')
+  })
+})
+
+/**
+ * A count that cannot be written — the disk full, the file held — is said
+ * and dropped. The 500s are counted from a response's `finish` event, where
+ * a throw is uncaught: a full disk's first 500 took the server down (R3-M9).
+ */
+describe('a count that cannot be written', () => {
+  function heldMetrics(): { metrics: ServerMetrics; failures: unknown[]; release: () => void } {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-metrics-'))
+    const failures: unknown[] = []
+    const metrics = new ServerMetrics(
+      dir,
+      () => NOW,
+      error => failures.push(error),
+    )
+    const other = new Database(path.join(dir, 'metrics.db'))
+    other.exec('BEGIN EXCLUSIVE')
+    return {
+      metrics,
+      failures,
+      release: () => {
+        other.exec('ROLLBACK')
+        other.close()
+        metrics.close()
+        fs.rmSync(dir, { recursive: true, force: true })
+      },
+    }
+  }
+
+  it('is said and dropped, never thrown', () => {
+    const { metrics, failures, release } = heldMetrics()
+    try {
+      expect(() => metrics.count(METRIC.smartFailed)).not.toThrow()
+      expect(() => metrics.recordImport(finished())).not.toThrow()
+      expect(failures).toHaveLength(2)
+    } finally {
+      release()
+    }
+  })
+
+  it('leaves a 500 counted from its finish event without an uncaught throw', () => {
+    const { metrics, failures, release } = heldMetrics()
+    try {
+      const res = Object.assign(new EventEmitter(), { statusCode: 500 }) as unknown as Response
+      const req = { method: 'POST', path: '/api/tags', originalUrl: '/api/tags' } as Request
+      requestLogger(createLogger('silent'), metrics)(req, res, () => undefined)
+      expect(() => res.emit('finish')).not.toThrow()
+      expect(failures).toHaveLength(1)
+    } finally {
+      release()
+    }
   })
 })

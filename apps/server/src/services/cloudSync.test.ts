@@ -2189,6 +2189,26 @@ describe('CloudSyncService', () => {
       expect(here('B - Two/B - Two.m4a')).toBe(false)
     })
 
+    it('keeps the copy of a song whose audio the bucket does not have, and sends it again', async () => {
+      const service = lettingGo()
+      const id = addSong('A - One', 'one')
+      await service.connect(CONNECT)
+      await service.whenIdle()
+
+      // Sent and remembered as sent; then gone from the bucket (emptied by
+      // hand, or a folder standing in for it that went away) before
+      // analysis is done with the song.
+      bucket.objects.delete(`audio/${sha('one')}.m4a`)
+      analysed.add(id)
+      await service.syncNow()
+      expect(here('A - One/A - One.m4a')).toBe(true)
+
+      // The next pass looks at the whole bucket and sends what it lost.
+      await service.syncNow()
+      expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+      expect(here('A - One/A - One.m4a')).toBe(false)
+    })
+
     it('hands the audio back from the bucket, for analysis, once the copy is gone', async () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')

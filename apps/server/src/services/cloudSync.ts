@@ -1156,7 +1156,7 @@ export class CloudSyncService {
         // is no longer needed here, what the library no longer names is no
         // longer needed in the bucket, and nothing can take a removed song back.
         cloud.forgetRemoved()
-        await this.#letGo(settled)
+        await this.#letGo(store, settled)
         if (generation !== this.#generation || this.#stopped) return
         await this.#emptyTrash(store)
         if (generation !== this.#generation || this.#stopped) return
@@ -2270,19 +2270,34 @@ export class CloudSyncService {
    * What is here is what `#signatures` saw at the start of the pass, so a
    * library already let go costs no second look. A sidecar written since then
    * has not been sent yet, and stays for the next pass to send.
+   *
+   * The last copy is not deleted on the word of what this server remembers
+   * sending: the bucket is asked, once a song, for the audio every device
+   * will play from now on. A song whose audio is not there — a bucket emptied
+   * by hand, a folder standing in for one that went away — keeps its copy,
+   * and the next pass checks the whole bucket and sends what it lost.
    */
-  async #letGo(settled: readonly Settled[]): Promise<void> {
+  async #letGo(store: CloudStore, settled: readonly Settled[]): Promise<void> {
     const analysed = this.#deps.analysed
     if (!analysed) return
-    const { storage, lyrics } = this.#deps
+    const { storage, lyrics, cloud } = this.#deps
     let released = 0
+    let notThere = 0
     for (const { file, audioHere, sidecarHere } of settled) {
       if (this.#stopped) return
       if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
       if (this.#deps.coverToRead?.(file.id)) continue
       try {
-        if (audioHere) await storage.delete(file.path)
+        if (audioHere) {
+          const state = cloud.state(file.id)
+          const object = state ? await store.head(state.audioKey) : null
+          if (!state || object?.size !== state.audioSize) {
+            notThere++
+            continue
+          }
+          await storage.delete(file.path)
+        }
         await lyrics.deleteSidecar(file.path)
         await removeFolderIfEmpty(storage, file.path)
         released++
@@ -2294,6 +2309,12 @@ export class CloudSyncService {
       }
     }
     if (released > 0) this.#logger.info('let go of copies now in the bucket', { songs: released })
+    if (notThere > 0) {
+      this.#logger.warn('kept copies whose audio the bucket does not have; checking it next pass', {
+        songs: notThere,
+      })
+      this.#verified = false
+    }
   }
 
   /**
@@ -2562,6 +2583,7 @@ export class CloudSyncService {
     // names the snapshot and starts the window logs are tidied against, so it
     // is the time the snapshot was really written.
     const writtenAt = this.#now()
+    const everySong = songs.all()
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
@@ -2569,13 +2591,13 @@ export class CloudSyncService {
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],
       ...(server ? { server } : {}),
-      songs: songs.all(),
+      songs: everySong,
       cameWith: songs.allCameWith(),
       songUids: new Map(cloud.songFiles().map(file => [file.id, file.uid])),
       states: cloud.states(),
       artists: [...cloud.artistStates().values()],
       artistNames: names?.repo.artistNames() ?? new Map(),
-      spellings: names?.spellings.current() ?? {},
+      spellings: names?.spellings.current(everySong) ?? {},
       coverPacks: cloud.coverPacks(),
       // The bucket's own file until it has been read back: a snapshot without
       // it would leave the vectors there named by nothing.

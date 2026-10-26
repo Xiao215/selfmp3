@@ -107,6 +107,49 @@ describe("a share link's own address", () => {
     expect(wrong['og:image']).toBe('https://xiao215.github.io/selfmp3/icons/icon-512.png')
   })
 
+  it('carries where to start on to the app, written as a time, and drops one that is not', async () => {
+    const { h, link } = await made()
+    const at = (t: string) =>
+      visit(h, `/l/${link.id}/${link.key}?t=${t}`, SAFARI).then(sent =>
+        sent.headers.get('location'),
+      )
+    const app = `https://xiao215.github.io/selfmp3/l/${link.id}/${link.key}`
+    expect(await at('0:42')).toBe(`${app}?t=0:42`)
+    expect(await at('42')).toBe(`${app}?t=0:42`)
+    expect(await at('1:02:03')).toBe(`${app}?t=1:02:03`)
+    expect(await at('0%3A42')).toBe(`${app}?t=0:42`)
+    for (const wrong of ['0:4', '0:60', '-1', '1:2:3', 'abc', '1e3', '', '99999999']) {
+      expect(await at(wrong)).toBe(app)
+    }
+  })
+
+  it('names the line a link was shared from on its card, or where it starts', async () => {
+    const { h, link, me } = await made()
+    await h.call('/v1/share', {
+      token: me,
+      json: {
+        name: SONG.title,
+        kind: 'song',
+        you: 'Xiao',
+        songs: [SONG],
+        line: { at: 42, text: '干杯 朋友', reading: 'gān bēi péng yǒu' },
+      },
+    })
+    const card = async (query: string) =>
+      tags(await (await visit(h, `/l/${link.id}/${link.key}${query}`, DISCORD)).text())
+    const lined = await card('?t=0:42')
+    expect(lined['og:title']).toBe('干杯')
+    expect(lined['og:description']).toBe('“干杯 朋友” · 五月天 · Shared by Xiao')
+    expect(lined['og:url']).toContain('?t=0:42')
+    // A start it has no line for says where it starts.
+    expect((await card('?t=1:00'))['og:description']).toBe(
+      'From 1:00 · 五月天 · Song · Shared by Xiao',
+    )
+    // Without one, the card is as it always was.
+    expect((await card(''))['og:description']).toBe('五月天 · Song · Shared by Xiao')
+    expect((await card('?t=nope'))['og:description']).toBe('五月天 · Song · Shared by Xiao')
+  })
+
   it('escapes what the sender named it', async () => {
     const { h, me } = await made()
     const response = await h.call('/v1/share', {

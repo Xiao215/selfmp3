@@ -8,6 +8,7 @@ import {
   RoomSongSchema,
   ShareActionSchema,
   ShareDocSchema,
+  ShareLineSchema,
   ShareNameSchema,
   applyShareAction,
   isRoomRefusal,
@@ -16,6 +17,7 @@ import {
   shareGone,
   shareKeptUntil,
   shareLends,
+  shareLineAdded,
   shareOpened,
   sharePlayed,
   shareSongsAgain,
@@ -69,6 +71,16 @@ function upgradeSecrets(kept: Omit<Secrets, 'visitors'> & { visitors?: unknown }
   return Array.isArray(kept.visitors) ? (kept as Secrets) : { ...kept, visitors: [] }
 }
 
+/**
+ * A link as it was kept before it remembered the lines it was shared from,
+ * brought up to now: it was shared from none. Written back by `#found`, as
+ * `upgradeSecrets` is, so a link is upgraded once.
+ */
+function upgradeDoc(kept: unknown): unknown {
+  if (typeof kept !== 'object' || kept === null || 'lines' in kept) return kept
+  return { ...kept, lines: [] }
+}
+
 /** What a link needs from the runtime. */
 interface ShareRuntime {
   readonly storage: {
@@ -97,6 +109,7 @@ const CreateSchema = z.object({
   you: RoomMemberNameSchema,
   picture: MemberPictureSchema.nullable(),
   songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  line: ShareLineSchema.optional(),
 })
 
 const OpenSchema = z.object({
@@ -121,6 +134,8 @@ const ActSchema = z.object({ sub: SubSchema, action: ShareActionSchema })
 const SongsSchema = z.object({
   sub: SubSchema,
   songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  /** Shared again from a line of its song: the link remembers that line too. */
+  line: ShareLineSchema.optional(),
 })
 
 const REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
@@ -197,6 +212,7 @@ export class Share {
       kind: input.kind,
       from: { name: input.you, picture: input.picture },
       songs: input.songs.map(song => ({ id: this.#newId(), song })),
+      line: input.line,
       now,
     })
     const secrets: Secrets = {
@@ -376,7 +392,10 @@ export class Share {
     return Response.json(this.#viewOf(next, answered, input.sub))
   }
 
-  /** Shared again by its sender: its songs' files as their library names them now. */
+  /**
+   * Shared again by its sender: its songs' files as their library names them
+   * now, and the line it was shared from this time, if one.
+   */
   async #songs(input: z.infer<typeof SongsSchema>): Promise<Response> {
     const found = await this.#found()
     if (!found) return MISSING()
@@ -384,7 +403,7 @@ export class Share {
     if (input.sub !== secrets.owner) {
       return answer(403, DOORMAN_ERROR.shareForbidden, 'only its sender can do that')
     }
-    await this.#save(shareSongsAgain(doc, input.songs), secrets)
+    await this.#save(shareLineAdded(shareSongsAgain(doc, input.songs), input.line), secrets)
     return new Response(null, { status: 204 })
   }
 
@@ -407,11 +426,13 @@ export class Share {
 
   async #found(): Promise<{ doc: ShareDoc; secrets: Secrets } | null> {
     const stored = await this.#runtime.storage.get<unknown>('doc')
-    const parsed = ShareDocSchema.safeParse(stored)
+    const upgraded = upgradeDoc(stored)
+    const parsed = ShareDocSchema.safeParse(upgraded)
     const kept = await this.#runtime.storage.get<Parameters<typeof upgradeSecrets>[0]>('secrets')
     if (!parsed.success || !kept) return null
     // Past its card's days, it is as good as forgotten even before the alarm comes.
     if (this.#runtime.now() >= shareKeptUntil(parsed.data)) return null
+    if (upgraded !== stored) await this.#runtime.storage.put('doc', parsed.data)
     const secrets = upgradeSecrets(kept)
     if (secrets !== kept) await this.#runtime.storage.put('secrets', secrets)
     return { doc: parsed.data, secrets }

@@ -1,5 +1,6 @@
 import {
   DOORMAN_PATHS,
+  formatShareStart,
   ShareLinkSchema,
   ShareSummariesSchema,
   type DoormanFetch,
@@ -54,7 +55,16 @@ export function createShareApi(doormanUrl: string, fetch: DoormanFetch): ShareAp
   }
 }
 
-/** A share link's address: its page in the web app, which opens without self.mp3. */
-export function shareLinkUrl(appUrl: string, link: Pick<ShareLink, 'id' | 'key'>): string {
-  return `${appUrl.replace(/\/+$/, '')}/l/${link.id}/${link.key}`
+/**
+ * A share link's address: its page in the web app, which opens without
+ * self.mp3. Shared from a line, it says where to start, `?t=0:42`; the colon
+ * is left as it is, which a query may carry, so the address reads as a time.
+ */
+export function shareLinkUrl(
+  appUrl: string,
+  link: Pick<ShareLink, 'id' | 'key'>,
+  start: number | null = null,
+): string {
+  const at = start === null ? '' : `?t=${formatShareStart(start)}`
+  return `${appUrl.replace(/\/+$/, '')}/l/${link.id}/${link.key}${at}`
 }

@@ -360,7 +360,7 @@ function SongPhone(props: SongProps): ReactNode {
                   {bylineOf(song)}
                 </Text>
               </View>
-              {start && line ? <SharedLine at={start.at} line={line} size={22} /> : null}
+              {start && line ? <SharedLine at={start.at} line={line} size={24} /> : null}
             </View>
           </Animated.View>
         ) : null}

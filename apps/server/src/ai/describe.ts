@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import {
   DAY_MS,
+  EVERY_SONG,
   fromSqliteTime,
   isResting,
   artistKey,
@@ -70,7 +71,7 @@ export const PlanOut = z.object({
   playedWithinDays: z.number().int().min(1).max(3650).nullable(),
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
-  size: z.number().int().min(1).max(2000).nullable(),
+  size: z.number().int().min(1).max(EVERY_SONG).nullable(),
   minutes: z.number().int().min(1).max(1440).nullable(),
   sound: z.string().max(120).nullable(),
   brief: z.string().max(200).nullable(),
@@ -93,7 +94,7 @@ export const FILTERS_GUIDE = `The filters:
 - words: "with" for songs with lyrics, "without" for instrumental (studying, focus, "no vocals"). Null when not implied.
 - loved: true only if they ask for loved or favourite songs.
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
-- size: a number of songs, only if they say one; 2000 when they want every song the other filters let in.
+- size: a number of songs, only if they say one; ${EVERY_SONG} when they want every song the other filters let in.
 - minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
 - sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). Of the songs the other filters let in, it keeps the ones that sound like it, best first. Null when the description says nothing about how the music sounds; never set it just to order songs the other filters already choose.
 - brief: what the description wants that the filters and sound cannot express, in a few words, such as "named for rain" or "songs about leaving home". Null if they say it all.

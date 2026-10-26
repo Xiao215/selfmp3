@@ -10,7 +10,7 @@ import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useFade } from '../../ui/motion'
 import { StopButton } from './StopButton'
 import { IconButton } from '../../ui/components/IconButton'
-import { changeAnswer, shownOnServer, useKeptAnswer } from './answers.store'
+import { changeAnswer, shownOnServer, understandingOf, useKeptAnswer } from './answers.store'
 import { newTicket, useAskProgress } from './useAskProgress'
 import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
@@ -48,7 +48,7 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
       return server.api.refineAnswer(
         {
           text: answer.text,
-          understanding: answer.result.understanding,
+          understanding: understandingOf(answer),
           change: words,
           shown: shownOnServer(answer, server.onServer),
           ticket: name,

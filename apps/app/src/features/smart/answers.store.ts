@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { DescribeResult } from '@selfmp3/shared'
+import type { DescribeResult, Understanding } from '@selfmp3/shared'
 
 /**
  * Ask's song answers, kept while the app is open so an answer can be a page
@@ -21,6 +21,12 @@ interface KeptAnswer {
   readonly result: DescribeResult
   /** The songs in the order you put them in, by this device's ids; null for the answer's own. */
   readonly order: readonly number[] | null
+  /**
+   * What it understood with chips taken away and not yet picked again from;
+   * null when unchanged. Kept with the answer, so a change in words starts
+   * from what is shown and the next list opened does not inherit it.
+   */
+  readonly edited: Understanding | null
 }
 
 let answers: ReadonlyMap<string, KeptAnswer> = new Map()
@@ -50,7 +56,7 @@ export function keepAnswer(text: string, result: DescribeResult): string {
   // Nobody is reading an id that did not exist, so there is no one to tell:
   // and this runs while an answer is drawn, when telling would be a render
   // inside a render.
-  answers = new Map([...answers, [id, { id, text, result, order: null }]])
+  answers = new Map([...answers, [id, { id, text, result, order: null, edited: null }]])
   firsts.set(id, { text, result })
   return id
 }
@@ -58,7 +64,18 @@ export function keepAnswer(text: string, result: DescribeResult): string {
 /** The answer changed on its page (Change it, Different songs): the new songs, in their own order. */
 export function changeAnswer(id: string, result: DescribeResult): void {
   const answer = answers.get(id)
-  if (answer) put({ ...answer, result, order: null })
+  if (answer) put({ ...answer, result, order: null, edited: null })
+}
+
+/** A chip taken away on the answer's page: what Different songs and a change in words start from. */
+export function editAnswer(id: string, edited: Understanding): void {
+  const answer = answers.get(id)
+  if (answer) put({ ...answer, edited })
+}
+
+/** What a change to an answer starts from: what it understood, less any chip taken away. */
+export function understandingOf(answer: KeptAnswer): Understanding {
+  return answer.edited ?? answer.result.understanding
 }
 
 /** Songs held and moved on the answer's page: the order it plays and saves in. */

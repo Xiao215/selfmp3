@@ -75,7 +75,9 @@ export function LibraryAnswer({
   return (
     <>
       <AnswerHead>
-        {answer.understanding.size !== null && answer.understanding.size < answer.count
+        {/* Fewer listed than counted (a size asked for, the most a list holds, or songs
+            not on this device yet): said, so "Play these" is not mistaken for all of them. */}
+        {answer.show === 'songs' && songs.length < answer.count
           ? `${songs.length.toLocaleString('en')} of ${songCount(answer.count)}`
           : `${songCount(answer.count)} · ${formatLongDuration(answer.seconds)}`}
       </AnswerHead>

@@ -35,8 +35,8 @@ export interface AskPlaylist {
   readonly songIds: () => readonly number[]
 }
 
-/** How many songs a library question lists at most. */
-const LIST_SIZE = 50
+/** How many songs a library question lists at most: as many as a playlist answer holds. */
+const LIST_SIZE = 200
 /** How many artists, albums or tags a library question names. */
 const TOP = 8
 

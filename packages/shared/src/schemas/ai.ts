@@ -12,6 +12,9 @@ import { IdSchema } from './common.js'
  * a translation of its own.
  */
 
+/** The size that means every song the other parts let in ("all my YOASOBI"). */
+export const EVERY_SONG = 2000
+
 /** A bound of a 0–1, bpm or year range; either end may be open. */
 export const RangeSchema = z.object({
   min: z.number().nullable(),
@@ -53,7 +56,7 @@ export const UnderstandingSchema = z.object({
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullable(),
   addedWithinDays: z.number().int().min(1).max(3650).nullable(),
   /** How many songs were asked for, when the words said. */
-  size: z.number().int().min(1).max(2000).nullable(),
+  size: z.number().int().min(1).max(EVERY_SONG).nullable(),
   /**
    * How long it should play, in minutes, when the words said ("2 hours" is
    * 120). The songs are counted by their own lengths, not an average song's.

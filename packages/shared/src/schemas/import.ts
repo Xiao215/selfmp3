@@ -247,8 +247,14 @@ export const ImportEnqueueItemSchema = z.object({
 })
 export type ImportEnqueueItem = z.infer<typeof ImportEnqueueItemSchema>
 
+/**
+ * The most songs one enqueue names. More — Get it on a share link of a whole
+ * tag — is sent as several (the client's `importEnqueue`).
+ */
+export const IMPORT_ENQUEUE_MAX = 500
+
 export const ImportEnqueueSchema = z.object({
-  items: z.array(ImportEnqueueItemSchema).min(1).max(500),
+  items: z.array(ImportEnqueueItemSchema).min(1).max(IMPORT_ENQUEUE_MAX),
   tagIds: z.array(IdSchema).max(50).default([]),
   /** Optionally drop every imported track into this playlist. */
   playlistId: IdSchema.nullable().default(null),

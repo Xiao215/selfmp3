@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { BULK_IDS_MAX, LYRICS_QUERY_MAX, LibrarySchema, type Library } from '@selfmp3/shared'
+import {
+  BULK_IDS_MAX,
+  IMPORT_ENQUEUE_MAX,
+  LYRICS_QUERY_MAX,
+  LibrarySchema,
+  type ImportEnqueue,
+  type Library,
+} from '@selfmp3/shared'
 import { TIMED_OUT } from '../connection/reach.js'
 import { createApi } from './api.js'
 
@@ -153,6 +160,51 @@ describe('a bulk edit bigger than one request may be', () => {
 
     expect(await api.bulkDeleteSongs({ songIds: [1, 2] })).toEqual({ removed: 2, failed: [] })
     expect(sent).toHaveLength(1)
+  })
+})
+
+/**
+ * Get them on a share link of a whole tag: the server takes at most
+ * `IMPORT_ENQUEUE_MAX` songs in one enqueue, and a link holds every song.
+ */
+describe('an import bigger than one enqueue may be', () => {
+  it('goes in parts, every song once, the rest into the playlist the first part made', async () => {
+    const items = Array.from({ length: 1200 }, (_, i) => ({
+      url: `https://www.youtube.com/watch?v=song${i}`,
+      title: `Song ${i}`,
+      artist: '',
+      album: '',
+      thumbnail: null,
+      duration: 0,
+    }))
+    const sent: ImportEnqueue[] = []
+    const api = createApi({
+      context: () => ({
+        transport: null,
+        fromCloud: true,
+        cloudRequest: (_method, _path, body) => {
+          const part = body as ImportEnqueue
+          sent.push(part)
+          return Promise.resolve({ jobs: [], skipped: part.items.length, playlistId: 4 })
+        },
+      }),
+      fetch: () => Promise.reject(new Error('no server in a cloud library')),
+    })
+
+    const answer = await api.importEnqueue({
+      items,
+      tagIds: [],
+      playlistId: null,
+      createPlaylistName: 'From Mia',
+    })
+    expect(answer).toEqual({ jobs: [], skipped: 1200, playlistId: 4 })
+    expect(sent.map(part => part.items.length)).toEqual([
+      IMPORT_ENQUEUE_MAX,
+      IMPORT_ENQUEUE_MAX,
+      200,
+    ])
+    expect(sent.flatMap(part => part.items)).toEqual(items)
+    expect(sent.map(part => part.playlistId)).toEqual([null, 4, 4])
   })
 })
 

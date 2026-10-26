@@ -229,6 +229,8 @@ export const DOORMAN_PATHS = {
   changes: '/v1/changes',
   /** An iPhone's ID, for the iPhone app's install page (apps/doorman/src/device.ts). */
   device: '/v1/device',
+  /** The iPhones asked for, for the owner's admin page: GET the list, PUT `/<id>` adds, DELETE drops. */
+  iphones: '/v1/iphones',
   list: LIST,
   files: FILES,
   grants: GRANTS,

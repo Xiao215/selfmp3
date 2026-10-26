@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { Bucket, BucketError } from './bucket.js'
 import { requireSession, type Context } from './context.js'
 import { relayRead } from './files.js'
-import { json, notFound } from './http.js'
+import { JSON_HEADERS, notFound } from './http.js'
 import { bearerToken, type Session } from './sessions.js'
 
 /**
@@ -36,11 +36,13 @@ export function post(body: unknown): RequestInit {
  * The object's answer, passed on the doorman's way: JSON, never cached, its
  * headers changeable. An answer from a Durable Object has headers that cannot
  * be changed, and every answer gets the CORS headers added (doorman.ts), so it
- * is made again as the doorman's own.
+ * is made again as the doorman's own — around the same body, passed through
+ * unread: a share link of a thousand songs is a megabyte or two of JSON, and
+ * reading it only to write it out again is the Worker's time for nothing.
  */
-export async function relayed(response: Response): Promise<Response> {
+export function relayed(response: Response): Response {
   if (response.status === 204) return new Response(null, { status: 204 })
-  return json(await response.json(), response.status)
+  return new Response(response.body, { status: response.status, headers: JSON_HEADERS })
 }
 
 /** The session the request brings, when it brings one. A token that is no good is said so. */

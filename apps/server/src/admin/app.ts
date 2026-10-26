@@ -7,10 +7,15 @@ import {
   DoormanAccessSchema,
   DoormanAccessUpdateSchema,
   DoormanStatsSchema,
+  IPHONE_ID,
+  IphoneAddedSchema,
+  IphoneListSchema,
   messageOf,
   type AdminData,
   type DoormanAccess,
   type DoormanStats,
+  type IphoneAdded,
+  type IphoneList,
 } from '@selfmp3/shared'
 import type { Config } from '../config.js'
 import { errorHandler, HttpError } from '../http/errors.js'
@@ -39,7 +44,7 @@ export const ADMIN_DIR = path.join(
 )
 
 /** The tabs, each its own address so a bookmark opens it. */
-const TABS = ['/', '/data', '/people']
+const TABS = ['/', '/data', '/people', '/iphones']
 
 const DaysSchema = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) })
 
@@ -101,6 +106,26 @@ export function createAdminApp(hub: Hub): Express {
     ),
   )
 
+  // Friends' iPhones: asked for on the install page, added here, which starts the build.
+  const IphoneParams = z.object({ udid: z.string().regex(IPHONE_ID) })
+  app.get(
+    '/api/admin/iphones',
+    route({}, (): Promise<IphoneList> => doorman.iphones()),
+  )
+  app.put(
+    '/api/admin/iphones/:udid',
+    route({ params: IphoneParams }, ({ params }): Promise<IphoneAdded> =>
+      doorman.addIphone(params.udid),
+    ),
+  )
+  app.delete(
+    '/api/admin/iphones/:udid',
+    route({ params: IphoneParams }, async ({ params }): Promise<{ dropped: true }> => {
+      await doorman.dropIphone(params.udid)
+      return { dropped: true }
+    }),
+  )
+
   app.use('/api', (_req: Request, _res: Response, next: NextFunction) => {
     next(HttpError.notFound('no such endpoint'))
   })
@@ -126,6 +151,9 @@ interface AdminDoorman {
   stats(days: number): Promise<DoormanStats>
   people(): Promise<DoormanAccess>
   setPeople(update: z.infer<typeof DoormanAccessUpdateSchema>): Promise<DoormanAccess>
+  iphones(): Promise<IphoneList>
+  addIphone(udid: string): Promise<IphoneAdded>
+  dropIphone(udid: string): Promise<void>
 }
 
 /** The doorman, asked with its admin key; each refusal in words the page can show. */
@@ -156,7 +184,8 @@ function doormanFor(config: Pick<Config, 'doormanUrl' | 'doormanAdminToken'>): A
       )
     }
     if (!response.ok) throw HttpError.failedDependency(`The doorman answered ${response.status}.`)
-    return schema.parse(await response.json())
+    // A delete answers with nothing.
+    return schema.parse(response.status === 204 ? null : await response.json())
   }
   return {
     stats: days => ask(`${DOORMAN_PATHS.stats}?days=${days}`, DoormanStatsSchema),
@@ -166,6 +195,16 @@ function doormanFor(config: Pick<Config, 'doormanUrl' | 'doormanAdminToken'>): A
         method: 'PUT',
         body: JSON.stringify(update),
       }),
+    iphones: () => ask(DOORMAN_PATHS.iphones, IphoneListSchema),
+    addIphone: udid =>
+      ask(`${DOORMAN_PATHS.iphones}/${encodeURIComponent(udid)}`, IphoneAddedSchema, {
+        method: 'PUT',
+      }),
+    dropIphone: async udid => {
+      await ask(`${DOORMAN_PATHS.iphones}/${encodeURIComponent(udid)}`, z.null(), {
+        method: 'DELETE',
+      })
+    },
   }
 }
 

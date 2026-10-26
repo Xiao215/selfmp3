@@ -922,3 +922,9 @@ table.data .num {
     grid-template-columns: 1fr;
   }
 }
+
+/* iPhones: the note under the two lists. */
+.iphones-note {
+  display: block;
+  margin: 12px 4px 0;
+}

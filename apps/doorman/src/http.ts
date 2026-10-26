@@ -33,11 +33,14 @@ export const notSetUp = (message: string): DoormanError =>
   new DoormanError(500, DOORMAN_ERROR.notSetUp, message)
 
 /** JSON, never cached: every answer the API gives is about one person, now. */
+/** What every JSON answer of the doorman's says about itself. */
+export const JSON_HEADERS = {
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
+} as const
+
 export function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  })
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS })
 }
 
 export function errorResponse(error: DoormanError): Response {

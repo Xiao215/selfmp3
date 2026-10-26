@@ -20,6 +20,7 @@ export type GuideName =
   | 'tag-hold'
   | 'import-review'
   | 'import-box'
+  | 'sound-map-draw'
 
 /**
  * What the device keeps: the names seen, comma-separated. `*` stands for all

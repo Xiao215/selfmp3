@@ -26,7 +26,7 @@ import { NO_STEPS, type Steps } from './progress.js'
  * picks again from the start.
  */
 
-const VERSION = 2
+const VERSION = 3
 
 const REFINE_SYSTEM = `You change the filters of a playlist someone already asked for, after they say what to change about it.
 

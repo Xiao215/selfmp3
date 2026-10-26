@@ -1353,7 +1353,7 @@ export function createCloudLibrary(
         if (place) out.push({ id: song.id, x: place.x, y: place.y })
       }
     }
-    return { places: out, unheard: view.library.songs.length - out.length }
+    return { places: out }
   }
 
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {

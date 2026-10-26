@@ -66,6 +66,7 @@ import {
   homeRecents,
   recentKind,
   recentSongIds,
+  RECENTS_SOURCE,
   type HomeRecent,
 } from '../lists/lists.model'
 import { useRecentLists } from '../lists/recentLists.store'
@@ -93,6 +94,7 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { CantReach } from '../library/CantReach'
 import { useLibraryFailure } from '../library/useLibraryFailure'
+import { MapCard } from '../soundMap/MapCard'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -305,6 +307,8 @@ function HomePage({
                     beside={beside}
                   />
                 )}
+                {/* Under the tags: the same songs, drawn by how they sound (A1). */}
+                <MapCard />
               </>
             )}
           </View>
@@ -779,13 +783,6 @@ function Tile({
 }
 
 /**
- * A song tile plays the row's songs from that one, and Up next is named
- * "Recently played" for them. It offers no Save and is not remembered as a
- * list of its own (`savePlan`, `sourceKey`): the row already is that list.
- */
-const FROM_RECENTS = { kind: 'songs', origin: 'recent', name: 'Recently played' } as const
-
-/**
  * Recently played (docs/features/lists.md, A1): what you listened to, newest
  * first, in a row that scrolls sideways — a list as its covers and its kind,
  * a song played on its own as that song. A tap plays it again; a list that
@@ -826,8 +823,9 @@ function Recents({
               song={song}
               size={size}
               testID={`home-recent-${index}`}
+              // The row's songs from this one, as Recently played: no list of their own.
               onPress={() =>
-                player.playFrom(songIds, songIds.indexOf(song.id), { source: FROM_RECENTS })
+                player.playFrom(songIds, songIds.indexOf(song.id), { source: RECENTS_SOURCE })
               }
             />
           )

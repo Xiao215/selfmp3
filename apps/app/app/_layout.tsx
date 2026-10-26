@@ -44,7 +44,7 @@ import { useLayoutFlags } from '../src/shell/useLayout'
 import { setRootWidth } from '../src/shell/rootWidth'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { useRoom } from '../src/features/room/room.store'
-import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
+import { pageHidesTabs, pageOwnsScreen, setPageChrome, setPageTabs } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
 import { listenForAppFocus } from '../src/ports/appFocus'
@@ -343,9 +343,11 @@ function RootRoutes(): ReactNode {
   const chrome = (stage || covered || !pageOwnsScreen(pathname, wide)) && status === 'ready'
   // Every scrolling page leaves room at its foot for the chrome; the pages
   // that own the display must not keep a hole where the bar would have been.
+  const tabs = chrome && !pageHidesTabs(pathname, wide)
   useEffect(() => {
     setPageChrome(chrome)
-  }, [chrome])
+    setPageTabs(tabs)
+  }, [chrome, tabs])
 
   // Kept, not rebuilt: a new function here is new options for every screen in
   // the stack each time the shell renders.

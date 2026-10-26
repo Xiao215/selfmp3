@@ -343,18 +343,46 @@ other services.)
 (`packages/shared/src/installPage.ts`; opened anywhere else — WeChat's browser, Chrome,
 a computer — it says where to open it instead):
 
-1. **Send my iPhone's ID** installs a profile service from the doorman
-   (`apps/doorman/src/device.ts`). The iPhone hands over its UDID and Safari shows it on a
-   page to send on. Nothing is kept, and nothing stays installed.
+1. They type their name and tap **Get my iPhone ID**, which installs a profile service
+   from the doorman (`apps/doorman/src/device.ts`). The iPhone hands over its UDID, the
+   doorman puts it on a waiting list with the name, and Safari opens their iPhone's own
+   page, which says how far along it is: waiting, added and being built for, or ready
+   with an Install button. Nothing stays installed on the iPhone.
 2. **Install self.mp3**, once their iPhone is in a build, opens the install link
-   (`itms-services://` with the manifest on the `ios` release).
+   (`itms-services://` with the manifest on the `ios` release). The release's `ios.json`
+   lists the iPhones each build carries, as SHA-256 of the ID, so the page knows.
 
-**The team's account holder**, once: an **Apple Distribution** certificate from a
-request you send (made as in step 1 above), and an **Ad Hoc** profile for each of
-`com.selfmp3.app` and `com.selfmp3.app.widget` with that certificate, the App Group
-assigned, and every registered iPhone. For each new friend: register the ID under
-Devices, then edit both profiles, tick the new iPhone, save, and send you the two
-`.mobileprovision` files again.
+**You**, on the admin page's **iPhones** tab ([docs/features/admin.md](features/admin.md)):
+**Add** a waiting iPhone. That marks it added and starts the iPhone workflow on GitHub,
+which registers every added iPhone with Apple (`scripts/ios-provision.mjs`, through the
+App Store Connect API), makes both profiles again with every registered iPhone, builds
+and publishes. About an hour later their page says Install. They also need to be on
+**People** to sign in.
+
+What that needs, once:
+
+- **A team API key.** The account holder turns on API access (App Store Connect → Users
+  and Access → Integrations) and makes a **Team Key** with the **Admin** role. An Individual
+  membership keeps Certificates, Identifiers & Profiles' web pages to its account holder;
+  a team key with the Admin role is expected to reach the same through the API, which the
+  `--check` below confirms before anything relies on it. Keep the `.p8`
+  in `~/.ios-signing` and describe it in `~/.ios-signing/asc.json`:
+  `{ "keyId": "…", "issuerId": "…", "keyFile": "AuthKey_….p8" }`.
+  `node scripts/ios-provision.mjs --check` (with `ASC_KEY_PATH`, `ASC_KEY_ID`,
+  `ASC_ISSUER_ID` and `SELFMP3_DOORMAN_ADMIN_TOKEN` in the environment) reads Apple's
+  side and changes nothing.
+- **The doorman's `GITHUB_TOKEN`** (`npx wrangler secret put GITHUB_TOKEN`): a
+  fine-grained token for this repository with Actions read and write, so Add starts the
+  build at once. Without it the nightly run notices an added iPhone the build on the
+  release leaves out, and builds then.
+- **The repository's secrets**, from `node scripts/ios-signing-secrets.mjs` with
+  `SELFMP3_DOORMAN_ADMIN_TOKEN` set: the signing as before, plus `ASC_KEY_ID`,
+  `ASC_ISSUER_ID`, `ASC_KEY` from `asc.json`, and `DOORMAN_ADMIN_TOKEN`.
+
+Without the API key, the account holder does Apple's part by hand: for each friend,
+register the ID under Devices, edit both profiles to tick the new iPhone, and send you
+the two `.mobileprovision` files, which go into the repository's secrets again. The
+App Group still has to be assigned to both App IDs by hand once: the API cannot.
 
 **You** keep the signing setup outside the repository, in `~/.ios-signing/release.json`:
 

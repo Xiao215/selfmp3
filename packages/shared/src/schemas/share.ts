@@ -26,9 +26,6 @@ export const ShareIdSchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a share lin
 /** What a link carries besides its id. */
 export const ShareKeySchema = z.string().regex(/^[0-9a-f]{16}$/, 'not a share link')
 
-/** The most songs one link holds. */
-export const SHARE_MAX_SONGS = 100
-
 /** The most asks one link keeps (the oldest go first), and names of people who opened it. */
 export const SHARE_MAX_ASKS = 20
 export const SHARE_MAX_OPENED = 50
@@ -92,10 +89,10 @@ export type ShareAskEntry = z.infer<typeof ShareAskSchema>
 export const ShareDocSchema = z.object({
   id: ShareIdSchema,
   name: ShareNameSchema,
-  /** One song, or a tag or playlist as it was. */
+  /** One song, or a tag or playlist as it was: every song of it, however many. */
   kind: z.enum(['song', 'list']),
   from: ShareFaceSchema,
-  entries: z.array(ShareEntrySchema).min(1).max(SHARE_MAX_SONGS),
+  entries: z.array(ShareEntrySchema).min(1),
   createdAt: z.number().int().nonnegative(),
   /** When it was shared, or shared again: its month counts from here. */
   startedAt: z.number().int().nonnegative(),
@@ -173,7 +170,7 @@ export const ShareCreateSchema = z.object({
   kind: z.enum(['song', 'list']),
   /** Your name, as whoever opens it sees it. */
   you: RoomMemberNameSchema,
-  songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  songs: z.array(RoomSongSchema).min(1),
   /** Shared from a line of the song's words: the same link, remembering the line. */
   line: ShareLineSchema.optional(),
 })

@@ -411,7 +411,7 @@ describe('/api/cloud/uids', () => {
       songs: { id: number; title: string }[]
     }
     const a = library.songs.find(row => row.title === 'Song a')?.id
-    const expected = { places: [{ id: a, x: 0.25, y: 0.75 }], unheard: 1 }
+    const expected = { places: [{ id: a, x: 0.25, y: 0.75 }] }
     expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
     expect(await made.cloudRequest('GET', '/api/sound-map', undefined)).toEqual(expected)
     expect(made.fetched.filter(path => path.endsWith('.map'))).toHaveLength(1)

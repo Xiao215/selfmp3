@@ -19,6 +19,7 @@ export const SONG_ACTION_LABELS = {
   addToUpNext: 'Add to Up next',
   playNext: 'Play next',
   playSimilar: 'Play similar songs',
+  showOnMap: 'Show on the map',
   share: 'Share link',
   rest: 'Rest for a month',
   wake: 'Wake up',
@@ -35,6 +36,7 @@ export type SongActionId =
   | 'addToPlaylist'
   | 'addToUpNext'
   | 'playSimilar'
+  | 'showOnMap'
   | 'share'
   | 'download'
   | 'removeDownload'
@@ -104,6 +106,8 @@ export function songActions(facts: SongActionFacts): readonly SongAction[] {
   // The song playing is already in Up next.
   if (!facts.nowPlaying) add('addToUpNext', SONG_ACTION_LABELS.addToUpNext, 'song')
   if (!many) add('playSimilar', SONG_ACTION_LABELS.playSimilar, 'song')
+  // Where it sits among the songs it sounds like (docs/features/sound-map.md).
+  if (!many) add('showOnMap', SONG_ACTION_LABELS.showOnMap, 'song')
   if (facts.shareable) add('share', SONG_ACTION_LABELS.share, 'song')
   // A browser streams; only an installed app keeps songs.
   if (facts.installed && held < count) {

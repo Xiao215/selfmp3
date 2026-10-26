@@ -97,7 +97,7 @@ export class Access {
  * but it is the server's, and a server may not decide who signs in or read
  * what the doorman counts: any server the owner ever let in could, otherwise.
  */
-async function requireOwner(ctx: Context): Promise<void> {
+export async function requireOwner(ctx: Context): Promise<void> {
   const token = bearerToken(ctx.request)
   if (token && (await isAdminKey(ctx.env.ADMIN_TOKEN, token))) return
   const session = await requireSession(ctx)

@@ -11,6 +11,7 @@ import {
 import {
   combinedLink,
   describeSource,
+  foundSource,
   homeRecents,
   LIKED_SOURCE,
   LINED_UP_SOURCE,
@@ -24,7 +25,9 @@ import {
   playAlone,
   recentKind,
   recentSongIds,
+  RECENTS_SOURCE,
   savePlan,
+  searchSource,
   songsToSave,
   sourceAfterAdding,
   sourceKey,
@@ -169,6 +172,73 @@ describe('songs played from a search', () => {
   // The tile's title is the words searched; its line says they were searched.
   it('is a Search, not "From Search" under a title of Search', () => {
     expect(recentKind({ kind: 'songs', origin: 'search', name: '“yoru”' })).toBe('Search')
+  })
+
+  it('is named for the words searched, cut short when long', () => {
+    expect(searchSource('  yoru  ni ')).toEqual({
+      kind: 'songs',
+      origin: 'search',
+      name: '“yoru ni”',
+    })
+    const long = searchSource('a'.repeat(60))
+    expect(long.kind === 'songs' && Array.from(long.name)).toHaveLength(42)
+    expect(long.kind === 'songs' && long.name.endsWith('…”')).toBe(true)
+  })
+
+  it('tells one search’s tile from another’s, and is one tile for the same words', () => {
+    let lists: readonly RecentList[] = []
+    lists = withListStarted(lists, searchSource('yoru'), [1, 2, 3], 100)
+    lists = withListStarted(lists, searchSource('YOASOBI'), [4, 5], 200)
+    // The same words again, finding a song more since: the same tile, with what they find now.
+    lists = withListStarted(lists, searchSource('Yoru'), [1, 2, 3, 6], 300)
+    expect(lists.map(entry => describeSource(entry.source, known).label)).toEqual([
+      '“Yoru”',
+      '“YOASOBI”',
+    ])
+    expect(lists[0]?.songIds).toEqual([1, 2, 3, 6])
+  })
+
+  it('is a song of its own when the words found one song', () => {
+    expect(withListStarted([], searchSource('yoru'), [1], 100)).toEqual([])
+  })
+
+  it('plays the songs played last as Recently played before anything is typed', () => {
+    expect(searchSource(' ')).toEqual(RECENTS_SOURCE)
+    expect(withListStarted([], searchSource(''), [1, 2, 3], 100)).toEqual([])
+  })
+
+  it('names what Ask found for the words asked', () => {
+    const found = foundSource('比较温和的jpop')
+    expect(describeSource(found, known).label).toBe('“比较温和的jpop”')
+    expect(recentKind(found)).toBe('You asked')
+    const lists = withListStarted(
+      withListStarted([], found, [1, 2], 100),
+      foundSource('rainy day'),
+      [3, 4],
+      200,
+    )
+    expect(lists).toHaveLength(2)
+  })
+
+  it('forgets a search kept by its songs, from before searches were kept by their words', () => {
+    const old = [
+      {
+        key: 'songs:search:1,2,3',
+        source: { kind: 'songs', origin: 'search', name: 'Search' },
+        songIds: [1, 2, 3],
+        played: [1],
+        at: 100,
+      },
+      {
+        key: 'songs:found:4,5',
+        source: { kind: 'songs', origin: 'found', name: 'Search' },
+        songIds: [4, 5],
+        played: [],
+        at: 90,
+      },
+    ]
+    const kept = withListStarted([], searchSource('yoru'), [1, 2], 200)
+    expect(parseRecentLists(JSON.stringify([...kept, ...old]))).toEqual(kept)
   })
 })
 
@@ -376,6 +446,7 @@ describe('Recently played', () => {
         name: 'Calm',
         anyTags: [],
         artists: [],
+        albums: [],
         noTags: [],
         energy: { min: null, max: 0.4 },
         bpm: { min: null, max: null },

@@ -11,6 +11,7 @@ import {
   type ListSource,
   type RecentList,
 } from './lists.model'
+import type { DescribeResult } from '@selfmp3/shared'
 
 /**
  * Recently played's lists (docs/features/lists.md, A1): what this device
@@ -72,9 +73,15 @@ export function useRecentLists(): readonly RecentList[] {
 }
 
 /**
- * Keeps Recently played as things play: a list remembered as it starts, and
- * each of its songs noted as it plays, so the songs show as the list's tile
- * rather than tiles of their own. Mounted once, beside the playback memory.
+ * Keeps Recently played as things are heard: a list remembered once a song of
+ * it is playing, and each of its songs noted as it plays, so the songs show as
+ * the list's tile rather than tiles of their own. Mounted once, beside the
+ * playback memory.
+ *
+ * Only listening moves it. A list put back paused as the app opens, Up next
+ * set up and replaced before a note of it sounded, or a song's details edited
+ * while it sits in Up next start nothing: a list waits, unwritten, until
+ * something of it plays.
  */
 export function useRecordRecentLists(): void {
   const player = usePlayer()
@@ -82,14 +89,26 @@ export function useRecordRecentLists(): void {
   const original = player.queue.original
   const items = player.queue.items
   const songId = player.current?.id ?? null
+  const playing = player.isPlaying
   // What was last remembered as starting, so a re-render, a song added to Up
   // next or a Save that renames what plays is not taken for a new start.
   const started = useRef<{ source: unknown; original: unknown; key: string | null } | null>(null)
+  // A start not heard yet: written once something of it plays.
+  const waiting = useRef<{
+    source: ListSource
+    songs: readonly number[]
+    answer: DescribeResult | undefined
+  } | null>(null)
 
   useEffect(() => {
     const last = started.current
     if (last && (last.source === source || last.original === original)) {
       started.current = { ...last, source, original, key: playingKey }
+      // Saved before it was heard: it is remembered as what it was saved as.
+      const wait = waiting.current
+      if (wait && source && sourceKey(source, wait.songs) === playingKey) {
+        waiting.current = { ...wait, source }
+      }
       return
     }
     const songs = original.length > 0 ? original : items
@@ -101,14 +120,18 @@ export function useRecordRecentLists(): void {
       source?.kind === 'answer' && source.answerId
         ? (answerShowing(source.answerId) ?? undefined)
         : undefined
-    if (source && key !== null) {
-      write(withListStarted(snapshot(), source, songs, Date.now(), answer))
-    }
+    waiting.current = source && key !== null ? { source, songs, answer } : null
   }, [source, original, items])
 
   useEffect(() => {
     const key = started.current?.key ?? null
-    if (key === null || songId === null) return
-    write(withSongPlayed(snapshot(), key, songId, Date.now()))
-  }, [source, songId])
+    if (!playing || key === null || songId === null) return
+    const now = Date.now()
+    const start = waiting.current
+    waiting.current = null
+    const lists = start
+      ? withListStarted(snapshot(), start.source, start.songs, now, start.answer)
+      : snapshot()
+    write(withSongPlayed(lists, key, songId, now))
+  }, [source, songId, playing])
 }

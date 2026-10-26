@@ -46,8 +46,9 @@ const search = (query: string, with_: LibraryNames = names) =>
 describe('search by the names things also go by', () => {
   it('finds an artist by the name they perform under, first', () => {
     expect(search('ikura')[0]).toBe(5)
-    // Without the server's names, only songs whose letters happen to fall in order.
-    expect(search('ikura', NO_NAMES)).not.toContain(5)
+    // Without the server's names, nothing: a song's letters falling in order
+    // through "Hikarunara" are not a match (X2).
+    expect(search('ikura', NO_NAMES)).toEqual([])
   })
 
   it('finds a name in characters by its spelling, run together as typed', () => {

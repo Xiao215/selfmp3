@@ -39,6 +39,7 @@ import { label as labelText, dialogPanel, menuItem, menuItemDense } from '../../
 import { ASK_SUB, askable } from '../smart/smart.model'
 import { useSmartSwitches } from '../smart/useSmartSwitches'
 import { playAlone } from '../lists/lists.model'
+import { placesOf } from '../search/search.model'
 import { useLibrarySearch } from '../search/useLibrarySearch'
 import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
@@ -279,21 +280,23 @@ export function CommandPalette({ onClose }: { onClose: () => void }): ReactNode 
     },
     {
       title: 'Artists and tags',
-      rows: [
-        ...found.artists.map(artist => ({
-          key: `artist-${artist.key}`,
-          label: `${artist.name}, artist`,
-          run: () => router.navigate(artistLink(artist.name)),
-          node: <PlaceLine place={{ kind: 'artist', artist }} style={styles.songLine} />,
-        })),
-        ...found.tags.map(tag => ({
-          key: `tag-${tag.id}`,
-          label: `${tag.name}, tag`,
-          // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its page.
-          run: () => openTag(tag),
-          node: <PlaceLine place={{ kind: 'tag', tag }} style={styles.songLine} />,
-        })),
-      ],
+      // Search's order: a place named exactly what was typed leads (D1).
+      rows: placesOf(found).map(place =>
+        place.kind === 'artist'
+          ? {
+              key: `artist-${place.artist.key}`,
+              label: `${place.artist.name}, artist`,
+              run: () => router.navigate(artistLink(place.artist.name)),
+              node: <PlaceLine place={place} style={styles.songLine} />,
+            }
+          : {
+              key: `tag-${place.tag.id}`,
+              label: `${place.tag.name}, tag`,
+              // A tag is a place (docs/UI-MIGRATION.md, Phase 4): the hit opens its page.
+              run: () => openTag(place.tag),
+              node: <PlaceLine place={place} style={styles.songLine} />,
+            },
+      ),
     },
     {
       title: 'Songs',

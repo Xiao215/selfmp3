@@ -41,12 +41,27 @@ Settings → Lyrics, each a preference of the device rather than a synced settin
 (`apps/app/src/features/nowPlaying/romanizationPref.ts`); the pill flips the one for the
 song's language.
 
+## Search by name
+
+Search, the palette and Library's own search find a song by its title, artist and album
+(`songSearchNames` in `packages/shared/src/searchNames.ts`): on a word start, a run of
+letters, the initials ("md" for Midnight Drive), a phrase running from one into the next
+("drive kav"), or the whole name with a typo. A name in Chinese or Japanese is also found by
+its pinyin or romaji spelling, spaced or run together and by its initials ("zjl" for
+周杰伦), and an artist by the names they also go by ("ikura" for 幾田りら). Letters scattered
+through a song in order are not a match (X2, 2026-10-25): "calm" had found eight songs whose
+title, artist and album held c…a…l…m, one of them right. That loose match is kept for pickers
+of short names (a tag picker, the sidebar's tag suggestions), where it is a quick way to one
+(`scattered` in `packages/shared/src/fuzzy.ts`).
+
 ## Search by lyric
 
 Type at least three characters (two if they are Chinese or Japanese) into Search — the
 Search page, or the command palette (the sidebar's Search row; ⌘K in the installed app)
-— and a **Lyrics** section appears with the best matching line per song, the match
-highlighted. Choosing a hit plays the song (`useLibrarySearch.ts`).
+— and a **Lyrics** section appears with one line per song, the match highlighted: the first
+line that matches, so a chorus is shown where it is first sung, and the songs ordered by their
+best match. Two copies of one song (the single and the album's: the same title, artist and
+line) are one hit (X3, 2026-10-25). Choosing a hit plays the song (`useLibrarySearch.ts`).
 
 ```
 GET /api/lyrics/search?q=夜空&limit=20

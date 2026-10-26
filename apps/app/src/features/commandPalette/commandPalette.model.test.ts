@@ -127,6 +127,15 @@ describe('the command palette', () => {
     expect(paletteResults('', { ...library, songs }).commands[5]?.hint).toBe('1 untagged')
   })
 
+  it('does not count tags only some of the words name as a match', () => {
+    const moods = { ...library, tags: [{ id: 2, name: 'calm' }] as never }
+    const found = paletteResults('calm evening', moods)
+    expect(found.songs).toEqual([])
+    expect(found.named.map(tag => tag.name)).toEqual(['calm'])
+    expect(paletteMatches(found, 0)).toBe(0)
+    expect(paletteMatches(paletteResults('calm', moods), 0)).toBe(1)
+  })
+
   it('counts every row a find draws, and only the lyric lines it shows', () => {
     const found = paletteResults('monster', library)
     const rows =

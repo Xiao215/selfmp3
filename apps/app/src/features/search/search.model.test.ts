@@ -6,6 +6,7 @@ import {
   isSearchSection,
   lyricHitsHere,
   lyricsQueryFor,
+  matchCount,
   placesOf,
   recentItems,
   sectionCounts,
@@ -83,8 +84,64 @@ describe('searchLibrary', () => {
     expect(searchLibrary('ikuta', named).artists.map(artist => artist.name)).toEqual(['幾田りら'])
   })
 
+  it('finds a song by a word start or a run of letters, not letters scattered through it', () => {
+    const moods = {
+      ...library,
+      songs: [song(1, 'Calm Down', 'Rema'), song(2, 'Echo Valley Mornings', 'Some Band')],
+      tags: [{ id: 7, name: 'chill', hue: 1, songCount: 1 }] as never,
+    }
+    expect(searchLibrary('calm', moods).songs.map(found => found.id)).toEqual([1])
+    expect(searchLibrary('down', moods).songs.map(found => found.id)).toEqual([1])
+    expect(searchLibrary('chl', moods).tags).toEqual([])
+  })
+
   it('finds nothing for nothing typed', () => {
-    expect(searchLibrary('  ', library)).toEqual({ songs: [], tags: [], artists: [] })
+    expect(searchLibrary('  ', library)).toEqual({
+      words: '',
+      songs: [],
+      tags: [],
+      artists: [],
+      named: [],
+    })
+  })
+
+  it('names the tags some of the words are, without counting them as a match', () => {
+    const moods = {
+      ...library,
+      songs: [song(1, 'Calm Down', 'Rema')],
+      tags: [
+        { id: 1, name: 'evening', hue: 1, songCount: 2 },
+        { id: 2, name: 'calm', hue: 2, songCount: 3 },
+        { id: 3, name: 'late night', hue: 3, songCount: 1 },
+        { id: 4, name: 'night', hue: 4, songCount: 1 },
+      ] as never,
+    }
+    const found = searchLibrary('calm evening', moods)
+    expect(found.songs).toEqual([])
+    expect(found.tags).toEqual([])
+    expect(found.named.map(tag => tag.name)).toEqual(['calm', 'evening'])
+    expect(matchCount(found, 0)).toBe(0)
+    expect(sectionCounts(found, 0).places).toBe(2)
+    expect(placesOf(found).map(place => place.kind)).toEqual(['tag', 'tag'])
+    // A name of two words is named by the two together, and not by part of a word.
+    const late = searchLibrary('songs for a late night', moods)
+    expect(late.named.map(tag => tag.name)).toEqual(['late night', 'night'])
+    expect(searchLibrary('calmer evenings', moods).named).toEqual([])
+    // One word names only what it matches.
+    expect(searchLibrary('calm', moods).named).toEqual([])
+    expect(matchCount(searchLibrary('calm', moods), 0)).toBe(2)
+  })
+
+  it('puts a place named exactly what was typed first', () => {
+    const night = {
+      ...library,
+      songs: [song(1, 'a', 'Nightcrawler')],
+      tags: [{ id: 4, name: 'night', hue: 4, songCount: 1 }] as never,
+    }
+    expect(placesOf(searchLibrary('night', night)).map(place => place.kind)).toEqual([
+      'tag',
+      'artist',
+    ])
   })
 
   it('counts every section, lyrics included', () => {

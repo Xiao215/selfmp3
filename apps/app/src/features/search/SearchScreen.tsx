@@ -54,6 +54,7 @@ import {
   allResults,
   beforeTyping,
   isSearchSection,
+  matchCount,
   placesOf,
   searchLibrary,
   SECTION_TITLES,
@@ -173,7 +174,7 @@ export function SearchScreen(): ReactNode {
   // The palette's search too, so the two find the same and Enter decides alike.
   const search = useLibrarySearch(query, {
     search: useCallback((text: string) => searchLibrary(text, library), [library]),
-    matches: (them, lyricCount) => sectionCounts(them, lyricCount).all,
+    matches: matchCount,
   })
   const { shown, found, lyricHits, lyricsAway } = search
   const typed = shown.trim() !== ''
@@ -181,6 +182,7 @@ export function SearchScreen(): ReactNode {
   const currentId = player.current?.id ?? null
   const empty = useMemo(() => beforeTyping(library, currentId), [library, currentId])
   const counts = sectionCounts(found, lyricHits.length)
+  const matched = matchCount(found, lyricHits.length)
   const words = shown.trim()
   const switches = useSmartSwitches()
   const offerAsk = switches.ask && section === null && askable(words)
@@ -351,7 +353,7 @@ export function SearchScreen(): ReactNode {
                   nativeID={RESULTS_ID}
                   contentContainerStyle={[styles.results, bar.listPadding]}
                 >
-                  {!link && offerAsk && counts.all === 0 ? (
+                  {!link && offerAsk && matched === 0 ? (
                     <AskCard words={words} first onAsk={() => ask(words)} />
                   ) : null}
                   {adding && link ? <LinkPick state={adding} url={link} /> : null}
@@ -371,10 +373,12 @@ export function SearchScreen(): ReactNode {
                   ) : (
                     <LyricResults hits={lyricHits} away={lyricsAway} adds={adding ? adds : null} />
                   )}
-                  {!link && offerAsk && counts.all > 0 ? (
+                  {!link && offerAsk && matched > 0 ? (
                     <AskCard words={words} first={false} onAsk={() => ask(words)} />
                   ) : null}
+                  {/* Nothing to say while Ask is offered: it is what to do next (D1). */}
                   {!link &&
+                  !offerAsk &&
                   counts[section ?? 'all'] === 0 &&
                   !(section === 'lyrics' && lyricsAway) ? (
                     <NothingMatches words={shown.trim()} />
@@ -523,7 +527,7 @@ function AllResults({
             title={SECTION_TITLES.places}
             style={styles.sectionHead}
             action={
-              found.artists.length + found.tags.length > places.length
+              placesOf(found).length > places.length
                 ? { label: 'See all', onPress: () => onSeeAll('places') }
                 : null
             }

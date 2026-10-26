@@ -1,9 +1,16 @@
 /**
  * Small, dependency-free fuzzy matching.
  *
- * Used for tag pickers and the command palette. A personal library is small
- * enough that scoring every candidate on every keystroke is comfortably fast,
- * which buys us a much better ranking than a plain `includes` filter.
+ * Used for search, the command palette and tag pickers. A personal library is
+ * small enough that scoring every candidate on every keystroke is comfortably
+ * fast, which buys us a much better ranking than a plain `includes` filter.
+ *
+ * A match is on a word start, a run of letters, the initials, or the whole
+ * name with a typo. Letters scattered through a name in order ("calm" in
+ * "Echo Valley Mornings") match only where asked for (`scattered`): a picker
+ * of short names, where they are a quick way to one, and not a search of
+ * songs, where a long title and its artist and album hold almost any few
+ * letters in order and the song meant was lost among them (X2, 2026-10-25).
  */
 
 export interface FuzzyMatch<T> {
@@ -94,14 +101,23 @@ class FuzzyText {
   }
 }
 
+export interface MatchOptions {
+  /**
+   * Whether letters scattered through a name, in order, match it. For pickers
+   * of short names, such as tags; never for songs.
+   */
+  readonly scattered?: boolean
+}
+
 /** A query with its own once-per-keystroke work done: the trim, and the word-start pattern. */
 interface CompiledQuery {
   readonly q: string
   readonly wordPrefix: RegExp
   readonly tolerance: number
+  readonly scattered: boolean
 }
 
-function compileQuery(query: string): CompiledQuery {
+function compileQuery(query: string, options: MatchOptions): CompiledQuery {
   const q = query.trim().toLowerCase()
   return {
     q,
@@ -109,6 +125,7 @@ function compileQuery(query: string): CompiledQuery {
     // answer the next candidate from the middle of it.
     wordPrefix: new RegExp(`\\b${escapeRegExp(q)}`),
     tolerance: q.length >= 6 ? 2 : q.length >= 4 ? 1 : 0,
+    scattered: options.scattered ?? false,
   }
 }
 
@@ -121,7 +138,7 @@ function scoreCompiled(query: CompiledQuery, candidate: FuzzyText): number | nul
   if (query.wordPrefix.test(c)) return SCORE_WORD_PREFIX - c.length
   if (c.includes(q)) return SCORE_SUBSTRING - c.length
   if (candidate.initials.startsWith(q)) return SCORE_ACRONYM - c.length
-  if (isSubsequence(q, c)) return SCORE_SUBSEQUENCE - c.length
+  if (query.scattered && isSubsequence(q, c)) return SCORE_SUBSEQUENCE - c.length
 
   // Last resort: tolerate typos, but only proportionally to query length.
   if (tolerance > 0) {
@@ -185,9 +202,10 @@ function scoreAll<T>(
   query: string,
   items: readonly T[],
   prepared: (item: T) => FuzzyText | readonly FuzzyText[],
+  options: MatchOptions,
   keep: (scored: Scored<T>) => void,
 ): void {
-  const compiled = compileQuery(query)
+  const compiled = compileQuery(query, options)
   for (let index = 0; index < items.length; index++) {
     const item = items[index] as T
     const names = prepared(item)
@@ -207,12 +225,13 @@ export function fuzzyRankPrepared<T>(
   query: string,
   items: readonly T[],
   prepared: (item: T) => FuzzyText | readonly FuzzyText[],
+  options: MatchOptions = {},
 ): FuzzyMatch<T>[] {
   if (query.trim().length === 0) {
     return items.map(item => ({ item, score: 0, exact: false }))
   }
   const scored: Scored<T>[] = []
-  scoreAll(query, items, prepared, one => scored.push(one))
+  scoreAll(query, items, prepared, options, one => scored.push(one))
   scored.sort(bestFirst)
   return scored.map(one => one.match)
 }
@@ -241,8 +260,14 @@ export function fuzzyRankNames<T>(
   query: string,
   items: readonly T[],
   toNames: (item: T) => readonly string[],
+  options: MatchOptions = {},
 ): FuzzyMatch<T>[] {
-  return fuzzyRankPrepared(query, items, item => toNames(item).map(name => new FuzzyText(name)))
+  return fuzzyRankPrepared(
+    query,
+    items,
+    item => toNames(item).map(name => new FuzzyText(name)),
+    options,
+  )
 }
 
 /**
@@ -253,6 +278,7 @@ export function fuzzyRank<T>(
   query: string,
   items: readonly T[],
   toText: (item: T) => string,
+  options: MatchOptions = {},
 ): FuzzyMatch<T>[] {
-  return fuzzyRankPrepared(query, items, item => new FuzzyText(toText(item)))
+  return fuzzyRankPrepared(query, items, item => new FuzzyText(toText(item)), options)
 }

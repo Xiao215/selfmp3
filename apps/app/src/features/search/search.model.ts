@@ -46,13 +46,21 @@ export const SECTION_TITLES: Readonly<Record<SearchSection, string>> = {
 type SearchLibrary = Pick<Library, 'songs' | 'tags' | 'artistNames' | 'spellings'>
 
 interface SearchFound {
+  /** What was typed, trimmed and lowercased: what a place's name is compared with. */
+  readonly words: string
   /** Every song that matches, best first. */
   readonly songs: readonly Song[]
   readonly tags: readonly Tag[]
   readonly artists: readonly Artist[]
+  /**
+   * Tags named by some of the words but not all of them: "calm" for "calm
+   * evening". Shown after the places that match, and not a match themselves,
+   * so a mood typed whole is still a question for Ask (D1).
+   */
+  readonly named: readonly Tag[]
 }
 
-const NOTHING: SearchFound = { songs: [], tags: [], artists: [] }
+const NOTHING: SearchFound = { words: '', songs: [], tags: [], artists: [], named: [] }
 
 /**
  * What a query finds in the library, each kind best first. Lyrics are the
@@ -61,13 +69,37 @@ const NOTHING: SearchFound = { songs: [], tags: [], artists: [] }
 export function searchLibrary(query: string, library: SearchLibrary | undefined): SearchFound {
   const trimmed = query.trim()
   if (!trimmed || !library) return NOTHING
+  const tags = fuzzyRank(trimmed, library.tags, tag => tag.name).map(match => match.item)
   return {
+    words: trimmed.toLowerCase(),
     songs: searchSongs(trimmed, library.songs, library).map(match => match.item),
-    tags: fuzzyRank(trimmed, library.tags, tag => tag.name).map(match => match.item),
+    tags,
     artists: fuzzyRankNames(trimmed, libraryArtists(library.songs), artist =>
       artistSearchNames(artist.name, library),
     ).map(match => match.item),
+    named: tagsNamedIn(trimmed, library.tags, tags),
   }
+}
+
+/**
+ * The tags whose whole name is some of the words typed, as whole words, in
+ * the order the words name them: "calm" and "evening" in "calm evening
+ * songs". One word typed names nothing more than it matches.
+ */
+function tagsNamedIn(text: string, tags: readonly Tag[], matched: readonly Tag[]): Tag[] {
+  const words = text.toLowerCase().split(/\s+/)
+  if (words.length < 2) return []
+  const spaced = ` ${words.join(' ')} `
+  const already = new Set(matched.map(tag => tag.id))
+  const at = (tag: Tag): number => {
+    const name = tag.name.trim().toLowerCase().split(/\s+/).join(' ')
+    return name && !already.has(tag.id) ? spaced.indexOf(` ${name} `) : -1
+  }
+  return tags
+    .map(tag => ({ tag, at: at(tag) }))
+    .filter(each => each.at >= 0)
+    .sort((a, b) => a.at - b.at)
+    .map(each => each.tag)
 }
 
 /** How many each section holds, and all of them together. */
@@ -75,9 +107,18 @@ export function sectionCounts(
   found: SearchFound,
   lyricLines: number,
 ): Record<SearchSection | 'all', number> {
-  const places = found.artists.length + found.tags.length
+  const places = found.artists.length + found.tags.length + found.named.length
   const songs = found.songs.length
   return { all: places + songs + lyricLines, places, songs, lyrics: lyricLines }
+}
+
+/**
+ * How many results match what was typed: every section but the tags named
+ * by only some of the words. What decides whether Ask comes first and Enter
+ * asks (I1, D1).
+ */
+export function matchCount(found: SearchFound, lyricLines: number): number {
+  return sectionCounts(found, lyricLines).all - found.named.length
 }
 
 /** A place a query found: an artist or a tag, drawn together at the top of All. */
@@ -88,14 +129,26 @@ export type SearchPlace =
 export const ALL_LIMITS = { places: 4, songs: 5, lyrics: 3 } as const
 
 /**
- * Every place a query found, artists before tags. An artist comes before a tag
- * of the same name — the place the songs name themselves is the one more often
+ * Every place a query found: the ones named exactly what was typed first, so
+ * a tag typed whole leads (D1); then the other artists, the other tags, and
+ * last the tags only some of the words name. An artist comes before a tag of
+ * the same name — the place the songs name themselves is the one more often
  * meant — and both are shown, since they are two different places (`P11`).
  */
-export function placesOf(found: SearchFound): readonly SearchPlace[] {
+export function placesOf(
+  found: Pick<SearchFound, 'words' | 'artists' | 'tags' | 'named'>,
+): readonly SearchPlace[] {
+  const exact = (name: string): boolean => name.trim().toLowerCase() === found.words
+  const artists = found.artists.map(artist => ({ kind: 'artist' as const, artist }))
+  const tags = found.tags.map(tag => ({ kind: 'tag' as const, tag }))
+  const named = (place: SearchPlace): boolean =>
+    exact(place.kind === 'artist' ? place.artist.name : place.tag.name)
   return [
-    ...found.artists.map(artist => ({ kind: 'artist' as const, artist })),
-    ...found.tags.map(tag => ({ kind: 'tag' as const, tag })),
+    ...artists.filter(named),
+    ...tags.filter(named),
+    ...artists.filter(place => !named(place)),
+    ...tags.filter(place => !named(place)),
+    ...found.named.map(tag => ({ kind: 'tag' as const, tag })),
   ]
 }
 

@@ -241,6 +241,14 @@ redirect URI in step 2).
   ([docs/features/shared-server.md](../../docs/features/shared-server.md),
   "Telling the server"). Nothing new is kept for it: every grant has always
   stored that address.
+- **Friends' iPhones** for the iPhone app (device.ts): `/v1/device` is the
+  profile service the install page starts, which keeps an iPhone's ID with the
+  name it came with in KV as `iphones` (one record; a waiting request is
+  forgotten after a month) and shows the iPhone's own page at
+  `/v1/device/<id>`. `/v1/iphones` is the list for the admin page, with the
+  admin key; adding one starts the repository's iPhone workflow with the
+  `GITHUB_TOKEN` secret, when it is set (docs/MOBILE.md, "Sharing the iPhone
+  app").
 - **Who may sign in** is the owners (`OWNER_EMAILS`) and a list they keep on
   the admin page's People tab (`/v1/access`, kept in KV as `access`). It is
   read and changed with the admin key (`ADMIN_TOKEN`, which the owner's server

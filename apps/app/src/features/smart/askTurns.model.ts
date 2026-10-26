@@ -19,6 +19,23 @@ export interface Turn {
    * songs", `CLOSED`): the turn keeps the model's words and this line (S1).
    */
   readonly outcome: string | null
+  /**
+   * The list it changes (B1, 2026-10-26): said with the field's "↳ these
+   * songs", the words go to that kept answer (`answers.store`) as Change it's
+   * did, rather than being asked of the router. Null for a question.
+   */
+  readonly change: string | null
+  /** The kept answer its songs are, once it has some to show; null for any other answer. */
+  readonly list: string | null
+}
+
+/** The newest answered turn's list: what the field's chip changes, and what a computer opens beside the thread. */
+export function newestList(turns: readonly Turn[]): string | null {
+  for (let at = turns.length - 1; at >= 0; at--) {
+    const list = turns[at]!.list
+    if (list !== null) return list
+  }
+  return null
 }
 
 /** Whether words are more than Ask takes: they are never sent, and the turn says so. */

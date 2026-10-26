@@ -9,6 +9,7 @@ import {
   IOS_RELEASE_TAG,
   REPOSITORY,
   iosAssetUrl,
+  iphoneKey,
   renderIosManifest,
 } from '@selfmp3/shared'
 
@@ -179,9 +180,25 @@ writeFileSync(
     title: 'self.mp3',
   }),
 )
+// The iPhones this build installs on, from the profile inside it: a friend's
+// page (apps/doorman/src/device.ts) says Install once theirs is here.
+const embedded = execFileSync('security', [
+  'cms',
+  '-D',
+  '-i',
+  resolve(archive, 'Products/Applications/selfmp3.app/embedded.mobileprovision'),
+])
+const udids = execFileSync('plutil', ['-extract', 'ProvisionedDevices', 'json', '-o', '-', '-'], {
+  input: embedded,
+})
+const devices = await Promise.all(JSON.parse(udids.toString()).map(iphoneKey))
 writeFileSync(
   resolve(out, IOS_ASSETS.latest),
-  `${JSON.stringify({ version, build, commit, publishedAt: new Date().toISOString() }, null, 2)}\n`,
+  `${JSON.stringify(
+    { version, build, commit, publishedAt: new Date().toISOString(), devices },
+    null,
+    2,
+  )}\n`,
 )
 console.log(`Built ${ipa}`)
 

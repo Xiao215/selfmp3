@@ -70,6 +70,20 @@ Who can sign in, built for a hundred people or more:
 While the Google OAuth app is in Testing, a person also has to be a test user there before
 Google lets them reach the doorman at all.
 
+## iPhones
+
+Friends who asked for the iPhone app on the install page (`/install/` beside the web app),
+from the doorman's list (`/v1/iphones`, kept in KV as `iphones`):
+
+- **Waiting**: the name they typed, when they asked, and the iPhone's ID shortened. **Add**
+  marks it added and starts the iPhone workflow on GitHub, when the doorman has a
+  `GITHUB_TOKEN`; the toast says which. A request nobody adds is forgotten after a month.
+- **Added**: already carried, or about to be, by the next build. The workflow registers
+  each with Apple. Drop asks first. A dropped iPhone leaves the list, but stays registered
+  with Apple, and builds keep installing on it, until the membership year ends.
+
+How the build reaches them is [docs/MOBILE.md](../MOBILE.md), "Sharing the iPhone app".
+
 ## Data
 
 **Totals only.** There could be many people on a server, so nothing is collected or kept per

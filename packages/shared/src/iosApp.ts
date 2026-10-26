@@ -41,8 +41,49 @@ export const iosLatestSchema = z.object({
   build: z.number().int().positive(),
   commit: z.string(),
   publishedAt: z.string(),
+  /** The iPhones it installs on, each as `iphoneKey` of its ID: never the IDs themselves. */
+  devices: z.array(z.string()),
 })
 export type IosLatest = z.infer<typeof iosLatestSchema>
+
+/**
+ * An iPhone's ID as a build lists it: SHA-256 of the ID in capitals, in hex.
+ * The release is public, so a friend's page can ask whether a build is theirs
+ * without the release naming anybody's iPhone.
+ */
+export async function iphoneKey(udid: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(udid.toUpperCase()))
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/** An iPhone's ID: 40 hex digits on older iPhones, `00008140-00094D0436F3001C` since. */
+export const IPHONE_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{8}-[0-9a-f]{16})$/i
+
+/**
+ * A friend's iPhone, asked for from the install page and kept by the doorman
+ * (apps/doorman/src/device.ts) until the owner adds it from the admin page:
+ * `waiting`, then `added` — registered with Apple by the next build, which the
+ * adding starts.
+ */
+export const IphoneRequestSchema = z.object({
+  udid: z.string().regex(IPHONE_ID),
+  /** What they called themselves on the install page; empty when they left it. */
+  name: z.string().max(40),
+  askedAt: z.number(),
+  state: z.enum(['waiting', 'added']),
+  addedAt: z.number().optional(),
+})
+export type IphoneRequest = z.infer<typeof IphoneRequestSchema>
+
+export const IphoneListSchema = z.object({ iphones: z.array(IphoneRequestSchema) })
+export type IphoneList = z.infer<typeof IphoneListSchema>
+
+/** What adding an iPhone did about a build: started one, or could not (no token, GitHub said no). */
+export const IphoneAddedSchema = z.object({
+  iphone: IphoneRequestSchema,
+  build: z.enum(['started', 'not-set-up', 'failed']),
+})
+export type IphoneAdded = z.infer<typeof IphoneAddedSchema>
 
 /**
  * The build on the release, or null when there is none yet or it says

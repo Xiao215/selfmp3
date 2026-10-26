@@ -4,7 +4,13 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { darkPalette, lightPalette } from '@selfmp3/client/tokens'
-import { AdminDataSchema, DoormanAccessSchema, ErrorBodySchema } from '@selfmp3/shared'
+import {
+  AdminDataSchema,
+  DoormanAccessSchema,
+  ErrorBodySchema,
+  IphoneAddedSchema,
+  IphoneListSchema,
+} from '@selfmp3/shared'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { loadConfig } from '../config.js'
 import { createHubApp } from '../hub/app.js'
@@ -32,6 +38,8 @@ describe('the admin page', () => {
   const KEY = 'k'.repeat(64)
   /** The doorman, stood in for at its HTTP edge: it takes the admin key and nothing else. */
   let list = { anyone: false, emails: ['friend@example.com'], owners: ['me@example.com'] }
+  const UDID = '00008140-00094D0436F3001C'
+  let iphones = [{ udid: UDID, name: 'Mei', askedAt: 1, state: 'waiting' as string }]
   const doormanSeen: Array<{ method: string; path: string; auth: string }> = []
   const fakeDoorman = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://doorman')
@@ -61,6 +69,16 @@ describe('the admin page', () => {
       return
     }
     if (url.pathname === '/v1/access') return json(200, list)
+    if (url.pathname === '/v1/iphones') return json(200, { iphones })
+    if (url.pathname === `/v1/iphones/${UDID}` && req.method === 'PUT') {
+      iphones = iphones.map(one => ({ ...one, state: 'added', addedAt: 2 }))
+      return json(200, { iphone: iphones[0], build: 'started' })
+    }
+    if (url.pathname === `/v1/iphones/${UDID}` && req.method === 'DELETE') {
+      iphones = []
+      res.writeHead(204)
+      return res.end()
+    }
     json(404, { error: 'no', code: 'not_found' })
   })
   let doormanOrigin = ''
@@ -215,6 +233,37 @@ describe('the admin page', () => {
     })
     expect(form.status).toBe(400)
     expect(list.anyone).toBe(false)
+  })
+
+  it('lists friends’ iPhones, adds one and drops one, through the doorman', async () => {
+    const read = await fetch(`${adminOrigin}/api/admin/iphones`)
+    expect(IphoneListSchema.parse(await read.json()).iphones[0]?.name).toBe('Mei')
+
+    const added = await fetch(`${adminOrigin}/api/admin/iphones/${UDID}`, { method: 'PUT' })
+    expect(added.status).toBe(200)
+    expect(IphoneAddedSchema.parse(await added.json()).build).toBe('started')
+    expect(doormanSeen.at(-1)).toEqual({
+      method: 'PUT',
+      path: `/v1/iphones/${UDID}`,
+      auth: `Bearer ${KEY}`,
+    })
+
+    const dropped = await fetch(`${adminOrigin}/api/admin/iphones/${UDID}`, { method: 'DELETE' })
+    expect(dropped.status).toBe(200)
+    expect(iphones).toEqual([])
+
+    // Something that is not an iPhone's ID never reaches the doorman.
+    const seen = doormanSeen.length
+    expect(
+      (await fetch(`${adminOrigin}/api/admin/iphones/not-an-id`, { method: 'PUT' })).status,
+    ).toBe(400)
+    expect(doormanSeen.length).toBe(seen)
+  })
+
+  it('serves the iPhones tab as the page', async () => {
+    const response = await fetch(`${adminOrigin}/iphones`)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('data-tab="iphones"')
   })
 
   it('says plainly when the doorman will not take the key', async () => {

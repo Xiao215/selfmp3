@@ -97,10 +97,11 @@ stay after them.
 
 The heart saves a like; **Liked** lists them (A1, 2026-10-25). It is a list that keeps
 itself, newest like first (`likedSongs`), not a stored playlist: nothing to rename or delete,
-no ⋯ on its tile. It is the first tile on the Playlists page — with no song liked yet it is
-still there, and its page says "No liked songs yet" — and, once a song is liked, the first row
-of the sidebar's Playlists, where songs dropped onto it are liked. Its page (`/playlists/liked`)
-is a tag's page with a heart for the dot: Play, Shuffle and the ⋯ every list has. It plays
+no ⋯ on its tile. On the Playlists page it comes after the New tile and the ones from links
+— with no song liked yet it is still there, and its page says "No liked songs yet" — and,
+once a song is liked, it is the first row of the sidebar's Playlists, where songs dropped
+onto it are liked. Its page (`/playlists/liked`) is a tag's page with a heart for the dot:
+Play, Shuffle and the ⋯ every list has. It plays
 with the `liked` source, so Up next is named "Liked", its line opens the page, Save never
 shows, and Recently played keeps it as a tile ("Keeps itself") that plays the likes as they
 are now.
@@ -128,7 +129,7 @@ While it rests it is passed over by:
 - A list played as a list — a tag, a playlist, tags together, an artist, an answer, Library's
   Play: Up next is made without it (`passOverResting`). The song whose row was tapped plays
   even if it rests; the list's own Play passes over a resting first song too (`whole`).
-  Songs you ticked and played are played as picked, and a handoff or a resume keeps its list.
+  A handoff or a resume keeps its list.
 - **Ask's picks**, while any other song fits (`narrowAndPick`).
 - **Forgotten gems** (`forgottenGems`).
 - **Keep going**, above.
@@ -145,7 +146,7 @@ bucket written before songs could rest reads as every song awake.
 Every Play says what it is playing: `player.playFrom(ids, index, { source })` and
 `player.playShuffled(ids, source)` (`ListSource` in `lists.model.ts`). A tag, an artist, a
 playlist, Liked, tags combined, an answer to Ask, a room that ended (`room`), songs (similar to a
-song, songs you picked, forgotten gems, found by a search, songs that need a tag, Home's
+song, forgotten gems, found by a search, songs that need a tag, Home's
 Recently played songs), or the whole library. Left out, Up next is nameless: a song played
 alone, or a handoff from another device. The source rides in the playback session
 (`player/session.model.ts`), so a reopened app comes back by the same name.
@@ -262,10 +263,20 @@ A song heard as part of a list shows as the list's tile, not a tile of its own. 
 device was in come first, once they ended (`room.past`, the newest eight), and open their
 page.
 
+Only listening moves it (2026-10-26): a list is remembered once a song of it is playing, not
+when Up next is set up. A list put back paused as the app opens, or a song's details edited
+while it sits in Up next, leaves the row as it was.
+
+A search is its words: songs played from Search are named "“yoru”" (kind "Search"), songs Ask
+found are named for the words asked (kind "You asked"), long words cut short. The same words
+searched again are the same tile, holding what they find now; words that found one song are
+that song. Before anything is typed, Search's songs are the ones played last, and play as
+Recently played.
+
 A tile opens its list's page on a tap, as any list's tile does, and playing it is that page's
 Play (Xiao, 2026-10-04): a tag's, an artist's, a playlist's, tags combined, an Ask answer's.
 An answer is kept with its own answer, so its page opens again after a reload. Songs with no
-page of their own (similar ones, ones you picked) play.
+page of their own (similar ones) play.
 
 The row's **See all** opens Library sorted by Recently played (G1, 2026-10-25):
 `/library?sort=lastPlayedAt`, an order for that visit only (`linkedSort`). The order Library

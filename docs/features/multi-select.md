@@ -172,16 +172,16 @@ head has scrolled away; as its room opens the list scrolls by as much (`SongList
 back. Search, and Library in a window too short for its head to stay put, still give it a lane
 of its own above the list, which is that much shorter. The bar fades in rather than appearing,
 and a lane opens to it. Left to right: the tri-state checkbox,
-the count and what "all" means, then Play, Add to Up next and, in a playlist you made,
+the count and what "all" means, then Add to Up next and, in a playlist you made,
 Remove from this playlist, then More, then Done.
 
 On a phone it floats at the bottom, above the mini player or the tabs, where a thumb is, and
-the toast row (`apps/app/src/shell/Shell.tsx`) steps up above it: the count, then Play, Add to
+the toast row (`apps/app/src/shell/Shell.tsx`) steps up above it: the count, then Add to
 Up next, More and Done as icons on one line, with Select all and a playlist's Remove moved into
 More.
 
-- **Play** and **Add to Up next** are in the bar: frequent and harmless. Play names Up next
-  "Songs you picked", so Save can keep them ([lists.md](lists.md)).
+- **Add to Up next** is in the bar: frequent and harmless. There is no Play (Xiao,
+  2026-10-26): what you ticked is not a list to play.
 - **Remove from this playlist** happens at once, with **Undo** for five seconds that puts the
   songs back in their places (`usePlaylistRemoval`); a song's menu removes one song the same
   way. A playlist that fills from tags has no membership to edit, so it offers none.

@@ -80,18 +80,9 @@ import { PAGE_TOP_PHONE, PAGE_TOP_WIDE, pageTitle, rowTitle, textColumn } from '
 import { NavRow } from '../../ui/components/NavRow'
 import { ScrollView } from '../../ui/components/Scroll'
 import { countUse } from '../usage/usage'
+import { searchSource } from '../lists/lists.model'
 
-/**
- * What a song played from Search names Up next, and its tile in Recently
- * played: the words searched, in quotes ("“yoru”", kind "Search"), rather
- * than "Search / From Search". The rows and the lyric hits alike; before
- * anything is typed, plain "Search".
- */
-function fromSearch(words: string) {
-  return { kind: 'songs', origin: 'search', name: words ? `“${words}”` : 'Search' } as const
-}
-
-/** The words the results are for, to name what plays from them (`fromSearch`). */
+/** The words the results are for, to name what plays from them (`searchSource`). */
 const SearchedWords = createContext('')
 
 const NO_SONGS: readonly Song[] = []
@@ -689,7 +680,7 @@ function useSearchRows(
   return useSongRows({
     songs,
     selection,
-    onPlay: index => player.playFrom(ids, index, { source: fromSearch(words) }),
+    onPlay: index => player.playFrom(ids, index, { source: searchSource(words) }),
     testPrefix,
     withTags: true,
     // Where a match fell is no rank and no track (M1).
@@ -733,7 +724,7 @@ function LyricResults({
             key={`${hit.songId}-${index}`}
             testID={`search-lyric-${index}`}
             onPress={() => {
-              if (!adds) player.playFrom([hit.songId], 0, { source: fromSearch(words) })
+              if (!adds) player.playFrom([hit.songId], 0, { source: searchSource(words) })
               else if (song) {
                 adds.add(song)
                 showToast({ over: 'Added', say: hit.title }, 'good', {

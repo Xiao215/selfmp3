@@ -32,7 +32,7 @@ export const INSTALL_PAGE_FONTS = {
 const QUESTIONS: readonly (readonly [string, string])[] = [
   [
     'Why does my iPhone need adding?',
-    'An app from outside the App Store installs only on the iPhones it was signed for. Your ID is how yours gets on the list.',
+    'An app from outside the App Store installs only on the iPhones it was signed for. Your ID is how yours gets on the list; nothing else about your iPhone is sent.',
   ],
   [
     'The profile says “Not Verified”',
@@ -126,6 +126,14 @@ li + li { margin-top: 26px; }
 }
 h2 { margin: 5px 0 2px; font-size: 19px; font-weight: 600; letter-spacing: -0.01em; }
 li p { margin: 0; color: var(--dim); font-size: 15px; }
+.field {
+  display: block; width: 100%; margin: 14px 0 0; height: 48px; padding: 0 16px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+  font: 400 16px 'Bricolage', -apple-system, sans-serif; outline: none;
+}
+.field::placeholder { color: var(--faint); }
+.field:focus { border-color: rgba(185, 164, 255, 0.55); }
+body.elsewhere .field { opacity: 0.4; pointer-events: none; }
 .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 12px 0 0; padding: 0; color: var(--faint); font-size: 13px; }
 .flow span { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
 .button {
@@ -168,6 +176,16 @@ footer em { font: italic 400 16px 'Instrument Serif', Georgia, serif; color: var
  * page as it is.
  */
 const SCRIPT = `
+(function () {
+  // The name goes with the ID, so the owner's list says who asked.
+  var name = document.getElementById('name');
+  var getId = document.getElementById('get-id');
+  var base = getId.getAttribute('href');
+  name.addEventListener('input', function () {
+    var typed = name.value.trim();
+    getId.setAttribute('href', typed ? base + '?name=' + encodeURIComponent(typed) : base);
+  });
+})();
 (function () {
   var ua = navigator.userAgent;
   var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
@@ -213,9 +231,10 @@ ${pageIcons('../')}
 <li>
 <span class="n">1</span>
 <h2>Add your iPhone</h2>
-<p>Send its ID so we can add it.</p>
+<p>Say who you are, then send its ID. The page you land on says when it’s ready.</p>
+<input class="field" id="name" type="text" maxlength="40" placeholder="Your name" autocomplete="given-name" aria-label="Your name">
 <p class="flow"><span>Allow</span>→<span>Settings</span>→<span>Install</span></p>
-<a class="button" href="${escapeHtml(`${doormanUrl}${DOORMAN_PATHS.device}`)}">Get my iPhone ID</a>
+<a class="button" id="get-id" href="${escapeHtml(`${doormanUrl}${DOORMAN_PATHS.device}`)}">Get my iPhone ID</a>
 </li>
 <li>
 <span class="n">2</span>

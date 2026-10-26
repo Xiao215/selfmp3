@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ASK_BEFORE_MAX, AskRequestSchema } from '@selfmp3/shared'
-import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
+import {
+  afterStop,
+  beforeTurn,
+  newestList,
+  retried,
+  tooLongToAsk,
+  type Turn,
+} from './askTurns.model'
 
 const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   id,
@@ -9,7 +16,19 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   before: [],
   answered: `answer ${id}`,
   outcome: null,
+  change: null,
+  list: null,
   ...patch,
+})
+
+describe('newestList', () => {
+  it('is the last turn that showed songs, past a words answer after it', () => {
+    expect(newestList([turn(1, { list: 'a' }), turn(2, { list: 'b' }), turn(3)])).toBe('b')
+  })
+
+  it('is nothing before any list was shown', () => {
+    expect(newestList([turn(1), turn(2)])).toBeNull()
+  })
 })
 
 describe('beforeTurn', () => {

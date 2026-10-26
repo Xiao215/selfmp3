@@ -226,7 +226,13 @@ the foot ("Ask a follow-up…"); while a turn is worked on its send is the one S
 takes that turn off the page and puts its words back in the field. ‹ goes back to Search,
 and the conversation is not kept after it (so there is no "new chat" button); the page drawn
 again any other way — a browser's Back from an answer's page — finds its turns as they were
-(`askThread.store.ts`). When the
+(`askThread.store.ts`). On a computer a list answered opens beside the thread (Xiao picked
+A2 B1 C1, 2026-10-26, from a canvas of A1–A4 layouts): the thread narrows to a 440 pane a
+step up from the ground and the list is the answer's page (`AnswerView`) with × for ‹;
+pressing another song card opens that one, and × gives the thread the page again. The
+newest list opens as it arrives. The field floats over the thread's fading foot with 24
+under it before the player bar (12 on a phone), rather than sitting on a line at the
+bottom. On a phone a card opens the answer's page, as before. When the
 keyboard rises, the thread's foot moves up with it, as a messages app keeps it. A
 question over 500 characters is not sent: the field stops there, and one from Search says
 it is too long. An answer that failed says why when the server said ("Your server couldn’t
@@ -367,9 +373,11 @@ rather than looking finished.
 
 ## Change it
 
-A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer" —
-in one field under its card in Search and under its page's head (`smart/ChangeIt.tsx`). No
-suggested changes are offered: what to say is yours (Xiao, 2026-10-04).
+A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer".
+On the Ask page that is the page's one field while it wears the list's chip ("↳ these 19
+songs", B1, 2026-10-26); on the answer's own page it is a field under its head
+(`smart/ChangeIt.tsx`, "Change these songs…"). No suggested changes are offered: what to
+say is yours (Xiao, 2026-10-04).
 
 `POST /api/ai/refine` (`ai/refine.ts`) gets what was first asked, the filters as they stand,
 the change, and the songs shown. One fast-tier call returns the filters changed, everything
@@ -378,14 +386,15 @@ the rest is picked (Describe's step 3, around them), so "10 首" after two songs
 two and adds eight. A change to the brief is a change of taste and picks again from the
 start. Its stages report through the same ticket as Ask's.
 
-While it works the field itself says what is happening, in the same place, so nothing
-moves; when it lands, the words join a trail above the field ("旅途日语歌 → 10首 →
-不要动漫的"), the newest fading in, and the field is empty again. Every version is kept
-while the app is open (`smart/answers.store.ts`): a name in the trail goes back to it, and
-changing from an earlier one lets go of the ones after, as undo does. Different songs on
-the page is a version in the trail too. The answer's page shows no trail (Xiao,
-2026-10-04): it is the version showing, titled by the list's own name, with the field as
-a full-width bar under its head ("Change these songs…").
+Said in Ask, a change is a turn of the thread like a question: your words in a bubble,
+then the changed list as a card of its own, kept beside the one it changed
+(`smart/answers.store.ts`), so the thread is the trail of versions and an older card opens
+the list as it was. The chip's ×, or ⌫ in the empty field, lets the list go, and the next
+words are a question (the field says so under it with a mouse). On the answer's own page
+the field itself says what is happening while it works, in the same place, so nothing
+moves; when it lands, the list there is the new one (Different songs does the same). Until
+2026-10-26 a song card in Ask had its own Change it under it, beside the page's field, and
+a trail of versions above that.
 
 ## Looking things up (`explore`)
 
@@ -445,8 +454,8 @@ and asks for the newest
 they say …"), so the model neither looks everything up again nor re-answers it, and "only
 the albums" after a song list is still that request changed. Until 2026-10-24 only the
 earlier questions were sent, as one request to "answer all of it together": a third
-question got its answer in the last sentence of a re-answer of all three. A song answer
-keeps its own Change it, which keeps the songs it already chose.
+question got its answer in the last sentence of a re-answer of all three. A list answer's
+chip sends the words as a change instead (above), which keeps the songs it already chose.
 
 A tidy answer that changes nothing still answers: the model says which song it took them to
 mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change

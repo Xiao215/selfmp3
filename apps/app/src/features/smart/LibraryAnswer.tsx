@@ -10,6 +10,7 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { Button } from '../../ui/components/Button'
 import { useSongsById } from '../../ui/songsById'
 import { songCount, SONGS_MORE, SONGS_SHOW } from './Review'
+import { foundSource } from '../lists/lists.model'
 import { parts, sortWords } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { AnswerSongLine } from './AnswerSongLine'
@@ -25,10 +26,13 @@ import { Press } from '../../ui/components/Press'
  */
 export function LibraryAnswer({
   answer,
+  text,
   height,
   onDone,
 }: {
   answer: Extract<AskAnswer, { kind: 'library' }>
+  /** The words asked, which name what plays from it. */
+  text: string
   height: number
   onDone: () => void
 }): ReactNode {
@@ -46,7 +50,7 @@ export function LibraryAnswer({
   const chosen = parts(answer.understanding, library?.tags ?? []).map(part => part.label)
   const ids = songs.map(song => song.id)
   const play = (index: number): void => {
-    player.playFrom(ids, index, { source: { kind: 'songs', origin: 'found', name: 'Search' } })
+    player.playFrom(ids, index, { source: foundSource(text) })
     onDone()
   }
 

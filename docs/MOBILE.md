@@ -370,14 +370,31 @@ Devices, then edit both profiles, tick the new iPhone, save, and send you the tw
 }
 ```
 
-and, from a commit on main:
+**GitHub builds it.** `.github/workflows/ios.yml` runs every night (08:00 UTC) and
+publishes a new build only when `apps/app`, `packages` or the lockfile changed since the
+commit on the release, so friends see at most one update a day; **Run workflow** on the
+iPhone workflow's page builds at once. It signs with the repository's secrets, which
+the Mac with the signing sets, and sets again whenever the profiles or the certificate
+change (a new friend's iPhone, say):
+
+```bash
+cd apps/app
+node scripts/ios-signing-secrets.mjs --check   # what it would set
+node scripts/ios-signing-secrets.mjs
+```
+
+It takes the profiles `release.json` names, the certificate they carry and the key in
+`~/.ios-signing` that matches it, and puts them in `IOS_SIGNING`, `IOS_P12`,
+`IOS_P12_PASSWORD`, `IOS_PROFILE_APP` and `IOS_PROFILE_WIDGET`.
+
+**Or by hand,** from a commit on main:
 
 ```bash
 cd apps/app
 npm run release:ios -- --publish
 ```
 
-That prebuilds, archives with each target's profile, exports `selfmp3.ipa`, and puts it on
+Either way, the release script prebuilds, archives with each target's profile, exports `selfmp3.ipa`, and puts it on
 the `ios` release with `manifest.plist` and `ios.json`, replacing the last build's.
 The release is a prerelease and never the latest, because the Mac app's updater reads
 the latest release. Leave out `--publish` to build without uploading: the files land in
@@ -385,9 +402,10 @@ the latest release. Leave out `--publish` to build without uploading: the files 
 same kind of build for the phones those profiles carry, and `"withoutAppGroup": true`
 signs without the widget's App Group, for profiles made before it was assigned.
 
-**Updates.** The build number is main's commit count (`app.config.js`). An installed
-release build reads `ios.json` and, when the release's build is larger, says so once in
-a toast and keeps an Install row in Settings › About (`features/settings/IosUpdate.tsx`).
+**Updates.** The build number is main's commit count (`app.config.js`; the workflow
+checks out all of history for it). An installed release build reads `ios.json` and,
+when the release's build is larger, says so once in a toast; Settings › About has an
+Updates row that checks on asking and installs (`features/settings/IosUpdate.tsx`).
 Install brings up the same iOS question as the page; the app's data stays. A new
 friend's iPhone needs a new build: an existing install keeps working, but the old build
 will not install on the new iPhone.

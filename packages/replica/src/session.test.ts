@@ -8,6 +8,7 @@ import {
 } from '@selfmp3/shared'
 import { DOORMAN_ORIGIN, harness } from '../../../apps/doorman/src/fakes.js'
 import { bucketHold, holdBucket, releaseBucket } from './hold.js'
+import { doormanTrouble, forgetDoormanTrouble } from './reach.js'
 import { createCloudSession } from './session.js'
 import type { CloudPlatform, CloudRequestInit, CloudResponse, DeviceStore } from './platform.js'
 
@@ -383,6 +384,99 @@ describe('the bucket refusing for the day', () => {
     const session = createCloudSession(p)
     await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
     expect(bucketHold()).toBeNull()
+  })
+})
+
+describe('whether the doorman is answering', () => {
+  const CAP = { error: 'Backblaze says “Transaction cap exceeded”: …', code: 'bucket_cap_exceeded' }
+  const signedIn = { doormanUrl: DOORMAN, token: TOKEN, me: ME }
+
+  beforeEach(() => {
+    releaseBucket()
+    forgetDoormanTrouble()
+  })
+
+  it('is unreachable when nothing answers, and answering again ends it', async () => {
+    let down = true
+    const p = platform(() => {
+      if (down) throw new TypeError('Failed to fetch')
+      return reply(200, {})
+    })
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, DOORMAN_PATHS.changes).catch(() => undefined)
+    expect(doormanTrouble()?.kind).toBe('unreachable')
+
+    down = false
+    await session.doormanFetch(null, DOORMAN_PATHS.health)
+    expect(doormanTrouble()).toBeNull()
+  })
+
+  it('is failing when the doorman answers with an error, until it answers again', async () => {
+    let broken = true
+    const p = platform(() =>
+      broken ? reply(500, { error: 'boom', code: 'internal' }) : reply(200, {}),
+    )
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, DOORMAN_PATHS.changes).catch(() => undefined)
+    expect(doormanTrouble()).toMatchObject({ kind: 'failing', bucket: false })
+    broken = false
+    await session.doormanFetch(null, DOORMAN_PATHS.health)
+    expect(doormanTrouble()).toBeNull()
+  })
+
+  it('takes only the bucket answering as the bucket back', async () => {
+    let away = true
+    const p = platform(call =>
+      away && call.url.includes('/v1/files/')
+        ? reply(502, { error: 'the bucket is unreachable', code: 'bucket_unreachable' })
+        : reply(200, {}),
+    )
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/x').catch(() => undefined)
+    expect(doormanTrouble()).toMatchObject({ kind: 'failing', bucket: true })
+
+    // The doorman's own answer says nothing about the bucket behind it.
+    await session.doormanFetch(null, DOORMAN_PATHS.health)
+    expect(doormanTrouble()?.kind).toBe('failing')
+    away = false
+    await session.doormanFetch(signedIn, '/v1/files/x')
+    expect(doormanTrouble()).toBeNull()
+  })
+
+  /*
+   * 2026-10-25: with the bucket refusing writes for the day, an edit sat
+   * unsent while the sidebar said "All saved".
+   */
+  it('is capped when a write is refused for the day, until a write goes up', async () => {
+    let refuse = true
+    const p = platform(() => (refuse ? reply(502, CAP) : reply(200, {})))
+    const session = createCloudSession(p)
+    const put = () =>
+      session.doormanFetch(signedIn, '/v1/files/log/d/1.json', { method: 'PUT', json: {} })
+    await put().catch(() => undefined)
+    expect(doormanTrouble()).toMatchObject({ kind: 'capped', message: CAP.error })
+
+    // The doorman's own answers say nothing about the bucket's day.
+    refuse = false
+    await session.doormanFetch(null, DOORMAN_PATHS.health)
+    expect(doormanTrouble()?.kind).toBe('capped')
+    await put()
+    expect(doormanTrouble()).toBeNull()
+  })
+
+  it('leaves a read refused for the day to the hold', async () => {
+    const p = platform(() => reply(502, CAP))
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, '/v1/files/audio/a.m4a').catch(() => undefined)
+    expect(bucketHold('read')).not.toBeNull()
+    expect(doormanTrouble()).toBeNull()
+  })
+
+  it('takes a refusal of the request itself as an answer', async () => {
+    const p = platform(() => reply(401, { error: 'signed out', code: 'unauthorized' }))
+    const session = createCloudSession(p)
+    await session.doormanFetch(signedIn, DOORMAN_PATHS.me).catch(() => undefined)
+    expect(doormanTrouble()).toBeNull()
   })
 })
 

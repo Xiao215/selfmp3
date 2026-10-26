@@ -8,6 +8,7 @@ import {
   DOORMAN_PATHS,
   PLAYED_KEPT,
   STREAM_RELAYED_HEADERS,
+  UNANSWERED_HEADER,
   WAIT_AHEAD_BYTES,
   isCloudFileKey,
   isHashNamedCloudKey,
@@ -68,6 +69,8 @@ interface StreamProxyOptions {
 
 export interface StreamProxy {
   use(session: StreamSession): void
+  /** Ask the bucket again on the next request, though a refusal for the day is held: Try again. */
+  release(): void
   /**
    * The answer to a request for `key`. `allowOrigin` is the origin the CORS
    * pair names — the caller's to decide, as for a file on disk (`protocol.ts`).
@@ -80,6 +83,8 @@ interface Refusal {
   readonly status: number
   readonly body: string
   readonly contentRange: string | null
+  /** Nothing answered at all (`UNANSWERED_HEADER`): the player blames the connection, not the song. */
+  readonly unanswered?: boolean
 }
 
 /** How much of a song one read from the disk hands the player. */
@@ -181,6 +186,7 @@ export function createStreamProxy({
         status: 503,
         body: 'This song is not on this device, and your storage cannot be reached.',
         contentRange: null,
+        unanswered: true,
       }
     }
     if (upstream.ok) return upstream
@@ -286,6 +292,10 @@ export function createStreamProxy({
         arriving.clear()
       }
       session = next
+    },
+
+    release() {
+      capped = null
     },
 
     async serve(request, key, allowOrigin) {
@@ -478,7 +488,7 @@ class Arriving {
   }
 }
 
-function refused({ status, body, contentRange }: Refusal): Response {
+function refused({ status, body, contentRange, unanswered }: Refusal): Response {
   const answer = new Response(body === '' ? null : body, {
     status,
     headers: {
@@ -487,5 +497,6 @@ function refused({ status, body, contentRange }: Refusal): Response {
     },
   })
   if (contentRange) answer.headers.set('Content-Range', contentRange)
+  if (unanswered) answer.headers.set(UNANSWERED_HEADER, '1')
   return answer
 }

@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { useLibrary, useRemoveServerGrant, useServerGrants, space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { useAskBucketAgain } from '../../connection/useDoormanTrouble'
 import { sharedServerUrl } from '../../ports/sharedServerUrl'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
@@ -58,6 +59,7 @@ export function ConnectionPanel({
   const storage = me.isPending ? undefined : (me.data?.storage ?? null)
   // The bucket refusing for the day: said for as long as it is left alone.
   const hold = useBucketHold()
+  const askBucketAgain = useAskBucketAgain()
   const { wide } = useLayoutFlags()
   const where = storage ? whereItIs(storage) : null
   return (
@@ -97,11 +99,19 @@ export function ConnectionPanel({
           >
             <View style={styles.pair}>
               {hold ? (
-                <Button
-                  label="Open Backblaze"
-                  onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
-                  testID="cloud-storage-backblaze"
-                />
+                <>
+                  <Button
+                    label="Open Backblaze"
+                    onPress={() => void Linking.openURL(BACKBLAZE_CAPS_URL)}
+                    testID="cloud-storage-backblaze"
+                  />
+                  {/* Raised there, it is not noticed here until the hold is up. */}
+                  <Button
+                    label="Try again"
+                    onPress={askBucketAgain}
+                    testID="cloud-storage-try-again"
+                  />
+                </>
               ) : null}
               <Button
                 label={storage ? 'Change' : 'Connect'}

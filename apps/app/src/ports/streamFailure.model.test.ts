@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   LOST_CONNECTION,
+  TOOK_TOO_LONG,
   cannotPlayYet,
   isUnreachable,
   stoppedOn,
@@ -52,12 +53,26 @@ describe('why a song would not play', () => {
 
 describe('the toast when the player stops on a song', () => {
   it('blames the connection, not the song, when nothing answered', () => {
-    expect(stoppedOn('第八夜', isUnreachable(LOST_CONNECTION))).toBe('Can’t reach your library')
+    expect(stoppedOn('第八夜', LOST_CONNECTION)).toBe('Can’t reach your library')
+  })
+
+  it('says a song that never came took too long, not that the library is away', () => {
+    expect(stoppedOn('第八夜', TOOK_TOO_LONG)).toBe('“第八夜” took too long to load')
   })
 
   it('names the song that would not play otherwise', () => {
-    expect(stoppedOn('第八夜', isUnreachable('This file could not be decoded'))).toBe(
-      'Couldn’t play “第八夜”',
-    )
+    expect(stoppedOn('第八夜', 'This file could not be decoded')).toBe('Couldn’t play “第八夜”')
+  })
+})
+
+describe('whether the player stops on a failed song rather than skipping on', () => {
+  it('stops when nothing answered, or the song never came', () => {
+    expect(isUnreachable(LOST_CONNECTION)).toBe(true)
+    expect(isUnreachable(TOOK_TOO_LONG)).toBe(true)
+  })
+
+  it('skips on past a song that is itself the trouble', () => {
+    expect(isUnreachable('This file could not be decoded')).toBe(false)
+    expect(isUnreachable(null)).toBe(false)
   })
 })

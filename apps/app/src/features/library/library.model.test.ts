@@ -155,6 +155,17 @@ describe('the sidebar foot', () => {
     })
   })
 
+  it('says an edit the storage would not take waits for the allowance, not the connection', () => {
+    const capped = new ApiError(502, 'Transaction cap exceeded', 'bucket_cap_exceeded')
+    expect(footNotice({ ...base, error: capped, unsent: 1 })).toEqual({
+      title: 'Storage allowance used up',
+      body: 'Your change sends when it resets, in about 20 hours.',
+    })
+    expect(footNotice({ ...base, error: capped, unsent: 2 })?.body).toBe(
+      'Your 2 changes send when it resets, in about 20 hours.',
+    )
+  })
+
   it('reassures on hover, naming only what this device keeps', () => {
     expect(footSummary({ songs: 109, here: 12, place: 'computer' })).toBe(
       'All saved · 109 songs · 12 on this computer',

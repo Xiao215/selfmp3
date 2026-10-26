@@ -10,14 +10,16 @@ import {
   type LoadOptions,
   type PlaybackEngine,
 } from '@selfmp3/client'
+import { noteDoormanUnreachable } from '@selfmp3/replica'
 import { noteRefusal } from './bucketRefusal'
 import {
   cannotPlayYet,
   LOST_CONNECTION,
   notHere,
   streamFailureMessage,
+  TOOK_TOO_LONG,
 } from './streamFailure.model'
-import { clamp } from '@selfmp3/shared'
+import { UNANSWERED_HEADER, clamp } from '@selfmp3/shared'
 import { thisPlace } from './place'
 
 /**
@@ -454,7 +456,7 @@ class AudioEngine implements PlaybackEngine {
       element.pause()
       element.removeAttribute('src')
       element.load()
-      this.#fail(LOST_CONNECTION, generation)
+      this.#fail(TOOK_TOO_LONG, generation)
     }, START_GIVES_UP_MS)
   }
 
@@ -493,6 +495,11 @@ class AudioEngine implements PlaybackEngine {
    * this device. The address answers with the reason (streamFailure.model.ts);
    * one byte of it is asked for, and the answer is shown — unless the player
    * has moved on to another song meanwhile.
+   *
+   * The service worker and the desktop shell stand between the element and
+   * the bucket, so a bucket that did not answer them is an answer here, not a
+   * failed fetch: they mark it (`UNANSWERED_HEADER`), and it is said as the
+   * connection's fault, and the rest of the app told the doorman is away.
    */
   async #explainSource(src: string): Promise<void> {
     const generation = this.#loadGeneration
@@ -500,7 +507,10 @@ class AudioEngine implements PlaybackEngine {
     let message = notHere(place)
     try {
       const response = await fetch(src, { headers: { range: 'bytes=0-0' } })
-      if (!response.ok && response.status !== 206) {
+      if (response.headers.has(UNANSWERED_HEADER)) {
+        message = LOST_CONNECTION
+        noteDoormanUnreachable()
+      } else if (!response.ok && response.status !== 206) {
         const body = await response.text()
         message = streamFailureMessage(response.status, body, place)
         noteRefusal(body, message)

@@ -132,6 +132,9 @@ const bridge: DesktopBridge = {
     use: async session => {
       await ipcRenderer.invoke(CHANNELS.bucketUse, session)
     },
+    release: async () => {
+      await ipcRenderer.invoke(CHANNELS.bucketRelease)
+    },
     // A key's parts each encoded, so its slashes stay slashes, as the doorman's own path has them.
     streamUrl: (key: string) =>
       `${APP_ORIGIN}${STREAM_PREFIX}${key.split('/').map(encodeURIComponent).join('/')}`,

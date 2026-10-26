@@ -936,20 +936,21 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // The room is asked whether it can still hear this device: while it
       // cannot, the song waits where it stopped and goes on once the room is
       // back (below), rather than being skipped down the room's list.
-      const unreachable = isUnreachable(state.error)
+      const why = state.error
       if (roomTrack(songId) && currentRoom().pass) {
         const at = lastPositionRef.current
         void checkRoomLink().then(alive => {
           if (queueRef.current.items[queueRef.current.index] !== songId) return
-          if (alive) recover(songId, unreachable)
+          if (alive) recover(songId, why)
           else roomWaitRef.current = { songId, at }
         })
         return
       }
-      recover(songId, unreachable)
+      recover(songId, why)
     }
 
-    const recover = (songId: number, unreachable = false): void => {
+    const recover = (songId: number, why: string | null = null): void => {
+      const unreachable = isUnreachable(why)
       const recovery = recoveryRef.current
       const title =
         songsRef.current.get(songId)?.title ?? roomTrack(songId)?.song.title ?? 'this song'
@@ -1022,7 +1023,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       // here, or one more report of a failure set it running again. Choosing
       // something to play starts a fresh run (`freshRun`).
       halt()
-      say(stoppedOn(title, unreachable), 'error')
+      say(stoppedOn(title, why), 'error')
     }
   }, [engine, loadIndex, mayPlay, commitQueue, halt])
 

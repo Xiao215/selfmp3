@@ -378,6 +378,12 @@ export function useLibrary(): UseQueryResult<Library, Error> {
     // Keep showing the old library while a refetch runs, so the list does not
     // flash empty every time the app regains focus.
     placeholderData: previous => previous,
+    // A page opened over a library that failed says so at once, rather than
+    // asking again first: asked again, a query with nothing to show is set
+    // back to loading, error and all, and Home showed an empty "Your tags"
+    // for the seconds a server's errors took. What failed is asked again on
+    // its own (the app's retry of failed queries), and by Try again.
+    retryOnMount: false,
     // Offline, or the bucket's daily allowance used up: asking again at once
     // gets the same answer, and the screen should say why without the wait.
     retry: (failureCount, error) =>

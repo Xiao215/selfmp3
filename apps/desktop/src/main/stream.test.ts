@@ -3,7 +3,13 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { BUCKET_HOLD_MS, DOORMAN_PATHS, PLAYED_KEPT, WAIT_AHEAD_BYTES } from '@selfmp3/shared'
+import {
+  BUCKET_HOLD_MS,
+  DOORMAN_PATHS,
+  PLAYED_KEPT,
+  UNANSWERED_HEADER,
+  WAIT_AHEAD_BYTES,
+} from '@selfmp3/shared'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DOORMAN_ORIGIN, harness, type Harness } from '../../../doorman/src/fakes.js'
@@ -252,6 +258,28 @@ describe('streaming a bucket song on the desktop', () => {
     expect((await h.connect(other)).status).toBe(200)
     stream.use({ doormanUrl: DOORMAN_ORIGIN, token: other })
     expect((await play(SONG, { range: 'bytes=0-1' })).status).toBe(206)
+  })
+
+  it('asks again at once when the person says the cap was raised (Try again)', async () => {
+    h.bucket.capped = true
+    expect((await play(SONG, { range: 'bytes=0-1' })).status).toBe(502)
+    h.bucket.capped = false
+    stream.release()
+    expect((await play(SONG, { range: 'bytes=0-1' })).status).toBe(206)
+  })
+
+  it('marks a song nothing answered for, so the player blames the connection', async () => {
+    const away = createStreamProxy({
+      fetch: () => Promise.reject(new TypeError('fetch failed')),
+      onCapped: () => {},
+      dir,
+    })
+    handleAppScheme({ web: '/nowhere', devOrigin: null, stream: away })
+    away.use({ doormanUrl: DOORMAN_ORIGIN, token })
+    const response = await play(SONG, { range: 'bytes=0-0' })
+    expect(response.status).toBe(503)
+    expect(response.headers.get(UNANSWERED_HEADER)).toBe('1')
+    away.use(null)
   })
 
   it('reads only what a device may: a key the doorman would not serve is not asked for', async () => {

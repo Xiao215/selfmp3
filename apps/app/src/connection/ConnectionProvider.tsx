@@ -9,6 +9,7 @@ import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { storageDue } from '../features/welcome/storage.model'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
 import { useCloudLook } from './useCloudLook'
+import { useAskDoormanBack } from './useDoormanTrouble'
 
 /**
  * Which server this phone talks to.
@@ -50,6 +51,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   const queryClient = useQueryClient()
   // Not before the bucket is connected: there is nothing in it to ask about.
   useCloudLook(fromCloud && !needsStorage)
+  useAskDoormanBack(fromCloud)
 
   /*
    * Forget everything cached for the previous server.

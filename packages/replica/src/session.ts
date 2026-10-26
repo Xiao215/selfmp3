@@ -14,8 +14,9 @@ import {
   type DoormanBackblazeConnect,
   type DoormanMe,
 } from '@selfmp3/shared'
-import { bucketHold, holdBucket, releaseBucket } from './hold.js'
+import { bucketHold, holdBucket, keepHolds, releaseBucket } from './hold.js'
 import type { CloudPlatform, CloudResponse } from './platform.js'
+import { forgetDoormanTrouble, noteDoormanAnswer } from './reach.js'
 
 /**
  * Signed in to the doorman (docs/SYNC.md).
@@ -119,6 +120,10 @@ export function createCloudSession(
     const call = bucketCallOf(method, path)
     const held = call ? bucketHold(call) : null
     if (held) throw new DoormanError(502, BUCKET_CAP_CODE, held.message)
+    // What the doorman passes on to the bucket, and of that what a refusal
+    // for the day holds back: an edit, a play, a picture (reach.ts).
+    const write = method !== 'GET' && method !== 'HEAD' && path.startsWith(DOORMAN_PATHS.files)
+    const bucket = call !== null || write
 
     try {
       const response = await send(path, {
@@ -129,14 +134,19 @@ export function createCloudSession(
         allowStatus: [404],
       })
       if (call) releaseBucket(call)
+      noteDoormanAnswer({ bucket, write, answer: true })
       return response
     } catch (error) {
       if (call && error instanceof DoormanError && error.code === BUCKET_CAP_CODE) {
         holdBucket(error.message, call)
       }
+      noteDoormanAnswer({ bucket, write, error })
       throw error
     }
   }
+
+  // A hold outlives a reload, as the refusal does (hold.ts, `keepHolds`).
+  keepHolds(store)
 
   async function saveSession(session: CloudSession): Promise<void> {
     await store.write(CLOUD_SESSION_KEY, session)
@@ -158,8 +168,10 @@ export function createCloudSession(
   }
 
   async function forgetSession(): Promise<void> {
-    // A hold is the bucket's; the next sign-in may be to another.
+    // A hold is the bucket's, and the doorman's trouble the account's; the
+    // next sign-in may be to another.
     releaseBucket()
+    forgetDoormanTrouble()
     try {
       await store.remove(CLOUD_SESSION_KEY)
     } catch {

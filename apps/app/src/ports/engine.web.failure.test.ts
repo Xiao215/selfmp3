@@ -109,7 +109,29 @@ describe('a song that does not come', () => {
     expect(told).toEqual([])
   })
 
-  it('gives up on a stream that never answers, as a lost connection', async () => {
+  it('blames the connection when the bucket gave no answer behind the address', async () => {
+    // The service worker's word for a fetch from the bucket that nothing answered.
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        new Response('This song is not on this device, and your storage cannot be reached.', {
+          status: 503,
+          headers: { 'x-selfmp3-unanswered': '1' },
+        }),
+      ),
+    )
+    const { doormanTrouble } = await import('@selfmp3/replica')
+    const { audioEngine, primary, told } = await engine()
+    await audioEngine.load(7)
+
+    primary.error = { code: 4 }
+    primary.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(told).toHaveLength(1))
+
+    expect(told).toEqual(['Lost connection to the library'])
+    expect(doormanTrouble()?.kind).toBe('unreachable')
+  })
+
+  it('gives up on a stream that never answers, as one that took too long', async () => {
     vi.useFakeTimers()
     const { audioEngine, primary, told } = await engine()
     await audioEngine.load(7)
@@ -117,7 +139,7 @@ describe('a song that does not come', () => {
 
     await vi.advanceTimersByTimeAsync(15_000)
 
-    expect(told).toEqual(['Lost connection to the library'])
+    expect(told).toEqual(['This song took too long to arrive'])
     expect(primary.src).toBe('')
     expect(audioEngine.state.playing).toBe(false)
   })

@@ -153,6 +153,8 @@ export interface DesktopBridge {
   readonly bucket: {
     /** The session to stream with, or null on signing out. Kept in the shell's memory only. */
     use(session: StreamSession): Promise<void>
+    /** Ask the bucket again now, before the shell's hold on a refusal for the day is up: Try again. */
+    release(): Promise<void>
     streamUrl(key: string): string
     /** The bucket refused for the day: the doorman's words, so the page can hold off and say why. */
     onCapped(listener: (message: string) => void): () => void

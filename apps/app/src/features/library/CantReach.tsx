@@ -4,6 +4,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { space } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
+import { askBucketAgain } from '../../ports/askBucketAgain'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
 import { Refresh } from '../../ui/components/Icons'
@@ -62,7 +63,11 @@ export function CantReach({
           <Button
             label="Try again"
             icon={<Refresh color={theme.colors.textPrimary} />}
-            onPress={onRetry}
+            onPress={() => {
+              // Refused for the day, the hold would refuse the asking too.
+              if (capped) askBucketAgain()
+              onRetry()
+            }}
           />
           {capped ? (
             <Button

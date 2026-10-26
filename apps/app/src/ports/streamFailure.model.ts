@@ -32,9 +32,21 @@ export function streamFailureMessage(status: number, body: string, place: Device
  */
 export const LOST_CONNECTION = 'Lost connection to the library'
 
-/** Whether a song failed because nothing answered, by the words its engine said. */
+/**
+ * A song asked to play that did not start arriving in time (engine.web.ts,
+ * `#watchStart`): a read that stalled, though everything else answers. Said
+ * as what happened. It was said as an unreachable library, which sent people
+ * to check a connection that was fine.
+ */
+export const TOOK_TOO_LONG = 'This song took too long to arrive'
+
+/**
+ * Whether a song failed on the way to it rather than in it: nothing answered,
+ * or it never came. The next song would most likely fail the same way, so the
+ * player stops on it rather than skipping down the queue.
+ */
 export function isUnreachable(error: string | null): boolean {
-  return error === LOST_CONNECTION
+  return error === LOST_CONNECTION || error === TOOK_TOO_LONG
 }
 
 /**
@@ -43,8 +55,10 @@ export function isUnreachable(error: string | null): boolean {
  * outage sent people looking for something wrong with the file. The words are
  * the ones the rest of the app uses for an unreachable library.
  */
-export function stoppedOn(title: string, unreachable: boolean): string {
-  return unreachable ? 'Can’t reach your library' : `Couldn’t play “${title}”`
+export function stoppedOn(title: string, error: string | null): string {
+  if (error === LOST_CONNECTION) return 'Can’t reach your library'
+  if (error === TOOK_TOO_LONG) return `“${title}” took too long to load`
+  return `Couldn’t play “${title}”`
 }
 
 /** A song with no copy here and no way to fetch one. */

@@ -19,9 +19,9 @@ import {
   useLibrary,
   iconSize,
 } from '@selfmp3/client'
-import { footNotice, footSummary } from '../features/library/library.model'
+import { footNotice, footSummary, troubleAsError } from '../features/library/library.model'
+import { useLibraryFailure } from '../features/library/useLibraryFailure'
 import { profileName } from '../features/profile/profile.model'
-import { library as cloudLibrary } from '../replica'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import { useRecentTagIds } from '../features/library/recentTags.store'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
@@ -48,6 +48,12 @@ import { NEW_TAG_FAILED, TagNameField, useNewTagForm } from '../features/tags/us
 import { StatusLine } from '../ui/components/StatusLine'
 import { NoticeCard } from '../ui/components/NoticeCard'
 import { useConnection } from '../connection/ConnectionProvider'
+import {
+  useAskBucketAgain,
+  useCloudUnsent,
+  useDoormanTrouble,
+} from '../connection/useDoormanTrouble'
+import { Button } from '../ui/components/Button'
 import { BrandMark } from '../ui/components/BrandMark'
 import { Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
@@ -754,6 +760,12 @@ function Foot(): ReactNode {
   const held = useBucketHold() !== null
   const online = useOnline()
   const waiting = useWaitingEdits()
+  const failure = useLibraryFailure(library)
+  // A cloud library always loads — it is this device's copy — so whether
+  // the doorman answers is what the requests that go out found (reach.ts).
+  const trouble = useDoormanTrouble()
+  const cloudUnsent = useCloudUnsent(fromCloud)
+  const askBucketAgain = useAskBucketAgain()
   /*
    * Of this library, what is here — not how many files the device is keeping.
    * The index holds an entry for every song ever downloaded, a replaced
@@ -768,13 +780,12 @@ function Foot(): ReactNode {
   const name = profileName(account?.name)
   const place = thisPlace()
   // A failed refetch keeps the cached library, so an error wins over the data.
-  // Edits a cloud library is still holding are read as the foot draws, which
-  // it does again whenever the library's answer changes; a server library's
-  // edits made offline wait in the query client (`waitingEdits.ts`).
-  const unsent =
-    waiting + (fromCloud && (library.isError || !online) ? cloudLibrary.pendingCloudChanges() : 0)
+  // Edits a cloud library is still holding wait in its outbox; a server
+  // library's edits made offline wait in the query client (`waitingEdits.ts`).
+  const unsent = waiting + cloudUnsent
+  const error = failure ?? (fromCloud ? troubleAsError(trouble) : null)
   const notice = footNotice({
-    error: library.isError ? library.error : null,
+    error,
     held,
     offline: !online,
     fromCloud,
@@ -782,6 +793,8 @@ function Foot(): ReactNode {
     place,
     unsent,
   })
+  // A cap raised at backblaze.com is not noticed until the hold is up: this asks now.
+  const capped = held || trouble?.kind === 'capped'
   const dot = notice
     ? theme.colors.warning
     : library.isPending
@@ -790,7 +803,8 @@ function Foot(): ReactNode {
   const summary = library.data ? footSummary({ songs, here, place, unsent }) : null
   // The page says it already, in its own card where the library would be: the
   // same title twice, one above the other, read as two problems.
-  const pageSays = library.isError && !library.data && (pathname === '/library' || pathname === '/')
+  const pageSays =
+    failure !== null && !library.data && (pathname === '/library' || pathname === '/')
 
   return (
     <View style={styles.foot}>
@@ -803,6 +817,9 @@ function Foot(): ReactNode {
           title={notice.title}
           style={styles.notice}
           testID="sidebar-notice"
+          actions={
+            capped ? <Button label="Try again" size="small" onPress={askBucketAgain} /> : undefined
+          }
         >
           {notice.body}
         </NoticeCard>

@@ -89,6 +89,7 @@ import { useVia } from '../../connection/via'
 import { ScrollView } from '../../ui/components/Scroll'
 import { COLUMN_WIDTH } from '../../shell/widths'
 import { CantReach } from '../library/CantReach'
+import { useLibraryFailure } from '../library/useLibraryFailure'
 
 /**
  * Home: where the app opens (docs/ui-mock `P04`, `C03`).
@@ -153,6 +154,7 @@ function HomePage({
   const bottom = useBottomInset()
   const libraryQuery = useLibrary()
   const library = libraryQuery.data
+  const failure = useLibraryFailure(libraryQuery)
   // Three by two wherever the tiles go three across.
   const many = wide || roomy
   const tiles = useMemo(
@@ -255,11 +257,8 @@ function HomePage({
                   }
                 />
                 {/* No library and no copy of one: say why, as Library does, not an empty space. */}
-                {library === undefined && libraryQuery.isError ? (
-                  <CantReach
-                    error={libraryQuery.error}
-                    onRetry={() => void libraryQuery.refetch()}
-                  />
+                {library === undefined && failure !== null ? (
+                  <CantReach error={failure} onRetry={() => void libraryQuery.refetch()} />
                 ) : (
                   <Tiles tiles={tiles} loading={library === undefined} beside={beside} />
                 )}

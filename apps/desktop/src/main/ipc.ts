@@ -148,6 +148,9 @@ export function registerIpc({
   ipcMain.handle(CHANNELS.bucketUse, (_event, session: unknown) => {
     stream.use(streamSessionSchema.parse(session))
   })
+  ipcMain.handle(CHANNELS.bucketRelease, () => {
+    stream.release()
+  })
 
   ipcMain.handle(CHANNELS.openExternal, async (_event, url: unknown) => {
     await shell.openExternal(externalUrlSchema.parse(url))

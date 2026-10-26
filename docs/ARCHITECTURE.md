@@ -318,7 +318,9 @@ itself.
 Workbox would generate most of this, but not the part that matters: slicing a cached
 response into a 206 for range requests. Since that is the whole reason offline playback
 works on iOS, the file is written by hand and the three caching strategies are explicit —
-cache-first for the shell, cache-first-with-range for audio, network-first for the API.
+the shell kept whole at install (its files listed by `scripts/shell.mjs` at export) and its
+page asked of the network for three seconds at most, cache-first-with-range for audio,
+network-first for the API.
 
 ---
 

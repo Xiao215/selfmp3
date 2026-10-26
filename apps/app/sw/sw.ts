@@ -5,8 +5,10 @@
  *
  * Three jobs, each with a deliberately different strategy:
  *
- *  1. **App shell** — cache-first with a background update. The app opens
- *     instantly and offline; a new build is picked up on the next visit.
+ *  1. **App shell** — kept whole at install, the page and every file it
+ *     loads. The page is asked of the network for a moment first, so a new
+ *     build shows up on the next open; past that moment, or offline, the kept
+ *     one opens.
  *  2. **Audio** — cache-first, and critically it answers range requests out of
  *     the cache. Without that, iOS Safari will not play a cached file at all,
  *     because it always asks for `Range: bytes=0-1` first.
@@ -37,6 +39,7 @@ import {
   PLAIN_PAGES,
   PLAYED_KEPT,
   REFRESH_HEADER,
+  UNANSWERED_HEADER,
   WAIT_AHEAD_BYTES,
   parseDoormanRefusal,
   parseRange,
@@ -53,6 +56,7 @@ import {
   PLAYED_PREFIX,
   SW_MESSAGE,
 } from './names'
+import { SHELL_WAIT_MS, answerWithin } from '../src/ports/shellWait.model'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -88,20 +92,59 @@ const BASE = new URL(self.registration.scope).pathname
 const CLOUD = new URL(self.location.href).searchParams.get('cloud') === '1'
 const INDEX = `${BASE}index.html`
 
-const SHELL_URLS = [BASE, INDEX, `${BASE}manifest.webmanifest`, `${BASE}icons/icon.svg`]
+/**
+ * The files of this export the shell keeps besides the page, as paths under
+ * the scope: written beside the worker by scripts/shell.mjs at export. Absent
+ * for a worker built on its own, which then keeps the page alone.
+ */
+const SHELL_LIST = `${BASE}shell.json`
 
 self.addEventListener('install', event => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(SHELL_CACHE)
-      // Individually, so one 404 does not fail the whole install.
-      await Promise.allSettled(SHELL_URLS.map(url => cache.add(url)))
+      await keepShell()
       // Take over immediately; waiting for every tab to close is not the
       // behaviour anyone wants from their own music app.
       await self.skipWaiting()
     })(),
   )
 })
+
+/**
+ * Keep this build's page and every file it loads, before taking over.
+ *
+ * All of it, at install. Kept as the page asked for them, the bundle was
+ * never kept at all on a first visit (the page that loads it is not this
+ * worker's yet) and, after a deploy, was kept by the old worker into the old
+ * build's cache, which `activate` sweeps — either way the next offline open
+ * was a blank page. A file that cannot be fetched fails the install, and the
+ * browser tries again on a later visit: the worker before this one, and its
+ * whole shell, stay until then.
+ *
+ * The page and the list are asked for past the browser's HTTP cache (Pages
+ * says ten minutes), which would otherwise hand over the last build's page.
+ * The rest are named after their contents, so a copy the last build kept is
+ * the same file and is taken from there.
+ */
+async function keepShell(): Promise<void> {
+  const cache = await caches.open(SHELL_CACHE)
+  const fresh = (url: string) => new Request(url, { cache: 'no-cache' })
+  await cache.add(fresh(INDEX))
+  // Wanted, but not the app: a missing manifest does not fail the install.
+  await cache.add(fresh(`${BASE}manifest.webmanifest`)).catch(() => undefined)
+  const listed = await fetch(fresh(SHELL_LIST)).catch(() => null)
+  const files: unknown = listed?.ok ? await listed.json() : []
+  if (!Array.isArray(files)) return
+  await Promise.all(
+    files
+      .filter((file): file is string => typeof file === 'string')
+      .map(async file => {
+        const url = `${BASE}${file}`
+        const kept = await caches.match(url)
+        await (kept ? cache.put(url, kept) : cache.add(url))
+      }),
+  )
+}
 
 self.addEventListener('activate', event => {
   event.waitUntil(
@@ -124,6 +167,8 @@ self.addEventListener('message', event => {
     // A page loaded around this worker, by a hard reload, asking to be answered
     // for after all (src/ports/serviceWorker.web.ts).
     if (type === SW_MESSAGE.claim) event.waitUntil(self.clients.claim())
+    // The cap raised at backblaze.com, says the person: ask the bucket again.
+    if (type === SW_MESSAGE.release) capped = null
   }
 })
 
@@ -588,14 +633,30 @@ async function cacheFirst(
 async function handleShell(request: Request, url: URL): Promise<Response> {
   const cache = await caches.open(SHELL_CACHE)
 
+  /*
+   * The network first, so a deploy shows up on the next open, but not for
+   * long: a connection that hangs rather than fails is the kept page after a
+   * moment (SHELL_WAIT_MS), not a white one for as long as the browser waits,
+   * and so is a host answering with an error of its own. Its 404 is still
+   * the network's answer: Pages serves a page under the app (`/stats`) as a
+   * copy of the app's page with that status.
+   *
+   * What the network answers is not kept. The page kept at install is this
+   * build's, and the files it names are in this cache; one fetched later may
+   * be a newer build's, naming a bundle this cache has never seen — opened
+   * offline, a blank page. A newer build brings a new worker, which keeps its
+   * own page.
+   */
   if (request.mode === 'navigate') {
-    try {
-      const response = await fetch(request)
-      if (response.ok) await cache.put(INDEX, response.clone())
+    const network = fetch(request).then(response => {
+      if (response.status >= 500) throw new Error(`the page answered ${response.status}`)
       return response
+    })
+    const kept = await cache.match(INDEX)
+    try {
+      return await answerWithin(network, kept, SHELL_WAIT_MS)
     } catch {
-      const cached = (await cache.match(INDEX)) ?? (await cache.match(BASE))
-      return cached ?? new Response('Offline', { status: 503 })
+      return new Response('Offline', { status: 503 })
     }
   }
 
@@ -875,7 +936,7 @@ async function fetchFromBucket(file: BucketFile, range?: string | null): Promise
     return new Response('This song is not on this device, and your storage cannot be reached.', {
       status: 503,
       statusText: 'Offline',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { 'Content-Type': 'text/plain', [UNANSWERED_HEADER]: '1' },
     })
   }
 }

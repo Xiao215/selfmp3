@@ -1,4 +1,5 @@
 import { BUCKET_HOLD_MS, type BucketCall } from '@selfmp3/shared'
+import type { DeviceStore } from './platform.js'
 
 /**
  * The bucket refusing for the day (docs/SYNC.md, "Caps").
@@ -82,4 +83,50 @@ export function onBucketHold(listener: (hold: BucketHold | null) => void): () =>
   return () => {
     listeners.delete(listener)
   }
+}
+
+const HOLDS_KEY = 'bucket-holds'
+
+let keeping = false
+
+/**
+ * Keep the holds in the device's store, so a reload inside one still knows.
+ *
+ * Held in memory only, a reload forgot the refusal: the library came back
+ * from this device's copy with nothing asked of the bucket, the screens said
+ * all was well, and the first song played was refused all over again. Read
+ * back once, for whatever is left of each; written whenever one starts or
+ * ends. Once per app, whoever asks first.
+ */
+export function keepHolds(store: DeviceStore, now = Date.now()): void {
+  if (keeping) return
+  keeping = true
+  onBucketHold(() => {
+    void store.write(HOLDS_KEY, { ...holds }).catch(() => undefined)
+  })
+  void (async () => {
+    try {
+      const saved = (await store.read(HOLDS_KEY)) as Partial<Record<BucketCall, unknown>> | null
+      let restored = false
+      for (const kind of KINDS) {
+        const held = saved?.[kind]
+        if (holds[kind] !== null || !isHold(held) || held.until <= now) continue
+        // Never longer than a hold lasts: a clock set back must not hold for days.
+        holds[kind] = { message: held.message, until: Math.min(held.until, now + BUCKET_HOLD_MS) }
+        restored = true
+      }
+      if (restored) notify()
+    } catch {
+      // Nothing kept, or no storage: held in memory as before.
+    }
+  })()
+}
+
+function isHold(value: unknown): value is BucketHold {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as BucketHold).message === 'string' &&
+    typeof (value as BucketHold).until === 'number'
+  )
 }

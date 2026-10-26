@@ -16,6 +16,12 @@
 export { CloudRouteError } from './errors.js'
 export { bucketHold, holdBucket, onBucketHold, releaseBucket, type BucketHold } from './hold.js'
 export {
+  doormanTrouble,
+  noteDoormanUnreachable,
+  onDoormanTrouble,
+  type DoormanTrouble,
+} from './reach.js'
+export {
   CloudServerViewSchema,
   ImportRequestListSchema,
   ImportRequestViewSchema,

@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
-import { plural } from '@selfmp3/shared'
+import { API_ERROR, BUCKET_CAP_CODE, plural } from '@selfmp3/shared'
 import type { Song, SongSortField, Tag } from '@selfmp3/shared'
+import type { DoormanTrouble } from '@selfmp3/replica'
 import type { DevicePlace } from '../settings/settings.model'
 import {
   ApiError,
@@ -22,6 +23,7 @@ import {
 
 import { tagsWithIds } from '../lists/lists.model'
 import { useLibraryFilter } from './libraryFilter'
+import { useLibraryFailure } from './useLibraryFailure'
 
 /**
  * Everything the library screen knows, with nothing it draws.
@@ -137,7 +139,11 @@ export function useLibraryModel(downloads: DownloadIndex): LibraryModel {
     [setFilter],
   )
 
-  const { isPending, isError, error, refetch } = library
+  const { refetch } = library
+  // Kept while it is asked for again, rather than "Loading…" in between.
+  const error = useLibraryFailure(library)
+  const isError = error !== null
+  const isPending = library.isPending && !isError
   const retry = useCallback(() => void refetch(), [refetch])
   return useMemo(
     () => ({
@@ -214,6 +220,18 @@ export function orderLabel(
  * Everything answered then — the doorman, the server — so nothing should say
  * it cannot be reached.
  */
+/**
+ * The doorman's trouble (packages/replica/src/reach.ts) as the error the
+ * screens already know how to say: nothing answering as offline, an error of
+ * its own as a problem, a write refused for the day as the allowance.
+ */
+export function troubleAsError(trouble: DoormanTrouble | null): ApiError | null {
+  if (trouble === null) return null
+  if (trouble.kind === 'unreachable') return new ApiError(0, trouble.message, API_ERROR.offline)
+  if (trouble.kind === 'capped') return new ApiError(502, trouble.message, BUCKET_CAP_CODE)
+  return new ApiError(502, trouble.message)
+}
+
 export function bucketCapped(error: unknown): boolean {
   return error instanceof ApiError && error.isBucketCapped
 }
@@ -322,8 +340,9 @@ export function unreachableCopy({
  * person: what still works, and what to do. Null on a normal day, when the
  * foot is only the person and a green dot.
  *
- * `held` is the storage refusing for the day, known before any read fails
- * (`useBucketHold`). `offline` is the device itself saying it has no network:
+ * `held` is the storage refusing reads for the day, known before any read
+ * fails (`useBucketHold`); `error` may be it refusing a write, when what
+ * waits is the edits. `offline` is the device itself saying it has no network:
  * nothing is even asked then, so no error ever arrives to say so, and the foot
  * kept a green dot and "All saved" over an edit that had not gone. `unsent`
  * counts the edits held back to send later — a cloud library's outbox, or a
@@ -354,9 +373,20 @@ export function footNotice({
 }): { title: string; body: string } | null {
   const stillPlay = keepsSongs ? `Songs on this ${place} still play. ` : ''
   if (held || bucketCapped(error)) {
+    const until = untilCapResets(now)
+    // Reads go on, and an edit could not go up: that is the news.
+    if (!held && unsent > 0) {
+      return {
+        title: 'Storage allowance used up',
+        body:
+          unsent === 1
+            ? `Your change sends when it resets, in about ${until}.`
+            : `Your ${unsent} changes send when it resets, in about ${until}.`,
+      }
+    }
     return {
       title: 'Storage allowance used up',
-      body: `${stillPlay}The rest come back in about ${untilCapResets(now)}.`,
+      body: `${stillPlay}The rest come back in about ${until}.`,
     }
   }
   const changes =

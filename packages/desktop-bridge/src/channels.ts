@@ -32,6 +32,7 @@ export const CHANNELS = {
   filesClear: 'selfmp3:files.clear',
 
   bucketUse: 'selfmp3:bucket.use',
+  bucketRelease: 'selfmp3:bucket.release',
 
   openExternal: 'selfmp3:openExternal',
   setPlaybackState: 'selfmp3:setPlaybackState',

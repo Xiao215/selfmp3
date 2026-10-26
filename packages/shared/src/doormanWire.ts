@@ -121,6 +121,18 @@ export const BUCKET_HOLD_MS = 10 * 60_000
 export const PLAYED_KEPT = 10
 
 /**
+ * Set on the answer a song gets when the bucket was asked for it and nothing
+ * answered: the doorman down, or this device unable to reach it. Sent by the
+ * browser's service worker (apps/app/sw/sw.ts) and the desktop shell
+ * (apps/desktop/src/main/stream.ts), each in front of an `<audio>` element
+ * that hears only "not supported" and asks the address why
+ * (apps/app/src/ports/engine.web.ts). Without it, "not on this device" read
+ * as the song's fault, and the player went on to say "Couldn’t play" a song
+ * that was fine.
+ */
+export const UNANSWERED_HEADER = 'x-selfmp3-unanswered'
+
+/**
  * How far past what has arrived a range may start and still wait for the
  * download of the whole song under way, rather than ask the bucket for itself:
  * a second or two of a song arriving, against a request of its own.

@@ -75,8 +75,8 @@ const SORT_PREF = 'playlists.sort'
  * a choice made on a computer cannot leave it sorted by a control it lacks.
  * Each tile says when it was last played, the day the order is by.
  *
- * Making one goes straight into picking its songs (`NewPlaylist`); one
- * emptied since is listed after the rest (`listedPlaylists`).
+ * An empty playlist is not listed: making one goes straight into picking its
+ * songs, and it exists once it has one (`NewPlaylist`).
  */
 export function PlaylistsScreen(): ReactNode {
   const router = useRouter()

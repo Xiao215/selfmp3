@@ -4,6 +4,7 @@ import { EMPTY_SMART_RULES, playlistRules, type Playlist, type SmartRules } from
 import {
   addedToPlaylist,
   copyName,
+  emptyPlaylists,
   listedPlaylists,
   mosaicCovers,
   newPlaylist,
@@ -161,16 +162,16 @@ describe('the order playlists appear in', () => {
 })
 
 describe('what the playlists page lists', () => {
-  it('an empty playlist too, of either kind, after the rest', () => {
+  it('never an empty playlist, of either kind', () => {
     const listed = listedPlaylists(
       [
-        playlist('Empty', { lastPlayedAt: '2026-09-13 10:00:00' }),
         playlist('Filled', { songCount: 3 }),
+        playlist('Empty'),
         playlist('Matches nothing', { kind: 'live', rules: EMPTY_SMART_RULES }),
       ],
       'recent',
     )
-    expect(names(listed)).toEqual(['Filled', 'Empty', 'Matches nothing'])
+    expect(names(listed)).toEqual(['Filled'])
   })
 
   it('in the order chosen', () => {
@@ -179,6 +180,17 @@ describe('what the playlists page lists', () => {
       'name',
     )
     expect(names(listed)).toEqual(['Aardvark', 'Zebra'])
+  })
+})
+
+describe('the playlists left empty, which the sidebar alone lists', () => {
+  it('every empty one, of either kind, by name', () => {
+    const empty = emptyPlaylists([
+      playlist('Filled', { songCount: 3 }),
+      playlist('Zebra'),
+      playlist('Matches nothing', { kind: 'live', rules: EMPTY_SMART_RULES }),
+    ])
+    expect(names(empty)).toEqual(['Matches nothing', 'Zebra'])
   })
 })
 
@@ -205,12 +217,12 @@ describe('the playlists a song can be added to', () => {
     ])
   })
 
-  it('offers an emptied playlist after the rest, to fill it again', () => {
+  it('leaves out an empty playlist, which no other page lists', () => {
     const choices = playlistsToAddTo([
-      playlist('Emptied', { lastPlayedAt: '2026-09-13 10:00:00' }),
       playlist('Filled', { songCount: 2 }),
+      playlist('Emptied', { lastPlayedAt: '2026-09-13 10:00:00' }),
     ])
-    expect(names(choices)).toEqual(['Filled', 'Emptied'])
+    expect(names(choices)).toEqual(['Filled'])
   })
 })
 

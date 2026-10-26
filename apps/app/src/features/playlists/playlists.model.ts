@@ -223,29 +223,35 @@ export function sortPlaylists(
 }
 
 /**
- * What the playlists page lists, and the sidebar: every playlist, in the
- * chosen order, the empty ones after the rest.
- *
- * A playlist is only made with its first songs (`NewPlaylist`), but one can
- * still be emptied — its last song taken out by hand, or a live playlist's
- * rules matching nothing — and hiding it from every list left it on the
- * server for good, with no way to open, refill, rename or delete it. Last,
- * drawn as the empty cover, is where it is out of the way.
+ * What the playlists page lists: every playlist with a song in it, in the
+ * chosen order. An empty one is never shown — a playlist exists once it has a
+ * song (docs/UI-MIGRATION.md, Phase 5), and goes with its last one
+ * (`usePlaylistRemoval`); one left empty anyway is the sidebar's to show
+ * (`emptyPlaylists`).
  */
 export function listedPlaylists(
   playlists: readonly Playlist[],
   sort: PlaylistSort,
 ): readonly Playlist[] {
-  return [
-    ...sortPlaylists(
-      playlists.filter(playlist => playlist.songCount > 0),
-      sort,
-    ),
-    ...sortPlaylists(
-      playlists.filter(playlist => playlist.songCount === 0),
-      sort,
-    ),
-  ]
+  return sortPlaylists(
+    playlists.filter(playlist => playlist.songCount > 0),
+    sort,
+  )
+}
+
+/**
+ * Playlists left with no songs, which no list above shows: one emptied on
+ * another device, a live playlist whose rules match nothing now, or one from
+ * before a playlist went with its last song (`usePlaylistRemoval`). The
+ * sidebar lists them under the rest, so each can still be opened, filled
+ * again, renamed or deleted; hidden everywhere, they stayed on the server for
+ * good (bug bash R2-m12).
+ */
+export function emptyPlaylists(playlists: readonly Playlist[]): readonly Playlist[] {
+  return sortPlaylists(
+    playlists.filter(playlist => playlist.songCount === 0),
+    'name',
+  )
 }
 
 /**
@@ -254,14 +260,18 @@ export function listedPlaylists(
  * played last first, because that is the one you are most likely reaching for.
  * `except` is the playlist the list was opened from, which is not offered.
  *
- * An emptied one too, after the rest: adding to it is how it is filled again.
+ * Only the ones with a song, as everywhere else (`listedPlaylists`): the menu
+ * had listed every emptied playlist, which no other page shows and so nothing
+ * could open, rename or delete, until it ran taller than the window.
  */
 export function playlistsToAddTo(
   playlists: readonly Playlist[],
   except?: number,
 ): readonly Playlist[] {
-  return listedPlaylists(
-    playlists.filter(playlist => !isLive(playlist) && playlist.id !== except),
+  return sortPlaylists(
+    playlists.filter(
+      playlist => !isLive(playlist) && playlist.id !== except && playlist.songCount > 0,
+    ),
     'recent',
   )
 }

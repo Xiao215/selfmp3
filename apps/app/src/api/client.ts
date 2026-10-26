@@ -30,8 +30,7 @@ import {
 
 import { cloudRequest, library as cloudLibrary } from '../replica'
 import { libraryCache, lyricsCache, motionCache, playlistCache } from '../offline/caches'
-import { sendPendingIn } from '../ui/toast'
-import { removedFrom } from '../features/playlists/usePlaylistRemoval'
+import { beforeRefilling } from '../features/playlists/usePlaylistRemoval'
 
 /**
  * Which server answers, and whether the bucket does instead.
@@ -192,7 +191,7 @@ configureClient({
     const timer = setTimeout(run, ms)
     return () => clearTimeout(timer)
   },
-  beforeAddingTo: playlistId => sendPendingIn(removedFrom(playlistId)),
+  beforeAddingTo: beforeRefilling,
 })
 
 /**

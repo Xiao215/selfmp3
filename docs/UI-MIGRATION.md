@@ -310,16 +310,17 @@ opens a tag by filtering Library.
   a title anywhere a title is not the row's own tap target opens it; ⓘ in Now Playing does.
 - **Playlists**: sort by last played (the newest `lastPlayedAt` among a playlist's songs;
   never-played last, by creation). Delete `pinnedPlaylists`, the pin button
-  (`PlaylistDetailScreen.tsx:427`), the sidebar's pin handling and drop target for pins.
-  Creating a playlist goes straight into adding songs and the playlist exists once it has
-  one; one emptied since is listed after the rest, so it can be filled again or deleted
-  (bug bash R2-m12: hidden, it could never be reached again). Remove the download button and its two testIDs; keeping
+  (`PlaylistDetailScreen.tsx:427`), the sidebar's pin handling and drop target for pins. An
+  empty playlist is never listed; creating one goes straight into adding songs and the
+  playlist exists once it has one. Taking its last song out deletes it too, inside the same
+  Undo; one left empty anyway (emptied elsewhere, a live playlist matching nothing) is listed
+  in the sidebar alone, under the rest (bug bash R2-m12, Xiao 2026-10-25). Remove the download button and its two testIDs; keeping
   songs on the device is Settings › On this phone.
 
 This supersedes two earlier decisions that were agreed and never built: pinned playlists in
 the sidebar, and an "empties" section in the playlists grid.
 
-Tests: `playlists.model.test.ts` (the sort, empties last); `verify/flows/playlist.spec.ts`,
+Tests: `playlists.model.test.ts` (the sort, no empties); `verify/flows/playlist.spec.ts`,
 `selection.spec.ts`, `songMenu.spec.ts`; Maestro `smoke.yaml` loses `Play next`,
 `playlist-download` and `playlist-downloaded`.
 

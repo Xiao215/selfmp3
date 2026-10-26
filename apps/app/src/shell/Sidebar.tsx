@@ -28,7 +28,12 @@ import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { enterFromSidebar, useRecordSidebarEntry } from './sidebarEntry'
 import { useEscape } from './useEscape'
 import { PlaylistCover } from '../features/playlists/PlaylistCover'
-import { addedToPlaylist, isLive, listedPlaylists } from '../features/playlists/playlists.model'
+import {
+  addedToPlaylist,
+  emptyPlaylists,
+  isLive,
+  listedPlaylists,
+} from '../features/playlists/playlists.model'
 import { useSongDragActive, useSongDropTarget } from '../ports/songDrag'
 import { useMenuCommands } from '../ports/menuKeys'
 import { TITLE_BAR_DRAG_ID } from '../ports/titleBarDragId'
@@ -246,7 +251,12 @@ function Playlists(): ReactNode {
   const all = library?.playlists
   // The ones the playlists page lists, in its order.
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
-  const recent = listed.slice(0, RAIL_PLAYLISTS)
+  // The few played last, and under them any left empty, which no other list
+  // shows: the one way back to them (`emptyPlaylists`).
+  const recent = useMemo(
+    () => [...listed.slice(0, RAIL_PLAYLISTS), ...emptyPlaylists(all ?? [])],
+    [listed, all],
+  )
   // Lit on a playlist's own page too: that page is inside this section.
   const onPage = activeDestination(pathname) === '/playlists'
   /*

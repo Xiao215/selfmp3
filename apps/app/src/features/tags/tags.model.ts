@@ -58,11 +58,22 @@ export function tagsLayout(standings: readonly TagStanding[]): {
   readonly empty: readonly TagEntry[]
 } {
   const sets = new Map(standings.map(s => [s.tag.id, new Set(s.songs.map(song => song.id))]))
+  // A holder carries every one of a tag's songs, so it is among the tags on
+  // its first song: those alone are looked at, not every tag for every tag.
+  const onSong = new Map<number, TagStanding[]>()
+  for (const standing of standings) {
+    for (const song of standing.songs) {
+      const list = onSong.get(song.id)
+      if (list) list.push(standing)
+      else onSong.set(song.id, [standing])
+    }
+  }
   const holderOf = new Map<number, number>()
   for (const small of standings) {
-    if (small.songs.length === 0) continue
+    const first = small.songs[0]
+    if (!first) continue
     let holder: TagStanding | null = null
-    for (const big of standings) {
+    for (const big of onSong.get(first.id) ?? []) {
       if (big.songs.length <= small.songs.length) continue
       if (holder && big.songs.length <= holder.songs.length) continue
       const bigSet = sets.get(big.tag.id)
@@ -89,6 +100,44 @@ export function tagsLayout(standings: readonly TagStanding[]): {
     else main.push(entry)
   }
   return { main, justStarted, empty }
+}
+
+/** What a page of tiles draws one of: a tag's tile, or a chip under its holder's. */
+export function tagsLayoutSize(layout: ReturnType<typeof tagsLayout>): number {
+  let size = 0
+  for (const run of [layout.main, layout.justStarted, layout.empty]) {
+    for (const entry of run) size += 1 + entry.inside.length
+  }
+  return size
+}
+
+/**
+ * The first `drawn` of the page's tiles and chips, in the page's order: what
+ * the page draws until its scroll comes near the end (`useDrawnAhead`). A
+ * chip counts as a tile does — five hundred one-song tags inside a handful of
+ * holders were every one drawn at once under those few tiles (bug bash m50).
+ */
+export function firstDrawn(
+  layout: ReturnType<typeof tagsLayout>,
+  drawn: number,
+): ReturnType<typeof tagsLayout> {
+  let left = drawn
+  const take = (run: readonly TagEntry[]): TagEntry[] => {
+    const taken: TagEntry[] = []
+    for (const entry of run) {
+      if (left <= 0) break
+      left -= 1
+      const inside = entry.inside.length <= left ? entry.inside : entry.inside.slice(0, left)
+      left -= inside.length
+      taken.push(inside === entry.inside ? entry : { ...entry, inside })
+    }
+    return taken
+  }
+  return {
+    main: take(layout.main),
+    justStarted: take(layout.justStarted),
+    empty: take(layout.empty),
+  }
 }
 
 /**

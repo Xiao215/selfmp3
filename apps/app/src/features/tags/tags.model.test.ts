@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { Song, Tag } from '@selfmp3/shared'
 
 import { tagsMostPlayed } from '../tag/tag.model'
-import { leadSong, tagsHeadline, tagsLayout, waitingArtists, waitingLine } from './tags.model'
+import {
+  firstDrawn,
+  leadSong,
+  tagsHeadline,
+  tagsLayout,
+  tagsLayoutSize,
+  waitingArtists,
+  waitingLine,
+} from './tags.model'
 
 const song = (id: number, extra: Partial<Song> = {}): Song =>
   ({
@@ -93,6 +101,54 @@ describe('how All tags lays its tags out', () => {
     const { main, justStarted } = tagsLayout(tagsMostPlayed([game, snow], songs))
     expect(main[0]?.inside.map(s => s.tag.name)).toEqual(['snow'])
     expect(justStarted).toEqual([])
+  })
+})
+
+describe('how much of All tags is drawn at first', () => {
+  // Two holders, five one-song tags inside the first and one inside the
+  // second; a two-song tag on its own; an empty one.
+  const tags = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(id => tag(id, `t${id}`))
+  const songs = library({
+    1: [1, 3, 4, 5, 6, 7],
+    2: [1],
+    3: [1],
+    4: [2, 8],
+    5: [2],
+    6: [2],
+    7: [9],
+    8: [9],
+  })
+  const layout = tagsLayout(tagsMostPlayed(tags, songs))
+  const shape = (drawn: ReturnType<typeof firstDrawn>) =>
+    [drawn.main, drawn.justStarted, drawn.empty].map(run =>
+      run.map(entry => [entry.standing.tag.name, entry.inside.map(s => s.tag.name)]),
+    )
+
+  it('counts every tile and every chip under one', () => {
+    expect(shape(layout)).toEqual([
+      [
+        ['t1', ['t3', 't4', 't5', 't6', 't7']],
+        ['t2', ['t8']],
+      ],
+      [['t9', []]],
+      [['t10', []]],
+    ])
+    expect(tagsLayoutSize(layout)).toBe(10)
+  })
+
+  it('draws chips as it draws tiles, a holder’s first ones before the next tile', () => {
+    expect(shape(firstDrawn(layout, 0))).toEqual([[], [], []])
+    expect(shape(firstDrawn(layout, 3))).toEqual([[['t1', ['t3', 't4']]], [], []])
+    expect(shape(firstDrawn(layout, 7))).toEqual([
+      [
+        ['t1', ['t3', 't4', 't5', 't6', 't7']],
+        ['t2', []],
+      ],
+      [],
+      [],
+    ])
+    expect(shape(firstDrawn(layout, 10))).toEqual(shape(layout))
+    expect(shape(firstDrawn(layout, 99))).toEqual(shape(layout))
   })
 })
 

@@ -240,9 +240,10 @@ I1 J2 K1):
   (*1 of them is still playing and stops for everyone*). **More** holds **Share again**, **End**
   and **Copy links**.
 
-You reach it from Profile, under Report. Each link's ⋯ holds:
+You reach it from Profile, under Report. A playing link has a copy button beside its ⋯ that
+puts the link on the clipboard: with a mouse it waits for the pointer, as the ⋯ does. Each
+link's ⋯ holds:
 
-- **Share link**;
 - **Keep it longer**, or **Share it again** once it has ended;
 - **End now**, which asks first, or **Remove** once ended (its page goes too).
 

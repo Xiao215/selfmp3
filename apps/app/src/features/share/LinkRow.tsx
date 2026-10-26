@@ -12,7 +12,7 @@ import { rowTitle } from '../../ui/surfaces'
 import { Checkbox } from '../../ui/components/Checkbox'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
-import { More } from '../../ui/components/Icons'
+import { Copy, More } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Reveal } from '../../ui/components/Reveal'
 import { sentLine, sentSub, sentTime, shareStage } from './share.model'
@@ -25,9 +25,10 @@ import { sentLine, sentSub, sentTime, shareStage } from './share.model'
  * At desktop width: the circle that picks it, the cover, the name over who
  * opened it, how many songs in a column of their own where Library has the
  * album, and how long it has at the end where a song's length is — amber on its
- * last day, quiet once it is over — then ⋯. With a mouse the circle and the ⋯
- * wait for the pointer. On a phone it is the cover, the name over the whole
- * line, and ⋯; holding it picks it.
+ * last day, quiet once it is over — then copy and ⋯. With a mouse the circle,
+ * the copy and the ⋯ wait for the pointer. On a phone it is the cover, the name
+ * over the whole line, copy and ⋯; holding it picks it. Copy is for a link that
+ * still plays: an ended one keeps its place empty, so the columns line up.
  *
  * An ended link keeps its row at full strength and only its cover faded: it
  * is still something to act on (share again, remove).
@@ -42,6 +43,7 @@ export const LinkRow = memo(function LinkRow({
   onLongPress,
   onToggle,
   onMore,
+  onCopy,
 }: {
   link: ShareSummary
   /** Its cover's address, none, or undefined for one on its way (`useOwnCover`). */
@@ -54,6 +56,8 @@ export const LinkRow = memo(function LinkRow({
   onLongPress: (link: ShareSummary) => void
   onToggle: (link: ShareSummary) => void
   onMore: (link: ShareSummary) => void
+  /** Puts the link's address on the clipboard. */
+  onCopy: (link: ShareSummary) => void
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
   const dense = useLayoutValue(layout => layout.dense)
@@ -108,6 +112,15 @@ export const LinkRow = memo(function LinkRow({
       <More size={iconSize.item} tone="textMuted" />
     </IconButton>
   )
+  const copy = (
+    <IconButton
+      label={`Copy link to ${link.name}`}
+      caption="Copy link"
+      onPress={() => onCopy(link)}
+    >
+      <Copy size={iconSize.item} tone="textMuted" />
+    </IconButton>
+  )
   const onRightClick = rightClick(() => onMore(link))
 
   if (!wide) {
@@ -127,6 +140,7 @@ export const LinkRow = memo(function LinkRow({
             </View>
           </>,
         )}
+        {over ? null : copy}
         {more}
       </View>
     )
@@ -167,6 +181,9 @@ export const LinkRow = memo(function LinkRow({
       >
         {sentTime(link, now)}
       </Text>
+      <Reveal shown={revealed}>
+        {over ? <View style={dense ? styles.copySpaceDense : styles.copySpace} /> : copy}
+      </Reveal>
       <Reveal shown={revealed}>{more}</Reveal>
     </View>
   )
@@ -241,6 +258,9 @@ const styles = StyleSheet.create(theme => ({
   },
   timeLastDay: { color: theme.colors.warning },
   timeOver: { color: theme.colors.textMuted },
+  // An ended link's empty copy place, as wide as an IconButton.
+  copySpace: { width: HIT_TARGET },
+  copySpaceDense: { width: 34 },
   select: {
     width: 34,
     height: HIT_TARGET,

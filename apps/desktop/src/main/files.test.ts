@@ -95,6 +95,12 @@ describe('download', () => {
     expect(seen.at(-1)).toEqual([5, 5])
   })
 
+  it('keeps no second copy in the HTTP cache: the file is the one', async () => {
+    harness.fetch.mockResolvedValue(respond(200, [bytes('hello')]).response)
+    await download({ id: 'd1', kind: 'songs', name: '1.m4a', url: 'https://s.example/1' }, () => {})
+    expect(harness.fetch.mock.calls[0]?.[1].cache).toBe('no-store')
+  })
+
   it('continues from what the .part holds, and nothing the page might have said', async () => {
     const songs = join(harness.userData, 'songs')
     await mkdir(songs, { recursive: true })
@@ -245,6 +251,7 @@ describe('unpackTo', () => {
 
     expect(harness.fetch).toHaveBeenCalledWith('https://doorman.example/v1/files/covers/p.pack', {
       headers: { Authorization: 'Bearer t' },
+      cache: 'no-store',
     })
     expect(await readFile(join(harness.userData, 'covers', first), 'utf8')).toBe('first-cover')
     expect(await readFile(join(harness.userData, 'covers', second), 'utf8')).toBe('second-cover')

@@ -275,6 +275,20 @@ describe('keeping songs where they stream from the bucket', () => {
     expect(mockKeepPlayed).not.toHaveBeenCalled()
   })
 
+  // Bug bash R3-m1 (R2-m5): the scrubber dragged to the end, or End on Seek, a few seconds in.
+  it('does not count a song seeked to its end a few seconds in', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(() => listen(4))
+    await act(() => api.seekTo(199.5))
+    await act(() => mockWiring.onProgress?.(199.5, 200))
+    await act(() => mockWiring.onProgress?.(200, 200))
+    await act(() => mockWiring.onTrackEnd?.())
+
+    expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
   it('lends nothing again when the next song could not be kept', async () => {
     mockKeepAhead.mockImplementation(() => Promise.resolve(false))
     await draw()

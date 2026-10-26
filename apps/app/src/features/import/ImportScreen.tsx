@@ -43,6 +43,7 @@ import {
   type QueueChange,
   type ServerConnection,
   textStyle,
+  leading,
   iconSize,
   coverSize,
   space,
@@ -65,6 +66,7 @@ import { Spinner } from '../../ui/components/Spinner'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { useFade } from '../../ui/motion'
 import { isComposing } from '../../shell/composing'
+import { textBoxGrows } from '../../ports/textBoxGrows'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
 import { QueueRing } from './QueueRing'
@@ -158,7 +160,7 @@ export function ImportScreen({
   useRefreshReview(api, key, reviewUrls(review))
   const { error, setError, failed } = useImportFailure(via, onUnreachable)
   const [linksFocused, setLinksFocused] = useState(false)
-  /** What the pasted links take up, so the box grows with them. */
+  /** What the pasted links take up, so a browser's box grows with them. */
   const [linksHeight, setLinksHeight] = useState(0)
   const tags = library?.tags ?? []
 
@@ -280,7 +282,12 @@ export function ImportScreen({
           <TextInput
             {...NO_AUTOFILL}
             ref={linksRef}
-            style={[styles.linksInput, { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) }]}
+            style={[
+              styles.linksInput,
+              textBoxGrows
+                ? { minHeight: LINKS_MIN_HEIGHT }
+                : { height: Math.max(LINKS_MIN_HEIGHT, linksHeight) },
+            ]}
             value={links}
             onChangeText={next => {
               patchDraft({ links: next })
@@ -578,8 +585,13 @@ export function ImportScreen({
 /** Where songs can come from, under the box. */
 const SOURCES = ['YouTube', '网易云音乐', 'Spotify', 'a list of names'] as const
 
-/** One line of room before the box starts growing with what is pasted. */
-const LINKS_MIN_HEIGHT = 24
+/**
+ * One line of room, its padding included, before the box starts growing with
+ * what is pasted. A phone's field grows by itself (`textBoxGrows`); given a
+ * height from the size it reports, a page come back to kept the old field's
+ * report and cut the placeholder in half.
+ */
+const LINKS_MIN_HEIGHT = leading.body + 2 * space.sm
 
 /** The arrow in the field. */
 const COMMIT_SIZE = 40

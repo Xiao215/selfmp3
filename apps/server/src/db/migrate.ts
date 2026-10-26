@@ -1181,6 +1181,27 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 51. The sound map (docs/features/sound-map.md): where every heard song
+    // sits, folded from the sound vectors (`sig` says which, as
+    // SoundService.packSignature does), kept as the file the bucket gets, so
+    // the next fold starts from it and the map holds still. And that file in
+    // the bucket, as the sound vectors' is kept in cloud_sound.
+    name: 'the sound map',
+    sql: `
+      CREATE TABLE IF NOT EXISTS sound_map (
+        id      INTEGER PRIMARY KEY CHECK (id = 1),
+        sig     TEXT    NOT NULL,
+        data    TEXT    NOT NULL,
+        made_at TEXT    NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS cloud_sound_map (
+        id   INTEGER PRIMARY KEY CHECK (id = 1),
+        key  TEXT    NOT NULL,
+        size INTEGER NOT NULL
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

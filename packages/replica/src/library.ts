@@ -38,6 +38,9 @@ import {
   type Motion,
   type RoomSong,
   decodeSoundPack,
+  parseSoundMap,
+  type MapPlace,
+  type SoundMap,
 } from '@selfmp3/shared'
 import type { EditContext } from './edits.js'
 import { bucketHold } from './hold.js'
@@ -297,6 +300,12 @@ export interface CloudLibraryApi {
   cloudSoundVectors: (
     session: CloudSession,
   ) => Promise<{ model: string; vectors: ReadonlyMap<string, Float32Array> } | null>
+  /**
+   * The sound map (docs/features/sound-map.md): each heard song's place, from
+   * the file the snapshot names, kept on the device by its hash like the
+   * words, so it is read from the bucket once a change.
+   */
+  cloudSoundMap: (session: CloudSession) => Promise<SoundMap>
   forgetCloudLibrary: () => Promise<void>
 }
 
@@ -1248,6 +1257,29 @@ export function createCloudLibrary(
     return soundRead.pack
   }
 
+  let soundMapRead: { key: string; places: ReadonlyMap<string, MapPlace> } | null = null
+
+  async function cloudSoundMap(session: CloudSession): Promise<SoundMap> {
+    const view = await loadCloudLibrary(session)
+    const pointer = replica?.base.snapshot?.soundMap
+    let places: ReadonlyMap<string, MapPlace> | null = null
+    if (pointer && soundMapRead?.key === pointer.key) places = soundMapRead.places
+    else if (pointer) {
+      const text = await cloudText(session, pointer.key)
+      places = text === null ? null : parseSoundMap(text)
+      if (places) soundMapRead = { key: pointer.key, places }
+    }
+    const out: SoundMap['places'] = []
+    if (places) {
+      for (const song of view.library.songs) {
+        const audio = view.files[song.id]?.audio
+        const place = audio === undefined ? undefined : places.get(audio)
+        if (place) out.push({ id: song.id, x: place.x, y: place.y })
+      }
+    }
+    return { places: out, unheard: view.library.songs.length - out.length }
+  }
+
   function cloudManifest(scope: 'library' | 'playlists'): SyncManifest {
     const view = replica?.view
     if (!view) return { version: 0, songCount: 0, totalBytes: 0, entries: [] }
@@ -1345,6 +1377,7 @@ export function createCloudLibrary(
     cloudManifest,
     cloudRoomSongNow,
     cloudSoundVectors,
+    cloudSoundMap,
     forgetCloudLibrary,
   }
 }

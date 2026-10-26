@@ -40,6 +40,7 @@ const CALLS: Calls = {
   motion: api => api.motion(1),
   lyricsSearch: api => api.lyricsSearch('rain'),
   similar: api => api.similar(1, 5),
+  soundMap: api => api.soundMap(),
   bulkDeleteSongs: api => api.bulkDeleteSongs({ songIds: [1] }),
   mergeSongs: api => api.mergeSongs({ keep: 1, songIds: [2] }),
   bulkEditSongs: api => api.bulkEditSongs({ edits: [] }),

@@ -88,6 +88,12 @@ export interface CloudSoundState {
   readonly uploadedAt: string
 }
 
+/** The sound map's file in the bucket (sound/soundMap.ts). */
+export interface CloudSoundMapState {
+  readonly key: string
+  readonly size: number
+}
+
 /** One month of plays in the bucket (`CloudPlaysSchema`), and which plays went up. */
 export interface CloudPlaysState {
   /** `YYYY-MM`, UTC. */
@@ -136,6 +142,7 @@ const NAMED_KEYS = `
   UNION SELECT banner_key FROM cloud_artists
   UNION SELECT portrait_key FROM cloud_artists
   UNION SELECT key FROM cloud_sound
+  UNION SELECT key FROM cloud_sound_map
   UNION SELECT key FROM cloud_plays
   UNION SELECT key FROM cloud_cover_packs`
 
@@ -259,6 +266,9 @@ export class CloudRepository {
   readonly #sound
   readonly #saveSound
   readonly #dropSound
+  readonly #soundMap
+  readonly #saveSoundMap
+  readonly #dropSoundMap
   readonly #plays
   readonly #playsOf
   readonly #savePlays
@@ -388,6 +398,14 @@ export class CloudRepository {
         sig = excluded.sig, uploaded_at = excluded.uploaded_at
     `)
     this.#dropSound = db.prepare('DELETE FROM cloud_sound')
+    this.#soundMap = db.prepare<[], CloudSoundMapState>(
+      'SELECT key, size FROM cloud_sound_map WHERE id = 1',
+    )
+    this.#saveSoundMap = db.prepare(`
+      INSERT INTO cloud_sound_map (id, key, size) VALUES (1, @key, @size)
+      ON CONFLICT (id) DO UPDATE SET key = excluded.key, size = excluded.size
+    `)
+    this.#dropSoundMap = db.prepare('DELETE FROM cloud_sound_map')
     this.#plays = db.prepare<[], CloudPlaysRow>('SELECT * FROM cloud_plays ORDER BY month')
     this.#playsOf = db.prepare<[string], CloudPlaysRow>('SELECT * FROM cloud_plays WHERE month = ?')
     this.#savePlays = db.prepare(`
@@ -494,7 +512,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_plays; DELETE FROM cloud_cover_packs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_sound_map; DELETE FROM cloud_plays; DELETE FROM cloud_cover_packs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
     )
   }
 
@@ -621,6 +639,32 @@ export class CloudRepository {
       const before = this.#sound.get()
       if (!before) return
       this.#dropSound.run()
+      this.#trashReplaced([before.key], [])
+    })()
+  }
+
+  // --- The sound map --------------------------------------------------------
+
+  soundMapState(): CloudSoundMapState | null {
+    const row = this.#soundMap.get()
+    return row ? { key: row.key, size: row.size } : null
+  }
+
+  /** Record the sound map's file in the bucket; the one it replaces goes in the trash. */
+  saveSoundMap(state: CloudSoundMapState): void {
+    this.#db.transaction(() => {
+      const before = this.#soundMap.get()
+      this.#saveSoundMap.run(state)
+      if (before) this.#trashReplaced([before.key], [state.key])
+    })()
+  }
+
+  /** No map to keep: the file goes in the trash. */
+  dropSoundMap(): void {
+    this.#db.transaction(() => {
+      const before = this.#soundMap.get()
+      if (!before) return
+      this.#dropSoundMap.run()
       this.#trashReplaced([before.key], [])
     })()
   }
@@ -859,6 +903,7 @@ export class CloudRepository {
           WHERE banner_key NOT IN (SELECT key FROM cloud_files)
              OR portrait_key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_sound WHERE key NOT IN (SELECT key FROM cloud_files);
+         DELETE FROM cloud_sound_map WHERE key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_plays WHERE key NOT IN (SELECT key FROM cloud_files);
          DELETE FROM cloud_cover_packs WHERE key NOT IN (SELECT key FROM cloud_files)`,
       )

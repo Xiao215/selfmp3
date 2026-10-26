@@ -47,6 +47,8 @@ import { publishedAddresses } from './services/addresses.js'
 import { LyricsIndexService } from './services/lyricsIndex.js'
 import { AnalysisService } from './services/analysis.js'
 import { SoundService } from './sound/sound.js'
+import { SoundMapService } from './sound/soundMap.js'
+import { SoundMapRepository } from './repositories/soundMap.js'
 import { CoverToneService } from './services/coverTones.js'
 import { PreviewCoverTones } from './services/previewCoverTone.js'
 import { DeviceRepository } from './repositories/devices.js'
@@ -141,6 +143,8 @@ export interface Container {
   readonly analysis: AnalysisService
   /** How songs sound, as the listening model hears them (sound/sound.ts). */
   readonly sound: SoundService
+  /** Where every heard song sits on the sound map (sound/soundMap.ts). */
+  readonly soundMap: SoundMapService
   readonly devices: DeviceService
   readonly cloudSync: CloudSyncService
   /** The names artists also go by, and names spelt in Latin letters: what search finds things by. */
@@ -224,8 +228,18 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     vectors: new SoundVectorsRepository(db),
     logger,
     host: shared.soundModel,
-    // Each song heard goes to the bucket's copy of the vectors; the sync is built below.
-    changed: () => cloudSync.soundChanged(),
+    // Each song heard goes to the bucket's copy of the vectors, and folds the
+    // sound map again; the sync is built below.
+    changed: () => {
+      cloudSync.soundChanged()
+      void soundMap.refresh()
+    },
+  })
+  const soundMap = new SoundMapService({
+    repo: new SoundMapRepository(db),
+    sound,
+    logger,
+    changed: () => cloudSync.kick(),
   })
   const deviceRepo = new DeviceRepository(db)
   const cloudRepo = new CloudRepository(db)
@@ -358,6 +372,8 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     names: { repo: names, spellings, lookup: artistNames },
     // Every song's sound vector goes up as one file, and comes back to a new server.
     sound,
+    // And where each song sits on the sound map, which devices draw.
+    soundMap,
     // Every play goes up too, a month a file, and comes back to a new server.
     plays: new PlaysArchive({ stats, sync: syncRepo, deviceId: () => cloudRepo.deviceId() }),
     // The token is the bucket's owner's already: whoever reads the snapshot
@@ -622,6 +638,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     clock,
     analysis,
     sound,
+    soundMap,
     devices,
     cloudSync,
     edits,
@@ -639,6 +656,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
       coverTones.stop()
       importQueue.stop()
       cloudSync.stop()
+      soundMap.stop()
       // The model, and letting the machine sleep again even if a stream is
       // still winding down — when they are this library's alone. Shared,
       // they are the machine's to let go (hub/hub.ts).

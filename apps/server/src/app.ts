@@ -26,6 +26,7 @@ import { lyricsRoutes } from './routes/lyrics.js'
 import { deviceRoutes } from './routes/devices.js'
 import { wrappedRoutes } from './routes/wrapped.js'
 import { gemsRoutes } from './routes/gems.js'
+import { soundMapRoutes } from './routes/soundMap.js'
 import { cloudRoutes } from './routes/cloud.js'
 import { artistRoutes } from './routes/artists.js'
 import { usageRoutes } from './routes/usage.js'
@@ -121,6 +122,7 @@ export function libraryApi(container: Container): Router {
   api.use(deviceRoutes(container))
   api.use(wrappedRoutes(container))
   api.use(gemsRoutes(container))
+  api.use(soundMapRoutes(container))
   api.use(cloudRoutes(container))
   api.use(artistRoutes(container))
   api.use(usageRoutes(container))

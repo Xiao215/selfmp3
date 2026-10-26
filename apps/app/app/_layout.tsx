@@ -41,6 +41,7 @@ import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
 import { setRootSize, useLayoutFlags } from '../src/shell/useLayout'
+import { useFontScale } from '../src/ui/textScale'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { useRoom } from '../src/features/room/room.store'
 import { pageOwnsScreen, setPageChrome } from '../src/shell/pageChrome'
@@ -379,8 +380,19 @@ function RootRoutes(): ReactNode {
 
   const nowPlaying = useMemo(() => nowPlayingOptions(wide, reduced), [wide, reduced])
 
+  /*
+   * Built afresh when the text size changes. React Native lays every text out
+   * again for the new size, and the next render hands back the texts it
+   * measured before: each label kept the box of the old size, drawn at the
+   * new one, until the app was opened again — Home's greeting cut to the tops
+   * of its letters, the tags' names gone (bug bash R3-m8). New texts are
+   * measured at the size they are drawn. Where you are is the navigator's,
+   * which keeps it, and the music is the player's, above this.
+   */
+  const fontScale = useFontScale()
+
   return (
-    <Shell chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
+    <Shell key={fontScale} chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
       <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
         <Stack.Screen name="now-playing" options={nowPlaying} />
         {PLACES.map(name => (

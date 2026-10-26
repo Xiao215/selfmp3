@@ -302,6 +302,17 @@ describe('reading a file', () => {
         'Raise it under Caps & Alerts at backblaze.com, or wait — caps reset at midnight GMT, 5 pm Pacific.',
     )
   })
+
+  /* Bug bash R3-M2: relayed as a plain bucket_error, a busy bucket read as a broken song. */
+  it('says when the bucket is busy for a moment, so the device tries again', async () => {
+    const { h, token } = await connected()
+    h.bucket.busy = true
+    const response = await h.call(`/v1/files/${SONG}`, { token })
+    expect(response.status).toBe(502)
+    const body = await error(response)
+    expect(body.code).toBe('bucket_busy')
+    expect(body.error).toMatch(/is busy: Please reduce your request rate\. \(SlowDown\)$/)
+  })
 })
 
 describe('writing a file', () => {

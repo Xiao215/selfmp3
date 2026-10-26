@@ -317,6 +317,10 @@ export class CloudAdopt {
       const tag = this.#sync.tag(target)
       if (tag) this.#sync.addAlias(uid, tag.id)
     }
+    // And the tags its last songs took with them, to come back as they would.
+    for (const tag of snapshot.emptiedTags ?? []) {
+      if (!this.#sync.tag(tag.uid)) this.#sync.addEmptiedTag(tag)
+    }
     return made
   }
 

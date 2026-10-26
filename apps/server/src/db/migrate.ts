@@ -1254,6 +1254,20 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 56. A tag that went because its last songs were removed (`tagEmptied`,
+    // docs/SYNC.md), as it was then: a device that tags a song with it, not
+    // having heard, brings it back. Deleting it outright lost the tag, and
+    // that song's tagging, on every device (bug bash R3-M7).
+    name: 'tags emptied by a removal are kept aside',
+    sql: `
+      CREATE TABLE IF NOT EXISTS emptied_tags (
+        uid  TEXT    PRIMARY KEY,
+        name TEXT    NOT NULL,
+        hue  INTEGER NOT NULL
+      ) WITHOUT ROWID;
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

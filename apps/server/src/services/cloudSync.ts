@@ -2588,6 +2588,7 @@ export class CloudSyncService {
     const snapshot = buildSnapshot({
       stamps: sync?.allStamps() ?? [],
       aliases: sync?.aliases() ?? new Map(),
+      emptiedTags: sync?.emptiedTags() ?? [],
       merged: sync?.merges() ?? new Map(),
       upTo: sync?.cursors() ?? {},
       imports: importRequests?.recent() ?? [],

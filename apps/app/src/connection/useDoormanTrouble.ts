@@ -88,6 +88,19 @@ const COUNT_EVERY_MS = 1_000
  * second — a number in memory, and a render only when it moves.
  */
 export function useCloudUnsent(fromCloud: boolean): number {
+  return useCloudOutbox(fromCloud, () => cloudLibrary.pendingCloudChanges(), 0)
+}
+
+/**
+ * Whether those wait because sending them failed, read the same way. The
+ * doorman answering anything else ends its trouble (reach.ts), and the foot
+ * went back to a green dot over edits the bucket kept refusing.
+ */
+export function useCloudStuck(fromCloud: boolean): boolean {
+  return useCloudOutbox(fromCloud, () => cloudLibrary.cloudChangesStuck(), false)
+}
+
+function useCloudOutbox<T>(fromCloud: boolean, read: () => T, none: T): T {
   const subscribe = useCallback(
     (listener: () => void) => {
       if (!fromCloud) return () => {}
@@ -98,8 +111,8 @@ export function useCloudUnsent(fromCloud: boolean): number {
   )
   return useSyncExternalStore(
     subscribe,
-    () => (fromCloud ? cloudLibrary.pendingCloudChanges() : 0),
-    () => 0,
+    () => (fromCloud ? read() : none),
+    () => none,
   )
 }
 

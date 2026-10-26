@@ -156,6 +156,7 @@ describe('CloudIngest', () => {
       writtenAt: new Date(BASE),
       stamps: sync.allStamps(),
       aliases: sync.aliases(),
+      emptiedTags: sync.emptiedTags(),
       merged: sync.merges(),
       upTo: sync.cursors(),
     })
@@ -184,6 +185,7 @@ describe('CloudIngest', () => {
       ),
       artistNames: [...library.artistNames.values()],
       aliases: library.aliases.size > 0 ? Object.fromEntries(library.aliases) : undefined,
+      emptiedTags: library.emptied.size > 0 ? [...library.emptied.values()] : undefined,
       merged: library.merged.size > 0 ? Object.fromEntries(library.merged) : undefined,
     }
   }
@@ -198,6 +200,7 @@ describe('CloudIngest', () => {
       playlists: byUid(snapshot.playlists),
       artistNames: [...snapshot.artistNames].sort((a, b) => a.artist.localeCompare(b.artist)),
       aliases: snapshot.aliases ?? {},
+      emptiedTags: byUid(snapshot.emptiedTags ?? []),
       merged: snapshot.merged ?? {},
     }
   }
@@ -498,17 +501,56 @@ describe('CloudIngest', () => {
     tags.setSongTags(a, [chill])
     const before = serverSnapshot()
     const made = 'f'.repeat(31) + '4'
+    const chillUid = uidOf('tags', chill)
     const changes: Change[] = [
       // Made on one phone, to be filled in a moment…
       { type: 'tagCreated', hlc: at(1, 'web-cccc2222'), uid: made, name: 'later', hue: 90 },
       // …while another removed a song, and the tag it was the last song of.
       { type: 'songRemoved', hlc: at(2), uid: uidOf('songs', a) },
-      { type: 'tagRemoved', hlc: at(3), uid: uidOf('tags', chill) },
+      { type: 'tagEmptied', hlc: at(3), uid: chillUid },
     ]
     ingest.apply(changes)
     expect(tags.all().map(tag => tag.name)).toEqual(['later'])
     expect(songs.byId(b)).not.toBeNull()
+    expect(serverSnapshot().emptiedTags).toEqual([
+      { uid: chillUid, name: 'chill', hue: expect.any(Number) },
+    ])
     expect(comparable(serverSnapshot())).toEqual(comparable(replayed(before, changes)))
+  })
+
+  // R3-M7: a phone removed the tag's last song while a browser that had not
+  // heard put the tag on another. The tag and that tagging were lost everywhere.
+  it('keeps a tag a removal emptied when another device has just tagged a song with it', () => {
+    for (const late of [false, true]) {
+      db.exec('DELETE FROM songs; DELETE FROM tags; DELETE FROM emptied_tags')
+      const a = addSong('Alpha')
+      const b = addSong('Bravo')
+      const chill = tags.create('chill').id
+      tags.setSongTags(a, [chill])
+      const before = serverSnapshot()
+      const chillUid = uidOf('tags', chill)
+      const removing: Change[] = [
+        { type: 'songRemoved', hlc: at(2, 'iphone-aaaa2222'), uid: uidOf('songs', a) },
+        { type: 'tagEmptied', hlc: at(3, 'iphone-aaaa2222'), uid: chillUid },
+      ]
+      // Stamped after the removal, or before it but heard of after.
+      const tagging: Change = {
+        type: 'songTagged',
+        hlc: at(late ? 1 : 4),
+        uid: uidOf('songs', b),
+        tagUid: chillUid,
+        on: true,
+      }
+      // In two passes, the removal first, as the server reads one log, then the other.
+      ingest.apply(removing)
+      expect(tags.all()).toEqual([])
+      ingest.apply([tagging])
+      expect(tags.all().map(tag => [tag.name, tag.songCount])).toEqual([['chill', 1]])
+      expect(sync.emptiedTags()).toEqual([])
+      expect(comparable(serverSnapshot())).toEqual(
+        comparable(replayed(before, [...removing, tagging])),
+      )
+    }
   })
 
   it('stops a playlist following its tags with the songs the phone kept', () => {

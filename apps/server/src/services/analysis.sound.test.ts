@@ -41,6 +41,7 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
   let heard: number
   let fetched: number
   let finishes: number
+  let curvesDeleted: number[]
 
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-hear-'))
@@ -51,6 +52,7 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
     heard = 0
     fetched = 0
     finishes = 0
+    curvesDeleted = []
     spawnSync('ffmpeg', [
       '-v',
       'error',
@@ -76,9 +78,12 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
       enabled = true,
       analysed = true,
       hearClip,
+      removing,
     }: {
       enabled?: boolean
       analysed?: boolean
+      /** A song removed from the library while it is being analysed: as its curve is written. */
+      removing?: number
       /** The model's answer to a clip, where it is not the ordinary one. */
       hearClip?: SoundModel['hearClip']
     } = {},
@@ -134,8 +139,14 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
         } as unknown as SongRepository,
         audioFeatures: features,
         motion: {
-          delete: () => Promise.resolve(),
-          write: () => Promise.resolve(),
+          delete: (id: number) => {
+            curvesDeleted.push(id)
+            return Promise.resolve()
+          },
+          write: (id: number) => {
+            if (id === removing) db.prepare('DELETE FROM songs WHERE id = ?').run(id)
+            return Promise.resolve()
+          },
         } as unknown as MotionStore,
         scanner: { isRunning: false } as ScannerService,
         importQueue: { activeCount: 0 } as ImportQueueService,
@@ -219,6 +230,25 @@ describe.skipIf(!hasFfmpeg)('analysis, hearing', { timeout: 30_000 }, () => {
     analysis.kick()
     await vi.waitFor(() => expect(analysis.status().running).toBe(false))
     expect(finishes).toBe(0)
+  })
+
+  /*
+   * The row for the result failed its foreign key, the failure's own empty row
+   * failed it again, and that escaped as an unhandled rejection that ended the
+   * loop with songs still waiting.
+   */
+  it('goes on past a song removed while it was being analysed', async () => {
+    const analysis = await loop(fs.readFileSync(path.join(dir, 'here.wav')), {
+      analysed: false,
+      removing: 1,
+    })
+    const features = new AudioFeaturesRepository(db)
+    expect(features.bySong(1)).toBeNull()
+    expect(features.isAnalysed(2, ANALYSIS_VERSION)).toBe(true)
+    expect(analysis.status()).toMatchObject({ failed: 0 })
+    // Its curve, written as it went, does not outlive it.
+    expect(curvesDeleted).toContain(1)
+    expect(vectors.has(1, SOUND_MODEL.name)).toBe(false)
   })
 
   it('analyses a song from the bucket, and says so once at the end', async () => {

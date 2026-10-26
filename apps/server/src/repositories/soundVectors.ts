@@ -22,9 +22,11 @@ export class SoundVectorsRepository {
 
   constructor(db: Db) {
     this.#db = db
-    this.#upsert = db.prepare<[number, string, Buffer | null]>(`
+    // Nothing for a song removed while it was being heard, rather than a broken foreign key.
+    this.#upsert = db.prepare<{ songId: number; model: string; vector: Buffer | null }>(`
       INSERT INTO song_sound_vectors (song_id, model, vector, made_at)
-      VALUES (?, ?, ?, datetime('now'))
+      SELECT @songId, @model, @vector, datetime('now')
+       WHERE EXISTS (SELECT 1 FROM songs WHERE id = @songId)
       ON CONFLICT (song_id) DO UPDATE SET
         model   = excluded.model,
         vector  = excluded.vector,
@@ -108,7 +110,7 @@ export class SoundVectorsRepository {
 
   /** A song's vector, or null for one that could not be heard. */
   upsert(songId: number, model: string, vector: Float32Array | null): void {
-    this.#upsert.run(songId, model, vector ? toBlob(vector) : null)
+    this.#upsert.run({ songId, model, vector: vector ? toBlob(vector) : null })
   }
 
   delete(songId: number): void {

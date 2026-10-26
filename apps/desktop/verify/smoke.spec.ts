@@ -846,11 +846,12 @@ test.describe('an application, not a page', () => {
       ])
       const file = menu?.find(section => section.label === 'File')
       // New Window brings back a window the red button hid: a Mac's only.
+      // Elsewhere there is no app menu, so Quit sits in File, and Electron
+      // calls the close role "Close" rather than "Close Window".
       expect(file?.items.map(item => item.label)).toEqual([
         'New Playlist',
         'Import…',
-        ...(process.platform === 'darwin' ? ['New Window'] : []),
-        'Close Window',
+        ...(process.platform === 'darwin' ? ['New Window', 'Close Window'] : ['Close', 'Quit']),
       ])
     } finally {
       await app.close()

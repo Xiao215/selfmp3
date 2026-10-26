@@ -26,6 +26,11 @@ import {
  *
  * Totals only, so nothing here can be broken down by person later. Both are
  * kept a year (`DAYS_KEPT`), let go once a day.
+ *
+ * Counting is never worth an answer or the server: a write that fails — the
+ * disk full, the file held — is handed to `onFailure` and dropped. The 500s
+ * are counted from a response's `finish` event, where a throw is uncaught,
+ * and a full disk's first 500 took the whole server down with it.
  */
 
 /** A year, and a little more, so a year back always has its first week. */
@@ -89,35 +94,47 @@ interface ImportRow {
 export class ServerMetrics {
   readonly #db: Database.Database
   readonly #now: () => number
+  readonly #onFailure: (error: unknown) => void
   #prunedDay = ''
 
   /** `dir`: the server's data folder; `null` keeps everything in memory (tests). */
-  constructor(dir: string | null, now: () => number = () => Date.now()) {
+  constructor(
+    dir: string | null,
+    now: () => number = () => Date.now(),
+    onFailure: (error: unknown) => void = () => undefined,
+  ) {
     if (dir !== null) fs.mkdirSync(dir, { recursive: true })
-    this.#db = new Database(dir === null ? ':memory:' : path.join(dir, 'metrics.db'))
+    // A count is not worth holding every request for: better-sqlite3 would
+    // wait up to 5 s on the event loop for a lock held elsewhere.
+    this.#db = new Database(dir === null ? ':memory:' : path.join(dir, 'metrics.db'), {
+      timeout: 250,
+    })
     this.#db.pragma('journal_mode = WAL')
     this.#db.exec(SCHEMA)
     this.#now = now
+    this.#onFailure = onFailure
   }
 
   recordImport(finished: FinishedImport): void {
     const total = Object.values(finished.steps).reduce((sum, ms) => sum + ms, 0)
-    this.#db
-      .prepare(
-        `INSERT INTO import_log (day, finished_at, source, worked, failure, total_ms, steps, attempts)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        utcDay(finished.finishedAt.getTime()),
-        finished.finishedAt.toISOString(),
-        sourceOf(finished.url),
-        finished.worked ? 1 : 0,
-        finished.worked ? null : (finished.failure ?? 'other'),
-        Math.round(total),
-        JSON.stringify(finished.steps),
-        finished.attempts,
-      )
-    this.#prune()
+    this.#write(() => {
+      this.#db
+        .prepare(
+          `INSERT INTO import_log (day, finished_at, source, worked, failure, total_ms, steps, attempts)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          utcDay(finished.finishedAt.getTime()),
+          finished.finishedAt.toISOString(),
+          sourceOf(finished.url),
+          finished.worked ? 1 : 0,
+          finished.worked ? null : (finished.failure ?? 'other'),
+          Math.round(total),
+          JSON.stringify(finished.steps),
+          finished.attempts,
+        )
+      this.#prune()
+    })
   }
 
   /** Add to today's totals. */
@@ -127,14 +144,16 @@ export class ServerMetrics {
 
   /** Add to a day's totals, several names at once. */
   add(day: string, counts: Readonly<Record<string, number>>): void {
-    const upsert = this.#db.prepare(
-      `INSERT INTO daily_totals (day, name, count) VALUES (?, ?, ?)
-       ON CONFLICT (day, name) DO UPDATE SET count = count + excluded.count`,
-    )
-    this.#db.transaction(() => {
-      for (const [name, by] of Object.entries(counts)) if (by > 0) upsert.run(day, name, by)
-    })()
-    this.#prune()
+    this.#write(() => {
+      const upsert = this.#db.prepare(
+        `INSERT INTO daily_totals (day, name, count) VALUES (?, ?, ?)
+         ON CONFLICT (day, name) DO UPDATE SET count = count + excluded.count`,
+      )
+      this.#db.transaction(() => {
+        for (const [name, by] of Object.entries(counts)) if (by > 0) upsert.run(day, name, by)
+      })()
+      this.#prune()
+    })
   }
 
   /**
@@ -307,6 +326,15 @@ export class ServerMetrics {
 
   close(): void {
     this.#db.close()
+  }
+
+  /** A count written, or, when it cannot be, said and let go. */
+  #write(write: () => void): void {
+    try {
+      write()
+    } catch (error) {
+      this.#onFailure(error)
+    }
   }
 
   /** Once a day at most: rows older than a year go. */

@@ -1,6 +1,7 @@
 import { messageOf } from '@selfmp3/shared'
-import { APP_NAME, APP_VERSION, loadConfig } from './config.js'
+import { APP_NAME, APP_VERSION, loadConfig, type Config } from './config.js'
 import { createAdminApp } from './admin/app.js'
+import { fullDiskProblem } from './db/index.js'
 import { createHubApp } from './hub/app.js'
 import { Hub } from './hub/hub.js'
 import { speakHttp1 } from './http/outgoing.js'
@@ -20,7 +21,7 @@ function main(): void {
   speakHttp1()
   const config = loadConfig()
   const logger = createLogger(config.logLevel)
-  const hub = new Hub(config, logger)
+  const hub = openHub(config, logger)
 
   const app = createHubApp(hub)
   let shuttingDown = false
@@ -167,6 +168,20 @@ function main(): void {
     logger.error('uncaught exception', { message: error.message, stack: error.stack })
     shutdown('uncaughtException', 1)
   })
+}
+
+/**
+ * Every library's database, opened, or the reason it could not be in words
+ * that say what to do: on a full disk SQLite's own is a bare "disk I/O error".
+ */
+function openHub(config: Config, logger: Logger): Hub {
+  try {
+    return new Hub(config, logger)
+  } catch (error) {
+    const full = fullDiskProblem(config.dataDir)
+    if (full) throw new Error(`${APP_NAME} could not start: ${full} (${messageOf(error)})`)
+    throw error
+  }
 }
 
 /**

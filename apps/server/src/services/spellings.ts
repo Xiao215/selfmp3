@@ -45,9 +45,15 @@ export class SpellingService {
     return this.#filling
   }
 
-  /** The spellings of the names the library has now: what the snapshot and the library carry. */
-  current(): Record<string, string[]> {
-    const wanted = this.#wanted()
+  /**
+   * The spellings of the names the library has now: what the snapshot and the
+   * library carry. `songs` when the caller has just read them: on a library of
+   * thousands, reading every song is most of what building the answer costs.
+   */
+  current(
+    songs: readonly Pick<Song, 'title' | 'artist' | 'album'>[] = this.#songs.all(),
+  ): Record<string, string[]> {
+    const wanted = this.#wanted(songs)
     // Entries, not assignments: a name like "__proto__" is an own key that way.
     return Object.fromEntries(
       [...this.#names.spellings()].filter(
@@ -56,11 +62,13 @@ export class SpellingService {
     )
   }
 
-  #wanted(): Set<string> {
+  #wanted(
+    songs: readonly Pick<Song, 'title' | 'artist' | 'album'>[] = this.#songs.all(),
+  ): Set<string> {
     const others = Object.fromEntries(
       [...this.#names.artistNames()].map(([artist, row]) => [artist, row.names]),
     )
-    return namesToSpell(this.#songs.all(), others)
+    return namesToSpell(songs, others)
   }
 
   async #fill(): Promise<number> {

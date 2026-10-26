@@ -1,5 +1,6 @@
+import Database from 'better-sqlite3'
 import type { NextFunction, Request, Response } from 'express'
-import { messageOf, type EditRefusal } from '@selfmp3/shared'
+import { API_ERROR, messageOf, type EditRefusal } from '@selfmp3/shared'
 import type { Logger } from '../logger.js'
 
 /**
@@ -98,6 +99,24 @@ export function errorHandler(logger: Logger) {
       return
     }
 
+    /*
+     * The database refusing a write is not a bug in the handler, and a 500
+     * said only "internal error": a full disk and a lock held from outside
+     * are each said for what they are, so the app can tell the person.
+     */
+    const trouble = databaseTrouble(error)
+    if (trouble === 'full') {
+      logger.error('the disk holding the database is full', { path: req.path, message })
+      res.status(507).json({ error: DISK_FULL_MESSAGE, code: API_ERROR.diskFull })
+      return
+    }
+    if (trouble === 'busy') {
+      logger.warn('the database is held by something else', { path: req.path, message })
+      res.set('Retry-After', String(BUSY_RETRY_AFTER_S))
+      res.status(503).json({ error: DATABASE_BUSY_MESSAGE, code: API_ERROR.databaseBusy })
+      return
+    }
+
     logger.error('unhandled error', {
       path: req.path,
       message,
@@ -105,6 +124,23 @@ export function errorHandler(logger: Logger) {
     })
     res.status(500).json({ error: 'internal error', code: 'internal' })
   }
+}
+
+const DISK_FULL_MESSAGE = 'the server’s disk is full'
+const DATABASE_BUSY_MESSAGE = 'the server is busy, try again in a moment'
+const BUSY_RETRY_AFTER_S = 2
+
+/**
+ * What a SQLite error says about the disk or the lock rather than the
+ * request: `full` for no room left on the disk (SQLITE_FULL), `busy` for a
+ * lock held by another connection (SQLITE_BUSY, SQLITE_LOCKED and their
+ * extended codes).
+ */
+function databaseTrouble(error: unknown): 'full' | 'busy' | null {
+  if (!(error instanceof Database.SqliteError)) return null
+  if (error.code === 'SQLITE_FULL') return 'full'
+  if (error.code.startsWith('SQLITE_BUSY') || error.code.startsWith('SQLITE_LOCKED')) return 'busy'
+  return null
 }
 
 /** The status an error carries, for the middleware that sets one (body-parser does). */

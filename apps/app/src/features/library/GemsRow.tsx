@@ -1,19 +1,22 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { plural, artistOr, formatRelative, type Song } from '@selfmp3/shared'
-import { space, type, useGems, radius } from '@selfmp3/client'
+import { motion, space, type, useGems, radius } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { prefs } from '../../ports/prefs'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { Fold } from '../../ui/components/Fold'
 import { Press } from '../../ui/components/Press'
 import { SectionHead } from '../../ui/components/SectionHead'
 import { Shelf, SongCard } from '../../ui/components/Shelf'
 import { Play } from '../../ui/components/Icons'
+import { useLayoutValue } from '../../shell/useLayout'
+import { useFade } from '../../ui/motion'
 import { card } from '../../ui/surfaces'
 import { tip } from '../../ui/tip'
 import { GEMS_SOURCE } from '../lists/lists.model'
@@ -33,9 +36,11 @@ const COLLAPSED_KEY = 'gems.collapsed'
  */
 export function GemsRow(): ReactNode {
   const { theme } = useUnistyles()
+  const wide = useLayoutValue(layout => layout.wide)
   const gems = useGems(12)
   const player = usePlayerCommands()
   const [collapsed, setCollapsedState] = useState(() => prefs.get(COLLAPSED_KEY) === 'true')
+  const actionsShown = useFade(!collapsed, motion.slow, motion.base)
 
   const data = gems.data
   if (gems.isError || !data || data.songs.length === 0) return null
@@ -51,49 +56,64 @@ export function GemsRow(): ReactNode {
     setCollapsedState(next)
     prefs.set(COLLAPSED_KEY, String(next))
   }
+  const actions = (
+    <>
+      <Button
+        label="Play all"
+        icon={<Play color={theme.colors.textPrimary} />}
+        disabled={collapsed}
+        onPress={() => play(0)}
+      />
+      <Button
+        label={SONG_ACTION_LABELS.addToUpNext}
+        disabled={collapsed}
+        onPress={() => player.addToQueue(ids)}
+      />
+    </>
+  )
 
   return (
-    <View style={styles.row} accessibilityLabel="Forgotten gems">
+    <View style={[styles.row, wide && styles.rowWide]} accessibilityLabel="Forgotten gems">
       <SectionHead
         title="Forgotten gems"
         aside={`${plural(data.total, 'song', 'songs')} you liked but haven’t played in ${data.minDays}+ days`}
         collapsible={{ collapsed, onToggle: () => setCollapsed(!collapsed) }}
         end={
-          collapsed ? null : (
-            <>
-              <Button
-                label="Play all"
-                icon={<Play color={theme.colors.textPrimary} />}
-                onPress={() => play(0)}
-              />
-              <Button
-                label={SONG_ACTION_LABELS.addToUpNext}
-                onPress={() => player.addToQueue(ids)}
-              />
-            </>
-          )
+          wide ? (
+            // Faded rather than taken away, so the head keeps its height as the shelf folds.
+            <Animated.View
+              style={[styles.actions, { opacity: actionsShown }]}
+              aria-hidden={collapsed}
+            >
+              {actions}
+            </Animated.View>
+          ) : null
         }
       />
 
-      {collapsed ? null : few ? (
-        <View style={styles.listFew}>
-          {data.songs.map((song, index) => (
-            <FewCard key={song.id} song={song} when={when(song)} onPress={() => play(index)} />
-          ))}
-        </View>
-      ) : (
-        <Shelf contentStyle={styles.list}>
-          {data.songs.map((song, index) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              size={72}
-              more={when(song)}
-              onPress={() => play(index)}
-            />
-          ))}
-        </Shelf>
-      )}
+      <Fold open={!collapsed}>
+        {/* A phone's go under the name: they fold away with the songs. */}
+        {wide ? null : <View style={[styles.actions, styles.actionsPhone]}>{actions}</View>}
+        {few ? (
+          <View style={styles.listFew}>
+            {data.songs.map((song, index) => (
+              <FewCard key={song.id} song={song} when={when(song)} onPress={() => play(index)} />
+            ))}
+          </View>
+        ) : (
+          <Shelf contentStyle={styles.list}>
+            {data.songs.map((song, index) => (
+              <SongCard
+                key={song.id}
+                song={song}
+                size={72}
+                more={when(song)}
+                onPress={() => play(index)}
+              />
+            ))}
+          </Shelf>
+        )}
+      </Fold>
     </View>
   )
 }
@@ -136,13 +156,17 @@ function FewCard({
 }
 
 const styles = StyleSheet.create(theme => ({
+  // Its edge on the page's gutter, under the title and the tags, like the rows.
   row: {
-    marginHorizontal: space.lg,
+    marginHorizontal: space.gutter,
     marginBottom: space.lg,
     paddingVertical: space.snug,
     paddingHorizontal: space.md,
     ...card(theme.colors),
   },
+  rowWide: { marginHorizontal: space.gutterWide },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  actionsPhone: { marginTop: space.sm },
   list: { marginTop: space.snug, paddingBottom: space.xs },
   listFew: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.snug },
   // Grows in the row's wrap; the card fills what its wrap is given.

@@ -1,4 +1,34 @@
-import type { Song } from '@selfmp3/shared'
+import { naturalOrder, type Song, type Tag } from '@selfmp3/shared'
+
+/**
+ * A tag in a picker's list, and whether it is one of the ticked library's yet
+ * — or only this device's.
+ */
+export interface Offered {
+  readonly tag: Tag
+  readonly there: boolean
+}
+
+const byName = (a: Offered, b: Offered): number => naturalOrder(a.tag.name, b.tag.name)
+
+/**
+ * What a picker lists before anything is typed, in the order a person reads
+ * names: "manytag-2" before "manytag-10", as a song's own chips are (R2-P16).
+ * With `from` — another library's tags, when the ticks are not this device's —
+ * those first, then this device's whose names it has not got, which ticking
+ * makes there.
+ */
+export function offeredTags(own: readonly Tag[], from?: readonly Tag[]): Offered[] {
+  if (!from) return own.map(tag => ({ tag, there: true })).sort(byName)
+  const named = new Set(from.map(tag => tag.name.toLowerCase()))
+  return [
+    ...from.map(tag => ({ tag, there: true })).sort(byName),
+    ...own
+      .filter(tag => !named.has(tag.name.toLowerCase()))
+      .map(tag => ({ tag, there: false }))
+      .sort(byName),
+  ]
+}
 
 /**
  * What a tag is to a set of songs: on every one of them, on some, or on none.

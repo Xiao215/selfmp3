@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Song } from '@selfmp3/shared'
+import type { Song, Tag } from '@selfmp3/shared'
 
-import { tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
+import { offeredTags, tagChanges, tagsAcross, undoTagChange } from './tagPicker.model'
 
 const song = (id: number, tagIds: number[]): Song => ({ id, tagIds }) as unknown as Song
 
@@ -80,5 +80,35 @@ describe('a tag change the library did not take', () => {
     const ticked = tagChanges(across, new Set([10, 40]))
     const unticked = tagChanges(ticked.after, new Set([10]))
     expect(undoTagChange(unticked.after, across, 40, 'add')).toBe(unticked.after)
+  })
+})
+
+describe('the tags a picker offers', () => {
+  const tag = (id: number, name: string): Tag => ({ id, name }) as unknown as Tag
+  const names = (offered: ReturnType<typeof offeredTags>): string[] =>
+    offered.map(each => `${each.tag.name}${each.there ? '' : ' (here only)'}`)
+
+  it('lists them in the order a person reads them, manytag-2 before manytag-10', () => {
+    const own = ['manytag-1', 'manytag-10', 'manytag-11', 'manytag-2', 'Chill', 'calm']
+    expect(names(offeredTags(own.map((name, at) => tag(at, name))))).toEqual([
+      'calm',
+      'Chill',
+      'manytag-1',
+      'manytag-2',
+      'manytag-10',
+      'manytag-11',
+    ])
+  })
+
+  it('puts another library’s tags first, then this device’s that it lacks', () => {
+    const own = [tag(1, 'rock 10'), tag(2, 'Rock 2'), tag(3, 'jazz')]
+    const theirs = [tag(7, 'rock 2'), tag(8, 'b-side 12'), tag(9, 'b-side 3')]
+    expect(names(offeredTags(own, theirs))).toEqual([
+      'b-side 3',
+      'b-side 12',
+      'rock 2',
+      'jazz (here only)',
+      'rock 10 (here only)',
+    ])
   })
 })

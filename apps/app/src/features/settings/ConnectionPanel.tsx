@@ -72,8 +72,10 @@ export function ConnectionPanel({
               testID="cloud-sign-out"
             />
           </Row>
+          {/* Two buttons beside the bucket's name squeezed it into three lines on a phone. */}
           <Row
             label="Storage"
+            stack
             hint={
               storage === undefined
                 ? 'Loading…'

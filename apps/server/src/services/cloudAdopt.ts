@@ -19,7 +19,7 @@ import type { StampKind, SyncRepository } from '../repositories/sync.js'
 import type { NamesRepository } from '../repositories/names.js'
 import type { TagRepository } from '../repositories/tags.js'
 import { audioSignature, NO_FILE_SIGNATURE, tagsLyricsSignature } from './cloudSignatures.js'
-import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
+import { isFreeName, songKeyCandidates } from './libraryLayout.js'
 import type { SyncClock } from './localEdits.js'
 import { sha256 } from '../util/hash.js'
 
@@ -285,8 +285,7 @@ export class CloudAdopt {
     for (const candidate of songKeyCandidates(name, extension)) {
       const folder = path.posix.dirname(candidate)
       if (taken.has(folder)) continue
-      if (this.#songs.byPath(candidate)) continue
-      if (!(await isFreeOnDisk(this.#storage, candidate))) continue
+      if (!(await isFreeName(this.#songs, this.#storage, candidate))) continue
       taken.add(folder)
       return candidate
     }

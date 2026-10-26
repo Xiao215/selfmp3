@@ -1,5 +1,7 @@
+import fsp from 'node:fs/promises'
 import path from 'node:path'
-import { messageOf, mimeForExtension, type ScanResult } from '@selfmp3/shared'
+import { audioKey, messageOf, mimeForExtension, type ScanResult } from '@selfmp3/shared'
+import { sha256 } from '../util/hash.js'
 import type { Logger } from '../logger.js'
 import type { StorageDriver } from '../storage/index.js'
 import type { SongRepository } from '../repositories/songs.js'
@@ -24,7 +26,10 @@ import type { CoverService } from './covers.js'
  *
  * A path the database knows and the folder does not is the ordinary state of
  * every uploaded song, and says nothing: a song leaves the library only when
- * someone removes it.
+ * someone removes it. Its name is still the song's, though, so a file that
+ * turns up there is a new song unless its bytes are that song's audio in the
+ * bucket (`#isAnotherSong`): taken for the old song, its audio replaced the
+ * old one's, and the old one was deleted from the bucket.
  */
 export class ScannerService {
   readonly #storage: StorageDriver
@@ -43,6 +48,8 @@ export class ScannerService {
   onIngested: ((songId: number, change: 'added' | 'updated') => void) | null = null
   /** Whether a removed song's copy at this path is still being deleted (`SongRemovalService.isLeaving`). */
   isLeaving: ((key: string) => boolean) | null = null
+  /** The key of this song's audio in the bucket, once it is up (`cloud_songs`). */
+  bucketAudio: ((songId: number) => string | null) | null = null
   /** Called once a full sweep finishes, whatever it found. */
   onScanComplete: ((result: ScanResult) => void) | null = null
 
@@ -89,6 +96,16 @@ export class ScannerService {
     const existing = this.#songs.byPath(key)
     // A song just removed whose copy has not been deleted yet: not a new one.
     if (!existing && this.isLeaving?.(key)) throw new Error(`song being removed: ${key}`)
+
+    if (existing && (await this.#isAnotherSong(existing.id, key))) {
+      const aside = await this.#moveAside(key)
+      this.#logger.info('a new file has a song’s name, so it is a song of its own', {
+        path: key,
+        songId: existing.id,
+        now: aside,
+      })
+      return this.ingest(aside)
+    }
 
     if (existing) {
       this.#songs.updateScanned({
@@ -137,6 +154,43 @@ export class ScannerService {
   }
 
   /**
+   * Whether the file at a song's path is some other audio than the song's in
+   * the bucket. Before the song is up the file is its only copy, and a change
+   * to it is the song changing; after, the bucket's is the song.
+   */
+  async #isAnotherSong(songId: number, key: string): Promise<boolean> {
+    const inBucket = this.bucketAudio?.(songId) ?? null
+    if (!inBucket) return false
+    const data = await this.#storage.read(key)
+    return audioKey(sha256(data), path.extname(key)) !== inBucket
+  }
+
+  /**
+   * Give a file a name no song has, beside where it is, with its words: they
+   * came with it, and left at the old name they would be the old song's.
+   */
+  async #moveAside(key: string): Promise<string> {
+    const extension = path.posix.extname(key)
+    const stem = key.slice(0, key.length - extension.length)
+    for (let n = 2; n < 1000; n++) {
+      const candidate = `${stem} (${n})${extension}`
+      if (this.#songs.byPath(candidate) || (await this.#storage.exists(candidate))) continue
+      const sidecar = await this.#lyrics.findSidecar(key)
+      await fsp.rename(this.#storage.localPath(key), this.#storage.localPath(candidate))
+      if (sidecar) {
+        await fsp
+          .rename(
+            this.#storage.localPath(sidecar.key),
+            this.#storage.localPath(`${stem} (${n})${sidecar.extension}`),
+          )
+          .catch(() => undefined)
+      }
+      return candidate
+    }
+    throw new Error(`no free name beside ${key}`)
+  }
+
+  /**
    * One sweep of the folder.
    *
    * Guarded against concurrent runs: two overlapping sweeps would race on the
@@ -177,8 +231,8 @@ export class ScannerService {
             // anything, or the quiet sweep is a write per song and a refetch on
             // every device.
             if (stat && mtimeMs === existing.mtimeMs) continue
-            await this.ingest(key)
-            updated++
+            if ((await this.ingest(key)) === existing.id) updated++
+            else added++
           } else {
             await this.ingest(key)
             added++

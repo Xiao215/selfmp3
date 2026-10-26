@@ -552,6 +552,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
 
   scanner.onScanComplete = () => analysis.kick()
   scanner.isLeaving = key => songRemoval.isLeaving(key)
+  scanner.bucketAudio = songId => cloudRepo.state(songId)?.audioKey ?? null
 
   // Other devices' changes, applied during a cloud pass. The pass publishes
   // what they changed itself, so this only moves the version clients watch —

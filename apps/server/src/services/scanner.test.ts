@@ -8,6 +8,9 @@ import { createLogger } from '../logger.js'
 import { SongRepository } from '../repositories/songs.js'
 import type { StorageDriver } from '../storage/index.js'
 import { LocalStorageDriver } from '../storage/local.js'
+import { audioKey } from '@selfmp3/shared'
+import { sha256 } from '../util/hash.js'
+import { LyricsService } from './lyrics.js'
 import { MetadataService } from './metadata.js'
 import { ScannerService } from './scanner.js'
 
@@ -219,5 +222,111 @@ describe('a sweep while a removed song’s copy is still being deleted', () => {
     expect(await scanner.scan()).toMatchObject({ added: 1 })
     expect(songs.byPath('B - Two.m4a')).toBeNull()
     await expect(scanner.ingest('B - Two.m4a')).rejects.toThrow(/being removed/)
+  })
+})
+
+/*
+ * With the bucket the library, a song's copy here goes once it is up, and its
+ * name is free on disk while the row still holds it. A different file dropped
+ * in under that name was taken for the song: its audio replaced the song's,
+ * the song's own was deleted from the bucket, and the new song never appeared.
+ */
+describe('a new file under the name of a song whose copy was let go', () => {
+  /** A WAV whose length says which one it is. */
+  const wavOf = (seconds: number): Buffer => {
+    const one = wav()
+    const data = Buffer.alloc(8000 * 2 * seconds)
+    const head = Buffer.from(one.subarray(0, 44))
+    head.writeUInt32LE(36 + data.length, 4)
+    head.writeUInt32LE(data.length, 40)
+    return Buffer.concat([head, data])
+  }
+
+  const setUp = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-reused-'))
+    const db = new Database(':memory:')
+    const logger = createLogger('silent')
+    migrate(db, logger)
+    const songs = new SongRepository(db)
+    const storage = new LocalStorageDriver(root)
+    const scanner = new ScannerService({
+      storage,
+      songs,
+      metadata: new MetadataService(storage, logger),
+      lyrics: new LyricsService(storage, logger, () => Promise.reject(new Error('offline'))),
+      covers: { save: () => Promise.resolve() } as never,
+      logger,
+    })
+    /** What is in the bucket for each song: the key of its audio, by its bytes. */
+    const inBucket = new Map<number, string>()
+    scanner.bucketAudio = songId => inBucket.get(songId) ?? null
+    const put = (name: string, data: Buffer): void => {
+      fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true })
+      fs.writeFileSync(path.join(root, name), data)
+    }
+    /** Up in the bucket, and the copy here let go. */
+    const letGo = (id: number, name: string, data: Buffer): void => {
+      inBucket.set(id, audioKey(sha256(data), path.extname(name)))
+      fs.rmSync(path.join(root, name))
+    }
+    return { root, songs, scanner, put, letGo, done: () => fs.rmSync(root, { recursive: true }) }
+  }
+
+  it('makes it a song of its own, and leaves the first one as it was', async () => {
+    const { root, songs, scanner, put, letGo, done } = setUp()
+    try {
+      const first = wavOf(2)
+      put('fresh3.wav', first)
+      await scanner.scan()
+      const id = songs.byPath('fresh3.wav')?.id as number
+      letGo(id, 'fresh3.wav', first)
+      const before = songs.byId(id)
+
+      put('fresh3.wav', wavOf(1))
+      fs.writeFileSync(path.join(root, 'fresh3.lrc'), '[00:00.50] its own words')
+      expect(await scanner.scan()).toMatchObject({ added: 1, updated: 0 })
+
+      expect(songs.byId(id)).toEqual(before)
+      const other = songs.byPath('fresh3 (2).wav')
+      expect(other?.duration).toBeCloseTo(1, 1)
+      expect(fs.existsSync(path.join(root, 'fresh3.wav'))).toBe(false)
+      // Its words went with it, rather than staying to be the first song's.
+      expect(fs.readdirSync(root).sort()).toEqual(['fresh3 (2).lrc', 'fresh3 (2).wav'])
+    } finally {
+      done()
+    }
+  })
+
+  it('still takes a change for the song while the file here is its only copy', async () => {
+    const { songs, scanner, put, done } = setUp()
+    try {
+      put('A - One.wav', wavOf(2))
+      await scanner.scan()
+      const id = songs.byPath('A - One.wav')?.id
+      put('A - One.wav', wavOf(1))
+
+      const result = await scanner.ingest('A - One.wav')
+      expect(result).toBe(id)
+      expect(songs.byPath('A - One.wav')?.duration).toBeCloseTo(1, 1)
+    } finally {
+      done()
+    }
+  })
+
+  it('takes the same bytes coming back as the song’s own copy', async () => {
+    const { songs, scanner, put, letGo, done } = setUp()
+    try {
+      const first = wavOf(2)
+      put('A - One.wav', first)
+      await scanner.scan()
+      const id = songs.byPath('A - One.wav')?.id as number
+      letGo(id, 'A - One.wav', first)
+
+      put('A - One.wav', first)
+      expect(await scanner.ingest('A - One.wav')).toBe(id)
+      expect(songs.all()).toHaveLength(1)
+    } finally {
+      done()
+    }
   })
 })

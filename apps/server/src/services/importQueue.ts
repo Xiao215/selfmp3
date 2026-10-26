@@ -25,7 +25,7 @@ import type { CoverService } from './covers.js'
 import { asksYouTube, type YtDlpService } from './ytdlp.js'
 import { RateLimitedError, type YtThrottleService } from './ytThrottle.js'
 import { METRIC, failureOf, type ServerMetrics, type TimedStep } from './metrics.js'
-import { isFreeOnDisk, songKeyCandidates } from './libraryLayout.js'
+import { isFreeName, songKeyCandidates } from './libraryLayout.js'
 
 /**
  * The download worker.
@@ -72,7 +72,10 @@ export class ImportQueueService {
   readonly #config: Pick<Config, 'dataDir'>
   readonly #storage: Pick<StorageDriver, 'write' | 'exists'>
   readonly #imports: ImportRepository
-  readonly #songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+  readonly #songs: Pick<
+    SongRepository,
+    'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental' | 'hasFolder'
+  >
   readonly #tags: Pick<TagRepository, 'exists' | 'addToSong'>
   readonly #playlists: Pick<PlaylistRepository, 'byId' | 'add'>
   readonly #settings: Pick<SettingsRepository, 'get'>
@@ -109,7 +112,7 @@ export class ImportQueueService {
     config: Pick<Config, 'dataDir'>
     storage: Pick<StorageDriver, 'write' | 'exists'>
     imports: ImportRepository
-    songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental'>
+    songs: Pick<SongRepository, 'byId' | 'patch' | 'setSourceUrl' | 'setInstrumental' | 'hasFolder'>
     tags: Pick<TagRepository, 'exists' | 'addToSong'>
     playlists: Pick<PlaylistRepository, 'byId' | 'add'>
     settings: Pick<SettingsRepository, 'get'>
@@ -656,7 +659,7 @@ export class ImportQueueService {
       this.#claimedFolders.add(folder)
       let free = false
       try {
-        free = await isFreeOnDisk(this.#storage, candidate)
+        free = await isFreeName(this.#songs, this.#storage, candidate)
       } finally {
         if (!free) this.#claimedFolders.delete(folder)
       }

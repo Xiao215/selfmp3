@@ -96,6 +96,7 @@ export class SongRepository {
   readonly #nextWithoutCoverTone
   readonly #setCoverTone
   readonly #allPaths
+  readonly #inFolder
   /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
   readonly #patches = new Map<string, Database.Statement>()
 
@@ -195,6 +196,10 @@ export class SongRepository {
     this.#allPaths = db.prepare<[], { id: number; path: string; mtime_ms: number }>(
       'SELECT id, path, mtime_ms FROM songs',
     )
+    // '/' sorts just before '0', so the range is every path under the folder, by the path index.
+    this.#inFolder = db.prepare<[string, string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM (SELECT 1 FROM songs WHERE path >= ? AND path < ? LIMIT 1)',
+    )
   }
 
   all(): Song[] {
@@ -222,6 +227,15 @@ export class SongRepository {
   byPath(path: string): Song | null {
     const row = this.#byPath.get(path)
     return row ? toSong(row) : null
+  }
+
+  /**
+   * Whether any song's path is in this folder of the library. A song whose
+   * copy was let go keeps its path and its folder's name though neither is on
+   * disk any more, and a new song given that folder would share its words.
+   */
+  hasFolder(folder: string): boolean {
+    return (this.#inFolder.get(`${folder}/`, `${folder}0`)?.n ?? 0) > 0
   }
 
   /** Returns the new row id. */

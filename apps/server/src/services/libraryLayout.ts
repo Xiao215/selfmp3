@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises'
 import path from 'node:path'
+import type { SongRepository } from '../repositories/songs.js'
 import type { StorageDriver } from '../storage/index.js'
 
 /**
@@ -32,11 +33,22 @@ export function* songKeyCandidates(name: string, extension: string): Generator<s
   yield songKey(`${name} (${Date.now()})`, extension)
 }
 
-/** Neither the folder nor the file is there yet. */
-export async function isFreeOnDisk(
+/**
+ * A name a new song can take: free on disk, and no song in the database is in
+ * its folder. With the bucket the library (docs/SYNC.md), a song's copy here is
+ * let go once it is up, so a name free on disk can still be a song's; given to
+ * a new one, the next pass would take the new file for the old song's audio.
+ */
+export async function isFreeName(
+  songs: Pick<SongRepository, 'hasFolder'>,
   storage: Pick<StorageDriver, 'exists'>,
   key: string,
 ): Promise<boolean> {
+  return !songs.hasFolder(path.posix.dirname(key)) && (await isFreeOnDisk(storage, key))
+}
+
+/** Neither the folder nor the file is there yet. */
+async function isFreeOnDisk(storage: Pick<StorageDriver, 'exists'>, key: string): Promise<boolean> {
   return !(await storage.exists(path.posix.dirname(key))) && !(await storage.exists(key))
 }
 

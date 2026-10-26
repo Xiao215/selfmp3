@@ -127,7 +127,7 @@ overlap is inside too. They play in auto-mix order from the one nearest the midd
 (`songsInside`). Its name is the tag at least half the songs inside share, or the
 title of the song nearest its middle (`loopName`).
 
-A stroke that takes nothing says "No songs along that line" or "…inside that loop".
+A stroke that takes nothing goes without a word (Xiao, 2026-10-26: the message was noise).
 
 ### The tray
 

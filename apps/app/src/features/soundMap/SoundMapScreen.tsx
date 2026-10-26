@@ -195,10 +195,8 @@ export function SoundMapScreen(): ReactNode {
     const ids = loop
       ? songsInside(places, drawn, songs)
       : songsAlongPath(places, drawn, reach.current, songs)
-    if (ids.length === 0) {
-      showToast(loop ? 'No songs inside that loop' : 'No songs along that line')
-      return
-    }
+    // Nothing taken: the stroke simply goes, as it came, with no word about it.
+    if (ids.length === 0) return
     const take: MapTake = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),

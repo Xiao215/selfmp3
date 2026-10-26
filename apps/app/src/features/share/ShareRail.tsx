@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, FlatList, Text, View } from 'react-native'
+import { Animated, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { artistOr, plural, type ShareEntry } from '@selfmp3/shared'
 import { radius, space, type, withAlpha } from '@selfmp3/client'
@@ -11,6 +11,7 @@ import { IconButton } from '../../ui/components/IconButton'
 import { Shuffle } from '../../ui/components/Icons'
 import { Press } from '../../ui/components/Press'
 import { Sheet } from '../../ui/components/Sheet'
+import { FlatList } from '../../ui/components/Scroll'
 import { RoomEntryLine } from '../room/RoomEntryLine'
 
 /** The rail's width shut: its covers alone, so the song's page keeps the window. */

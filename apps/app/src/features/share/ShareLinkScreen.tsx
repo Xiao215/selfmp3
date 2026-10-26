@@ -179,9 +179,9 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   const trackAt = new Map(ids.map((id, at) => [id, at]))
   const playingAt = link.kind === 'list' && playing !== null ? trackAt.get(playing) : undefined
   const [cued, setCued] = useState(0)
-  useEffect(() => {
-    if (playingAt !== undefined) setCued(playingAt)
-  }, [playingAt])
+  // Kept on the song playing, so the page stays on it once the list stops.
+  // Adjusted during render, as React has a value follow another.
+  if (playingAt !== undefined && playingAt !== cued) setCued(playingAt)
   const shownAt = playingAt ?? Math.min(cued, Math.max(0, entries.length - 1))
   const shown = link.kind === 'list' && !ended ? (entries[shownAt] ?? first) : first
   const shownId = shown ? roomTrackId(shown.id) : 0
@@ -199,11 +199,9 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   const start = useMemo(() => shareStartOf(link, t), [link, t])
 
   // Washed in its song's cover colour, as Now Playing is; grey once it has ended.
-  const lead = useMemo(
-    () =>
-      shown ? roomTrackSong({ id: shown.id, song: shown.song, addedAt: link.createdAt }) : null,
-    [shown, link.createdAt],
-  )
+  const lead = shown
+    ? roomTrackSong({ id: shown.id, song: shown.song, addedAt: link.createdAt })
+    : null
   const light = useSongColor(lead, cover, !ended)
   const tone = shown?.song.coverTone ?? null
   const wash = ended ? (tone ? neutralWash(tone) : theme.colors.surface2) : light.color

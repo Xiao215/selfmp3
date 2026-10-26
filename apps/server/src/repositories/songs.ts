@@ -107,6 +107,10 @@ export class SongRepository {
   readonly #leaving
   readonly #allLeaving
   readonly #copyGone
+  readonly #coverToRead
+  readonly #coverRead
+  readonly #isCoverToRead
+  readonly #coversToRead
   /** `patch` statements by the columns they set: a handful of shapes, each prepared once. */
   readonly #patches = new Map<string, Database.Statement>()
 
@@ -224,6 +228,14 @@ export class SongRepository {
       'SELECT song_id, path FROM leaving_copies ORDER BY path',
     )
     this.#copyGone = db.prepare<[string]>('DELETE FROM leaving_copies WHERE path = ?')
+    this.#coverToRead = db.prepare<[number]>(
+      'INSERT OR IGNORE INTO covers_to_read (song_id) VALUES (?)',
+    )
+    this.#coverRead = db.prepare<[number]>('DELETE FROM covers_to_read WHERE song_id = ?')
+    this.#isCoverToRead = db.prepare<[number], { n: number }>(
+      'SELECT COUNT(*) AS n FROM covers_to_read WHERE song_id = ?',
+    )
+    this.#coversToRead = db.prepare<[], { song_id: number }>('SELECT song_id FROM covers_to_read')
   }
 
   all(): Song[] {
@@ -453,6 +465,8 @@ export class SongRepository {
 
   setArt(id: number, hasArt: boolean, extension: string | null): void {
     this.#setArt.run(hasArt ? 1 : 0, extension, id)
+    // With a cover kept, none is still to be read out of its file.
+    if (hasArt) this.#coverRead.run(id)
   }
 
   /** The extension the song's kept cover was saved with (`setArt`), or null. */
@@ -519,7 +533,7 @@ export class SongRepository {
 
   /**
    * Whether a removed song's copy at this path is still to be deleted. A row's
-   * deletion notes its path (migration 51), so the note outlives a server
+   * deletion notes its path (`leaving_copies`), so the note outlives a server
    * killed before the copy went.
    */
   isLeaving(path: string): boolean {
@@ -534,5 +548,27 @@ export class SongRepository {
   /** A removed song's copy is gone: the sweep may make a song of that path again. */
   copyGone(path: string): void {
     this.#copyGone.run(path)
+  }
+
+  /**
+   * The cover in this song's file could not be kept, and is to be read out
+   * of it again (`covers_to_read`). Until it is, the copy here is not let go.
+   */
+  coverToRead(id: number): void {
+    this.#coverToRead.run(id)
+  }
+
+  /** Nothing more to read out of this song's file for its cover: one is kept, or it has none. */
+  coverRead(id: number): void {
+    this.#coverRead.run(id)
+  }
+
+  isCoverToRead(id: number): boolean {
+    return (this.#isCoverToRead.get(id)?.n ?? 0) > 0
+  }
+
+  /** Every song with a cover still to read out of its file. */
+  coversToRead(): Set<number> {
+    return new Set(this.#coversToRead.all().map(row => row.song_id))
   }
 }

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
@@ -60,6 +61,58 @@ describe('CoverService.save', () => {
 
     expect(fs.readdirSync(path.join(dataDir, 'covers'))).toEqual([])
     expect(setArt).not.toHaveBeenCalled()
+  })
+
+  /*
+   * The disk filling as a cover was written left an empty file under the
+   * cover's own name, which read as the song's cover (bug bash R3-M11).
+   */
+  describe('with the disk full as it writes', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    /** Every write runs out of room: the file is made, and nothing fits in it. */
+    const diskFull = () => {
+      const write = fsp.writeFile.bind(fsp)
+      vi.spyOn(fsp, 'writeFile').mockImplementation(async file => {
+        await write(file as string, '')
+        throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+      })
+    }
+
+    it('leaves nothing under the cover’s name, and says it is worth another try', async () => {
+      dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+      const setArt = vi.fn()
+      const covers = new CoverService(
+        { dataDir } as Config,
+        { setArt, artExt: () => '.jpg' } as unknown as SongRepository,
+        createLogger('silent'),
+      )
+      diskFull()
+
+      expect(await covers.save(7, image(1), '.jpg')).toBe('failed')
+
+      expect(fs.readdirSync(path.join(dataDir, 'covers'))).toEqual([])
+      expect(setArt).not.toHaveBeenCalled()
+    })
+
+    it('keeps the cover it was replacing', async () => {
+      dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-covers-'))
+      const covers = new CoverService(
+        { dataDir } as Config,
+        { setArt: vi.fn(), artExt: () => '.jpg' } as unknown as SongRepository,
+        createLogger('silent'),
+      )
+      expect(await covers.save(7, image(1), '.jpg')).toBe('kept')
+      const before = fs.readFileSync(path.join(dataDir, 'covers', '7.jpg'))
+      diskFull()
+
+      await covers.save(7, image(2), '.jpg')
+
+      expect(fs.readdirSync(path.join(dataDir, 'covers'))).toEqual(['7.jpg'])
+      expect(fs.readFileSync(path.join(dataDir, 'covers', '7.jpg'))).toEqual(before)
+    })
   })
 
   it('looks only for the format the row recorded', async () => {

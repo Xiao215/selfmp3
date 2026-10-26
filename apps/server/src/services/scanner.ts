@@ -9,6 +9,18 @@ import type { MetadataService } from './metadata.js'
 import type { LyricsService } from './lyrics.js'
 import type { CoverService } from './covers.js'
 
+/** A picture a file carries (`MetadataService.read`). */
+interface Picture {
+  data: Buffer
+  extension: string
+}
+
+/** How long a file has to have been left alone before it is read: it may still be being written. */
+const SETTLE_MS = 2_000
+
+/** How soon to try again to keep a cover that could not be written: a full disk takes a while to clear. */
+const COVER_RETRY_MS = 60_000
+
 /**
  * Sweeping the inbox folder.
  *
@@ -22,7 +34,8 @@ import type { CoverService } from './covers.js'
  *
  *  - A file that is new gets fully parsed and inserted.
  *  - A file whose time is unchanged is skipped entirely, so a sweep over a
- *    folder with nothing new in it costs a stat per file.
+ *    folder with nothing new in it costs a stat per file — unless its cover
+ *    could not be kept the last time, and is read out of it again.
  *  - A file changed in the last `SETTLE_MS` is still arriving — a copy, a
  *    download, an encoder writing in place — and is left for a sweep of its
  *    own once it has been still that long. Read half-written, it would be a
@@ -35,9 +48,6 @@ import type { CoverService } from './covers.js'
  * bucket (`#isAnotherSong`): taken for the old song, its audio replaced the
  * old one's, and the old one was deleted from the bucket.
  */
-/** How long a file has to have been left alone before it is read: it may still be being written. */
-const SETTLE_MS = 2_000
-
 export class ScannerService {
   readonly #storage: StorageDriver
   readonly #songs: SongRepository
@@ -158,9 +168,7 @@ export class ScannerService {
         mtimeMs: Math.floor(stat.modifiedAt.getTime()),
         lyricsKind,
       })
-      if (!existing.hasArt && metadata.picture) {
-        await this.#covers.save(existing.id, metadata.picture.data, metadata.picture.extension)
-      }
+      if (!existing.hasArt) await this.#keepCover(existing.id, metadata.picture)
       this.onIngested?.(existing.id, 'updated')
       return existing.id
     }
@@ -187,12 +195,42 @@ export class ScannerService {
       sourceUrl: null,
     })
 
-    if (metadata.picture) {
-      await this.#covers.save(id, metadata.picture.data, metadata.picture.extension)
-    }
+    if (metadata.picture) await this.#keepCover(id, metadata.picture)
 
     this.onIngested?.(id, 'added')
     return id
+  }
+
+  /**
+   * The cover a song's file carries, kept. One that could not be written —
+   * the disk full as it went — is noted to read again (`coverToRead`), and
+   * the scanner comes back for it: the file is the only place it is, and the
+   * copy is let go once the song is up. Whether a cover was kept.
+   */
+  async #keepCover(songId: number, picture: Picture | null): Promise<boolean> {
+    if (!picture) {
+      this.#songs.coverRead(songId)
+      return false
+    }
+    const saved = await this.#covers.save(songId, picture.data, picture.extension)
+    if (saved === 'failed') {
+      this.#songs.coverToRead(songId)
+      this.#comeBack(COVER_RETRY_MS)
+      return false
+    }
+    // Kept, it is read; refused for good, there is nothing more to read.
+    if (saved === 'refused') this.#songs.coverRead(songId)
+    return saved === 'kept'
+  }
+
+  /** A cover noted to read again (`#keepCover`), from a file that has not changed since. */
+  async #readCoverAgain(songId: number, key: string): Promise<boolean> {
+    if (this.#songs.byId(songId)?.hasArt !== false) {
+      // Gone, or given a cover another way since: an import's art, one picked.
+      this.#songs.coverRead(songId)
+      return false
+    }
+    return this.#keepCover(songId, (await this.#metadata.read(key)).picture)
   }
 
   /**
@@ -256,6 +294,9 @@ export class ScannerService {
     try {
       const onDisk = await this.#storage.list()
       const known = this.#songs.allPaths()
+      const coversToRead = this.#songs.coversToRead()
+      /** Songs with a cover to read whose files are not here: nothing to read it from. */
+      const nowhere = new Set(coversToRead)
 
       for (const key of onDisk) {
         /*
@@ -274,7 +315,14 @@ export class ScannerService {
           // Unchanged file: a sweep that finds nothing new must not touch
           // anything, or the quiet sweep is a write per song and a refetch on
           // every device.
-          if (existing && stat && mtimeMs === existing.mtimeMs) continue
+          if (existing) nowhere.delete(existing.id)
+          if (existing && stat && mtimeMs === existing.mtimeMs) {
+            // The song is as it was, but for a cover it could not keep.
+            if (coversToRead.has(existing.id) && (await this.#readCoverAgain(existing.id, key))) {
+              updated++
+            }
+            continue
+          }
           // Either way of now: a file's time can be a moment ahead of this
           // clock. One far ahead is a clock that is wrong, and waiting for it
           // would be waiting for ever.
@@ -299,6 +347,7 @@ export class ScannerService {
           })
         }
       }
+      for (const songId of nowhere) this.#songs.coverRead(songId)
     } finally {
       this.#running = false
     }

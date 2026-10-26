@@ -2152,6 +2152,23 @@ describe('CloudSyncService', () => {
       expect(here('A - One/A - One.m4a')).toBe(false)
     })
 
+    it('keeps the copy while the cover in it is still to be read', async () => {
+      // A full disk as the sweep kept its cover: the file is the only place it
+      // is, and once the copy goes it is lost (bug bash R3-M11).
+      const service = lettingGo({ coverToRead: songId => songs.isCoverToRead(songId) })
+      const id = addSong('A - One', 'one')
+      analysed.add(id)
+      songs.coverToRead(id)
+
+      await service.connect(CONNECT)
+      await service.whenIdle()
+      expect(here('A - One/A - One.m4a')).toBe(true)
+
+      songs.coverRead(id)
+      await service.syncNow()
+      expect(here('A - One/A - One.m4a')).toBe(false)
+    })
+
     it('never lets go of a copy that is not wholly up', async () => {
       const service = lettingGo()
       const id = addSong('A - One', 'one')

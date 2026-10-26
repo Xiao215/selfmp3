@@ -361,6 +361,7 @@ export function createContainer(configured: Config, options: ContainerOptions = 
     // later does not cost a download.
     analysed: songId =>
       audioFeatures.isAnalysed(songId, ANALYSIS_VERSION) && (!sound.canHear || sound.has(songId)),
+    coverToRead: songId => songs.isCoverToRead(songId),
     cloudDir: config.cloudDir ?? undefined,
     publishAnyway: config.publishAnyway,
     importRequests,

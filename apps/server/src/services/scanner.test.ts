@@ -409,3 +409,125 @@ describe('a sweep while a file is still arriving', () => {
     }
   })
 })
+
+/*
+ * A cover the disk had no room for as the sweep kept it. The file is the only
+ * place it is, and the copy is let go once the song is up, so it was lost for
+ * good (bug bash R3-M11). It is read again, from the same file, until it is
+ * kept.
+ */
+describe('a cover that could not be kept', () => {
+  const picture = { data: Buffer.from('a picture'), extension: '.jpg' }
+
+  const setUp = () => {
+    const logger = createLogger('silent')
+    const db = new Database(':memory:')
+    migrate(db, logger)
+    const songs = new SongRepository(db)
+    const storage = {
+      list: () => Promise.resolve(['A - One.m4a']),
+      stat: (key: string) =>
+        Promise.resolve({ sizeBytes: 100, modifiedAt: new Date(1_700_000_000_000), key }),
+    } as unknown as StorageDriver
+    let reads = 0
+    const metadata = {
+      read: () => {
+        reads++
+        return Promise.resolve({
+          title: 'One',
+          artist: 'A',
+          album: '',
+          albumArtist: '',
+          trackNo: null,
+          year: null,
+          duration: 180,
+          picture,
+          embeddedLyrics: null,
+        })
+      },
+    }
+    /** The disk has room again once this is set. */
+    const disk = { full: true }
+    const covers = {
+      save: (songId: number) => {
+        if (disk.full) return Promise.resolve('failed')
+        songs.setArt(songId, true, '.jpg')
+        return Promise.resolve('kept')
+      },
+    }
+    const scanner = new ScannerService({
+      storage,
+      songs,
+      metadata: metadata as never,
+      lyrics: { detectKind: () => Promise.resolve('none') } as never,
+      covers: covers as never,
+      logger,
+    })
+    return { songs, scanner, disk, reads: () => reads }
+  }
+
+  it('is read again by the next sweep, though the file has not changed', async () => {
+    const { songs, scanner, disk, reads } = setUp()
+    try {
+      expect(await scanner.scan()).toMatchObject({ added: 1 })
+      const id = songs.byPath('A - One.m4a')?.id as number
+      expect(songs.byId(id)?.hasArt).toBe(false)
+      expect(songs.isCoverToRead(id)).toBe(true)
+
+      // Still full: tried again, and still to do.
+      expect(await scanner.scan()).toMatchObject({ added: 0, updated: 0 })
+      expect(songs.isCoverToRead(id)).toBe(true)
+
+      disk.full = false
+      expect(await scanner.scan()).toMatchObject({ added: 0, updated: 1 })
+      expect(songs.byId(id)?.hasArt).toBe(true)
+      expect(songs.isCoverToRead(id)).toBe(false)
+
+      // Kept, it is not read again.
+      const before = reads()
+      expect(await scanner.scan()).toMatchObject({ added: 0, updated: 0 })
+      expect(reads()).toBe(before)
+    } finally {
+      scanner.stop()
+    }
+  })
+
+  it('brings the scanner back by itself to try again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const { songs, scanner, disk } = setUp()
+    try {
+      await scanner.scan()
+      const id = songs.byPath('A - One.m4a')?.id as number
+      disk.full = false
+
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      await vi.waitFor(() => expect(songs.byId(id)?.hasArt).toBe(true))
+    } finally {
+      scanner.stop()
+      vi.useRealTimers()
+    }
+  })
+
+  it('is let be once the file it was in has gone', async () => {
+    const { songs, scanner } = setUp()
+    try {
+      await scanner.scan()
+      const id = songs.byPath('A - One.m4a')?.id as number
+
+      const after = new ScannerService({
+        storage: { list: () => Promise.resolve([]) } as unknown as StorageDriver,
+        songs,
+        metadata: {} as never,
+        lyrics: {} as never,
+        covers: {} as never,
+        logger: createLogger('silent'),
+      })
+      await after.scan()
+
+      expect(songs.isCoverToRead(id)).toBe(false)
+    } finally {
+      scanner.stop()
+    }
+  })
+})

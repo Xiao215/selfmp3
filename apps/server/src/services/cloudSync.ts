@@ -346,6 +346,12 @@ interface CloudSyncDeps {
    */
   readonly analysed?: (songId: number) => boolean
   /**
+   * Whether a song's cover is still to be read out of its copy here, having
+   * failed to be kept the first time (`SongRepository.coverToRead`): the copy
+   * is the only place it is, so it stays till then.
+   */
+  readonly coverToRead?: (songId: number) => boolean
+  /**
    * A folder to use as the bucket instead of an account (bucket/local.ts).
    * Connected from the start and never saved; signing in and connecting are
    * refused while it is set.
@@ -2256,7 +2262,8 @@ export class CloudSyncService {
    *
    * Every song here is wholly in the bucket as it stands, and the snapshot
    * naming it is up; what the copy is still for is analysis, so a song analysis
-   * has not reached yet keeps it a while longer. From here on the words are
+   * has not reached yet keeps it a while longer — as does one whose cover could
+   * not be kept and is still to be read out of it. From here on the words are
    * read from the bucket (`fetchLyrics`), and the pass knows they are current
    * because nothing here can have changed them (`#signatures`).
    *
@@ -2273,6 +2280,7 @@ export class CloudSyncService {
       if (this.#stopped) return
       if (!audioHere && !sidecarHere) continue
       if (!analysed(file.id)) continue
+      if (this.#deps.coverToRead?.(file.id)) continue
       try {
         if (audioHere) await storage.delete(file.path)
         await lyrics.deleteSidecar(file.path)

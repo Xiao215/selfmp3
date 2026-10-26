@@ -1241,6 +1241,19 @@ const MIGRATIONS: readonly Migration[] = [
       END;
     `,
   },
+  {
+    // 55. A cover carried in a file that could not be kept — the disk full as
+    // it was written — is still to be read out of it, and the file is the
+    // only place it is. It was lost for good once the copy was let go (bug
+    // bash R3-M11). Each such song is noted here until a cover is kept for
+    // it, and the cloud pass keeps its copy till then.
+    name: 'a cover that could not be kept is read again',
+    sql: `
+      CREATE TABLE IF NOT EXISTS covers_to_read (
+        song_id INTEGER PRIMARY KEY REFERENCES songs(id) ON DELETE CASCADE
+      );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

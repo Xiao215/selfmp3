@@ -29,6 +29,12 @@ const CONTENT_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 }
 
+/**
+ * What became of a cover given to `save`: kept; refused for good, a picture
+ * too big to read; or not written, the disk full say, and worth another try.
+ */
+type CoverSaved = 'kept' | 'refused' | 'failed'
+
 export class CoverService {
   readonly #dir: string
   readonly #songs: SongRepository
@@ -58,7 +64,14 @@ export class CoverService {
     return path.join(this.#dir, `${songId}${extension}`)
   }
 
-  async save(songId: number, given: Buffer, extension: string): Promise<void> {
+  /**
+   * Keep a song's cover. Written under a name of its own and renamed into
+   * place, so a cover's real name only ever holds a whole picture: a write
+   * the disk ran out under left an empty file that read as the song's cover
+   * (bug bash R3-M11), and a cover it was replacing is kept instead.
+   */
+  async save(songId: number, given: Buffer, extension: string): Promise<CoverSaved> {
+    let partial: string | null = null
     try {
       // Square and a JPEG before it is kept, so every copy of it everywhere is
       // (squareCover.ts). A picture sharp cannot read is kept as it came; one
@@ -70,7 +83,11 @@ export class CoverService {
         },
       )
       const ext = (EXTENSIONS as readonly string[]).includes(squared) ? squared : '.jpg'
-      await fsp.writeFile(this.#pathFor(songId, ext), data)
+      const file = this.#pathFor(songId, ext)
+      partial = `${file}.${randomUUID()}.partial`
+      await fsp.writeFile(partial, data)
+      await fsp.rename(partial, file)
+      partial = null
       // A cover in another format would stay behind otherwise, a stale file
       // nothing serves: `find` looks only for the format recorded below.
       await Promise.all(
@@ -83,12 +100,15 @@ export class CoverService {
       // request would ever ask for them again.
       await this.#dropThumbnails(songId)
       this.onSaved?.(songId)
+      return 'kept'
     } catch (error) {
+      if (partial) await fsp.rm(partial, { force: true }).catch(() => undefined)
       // Missing art is cosmetic; a placeholder gradient is shown instead.
       this.#logger.warn('could not cache cover art', {
         songId,
         message: messageOf(error),
       })
+      return error instanceof CoverTooBig ? 'refused' : 'failed'
     }
   }
 

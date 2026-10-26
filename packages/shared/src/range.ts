@@ -49,8 +49,30 @@ export function parseRange(
     end = Math.min(end, size - 1)
   }
 
-  if (start > end) return 'unsatisfiable'
+  // `bytes=50-10` is not a range at all, and a header that is not one is
+  // ignored (RFC 9110 §14.2): the whole file, not a 416.
+  if (start > end) return null
   return { start, end }
+}
+
+/**
+ * Whether an `If-Range:` lets the `Range:` beside it stand: absent, or naming
+ * this very file — its ETag, compared strongly (a weak tag never matches), or
+ * its exact modification time. Otherwise the client's piece is of some other
+ * version of the file and it is sent the whole of this one (RFC 9110 §13.1.5).
+ */
+export function ifRangeHolds(
+  ifRange: string | null | undefined,
+  etag: string,
+  lastModified: Date,
+): boolean {
+  const value = ifRange?.trim()
+  if (!value) return true
+  if (value.startsWith('"') || value.startsWith('W/')) return value === etag
+  const date = Date.parse(value)
+  return (
+    Number.isFinite(date) && Math.floor(date / 1000) === Math.floor(lastModified.getTime() / 1000)
+  )
 }
 
 /**
@@ -98,12 +120,15 @@ interface RangeAnswer {
 
 export function answerRange({
   rangeHeader,
+  ifRange,
   sizeBytes,
   mime,
   etag,
   lastModified,
 }: {
   rangeHeader: string | undefined
+  /** The request's `If-Range:`, which a range is honoured only past (`ifRangeHolds`). */
+  ifRange?: string | undefined
   sizeBytes: number
   mime: string
   etag: string
@@ -119,7 +144,9 @@ export function answerRange({
     'Cache-Control': 'private, max-age=31536000, immutable',
   }
 
-  const range = parseRange(rangeHeader, sizeBytes)
+  const range = ifRangeHolds(ifRange, etag, lastModified)
+    ? parseRange(rangeHeader, sizeBytes)
+    : null
 
   if (range === 'unsatisfiable') {
     return {

@@ -10,7 +10,7 @@ import { MOVE_MS, overshootRange } from '../motion.model'
 import { Button } from './Button'
 import { Checkbox } from './Checkbox'
 import { IconButton } from './IconButton'
-import { CheckSquare, More, type Play, X } from './Icons'
+import { CheckSquare, More, type QueueAdd, X } from './Icons'
 import { Popover } from './Popover'
 import { SheetItem } from './Sheet'
 import { floating, smallTitle } from '../surfaces'
@@ -615,11 +615,9 @@ const styles = StyleSheet.create(theme => ({
 export interface BarAction {
   readonly key: string
   readonly label: string
-  readonly Glyph: typeof Play
+  readonly Glyph: typeof QueueAdd
   /** Handed the button, which Up next's covers fly from. */
   readonly onPress: (from: View | null) => void
-  /** A phone's filled round button: the one thing the bar is mostly for (Play). */
-  readonly filled?: boolean
   /** It takes something away: red ink. */
   readonly danger?: boolean
 }
@@ -649,7 +647,7 @@ function BarButton({
           disabled={disabled}
         />
       ) : (
-        <IconButton onPress={press} label={action.label} disabled={disabled} filled={action.filled}>
+        <IconButton onPress={press} label={action.label} disabled={disabled}>
           <action.Glyph color={ink} />
         </IconButton>
       )}

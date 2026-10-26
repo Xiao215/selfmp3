@@ -107,7 +107,7 @@ const CreatePlaylistBaseSchema = z.object({
  */
 export const CreatePlaylistSchema = z.discriminatedUnion('kind', [
   CreatePlaylistBaseSchema.merge(ManualPlaylistRulesSchema).extend({
-    songIds: z.array(IdSchema).max(2000).optional(),
+    songIds: z.array(IdSchema).max(BULK_IDS_MAX).optional(),
   }),
   CreatePlaylistBaseSchema.merge(LivePlaylistRulesSchema),
 ])

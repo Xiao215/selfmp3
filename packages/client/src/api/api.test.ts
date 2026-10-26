@@ -115,6 +115,37 @@ describe('a bulk edit bigger than one request may be', () => {
     ])
   })
 
+  it('makes a playlist of a big selection with its first part, then adds the rest', async () => {
+    const playlist = {
+      id: 9,
+      name: 'Up next',
+      description: '',
+      songCount: 0,
+      totalDuration: 0,
+      pinned: false,
+      kind: 'manual',
+      rules: null,
+      createdAt: '2026-09-14 10:00:00',
+      updatedAt: '2026-09-14 10:00:00',
+      lastPlayedAt: null,
+    }
+    const { api, sent } = recording(() => playlist)
+
+    await api.createPlaylist({
+      name: 'Up next',
+      description: '',
+      kind: 'manual',
+      rules: null,
+      songIds: ids,
+    })
+    expect(sent.map(part => [part.path, part.body.songIds.length])).toEqual([
+      ['/api/playlists', BULK_IDS_MAX],
+      ['/api/playlists/9/songs', BULK_IDS_MAX],
+      ['/api/playlists/9/songs', 500],
+    ])
+    expect(sent.flatMap(part => part.body.songIds)).toEqual(ids)
+  })
+
   it('sends one request for a small selection', async () => {
     const { api, sent } = recording(() => ({ removed: 2, failed: [] }))
 

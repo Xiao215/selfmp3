@@ -502,8 +502,25 @@ export function createApi({ context, fetch }: ApiOptions) {
 
     // --- playlists ----------------------------------------------------------
 
-    createPlaylist: (input: CreatePlaylist) =>
-      request('POST', '/api/playlists', PlaylistSchema, input),
+    /**
+     * Its first `BULK_IDS_MAX` songs come in the same request, and any past
+     * that are added after, in parts: Save Up next of a big shuffled library,
+     * or Duplicate of a playlist grown past it, failed whole.
+     */
+    createPlaylist: async (input: CreatePlaylist): Promise<Playlist> => {
+      const songIds = input.kind === 'manual' ? (input.songIds ?? []) : []
+      if (songIds.length <= BULK_IDS_MAX) {
+        return request('POST', '/api/playlists', PlaylistSchema, input)
+      }
+      const made = await request('POST', '/api/playlists', PlaylistSchema, {
+        ...input,
+        songIds: songIds.slice(0, BULK_IDS_MAX),
+      })
+      const parts = await inChunks(songIds.slice(BULK_IDS_MAX), part =>
+        request('POST', `/api/playlists/${made.id}/songs`, PlaylistSchema, { songIds: part }),
+      )
+      return parts[parts.length - 1]!
+    },
 
     updatePlaylist: (id: number, patch: UpdatePlaylist) =>
       request('PATCH', `/api/playlists/${id}`, PlaylistSchema, patch),

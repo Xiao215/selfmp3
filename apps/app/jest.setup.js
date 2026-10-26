@@ -60,6 +60,7 @@ jest.mock('expo', () => {
   const songStream = {
     address: () => null,
     fetch: () => Promise.resolve(null),
+    cancel() {},
     stopAll() {},
     addListener: () => ({ remove() {} }),
   }

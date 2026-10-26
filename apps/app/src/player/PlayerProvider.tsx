@@ -55,7 +55,7 @@ import { isLenderCap } from '../ports/bucketRefusal'
 import { isStorageBusy, isUnreachable, stoppedOn } from '../ports/streamFailure.model'
 import { configureBucketMedia } from '../ports/bucketMedia'
 import { prefs } from '../ports/prefs'
-import { recentUri } from '../ports/recentCopies'
+import { forgetRecent, recentUri } from '../ports/recentCopies'
 import { session as cloudSession } from '../replica'
 import { coverFor, coversVersion, KEPT_COVER_SIZE, subscribeCovers } from '../offline/covers'
 import { useDownloads } from '../offline/DownloadsProvider'
@@ -316,6 +316,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     mayPlay: mayLibraryPlay,
     keepPlayed: keepLibraryPlayed,
     keepAhead,
+    dropAhead,
   } = useDownloads()
 
   /*
@@ -534,17 +535,37 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
    * `streamOnce`), which keeping it joins. Lent to the player again once it
    * is here.
    */
+  const aheadRef = useRef<number | null>(null)
   const keepPlayedAndNext = useCallback(
     (songId: number) => {
       keepPlayed(songId)
       const next = peekPlayable(queueRef.current, mayPlay)
       if (next === null || next === songId || roomTrack(next)) return
+      aheadRef.current = next
       void keepAhead(next).then(kept => {
         if (kept) engine.refreshLookahead?.()
       })
     },
     [engine, keepAhead, keepPlayed, mayPlay],
   )
+  /*
+   * The song kept ahead, once it is no longer coming — another song chosen,
+   * Up next changed past it — is not fetched on: its download shared the
+   * connection with the song now wanted, for a song nobody was going to hear
+   * (bug bash R2-m24). Once it is the song playing it is that song's stream,
+   * kept as any played song is.
+   */
+  useEffect(() => {
+    const ahead = aheadRef.current
+    if (ahead === null) return
+    if (ahead === queue.items[queue.index]) {
+      aheadRef.current = null
+      return
+    }
+    if (ahead === peekPlayable(queue, mayPlay)) return
+    aheadRef.current = null
+    dropAhead(ahead)
+  }, [queue, mayPlay, dropAhead])
   // Counting a play and sending what this device kept. The tracking ref is
   // handed out, because the engine's callbacks below write to it as the song
   // runs.
@@ -776,15 +797,25 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     busyTries: 0,
     /** The skip message on screen, replaced rather than stacked. */
     toastId: null as number | null,
+    /** The song that message is about. */
+    toastSongId: null as number | null,
   })
   /**
    * Someone chose what to play: whatever failed before is behind them, and
-   * this song is tried again, and its run of skips counted, afresh.
+   * this song is tried again, and its run of skips counted, afresh. What was
+   * said of another song goes: Next past a song that stopped the run left
+   * "Couldn't play" naming it over the next one, which may fail in turn
+   * while it sits paused and say nothing.
    */
-  const freshRun = useCallback(() => {
-    recoveryRef.current.retriedSongId = null
-    recoveryRef.current.skippedInARow = 0
-    recoveryRef.current.busyTries = 0
+  const freshRun = useCallback((chosen: number | undefined) => {
+    const recovery = recoveryRef.current
+    recovery.retriedSongId = null
+    recovery.skippedInARow = 0
+    recovery.busyTries = 0
+    if (recovery.toastId !== null && recovery.toastSongId !== chosen) {
+      dismissToast(recovery.toastId)
+      recovery.toastId = null
+    }
   }, [])
 
   /** Resting now (shared rest.ts): read when a list starts, so a song wakes by itself. */
@@ -814,7 +845,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const next = mixed(playFrom(from, songIds, startIndex))
         commitQueue(next)
         setSource(options.source ?? null)
-        freshRun()
+        freshRun(next.items[next.index])
         loadIndex(next, autoplay, position)
       }
       // A song that cannot play here says why, rather than loading and sitting
@@ -842,7 +873,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         const next = playFrom({ ...queueRef.current, shuffle: true }, songIds, start)
         commitQueue(next)
         setSource(listSource)
-        freshRun()
+        freshRun(next.items[next.index])
         loadIndex(next, true)
       }
       // Start on a song that can play here, when there is one.
@@ -863,7 +894,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       const go = (): void => {
         const next = { ...queueRef.current, index }
         commitQueue(next)
-        freshRun()
+        freshRun(next.items[next.index])
         loadIndex(next, true)
       }
       const songId = queueRef.current.items[index]
@@ -887,7 +918,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     // stands, the player sat on its error and nothing was fetched, even with
     // the library back.
     if (engine.state.error !== null || engine.currentSongId !== songId) {
-      freshRun()
+      freshRun(songId)
       const at = lastPositionRef.current
       loadIndex(queueNow, true, at > 0 ? at : undefined)
       return
@@ -909,7 +940,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     if (stop) return
     const playing = soundOn()
     commitQueue(state)
-    freshRun()
+    freshRun(state.items[state.index])
     loadIndex(state, playing)
   }, [loadIndex, mayPlay, commitQueue, freshRun, soundOn])
 
@@ -928,7 +959,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     }
     const playing = soundOn()
     commitQueue(state)
-    freshRun()
+    freshRun(state.items[state.index])
     loadIndex(state, playing)
   }, [engine, loadIndex, commitQueue, freshRun, soundOn])
 
@@ -977,8 +1008,11 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (!failed || songId === undefined) return
       // The engine's words ("“Evening” can’t be played on this phone yet",
       // a media error's code) are for whoever is debugging; the toast says
-      // which song, and what happened to it.
-      console.warn(`Playback failed for song ${songId}:`, state.error)
+      // which song, and what happened to it. Once: the retry failing as well
+      // is the same failure (bug bash R2-m15).
+      if (songId !== recovery.retriedSongId) {
+        console.warn(`Playback failed for song ${songId}:`, state.error)
+      }
 
       // A friend's song whose bucket is out of reads for the day: their news,
       // in the doorman's words. Trying it again, or their next song, is only
@@ -986,6 +1020,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
       if (roomTrack(songId) && isLenderCap(state.error)) {
         if (recovery.toastId !== null) dismissToast(recovery.toastId)
         recovery.toastId = showToast(state.error, 'error')
+        recovery.toastSongId = songId
         halt()
         return
       }
@@ -1027,6 +1062,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
           group: fold,
           songs: fold && song ? [song] : [],
         })
+        recovery.toastSongId = songId
       }
       // Nobody is waiting on it: a song put back paused, or paused since.
       // It stays where it is until Play is pressed, which asks for it again.
@@ -1071,6 +1107,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
             'warn',
             { autoDismissMs: 0 },
           )
+          recovery.toastSongId = songId
         }
         const at = lastPositionRef.current
         const delay = busyRetryDelay(recovery.busyTries)
@@ -1100,6 +1137,10 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
         void engine.load(songId, at > 0 ? { autoplay: true, startAt: at } : { autoplay: true })
         return
       }
+      // Given up on, and not for want of a connection or for a busy storage:
+      // a copy of it here would not play the next time either, so none is
+      // kept, nor its one download fetched on if still arriving (R2-m15).
+      if (!unreachable && !busy) forgetRecent([songId])
       if (recovering === 'skip') {
         recovery.skippedInARow += 1
         say({ over: 'Skipped, wouldn’t play', say: title }, 'warn', 'playback-skipped')

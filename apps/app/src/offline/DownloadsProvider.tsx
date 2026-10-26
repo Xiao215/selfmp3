@@ -32,6 +32,7 @@ import {
 import { installedApp } from '../ports/install'
 import {
   clearRecent,
+  dropAhead,
   forgetRecent,
   keepRecentlyPlayed,
   promoteRecent,
@@ -150,6 +151,8 @@ interface DownloadsContextValue {
    * its copy. Resolves true once there is a copy here to play.
    */
   keepAhead: (songId: number) => Promise<boolean>
+  /** That song is not coming after all: its copy, if still arriving, is not wanted (`dropAhead`). */
+  dropAhead: (songId: number) => void
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
   /**
@@ -659,6 +662,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       removing,
       keepPlayed,
       keepAhead,
+      dropAhead,
       mayPlay,
       streamBlocked,
       playedIds,

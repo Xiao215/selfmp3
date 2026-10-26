@@ -123,6 +123,8 @@ const copies = createRecentCopies<File>({
       return Promise.resolve(null)
     }
   },
+
+  cancel: fileName => songStream.cancel(fileName),
 })
 
 songStream.addListener('onArrived', ({ name, bytes }) => {
@@ -145,7 +147,7 @@ export function streamOnce(
   const fileName = fileNameFor(song)
   if (!streamsOnce(fileName)) return null
   streaming.set(fileName, song)
-  copies.streaming(song.id)
+  copies.streaming(song)
   return songStream.address(fileName, url, headers, directory().uri)
 }
 
@@ -156,5 +158,6 @@ export const {
   forgetRecent,
   clearRecent,
   keepRecentlyPlayed,
+  dropAhead,
   adoptRecent,
 } = copies

@@ -147,6 +147,16 @@ class FakeStream {
     for (const listener of this.#listeners) listener({ name, bytes })
   }
 
+  /** Downloads stopped one by one, by name. */
+  readonly cancelled: string[] = []
+
+  /** Stopped: what came of it deleted, and whoever waits on it told it did not arrive. */
+  cancel(name: string): void {
+    this.cancelled.push(name)
+    for (const resolve of this.#waiting.get(name) ?? []) resolve(null)
+    this.#waiting.delete(name)
+  }
+
   stopAll(): void {
     this.stopped += 1
   }
@@ -316,6 +326,50 @@ describe('a song streamed through the loopback server', () => {
 
     await vi.waitFor(() => expect(disk.has(cached(1))).toBe(false))
     expect(recent.recentIds().size).toBe(0)
+  })
+
+  // Bug bash R2-m15: an Ogg the phone cannot play was fetched whole and kept.
+  it('stops the download of a song forgotten while it arrives', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    recent.streamOnce(song(1), doorman(1), {})
+    stream.play(name(1), doorman(1))
+
+    recent.forgetRecent([1])
+
+    expect(stream.cancelled).toEqual([name(1)])
+  })
+
+  // Bug bash R2-m24: the song after the old one went on arriving once another was picked.
+  it('stops fetching the song ahead once it is no longer coming, and keeps nothing of it', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    const ahead = recent.keepRecentlyPlayed(song(2))
+    await vi.waitFor(() => expect(stream.upstream).toHaveLength(1))
+
+    recent.dropAhead(2)
+    await ahead
+
+    expect(stream.cancelled).toEqual([name(2)])
+    expect(recent.recentIds().size).toBe(0)
+    expect(recent.recentUri(song(2))).toBeNull()
+  })
+
+  it('keeps a song fetched ahead that was whole before it stopped coming', async () => {
+    native = new FakeStream({ held: true })
+    const stream = native
+    const recent = await port()
+    const ahead = recent.keepRecentlyPlayed(song(2))
+    await vi.waitFor(() => expect(stream.upstream).toHaveLength(1))
+    stream.arrive(name(2), 3_000_000)
+    await ahead
+
+    recent.dropAhead(2)
+
+    expect(stream.cancelled).toEqual([])
+    expect(recent.recentUri(song(2))).toBe(cached(2))
   })
 })
 

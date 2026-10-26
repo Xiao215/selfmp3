@@ -35,6 +35,8 @@ const mockWiring: Partial<EngineWiring> = {}
 let mockEngineListener: ((state: EngineState) => void) | null = null
 const mockKeepPlayed = jest.fn()
 const mockKeepAhead = jest.fn((_songId: number) => Promise.resolve(false))
+const mockDropAhead = jest.fn()
+const mockForgetRecent = jest.fn()
 const mockEngine = {
   capabilities: {
     crossfade: false,
@@ -84,7 +86,12 @@ jest.mock('../offline/DownloadsProvider', () => ({
     mayPlay: () => true,
     keepPlayed: mockKeepPlayed,
     keepAhead: mockKeepAhead,
+    dropAhead: mockDropAhead,
   }),
+}))
+jest.mock('../ports/recentCopies', () => ({
+  ...jest.requireActual('../ports/recentCopies'),
+  forgetRecent: (songIds: readonly number[]) => mockForgetRecent(songIds),
 }))
 // The cloud session and the kept covers are disk and network; nothing here reaches either.
 jest.mock('../replica', () => ({
@@ -301,6 +308,31 @@ describe('keeping songs where they stream from the bucket', () => {
     await act(() => mockWiring.onTrackEnd?.())
 
     expect(mockKeepPlayed).not.toHaveBeenCalled()
+  })
+
+  // Bug bash R2-m24: the old queue's next song went on downloading after another was picked.
+  it('lets go of the song kept ahead once another song is chosen', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    await act(() => listen(60))
+    expect(mockKeepAhead).toHaveBeenCalledWith(2)
+
+    await act(() => api.jumpTo(3))
+
+    expect(mockDropAhead).toHaveBeenCalledWith(2)
+  })
+
+  it('keeps the song kept ahead arriving when it is the one that plays next', async () => {
+    await draw()
+    await act(() => api.playFrom(SONGS, 0))
+    await act(() => listen(60))
+    await act(() => mockWiring.onTrackEnd?.())
+    expect(api.current?.id).toBe(2)
+
+    // Its stream now, kept as any song played is, whatever comes after it.
+    await act(() => api.next())
+
+    expect(mockDropAhead).not.toHaveBeenCalled()
   })
 
   it('lends nothing again when the next song could not be kept', async () => {
@@ -591,6 +623,59 @@ describe('a run of songs that will not play', () => {
       await wait(60_000)
       expect(loaded()).toEqual([2])
     })
+  })
+
+  // Bug bash R2-m15: each failure was said twice, the retry's too.
+  it('says each song that will not play once, its retry included', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    // Song 1, its retry, then song 2.
+    for (let failure = 0; failure < 3; failure++) await act(async () => fails())
+
+    const said = warn.mock.calls.map(([words]) => String(words))
+    expect(said.filter(words => words.startsWith('Playback failed'))).toEqual([
+      'Playback failed for song 1:',
+      'Playback failed for song 2:',
+    ])
+    warn.mockRestore()
+  })
+
+  it('keeps no copy of a song given up on, but keeps one that failed for the connection', async () => {
+    await draw()
+    await act(() => api.playFrom([1, 2], 0))
+
+    await act(async () => fails())
+    expect(mockForgetRecent).not.toHaveBeenCalled()
+    await act(async () => fails())
+    expect(mockForgetRecent).toHaveBeenCalledWith([1])
+
+    mockForgetRecent.mockClear()
+    await act(() => api.playFrom([3, 4], 0))
+    for (let failure = 0; failure < 3; failure++) {
+      await act(async () => fails('Lost connection to the library'))
+    }
+    expect(mockForgetRecent).not.toHaveBeenCalled()
+  })
+
+  // From the phone lane in round 4: "Couldn’t play" stayed up naming the song before.
+  it('takes down what it said of a song once Next moves past it', async () => {
+    mockLibrary.songs = [1, 2, 3, 4, 5].map(song)
+    await draw()
+    await act(() => api.playFrom([1, 2, 3, 4, 5], 0))
+    for (let failure = 0; failure < 8; failure++) await act(async () => fails())
+    const about = (id: number): boolean =>
+      currentToasts().some(toast => toast.say.includes(song(id).title))
+    expect(api.current?.id).toBe(4)
+    expect(about(4)).toBe(true)
+
+    await act(() => api.next())
+    // Song 5 fails as well, put on paused: nothing tries it, so nothing is said yet.
+    await act(async () => fails())
+
+    expect(api.current?.id).toBe(5)
+    expect(about(4)).toBe(false)
   })
 
   it('counts no play for a song that failed and was moved past', async () => {

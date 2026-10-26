@@ -18,6 +18,8 @@ interface SongStreamModule {
     headers: Readonly<Record<string, string>>,
     directory: string,
   ): Promise<number | null>
+  /** The download of that file under way stopped, and what came of it deleted: it is not wanted. */
+  cancel(name: string): void
   stopAll(): void
   addListener(
     event: 'onArrived',

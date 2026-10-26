@@ -91,9 +91,7 @@ export async function linkPage(ctx: Context): Promise<Response> {
   )
   const link = peeked.ok ? ShareLinkSchema.safeParse(await peeked.json()) : null
   if (!peeked.ok) await peeked.body?.cancel()
-  const card = link?.success
-    ? linkCard(link.data, start, { doorman: ctx.url.origin, app })
-    : gone
+  const card = link?.success ? linkCard(link.data, start, { doorman: ctx.url.origin, app }) : gone
   return previewPage({ ...card, url: ctx.url.href, open: there })
 }
 

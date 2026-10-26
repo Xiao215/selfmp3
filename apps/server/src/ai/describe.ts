@@ -50,7 +50,7 @@ function lengthWords(seconds: number): string {
  */
 const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 4
+const PLAN_VERSION = 5
 const PICK_VERSION = 3
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
@@ -60,6 +60,7 @@ export const PlanOut = z.object({
   name: z.string().min(1).max(60),
   anyTags: z.array(z.string()).max(12),
   artists: z.array(z.string()).max(12),
+  albums: z.array(z.string()).max(12),
   noTags: z.array(z.string()).max(12),
   energy: RangeOut,
   bpm: RangeOut,
@@ -83,7 +84,8 @@ export const PickOut = z.object({
 export const FILTERS_GUIDE = `The filters:
 - anyTags: tag names, copied exactly from the library's tag list. A song is in if it has ANY of them.
 - artists: artist names, copied exactly from the library's artist list. Also widens: a song by any of them is in too.
-  Tags and artists are "places" that add songs together. Leave both empty to start from the whole library.
+- albums: album names, copied exactly from the library's album list, or as the description names one. Also widens: a song on any of them is in too.
+  Tags, artists and albums are "places" that add songs together. Leave all three empty to start from the whole library.
 - noTags: tag names whose songs must be left out.
 - energy: 0–1 from audio analysis. Calm, quiet, sleepy, soft music is low (max around the library's lower quarter); upbeat, loud, workout music is high (min around the upper quarter). Use the library's own spread, not fixed numbers. Leave both null if energy was not implied.
 - bpm: only when a tempo is clearly asked for (running, a dance); tempo detection is unreliable for classical and rubato music, so prefer energy.
@@ -99,7 +101,7 @@ export const FILTERS_GUIDE = `The filters:
 
 Prefer sound to energy and bpm for how music feels: "calm", "intense", "dreamy" or "epic" is sound, and energy or bpm only when they ask for a level or a tempo outright.
 
-Rules: use only tag and artist names that appear in the library exactly. If the description names a tag or artist the library lacks, put that wish in brief instead of inventing a name. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
+Rules: use only tag and artist names that appear in the library exactly. If the description names a tag, artist or album the library lacks, put that wish in brief instead of inventing a name. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
 
 const PLAN_SYSTEM = `You turn someone's description of a playlist into filters over their own music library.
 
@@ -241,7 +243,11 @@ export function songsFitting(
   const noTags = tagIdsOf(understanding.noTags)
   // An artist asked for brings the spellings joined to it: Yorushika, and ヨルシカ.
   const artists = new Set(understanding.artists.flatMap(name => joinedKeys(songs, names, name)))
-  const hasPlaces = understanding.anyTags.length > 0 || understanding.artists.length > 0
+  const albums = new Set(understanding.albums.map(name => name.toLowerCase()))
+  const hasPlaces =
+    understanding.anyTags.length > 0 ||
+    understanding.artists.length > 0 ||
+    understanding.albums.length > 0
   const within = (iso: string | null, n: number | null): boolean =>
     n === null || (iso !== null && now - fromSqliteTime(iso) <= n * DAY_MS)
 
@@ -249,7 +255,8 @@ export function songsFitting(
     if (hasPlaces) {
       const inTag = song.tagIds.some(id => anyTags.has(id))
       const byArtist = splitArtists(song.artist).some(name => artists.has(artistKey(name)))
-      if (!inTag && !byArtist) return false
+      const onAlbum = albums.has(song.album.toLowerCase())
+      if (!inTag && !byArtist && !onAlbum) return false
     }
     if (song.tagIds.some(id => noTags.has(id))) return false
     if (!inRange(song.audioFeatures?.energy, understanding.energy)) return false
@@ -351,15 +358,19 @@ export function groundPlan(
   const anyTags = resolveNames(plan.anyTags, tagNames)
   const noTags = resolveNames(plan.noTags, tagNames)
   const artists = resolveNames(plan.artists, artistNames)
+  const albums = resolveNames(plan.albums, [
+    ...new Set(songs.map(song => song.album).filter(Boolean)),
+  ])
   const understanding = UnderstandingSchema.parse({
     ...plan,
     anyTags: anyTags.found,
     noTags: noTags.found,
     artists: artists.found,
+    albums: albums.found,
   })
   return {
     understanding,
-    unknown: [...anyTags.unknown, ...noTags.unknown, ...artists.unknown],
+    unknown: [...anyTags.unknown, ...noTags.unknown, ...artists.unknown, ...albums.unknown],
   }
 }
 

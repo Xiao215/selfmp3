@@ -50,6 +50,7 @@ const base: Understanding = {
   name: 'Calm',
   anyTags: [],
   artists: [],
+  albums: [],
   noTags: [],
   energy: { min: null, max: null },
   bpm: { min: null, max: null },
@@ -71,6 +72,7 @@ describe('parts', () => {
       ...base,
       anyTags: ['古典'],
       artists: ['YOASOBI'],
+      albums: ['THE BOOK'],
       energy: { min: null, max: 0.44 },
       words: 'without' as const,
       notPlayedWithinDays: 7,
@@ -78,6 +80,7 @@ describe('parts', () => {
     expect(parts(understanding, TAGS).map(part => [part.label, part.hue])).toEqual([
       ['古典', 92],
       ['YOASOBI', undefined],
+      ['THE BOOK', undefined],
       ['Calm · energy under 0.44', undefined],
       ['No words', undefined],
       ['Not played this week', undefined],

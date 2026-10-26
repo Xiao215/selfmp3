@@ -27,7 +27,8 @@ made in one tap, holds what you picked, and ends by itself.
   not join it.
 - **Songs picked**, from the selection bar's More.
 
-A link holds at most 100 songs (`SHARE_MAX_SONGS`). **Share link** opens the share sheet
+A link holds every song of what was shared, however many: a tag of a thousand songs is a
+link of a thousand songs. **Share link** opens the share sheet
 (`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it as one
 row: the cover and the name of what it sends, a QR button, and **Copy**. Under it is
 **Share…**, for the system's share sheet, left out where the browser has none (Copy already
@@ -126,7 +127,10 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   The bar is there before Play, so nothing moves when it starts.
 - **A song that has ended** is its cover, faded, and its names, with the ways on under them.
 - **A list:** a 2×2 mosaic of its covers, its name, how many songs, Play and Shuffle, then
-  the songs.
+  the songs. Play and Shuffle play all of them; the rows are drawn sixty at a time as the
+  page is scrolled, so a long list opens as fast as a short one and only the covers shown
+  are read from its sender's bucket. **Get them** asks your server in parts of 500
+  (`IMPORT_ENQUEUE_MAX`), as many as it takes.
 - **Signed out**, a quiet line at the foot says what self.mp3 is and opens it.
 
 ## How a link looks in a chat
@@ -274,7 +278,12 @@ You reach it from Profile, under Report. Each link's ⋯ holds:
 Each link is a Durable Object named by its id (`apps/doorman/src/share.ts`, bound as
 `SHARES`, class `ShareLink`, migration `v4`). It keeps:
 
-- the link (`ShareDoc`), with the lines it was shared from;
+- the link (`ShareDoc`), with the lines it was shared from. Its songs are kept apart from
+  the rest of it, in parts (`entries:<n>`) of at most about half a megabyte each, since a
+  Durable Object keeps at most 2 MB under one key; `doc` says how many parts there are.
+  The songs are written only when they change (made, shared again, one gone), so an
+  opening or a play writes a few hundred bytes however long the list. The object holds the
+  link in memory once read, so a song's pieces are lent without reading it again;
 - its key;
 - whose bucket it lends from;
 - which signed-in accounts opened it, and which asked.

@@ -23,9 +23,10 @@ import {
   shareSongsAgain,
   shareSummary,
   shareView,
-  SHARE_MAX_SONGS,
   type RoomRefusal,
   type ShareDoc,
+  type ShareEntry,
+  type ShareLink,
 } from '@selfmp3/shared'
 import { z } from 'zod'
 import { answer, refusalAnswer } from './doRelay.js'
@@ -38,7 +39,10 @@ import { keyOf } from './room.js'
  * shareLink.ts).
  *
  * It keeps the link, its key, whose bucket its songs are lent from, and which
- * signed-in accounts opened it — the last two never sent to anyone. Anyone
+ * signed-in accounts opened it — the last two never sent to anyone. A link
+ * holds every song it was made of, however many, so its songs are kept apart
+ * from the rest of it, in parts (`entries:<n>`) each well under what one key
+ * holds; the rest (`doc`) says how many parts there are. Anyone
  * holding the key may play it while it lasts; once it ends it lends only its
  * covers, for its card, and when the card's ninety days are up the alarm
  * forgets it entirely.
@@ -81,6 +85,46 @@ function upgradeDoc(kept: unknown): unknown {
   return { ...kept, lines: [] }
 }
 
+/** A link as kept under `doc`: all of it but its songs, and how many parts those are in. */
+const HeadSchema = ShareDocSchema.omit({ entries: true }).extend({
+  parts: z.number().int().positive(),
+})
+
+/**
+ * About how much of a link's songs one part holds, in JSON's characters. A
+ * Durable Object keeps at most 2 MB under one key and a character takes at
+ * most two bytes, so a part stays under half of it; a song is a few hundred
+ * characters, a couple of thousand at most.
+ */
+const PART_CHARS = 512 * 1024
+
+/** A link's songs as they are kept, in order: as many parts as it takes, each under `PART_CHARS`. */
+function entryParts(entries: readonly ShareEntry[]): ShareEntry[][] {
+  const parts: ShareEntry[][] = []
+  let part: ShareEntry[] = []
+  let chars = 0
+  for (const entry of entries) {
+    const size = JSON.stringify(entry).length
+    if (part.length > 0 && chars + size > PART_CHARS) {
+      parts.push(part)
+      part = []
+      chars = 0
+    }
+    part.push(entry)
+    chars += size
+  }
+  if (part.length > 0) parts.push(part)
+  return parts
+}
+
+/** A link as this object holds it in memory: read once, and kept up to date by every save. */
+interface Kept {
+  readonly doc: ShareDoc
+  readonly secrets: Secrets
+  /** How many parts its songs are in, as they were last written. */
+  readonly parts: number
+}
+
 /** What a link needs from the runtime. */
 interface ShareRuntime {
   readonly storage: {
@@ -108,7 +152,7 @@ const CreateSchema = z.object({
   kind: z.enum(['song', 'list']),
   you: RoomMemberNameSchema,
   picture: MemberPictureSchema.nullable(),
-  songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  songs: z.array(RoomSongSchema).min(1),
   line: ShareLineSchema.optional(),
 })
 
@@ -133,7 +177,7 @@ const GoneSchema = z.object({ entry: RoomIdSchema })
 const ActSchema = z.object({ sub: SubSchema, action: ShareActionSchema })
 const SongsSchema = z.object({
   sub: SubSchema,
-  songs: z.array(RoomSongSchema).min(1).max(SHARE_MAX_SONGS),
+  songs: z.array(RoomSongSchema).min(1),
   /** Shared again from a line of its song: the link remembers that line too. */
   line: ShareLineSchema.optional(),
 })
@@ -146,6 +190,17 @@ const REFUSED: Readonly<Record<RoomRefusal['refused'], DoormanErrorCode>> = {
   invalid: DOORMAN_ERROR.shareInvalid,
 }
 
+/**
+ * Whether the link opened is the opener's own, said beside it (`yes` or
+ * `no`): the Worker remembers a friend's link as one they opened without
+ * reading what may be a megabyte of songs to find out.
+ */
+export const YOURS_HEADER = 'x-share-yours'
+
+function opened(view: ShareLink): Response {
+  return Response.json(view, { headers: { [YOURS_HEADER]: view.yours ? 'yes' : 'no' } })
+}
+
 const MISSING = (): Response =>
   answer(404, DOORMAN_ERROR.shareMissing, 'no such link; it may have been forgotten')
 const WRONG_KEY = (): Response =>
@@ -154,6 +209,13 @@ const WRONG_KEY = (): Response =>
 export class Share {
   readonly #runtime: ShareRuntime
   readonly #newId: () => string
+  /**
+   * The link as last read or written; undefined until it is first read, null
+   * when there is none. Only this object writes its storage, so what it holds
+   * is what is stored: a link of a thousand songs is read and checked once,
+   * not again for every piece of every song it lends.
+   */
+  #kept: Kept | null | undefined
 
   constructor(runtime: ShareRuntime, ids: { readonly newId?: () => string } = {}) {
     this.#runtime = runtime
@@ -197,9 +259,9 @@ export class Share {
   /** Ninety days after it ended, it is forgotten; until then the alarm waits for that. */
   async alarm(): Promise<void> {
     const doc = await this.#doc()
-    if (!doc) return this.#runtime.storage.deleteAll()
+    if (!doc) return this.#forget()
     const until = shareKeptUntil(doc)
-    if (this.#runtime.now() >= until) return this.#runtime.storage.deleteAll()
+    if (this.#runtime.now() >= until) return this.#forget()
     return this.#runtime.storage.setAlarm(until)
   }
 
@@ -234,10 +296,10 @@ export class Share {
     const { doc, secrets } = found
     if (input.key !== secrets.key) return WRONG_KEY()
     const sub = input.sub || null
-    if (sub === secrets.owner) return Response.json(this.#viewOf(doc, secrets, sub))
+    if (sub === secrets.owner) return opened(this.#viewOf(doc, secrets, sub))
     const { visitors } = secrets
     const seen = !sub && input.visitor !== null && visitors.includes(input.visitor)
-    const opened = seen ? doc : shareOpened(doc, sub ? input.name : null)
+    const counted = seen ? doc : shareOpened(doc, sub ? input.name : null)
     const openers =
       sub && !secrets.openers.includes(sub) ? [...secrets.openers, sub] : secrets.openers
     const next: Secrets = {
@@ -248,10 +310,10 @@ export class Share {
           ? [...visitors, input.visitor].slice(-MAX_VISITORS)
           : visitors,
     }
-    if (opened !== doc || openers !== secrets.openers || next.visitors !== visitors) {
-      await this.#save(opened, next)
+    if (counted !== doc || openers !== secrets.openers || next.visitors !== visitors) {
+      await this.#save(counted, next)
     }
-    return Response.json(this.#viewOf(opened, next, sub))
+    return opened(this.#viewOf(counted, next, sub))
   }
 
   /**
@@ -362,7 +424,7 @@ export class Share {
     const owner = input.sub === secrets.owner
     if (input.action.type === 'forget') {
       if (owner) {
-        await this.#runtime.storage.deleteAll()
+        await this.#forget()
         return new Response(null, { status: 204 })
       }
       if (!secrets.openers.includes(input.sub)) return new Response(null, { status: 204 })
@@ -425,26 +487,70 @@ export class Share {
   }
 
   async #found(): Promise<{ doc: ShareDoc; secrets: Secrets } | null> {
-    const stored = await this.#runtime.storage.get<unknown>('doc')
-    const upgraded = upgradeDoc(stored)
-    const parsed = ShareDocSchema.safeParse(upgraded)
-    const kept = await this.#runtime.storage.get<Parameters<typeof upgradeSecrets>[0]>('secrets')
-    if (!parsed.success || !kept) return null
+    if (this.#kept === undefined) this.#kept = await this.#read()
+    if (!this.#kept) return null
     // Past its card's days, it is as good as forgotten even before the alarm comes.
-    if (this.#runtime.now() >= shareKeptUntil(parsed.data)) return null
-    if (upgraded !== stored) await this.#runtime.storage.put('doc', parsed.data)
+    if (this.#runtime.now() >= shareKeptUntil(this.#kept.doc)) return null
+    return this.#kept
+  }
+
+  /** The link from storage, upgraded and written back if it was kept in an older shape. */
+  async #read(): Promise<Kept | null> {
+    const { storage } = this.#runtime
+    const stored = await storage.get<unknown>('doc')
+    const kept = await storage.get<Parameters<typeof upgradeSecrets>[0]>('secrets')
+    if (stored === undefined || !kept) return null
+    const upgraded = upgradeDoc(stored)
     const secrets = upgradeSecrets(kept)
-    if (secrets !== kept) await this.#runtime.storage.put('secrets', secrets)
-    return { doc: parsed.data, secrets }
+    // Kept whole, as a link was before its songs were kept in parts.
+    if (typeof upgraded === 'object' && upgraded !== null && 'entries' in upgraded) {
+      const parsed = ShareDocSchema.safeParse(upgraded)
+      if (!parsed.success) return null
+      this.#kept = null
+      return this.#save(parsed.data, secrets)
+    }
+    const head = HeadSchema.safeParse(upgraded)
+    if (!head.success) return null
+    const { parts, ...rest } = head.data
+    const entries = await Promise.all(
+      Array.from({ length: parts }, (_, at) => storage.get<unknown[]>(`entries:${at}`)),
+    )
+    if (entries.some(part => part === undefined)) return null
+    const doc = ShareDocSchema.safeParse({ ...rest, entries: entries.flat() })
+    if (!doc.success) return null
+    if (upgraded !== stored) await storage.put('doc', head.data)
+    if (secrets !== kept) await storage.put('secrets', secrets)
+    return { doc: doc.data, secrets, parts }
   }
 
   async #doc(): Promise<ShareDoc | null> {
     return (await this.#found())?.doc ?? null
   }
 
-  async #save(doc: ShareDoc, secrets: Secrets): Promise<void> {
-    await this.#runtime.storage.put('doc', doc)
-    await this.#runtime.storage.put('secrets', secrets)
+  /**
+   * The link and its secrets, written. Its songs are written only when they
+   * changed — made, shared again, one gone — so an opening or a play writes
+   * the little that changed, however many songs the link holds.
+   */
+  async #save(doc: ShareDoc, secrets: Secrets): Promise<Kept> {
+    const { storage } = this.#runtime
+    const { entries, ...rest } = doc
+    let parts = this.#kept?.parts ?? 0
+    if (!this.#kept || this.#kept.doc.entries !== entries) {
+      const split = entryParts(entries)
+      // A part past `parts` is never read; forgetting the link takes it with the rest.
+      for (const [at, part] of split.entries()) await storage.put(`entries:${at}`, part)
+      parts = split.length
+    }
+    await storage.put('doc', { ...rest, parts })
+    await storage.put('secrets', secrets)
+    this.#kept = { doc, secrets, parts }
+    return this.#kept
+  }
+
+  async #forget(): Promise<void> {
+    await this.#runtime.storage.deleteAll()
+    this.#kept = null
   }
 }
 

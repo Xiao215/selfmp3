@@ -50,14 +50,14 @@ function lengthWords(seconds: number): string {
  */
 const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 5
+const PLAN_VERSION = 6
 const PICK_VERSION = 3
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
 
 /** What the plan returns: an Understanding, kept in step with the shared one. */
 export const PlanOut = z.object({
-  name: z.string().min(1).max(60),
+  name: z.string().trim().min(1).max(60),
   anyTags: z.array(z.string()).max(12),
   artists: z.array(z.string()).max(12),
   albums: z.array(z.string()).max(12),
@@ -83,8 +83,8 @@ export const PickOut = z.object({
 /** What each filter means and how to choose them; the router (ask.ts) is told the same. */
 export const FILTERS_GUIDE = `The filters:
 - anyTags: tag names, copied exactly from the library's tag list. A song is in if it has ANY of them.
-- artists: artist names, copied exactly from the library's artist list. Also widens: a song by any of them is in too.
-- albums: album names, copied exactly from the library's album list, or as the description names one. Also widens: a song on any of them is in too.
+- artists: artist names, spelled as the library's artist list spells them. Also widens: a song by any of them is in too.
+- albums: album names, spelled as the library's album list spells them. Also widens: a song on any of them is in too.
   Tags, artists and albums are "places" that add songs together. Leave all three empty to start from the whole library.
 - noTags: tag names whose songs must be left out.
 - energy: 0–1 from audio analysis. Calm, quiet, sleepy, soft music is low (max around the library's lower quarter); upbeat, loud, workout music is high (min around the upper quarter). Use the library's own spread, not fixed numbers. Leave both null if energy was not implied.
@@ -93,7 +93,7 @@ export const FILTERS_GUIDE = `The filters:
 - words: "with" for songs with lyrics, "without" for instrumental (studying, focus, "no vocals"). Null when not implied.
 - loved: true only if they ask for loved or favourite songs.
 - playedWithinDays / notPlayedWithinDays / addedWithinDays: when the description is about recency ("nothing I played this week" is notPlayedWithinDays 7; "new stuff" is addedWithinDays 30).
-- size: a number of songs, only if they say one.
+- size: a number of songs, only if they say one; 2000 when they want every song the other filters let in.
 - minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
 - sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). Of the songs the other filters let in, it keeps the ones that sound like it, best first. Null when the description says nothing about how the music sounds; never set it just to order songs the other filters already choose.
 - brief: what the description wants that the filters and sound cannot express, in a few words, such as "named for rain" or "songs about leaving home". Null if they say it all.
@@ -101,7 +101,7 @@ export const FILTERS_GUIDE = `The filters:
 
 Prefer sound to energy and bpm for how music feels: "calm", "intense", "dreamy" or "epic" is sound, and energy or bpm only when they ask for a level or a tempo outright.
 
-Rules: use only tag and artist names that appear in the library exactly. If the description names a tag, artist or album the library lacks, put that wish in brief instead of inventing a name. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
+Rules: use only tag names that appear in the library's tag list, exactly; a tag it lacks is a wish for brief. The artist and album lists show only the most common: an artist or album the description names goes in artists or albums even when the list does not show it, and the app finds it in the library. Never invent a name the description does not give. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
 
 const PLAN_SYSTEM = `You turn someone's description of a playlist into filters over their own music library.
 
@@ -361,8 +361,19 @@ export function groundPlan(
   const albums = resolveNames(plan.albums, [
     ...new Set(songs.map(song => song.album).filter(Boolean)),
   ])
+  // Places asked for and none of them here: still what the words want, so the
+  // pick looks for them, rather than the whole library standing in for them.
+  const lost = [...artists.unknown, ...albums.unknown]
+  const placeless =
+    lost.length > 0 && anyTags.found.length + artists.found.length + albums.found.length === 0
+  const brief = [plan.brief?.trim(), placeless ? `by or from ${lost.join(', ')}` : '']
+    .filter(Boolean)
+    .join('; ')
   const understanding = UnderstandingSchema.parse({
     ...plan,
+    // A model writes "" for nothing as often as it writes null.
+    sound: plan.sound?.trim() || null,
+    brief: brief.slice(0, 200) || null,
     anyTags: anyTags.found,
     noTags: noTags.found,
     artists: artists.found,
@@ -443,6 +454,11 @@ export async function narrowAndPick(
   steps: Steps = NO_STEPS,
   /** A song they are steering from ("more like this"): the songs are ordered by how close they sound to it. */
   like: number | null = null,
+  /**
+   * Whether resting songs (shared rest.ts) stay out while anything else fits:
+   * yes for music to play, no for a playlist's own songs being edited.
+   */
+  restingStayOut = true,
 ): Promise<DescribeResult> {
   const now = deps.now?.() ?? Date.now()
   const remembered = deps.remembered ?? new Remembered()
@@ -459,19 +475,12 @@ export async function narrowAndPick(
     if (!isSet(applied, part)) continue
     loosened.push(describePart(applied, part))
     applied = unset(applied, part)
-    fitting = songsFitting(songs, tags, applied, now)
+    fitting = songsFitting(songs, tags, applied, now, deps.artistNames?.())
   }
 
   // Resting songs (shared rest.ts) stay out while anything else fits.
-  const awake = fitting.filter(song => !isResting(song, now))
+  const awake = restingStayOut ? fitting.filter(song => !isResting(song, now)) : fitting
   if (awake.length > 0) fitting = awake
-
-  // Different songs: the ones shown last time stay out while anything else fits.
-  if (avoid.length > 0) {
-    const shown = new Set(avoid)
-    const others = fitting.filter(song => !shown.has(song.id))
-    if (others.length > 0) fitting = others
-  }
 
   steps.done(
     fitting.length === 0
@@ -514,6 +523,16 @@ export async function narrowAndPick(
       steps.done('No song has been heard yet')
     }
   }
+
+  // Different songs: the ones shown last time stay out while anything else
+  // fits. After the listening, whose line is drawn from the best match of all
+  // the songs: drawn without the ones shown, it would fall to songs that only
+  // nearly sound like it.
+  if (avoid.length > 0) {
+    const shown = new Set(avoid)
+    const others = fitting.filter(song => !shown.has(song.id))
+    if (others.length > 0) fitting = others
+  }
   const ordered = places
     ? [...fitting].sort((a, b) => (places.get(b.id) ?? -1) - (places.get(a.id) ?? -1))
     : null
@@ -546,8 +565,9 @@ export async function narrowAndPick(
       `The table holds the songs the filters let in: a rough first cut, so some may not fit the description (number | title | artist | album | year | tags | energy | tempo | length | words | plays${places ? ' | sound' : ''}):`,
       songTable(table, tags, now, places ? song => soundColumn(places, song) : undefined),
     ].join('\n')
+    const key = Remembered.key('describe-pick', PICK_VERSION, prompt)
     const answer = await remembered.get(
-      Remembered.key('describe-pick', PICK_VERSION, prompt),
+      key,
       async () =>
         (
           await deps.llm.generate({
@@ -559,7 +579,10 @@ export async function narrowAndPick(
           })
         ).value,
     )
-    return groundPicks(answer.picks, table, count)
+    const picks = groundPicks(answer.picks, table, count)
+    // An answer with no song in it is not kept, so asking again asks the model again.
+    if (picks.length === 0) remembered.forget(key)
+    return picks
   }
 
   let picks: DescribePick[]

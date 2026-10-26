@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { Buffer } from 'node:buffer'
 import { randomBytes } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'

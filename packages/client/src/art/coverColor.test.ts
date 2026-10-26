@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { pickCoverTone, rgbToOklch } from '@selfmp3/shared'
-import { deepWash, neutralWash, songColors, tileTone, withAlpha } from './coverColor.js'
+import { coverSweep, deepWash, neutralWash, songColors, tileTone, withAlpha } from './coverColor.js'
 
 /** RGBA pixels of one colour. */
 const solid = (r: number, g: number, b: number): number[] =>
@@ -14,6 +14,11 @@ const lightnessOf = (hex: string): number => {
 const chromaOf = (hex: string): number => {
   const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
   return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).c
+}
+
+const hueOf = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map(at => parseInt(hex.slice(at, at + 2), 16))
+  return rgbToOklch(r ?? 0, g ?? 0, b ?? 0).h
 }
 
 describe('songColors', () => {
@@ -88,5 +93,40 @@ describe('withAlpha', () => {
     expect(withAlpha('var(--colors-danger)', 0.12)).toBe(
       'color-mix(in srgb, var(--colors-danger) 12%, transparent)',
     )
+  })
+})
+
+describe('coverSweep', () => {
+  const swatch = (h: number, c: number, share: number) => ({ l: 0.5, c, h, share })
+
+  it('sweeps one song through the two colours most of its cover is made of', () => {
+    const [from, to] = coverSweep(
+      [{ hue: 250, chroma: 0.12, palette: [swatch(250, 0.12, 0.6), swatch(85, 0.14, 0.3)] }],
+      'dark',
+    )
+    expect(Math.abs(hueOf(from!) - 250)).toBeLessThan(8)
+    expect(Math.abs(hueOf(to!) - 85)).toBeLessThan(8)
+  })
+
+  it('keeps a grey swatch grey, and lifts a dark one enough to show', () => {
+    const [grey] = coverSweep(
+      [{ hue: 0, chroma: 0, palette: [swatch(0, 0.005, 1), swatch(0, 0, 0.1)] }],
+      'dark',
+    )
+    expect(chromaOf(grey!)).toBeLessThan(0.01)
+    expect(lightnessOf(grey!)).toBeGreaterThan(0.6)
+  })
+
+  it('gives each of several songs its own colour, and one with no palette its colour twice', () => {
+    expect(
+      coverSweep([
+        { hue: 20, chroma: 0.1 },
+        { hue: 200, chroma: 0.1 },
+        { hue: 300, chroma: 0.1 },
+      ]),
+    ).toHaveLength(3)
+    const [a, b] = coverSweep([{ hue: 140, chroma: 0.08 }], 'light')
+    expect(a).toBe(b)
+    expect(coverSweep([])).toEqual([])
   })
 })

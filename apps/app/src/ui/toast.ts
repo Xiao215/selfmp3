@@ -53,6 +53,8 @@ export interface Toast extends ToastWords {
   readonly songs: readonly Song[]
   /** Something else drawn there instead: the face of a friend who came into the room. */
   readonly art?: ReactNode
+  /** Swept in its songs' colours, over the plain card (`tinted`). */
+  readonly tinted: boolean
   readonly group?: string
   /** How many messages are folded into it: the count its `say` names once there are two. */
   readonly count: number
@@ -63,6 +65,12 @@ interface ToastOptions {
   readonly actions?: readonly ToastAction[]
   readonly songs?: readonly Song[]
   readonly art?: ReactNode
+  /**
+   * A plain message about songs swept faintly in their covers' colours: one
+   * that is news rather than good news, a song deleted, which on the green
+   * ground read as a celebration (B, 2026-10-26).
+   */
+  readonly tinted?: boolean
   /**
    * Messages of one kind raised while the last is still up fold into it
    * rather than piling up: three swipes in Up next are one "Removed from Up
@@ -113,6 +121,7 @@ export function showToast(
     actions,
     songs,
     art: options.art,
+    tinted: options.tinted ?? earlier?.tinted ?? false,
     group: options.group,
   }
   toasts = earlier ? toasts.map(up => (up === earlier ? toast : up)) : [...toasts, toast]

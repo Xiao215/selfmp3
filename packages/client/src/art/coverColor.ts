@@ -95,6 +95,41 @@ export function songColors(
   }
 }
 
+/** A cover, or a letter tile, to sweep a message in: its colour, and the cover's palette where there is one. */
+export type SweepTone = Pick<CoverTone, 'hue' | 'chroma'> & {
+  readonly palette?: CoverTone['palette']
+}
+
+/** Below this a swatch is grey, however its hue reads (`MIN_COLOURFULNESS` in `coverTone.ts`). */
+const GREY_SWATCH = 0.02
+
+/**
+ * The colours a grey message about songs is swept in, left to right (the
+ * deleted-song toast, B, 2026-10-26): from one song, the two colours most of
+ * its cover is made of; from several, each one's own colour, in the order
+ * their covers are fanned. Taken to a wash's lightness, as `songColors` does,
+ * so a dark cover still shows on the card; a grey swatch stays grey.
+ */
+export function coverSweep(
+  tones: readonly SweepTone[],
+  scheme: ColorScheme = currentColorScheme(),
+): string[] {
+  const swept = (hue: number, chroma: number): string =>
+    oklchToHex(
+      scheme === 'light' ? 0.58 : 0.68,
+      chroma < GREY_SWATCH ? 0 : clamp(chroma * 1.6, 0.11, 0.18),
+      hue,
+    )
+  const [only] = tones
+  if (tones.length !== 1 || !only) return tones.map(tone => swept(tone.hue, tone.chroma))
+  const [first, second] = only.palette ?? []
+  if (!first || !second) {
+    const one = swept(only.hue, only.chroma)
+    return [one, one]
+  }
+  return [swept(first.h, first.c), swept(second.h, second.c)]
+}
+
 /**
  * A colour at an alpha, for a wash of a colour worked out at runtime.
  *

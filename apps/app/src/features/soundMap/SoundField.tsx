@@ -15,7 +15,7 @@ import type { MapTake, SkyPoint, SkyRegion } from './sky.model'
 import { baseOf, type FieldSize, type MapView } from './soundMapView.model'
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
-export const HOLD_MS = 320
+const HOLD_MS = 320
 /** The ring under a holding finger shows only after this, so a tap or a move never flickers one. */
 const RING_AFTER_MS = 90
 

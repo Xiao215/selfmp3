@@ -14,7 +14,7 @@ import { useLayoutValue } from './useLayout'
  */
 
 /** Space between the mini player and the bar under it. */
-export const MINI_PLAYER_GAP = 10
+const MINI_PLAYER_GAP = 10
 
 /** The tab bar's width at most, on a phone layout wider than a phone. */
 const FLOATING_BARS_WIDTH = 560

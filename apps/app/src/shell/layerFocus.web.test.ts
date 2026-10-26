@@ -95,6 +95,37 @@ describe('a modal layer’s focus', () => {
     expect(document.activeElement?.id).toBe('opener')
   })
 
+  it('gives focus to the row in its place when the row that opened it has gone', () => {
+    // A song list's rows as SongRow draws them on the web: a row, and its press target.
+    const Rows = ({ songs, open }: { songs: readonly string[]; open: boolean }): ReactNode =>
+      createElement(
+        'div',
+        null,
+        songs.map(song =>
+          createElement(
+            'div',
+            { key: song, 'data-song-row': 'list' },
+            createElement('div', { id: song, 'data-row-press': 'true', tabIndex: -1 }, song),
+          ),
+        ),
+        open ? createElement(Layer, { modal: true }, menu()) : null,
+      )
+    act(() => root.render(createElement(Rows, { songs: ['one', 'two', 'three'], open: false })))
+    byId('two').focus()
+    act(() => root.render(createElement(Rows, { songs: ['one', 'two', 'three'], open: true })))
+    expect(document.activeElement?.id).toBe('a')
+    // Deleted while its confirmation was up, then the confirmation closes.
+    act(() => root.render(createElement(Rows, { songs: ['one', 'three'], open: true })))
+    act(() => root.render(createElement(Rows, { songs: ['one', 'three'], open: false })))
+    expect(document.activeElement?.id).toBe('three')
+
+    // The last row gone: the one before it.
+    act(() => root.render(createElement(Rows, { songs: ['one', 'three'], open: true })))
+    act(() => root.render(createElement(Rows, { songs: ['one'], open: true })))
+    act(() => root.render(createElement(Rows, { songs: ['one'], open: false })))
+    expect(document.activeElement?.id).toBe('one')
+  })
+
   it('passes over a dim that is a button but no Tab stop', () => {
     const form = [
       createElement('button', { key: 'dim', id: 'dim', tabIndex: -1 }, 'Close'),

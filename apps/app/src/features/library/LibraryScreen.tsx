@@ -140,7 +140,9 @@ export function LibraryScreen(): ReactNode {
     scope: narrowed ? 'in this view' : 'in your library',
     narrowed,
     wide,
-    placement: 'aboveList',
+    // Over the title row; a window too short for a head that stays put has
+    // its head in the list, scrolled away, so the bar takes its lane there.
+    placement: shortWindow ? 'aboveList' : 'overHead',
   })
 
   const downloaded = useCallback(
@@ -443,6 +445,9 @@ export function LibraryScreen(): ReactNode {
             </View>
           ) : null}
         </View>
+
+        {/* A computer's selection bar, over this row while songs are ticked. */}
+        {bar.overHead}
       </View>
 
       {/*
@@ -599,7 +604,7 @@ export function LibraryScreen(): ReactNode {
     <SafeAreaView style={styles.screen} edges={['top']} testID="library-screen">
       {inList ? null : head}
 
-      {/* The selection bar takes a lane above the list, so it covers no row. */}
+      {/* A phone's bar floats here; a short window's computer takes a lane above the list. */}
       <View style={styles.listArea}>
         {bar.beforeList}
 

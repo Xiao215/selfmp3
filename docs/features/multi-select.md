@@ -161,10 +161,17 @@ a view you have left is the sort of leftover state that gets songs deleted by ac
 ## The bar
 
 On a computer the bar never floats over the list: the row it would land on is the one just
-ticked. Library and Search give it a lane of its own above the list, so the list is that much
-shorter. A tag's, an artist's, a playlist's and an answer's page draw it in the list at the foot
-of the page head, and it stays at the top once the head has scrolled away. The lane opens
-rather than appearing, and the bar comes down into it. Left to right: the tri-state checkbox,
+ticked. Nor does it move the list: ticking the first row pushed every row down by the bar's
+height, and the next tick landed on the song above the one aimed at (X7, 2026-10-25). Library's
+bar takes the place of its title row — the title, the search, the order and Shuffle, which are
+about the view, gone under the page's ground while you act on what is ticked in it — so the tag
+strip and the rows stay where they are (`overHead`). A tag's, an artist's, a playlist's and an
+answer's page draw it in the list at the foot of the page head, and it stays at the top once the
+head has scrolled away; as its room opens the list scrolls by as much (`SongList`'s
+`onPinnedLayout`), so the head gives up the room and the rows hold still, and closing gives it
+back. Search, and Library in a window too short for its head to stay put, still give it a lane
+of its own above the list, which is that much shorter. The bar fades in rather than appearing,
+and a lane opens to it. Left to right: the tri-state checkbox,
 the count and what "all" means, then Play, Add to Up next and, in a playlist you made,
 Remove from this playlist, then More, then Done.
 

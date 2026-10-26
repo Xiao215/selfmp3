@@ -67,7 +67,12 @@ test.describe('selecting songs', () => {
       await expect(selectionCount(page, 1)).toBeVisible()
     } else {
       await rows.nth(0).hover()
+      const before = await rows.nth(1).boundingBox()
       await page.getByRole('checkbox', { name: `Select ${first}` }).click()
+      await expect(selectionCount(page, 1)).toBeVisible()
+      // The bar arriving moves no row: the next tick lands where it was aimed (X7).
+      await page.waitForTimeout(400)
+      expect((await rows.nth(1).boundingBox())?.y).toBe(before?.y)
     }
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(selectionCount(page, 2)).toBeVisible()
@@ -148,7 +153,12 @@ test.describe('selecting songs', () => {
       await expect(page.getByTestId('song-menu')).toHaveCount(0)
     } else {
       await rows.nth(0).hover()
+      const before = await rows.nth(1).boundingBox()
       await page.getByRole('checkbox', { name: `Select ${first}` }).click()
+      await expect(selectionCount(page, 1)).toBeVisible()
+      // The bar arriving moves no row: the next tick lands where it was aimed (X7).
+      await page.waitForTimeout(400)
+      expect((await rows.nth(1).boundingBox())?.y).toBe(before?.y)
     }
     await page.getByRole('checkbox', { name: `Select ${second}` }).click()
     await expect(selectionCount(page, 2)).toBeVisible()

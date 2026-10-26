@@ -45,6 +45,7 @@ export function SelectionBar({
   playlist,
   shown,
   inline = false,
+  overHead = false,
 }: {
   /** The selected songs, in the order the list has them. */
   songs: readonly Song[]
@@ -64,6 +65,8 @@ export function SelectionBar({
   shown: boolean
   /** See `SelectionLane`. */
   inline?: boolean
+  /** See `SelectionLane`. */
+  overHead?: boolean
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
   const player = usePlayerCommands()
@@ -123,6 +126,7 @@ export function SelectionBar({
         onDone={onDone}
         shown={shown}
         inline={inline}
+        overHead={overHead}
         actions={actions}
         moreRef={moreRef}
         summary={count > 0 ? summarise(songs) : null}

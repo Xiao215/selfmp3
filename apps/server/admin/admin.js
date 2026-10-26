@@ -11,7 +11,7 @@
  */
 
 const RANGE_KEY = 'selfmp3-admin-range'
-const TABS = ['data', 'people']
+const TABS = ['data', 'people', 'iphones']
 const RANGES = [
   [7, 'Week'],
   [30, 'Month'],
@@ -26,6 +26,9 @@ const state = {
   dataError: null,
   people: null,
   peopleError: null,
+  /** Friends' iPhones, asked for on the install page (the doorman's /v1/iphones). */
+  iphones: null,
+  iphonesError: null,
   search: '',
   busy: false,
   confirm: null,
@@ -119,6 +122,15 @@ async function loadData() {
     state.dataError = null
   } catch (error) {
     state.dataError = error.message
+  }
+}
+
+async function loadIphones() {
+  try {
+    state.iphones = (await ask('/api/admin/iphones')).iphones
+    state.iphonesError = null
+  } catch (error) {
+    state.iphonesError = error.message
   }
 }
 
@@ -1122,6 +1134,61 @@ function peopleView() {
     </section>`
 }
 
+/** How long ago, in the words a list row has room for. */
+function ago(ms) {
+  const minutes = Math.round((Date.now() - ms) / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours} h ago`
+  return plural(Math.round(hours / 24), 'day', 'days') + ' ago'
+}
+
+function iphoneRow(iphone) {
+  const name = iphone.name || 'No name given'
+  const id = `${iphone.udid.slice(0, 8)}…${iphone.udid.slice(-4)}`
+  const when =
+    iphone.state === 'added'
+      ? `added ${ago(iphone.addedAt ?? iphone.askedAt)}`
+      : `asked ${ago(iphone.askedAt)}`
+  const add =
+    iphone.state === 'waiting'
+      ? `<button class="btn primary small" type="button" data-action="iphone-add" data-udid="${escape(iphone.udid)}" ${state.busy ? 'disabled' : ''}>Add</button>`
+      : '<span class="chip">added</span>'
+  const drop = `<button class="icon-btn" type="button" data-action="iphone-drop" data-udid="${escape(iphone.udid)}" data-name="${escape(name)}" aria-label="Drop ${escape(name)}" title="Drop" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
+  return `<div class="row">${avatarOf(iphone.name || '?')}<div class="lbl"><span class="name">${escape(name)}</span><span class="hint" title="${escape(iphone.udid)}">${escape(`${when} · ${id}`)}</span></div>${add}${drop}</div>`
+}
+
+function iphonesView() {
+  const iphones = state.iphones
+  const waiting = (iphones ?? []).filter(one => one.state === 'waiting')
+  const added = (iphones ?? []).filter(one => one.state === 'added')
+  const header = head(
+    'iPhones',
+    iphones
+      ? escape(
+          waiting.length
+            ? `${plural(waiting.length, 'friend', 'friends')} waiting`
+            : 'Friends who asked for the iPhone app',
+        )
+      : 'Friends who asked for the iPhone app',
+  )
+  if (!iphones) {
+    const why = state.iphonesError
+      ? `<p class="notice bad">${escape(state.iphonesError)}</p>`
+      : '<p class="empty">Loading…</p>'
+    return header + why
+  }
+  const group = (label, list, empty) =>
+    `<section class="section"><div class="group-head"><span class="label">${label}</span></div>
+      <div class="panel"><div class="people-list">${list.length ? list.map(iphoneRow).join('') : `<p class="empty">${empty}</p>`}</div></div></section>`
+  return `${header}
+    ${state.iphonesError ? `<p class="notice bad">${escape(state.iphonesError)}</p>` : ''}
+    ${group('Waiting', waiting, 'Nobody is waiting. Friends ask from the install page: xiao215.github.io/selfmp3/install/')}
+    ${group('Added', added, 'No iPhones added yet.')}
+    <p class="hint iphones-note">Adding one starts a build for it on GitHub, about an hour; their page then says Install. They also need to be on People to sign in.</p>`
+}
+
 function dialogView() {
   const c = state.confirm
   if (!c) return ''
@@ -1141,9 +1208,10 @@ function render({ entering = false } = {}) {
   const searching = document.activeElement?.id === 'people-search'
   const caret = searching ? document.activeElement.selectionStart : null
   const page = document.getElementById('page')
-  const view = state.tab === 'data' ? dataView() : peopleView()
+  const view =
+    state.tab === 'data' ? dataView() : state.tab === 'people' ? peopleView() : iphonesView()
   page.innerHTML = `<div class="view${entering ? ' entering' : ''}">${view}</div>${dialogView()}`
-  document.title = `${state.tab === 'data' ? 'Data' : 'People'} · self.mp3 admin`
+  document.title = `${{ data: 'Data', people: 'People', iphones: 'iPhones' }[state.tab]} · self.mp3 admin`
   hideTip()
   drawCharts()
   lightIndex()
@@ -1168,6 +1236,30 @@ function toast(words) {
 new ResizeObserver(() => drawCharts()).observe(document.getElementById('page'))
 
 // ---------- Acting ----------
+
+/** What adding an iPhone did, as the toast says it. */
+const BUILD_WORDS = {
+  started: 'a build for it has started, about an hour',
+  'not-set-up':
+    'the nightly build will carry it (the doorman has no GITHUB_TOKEN to start one now)',
+  failed: 'GitHub would not start a build now; the nightly one will carry it',
+}
+
+async function changeIphone(udid, method, done) {
+  if (state.busy) return
+  state.busy = true
+  render()
+  try {
+    const answer = await ask(`/api/admin/iphones/${encodeURIComponent(udid)}`, { method })
+    await loadIphones()
+    toast(done(answer))
+  } catch (error) {
+    state.iphonesError = error.message
+  } finally {
+    state.busy = false
+    render()
+  }
+}
 
 async function savePeople(change, done) {
   if (!state.people || state.busy) return
@@ -1236,7 +1328,8 @@ async function go(tab, { push = true } = {}) {
   if (push) history.pushState(null, '', `/${tab}`)
   render({ entering: true })
   if (tab === 'data') await loadData()
-  else await loadPeople()
+  else if (tab === 'people') await loadPeople()
+  else await loadIphones()
   render()
 }
 
@@ -1305,6 +1398,25 @@ document.addEventListener('click', event => {
             list => ({ ...list, emails: list.emails.filter(e => e !== email) }),
             `Removed ${email}`,
           ),
+      }
+      render()
+      break
+    }
+    case 'iphone-add': {
+      const udid = action.getAttribute('data-udid')
+      const name = state.iphones?.find(one => one.udid === udid)?.name || 'their iPhone'
+      void changeIphone(udid, 'PUT', answer => `Added ${name}: ${BUILD_WORDS[answer.build]}`)
+      break
+    }
+    case 'iphone-drop': {
+      const udid = action.getAttribute('data-udid')
+      const name = action.getAttribute('data-name')
+      state.confirm = {
+        title: `Drop ${name}?`,
+        text: 'They leave this list. An iPhone already registered with Apple stays registered, and builds keep installing on it, until the membership year ends.',
+        ok: 'Drop',
+        danger: true,
+        run: () => changeIphone(udid, 'DELETE', () => `Dropped ${name}`),
       }
       render()
       break

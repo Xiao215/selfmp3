@@ -13,7 +13,7 @@ import { BucketError, type BucketErrorKind, type Fetch } from './bucket.js'
 import type { Context, Env, Log } from './context.js'
 import { allowedOrigins, isForeignWrite, preflight, withCors } from './cors.js'
 import * as files from './files.js'
-import { device } from './device.js'
+import { device, iphones } from './device.js'
 import { grants } from './grants.js'
 import { rooms } from './rooms.js'
 import { shared } from './sharedRoutes.js'
@@ -95,6 +95,7 @@ const {
   shared: SHARED,
   share: SHARE,
   device: DEVICE,
+  iphones: IPHONES,
 } = DOORMAN_PATHS
 
 /** Errors from the bucket, as a device sees them: the doorman's own upstream failed. */
@@ -184,6 +185,7 @@ async function route(ctx: Context): Promise<Response> {
   if (path === SHARED || path.startsWith(`${SHARED}/`)) return shared(ctx)
   if (path === SHARE || path.startsWith(`${SHARE}/`)) return share(ctx)
   if (path === DEVICE || path.startsWith(`${DEVICE}/`)) return device(ctx)
+  if (path === IPHONES || path.startsWith(`${IPHONES}/`)) return iphones(ctx)
 
   // Own properties only: a request whose method is `constructor` or
   // `toString` must not find its way to Object.prototype.

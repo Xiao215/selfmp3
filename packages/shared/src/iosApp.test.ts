@@ -5,6 +5,7 @@ import {
   fetchIosLatest,
   iosAssetUrl,
   isNewerIosBuild,
+  iphoneKey,
   renderIosManifest,
   type IosLatest,
 } from './iosApp.js'
@@ -14,6 +15,7 @@ const latest = (build: number): IosLatest => ({
   build,
   commit: 'abc1234',
   publishedAt: '2026-10-24T00:00:00Z',
+  devices: [],
 })
 
 const answer = (status: number, body: unknown = {}): typeof fetch =>
@@ -31,6 +33,13 @@ describe('the iPhone app for friends', () => {
     expect(IOS_INSTALL_LINK).toBe(
       'itms-services://?action=download-manifest&url=https%3A%2F%2Fgithub.com%2FXiao215%2Fselfmp3%2Freleases%2Fdownload%2Fios%2Fmanifest.plist',
     )
+  })
+
+  it('lists an iPhone by a hash of its ID, the same however the ID is written', async () => {
+    const key = await iphoneKey('00008140-00094D0436F3001C')
+    expect(key).toMatch(/^[0-9a-f]{64}$/)
+    expect(await iphoneKey('00008140-00094d0436f3001c')).toBe(key)
+    expect(key).not.toContain('00008140')
   })
 
   it('offers a build only when it is later than this one', () => {

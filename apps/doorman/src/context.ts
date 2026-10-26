@@ -46,6 +46,13 @@ export interface Env {
   readonly OWNER_EMAILS?: string
   /** The admin key the owner's server holds for its admin page (access.ts `requireOwner`). */
   readonly ADMIN_TOKEN?: string
+  /**
+   * A GitHub token that may start the repository's iPhone workflow (Actions:
+   * write on that one repository), so adding a friend's iPhone on the admin
+   * page starts the build that carries it at once (device.ts). Unset, the
+   * nightly build notices an added iPhone its last build left out.
+   */
+  readonly GITHUB_TOKEN?: string
   /** Comma-separated origins of the web app, for CORS and for going back after sign-in. */
   readonly APP_ORIGINS?: string
   /**

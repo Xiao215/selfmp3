@@ -10,6 +10,7 @@ import { LYRIC_ANCHOR, LYRIC_LEAD, MANUAL_SCROLL_MS } from './nowPlaying.model'
 import { glideToLine } from './lyricFollow.model'
 import { blurReach, lineTone, lyricBlur, type LineTone } from './stageLyrics.model'
 import { MOVE_MS } from '../../ui/motion.model'
+import { rightClick, type PopoverAnchor } from '../../ui/rightClick'
 import { motionMs, useMotionReduced } from '../../ui/motion'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
@@ -27,13 +28,19 @@ interface LyricsProps {
    * click seeks nothing, since the player has another song or none.
    */
   still?: boolean
+  /**
+   * A timed line held on a phone, or right-clicked on a computer, at the
+   * pointer (`useLineMenu`). Left out, a line only seeks.
+   */
+  onLineMenu?: (index: number, at: PopoverAnchor | null) => void
 }
 
 /**
  * The lyrics on a computer's Now Playing page.
  *
  * The line being sung stays at the same height on screen and the list moves
- * under it. Click a line to jump to it. Scrolling by hand holds off the
+ * under it. Click a line to jump to it; right-click it, or hold it on a
+ * phone, for its menu (`onLineMenu`). Scrolling by hand holds off the
  * centring for a few seconds, so reading ahead is not fought.
  *
  * The sung line is measured when it is scrolled to, not remembered from when
@@ -64,6 +71,7 @@ const LyricsList = memo(function LyricsList({
   fontSize,
   clearRight = 0,
   still = false,
+  onLineMenu,
   active,
 }: LyricsProps & { active: number }): ReactNode {
   const { theme } = useUnistyles()
@@ -85,8 +93,10 @@ const LyricsList = memo(function LyricsList({
   /** The line the words were last scrolled to, so a seek can be told from the song moving on. */
   const shownLine = useRef(-1)
   const seekTo = useRef(player.seekTo)
+  const lineMenu = useRef(onLineMenu)
   useEffect(() => {
     seekTo.current = player.seekTo
+    lineMenu.current = onLineMenu
   })
 
   // Reading ahead by hand, in a browser: the wheel, a trackpad, a finger.
@@ -186,6 +196,12 @@ const LyricsList = memo(function LyricsList({
     },
     [still],
   )
+  // The same function from one drawing to the next, as `seek` is; none without a menu.
+  const hasMenu = onLineMenu !== undefined
+  const menu = useCallback(
+    (index: number, at: PopoverAnchor | null) => lineMenu.current?.(index, at),
+    [],
+  )
   const hoverIn = useCallback((index: number) => setHovered(index), [])
   const hoverOut = useCallback(
     (index: number) => setHovered(current => (current === index ? null : current)),
@@ -250,6 +266,7 @@ const LyricsList = memo(function LyricsList({
                 blur={blurring ? lyricBlur(index, active, reach) : 0}
                 register={register}
                 onSeek={seek}
+                onMenu={hasMenu ? menu : undefined}
                 onHoverIn={hoverIn}
                 onHoverOut={hoverOut}
               />
@@ -272,6 +289,7 @@ const LyricLine = memo(function LyricLine({
   blur,
   register,
   onSeek,
+  onMenu,
   onHoverIn,
   onHoverOut,
 }: {
@@ -284,6 +302,7 @@ const LyricLine = memo(function LyricLine({
   blur: number
   register: (index: number, node: View | null) => void
   onSeek: (time: number) => void
+  onMenu: ((index: number, at: PopoverAnchor | null) => void) | undefined
   onHoverIn: (index: number) => void
   onHoverOut: (index: number) => void
 }): ReactNode {
@@ -335,6 +354,9 @@ const LyricLine = memo(function LyricLine({
       ref={keep}
       style={lineStyle}
       onPress={() => onSeek(time)}
+      onLongPress={onMenu ? () => onMenu(index, null) : undefined}
+      delayLongPress={onMenu ? MOVE_MS.longPress : undefined}
+      {...rightClick(onMenu ? at => onMenu(index, at) : undefined)}
       onHoverIn={() => onHoverIn(index)}
       onHoverOut={() => onHoverOut(index)}
       accessibilityRole="button"

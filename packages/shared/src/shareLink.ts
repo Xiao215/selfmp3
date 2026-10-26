@@ -1,14 +1,18 @@
 import { assertNever } from './exhaustive.js'
+import { formatDuration } from './format.js'
 import type { RoomRefusal } from './room.js'
 import type { RoomFilePart, RoomSong } from './schemas/room.js'
 import {
   SHARE_MAX_ASKS,
+  SHARE_MAX_LINES,
   SHARE_MAX_OPENED,
   SHARE_MAX_SONGS,
+  SHARE_START_MOST,
   type ShareAction,
   type ShareDoc,
   type ShareEnded,
   type ShareFace,
+  type ShareLine,
   type ShareLink,
   type ShareSummary,
 } from './schemas/share.js'
@@ -46,6 +50,7 @@ export function newShareDoc(input: {
   kind: ShareDoc['kind']
   from: ShareFace
   songs: readonly { id: string; song: RoomSong }[]
+  line?: ShareLine | undefined
   now: number
 }): ShareDoc {
   return {
@@ -64,7 +69,53 @@ export function newShareDoc(input: {
     opened: [],
     guests: 0,
     asks: [],
+    lines: input.line ? [input.line] : [],
   }
+}
+
+/**
+ * Shared from a line (again): remembered by where it starts, so the same
+ * start shared twice is one line, the latest words for it kept. The oldest
+ * go first past `SHARE_MAX_LINES`; an address whose line was let go still
+ * starts there.
+ */
+export function shareLineAdded(doc: ShareDoc, line: ShareLine | undefined): ShareDoc {
+  if (!line) return doc
+  const others = doc.lines.filter(other => other.at !== line.at)
+  return { ...doc, lines: [...others, line].slice(-SHARE_MAX_LINES) }
+}
+
+/** A start as a link's address carries it: `0:42`, `1:02:03` past an hour. */
+export function formatShareStart(seconds: number): string {
+  return formatDuration(Math.floor(seconds))
+}
+
+/**
+ * The start an address's `t` asks for, in whole seconds, or null for none:
+ * `0:42` and `1:02:03` as `formatShareStart` writes them, and plain seconds
+ * (`42`) as someone might type. Anything else is no start, so a link with a
+ * mangled `t` plays from the top, as one without.
+ */
+export function parseShareStart(value: string | null | undefined): number | null {
+  const given = value?.trim() ?? ''
+  if (/^\d{1,5}$/.test(given)) return startOrNone(Number(given))
+  const [first, ...rest] = given.split(':')
+  if (first === undefined || !/^\d{1,3}$/.test(first) || rest.length < 1 || rest.length > 2) {
+    return null
+  }
+  // Past the first part, minutes and seconds are two figures under 60, as a clock's are.
+  if (!rest.every(part => /^[0-5]\d$/.test(part))) return null
+  return startOrNone([first, ...rest].reduce((sum, part) => sum * 60 + Number(part), 0))
+}
+
+function startOrNone(at: number): number | null {
+  return at <= SHARE_START_MOST ? at : null
+}
+
+/** The line an address's start names, if it was shared from one. */
+export function shareLineAt(link: Pick<ShareLink, 'lines'>, at: number | null): ShareLine | null {
+  if (at === null) return null
+  return link.lines.find(line => line.at === at) ?? null
 }
 
 /** What makes a song the same one when it is shared again: its audio file, else its id, link or name. */
@@ -210,6 +261,7 @@ export function shareView(
     kind: doc.kind,
     from: doc.from,
     entries: doc.entries,
+    lines: doc.lines,
     createdAt: doc.createdAt,
     endsAt: shareEndsAt(doc),
     limitAt: doc.startedAt + SHARE_LIMIT_MS,
@@ -229,7 +281,7 @@ export function shareSummary(
   doc: ShareDoc,
   input: { key: string; yours: boolean; asked: boolean; now: number },
 ): ShareSummary {
-  const { entries, ...view } = shareView(doc, input)
+  const { entries, lines: _lines, ...view } = shareView(doc, input)
   const cover = entries.find(entry => entry.song.cover !== null && !entry.gone) ?? null
   return {
     ...view,

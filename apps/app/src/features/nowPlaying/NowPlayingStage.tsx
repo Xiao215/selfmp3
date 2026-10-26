@@ -61,6 +61,7 @@ import { SongVisual } from './SongVisual'
 import { useMotionSampler } from './useMotionSampler'
 import { useCoverPalette } from './useCoverPalette'
 import { useIdle } from './useIdle'
+import { useLineMenu } from './useLineMenu'
 import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
@@ -396,6 +397,8 @@ function Stage({
   useEscape(true, onEscape)
 
   const words = lyrics.words
+  // A line held or right-clicked: Share from here, Play from here, Copy line.
+  const lineMenu = useLineMenu(song, words)
   // Not while offline: the words may exist, and there is text to say why they are not here.
   const noLyrics = words.status === 'missing' && !words.offline
   // Only on its own tab: Details is text, and wants the calm ground.
@@ -655,6 +658,7 @@ function Stage({
               // Beside the cover the Romaji pill and the expand button share
               // the words' right edge: long lines ran under them.
               clearRight={!focus && tabsRow === null ? TOOLS_CLEARANCE : 0}
+              onLineMenu={lineMenu.onLineMenu}
             />
           ) : noLyrics ? null : (
             <View style={styles.status}>
@@ -673,6 +677,7 @@ function Stage({
           </ScrollView>
         )}
       </Moving>
+      {lineMenu.menu}
 
       <Animated.View style={[styles.head, { top }, chrome]}>
         <IconButton

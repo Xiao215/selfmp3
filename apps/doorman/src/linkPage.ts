@@ -1,10 +1,13 @@
 import {
   clamp,
   DOORMAN_PATHS,
+  formatShareStart,
   hasColour,
+  parseShareStart,
   plural,
   ShareIdSchema,
   ShareKeySchema,
+  shareLineAt,
   ShareLinkSchema,
   type ShareLink,
 } from '@selfmp3/shared'
@@ -34,6 +37,11 @@ import { shareObject } from './shareRoutes.js'
  * Reading the link for its card counts nothing (share.ts's `/peek`): a chat
  * app is not a guest, and a link nobody has opened still ends a week after it
  * was sent.
+ *
+ * Shared from a line, the address carries where to start, `?t=0:42`. A
+ * person is sent on with it; a chat's card names the line, which the link
+ * keeps, so nothing of the sender's bucket is read for it. A `t` that does
+ * not read as a time is left off, and the link is as it is without one.
  */
 
 const PREVIEWERS =
@@ -73,7 +81,9 @@ export async function linkPage(ctx: Context): Promise<Response> {
     return previewPage({ ...gone, url: ctx.url.href, open: cut })
   }
 
-  const there = `${app}/l/${ids.data}/${keys.data}`
+  const start = parseShareStart(ctx.url.searchParams.get('t'))
+  const at = start === null ? '' : `?t=${formatShareStart(start)}`
+  const there = `${app}/l/${ids.data}/${keys.data}${at}`
   if (!previewer) return onTo(there)
 
   const peeked = await shareObject(ctx, ids.data).fetch(
@@ -81,7 +91,9 @@ export async function linkPage(ctx: Context): Promise<Response> {
   )
   const link = peeked.ok ? ShareLinkSchema.safeParse(await peeked.json()) : null
   if (!peeked.ok) await peeked.body?.cancel()
-  const card = link?.success ? linkCard(link.data, { doorman: ctx.url.origin, app }) : gone
+  const card = link?.success
+    ? linkCard(link.data, start, { doorman: ctx.url.origin, app })
+    : gone
   return previewPage({ ...card, url: ctx.url.href, open: there })
 }
 
@@ -98,14 +110,27 @@ type Card = Omit<PreviewOptions, 'url' | 'open'>
 /**
  * What the card says (A1): the song, or the list's name, first, as Apple
  * Music's do; then what it is and who sent it. Once it has ended, the line
- * says so — a chat keeps a card long after the link is gone.
+ * says so — a chat keeps a card long after the link is gone. Shared from a
+ * line, the card leads with the line where it says what it is, or with
+ * where it starts when the link no longer has that line.
  */
-function linkCard(link: ShareLink, at: { doorman: string; app: string }): Card {
+function linkCard(
+  link: ShareLink,
+  start: number | null,
+  at: { doorman: string; app: string },
+): Card {
   const first = link.entries.find(entry => !entry.gone) ?? link.entries[0]
   const song = link.kind === 'song' ? (first?.song ?? null) : null
   const from = link.from.name
+  const line = song ? shareLineAt(link, start) : null
   const what = song
-    ? [song.artist, 'Song'].filter(Boolean).join(' · ')
+    ? [
+        line ? `“${line.text}”` : start !== null ? `From ${formatShareStart(start)}` : null,
+        song.artist,
+        line ? null : 'Song',
+      ]
+        .filter(Boolean)
+        .join(' · ')
     : plural(link.entries.length, 'song', 'songs')
   const description = !link.ended
     ? `${what} · Shared by ${from}`

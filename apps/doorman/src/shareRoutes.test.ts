@@ -194,6 +194,52 @@ describe('a share link', () => {
     expect((await make(s, [song(1), song(2)], 'Mix', 'list')).id).not.toBe(made.id)
   })
 
+  it('is the same link when shared from a line, and remembers each line once', async () => {
+    const s = await setup()
+    const made = await make(s)
+    expect(made.lines).toEqual([])
+    const from = async (line: object) =>
+      link(
+        await s.h.call('/v1/share', {
+          token: s.me,
+          json: { name: 'Song 1', kind: 'song', you: 'Xiao', songs: [song(1)], line },
+        }),
+      )
+    const chorus = { at: 42, text: '干杯 朋友', reading: 'gān bēi péng yǒu' }
+    const verse = { at: 75, text: 'A verse', reading: null }
+    expect((await from(chorus)).id).toBe(made.id)
+    const both = await from(verse)
+    expect(both.id).toBe(made.id)
+    expect(both.lines).toEqual([chorus, verse])
+    // The same start again is the same line, its words as they are now.
+    const again = await from({ ...chorus, reading: null })
+    expect(again.lines).toEqual([verse, { ...chorus, reading: null }])
+    // Whoever opens it is sent its lines, and a summary leaves them out.
+    expect((await link(await open(s, made, s.mia))).lines).toHaveLength(2)
+    const sent = await (await s.h.call('/v1/share', { token: s.me })).json()
+    expect(sent[0]).not.toHaveProperty('lines')
+
+    // A new link, made from a line, starts with it.
+    const fresh = await link(
+      await s.h.call('/v1/share', {
+        token: s.me,
+        json: { name: 'Song 2', kind: 'song', you: 'Xiao', songs: [song(2)], line: verse },
+      }),
+    )
+    expect(fresh.lines).toEqual([verse])
+  })
+
+  it('upgrades a link kept before it remembered lines the first time it is read', async () => {
+    const s = await setup()
+    const made = await make(s)
+    const stored = s.h.shares.stored(made.id)
+    const doc = stored.get('doc') as Record<string, unknown>
+    delete doc['lines']
+    stored.set('doc', doc)
+    expect((await link(await open(s, made))).lines).toEqual([])
+    expect((stored.get('doc') as { lines?: unknown }).lines).toEqual([])
+  })
+
   it('lends a song’s files by their names now when it is shared again', async () => {
     const s = await setup()
     const words = (name: string): RoomSong => ({

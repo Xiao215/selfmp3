@@ -14,6 +14,7 @@ import {
   shareFromLine,
   shareHeadLine,
   shareStage,
+  shareStartOf,
   shareTimeLine,
   shareTracks,
   shareWords,
@@ -66,6 +67,7 @@ function link(changes: Partial<ShareLink> = {}): ShareLink {
     opened: [],
     guests: 0,
     asks: [],
+    lines: [],
     ...changes,
   }
 }
@@ -249,5 +251,38 @@ describe('where a song came from', () => {
     expect(sourceName('https://music.youtube.com/watch?v=x')).toBe('YouTube Music')
     expect(sourceName('https://music.163.com/#/song?id=1')).toBe('网易云')
     expect(sourceName('https://example.org/a')).toBe('example.org')
+  })
+})
+
+describe('where a link starts', () => {
+  const chorus = { at: 42, text: '干杯 朋友', reading: 'gān bēi péng yǒu' }
+
+  it('reads the address’s start as a time, with the line it was shared from', () => {
+    const lined = link({ lines: [chorus] })
+    expect(shareStartOf(lined, '0:42')).toEqual({ at: 42, line: chorus })
+    expect(shareStartOf(lined, '42')).toEqual({ at: 42, line: chorus })
+    // A start it kept no line for still starts there.
+    expect(shareStartOf(lined, '1:05')).toEqual({ at: 65, line: null })
+    // Expo hands a repeated parameter over as a list: the first counts.
+    expect(shareStartOf(lined, ['0:42', '0:10'])).toEqual({ at: 42, line: chorus })
+  })
+
+  it('is no start for none, a time that does not read, a list, or past the end', () => {
+    expect(shareStartOf(link(), undefined)).toBeNull()
+    for (const wrong of ['', '0:4', '0:60', '1:2:3', '-5', '4.5', 'soon', '0:42:']) {
+      expect(shareStartOf(link(), wrong)).toBeNull()
+    }
+    expect(shareStartOf(link({ kind: 'list' }), '0:42')).toBeNull()
+    // Its song is 100 seconds long.
+    expect(shareStartOf(link(), '1:40')).toBeNull()
+    expect(shareStartOf(link(), '1:39')).toEqual({ at: 99, line: null })
+    expect(shareStartOf(link(), '1:00:00')).toBeNull()
+  })
+
+  it('goes with the words a song is sent with', () => {
+    const words = { name: '干杯', kind: 'song', artist: '五月天', songs: 1 } as const
+    expect(shareWords(words)).toBe('干杯 · 五月天')
+    expect(shareWords({ ...words, start: 42 })).toBe('干杯 · 五月天 · from 0:42')
+    expect(shareWords({ ...words, artist: null, start: 3723 })).toBe('干杯 · from 1:02:03')
   })
 })

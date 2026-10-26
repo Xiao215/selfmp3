@@ -59,6 +59,7 @@ import {
 } from './nowPlaying.model'
 import { useShownScheme } from '../../ui/theme/unistyles'
 import { TaggingLine } from './TaggingLine'
+import { useLineMenu } from './useLineMenu'
 import { useSongWords } from './useSongWords'
 import { useTagEditor, useTagging } from './useTagging'
 import { Press } from '../../ui/components/Press'
@@ -824,6 +825,8 @@ function WordsView({
   fingerOnWords: TouchFlag
 }): ReactNode {
   const { theme } = useUnistyles()
+  // A line held: Share from here, Play from here, Copy line.
+  const lineMenu = useLineMenu(song, lyrics.words)
 
   return (
     <View style={styles.wordsView} testID="now-playing-lyrics-view">
@@ -841,7 +844,13 @@ function WordsView({
           ) : null
         }
       />
-      <PhoneWordsBody words={lyrics.words} fingerOnWords={fingerOnWords} style={styles.words} />
+      <PhoneWordsBody
+        words={lyrics.words}
+        fingerOnWords={fingerOnWords}
+        onLineMenu={lineMenu.onLineMenu}
+        style={styles.words}
+      />
+      {lineMenu.menu}
 
       <View onLayout={event => onDeck(event.nativeEvent.layout.height)}>
         <View style={styles.progress}>

@@ -50,7 +50,9 @@ import { facePicture, type Session } from './sessions.js'
  * (`share-same:<sub>:<sha256>`), shared again if it ran out. One its sender
  * ended, or whose songs left the bucket, is not brought back: a new link is
  * made instead. The way back to a link lasts as long as the link can, so it
- * is put again whenever the link is shared again, from either way in.
+ * is put again whenever the link is shared again, from either way in. Shared
+ * from a line of its song, it is still the same link: it remembers the line,
+ * and the address says where to start (`?t=0:42`).
  */
 
 const SHARE = DOORMAN_PATHS.share
@@ -91,7 +93,7 @@ async function sharedBefore(
   ctx: Context,
   sub: string,
   same: string,
-  songs: ShareCreate['songs'],
+  body: Pick<ShareCreate, 'songs' | 'line'>,
 ): Promise<Response | null> {
   const id = ShareIdSchema.safeParse(await ctx.env.KV.get(same))
   if (!id.success) return null
@@ -105,8 +107,12 @@ async function sharedBefore(
   if (!before.yours) return null
   await linkIndex(ctx, 'out', sub).remember(before.id)
   if (before.ended && before.ended.why !== 'idle' && before.ended.why !== 'limit') return null
-  // Its songs as the library has them now: a file renamed since is lent by its new name.
-  const latest = await object.fetch('https://share/songs', post({ sub, songs }))
+  // Its songs as the library has them now: a file renamed since is lent by
+  // its new name. And the line it is shared from this time, if one.
+  const latest = await object.fetch(
+    'https://share/songs',
+    post({ sub, songs: body.songs, line: body.line }),
+  )
   await latest.body?.cancel()
   if (!latest.ok) return null
   if (!before.ended) {
@@ -158,7 +164,7 @@ export async function share(ctx: Context): Promise<Response> {
       throw new DoormanError(409, DOORMAN_ERROR.noStorage, 'connect your bucket first')
     }
     const same = await sameKey(session.sub, body)
-    const before = await sharedBefore(ctx, session.sub, same, body.songs)
+    const before = await sharedBefore(ctx, session.sub, same, body)
     if (before) return relayed(before)
     const id = secureHex(8)
     const made = await shareObject(ctx, id).fetch(

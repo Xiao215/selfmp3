@@ -4,7 +4,13 @@ import { Animated, PanResponder, Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
-import { artistOr, type RoomSong, type Song } from '@selfmp3/shared'
+import {
+  artistOr,
+  formatShareStart,
+  type RoomSong,
+  type ShareLine,
+  type Song,
+} from '@selfmp3/shared'
 import { radius, space, type } from '@selfmp3/client'
 import { fonts } from '../../ports/fonts'
 import { Guide } from '../guide/Guide'
@@ -51,6 +57,8 @@ const LINE_INSET = space.tight
 const PHONE_ROOM = 320
 const PHONE_COVER_LEAST = 160
 const PHONE_COVER_MOST = 420
+/** What the line a link was shared from takes under the names, for the cover to give up. */
+const PHONE_LINE_ROOM = 112
 
 interface SongProps {
   song: RoomSong
@@ -66,6 +74,8 @@ interface SongProps {
   lent: boolean
   /** It is the song the player has. */
   loaded: boolean
+  /** Where it starts, and the line, when it was shared from one (`?t=0:42`). */
+  start: { at: number; line: ShareLine | null } | null
   onPlay: () => void
   /** The way back to Home, in the app. */
   back: ReactNode
@@ -138,7 +148,7 @@ function bylineOf(song: RoomSong): string {
  * Playing's does (`C10`), so the page is laid out the same either way.
  */
 function SongStage(props: SongProps): ReactNode {
-  const { song, track, cover, tileHue, lyrics, lent, loaded, back, from, ways, foot } = props
+  const { song, track, cover, tileHue, lyrics, lent, loaded, start, back, from, ways, foot } = props
   const { theme } = useUnistyles()
   const layout = useLayout()
   const windowHeight = useWindowValue(window => window.height)
@@ -153,6 +163,9 @@ function SongStage(props: SongProps): ReactNode {
   // Lent without words, or with words that would not read.
   const showVisual = !lent || words.status === 'missing'
   const sampler = useMotionSampler(track, showVisual)
+  // Until it plays, the line it was shared from has the words' column; then
+  // the words in time, which start on that line.
+  const shared = !loaded && start?.line ? { at: start.at, line: start.line } : null
 
   return (
     <View
@@ -214,7 +227,11 @@ function SongStage(props: SongProps): ReactNode {
           <View style={styles.stageFoot}>{foot}</View>
         </View>
 
-        {showVisual ? (
+        {shared ? (
+          <View style={styles.stageLine}>
+            <SharedLine at={shared.at} line={shared.line} size={geometry.lyric * 1.35} />
+          </View>
+        ) : showVisual ? (
           <View style={styles.stageVisual} testID="share-visual">
             <SongVisual song={track} sampler={sampler} cover={cover} />
           </View>
@@ -257,8 +274,9 @@ function SongStage(props: SongProps): ReactNode {
  * only the cover and the words pass each other and the controls never move.
  */
 function SongPhone(props: SongProps): ReactNode {
-  const { song, cover, tileHue, lyrics, lent, loaded, back, from, ways, foot } = props
+  const { song, cover, tileHue, lyrics, lent, loaded, start, back, from, ways, foot } = props
   const { wordsOpen, onWords } = props
+  const line = start?.line ?? null
   const { width } = useLayout()
   const height = useWindowValue(window => window.height)
   const insets = useSafeAreaInsets()
@@ -272,7 +290,10 @@ function SongPhone(props: SongProps): ReactNode {
   // where it is smaller and in the column's middle, as Now Playing's is.
   const side = Math.max(
     PHONE_COVER_LEAST,
-    Math.min(column, height - insets.top - insets.bottom - PHONE_ROOM - chrome),
+    Math.min(
+      column,
+      height - insets.top - insets.bottom - PHONE_ROOM - chrome - (line ? PHONE_LINE_ROOM : 0),
+    ),
   )
 
   // Now Playing's own move between them: the one arriving springs in as the other goes.
@@ -339,6 +360,7 @@ function SongPhone(props: SongProps): ReactNode {
                   {bylineOf(song)}
                 </Text>
               </View>
+              {start && line ? <SharedLine at={start.at} line={line} size={24} /> : null}
             </View>
           </Animated.View>
         ) : null}
@@ -380,6 +402,36 @@ function SongPhone(props: SongProps): ReactNode {
       <View style={styles.phoneFoot}>{foot}</View>
 
       <Guide guide={guide} at={{ x: 0.5, y: 0.72 }} radius={18} steps={LYRICS_GUIDE_STEPS} />
+    </View>
+  )
+}
+
+/**
+ * The line a link was shared from, large: where it starts, the line, and its
+ * romaji or pinyin under it when its sender had that on, drawn as a lyric
+ * line and its reading are (`StageLyrics`).
+ */
+function SharedLine({ at, line, size }: { at: number; line: ShareLine; size: number }): ReactNode {
+  return (
+    <View style={styles.shared} testID="share-line">
+      <Text style={styles.sharedAt}>From {formatShareStart(at)}</Text>
+      <Text
+        style={[
+          styles.sharedText,
+          { fontSize: size, lineHeight: size * 1.3, letterSpacing: -0.01 * size },
+        ]}
+        numberOfLines={4}
+      >
+        {line.text}
+      </Text>
+      {line.reading ? (
+        <Text
+          style={[styles.sharedReading, { fontSize: size * 0.7, lineHeight: size * 0.7 * 1.3 }]}
+          numberOfLines={3}
+        >
+          {line.reading}
+        </Text>
+      ) : null}
     </View>
   )
 }
@@ -452,6 +504,17 @@ const styles = StyleSheet.create(theme => ({
     overflow: 'hidden',
   },
   tools: { position: 'absolute', top: 0, right: 0 },
+  // Where the sung line will be once it plays: the words' column, a little above its middle.
+  stageLine: { flex: 1, minWidth: 0, justifyContent: 'center', paddingBottom: '12%' },
+  shared: { gap: space.xs },
+  sharedAt: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '600' },
+  sharedText: { color: theme.colors.textPrimary, fontWeight: '700' },
+  sharedReading: {
+    color: theme.colors.textSecondary,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    letterSpacing: 0.2,
+  },
 
   phone: { flex: 1, paddingBottom: space.md },
   // The cover and the words, one over the other, above the controls they share.

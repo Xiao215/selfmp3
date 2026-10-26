@@ -8,6 +8,7 @@ import { rowTitle } from '../../ui/surfaces'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown } from '../../ui/components/Icons'
+import type { PopoverAnchor } from '../../ui/rightClick'
 import type { TouchFlag } from '../../ui/touchFlag'
 import type { SongWords } from './nowPlaying.model'
 import { StageLyrics } from './StageLyrics'
@@ -89,12 +90,15 @@ export function PhoneWordsBody({
   words,
   fingerOnWords,
   still,
+  onLineMenu,
   style,
 }: {
   words: SongWords
   fingerOnWords: TouchFlag
   /** Held at the top, not in time: a link's song that is not the one playing. */
   still?: boolean
+  /** A line held: Now Playing's line menu (`useLineMenu`); a link's page has none. */
+  onLineMenu?: (index: number, at: PopoverAnchor | null) => void
   style: StyleProp<ViewStyle>
 }): ReactNode {
   // The app's own width, not the window's (`shell/rootWidth.ts`).
@@ -115,6 +119,7 @@ export function PhoneWordsBody({
           focus={false}
           fontSize={phoneLyricSize(width)}
           still={still}
+          onLineMenu={onLineMenu}
         />
       ) : (
         <Text style={styles.status}>{lyricsStatusText(words)}</Text>

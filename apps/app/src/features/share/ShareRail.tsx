@@ -68,6 +68,7 @@ export function CoverRail({
   const [open, setOpen] = useState(false)
   const [width] = useState(() => new Animated.Value(RAIL_WIDTH))
   const list = useRef<FlatList<ShareEntry>>(null)
+  const [height, setHeight] = useState(0)
   // The names come in as the rail opens past its covers, and are gone while it is shut.
   const names = width.interpolate({
     inputRange: [RAIL_WIDTH, RAIL_WIDTH + 80],
@@ -84,11 +85,14 @@ export function CoverRail({
   }, [open, width])
 
   // The song the page shows, kept in sight as the list moves on, but not
-  // under a pointer reading down the names.
+  // under a pointer reading down the names. Worked out here from the rail's
+  // own height, not by scrollToIndex: before the list has measured itself it
+  // takes its height as 0, and sent the first song half under the rail's head.
   useEffect(() => {
-    if (open || shown < 0 || shown >= entries.length) return
-    list.current?.scrollToIndex({ index: shown, viewPosition: 0.4, animated: true })
-  }, [shown, open, entries.length])
+    if (open || height === 0 || shown < 0 || shown >= entries.length) return
+    const offset = Math.max(0, RAIL_ROW * shown - (height - RAIL_ROW) * 0.4)
+    list.current?.scrollToOffset({ offset, animated: true })
+  }, [shown, open, height, entries.length])
 
   return (
     <Animated.View
@@ -126,6 +130,7 @@ export function CoverRail({
         initialNumToRender={14}
         windowSize={5}
         showsVerticalScrollIndicator={false}
+        onLayout={event => setHeight(event.nativeEvent.layout.height)}
         contentContainerStyle={styles.railList}
         renderItem={({ item, index }) => (
           <Press

@@ -29,8 +29,8 @@ describe('routing', () => {
 
   it('answers what it does not know with a JSON 404', async () => {
     const h = harness()
-    // `/` is the app's front door (linkPage.test.ts).
-    for (const path of ['/v2/health', '/v1', '/v1/nothing', '/favicon.ico', '/l/nothing']) {
+    // `/` is the app's front door, and `/l/…` a share link even when cut short (linkPage.test.ts).
+    for (const path of ['/v2/health', '/v1', '/v1/nothing', '/favicon.ico', '/x/nothing']) {
       const response = await h.call(path)
       expect(response.status, path).toBe(404)
       expect(ErrorBodySchema.parse(await response.json()).code).toBe('not_found')

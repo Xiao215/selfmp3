@@ -244,7 +244,7 @@ function Playlists(): ReactNode {
   const [newOpen, setNewOpen] = useState(false)
 
   const all = library?.playlists
-  // The ones the playlists page lists: an empty playlist is in neither.
+  // The ones the playlists page lists, in its order.
   const listed = useMemo(() => listedPlaylists(all ?? [], 'recent'), [all])
   const recent = listed.slice(0, RAIL_PLAYLISTS)
   // Lit on a playlist's own page too: that page is inside this section.
@@ -922,13 +922,15 @@ const styles = StyleSheet.create(theme => ({
     minHeight: 32,
     paddingHorizontal: space.tight,
     borderRadius: radius.item,
-    // Clear until a song is dragged over: then the dashed edge is the drop
-    // target itself.
-    borderWidth: 1,
-    borderColor: 'transparent',
   },
   playlistName: { flex: 1, color: theme.colors.textSecondary, fontSize: ITEM_TEXT },
+  // No edge until a song is dragged over: then the dashed edge is the drop
+  // target itself, its width taken from the padding so the name stays put. A
+  // clear edge kept for it was drawn round every row in forced colours, which
+  // paint every border.
   dropping: {
+    borderWidth: 1,
+    paddingHorizontal: space.tight - 1,
     borderStyle: 'dashed',
     backgroundColor: theme.colors.surface2,
     borderColor: theme.colors.accent,

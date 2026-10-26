@@ -113,7 +113,12 @@ export function buildBrowseTree(input: BrowseInput, options: BrowseOptions = {})
   // --- playlists ----------------------------------------------------------
 
   const playlistItems: BrowseItem[] = []
-  for (const playlist of listedPlaylists(input.playlists, 'recent').slice(0, limit)) {
+  // As the Playlists page lists them, less the empty ones: a car has nothing
+  // to do with one but play it, and it would play nothing.
+  const playable = listedPlaylists(input.playlists, 'recent').filter(
+    playlist => playlist.songCount > 0,
+  )
+  for (const playlist of playable.slice(0, limit)) {
     const id = nodeId('playlist', String(playlist.id))
     const contents = (input.playlistSongIds[playlist.id] ?? [])
       .map(songId => byId.get(songId))

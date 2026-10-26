@@ -161,16 +161,16 @@ describe('the order playlists appear in', () => {
 })
 
 describe('what the playlists page lists', () => {
-  it('never an empty playlist, of either kind', () => {
+  it('an empty playlist too, of either kind, after the rest', () => {
     const listed = listedPlaylists(
       [
+        playlist('Empty', { lastPlayedAt: '2026-09-13 10:00:00' }),
         playlist('Filled', { songCount: 3 }),
-        playlist('Empty'),
         playlist('Matches nothing', { kind: 'live', rules: EMPTY_SMART_RULES }),
       ],
       'recent',
     )
-    expect(names(listed)).toEqual(['Filled'])
+    expect(names(listed)).toEqual(['Filled', 'Empty', 'Matches nothing'])
   })
 
   it('in the order chosen', () => {
@@ -205,12 +205,12 @@ describe('the playlists a song can be added to', () => {
     ])
   })
 
-  it('leaves out an empty playlist, which no other page lists', () => {
+  it('offers an emptied playlist after the rest, to fill it again', () => {
     const choices = playlistsToAddTo([
-      playlist('Filled', { songCount: 2 }),
       playlist('Emptied', { lastPlayedAt: '2026-09-13 10:00:00' }),
+      playlist('Filled', { songCount: 2 }),
     ])
-    expect(names(choices)).toEqual(['Filled'])
+    expect(names(choices)).toEqual(['Filled', 'Emptied'])
   })
 })
 

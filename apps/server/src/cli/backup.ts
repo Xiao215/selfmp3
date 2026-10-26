@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { ROOM_TO_START_FILE } from '../db/fullDisk.js'
 
 /**
  * Incremental backup of a folder tree.
@@ -81,7 +82,7 @@ export async function backupTree(
       if (srcStamp === null) return true // a directory: descend
 
       const name = path.basename(src)
-      if (isSqliteScratch(name)) return false
+      if (isSqliteScratch(name) || name === ROOM_TO_START_FILE) return false
       if (isSqliteDatabase(name)) {
         databases.push(path.relative(srcDir, src))
         return false

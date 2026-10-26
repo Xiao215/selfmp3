@@ -172,6 +172,7 @@ selfmp3/
   lyrics/<sha256>.words              one song's words and their romanized lines (romaji, pinyin), as JSON. Never changes.
   lyrics/<sha256>.json               one song's motion curve: loudness and onsets, 20 a second. Never changes.
   lyrics/<sha256>.vec                every song's sound vector, as the server heard it. Never changes.
+  lyrics/<sha256>.map                where every heard song sits on the sound map. Never changes.
   lyrics/<sha256>.plays              one month of plays: which song, when, for how long. Never changes.
   snapshots/<time>-<device>.json     the whole library at one moment
   log/<device>/<seq>.json            changes, one folder per device
@@ -225,6 +226,15 @@ when they change — at most once an hour while songs are still being heard — 
 snapshot's `sound` names it; the one it replaces goes in the trash. Before it sends any, a
 server reads back the file the bucket's snapshot names, so a new server hears only the songs
 nobody has heard, and a file it could not read is never replaced by one without its vectors.
+
+**The sound map** is where every heard song sits when the vectors are folded down to two
+numbers (docs/features/sound-map.md), one small JSON file (about 120 KB for 1,500 songs) beside
+the vectors, keyed by each song's audio key like them. The server folds it again only when
+the vectors change, at most once an hour while songs are still being heard, starting from the
+last map so it holds still; the snapshot's `soundMap` names it, the one it replaces goes in the
+trash, and a device reads it once a change and keeps it by its hash, as it keeps a song's
+words. A server starting from the bucket with no map of its own reads it back once and starts
+from it.
 
 **Plays** are a file a month (`apps/server/src/services/playsArchive.ts`): each play as its
 song's uid, when it happened, how long it was heard, whether it ran to the end, and an id
@@ -875,6 +885,7 @@ given a grant to, with *Remove* on each.
 | One server for many accounts | `apps/server/src/hub/` ([features/shared-server.md](features/shared-server.md)) |
 | Uploading, publishing, and reading other devices' logs | `apps/server/src/services/cloudSync.ts`, `apps/server/src/services/cloudSnapshot.ts`, `apps/server/src/services/importPacing.ts` |
 | Plays and sound vectors in the bucket | `apps/server/src/services/playsArchive.ts`, `apps/server/src/sound/pack.ts` |
+| The sound map in the bucket | `apps/server/src/sound/soundMap.ts`, `packages/shared/src/soundMap.ts` |
 | Packs of covers | `apps/server/src/services/coverPacks.ts` (which covers go where), `#uploadCoverPacks` in `apps/server/src/services/cloudSync.ts`, `apps/app/src/offline/coverPacks.ts` (which packs a device fetches), `fillFromPacks` in `apps/app/src/offline/coverStore.ts` |
 | Taking on the library already in a bucket | `apps/server/src/services/cloudAdopt.ts` |
 | Letting go of the copies here, and of a removed song's bucket files | `apps/server/src/services/cloudSync.ts` (`#letGo`, `#emptyTrash`), `apps/server/src/services/songRemoval.ts`, `cloud_trash` in `apps/server/src/repositories/cloud.ts` |

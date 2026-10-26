@@ -495,6 +495,7 @@ Feature pages, each with what it does, how it works and where the code is:
 | [share-links.md](docs/features/share-links.md) | Sending a song or a few as a link that ends by itself |
 | [share-to-import.md](docs/features/share-to-import.md) | Importing from the share sheet on Android and iOS |
 | [shared-server.md](docs/features/shared-server.md) | One server for every account: workspaces, grants, plays in the bucket, who may sign in |
+| [sound-map.md](docs/features/sound-map.md) | The library placed by how it sounds: press to play a place, drag to drift between two |
 | [tagging.md](docs/features/tagging.md) | Picking, editing and colouring tags, tagging what plays, songs with no tag |
 | [watched-library-folder.md](docs/features/watched-library-folder.md) | The inbox folder, and sweeping it when it changes |
 | [widget.md](docs/features/widget.md) | The iOS home-screen widgets |

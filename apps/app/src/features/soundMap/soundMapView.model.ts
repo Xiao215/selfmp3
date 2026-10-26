@@ -11,6 +11,12 @@ export interface MapView {
   /** Where the map's top left corner is on the field, in points. */
   readonly x: number
   readonly y: number
+  /**
+   * A quarter turn clockwise: a map wider than it is tall, on a field taller
+   * than it is wide (a phone held upright), is drawn standing up so it fills
+   * the screen. Where songs are against each other is the same either way.
+   */
+  readonly turned?: boolean
 }
 
 export interface FieldSize {
@@ -51,15 +57,32 @@ export function boundsOf(places: readonly MapPlace[]): MapBounds {
   return { x0, y0, x1, y1 }
 }
 
+/** A place as drawn: turned a quarter clockwise when the view is. */
+function orient(place: MapPlace, turned: boolean | undefined): MapPlace {
+  return turned ? { x: 1 - place.y, y: place.x } : place
+}
+
+function unorient(place: MapPlace, turned: boolean | undefined): MapPlace {
+  return turned ? { x: place.y, y: 1 - place.x } : place
+}
+
+/** A map this much wider than tall, on a field as much taller than wide, is turned. */
+const TURN_RATIO = 1.25
+
 /**
  * Every song in view, centred and as large as the field allows: a map wider
- * than it is tall fills a wide window rather than sitting in a square.
+ * than it is tall fills a wide window rather than sitting in a square, and
+ * stands up on a phone held upright.
  */
 export function fitView(
   field: FieldSize,
-  bounds: MapBounds = { x0: 0, y0: 0, x1: 1, y1: 1 },
+  given: MapBounds = { x0: 0, y0: 0, x1: 1, y1: 1 },
 ): MapView {
   const base = baseOf(field)
+  const turned =
+    field.height > field.width * TURN_RATIO &&
+    given.x1 - given.x0 > (given.y1 - given.y0) * TURN_RATIO
+  const bounds = turned ? { x0: 1 - given.y1, y0: given.x0, x1: 1 - given.y0, y1: given.x1 } : given
   const width = Math.max(bounds.x1 - bounds.x0, 0.05) * base
   const height = Math.max(bounds.y1 - bounds.y0, 0.05) * base
   const scale = Math.min(
@@ -71,25 +94,32 @@ export function fitView(
   )
   const cx = ((bounds.x0 + bounds.x1) / 2) * base * scale
   const cy = ((bounds.y0 + bounds.y1) / 2) * base * scale
-  return { scale, x: field.width / 2 - cx, y: field.height / 2 - cy }
+  return { scale, x: field.width / 2 - cx, y: field.height / 2 - cy, turned }
 }
 
 export function toScreen(view: MapView, base: number, place: MapPlace): { x: number; y: number } {
-  return { x: view.x + place.x * base * view.scale, y: view.y + place.y * base * view.scale }
+  const drawn = orient(place, view.turned)
+  return { x: view.x + drawn.x * base * view.scale, y: view.y + drawn.y * base * view.scale }
 }
 
 export function toMap(view: MapView, base: number, point: { x: number; y: number }): MapPlace {
-  return {
+  const drawn = {
     x: (point.x - view.x) / (base * view.scale),
     y: (point.y - view.y) / (base * view.scale),
   }
+  return unorient(drawn, view.turned)
 }
 
 /** Zoomed by `factor` about a point of the field, which stays under the finger or pointer. */
 export function zoomAt(view: MapView, factor: number, point: { x: number; y: number }): MapView {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor))
   const ratio = scale / view.scale
-  return { scale, x: point.x - (point.x - view.x) * ratio, y: point.y - (point.y - view.y) * ratio }
+  return {
+    ...view,
+    scale,
+    x: point.x - (point.x - view.x) * ratio,
+    y: point.y - (point.y - view.y) * ratio,
+  }
 }
 
 export function panBy(view: MapView, dx: number, dy: number): MapView {
@@ -117,7 +147,12 @@ export function visibleRect(
   const margin = tileSide(view.scale)
   const a = toMap(view, base, { x: -margin, y: -margin })
   const b = toMap(view, base, { x: field.width + margin, y: field.height + margin })
-  return { x0: a.x, y0: a.y, x1: b.x, y1: b.y }
+  return {
+    x0: Math.min(a.x, b.x),
+    y0: Math.min(a.y, b.y),
+    x1: Math.max(a.x, b.x),
+    y1: Math.max(a.y, b.y),
+  }
 }
 
 /** How far from a drawn path a song may be to be taken: about a finger's width on screen. */

@@ -40,6 +40,22 @@ describe('the sound map’s view', () => {
     expect(zoomAt(view, 1000, point).scale).toBe(MAX_SCALE)
   })
 
+  it('stands a wide map up on a tall field, and finds the same song under a finger', () => {
+    const tall = { width: 390, height: 700 }
+    const tallBase = baseOf(tall)
+    const view = fitView(tall, { x0: 0.1, y0: 0.4, x1: 0.9, y1: 0.6 })
+    expect(view.turned).toBe(true)
+    const left = toScreen(view, tallBase, { x: 0.1, y: 0.5 })
+    const right = toScreen(view, tallBase, { x: 0.9, y: 0.5 })
+    // The map's left and right ends are now its top and bottom.
+    expect(Math.abs(right.y - left.y)).toBeGreaterThan(Math.abs(right.x - left.x))
+    const place = { x: 0.3, y: 0.55 }
+    const back = toMap(view, tallBase, toScreen(view, tallBase, place))
+    expect(back.x).toBeCloseTo(place.x, 6)
+    expect(back.y).toBeCloseTo(place.y, 6)
+    expect(fitView(field, { x0: 0.1, y0: 0.4, x1: 0.9, y1: 0.6 }).turned).toBe(false)
+  })
+
   it('grows tiles more slowly than it spreads the songs', () => {
     expect(tileSide(1)).toBe(8)
     expect(tileSide(8)).toBeGreaterThan(tileSide(1) * 2)

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -15,6 +15,7 @@ import {
 } from '@selfmp3/client'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useBottomInset } from '../../shell/bottomInset'
+import { setPageFoot } from '../../shell/pageFoot'
 import { useLayoutValue } from '../../shell/useLayout'
 import { lineSub, pageFrame } from '../../ui/surfaces'
 import { Button } from '../../ui/components/Button'
@@ -46,6 +47,7 @@ export function SoundMapScreen(): ReactNode {
   const { data: library } = useLibrary()
   const { data: map, isLoading } = useSoundMap()
   const player = usePlayerCommands()
+  useEffect(() => () => setPageFoot(0), [])
 
   const songs = useMemo(
     () => new Map((library?.songs ?? []).map(song => [song.id, song])),
@@ -160,14 +162,25 @@ export function SoundMapScreen(): ReactNode {
               onPathMove={onPathMove}
               onPathEnd={onPathEnd}
             />
-            <View style={styles.foot} testID="sound-map-foot">
+            <View
+              style={styles.foot}
+              // The toasts rise above the line and its Play rather than cover
+              // it (a "Continue from…" did); the chrome under it they clear already.
+              onLayout={event => setPageFoot(event.nativeEvent.layout.height + space.md)}
+              testID="sound-map-foot"
+            >
               {drift ? (
                 drift.ids.length > 0 ? (
                   <>
-                    <Text style={styles.drift} numberOfLines={1} testID="sound-map-drift">
-                      {drift.name} · {plural(drift.ids.length, 'song', 'songs')},{' '}
-                      {formatLongDuration(driftSeconds)}
-                    </Text>
+                    <View style={styles.driftWords} testID="sound-map-drift">
+                      <Text style={styles.drift} numberOfLines={1}>
+                        {drift.name}
+                      </Text>
+                      <Text style={styles.driftCount}>
+                        {plural(drift.ids.length, 'song', 'songs')},{' '}
+                        {formatLongDuration(driftSeconds)}
+                      </Text>
+                    </View>
                     <Button
                       variant="primary"
                       label="Play"
@@ -215,8 +228,9 @@ const styles = StyleSheet.create(theme => ({
     paddingTop: space.sm,
     paddingHorizontal: space.sm,
   },
+  driftWords: { flex: 1, minWidth: 0 },
+  driftCount: lineSub(theme.colors),
   drift: {
-    flex: 1,
     fontSize: type.body,
     fontWeight: '600',
     color: theme.colors.textPrimary,

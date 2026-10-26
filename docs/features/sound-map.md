@@ -41,12 +41,18 @@ screen, whatever the zoom: `pathReach`) is taken, in the order the line passes i
 starting from the song before: each step is as gentle as tempo, key and energy allow, and the
 whole still drifts from where the path starts to where it ends (a plain auto-mix of all of
 them would hop back and forth across the map). Rings mark the songs taken, and the foot says
-what it made, with Play and a way to clear the line:
-
-> night → calm · 14 songs, 52 min ▶ Play ✕
+what it made — the path's name, and under it "14 songs, 52 min", so a long name never hides
+the count — with Play and a way to clear the line ("night → calm · 14 songs, 52 min ▶ Play"
+in the review's mock). The toasts rise above that line (`setPageFoot`), so a "Continue
+from…" never covers Play.
 
 A path's name is the tag most of the eight songs at each end share, when at least half of
 them do, or else the nearest song's title (`pathName`). Up next is named the same.
+
+**Fitting.** The map opens with every song in view and as large as the field allows. A map
+wider than it is tall, on a field taller than it is wide (a phone held upright), is drawn a
+quarter turn clockwise so it fills the screen (`MapView.turned`); which songs sit beside
+which is the same either way.
 
 ### Moving and zooming
 

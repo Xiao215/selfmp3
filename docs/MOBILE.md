@@ -398,10 +398,12 @@ App Group still has to be assigned to both App IDs by hand once: the API cannot.
 }
 ```
 
-**GitHub builds it.** `.github/workflows/ios.yml` runs every night (08:00 UTC) and
-publishes a new build only when `apps/app`, `packages` or the lockfile changed since the
-commit on the release, so friends see at most one update a day; **Run workflow** on the
-iPhone workflow's page builds at once. It signs with the repository's secrets, which
+**GitHub builds it.** `.github/workflows/ios.yml` runs on every push to main that
+changes `apps/app`, `packages` or the lockfile, so a fix is in "Check for updates" within
+the hour. One build runs at a time; while it does, GitHub keeps only the newest push
+waiting, so a busy day is a few builds, the last one main's. It also runs every night
+(08:00 UTC), building only when the app changed since the commit on the release, and
+**Run workflow** on the iPhone workflow's page builds at once. It signs with the repository's secrets, which
 the Mac with the signing sets, and sets again whenever the profiles or the certificate
 change (a new friend's iPhone, say):
 
@@ -432,7 +434,8 @@ signs without the widget's App Group, for profiles made before it was assigned.
 
 **Updates.** The build number is main's commit count (`app.config.js`; the workflow
 checks out all of history for it). An installed release build reads `ios.json` and,
-when the release's build is larger, says so once in a toast; Settings' About card says
+when the release's build is larger, says so in a toast, at most once a day however many
+builds came out (`announcesIosBuild`); Settings' About card says
 whether it is up to date, checks on asking and installs (`features/settings/IosUpdate.tsx`).
 Install brings up the same iOS question as the page; the app's data stays. A new
 friend's iPhone needs a new build: an existing install keeps working, but the old build

@@ -2,15 +2,24 @@
 # the install page and the installed apps find it (docs/MOBILE.md, "Sharing the
 # iPhone app").
 #
-# Nightly rather than on every push: each published build makes every friend's
-# app say there is a newer one, and main moves many times a day. So once a
-# night, and only when the app has changed since the build on the release; or
-# at once from "Run workflow". The signing is the repository's secrets, set
-# from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.
+# On every push that changes the app, so a fix reaches "Check for updates"
+# within the hour rather than the next morning (Xiao, 2026-10-26). One build at
+# a time: while one runs, GitHub keeps only the newest push waiting and drops
+# the ones before it, so a busy day is a few builds, the last one main's. The
+# app says so in a toast at most once a day (`announcesIosBuild`). Nightly
+# too, which builds only when the app has changed since the build on the
+# release; and at once from "Run workflow". The signing is the repository's
+# secrets, set from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.
 
 name: iPhone
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/app/**'
+      - 'packages/**'
+      - 'package-lock.json'
   schedule:
     # 08:00 UTC: four in the morning in Toronto, midnight in Vancouver.
     - cron: '0 8 * * *'

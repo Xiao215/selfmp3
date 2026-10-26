@@ -106,6 +106,25 @@ export function isNewerIosBuild(latest: IosLatest | null, currentBuild: number):
   return latest !== null && Number.isFinite(currentBuild) && latest.build > currentBuild
 }
 
+/** How long the app keeps quiet after saying a newer build is ready. */
+export const IOS_ANNOUNCE_GAP_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Whether the app should say, in a toast, that this newer build is ready: a
+ * build it has not said yet, and not within a day of the last it did. A build
+ * is published with every push that changes the app, several on a busy day,
+ * and a friend hears of them at most once a day; Settings › About has the
+ * newest at any time.
+ */
+export function announcesIosBuild(
+  build: number,
+  last: { readonly build: number; readonly at: number } | null,
+  now: number,
+): boolean {
+  if (!last) return true
+  return build !== last.build && now - last.at >= IOS_ANNOUNCE_GAP_MS
+}
+
 const xml = (text: string): string =>
   text.replace(/[&<>]/g, char => (char === '&' ? '&amp;' : char === '<' ? '&lt;' : '&gt;'))
 

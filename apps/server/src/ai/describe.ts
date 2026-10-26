@@ -480,9 +480,16 @@ export async function narrowAndPick(
   )
 
   // How they sound, when the words or the song steered from say: the songs in
-  // that order, best first. A described sound also keeps only the songs that
-  // sound like it, so a sound few songs have is not padded out with ones that
-  // do not; songs not heard yet cannot be vouched for and stay out with them.
+  // that order, best first. Over the whole library a described sound also
+  // chooses: it keeps only the songs that sound like it, so a sound few songs
+  // have is not padded out with ones that do not, and songs not heard yet
+  // cannot be vouched for and stay out with them. Inside the tags or artists
+  // they named it only orders: those already chose the songs, and a sound
+  // there ("calm" jpop) is which of them to play first. Its line is drawn from
+  // the one best match, and inside a single kind of music a song or two can
+  // stand that far above the rest: "比较温和的jpop" answered one song of a
+  // hundred.
+  const choosesBySound = understanding.anyTags.length === 0 && understanding.artists.length === 0
   let places: Map<number, number> | null = null
   if (fitting.length > 1 && (understanding.sound !== null || like !== null)) {
     steps.begin(
@@ -493,7 +500,7 @@ export async function narrowAndPick(
     const heard = await soundOrder(deps.sound, fitting, understanding, like)
     if (heard) {
       places = heard.places
-      const kept = heard.kept
+      const kept = choosesBySound ? heard.kept : null
       if (kept) fitting = fitting.filter(song => kept.has(song.id))
       steps.done(
         kept

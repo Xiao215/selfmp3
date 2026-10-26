@@ -278,6 +278,26 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(0)
   })
 
+  it('only orders the songs of the tags asked for by how they sound, never leaving one', async () => {
+    const llm = scriptedLlm({})
+    // "比较温和的jpop": song 8 stands well above the other jpop for "calm".
+    const scores = new Map([
+      [7, 0.18],
+      [8, 0.3],
+      [9, 0.2],
+    ])
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.filter(id => scores.has(id)).map(id => [id, scores.get(id)!]))),
+      closeTo: () => null,
+    }
+    const calmJpop = { ...nothing, anyTags: ['jpop'], sound: 'calm, soft Japanese pop' }
+    const result = await narrowAndPick({ ...deps(llm), sound }, '比较温和的jpop', calmJpop, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([8, 9, 7])
+    expect(result.fit).toBe(3)
+    expect(llm.asked).toHaveLength(0)
+  })
+
   it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
     const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
     const sound = {

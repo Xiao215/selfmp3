@@ -28,12 +28,18 @@ function Sync(): ReactNode {
   // Each cover read once per file, not once a second as the playhead moves.
   const covers = useRef(new Map<string, string>())
 
+  // Home's tags, in Home's order (`homeTiles`): the widget follows what Home
+  // recommends rather than a choice of its own. Null while the library is on
+  // its way, so no tag-less snapshot is sent first.
   const tiles = useMemo(
-    () => (library ? homeTiles(library.tags, library.songs, WIDGET_TILES) : []),
+    () => (library ? homeTiles(library.tags, library.songs, WIDGET_TILES) : null),
     [library],
   )
 
   useEffect(() => {
+    // Before the library arrives there is nothing true to say about the tags,
+    // and a snapshot without them reads "Tag a few songs" on the home screen.
+    if (!tiles) return
     // The covers this snapshot draws. Only they stay read: each is the whole
     // picture as text, and keeping every one since launch kept a long
     // session's every song's.

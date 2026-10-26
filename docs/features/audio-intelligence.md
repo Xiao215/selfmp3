@@ -155,14 +155,17 @@ ten idle minutes.
 - **Ask** ([ai.md](ai.md)): the plan has a `sound` part, the description's sound in English
   ("intense epic battle music"), written by the model in English whatever the request's
   language, in positive words only (the model does not understand "no vocals"; that is the
-  words filter). Of the songs the other parts let in, it keeps the ones that sound like it,
-  best first: within 0.06 of the best match, a line drawn from the top because the scores
-  only mean something against each other. A sound few songs have keeps few and a broad one
-  many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces (three in
-  four right), "Japanese pop" 86 (nineteen in twenty right), "intense epic battle music" 26 of
-  337 Genshin tracks. Songs not heard yet stay out. When nothing else is wanted, the kept
-  songs are the answer, with no second model call; otherwise the model picks from the
-  best-sounding 300 of them, with a `sound` column (0–100). The app shows the part as a chip,
+  words filter). The songs the other parts let in are put in the order they sound like it,
+  best first. With no tags or artists asked for, the sound is what chooses, and it keeps the
+  ones that sound like it: within 0.06 of the best match, a line drawn from the top because
+  the scores only mean something against each other. A sound few songs have keeps few and a
+  broad one many: on 585 songs, "solo classical piano" kept 20 against the 18 piano pieces
+  (three in four right), "Japanese pop" 86 (nineteen in twenty right). Songs not heard yet
+  stay out. Inside tags or artists asked for it only orders, since one song standing out
+  inside a single kind of music would leave the rest below the line ("比较温和的jpop" once
+  answered one song of a hundred jpop). When nothing else is wanted, the best-sounding are
+  the answer, with no second model call; otherwise the model picks from the best-sounding
+  300, with a `sound` column (0–100). The app shows the part as a chip,
   "Sounds like calm orchestral…", that can be taken away.
 - **The sound map** ([sound-map.md](sound-map.md)): every heard song placed on a plane by
   how it sounds, the vectors folded down to two numbers on the server, for pressing a spot to

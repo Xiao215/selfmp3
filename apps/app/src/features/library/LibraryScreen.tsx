@@ -19,9 +19,10 @@ import {
   Plus,
   Shuffle,
   SortLines,
+  SoundMap,
 } from '../../ui/components/Icons'
 import { IconButton } from '../../ui/components/IconButton'
-import { MoreMenu } from '../../ui/components/MoreMenu'
+import { MoreMenu, type MenuItem } from '../../ui/components/MoreMenu'
 import { Sheet, SheetItem } from '../../ui/components/Sheet'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongRows } from '../../ui/components/useSongRows'
@@ -355,7 +356,7 @@ export function LibraryScreen(): ReactNode {
                     <Shuffle size={iconSize.item} color={theme.colors.textPrimary} />
                   </IconButton>
                 )}
-                <LibraryMore />
+                <LibraryMore wide={false} />
               </>
             )
           }
@@ -438,7 +439,7 @@ export function LibraryScreen(): ReactNode {
                     testID="library-play-tags"
                   />
                 ) : null}
-                <LibraryMore />
+                <LibraryMore wide />
               </View>
             </View>
           ) : null}
@@ -640,31 +641,39 @@ export function LibraryScreen(): ReactNode {
 }
 
 /**
- * Library's ⋯, on an installed app: "Download all", with what it would take.
- * It had been a strip over the songs on every visit — "109 not on this
- * computer · 528.2 MB · Download" — for a wait only a tap ends (AL1). Settings
- * › On this phone keeps the totals and the same button.
+ * Library's ⋯. On a computer, the Sound map (docs/features/sound-map.md). On
+ * an installed app, "Download all", with what it would take. It had been a
+ * strip over the songs on every visit — "109 not on this computer · 528.2 MB ·
+ * Download" — for a wait only a tap ends (AL1). Settings › On this phone keeps
+ * the totals and the same button. With neither, there is no ⋯.
  */
-function LibraryMore(): ReactNode {
+function LibraryMore({ wide }: { wide: boolean }): ReactNode {
+  const router = useRouter()
   const { installed, absentIds, absentBytes, requestDownload } = useDownloads()
-  if (!installed) return null
+  const items: MenuItem[] = []
+  if (wide) {
+    items.push({
+      key: 'sound-map',
+      label: 'Sound map',
+      icon: <SoundMap tone="textSecondary" />,
+      testID: 'library-sound-map',
+      onPress: () => router.push('/sound-map'),
+    })
+  }
+  if (installed) {
+    items.push({
+      key: 'download-all',
+      label: 'Download all',
+      icon: <CloudDownload tone="textSecondary" />,
+      detail: absentBytes > 0 ? formatBytes(absentBytes) : undefined,
+      disabled: absentIds.length === 0,
+      testID: 'library-download-all',
+      onPress: () => requestDownload(absentIds),
+    })
+  }
+  if (items.length === 0) return null
   return (
-    <MoreMenu
-      name="Library"
-      testID="library-more"
-      menuTestID="library-more-menu"
-      items={[
-        {
-          key: 'download-all',
-          label: 'Download all',
-          icon: <CloudDownload tone="textSecondary" />,
-          detail: absentBytes > 0 ? formatBytes(absentBytes) : undefined,
-          disabled: absentIds.length === 0,
-          testID: 'library-download-all',
-          onPress: () => requestDownload(absentIds),
-        },
-      ]}
-    />
+    <MoreMenu name="Library" testID="library-more" menuTestID="library-more-menu" items={items} />
   )
 }
 

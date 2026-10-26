@@ -18,7 +18,7 @@ import {
  * sidebar, and keeps Stats as a sidebar row as well.
  */
 
-export type ProfileRowId = 'import' | 'report' | 'links' | 'settings'
+export type ProfileRowId = 'import' | 'report' | 'soundMap' | 'links' | 'settings'
 
 export interface ProfileRow {
   readonly id: ProfileRowId
@@ -29,7 +29,7 @@ export interface ProfileRow {
 }
 
 /**
- * Import, Report, Links you shared and Settings. Tags are reached from Home's
+ * Import, Report, Sound map, Links you shared and Settings. Tags are reached from Home's
  * tiles and "All N tags", and Stats from the card above. Links you shared is
  * there for a signed-in account, the only kind that can send one; `linksHint`
  * says how many play.
@@ -52,6 +52,12 @@ export function profileRows({
       label: 'Report',
       href: '/stats/report',
       hint: REPORT_HINT,
+    },
+    {
+      id: 'soundMap',
+      label: 'Sound map',
+      href: '/sound-map',
+      hint: 'Your songs, placed by how they sound',
     },
     ...(linksHint === null
       ? []

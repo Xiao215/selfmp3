@@ -162,7 +162,10 @@ export function tagRegions(
       }
     }
     if (bestCell < 0) continue
-    const centre = { x: ((bestCell % GRID) + 0.5) / GRID, y: (Math.floor(bestCell / GRID) + 0.5) / GRID }
+    const centre = {
+      x: ((bestCell % GRID) + 0.5) / GRID,
+      y: (Math.floor(bestCell / GRID) + 0.5) / GRID,
+    }
     const members = own.filter(place => distance2(place, centre) <= 0.12 ** 2)
     if (members.length < 3) continue
     const x = members.reduce((sum, place) => sum + place.x, 0) / members.length
@@ -234,7 +237,8 @@ export function placeName(
   for (const entry of counts) {
     if (!best || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0])) best = entry
   }
-  const tag = best && best[1] >= Math.max(3, near.length / 2) ? tags.find(t => t.id === best[0]) : undefined
+  const tag =
+    best && best[1] >= Math.max(3, near.length / 2) ? tags.find(t => t.id === best[0]) : undefined
   return tag?.name ?? songs.get(near[0] ?? -1)?.title ?? ''
 }
 

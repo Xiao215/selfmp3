@@ -1,7 +1,7 @@
 import type { Db } from '../db/index.js'
 
 /** The sound map as last folded (sound/soundMap.ts). */
-export interface StoredSoundMap {
+interface StoredSoundMap {
   /** The vectors it was folded from, as `SoundService.packSignature` puts it; empty for one read from the bucket. */
   readonly sig: string
   /** The file, as `encodeSoundMap` writes it. */

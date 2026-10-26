@@ -43,7 +43,7 @@ const SPAN = 10
 const MARGIN = 0.03
 const KEEP_QUANTILE = 0.005
 
-export interface ProjectOptions {
+interface ProjectOptions {
   /** Where each song sat on the last map (0–1); the new map starts there. */
   readonly previous?: ReadonlyMap<string, MapPlace>
   /**

@@ -15,9 +15,9 @@ import type { SoundService } from './sound.js'
  */
 
 /** While songs are still being heard, the map is folded again at most this often. */
-export const FOLD_EVERY_MS = 60 * 60_000
+const FOLD_EVERY_MS = 60 * 60_000
 
-export interface SoundMapDeps {
+interface SoundMapDeps {
   readonly repo: SoundMapRepository
   readonly sound: Pick<SoundService, 'packSignature' | 'hearing' | 'vectorsInBucket'>
   readonly logger: Logger

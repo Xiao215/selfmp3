@@ -28,7 +28,8 @@ import {
  * Songs played as a list that is neither a tag, an artist nor a playlist.
  * `recent` is Home's Recently played row of songs played on their own: Up next
  * names it, but it is neither saved nor remembered as a list of its own, since
- * Recently played already is that list.
+ * Recently played already is that list. `map` is a spot or a drawn path on
+ * the sound map ("Near 晴る", "night → calm").
  */
 const SONGS_ORIGINS = [
   'search',
@@ -38,6 +39,7 @@ const SONGS_ORIGINS = [
   'untagged',
   'found',
   'recent',
+  'map',
 ] as const
 type SongsOrigin = (typeof SONGS_ORIGINS)[number]
 
@@ -648,6 +650,8 @@ export function recentKind(source: ListSource): string {
           return 'Need a tag'
         case 'recent':
           return 'Recently played'
+        case 'map':
+          return 'Sound map'
       }
     case 'room':
       return 'Together'

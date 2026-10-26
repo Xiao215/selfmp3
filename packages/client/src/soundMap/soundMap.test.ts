@@ -55,9 +55,25 @@ describe('songsAlongPath', () => {
 
   it('takes the songs near the line, in the order the line passes them', () => {
     const songs = byId(places.map(place => song(place.id)))
-    const ids = songsAlongPath(places, [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }], 0.05, songs)
+    const ids = songsAlongPath(
+      places,
+      [
+        { x: 0, y: 0.5 },
+        { x: 1, y: 0.5 },
+      ],
+      0.05,
+      songs,
+    )
     expect(ids).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    const back = songsAlongPath(places, [{ x: 1, y: 0.5 }, { x: 0, y: 0.5 }], 0.05, songs)
+    const back = songsAlongPath(
+      places,
+      [
+        { x: 1, y: 0.5 },
+        { x: 0, y: 0.5 },
+      ],
+      0.05,
+      songs,
+    )
     expect(back).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
   })
 
@@ -84,7 +100,16 @@ describe('songsAlongPath', () => {
 
   it('keeps at most so many, spread along the whole line', () => {
     const songs = byId(places.map(place => song(place.id)))
-    const ids = songsAlongPath(places, [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }], 0.05, songs, 4)
+    const ids = songsAlongPath(
+      places,
+      [
+        { x: 0, y: 0.5 },
+        { x: 1, y: 0.5 },
+      ],
+      0.05,
+      songs,
+      4,
+    )
     expect(ids).toHaveLength(4)
     expect(ids[0]).toBeLessThanOrEqual(3)
     expect(ids[3]).toBeGreaterThanOrEqual(8)
@@ -94,8 +119,18 @@ describe('songsAlongPath', () => {
     // Five songs from slow to fast, then five faster still, but placed so the
     // line meets them out of tempo order within each group of five.
     const tempos = [100, 140, 110, 130, 120, 180, 150, 170, 160, 190]
-    const songs = byId(row.map((place, index) => song(place.id, { audioFeatures: feat(tempos[index]!, 0.5) })))
-    const ids = songsAlongPath(row, [{ x: 0, y: 0.5 }, { x: 1, y: 0.5 }], 0.05, songs)
+    const songs = byId(
+      row.map((place, index) => song(place.id, { audioFeatures: feat(tempos[index]!, 0.5) })),
+    )
+    const ids = songsAlongPath(
+      row,
+      [
+        { x: 0, y: 0.5 },
+        { x: 1, y: 0.5 },
+      ],
+      0.05,
+      songs,
+    )
     const first = ids.slice(0, 5).map(id => tempos[id - 1]!)
     const second = ids.slice(5).map(id => tempos[id - 1]!)
     // Each group stays together, the slower first...
@@ -113,9 +148,17 @@ describe('tagRegions and names', () => {
   const places: PlacedSong[] = []
   const songs: Song[] = []
   for (let index = 0; index < 12; index++) {
-    places.push({ id: index + 1, x: 0.2 + (index % 4) * 0.02, y: 0.2 + Math.floor(index / 4) * 0.02 })
+    places.push({
+      id: index + 1,
+      x: 0.2 + (index % 4) * 0.02,
+      y: 0.2 + Math.floor(index / 4) * 0.02,
+    })
     songs.push(song(index + 1, { tagIds: [night.id], title: `Night ${index + 1}` }))
-    places.push({ id: index + 101, x: 0.8 - (index % 4) * 0.02, y: 0.8 - Math.floor(index / 4) * 0.02 })
+    places.push({
+      id: index + 101,
+      x: 0.8 - (index % 4) * 0.02,
+      y: 0.8 - Math.floor(index / 4) * 0.02,
+    })
     songs.push(song(index + 101, { tagIds: [calm.id], title: `Calm ${index + 1}` }))
   }
   const all = byId(songs)
@@ -131,9 +174,18 @@ describe('tagRegions and names', () => {
 
   it('names a spot by the tag around it, and a path by its two ends', () => {
     expect(placeName(places, { x: 0.21, y: 0.21 }, all, [night, calm])).toBe('night')
-    expect(pathName(places, [{ x: 0.2, y: 0.2 }, { x: 0.5, y: 0.5 }, { x: 0.8, y: 0.8 }], all, [night, calm])).toBe(
-      'night → calm',
-    )
+    expect(
+      pathName(
+        places,
+        [
+          { x: 0.2, y: 0.2 },
+          { x: 0.5, y: 0.5 },
+          { x: 0.8, y: 0.8 },
+        ],
+        all,
+        [night, calm],
+      ),
+    ).toBe('night → calm')
     // No tag holds the spot: the nearest song's title.
     const untagged = byId(songs.map(s => ({ ...s, tagIds: [] })))
     expect(placeName(places, { x: 0.2, y: 0.2 }, untagged, [])).toBe('Night 1')

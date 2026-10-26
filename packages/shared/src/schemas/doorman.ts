@@ -97,6 +97,56 @@ export function signInCodeFromUrl(url: string): string | null {
   return code.success ? code.data : null
 }
 
+/**
+ * Where the doorman says, in the same fragment, that Google did not sign
+ * anyone in, when it has somewhere to send the browser back to:
+ * `#signin-refused=not-allowed&signin-email=…`. It used to show a page of its
+ * own with no way back, and a device waiting for the sign-in waited for good.
+ */
+export const SIGN_IN_REFUSED_FRAGMENT = 'signin-refused'
+export const SIGN_IN_EMAIL_FRAGMENT = 'signin-email'
+
+export const SIGN_IN_REFUSAL = {
+  /** Google signed in an account the owner has not added. */
+  notAllowed: 'not-allowed',
+  /** Nobody may sign in yet: the doorman has no owner. */
+  nobodyAllowed: 'nobody-allowed',
+  /** Cancel on Google's page, or Google refusing for its own reasons. */
+  cancelled: 'cancelled',
+  /** Google could not finish: the code would not trade, or the token did not check out. */
+  failed: 'failed',
+} as const
+export type SignInRefusalReason = (typeof SIGN_IN_REFUSAL)[keyof typeof SIGN_IN_REFUSAL]
+
+export interface SignInRefusal {
+  readonly reason: SignInRefusalReason
+  /** The Google account that is not allowed, for `not-allowed`. */
+  readonly email: string | null
+}
+
+const REASONS: ReadonlySet<string> = new Set(Object.values(SIGN_IN_REFUSAL))
+
+/** Why the doorman sent the browser back without a code, or null when it did not say. */
+export function signInRefusalFromUrl(url: string): SignInRefusal | null {
+  const hash = url.indexOf('#')
+  if (hash < 0) return null
+  const params = new URLSearchParams(url.slice(hash + 1))
+  const reason = params.get(SIGN_IN_REFUSED_FRAGMENT)
+  if (reason === null || !REASONS.has(reason)) return null
+  const email = params.get(SIGN_IN_EMAIL_FRAGMENT)
+  return {
+    reason: reason as SignInRefusalReason,
+    email: email !== null && email.length <= 320 ? email : null,
+  }
+}
+
+/** The fragment for a refusal, as `signInRefusalFromUrl` reads it. */
+export function signInRefusalFragment(refusal: SignInRefusal): string {
+  const params = new URLSearchParams({ [SIGN_IN_REFUSED_FRAGMENT]: refusal.reason })
+  if (refusal.email !== null) params.set(SIGN_IN_EMAIL_FRAGMENT, refusal.email)
+  return params.toString()
+}
+
 export const DoormanClaimRequestSchema = z.object({
   attempt: SignInAttemptSchema,
   /** Left out to ask how things stand; sent to claim the session. */

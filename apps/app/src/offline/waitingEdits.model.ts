@@ -3,6 +3,7 @@ import {
   hydrate,
   type DehydratedState,
   type Mutation,
+  type NetworkMode,
   type QueryClient,
 } from '@tanstack/react-query'
 import { isResumableEdit, queryKeys, resumableEdits } from '@selfmp3/client'
@@ -17,6 +18,30 @@ interface Kept {
   /** The library they were made for: the server's address, or `cloud`. */
   readonly library: string
   readonly mutations: DehydratedState['mutations']
+}
+
+/**
+ * Whether the app's requests wait for the network, by where the library is.
+ *
+ * A server's library is across the network, so offline its edits wait
+ * (TanStack Query pauses them, and `waitingEdits.ts` keeps them). A cloud
+ * library is this device's copy (`@selfmp3/replica`): an edit lands in it, and
+ * in its outbox, at once, stamped when it is made, and the outbox sends it
+ * when it can. Paused instead, a cloud edit reached the copy only when the
+ * browser said it was online again — stamped then, so an edit made offline
+ * an hour ago beat one another device made a minute ago — and meanwhile the
+ * library on screen did not show it while the sidebar said All saved. Reads
+ * are asked once whatever the network says, for the same reason: the copy
+ * answers offline, and only what needs the network fails, then waits.
+ */
+export function networkModeFor(client: QueryClient, cloud: boolean): void {
+  const mode: NetworkMode = cloud ? 'offlineFirst' : 'online'
+  const defaults = client.getDefaultOptions()
+  client.setDefaultOptions({
+    ...defaults,
+    queries: { ...defaults.queries, networkMode: mode },
+    mutations: { ...defaults.mutations, networkMode: mode },
+  })
 }
 
 /** An edit held back, not sent yet: one that can wait, and is waiting. */

@@ -25,14 +25,17 @@ import type { DevicePlace } from './settings.model'
  *    it is immediate.
  * 6. Hand back to the app, which returns to Welcome (`SIGNED_OUT_ROUTE`).
  */
-export interface SignOutSteps {
-  readonly stopPlaying: () => void
-  readonly sendPendingChanges: () => Promise<void>
-  readonly endSession: () => Promise<void>
+export interface ForgetSteps {
   readonly forgetLibrary: () => Promise<void>
   readonly removeDownloads: () => Promise<void>
   readonly forgetSavedLibrary: () => Promise<void>
   readonly forgetExcluded: () => void
+}
+
+export interface SignOutSteps extends ForgetSteps {
+  readonly stopPlaying: () => void
+  readonly sendPendingChanges: () => Promise<void>
+  readonly endSession: () => Promise<void>
   readonly done: () => void
 }
 
@@ -46,13 +49,21 @@ export async function signOutOfCloud(steps: SignOutSteps): Promise<void> {
   steps.stopPlaying()
   await steps.sendPendingChanges().catch(() => undefined)
   await steps.endSession()
+  await forgetAccount(steps)
+  steps.done()
+}
+
+/**
+ * Steps 4 and 5 alone: what is kept of an account, forgotten. Also for an
+ * account whose sign-in the doorman ended, once someone else signs in.
+ */
+export async function forgetAccount(steps: ForgetSteps): Promise<void> {
   steps.forgetExcluded()
   await Promise.allSettled([
     steps.forgetLibrary(),
     steps.removeDownloads(),
     steps.forgetSavedLibrary(),
   ])
-  steps.done()
 }
 
 /** The confirmation's words, with what would be lost if it cannot be sent now. */

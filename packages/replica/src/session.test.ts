@@ -532,6 +532,75 @@ describe('against the real doorman', () => {
     expect(missing.status).toBe(404)
   })
 
+  it('hears the doorman end the session, forgets it, and keeps whose it was', async () => {
+    const { h, session, signedIn } = await signedInTo()
+    await session.saveSession(signedIn)
+    const heard: unknown[] = []
+    session.onSessionEnded(ended => heard.push(ended))
+
+    // Signed out everywhere — from another device, or by the owner — and
+    // past the minute the doorman remembers a session for.
+    await h.call(DOORMAN_PATHS.signOutEverywhere, { method: 'POST', token: signedIn.token })
+    h.clock.now += 61_000
+
+    for (let tries = 0; tries < 2; tries++) {
+      await expect(session.doormanFetch(signedIn, DOORMAN_PATHS.changes)).rejects.toMatchObject({
+        status: 401,
+        code: 'unauthorized',
+      })
+    }
+    const ended = { account: signedIn.me.account, email: signedIn.me.email }
+    // Said once, however many requests were refused.
+    expect(heard).toEqual([ended])
+    expect(await session.loadSession()).toBeNull()
+    expect(await session.endedSession()).toEqual(ended)
+  })
+
+  it('ends a session at the doorman once it can be reached, after signing out without it', async () => {
+    const { h, signedIn } = await signedInTo()
+    let reachable = false
+    let sent = 0
+    const p = platform(() => reply(500, {}), {
+      doormanUrl: DOORMAN_ORIGIN,
+      fetch: (url, init) => {
+        sent++
+        if (!reachable) return Promise.reject(new TypeError('Failed to fetch'))
+        return h.doorman.fetch(new Request(url, init as RequestInit), h.env)
+      },
+    })
+    const session = createCloudSession(p)
+    await session.saveSession(signedIn)
+
+    await session.signOut(signedIn)
+    expect(await session.loadSession()).toBeNull()
+    // Still a working session at the doorman, which never heard.
+    expect((await h.call(DOORMAN_PATHS.me, { token: signedIn.token })).status).toBe(200)
+
+    await session.endLeftSessions()
+    reachable = true
+    await session.endLeftSessions()
+    h.clock.now += 61_000
+    expect((await h.call(DOORMAN_PATHS.me, { token: signedIn.token })).status).toBe(401)
+    // Ended once, and not sent again.
+    const asked = sent
+    await session.endLeftSessions()
+    expect(sent).toBe(asked)
+    expect(p.store.seen.has('cloud-left-sessions')).toBe(false)
+  })
+
+  it('does not take its own sign-out for the doorman ending the session', async () => {
+    const { session, signedIn } = await signedInTo()
+    await session.saveSession(signedIn)
+    const heard: unknown[] = []
+    session.onSessionEnded(ended => heard.push(ended))
+    await session.signOut(signedIn)
+    await expect(session.doormanFetch(signedIn, DOORMAN_PATHS.me)).rejects.toMatchObject({
+      status: 401,
+    })
+    expect(heard).toEqual([])
+    expect(await session.endedSession()).toBeNull()
+  })
+
   it('holds reads once the bucket’s cap is used up, by the code the doorman sends', async () => {
     const { h, session, signedIn } = await signedInTo()
     h.bucket.capped = true

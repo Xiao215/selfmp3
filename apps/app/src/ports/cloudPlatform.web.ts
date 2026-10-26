@@ -88,6 +88,14 @@ const textCache: TextCache =
     ? cacheApiTextCache
     : indexedDbTextCache
 
+/**
+ * The tabs of this browser saying to each other that the outbox they share
+ * changed. Null where there is no BroadcastChannel; the installed app has one
+ * window, and tells nobody.
+ */
+const outboxChannel =
+  typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('selfmp3-outbox')
+
 export const cloudPlatform: CloudPlatform = {
   doormanUrl,
   sharedServerUrl,
@@ -118,6 +126,15 @@ export const cloudPlatform: CloudPlatform = {
       if (document.visibilityState === 'visible') run()
     })
   },
+
+  ...(outboxChannel
+    ? {
+        outboxNews: {
+          tell: () => outboxChannel.postMessage('changed'),
+          hear: run => outboxChannel.addEventListener('message', run),
+        },
+      }
+    : {}),
 
   decodeText: decodeBucketText,
 

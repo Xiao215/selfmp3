@@ -27,6 +27,7 @@ import { useRecordRecentLists } from '../src/features/lists/recentLists.store'
 import { usePlaybackMemory } from '../src/player/usePlaybackMemory'
 import { registerPlayback } from '../src/player/registerPlayback'
 import { ConnectionProvider, useConnection } from '../src/connection/ConnectionProvider'
+import { useStopWhenSignInEnds } from '../src/connection/useStopWhenSignInEnds'
 import { Shell } from '../src/shell/Shell'
 import { TitleBarRoom } from '../src/shell/TitleBarRoom'
 import { addressOf, fullScreenSwipeAllowed, swipeBackAllowed } from '../src/shell/backGesture'
@@ -257,6 +258,8 @@ function Keeping(): ReactNode {
   useKeepAlongside()
   // Edits made while the library was out of reach, kept through a reload.
   useKeepWaitingEdits()
+  // A sign-in the doorman ended leaves nothing playing.
+  useStopWhenSignInEnds()
   return null
 }
 

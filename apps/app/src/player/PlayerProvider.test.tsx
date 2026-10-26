@@ -6,6 +6,7 @@ import type { EngineState, EngineWiring, PlaybackEngine } from '@selfmp3/client'
 
 import { PlayerProvider, usePlayer, type PlayerApi } from './PlayerProvider'
 import { setRoomTracks } from './roomTracks'
+import { currentToasts } from '../ui/toast'
 
 /**
  * The queue the commands read is the queue the last command left.
@@ -500,5 +501,9 @@ describe('songs deleted on another device', () => {
     expect(mockEngine.pause).toHaveBeenCalled()
     expect([...api.queue.items]).toEqual([2, 3])
     expect(mockEngine.load).toHaveBeenLastCalledWith(2, { autoplay: false })
+    // The music stopping by itself is said, or it reads as a fault.
+    expect(currentToasts().map(toast => toast.say)).toContain(
+      `“${song(1).title}” is no longer in your library`,
+    )
   })
 })

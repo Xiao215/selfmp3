@@ -276,6 +276,9 @@ export function unreachableLabel(error: unknown): string {
  */
 export const SHOWS_WHEN_REACHABLE = 'This shows when your library is reachable again.'
 
+/** The same place in a library with no songs yet, which was never out of reach. */
+export const NOTHING_PLAYED_YET = 'This fills in once you’ve added songs and played some.'
+
 /** The same for lyrics, on a phone's Now Playing and a computer's. */
 export const LYRICS_WHEN_REACHABLE = 'Lyrics show when your library is reachable again.'
 

@@ -31,6 +31,6 @@ export {
   type ImportRequestView,
 } from './schemas.js'
 export type { CloudPlatform, DeviceStore, TextCache } from './platform.js'
-export { createCloudSession, type CloudSession } from './session.js'
+export { createCloudSession, type CloudSession, type EndedSession } from './session.js'
 export { createCloudLibrary } from './library.js'
 export { SERVER_ONLY_ROUTES, createCloudRoutes } from './routes.js'

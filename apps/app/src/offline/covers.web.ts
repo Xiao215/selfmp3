@@ -38,13 +38,12 @@ import {
  * worker answers those addresses.
  *
  * Kept, they are let go by the rules a computer's folder is: the sweep takes
- * the pictures the library no longer names, and signing out takes them all
- * (`remove`, `forget`) — the worker keeps one version of a song's cover, but
- * never looks back at a picture under its key.
+ * the pictures the library no longer names, and signing out takes them all,
+ * with every cover the worker kept (`remove`, `forgetFiles`) — the worker keeps one
+ * version of a song's cover, but never looks back at a picture under its key.
  */
 interface TabPictures extends PackSink {
   readonly remove: (name: string) => Promise<void>
-  readonly forget: () => Promise<void>
 }
 
 function tabPictures(): TabPictures | null {
@@ -77,10 +76,6 @@ function tabPictures(): TabPictures | null {
     },
     remove: async name => {
       await (await caches.open(API_CACHE)).delete(addressOf(name))
-    },
-    forget: async () => {
-      const cache = await caches.open(API_CACHE)
-      for (const name of await have()) await cache.delete(addressOf(name))
     },
   }
 }
@@ -145,7 +140,12 @@ const platform: CoverPlatform = {
   },
 
   forgetFiles: async () => {
-    await (coverFiles ?? tab)?.forget()
+    await coverFiles?.forget()
+    // The whole of the worker's covers cache, not only the packs' pictures:
+    // the worker keeps every cover it drew there too (`/api/art/<id>`), and
+    // none of it may outlive the account on a computer someone else signs in
+    // to next.
+    if (typeof caches !== 'undefined') await caches.delete(API_CACHE)
   },
 
   packs: coverFiles

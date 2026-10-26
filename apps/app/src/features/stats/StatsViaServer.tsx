@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { useLibrary } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
 import { useServerDirect } from '../../connection/useServerDirect'
 import { useConnection } from '../../connection/ConnectionProvider'
@@ -28,6 +29,7 @@ export function StatsViaServer(): ReactNode {
 
 function CloudStats(): ReactNode {
   const reach = useServerDirect()
+  const { data: library } = useLibrary()
   /*
    * The frame is drawn here too, rather than an empty page: the heading and
    * the window are there while the server is looked for, so what arrives
@@ -43,7 +45,12 @@ function CloudStats(): ReactNode {
 
   return (
     <StatsFrame period={period} onPeriod={setPeriod} testID="stats-screen">
-      <ServerAway reach={reach} need="stats" testID="stats-server" />
+      <ServerAway
+        reach={reach}
+        need="stats"
+        empty={library?.songs.length === 0}
+        testID="stats-server"
+      />
     </StatsFrame>
   )
 }

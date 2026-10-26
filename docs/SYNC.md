@@ -75,10 +75,10 @@ log file is written or deleted through it, and `GET /v1/changes` reads it withou
 bucket. A device's look asks the counter first and lists `log/` and `snapshots/` only when it
 has moved — or when its last listing is half an hour old, since a server holding the bucket's
 own key writes past the doorman — and each write is answered with the counter before and
-after it (`Selfmp3-Changes`), so a device's own uploads never make it list. A look is due a
-minute after the last when the counter answers, and five minutes after it when the doorman
-keeps none, and when it last looked is kept with the device's copy, so a new tab or a relaunch
-does not look again at once. The routes asked every few seconds — where the server is, which
+after it (`Selfmp3-Changes`), so a device's own uploads never make it list. A look is due
+twenty seconds after the last when the counter answers, and five minutes after it when the
+doorman keeps none, and asked for whenever the app comes back to the front; when it last looked
+is kept with the device's copy, so a new tab or a relaunch does not look again at once. The routes asked every few seconds — where the server is, which
 uid is which song — answer from the device's copy and never start a look. The server's own
 ten-minute poll asks the counter the same way. Measured before (2026-10-07): an open tab
 listed both folders every eighty seconds, about 2,160 of the day's 2,500 listings on its own.

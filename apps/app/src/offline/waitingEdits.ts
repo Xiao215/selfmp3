@@ -17,7 +17,11 @@ import { isWaitingEdit, keptEdits, parseKept, restoreEdits } from './waitingEdit
  * online — by the same functions their hooks send them with (`resumableEdits`).
  *
  * Kept for one library: a switch of server clears the query client, and what
- * was made for one library is never sent to another.
+ * was made for one library is never sent to another. Only a server's: a cloud
+ * library's edits never wait here (`networkModeFor`), they are in the
+ * replica's outbox the moment they are made. Kept edits name songs, tags and
+ * playlists by local ids, and a cloud library hands those out afresh at each
+ * sign-in: an edit kept across one landed on whatever held its ids next.
  */
 
 const KEY = 'waitingEdits'
@@ -39,7 +43,7 @@ export function keepEditsAsLeaving(): void {
 export function useKeepWaitingEdits(): void {
   const client = useQueryClient()
   const { status, connection, fromCloud } = useConnection()
-  const library = status !== 'ready' ? null : fromCloud ? 'cloud' : (connection?.baseUrl ?? null)
+  const library = status !== 'ready' || fromCloud ? null : (connection?.baseUrl ?? null)
 
   useEffect(() => {
     if (library === null) return undefined
@@ -64,6 +68,11 @@ export function useKeepWaitingEdits(): void {
       if (timer !== null) clearTimeout(timer)
     }
   }, [client, library])
+}
+
+/** Signing out or leaving a server: nothing kept is sent to whatever library comes next. */
+export function forgetWaitingEdits(): void {
+  prefs.set(KEY, '')
 }
 
 /** How many edits are waiting to be sent: what "All saved" must not be said over. */

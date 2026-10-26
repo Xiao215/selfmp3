@@ -44,11 +44,14 @@ export function ServerAway({
   need,
   row = false,
   last = true,
+  empty = false,
   testID,
 }: {
   reach: Reach & { readonly lookAgain: () => void }
   need: ServerNeed
   row?: boolean
+  /** The library has no songs yet (`awayCopy`). */
+  empty?: boolean
   /** As a row, whether it ends its panel: Importing has its token row under it. */
   last?: boolean
   testID: string
@@ -61,7 +64,7 @@ export function ServerAway({
     if (said) countShownError('server-away')
   }, [said])
   const offered = !said && sharedServerUrl !== ''
-  const copy = awayCopy(said, need, offered)
+  const copy = awayCopy(said, need, offered, empty)
 
   const buttons =
     reach.state === 'away' ? (

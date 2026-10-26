@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MutationObserver, QueryClient, onlineManager } from '@tanstack/react-query'
 import { configureClient, editKeys, type Api } from '@selfmp3/client'
 
-import { keptEdits, parseKept, restoreEdits } from './waitingEdits.model'
+import { keptEdits, networkModeFor, parseKept, restoreEdits } from './waitingEdits.model'
 
 /*
  * An edit made offline, the page reloaded, and the edit sent once online —
@@ -105,5 +105,44 @@ describe('edits kept while the library is out of reach', () => {
     expect(keptEdits(client, 'cloud').mutations).toEqual([])
     expect(parseKept('{nope')).toBeNull()
     expect(parseKept(JSON.stringify({ library: 1, mutations: [] }))).toBeNull()
+  })
+})
+
+describe('a cloud library’s edits', () => {
+  /** A tag ticked as the picker ticks it, into whatever the edit is sent to. */
+  const tick = (client: QueryClient, into: string[]): Promise<unknown> =>
+    new MutationObserver<unknown, Error, { songId: number }>(client, {
+      mutationKey: [...editKeys.songTags],
+      mutationFn: () => {
+        into.push('applied')
+        return Promise.resolve()
+      },
+    })
+      .mutate({ songId: 7 })
+      .catch(() => undefined)
+
+  it('reach this device’s copy at once while offline, so each is stamped when it is made', async () => {
+    // Paused instead, an edit made offline reached the copy only once the
+    // browser was online again, and was stamped then: an old edit beat one
+    // made since on another device, and the screen never showed it meanwhile.
+    const client = new QueryClient()
+    networkModeFor(client, true)
+    onlineManager.setOnline(false)
+    const applied: string[] = []
+    await tick(client, applied)
+    expect(applied).toEqual(['applied'])
+    expect(keptEdits(client, 'cloud').mutations).toEqual([])
+  })
+
+  it('leave a server’s edits waiting for the network, as they must', async () => {
+    const client = new QueryClient()
+    networkModeFor(client, true)
+    networkModeFor(client, false)
+    onlineManager.setOnline(false)
+    const applied: string[] = []
+    void tick(client, applied)
+    await Promise.resolve()
+    expect(applied).toEqual([])
+    expect(keptEdits(client, 'http://pi:4600').mutations).toHaveLength(1)
   })
 })

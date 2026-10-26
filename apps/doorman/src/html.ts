@@ -122,6 +122,8 @@ interface PageOptions {
   /** A sign-in code, shown large after the lines, and the notes that go under it. */
   readonly code?: string
   readonly notes?: readonly string[]
+  /** The page's one way on, after everything else: back to the app, say. */
+  readonly link?: { readonly href: string; readonly label: string }
 }
 
 export async function page(options: PageOptions): Promise<Response> {
@@ -147,6 +149,9 @@ export async function page(options: PageOptions): Promise<Response> {
       ? `<p class="code${options.code.length > 12 ? ' long' : ''}">${escapeHtml(options.code)}</p>`
       : '',
     ...paragraphs(options.notes),
+    options.link
+      ? `<p><a href="${escapeHtml(options.link.href)}">${escapeHtml(options.link.label)}</a></p>`
+      : '',
     '</main>',
     '</body>',
     '</html>',

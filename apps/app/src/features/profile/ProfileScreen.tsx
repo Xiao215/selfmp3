@@ -36,7 +36,7 @@ import { StatFigure, StatFigures } from '../../ui/components/StatFigure'
 import { FIT_LINE } from '../../ui/textScale'
 import { ScrollView } from '../../ui/components/Scroll'
 import { Press } from '../../ui/components/Press'
-import { SHOWS_WHEN_REACHABLE } from '../library/library.model'
+import { NOTHING_PLAYED_YET, SHOWS_WHEN_REACHABLE } from '../library/library.model'
 
 const ICONS: Record<ProfileRowId, typeof Settings> = {
   import: Download,
@@ -77,6 +77,7 @@ function ProfilePage({
   const { wide } = useLayoutFlags()
   const { fromCloud } = useConnection()
   const { data: links } = useSentLinks()
+  const { data: library } = useLibrary()
   const now = useMinute()
   const rows = profileRows({
     linksHint: fromCloud ? sentLinksHint(links, now) : null,
@@ -90,7 +91,12 @@ function ProfilePage({
       >
         <BackButton to="/" testID="profile-back" />
         <Person />
-        <Month card={monthCard(stats)} loading={loading} via={via} />
+        <Month
+          card={monthCard(stats)}
+          loading={loading}
+          empty={library?.songs.length === 0}
+          via={via}
+        />
         <View>
           {rows.map(row => (
             <Row key={row.id} row={row} />
@@ -142,10 +148,13 @@ function Person(): ReactNode {
 function Month({
   card: month,
   loading,
+  empty,
   via,
 }: {
   card: MonthCard | null
   loading: boolean
+  /** A library with no songs yet: nothing was ever out of reach, there is just nothing played. */
+  empty: boolean
   via: ServerConnection | undefined
 }): ReactNode {
   const router = useRouter()
@@ -172,7 +181,9 @@ function Month({
           {month.onRepeat ? <OnRepeat month={month} via={via} /> : null}
         </>
       ) : (
-        <Text style={styles.line}>{loading ? 'Working it out…' : SHOWS_WHEN_REACHABLE}</Text>
+        <Text style={styles.line}>
+          {loading ? 'Working it out…' : empty ? NOTHING_PLAYED_YET : SHOWS_WHEN_REACHABLE}
+        </Text>
       )}
     </Press>
   )

@@ -259,6 +259,12 @@ describe('awayCopy', () => {
     expect(awayCopy(true, 'stats', true).title).toBe('Your library’s computer isn’t answering')
   })
 
+  it('does not tell a library with no songs yet that its songs still play', () => {
+    expect(awayCopy(false, 'stats', true, true).body).toBe('Your library has no songs yet.')
+    // Import's line is about adding, which an empty library is there to do.
+    expect(awayCopy(false, 'import', true, true).body).toBe('You can still add a link below.')
+  })
+
   it('leads with what this screen came for, so the card is not the same card everywhere', () => {
     expect(awayCopy(true, 'import').why).toContain('Importing goes through your library’s computer')
     expect(awayCopy(true, 'stats').why).toContain('Stats are worked out on your library’s computer')

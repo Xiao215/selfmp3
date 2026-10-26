@@ -14,11 +14,12 @@ import {
   textStyle,
 } from '@selfmp3/client'
 import { fonts } from '../../ports/fonts'
-import { session as cloud } from '../../replica'
+import type { CloudSession } from '@selfmp3/replica'
+import { library as cloudLibrary, session as cloud } from '../../replica'
 import { keptCovers } from '../../offline/covers'
 import { deviceWord } from '../../ports/device'
 import { keyboardAvoidBehavior } from '../../ports/keyboard'
-import { onSignInCode } from '../../ports/signInReturn'
+import { onSignInBack } from '../../ports/signInReturn'
 import { TitleBarDrag } from '../../shell/TitleBarRoom'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useLayout } from '../../shell/useLayout'
@@ -30,10 +31,13 @@ import { floating, serif, bodyText } from '../../ui/surfaces'
 import {
   afterCheck,
   copyFor,
+  endedMessage,
+  refusalMessage,
   signInFailure,
   TOOK_TOO_LONG,
   type SignInStage,
 } from '../signIn/signIn.model'
+import { useForgetEndedAccount } from '../settings/useSignOut'
 import { ServerAddress } from './ServerAddress'
 import { WhitePill } from './WhitePill'
 import { ONBOARDING_GUTTER, OnboardingFootnote, OnboardingTitle } from './OnboardingPage'
@@ -82,9 +86,42 @@ const POLL_MS = 2_000
 export function WelcomeScreen(): ReactNode {
   const { theme } = useUnistyles()
   const { wide, finePointer, width } = useLayout()
-  const { signedInToCloud } = useConnection()
+  const { signedInToCloud: adopt, sessionEnded } = useConnection()
+  const forgetEnded = useForgetEndedAccount()
   const [stage, setStage] = useState<SignInStage>({ kind: 'idle', message: null })
   const [kept, setKept] = useState<readonly string[] | null>(null)
+  // What is still waiting to go up from a sign-in the doorman ended.
+  const [waiting, setWaiting] = useState(0)
+
+  useEffect(() => {
+    if (!sessionEnded) return undefined
+    let cancelled = false
+    void cloudLibrary.keptCloudChanges().then(
+      count => {
+        if (!cancelled) setWaiting(count)
+      },
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [sessionEnded])
+
+  /**
+   * In, as `session`. After a sign-in the doorman ended, this device still
+   * holds that account's library and the changes it never sent: kept for the
+   * same account, and forgotten first for any other, which would otherwise
+   * be handed another library's songs, ids and outbox.
+   */
+  const signedInToCloud = useCallback(
+    async (session: CloudSession): Promise<void> => {
+      const ended = await cloud.endedSession()
+      if (ended && ended.account !== session.me.account) await forgetEnded()
+      await cloud.clearEnded()
+      adopt(session)
+    },
+    [adopt, forgetEnded],
+  )
 
   // What this device kept from before. Until it answers, nothing is drawn
   // above the words rather than tiles that a moment later become covers; a
@@ -120,7 +157,7 @@ export function WelcomeScreen(): ReactNode {
         return
       }
       const outcome = await cloud.claimSignIn(pending.attempt)
-      if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
+      if (outcome.status === 'signed-in') await signedInToCloud(outcome.session)
       else {
         const attempt = outcome.status === 'code' ? 'done' : 'pending'
         setStage(current => afterCheck(current, attempt, Date.now()))
@@ -156,7 +193,7 @@ export function WelcomeScreen(): ReactNode {
           return
         }
         const outcome = await cloud.claimSignIn(pending.attempt, code)
-        if (outcome.status === 'signed-in') signedInToCloud(outcome.session)
+        if (outcome.status === 'signed-in') await signedInToCloud(outcome.session)
         else setStage({ kind: 'idle', message: 'Google hasn’t finished yet. Try again.' })
       } catch (error) {
         // A refused code ends the attempt: the doorman spends it either way.
@@ -182,11 +219,18 @@ export function WelcomeScreen(): ReactNode {
    */
   useEffect(
     () =>
-      onSignInCode('welcome', code => {
+      onSignInBack('welcome', back => {
+        if (back.kind === 'refused') {
+          // Nothing to wait for any more: the attempt is over, and the poll
+          // would have gone on saying "Finish in your browser" until it ran out.
+          void cloud.clearPendingSignIn()
+          setStage({ kind: 'idle', message: refusalMessage(back.refusal) })
+          return
+        }
         // Said before the claim starts, not after: the poll is also running, and
         // it learns "finished" from the doorman a moment earlier.
         setStage({ kind: 'claiming' })
-        void claimWith(code)
+        void claimWith(back.code)
       }),
     [claimWith],
   )
@@ -219,7 +263,11 @@ export function WelcomeScreen(): ReactNode {
   const actions =
     stage.kind === 'claiming' ? null : (
       <View style={styles.actions}>
-        {stage.kind === 'idle' && stage.message ? <StatusLine>{stage.message}</StatusLine> : null}
+        {stage.kind === 'idle' && (stage.message || sessionEnded) ? (
+          <StatusLine>
+            {stage.message ?? endedMessage(sessionEnded?.email ?? '', waiting)}
+          </StatusLine>
+        ) : null}
         {stage.kind === 'idle' || stage.kind === 'lost' ? (
           <WhitePill
             testID="welcome-google"

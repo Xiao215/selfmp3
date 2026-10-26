@@ -273,14 +273,21 @@ export type ServerNeed = keyof typeof SERVER_NEEDS
  * `offered` is the server that works for anyone signed in
  * (docs/features/shared-server.md), when this build offers one: a library
  * that never had a computer is told one is there for the asking, rather than
- * to go and start one it may not have.
+ * to go and start one it may not have. `empty` is a library with no songs
+ * yet — a brand-new account — which is not told its songs still play.
  */
 export function awayCopy(
   said: boolean,
   need: ServerNeed,
   offered = false,
+  empty = false,
 ): { title: string; body: string; why: string } {
-  const { needs, meanwhile, still } = SERVER_NEEDS[need]
+  const { needs, meanwhile } = SERVER_NEEDS[need]
+  // A library with no songs yet has none to "still play".
+  const still =
+    empty && SERVER_NEEDS[need].still === SONGS_STILL_PLAY
+      ? 'Your library has no songs yet.'
+      : SERVER_NEEDS[need].still
   if (!said && offered) {
     return {
       title: 'No computer works for your library yet',

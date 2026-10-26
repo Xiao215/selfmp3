@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CLOUD_FILES_KEY as FILES_KEY,
+  LOG_FILE_MAX_CHANGES,
   formatHlc,
   isCloudFileKey,
   isLookedAtCloudKey,
   logFile,
   logKey,
+  readLogFile,
   type Change,
   type CloudSnapshot,
 } from '@selfmp3/shared'
@@ -78,6 +80,7 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
   /** Every file read asked of the doorman, in order. */
   const reads: string[] = []
   let refuseReads = false
+  let refuseSession = false
   let offline = false
   /** Every request made of the doorman while offline, which never arrives. */
   let unreached = 0
@@ -91,6 +94,17 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
       return Promise.reject(new Error('The Internet connection appears to be offline.'))
     }
     const path = url.slice(DOORMAN.length)
+    if (refuseSession) {
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ error: 'sign in first', code: 'unauthorized' }),
+        text: () =>
+          Promise.resolve(JSON.stringify({ error: 'sign in first', code: 'unauthorized' })),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      })
+    }
     const reply = (
       status: number,
       body: unknown,
@@ -179,6 +193,10 @@ function fakeBucket({ counting = false }: { counting?: boolean } = {}) {
     },
     failNextPutWith: (status: number) => {
       failNextPut = status
+    },
+    /** The doorman has ended the session: everything is refused as signed out. */
+    refuseSession: (refuse: boolean) => {
+      refuseSession = refuse
     },
   }
 }
@@ -397,6 +415,134 @@ describe('the outbox', () => {
     }))
     made.bucket.failNextPutWith(401)
     await expect(made.library.flushCloudChanges()).resolves.toBeUndefined()
+  })
+})
+
+describe('a long outbox', () => {
+  it('goes up as several files, none longer than a log file may be', async () => {
+    // A phone offline for weeks of plays sent them all as one file, which no
+    // device or server would read, and nothing of that phone counted again.
+    const made = build()
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'hue', undefined).changes,
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+    made.bucket.puts.length = 0
+    // One tag's colour, changed and changed again: as many changes as there
+    // were plays, for none of a library's weight.
+    await made.library.recordChanges(SESSION, ctx => {
+      const id = ctx.view.library.tags[0]?.id ?? 0
+      return {
+        changes: Array.from({ length: LOG_FILE_MAX_CHANGES }, (_, index) =>
+          edits.editTag(ctx, id, { hue: index % 360 }),
+        ).flat(),
+        answer: () => undefined,
+      }
+    })
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.editTag(ctx, ctx.view.library.tags[0]?.id ?? 0, { hue: 7 }),
+      answer: () => undefined,
+    }))
+    await made.library.flushCloudChanges()
+
+    const sizes = made.bucket.puts.map(put => (put.body as { changes: unknown[] }).changes.length)
+    expect(sizes).toEqual([LOG_FILE_MAX_CHANGES, 1])
+    for (const put of made.bucket.puts) expect(readLogFile(put.body).ok).toBe(true)
+    expect(made.library.pendingCloudChanges()).toBe(0)
+  })
+})
+
+describe('two tabs of one browser', () => {
+  afterEach(() => vi.useRealTimers())
+
+  /** Everything queued on promises, done: the library's network is promises all the way. */
+  const settle = async (): Promise<void> => {
+    for (let round = 0; round < 5; round++) await new Promise(resolve => setImmediate(resolve))
+  }
+
+  it('sends the edit a tab closed straight after left in the outbox they share', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const store = memoryStore()
+    const bucket = fakeBucket()
+    // A BroadcastChannel: what one tab says, every other tab hears.
+    const tabs: (() => void)[][] = []
+    const tab = (reach: () => boolean) => {
+      const hears: (() => void)[] = []
+      tabs.push(hears)
+      const platform: CloudPlatform = {
+        ...platformFor(bucket, store),
+        fetch: (url, init) =>
+          reach() ? bucket.fetch(url, init) : Promise.reject(new TypeError('Failed to fetch')),
+        outboxNews: {
+          tell: () => {
+            for (const other of tabs) if (other !== hears) for (const run of other) run()
+          },
+          hear: run => hears.push(run),
+        },
+      }
+      const session = createCloudSession(platform)
+      return { session, library: createCloudLibrary(platform, session) }
+    }
+    let firstOpen = true
+    const first = tab(() => firstOpen)
+    const second = tab(() => true)
+    await first.session.saveSession(SESSION)
+    await first.library.loadCloudLibrary(SESSION)
+    await second.library.loadCloudLibrary(SESSION)
+
+    await first.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'left behind', undefined).changes,
+      answer: () => undefined,
+    }))
+    // Closed a moment later: it never sends anything again.
+    firstOpen = false
+    await settle()
+
+    // The tab still open shows the edit at once…
+    const shown = await second.library.peekCloudLibrary(SESSION)
+    expect(shown.library.tags.map(tag => tag.name)).toContain('left behind')
+    // …and sends it once the tab that made it would have.
+    await vi.advanceTimersByTimeAsync(9_000)
+    await settle()
+    expect(bucket.puts).toHaveLength(0)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await settle()
+    expect(bucket.puts).toHaveLength(1)
+    expect(JSON.stringify(bucket.puts[0]?.body)).toContain('left behind')
+  })
+})
+
+describe('a session the doorman ended', () => {
+  it('keeps the changes not sent yet, and sends them once the same account is back', async () => {
+    const store = memoryStore()
+    const made = build(store)
+    await signedIn(made)
+    await made.library.loadCloudLibrary(SESSION)
+    await made.library.recordChanges(SESSION, ctx => ({
+      changes: edits.createTag(ctx, 'unsent', undefined).changes,
+      answer: () => undefined,
+    }))
+
+    made.bucket.refuseSession(true)
+    await made.library.flushCloudChanges()
+    expect(await made.session.loadSession()).toBeNull()
+    expect(await made.session.endedSession()).toEqual({ account: ME.account, email: ME.email })
+
+    // Opened again, signed out: nothing open, and the outbox is still counted.
+    const reopened = build(store, made.bucket)
+    expect(reopened.library.pendingCloudChanges()).toBe(0)
+    expect(await reopened.library.keptCloudChanges()).toBe(1)
+
+    made.bucket.refuseSession(false)
+    await reopened.session.saveSession(SESSION)
+    await reopened.library.loadCloudLibrary(SESSION)
+    await reopened.library.flushCloudChanges()
+    expect(made.bucket.puts.map(put => JSON.stringify(put.body))).toEqual([
+      expect.stringContaining('unsent'),
+    ])
   })
 })
 

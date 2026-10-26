@@ -202,6 +202,13 @@ export type Change = z.infer<typeof ChangeSchema>
 export const LOG_FORMAT = 1
 
 /**
+ * The most changes one log file holds. A device sends a longer outbox — a
+ * phone offline for weeks of plays — as several files: one past this is not
+ * a log file at all, and stopped that device's changes for good.
+ */
+export const LOG_FILE_MAX_CHANGES = 10_000
+
+/**
  * `log/<device>/<seq>.json`: one batch of one device's changes.
  *
  * A device numbers its files 1, 2, 3, … and never writes the same number
@@ -214,7 +221,7 @@ export const LogFileSchema = z.object({
   device: CloudDeviceIdSchema,
   seq: z.number().int().positive(),
   writtenAt: z.string(),
-  changes: z.array(z.unknown()).max(10_000),
+  changes: z.array(z.unknown()).max(LOG_FILE_MAX_CHANGES),
 })
 
 export interface LogFile {

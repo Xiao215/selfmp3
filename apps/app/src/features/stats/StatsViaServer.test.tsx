@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { StatsViaServer } from './StatsViaServer'
 
@@ -34,9 +35,11 @@ describe('Stats from a cloud library with no server in reach', () => {
   it('draws the page and says why it is empty', async () => {
     // A phone's window control holds a sheet, which reads the insets a device would give it.
     await render(
-      <SafeAreaProvider initialMetrics={METRICS}>
-        <StatsViaServer />
-      </SafeAreaProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <SafeAreaProvider initialMetrics={METRICS}>
+          <StatsViaServer />
+        </SafeAreaProvider>
+      </QueryClientProvider>,
     )
 
     expect(screen.getByTestId('stats-screen')).toBeTruthy()

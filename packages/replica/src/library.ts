@@ -14,6 +14,7 @@ import {
   DoormanListSchema,
   HlcClock,
   HlcSchema,
+  LOG_FILE_MAX_CHANGES,
   LOG_FOLDER,
   SNAPSHOTS_FOLDER,
   applyChanges,
@@ -89,8 +90,11 @@ const PLAYED_KEY = 'cloud-playlists-played'
  * bucket counts listings against a daily allowance (docs/SYNC.md, "Caps"): a
  * look every minute or so, from one open tab, was most of the allowance on its
  * own. So a device that has no counter to go by looks a good deal less often.
+ * One that has looks every twenty seconds: the counter costs the bucket
+ * nothing, and a song deleted on another device went on playing here for two
+ * minutes at a minute's wait.
  */
-const FRESH_MS = 60_000
+const FRESH_MS = 20_000
 const LISTED_FRESH_MS = 5 * 60_000
 /**
  * A counter that has not moved stands in for a listing for at most this long:
@@ -101,6 +105,12 @@ const COUNTER_TRUSTED_MS = 30 * 60_000
 /** Edits made within this long of each other go up as one file. */
 const FLUSH_DELAY_MS = 1_500
 const FLUSH_RETRY_MS = [5_000, 15_000, 60_000, 300_000]
+/**
+ * How long after another tab's edit this one sends what that tab left: well
+ * after that tab would have sent it itself, so two open tabs do not both send
+ * every edit — the second finds the outbox empty and asks the doorman nothing.
+ */
+const OTHERS_FLUSH_DELAY_MS = 10_000
 const LOG_READS_AT_ONCE = 6
 
 /**
@@ -248,6 +258,12 @@ export interface CloudLibraryApi {
   /** A playlist was started: this device's "Recently played" order. False for one it does not have. */
   markPlaylistPlayed: (session: CloudSession, playlistId: number) => Promise<boolean>
   pendingCloudChanges: () => number
+  /**
+   * The same, read from what this device keeps rather than the library in
+   * memory: for a device with none open — signed out by the doorman, and
+   * opened again — whose outbox is kept for the next sign-in.
+   */
+  keptCloudChanges: () => Promise<number>
   flushCloudChanges: () => Promise<void>
   cloudPlaylistSongs: (playlistId: number) => Promise<readonly number[]>
   /** Every playlist's songs, by playlist id, brought up to date once. */
@@ -954,6 +970,7 @@ export function createCloudLibrary(
         if (options.deferView) r.viewStale = true
         else await show(r)
         scheduleFlush(FLUSH_DELAY_MS)
+        platform.outboxNews?.tell()
       }
       return answer(r.view)
     })
@@ -983,6 +1000,11 @@ export function createCloudLibrary(
     return replica ? localChanges(replica.outbox).length : 0
   }
 
+  async function keptCloudChanges(): Promise<number> {
+    const outbox = asStoredOutbox(await store.read(OUTBOX_KEY).catch(() => null), false)
+    return outbox ? localChanges(outbox).length : 0
+  }
+
   // --- Uploading ----------------------------------------------------------------------
 
   let flushTimer: ReturnType<typeof setTimeout> | null = null
@@ -1008,6 +1030,30 @@ export function createCloudLibrary(
     platform.onWake(() => {
       if (pendingCloudChanges() > 0) scheduleFlush(0)
     })
+    platform.outboxNews?.hear(heardOutbox)
+  }
+
+  /**
+   * Another tab added to the outbox: show its edit here too, and send it if
+   * that tab has not by the time this one looks — it may have closed.
+   */
+  function heardOutbox(): void {
+    const r = replica
+    if (!r) return
+    void exclusive(async () => {
+      if (replica !== r) return false
+      const outbox = asStoredOutbox(await store.read(OUTBOX_KEY), true)
+      if (!outbox || outboxSignature(outbox) === outboxSignature(r.outbox)) return false
+      r.outbox = outbox
+      await rebuild(r)
+      return true
+    }).then(
+      changed => {
+        if (changed) announce()
+      },
+      (error: unknown) => warn(`another tab’s edit could not be read: ${String(error)}`),
+    )
+    if (!flushTimer) scheduleFlush(OTHERS_FLUSH_DELAY_MS)
   }
 
   /** Send what is waiting, a file at a time. Resolves once all of it is up, or it cannot be for now. */
@@ -1023,13 +1069,14 @@ export function createCloudLibrary(
               ? current
               : {
                   ...current,
+                  // A file at a time, each no longer than a log file may be.
                   inflight: {
                     seq: current.nextSeq,
-                    changes: current.pending,
+                    changes: current.pending.slice(0, LOG_FILE_MAX_CHANGES),
                     writtenAt: new Date().toISOString(),
                   },
                   nextSeq: current.nextSeq + 1,
-                  pending: [],
+                  pending: current.pending.slice(LOG_FILE_MAX_CHANGES),
                 },
           )
           const inflight = outbox.inflight
@@ -1333,6 +1380,7 @@ export function createCloudLibrary(
     recordChanges,
     markPlaylistPlayed,
     pendingCloudChanges,
+    keptCloudChanges,
     flushCloudChanges,
     cloudPlaylistSongs,
     cloudAllPlaylistSongs,

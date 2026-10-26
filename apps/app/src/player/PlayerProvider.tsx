@@ -1181,7 +1181,7 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
   /*
    * Songs gone from the library by another way than this device's own
    * delete — another device's, an import that replaced them — leave the
-   * queue the same way (`forgetSongs`). Compared with the library before, so
+   * queue the same way (`forgetSongs`), and the one playing says so. Compared with the library before, so
    * a library still loading, which has no songs yet, takes nothing away; a
    * room's songs are the room's, and come and go with it.
    */
@@ -1190,10 +1190,15 @@ export function PlayerProvider({ children }: { children: ReactNode }): ReactNode
     const before = knownSongsRef.current
     knownSongsRef.current = librarySongs
     if (before === librarySongs || before.size === 0) return
-    const gone = queueRef.current.items.filter(
-      id => before.has(id) && !librarySongs.has(id) && !roomTrack(id),
-    )
-    if (gone.length > 0) forgetSongs(gone)
+    const { items, index } = queueRef.current
+    const gone = items.filter(id => before.has(id) && !librarySongs.has(id) && !roomTrack(id))
+    if (gone.length === 0) return
+    // The music stopping, or moving on, by itself: said, or it reads as a fault.
+    const playing = items[index]
+    const title =
+      playing !== undefined && gone.includes(playing) ? before.get(playing)?.title : null
+    forgetSongs(gone)
+    if (title) showToast(`“${title}” is no longer in your library`)
   }, [librarySongs, forgetSongs])
 
   const setAutoMix = useCallback(

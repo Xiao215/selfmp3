@@ -1,4 +1,10 @@
-import { DOORMAN_ERROR, DoormanError } from '@selfmp3/shared'
+import {
+  DOORMAN_ERROR,
+  DoormanError,
+  SIGN_IN_REFUSAL,
+  plural,
+  type SignInRefusal,
+} from '@selfmp3/shared'
 
 /**
  * Signing in, without the screen: what it says at each point, and when a
@@ -52,6 +58,36 @@ export function signInFailure(error: unknown, pageOrigin: string | null): string
       : 'Couldn’t reach the sign-in service. Check your connection and try again.'
   }
   return error instanceof Error ? error.message : 'Could not sign in.'
+}
+
+/**
+ * Why Google did not sign anyone in, as the doorman sent it back. Each ends
+ * on Welcome with Continue with Google under it, which asks which account
+ * every time: the way on from the wrong one.
+ */
+export function refusalMessage(refusal: SignInRefusal): string {
+  switch (refusal.reason) {
+    case SIGN_IN_REFUSAL.notAllowed:
+      return `${refusal.email ?? 'That Google account'} isn’t allowed on this self.mp3. Choose the account its owner added, or ask them to add this one.`
+    case SIGN_IN_REFUSAL.nobodyAllowed:
+      return 'Nobody can sign in to this self.mp3 yet: whoever runs it adds people first.'
+    case SIGN_IN_REFUSAL.cancelled:
+      return 'Google didn’t sign you in. Try again whenever you like.'
+    case SIGN_IN_REFUSAL.failed:
+      return 'Google couldn’t finish signing you in. Try again.'
+  }
+}
+
+/**
+ * What Welcome says when the doorman ended this device's sign-in rather than
+ * the person signing out: that it happened, how to carry on, and what is
+ * still waiting to go up — kept for that account, and sent once it is back.
+ */
+export function endedMessage(email: string, waiting: number): string {
+  const back = `Your sign-in ended. Continue with Google as ${email} to carry on.`
+  if (waiting <= 0) return back
+  const one = waiting === 1
+  return `${back} ${plural(waiting, 'change', 'changes')} made here ${one ? 'goes' : 'go'} up once you’re back.`
 }
 
 /**

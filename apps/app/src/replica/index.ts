@@ -17,6 +17,11 @@ export const { cloudRequest } = createCloudRoutes(cloudPlatform, session, librar
 
 void moveOldCrossfade(cloudPlatform.store)
 
+// A sign-out the doorman could not hear is said again whenever it may be
+// reachable: the session would otherwise go on working until it ran out.
+void session.endLeftSessions().catch(() => undefined)
+cloudPlatform.onWake(() => void session.endLeftSessions().catch(() => undefined))
+
 /** A file in the bucket, as the doorman serves it: `key` is where the bucket keeps it. */
 export function doormanFileUrl(key: string): string {
   return `${cloudPlatform.doormanUrl}${DOORMAN_PATHS.file(key)}`

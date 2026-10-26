@@ -22,7 +22,8 @@ interface FieldEvents {
   readonly show: (view: MapView) => void
   /** The map has held still: stars are drawn again for it and covers asked for. */
   readonly settle: (view: MapView) => void
-  readonly press: (spot: MapPlace, point: { x: number; y: number }) => void
+  /** A tap: where on the map, where on the field, and a finger's reach there (as `pathReach`). */
+  readonly press: (spot: MapPlace, point: { x: number; y: number }, reach: number) => void
   /** A finger is down and still: the ring under it fills until drawing starts, or it lets go. */
   readonly hold: (point: { x: number; y: number } | null) => void
   readonly pathStart: (spot: MapPlace) => void
@@ -154,7 +155,9 @@ export class FieldControl {
 
   tap(x: number, y: number): void {
     const spot = this.#mapAt(x, y)
-    if (spot) this.#events?.press(spot, { x, y })
+    if (spot && this.#view && this.#field) {
+      this.#events?.press(spot, { x, y }, pathReach(this.#view, baseOf(this.#field)))
+    }
   }
 
   /** A finger down that may become a hold: the ring under it starts to fill. */

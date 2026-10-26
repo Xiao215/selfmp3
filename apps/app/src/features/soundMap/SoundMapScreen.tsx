@@ -26,6 +26,7 @@ import {
 import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
 import { useFloatingChrome } from '../../shell/bottomInset'
 import { setPageFoot } from '../../shell/pageFoot'
+import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Chip } from '../../ui/components/Chip'
@@ -48,6 +49,8 @@ import { chainAlong, lensTags, skyPoints, skyRegions, type MapTake } from './sky
 
 /** A drawn stroke's points closer than this (0–1) are one point. */
 const PATH_STEP = 0.004
+/** A tap further than this many reaches from every song is on empty sky. */
+const EMPTY_TAP = 1.5
 /** A stroke that ends within this many reaches of where it began has gone round: a loop. */
 const LOOP_CLOSE = 2.5
 
@@ -155,20 +158,35 @@ export function SoundMapScreen(): ReactNode {
     setLeft(new Set())
     setTrayOpen(false)
   }
+  // On a computer, Escape lets go of it too.
+  useEscape(takes.length > 0, clearTray)
 
   // The stroke being drawn.
   const [stroke, setStroke] = useState<readonly MapPlace[]>([])
   const strokeRef = useRef<MapPlace[]>([])
   const reach = useRef(0.03)
 
+  // A tap near songs plays them. A tap on empty sky lets go of what the tray
+  // holds, as a tap beside a selection does anywhere, and plays nothing.
   const onPress = useCallback(
-    (spot: MapPlace) => {
+    (spot: MapPlace, reach: number): boolean => {
       const ids = nearestSongs(places, spot)
+      const nearest = places.find(place => place.id === ids[0])
       const first = songs.get(ids[0] ?? -1)
-      if (!first) return
+      if (
+        !first ||
+        !nearest ||
+        Math.hypot(nearest.x - spot.x, nearest.y - spot.y) > reach * EMPTY_TAP
+      ) {
+        setTakes([])
+        setLeft(new Set())
+        setTrayOpen(false)
+        return false
+      }
       player.playFrom(ids, 0, {
         source: { kind: 'songs', origin: 'map', name: `Near ${first.title}` },
       })
+      return true
     },
     [places, songs, player],
   )

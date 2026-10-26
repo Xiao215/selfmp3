@@ -863,6 +863,15 @@ export function RowWash({
   )
 }
 
+/**
+ * A row's words start at the column's edge whatever their script: a browser
+ * sets an Arabic or Hebrew title's direction from its own letters (React
+ * Native for web gives text `dir="auto"`), which kept their order right but
+ * pushed them to the far side of the column, away from every other title
+ * (R3-P2). Their order inside stays their own.
+ */
+const COLUMN_START = { textAlign: 'left' } as const
+
 const styles = StyleSheet.create(theme => ({
   row: {
     flexDirection: 'row',
@@ -947,15 +956,17 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
     gap: 1,
   },
-  title: rowTitle(theme.colors),
+  title: { ...rowTitle(theme.colors), ...COLUMN_START },
   titleWide: {
     flexShrink: 1,
     ...rowTitle(theme.colors),
+    ...COLUMN_START,
   },
   subtitle: {
     color: theme.colors.textSecondary,
     fontSize: type.sub,
     flexShrink: 1,
+    ...COLUMN_START,
   },
   subtitleLength: { color: theme.colors.textSecondary, fontSize: type.sub, flexShrink: 0 },
   subtitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minWidth: 0 },
@@ -967,8 +978,19 @@ const styles = StyleSheet.create(theme => ({
     minWidth: 0,
   },
   /* The artist is what is scanned for, so it never shrinks; the album does. */
-  artist: { flexShrink: 0, color: theme.colors.textSecondary, fontSize: type.small },
-  albumInline: { flexShrink: 1, minWidth: 0, color: theme.colors.textMuted, fontSize: type.small },
+  artist: {
+    flexShrink: 0,
+    color: theme.colors.textSecondary,
+    fontSize: type.small,
+    ...COLUMN_START,
+  },
+  albumInline: {
+    flexShrink: 1,
+    minWidth: 0,
+    color: theme.colors.textMuted,
+    fontSize: type.small,
+    ...COLUMN_START,
+  },
   // The wash grows from the row's right edge, where it is strongest.
   washFrom: { transformOrigin: 'right' },
   playingOverlay: {
@@ -1019,6 +1041,7 @@ const styles = StyleSheet.create(theme => ({
     flexShrink: 0,
     color: theme.colors.textMuted,
     fontSize: type.small,
+    ...COLUMN_START,
   },
   tags: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: TAG_GAP },
   /* A phone's chips, after the artist and the length; the words give way first. */

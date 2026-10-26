@@ -232,7 +232,7 @@ export function streakCard(
     }
   })
   const first = daysBefore(today, (count - 1) * span + span - 1)
-  const from = `${first.toLocaleDateString(undefined, { month: 'short' })} ${first.getDate()}`
+  const from = `${monthWord(first)} ${first.getDate()}`
 
   if (stats.streakDays === 0) {
     return { value: daysLabel(0), line: bestStreakHint(stats.longestStreakDays), squares, from }
@@ -242,17 +242,24 @@ export function streakCard(
 }
 
 /**
+ * A month's short name in English, as the rest of the line around it is:
+ * the reader's locale gave "10月 5 to 25" and "Okt 5 to 25" (R3-P1).
+ */
+function monthWord(date: Date): string {
+  return date.toLocaleDateString('en', { month: 'short' })
+}
+
+/**
  * "Sep 6 to 14", "Aug 30 to Sep 3", or one day alone: "Sep 14". A run that
  * began in another year says which: "Dec 30, 2023 to Oct 25", not a span
  * that reads like ten months.
  */
 export function spanWords(start: Date, end: Date): string {
-  const month = (date: Date): string => date.toLocaleDateString(undefined, { month: 'short' })
-  if (localDayKey(start) === localDayKey(end)) return `${month(end)} ${end.getDate()}`
+  if (localDayKey(start) === localDayKey(end)) return `${monthWord(end)} ${end.getDate()}`
   const sameYear = start.getFullYear() === end.getFullYear()
   const sameMonth = sameYear && start.getMonth() === end.getMonth()
-  const from = `${month(start)} ${start.getDate()}${sameYear ? '' : `, ${start.getFullYear()}`}`
-  return `${from} to ${sameMonth ? '' : `${month(end)} `}${end.getDate()}`
+  const from = `${monthWord(start)} ${start.getDate()}${sameYear ? '' : `, ${start.getFullYear()}`}`
+  return `${from} to ${sameMonth ? '' : `${monthWord(end)} `}${end.getDate()}`
 }
 
 /**

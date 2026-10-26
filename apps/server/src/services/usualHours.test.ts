@@ -67,7 +67,8 @@ describe('StatsRepository.usualPlays', () => {
     const db = new Database(':memory:')
     migrate(db, createLogger('silent'))
     db.prepare("INSERT INTO songs (id, path, title, uid) VALUES (1, 'a', 'A', ?)").run(uid(1))
-    // Saturday 02:30 in UTC-7 is 09:30 UTC: a weekday's (Friday's) night.
+    // Saturday 02:30 in UTC-7 (Etc/GMT+7, which keeps no summer time) is
+    // 09:30 UTC: a weekday's (Friday's) night.
     // Saturday 10:00 in UTC-7 is 17:00 UTC: a weekend.
     const saturday = new Date()
     saturday.setUTCDate(saturday.getUTCDate() - ((saturday.getUTCDay() + 1) % 7) - 7)
@@ -75,7 +76,7 @@ describe('StatsRepository.usualPlays', () => {
     const insert = db.prepare('INSERT INTO play_events (song_id, played_at) VALUES (1, ?)')
     insert.run(`${day} 09:30:00`)
     insert.run(`${day} 17:00:00`)
-    const plays = new StatsRepository(db).usualPlays(-420, USUAL_DAYS)
+    const plays = new StatsRepository(db).usualPlays('Etc/GMT+7', USUAL_DAYS)
     expect(plays.map(({ hour, weekend }) => ({ hour, weekend }))).toEqual(
       expect.arrayContaining([
         { hour: 2, weekend: false },

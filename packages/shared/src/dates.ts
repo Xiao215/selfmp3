@@ -20,8 +20,22 @@ export const WEEKDAYS = [
 ] as const
 
 /**
+ * The reader's time zone as an IANA name, sent with Stats, Wrapped and the
+ * usual hours so the server counts days and hours where the reader is. Undefined where the
+ * platform cannot say, and the server then counts in its own.
+ */
+export function readerTimeZone(): string | undefined {
+  try {
+    return new Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * The day `date` falls on where the reader is, as `2026-09-14`: the key the
- * server's `date(…, 'localtime')` writes, and every chart and streak counts by.
+ * server's Stats write (in the zone `readerTimeZone` sends), and every chart
+ * and streak counts by.
  */
 export function localDayKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')

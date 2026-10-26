@@ -9,15 +9,24 @@ import {
   type WrappedRange,
 } from '@selfmp3/shared'
 import type { Db } from '../db/index.js'
-import { runs, toMinutes, topArtists, WINDOW_START, type ArtistPlaysRow } from './listening.js'
+import {
+  readerZone,
+  runs,
+  toMinutes,
+  topArtists,
+  useZones,
+  windowStart,
+  type ArtistPlaysRow,
+} from './listening.js'
 
 /**
  * "Wrapped, anytime" — a summary of a listening window.
  *
  * Like `StatsRepository`, everything is a GROUP BY in SQL; only the streak and
  * the personality line are worked out in JavaScript, from a handful of rows.
- * Hours and dates use SQLite's `localtime` so "peak hour" means the owner's
- * evening, not UTC's.
+ * Hours and dates are the reader's wall clock (`wall_clock`, from the zone
+ * the app sends) so "peak hour" means their evening, not UTC's or the
+ * server's.
  */
 
 interface SongPlaysRow {
@@ -37,52 +46,49 @@ export class WrappedRepository {
   constructor(db: Db, shownAs: () => ReadonlyMap<string, string> = () => new Map()) {
     this.#db = db
     this.#shownAs = shownAs
+    useZones(db)
   }
 
-  build(range: WrappedRange): Wrapped {
+  /** The summary of a range, its days and hours counted in `zone` (see `readerZone`). */
+  build(range: WrappedRange, zone = readerZone()): Wrapped {
     const days = WRAPPED_RANGE_DAYS[range]
     // `e.` prefixed so the same clause works in every join below.
-    const clause = days === null ? '1 = 1' : `e.played_at >= ${WINDOW_START}`
-    const params: unknown[] = days === null ? [] : [`-${days - 1} days`]
-
-    const bounds = this.#db
-      .prepare<unknown[], { from_at: string | null; to_at: string }>(
-        `SELECT ${days === null ? 'NULL' : WINDOW_START} AS from_at, datetime('now') AS to_at`,
-      )
-      .get(...params)
+    const clause = days === null ? '1 = 1' : 'e.played_at >= @from'
+    const from = days === null ? null : windowStart(days, zone)
+    const params = { zone, from }
 
     const totals = this.#db
-      .prepare<unknown[], { plays: number; ms: number | null; songs: number; days: number }>(
+      .prepare<typeof params, { plays: number; ms: number | null; songs: number; days: number }>(
         `SELECT COUNT(*) AS plays,
                 COALESCE(SUM(e.ms_played), 0) AS ms,
                 COUNT(DISTINCT e.song_id) AS songs,
-                COUNT(DISTINCT date(e.played_at, 'localtime')) AS days
+                COUNT(DISTINCT date(wall_clock(e.played_at, @zone))) AS days
            FROM play_events e WHERE ${clause}`,
       )
-      .get(...params)
+      .get(params)
 
     const topSongs = this.#db
-      .prepare<unknown[], SongPlaysRow>(
+      .prepare<typeof params, SongPlaysRow>(
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
           GROUP BY s.id ORDER BY plays DESC, s.title LIMIT 5`,
       )
-      .all(...params)
+      .all(params)
       .map(toTopSong)
 
     const artistRows = this.#db
-      .prepare<unknown[], ArtistPlaysRow>(
+      .prepare<typeof params, ArtistPlaysRow>(
         `SELECT s.artist, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
           GROUP BY s.artist ORDER BY plays DESC`,
       )
-      .all(...params)
+      .all(params)
 
     const topTags: TopEntry[] = this.#db
-      .prepare<unknown[], { key: string; plays: number; ms: number | null }>(
+      .prepare<typeof params, { key: string; plays: number; ms: number | null }>(
         `SELECT t.name AS key, COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e
            JOIN song_tags st ON st.song_id = e.song_id
@@ -90,68 +96,68 @@ export class WrappedRepository {
           WHERE ${clause}
           GROUP BY t.id ORDER BY plays DESC, key LIMIT 5`,
       )
-      .all(...params)
+      .all(params)
       .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
 
     const hourly = Array.from({ length: 24 }, () => 0)
     for (const row of this.#db
-      .prepare<unknown[], { hour: string; plays: number }>(
-        `SELECT strftime('%H', e.played_at, 'localtime') AS hour, COUNT(*) AS plays
+      .prepare<typeof params, { hour: string; plays: number }>(
+        `SELECT strftime('%H', wall_clock(e.played_at, @zone)) AS hour, COUNT(*) AS plays
            FROM play_events e WHERE ${clause} GROUP BY hour`,
       )
-      .all(...params)) {
+      .all(params)) {
       hourly[Number(row.hour)] = row.plays
     }
 
     const weekday = Array.from({ length: 7 }, () => 0)
     for (const row of this.#db
-      .prepare<unknown[], { day: string; plays: number }>(
-        `SELECT strftime('%w', e.played_at, 'localtime') AS day, COUNT(*) AS plays
+      .prepare<typeof params, { day: string; plays: number }>(
+        `SELECT strftime('%w', wall_clock(e.played_at, @zone)) AS day, COUNT(*) AS plays
            FROM play_events e WHERE ${clause} GROUP BY day`,
       )
-      .all(...params)) {
+      .all(params)) {
       weekday[Number(row.day)] = row.plays
     }
 
     const busiest = this.#db
-      .prepare<unknown[], { date: string; plays: number }>(
-        `SELECT date(e.played_at, 'localtime') AS date, COUNT(*) AS plays
+      .prepare<typeof params, { date: string; plays: number }>(
+        `SELECT date(wall_clock(e.played_at, @zone)) AS date, COUNT(*) AS plays
            FROM play_events e WHERE ${clause}
           GROUP BY date ORDER BY plays DESC, date DESC LIMIT 1`,
       )
-      .get(...params)
+      .get(params)
 
     const record = this.#db
-      .prepare<unknown[], SongPlaysRow & { date: string }>(
+      .prepare<typeof params, SongPlaysRow & { date: string }>(
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
-                date(e.played_at, 'localtime') AS date, COUNT(*) AS plays, 0 AS ms
+                date(wall_clock(e.played_at, @zone)) AS date, COUNT(*) AS plays, 0 AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
           GROUP BY s.id, date ORDER BY plays DESC, date DESC, s.title LIMIT 1`,
       )
-      .get(...params)
+      .get(params)
 
     // "Discovered": added inside the window, and played enough to mean it.
     // For all time that is every song with three plays, which is honest too.
     const discovered = this.#db
-      .prepare<unknown[], SongPlaysRow>(
+      .prepare<typeof params, SongPlaysRow>(
         `SELECT s.id AS song_id, s.title, s.artist, s.has_art,
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${clause}
-            AND ${days === null ? '1 = 1' : `s.added_at >= ${WINDOW_START}`}
+            AND ${days === null ? '1 = 1' : 's.added_at >= @from'}
           GROUP BY s.id HAVING COUNT(*) >= 3
           ORDER BY plays DESC, s.title LIMIT 10`,
       )
-      .all(...params, ...params)
+      .all(params)
       .map(toTopSong)
 
     const dates = this.#db
-      .prepare<unknown[], { date: string }>(
-        `SELECT DISTINCT date(e.played_at, 'localtime') AS date
+      .prepare<typeof params, { date: string }>(
+        `SELECT DISTINCT date(wall_clock(e.played_at, @zone)) AS date
            FROM play_events e WHERE ${clause} ORDER BY date`,
       )
-      .all(...params)
+      .all(params)
       .map(row => row.date)
     const longestStreakDays = runs(dates).longest
 
@@ -171,8 +177,8 @@ export class WrappedRepository {
 
     return {
       range,
-      from: bounds?.from_at ? toIso(bounds.from_at) : null,
-      to: toIso(bounds?.to_at ?? new Date().toISOString()),
+      from: from === null ? null : toIso(from),
+      to: new Date().toISOString(),
       totals: {
         plays,
         minutes,

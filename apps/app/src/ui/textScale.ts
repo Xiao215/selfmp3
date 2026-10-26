@@ -30,11 +30,19 @@ export const FIT_LINE = {
 } as const
 
 /**
- * A big number: one line that fits (`FIT_LINE`), and grows no more than about
- * 1.75×, as iOS grows its own large titles — already big, it would otherwise
- * stand three times as tall, and be shrunk back to fit a box that tall.
+ * Where display type stops growing: about 1.75×, as iOS grows its own large
+ * titles. Already big, it would otherwise stand three times as tall — Home's
+ * greeting at the largest size had no room for "evening" on one line, and
+ * broke it inside the word (R3-P3).
  */
-export const FIT_FIGURE = { ...FIT_LINE, maxFontSizeMultiplier: 1.75 } as const
+export const DISPLAY_SCALE = 1.75
+
+/**
+ * A big number: one line that fits (`FIT_LINE`), and grows no more than
+ * display type does, rather than be shrunk back to fit a box three times as
+ * tall.
+ */
+export const FIT_FIGURE = { ...FIT_LINE, maxFontSizeMultiplier: DISPLAY_SCALE } as const
 
 /** The system's text size, as a multiple of the default. */
 export function useFontScale(): number {

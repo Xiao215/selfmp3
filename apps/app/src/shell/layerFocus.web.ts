@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 
+import { pressAt, rowPlaceOf, type RowPlace } from '../selection/listRows'
 import type { useLayerFocus as SameShape, useLayerKeys as SameKeys } from './layerFocus'
 
 /** What Tab may land on: the browser's own controls, and anything with a tab stop of its own. */
@@ -102,17 +103,26 @@ function openerOutside(root: HTMLElement): HTMLElement | null {
  * it takes to fade out, so the option just chosen took focus again and then
  * went with its panel. A layer taken away while still modal gives focus back
  * as it goes, when what had focus has gone with it.
+ *
+ * A song row that opened it and has gone since — the song deleted from the
+ * confirmation it opened — gives way to the row now in its place, so the
+ * keyboard stays in the list rather than starting again from the top of the
+ * page (R3-m4).
  */
 export const useLayerFocus: typeof SameShape = (ref, modal) => {
   const opener = useRef<HTMLElement | null>(null)
+  const openerPlace = useRef<RowPlace | null>(null)
 
   const giveBack = (root: HTMLElement | null): void => {
     const back = opener.current
+    const place = openerPlace.current
     opener.current = null
-    if (!back?.isConnected) return
+    openerPlace.current = null
+    const target = back?.isConnected ? back : place ? pressAt(place) : null
+    if (!target) return
     const focused = asElement(document.activeElement)
     if (focused && focused !== document.body && !root?.contains(focused)) return
-    back.focus({ preventScroll: true })
+    target.focus({ preventScroll: true })
   }
   const latestGiveBack = useRef(giveBack)
   useLayoutEffect(() => {
@@ -127,6 +137,7 @@ export const useLayerFocus: typeof SameShape = (ref, modal) => {
       return
     }
     opener.current = openerOutside(root)
+    openerPlace.current = rowPlaceOf(opener.current)
     const now = asElement(document.activeElement)
     if (!now || !root.contains(now)) landingIn(root)?.focus({ preventScroll: true })
   }, [ref, modal])

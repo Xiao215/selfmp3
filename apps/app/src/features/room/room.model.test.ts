@@ -26,6 +26,7 @@ import {
   needsReport,
   pastRoomOf,
   pastTitle,
+  followerPress,
   keptTitle,
   endedLine,
   upgradePastRooms,
@@ -180,6 +181,28 @@ describe('the host’s player', () => {
     expect(needsReport(state, 0, 15_000, { entryId: null, playing: true, position: 0 })).toBe(true)
   })
 
+  it('tells the room a song that started late, when everyone’s phone follows it', () => {
+    let doc = act({ ...room(), mode: 'everyone' }, M, { type: 'add', song: song(1) })
+    const first = doc.entries[0]?.id ?? ''
+    doc = act(doc, X, { type: 'report', entryId: first, position: 0, playing: true }, 10_000)
+    // 10 s on the doorman's clock, but the host's song only 8.5 s in: it loaded late.
+    const late = { entryId: first, playing: true, position: 8.5 }
+    expect(needsReport(as(doc, X), 0, 20_000, late)).toBe(true)
+    expect(needsReport(as({ ...doc, mode: 'speaker' }, X), 0, 20_000, late)).toBe(false)
+    expect(needsReport(as(doc, X), 0, 20_000, { ...late, position: 9.8 })).toBe(false)
+  })
+
+  it('takes the room’s song up where the room is, with nothing loaded after a reload', () => {
+    let doc = act(room(), M, { type: 'add', song: song(1) })
+    doc = act(doc, M, { type: 'add', song: song(2) })
+    const [first, second] = doc.entries.map(entry => entry.id)
+    doc = act(doc, X, { type: 'report', entryId: first ?? null, position: 0, playing: true })
+    expect(hostPlan(as(doc, X), { currentId: null, playing: false, ranOut: false })).toEqual({
+      kind: 'resume',
+      ids: [roomTrackId(first ?? ''), roomTrackId(second ?? '')],
+    })
+  })
+
   it('acts on each thing a friend asked once', () => {
     const doc = act(room(), M, { type: 'skip' })
     expect(freshWant(as(doc, X), 0)?.kind).toBe('skip')
@@ -241,6 +264,32 @@ describe('what a member sees', () => {
       stream: { url: 'server/listen?url=https://youtu.be/abc' },
       cover: 'https://i.ytimg.com/a.jpg',
     })
+  })
+})
+
+describe('a friend’s own transport, on everyone’s phones', () => {
+  const playingRoom = (): RoomDoc => {
+    const doc = act({ ...room(), mode: 'everyone' }, M, { type: 'add', song: song(1) })
+    return act(doc, X, {
+      type: 'report',
+      entryId: doc.entries[0]?.id ?? null,
+      position: 0,
+      playing: true,
+    })
+  }
+
+  it('asks the room to skip, and says only the host may pause', () => {
+    const doc = playingRoom()
+    expect(followerPress(as(doc, M), 'next', true)).toEqual({ act: 'skip' })
+    expect(followerPress(as(doc, M), 'toggle', true)).toEqual({ say: 'Only Xiao can pause the room' })
+    expect(followerPress(as(doc, M), 'previous', true)).toEqual({ say: 'A room only goes forward' })
+  })
+
+  it('leaves the press to the player for the host, one speaker, or a song of your own', () => {
+    const doc = playingRoom()
+    expect(followerPress(as(doc, X), 'next', true)).toBeNull()
+    expect(followerPress(as({ ...doc, mode: 'speaker' }, M), 'next', true)).toBeNull()
+    expect(followerPress(as(doc, M), 'next', false)).toBeNull()
   })
 })
 

@@ -50,6 +50,25 @@ export function youMay(state: RoomState, type: RoomAction['type']): boolean {
   return you !== undefined && canAct(state, you, type)
 }
 
+/**
+ * What a press of Previous, play/pause or Next on a player that follows the
+ * room does (player/roomTransport.ts): the room action it asks for, or what
+ * to say when it may not. Null leaves the press to the player: you host the
+ * room, it plays on one speaker, or your player is not on the room's song.
+ */
+export function followerPress(
+  state: RoomState,
+  step: 'previous' | 'toggle' | 'next',
+  onRoomSong: boolean,
+): { readonly act: 'skip' | 'pause' | 'play' } | { readonly say: string } | null {
+  if (isHost(state) || state.mode !== 'everyone' || !onRoomSong) return null
+  const host = state.members.find(member => member.kind === 'host')?.name ?? 'the host'
+  if (step === 'previous') return { say: 'A room only goes forward' }
+  if (step === 'next') return youMay(state, 'skip') ? { act: 'skip' } : { say: `Only ${host} can skip` }
+  const act = state.playing && state.playing.pausedAt === null ? 'pause' : 'play'
+  return youMay(state, act) ? { act } : { say: `Only ${host} can ${act === 'pause' ? 'pause' : 'play'} the room` }
+}
+
 /** The people still in the room, the host first. */
 export function peopleHere(state: RoomState): RoomMember[] {
   return state.members.filter(member => !member.left)
@@ -219,6 +238,9 @@ export function roomTracks(state: RoomState, sources: TrackSources): Map<number,
  *   room's list.
  * - `advance`: the player ran out on the room's last song, and a song has
  *   been added since: go on to it.
+ * - `resume`: the player has nothing loaded — the app was opened again, a
+ *   page reloaded — while the room is on a song: take it up where the room
+ *   says it is, rather than telling the room nothing plays.
  * - `none`: the player is busy with something of your own, or there is
  *   nothing to play.
  */
@@ -226,6 +248,7 @@ type HostPlan =
   | { readonly kind: 'start'; readonly ids: readonly number[] }
   | { readonly kind: 'follow'; readonly upcoming: readonly number[] }
   | { readonly kind: 'advance'; readonly upcoming: readonly number[] }
+  | { readonly kind: 'resume'; readonly ids: readonly number[] }
   | { readonly kind: 'none' }
 
 export function hostPlan(
@@ -248,6 +271,9 @@ export function hostPlan(
       ? { kind: 'advance', upcoming }
       : { kind: 'follow', upcoming }
   }
+  if (player.currentId === null && state.playing !== null) {
+    return { kind: 'resume', ids: [roomTrackId(state.playing.entryId), ...upcoming] }
+  }
   if (state.playing === null && (!player.playing || player.takeOver) && upcoming.length > 0) {
     return { kind: 'start', ids: upcoming }
   }
@@ -261,9 +287,18 @@ export function entryOfTrack(state: RoomState, trackId: number | null): string |
 }
 
 /**
+ * How far the host's player may be from the room's clock before it is told.
+ * On everyone's phones the others follow the room's clock to a third of a
+ * second (`shouldResync`), so a host whose song started late — loading
+ * after a skip — must say so, or plays behind everyone for the whole song.
+ * On one speaker nobody follows the audio: only a seek is worth telling.
+ */
+const HOST_DRIFT_SECONDS = { everyone: 0.5, speaker: 2 } as const
+
+/**
  * Whether what the host's player is doing differs from what the room says
- * enough to tell it: another song, playing against paused, or a jump in
- * position (a seek) of more than a couple of seconds.
+ * enough to tell it: another song, playing against paused, or a position
+ * off the room's clock (`HOST_DRIFT_SECONDS`).
  */
 export function needsReport(
   state: RoomState,
@@ -275,7 +310,10 @@ export function needsReport(
   if ((playing?.entryId ?? null) !== player.entryId) return true
   if (!playing) return false
   if ((playing.pausedAt === null) !== player.playing) return true
-  return Math.abs(roomPosition(playing, now + offset) - player.position) > 2
+  return (
+    Math.abs(roomPosition(playing, now + offset) - player.position) >
+    HOST_DRIFT_SECONDS[state.mode]
+  )
 }
 
 /** A request from a member the host's player has not acted on yet. */

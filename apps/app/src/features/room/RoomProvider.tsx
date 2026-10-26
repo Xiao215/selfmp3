@@ -29,6 +29,7 @@ import {
   usePlayingSongId,
 } from '../../player/PlayerProvider'
 import { roomTrack, setRoomTracks } from '../../player/roomTracks'
+import { setRoomTransport } from '../../player/roomTransport'
 import { holdPictures, keepLent } from '../../offline/covers'
 import { lentCoverKey, rememberPastRoom, usePastRooms } from './pastRooms.store'
 import { lightTap } from '../../ports/haptics'
@@ -39,6 +40,7 @@ import { useLibraryIndex } from '../../ui/songsById'
 import {
   arrivals,
   entryOfTrack,
+  followerPress,
   freshWant,
   hostPlan,
   isHost,
@@ -62,6 +64,7 @@ import {
   takeRoomStartHint,
   useRoom,
 } from './room.store'
+import { sayRoomFailure } from './roomFailure'
 
 /**
  * The room this device is in, kept in step with its player
@@ -254,6 +257,14 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
         commands.setUpcoming(plan.upcoming)
         commands.jumpTo(live.current.queueIndex + 1)
         return
+      case 'resume': {
+        const room = currentRoom()
+        commands.playFrom(plan.ids, 0, {
+          position: positionNow(state, room.offset, Date.now()),
+          autoplay: state.playing?.pausedAt === null,
+        })
+        return
+      }
       case 'none':
         return
     }
@@ -264,6 +275,9 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   const report = useCallback(() => {
     const now = currentRoom()
     if (!now.state || !isHost(now.state) || reporting.current) return
+    // Nothing loaded yet (the app just opened): the plan takes the room's
+    // song up, and the room hears once it plays, not that nothing does.
+    if (live.current.playingId === null && now.state.playing) return
     const position = commands.getPosition()
     const entryId = entryOfTrack(now.state, live.current.playingId)
     const facts = { entryId, playing: live.current.playing, position }
@@ -350,6 +364,20 @@ export function RoomProvider({ children }: { children: ReactNode }): ReactNode {
   }, [state, pass])
 
   // --- everyone else, on everyone's phone ----------------------------------------
+
+  // A friend's own Previous, play/pause and Next: the room's, not this player's.
+  useEffect(() => {
+    setRoomTransport(step => {
+      const room = currentRoom().state
+      if (!room) return false
+      const press = followerPress(room, step, roomTrack(live.current.playingId ?? 0) !== undefined)
+      if (!press) return false
+      if ('say' in press) showToast(press.say, 'info')
+      else void roomAct({ type: press.act }).catch(sayRoomFailure)
+      return true
+    })
+    return () => setRoomTransport(null)
+  }, [])
 
   const follow = useCallback(() => {
     const now = currentRoom()

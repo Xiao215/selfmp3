@@ -63,8 +63,9 @@ export function OfflinePanel({
   const tally = downloadTally(downloads.index, songIds)
   /*
    * What the disk says, on a device that has one to ask. Read once when the
-   * panel appears and again whenever the queue settles, which is when the
-   * numbers would otherwise be stale.
+   * panel appears and again whenever the queue settles or a removal ends,
+   * which is when the numbers would otherwise be stale: "Remove all" never
+   * touches the queue, and left "159.2 MB used" beside 0 songs.
    */
   const [onDisk, setOnDisk] = useState<{ songs: number; covers: number; free: number } | null>(null)
   const settled = downloads.queue.length === 0
@@ -76,7 +77,7 @@ export function OfflinePanel({
     return () => {
       cancelled = true
     }
-  }, [settled])
+  }, [settled, removing])
   // Every song not here, including ones removed by hand: this button is pressed on purpose.
   const missingBytes = absentBytes
   const stale = manifest.data ? staleDownloads(downloads.index, manifest.data) : null

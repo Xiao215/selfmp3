@@ -489,10 +489,13 @@ and cannot say "古典 or 原神纯音乐, and calm".
    songs loosens the energy and leaves "slow" to the pick.
 3. **Listen** (the listening model, no language model), only when the plan has a sound, or
    the router says they want music like the song playing (`like`): the songs that fit are
-   put in the order they sound like it, best first. A sound also keeps only the songs within
-   0.06 of the best match, so "violin songs" with six violin pieces answers six, not those
-   six and nineteen near misses; songs not heard yet cannot be vouched for and stay out.
-   Steering from a song only orders. Nothing else in Ask touches the listening model.
+   put in the order they sound like it, best first. Over the whole library (no tags or
+   artists asked for) a sound also keeps only the songs within 0.06 of the best match, so
+   "violin songs" with six violin pieces answers six, not those six and nineteen near
+   misses; songs not heard yet cannot be vouched for and stay out. Inside the tags or artists
+   asked for it only orders: they already chose the songs, and the line drawn from one best
+   match left "比较温和的jpop" with one song of a hundred jpop. Steering from a song only
+   orders. Nothing else in Ask touches the listening model.
 4. **Pick** (smart tier), only when there is a brief or more songs fit than were asked for
    (25 when not said). With a sound and no brief, the best-sounding are taken as they are,
    with no call. Otherwise shown your words, the brief, the sound and the candidate table

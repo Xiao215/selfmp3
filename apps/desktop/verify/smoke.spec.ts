@@ -831,7 +831,8 @@ test.describe('an application, not a page', () => {
       // Everything else is a real accelerator.
       const view = menu?.find(section => section.label === 'View')
       expect(view?.items.every(item => item.registered !== false)).toBe(true)
-      // The sidebar's order, Home first, then the OS's own Full Screen.
+      // The sidebar's order, Home first, then the OS's own Full Screen, whose
+      // key Electron picks by platform: ⌃⌘F on a Mac, F11 elsewhere.
       expect(view?.items.map(item => `${item.label} ${item.accelerator ?? ''}`.trim())).toEqual([
         'Home CmdOrCtrl+1',
         'Library CmdOrCtrl+2',
@@ -841,7 +842,7 @@ test.describe('an application, not a page', () => {
         'Now Playing CmdOrCtrl+0',
         'Search CmdOrCtrl+K',
         'Reload CmdOrCtrl+R',
-        'Toggle Full Screen Control+Command+F',
+        `Toggle Full Screen ${process.platform === 'darwin' ? 'Control+Command+F' : 'F11'}`,
       ])
       const file = menu?.find(section => section.label === 'File')
       // New Window brings back a window the red button hid: a Mac's only.

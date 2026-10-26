@@ -26,10 +26,12 @@ A cloud library draws it offline from a file in the bucket.
 
 `SoundMapScreen.tsx`. The map is the page. On a phone the tab bar goes and the mini player
 stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`); on a
-computer the sidebar and the player bar stay. Over the sky, top left, the way back (on a
-phone) and the name with how many songs are on it; under it the tags as chips (the lens);
-bottom right the buttons (the song playing, the pen, and on a computer +, − and show all);
-at the foot, once something is taken, the tray. The page is dark in either theme, since the
+computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
+every page has it (`PageHeader`: the way back on a phone, the name, how many songs are on
+the map); under it the tags as chips (the lens); bottom right the buttons (the song playing,
+the pen, and on a computer +, − and show all); at the foot, once something is taken, the
+tray. The buttons hold their place: on a phone they stand over the folded tray and the
+opened tray lies over them as a sheet does; on a computer they are beside it. The page is dark in either theme, since the
 sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
 off; nothing counts them.
 
@@ -38,17 +40,21 @@ off; nothing counts them.
 `sky.model.ts` works out what is drawn; `SkyLayer.web.tsx` draws it in a browser and
 `SkyLayer.tsx` on a phone or an iPad.
 
-- **Stars.** Each song a soft glow with a pale middle in its cover's main colour, lifted so a
+- **Stars.** Each song a solid dot over a soft glow in its cover's main colour, lifted so a
   black cover is a pale star (`starTones`), rounded to steps of hue, tone and strength so a
   few dozen glows serve every star. **Brighter and larger the more it has been played**,
   against the library's 95th percentile of plays on a log scale (`brightness`, `playTop`), so
   one favourite does not leave the rest dim. Stars grow as you zoom in, more slowly than the
-  songs spread, so they part (`starRadius`).
-- **Nebulae.** Each tag's region (`tagRegions`, packages/client: for each tag the cell of a
+  songs spread, so they part (`starRadius`). A glow reaches four times its star's size where
+  it has the room and is held to most of the way to its three nearest neighbours where it has
+  not (`room`, `glowReach`), and glows are laid over each other as paint, never added up as
+  light: added, a place of a few hundred songs was one white blur (2026-10-26).
+- **Tag glows.** Each tag's region (`tagRegions`, packages/client: for each tag the cell of a
   24 × 24 grid holding most of its songs, provided they are at least 35 % of the songs
   around; one region a tag, the eight strongest, none too close to a stronger one) is a soft
-  cloud in the tag's colour, with the tag's name in small spaced type and how many of its
-  songs are on the map.
+  cloud in the tag's colour, without its name: a tag's songs are not all where it gathers,
+  and a name over one place said they were (Xiao, 2026-10-26). The lens says where a tag's
+  songs are.
 - **Close in,** once a star would be 18 points wide (`COVER_FROM`), the stars on screen show
   their covers, and from 30 points their titles. Only those on screen ask for a picture.
 - **The song playing** is the one star wearing its cover, ringed.
@@ -68,9 +74,9 @@ rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 3
 nodes; 31 → 34 MB).
 
 **On a phone** the stars are one SVG, a circle a star filled with its colour's gradient,
-drawn for the view the map last held still at and moved and scaled as a whole while a finger
-moves it; their sizes and covers are worked out again when it settles. Names, the stroke and
-the song playing are drawn over it at screen size each frame.
+drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
+moves it; their sizes and covers are worked out again when it settles. The stroke and the song
+playing are drawn over it at screen size each frame.
 
 ### Gestures
 
@@ -127,7 +133,7 @@ under that name. The toasts rise above the tray and the buttons over it (`setPag
 ### The lens
 
 The tags with songs on the map, as chips, most songs first (`lensTags`). Choosing one lights
-its songs and dims the rest to an eighth, leaves only its nebula, and flies the map to fit its
+its songs and dims the rest to an eighth, leaves only its glow, and flies the map to fit its
 songs (`flyToPlaces`). Choosing it again shows every tag and flies back to the whole map.
 
 ### Moving the map

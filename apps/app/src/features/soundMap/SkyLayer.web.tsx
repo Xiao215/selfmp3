@@ -7,8 +7,9 @@ import { tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { useFieldPointer } from './fieldInput'
 import {
+  CORE,
   dustSpecks,
-  GLOW,
+  glowReach,
   GLOW_STOPS,
   SKY_EDGE,
   SKY_INK,
@@ -124,8 +125,8 @@ function useGround(field: FieldSize): HTMLCanvasElement | null {
 const glows = new Map<string, HTMLCanvasElement>()
 const GLOW_SIDE = 64
 
-function glowOf(glow: string, core: string): HTMLCanvasElement {
-  const key = `${glow}${core}`
+function glowOf(glow: string): HTMLCanvasElement {
+  const key = glow
   const kept = glows.get(key)
   if (kept) return kept
   const canvas = document.createElement('canvas')
@@ -133,9 +134,7 @@ function glowOf(glow: string, core: string): HTMLCanvasElement {
   const ctx = canvas.getContext('2d')!
   const half = GLOW_SIDE / 2
   const fill = ctx.createRadialGradient(half, half, 0, half, half, half)
-  for (const [offset, opacity, middle] of GLOW_STOPS) {
-    fill.addColorStop(offset, withAlpha(middle ? core : glow, opacity))
-  }
+  for (const [offset, opacity] of GLOW_STOPS) fill.addColorStop(offset, withAlpha(glow, opacity))
   ctx.fillStyle = fill
   ctx.fillRect(0, 0, GLOW_SIDE, GLOW_SIDE)
   glows.set(key, canvas)
@@ -233,8 +232,11 @@ function draw(
       ctx.fillRect(middle.x + dx - size, middle.y + dy - size, size * 2, size * 2)
     }
   }
+  ctx.globalCompositeOperation = 'source-over'
 
-  // The stars, and close in, the covers on screen in place of theirs.
+  // The stars, laid over each other as paint is rather than added up as light: added,
+  // a place of a few hundred songs summed to one white blur. Close in, the
+  // covers on screen in place of theirs.
   const side = tileSide(view.scale)
   const covers = side >= COVER_FROM
   const margin = covers ? side : 24
@@ -250,18 +252,18 @@ function draw(
       continue
     }
     const r = starRadius(view.scale, point.bright) * (covers ? 1.8 : 1)
-    const reach = r * GLOW
-    ctx.globalAlpha = starAlpha(point, lens)
-    ctx.drawImage(
-      glowOf(point.glow, point.core),
-      spot.x - reach,
-      spot.y - reach,
-      reach * 2,
-      reach * 2,
-    )
+    const reach = glowReach(point, r, view.scale, base)
+    const alpha = starAlpha(point, lens)
+    ctx.globalAlpha = alpha
+    ctx.drawImage(glowOf(point.glow), spot.x - reach, spot.y - reach, reach * 2, reach * 2)
     if (covers) shown.push({ point, x: spot.x, y: spot.y })
+    else {
+      ctx.fillStyle = point.core
+      ctx.beginPath()
+      ctx.arc(spot.x, spot.y, r * CORE, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
-  ctx.globalCompositeOperation = 'source-over'
   for (const { point, x, y } of shown) {
     const song = songs.get(point.id)
     ctx.globalAlpha = lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1
@@ -378,22 +380,6 @@ function draw(
     ctx.stroke()
   }
 
-  // The tags' names over their nebulae, spaced out, with how many songs.
-  ctx.textAlign = 'center'
-  for (const region of regions) {
-    const middle = at(region)
-    const y = middle.y - region.r * base * view.scale * 1.05 - 6
-    ctx.fillStyle = tagColors(region.hue, 'dark').ink
-    ctx.font = `600 11px ${FONT}`
-    spaced(ctx, region.name, 2)
-    ctx.fillText(region.name, middle.x, y)
-    ctx.font = `500 9px ${MONO}`
-    ctx.globalAlpha = 0.6
-    ctx.fillText(String(region.count), middle.x, y + 12)
-    ctx.globalAlpha = 1
-    spaced(ctx, '', 0)
-  }
-
   if (pulse) {
     ctx.fillStyle = withAlpha(accent, 0.35)
     ctx.beginPath()
@@ -416,14 +402,8 @@ function draw(
 }
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
-const MONO = 'ui-monospace, Menlo, monospace'
 /** Covers this wide wear their titles underneath. */
 const NAMES_FROM = 30
-
-/** Letter spacing where the browser draws it (Chrome and Safari do); plain elsewhere. */
-function spaced(ctx: CanvasRenderingContext2D, _text: string, px: number): void {
-  if ('letterSpacing' in ctx) (ctx as { letterSpacing: string }).letterSpacing = `${px}px`
-}
 
 function fitText(ctx: CanvasRenderingContext2D, text: string, width: number): string {
   if (ctx.measureText(text).width <= width) return text

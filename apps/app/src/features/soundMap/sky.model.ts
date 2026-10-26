@@ -5,7 +5,7 @@ import type { FieldSize, MapView } from './soundMapView.model'
 /**
  * The sound map drawn as a night sky (C2, docs/features/sound-map.md): each
  * song a star in its cover's colour, brighter the more it has been played;
- * each tag a faint nebula where its songs gather. Pure, so the phone's SVG
+ * each tag a faint unnamed glow where most of its songs gather. Pure, so the phone's SVG
  * (`SkyLayer.tsx`) and the browser's canvas (`SkyLayer.web.tsx`) draw the
  * same sky from the same numbers.
  */
@@ -19,11 +19,12 @@ export interface SkyPoint extends PlacedSong {
   /** 0–1: how much the song has been played, against the library's most played. */
   readonly bright: number
   readonly tagIds: readonly number[]
-}
-
-/** A tag's region, with how many of its songs are on the map. */
-export interface SkyRegion extends TagRegion {
-  readonly count: number
+  /**
+   * How much room the star has, 0–1: the mean distance to its three nearest
+   * neighbours. Its glow never reaches much past it, so a crowded place is a
+   * cluster of coloured stars rather than one white blur.
+   */
+  readonly room: number
 }
 
 /** What a stroke took: the songs along a line or inside a loop, and what to call them. */
@@ -46,7 +47,7 @@ export interface SkyLayerProps {
   readonly settled: MapView
   readonly base: number
   readonly points: readonly SkyPoint[]
-  readonly regions: readonly SkyRegion[]
+  readonly regions: readonly TagRegion[]
   readonly lens: number | null
   /** What the tray holds: lines drawn as constellations, loops as their outlines. */
   readonly takes: readonly MapTake[]
@@ -58,26 +59,27 @@ export interface SkyLayerProps {
   readonly songs: ReadonlyMap<number, Song>
 }
 
-/** A glow is this many times as wide as the star's middle. */
-export const GLOW = 4.5
+/** A glow reaches at most this many times a star's size, where it has the room. */
+const GLOW = 4
 
 /**
- * A glow's falloff, from the middle out, as offset and opacity: a solid pale
- * middle, then the colour fading to nothing. The middle is the star.
+ * A glow's falloff, from the middle out, as offset and opacity: the star's
+ * colour fading to nothing. The star itself is a solid dot over it
+ * (`CORE`), so a glow cut short by its neighbours still has its star.
  */
-export const GLOW_STOPS: readonly (readonly [offset: number, opacity: number, middle: boolean])[] =
-  [
-    [0, 1, true],
-    [0.15, 1, true],
-    [0.22, 0.8, false],
-    [0.4, 0.28, false],
-    [1, 0, false],
-  ]
+export const GLOW_STOPS: readonly (readonly [offset: number, opacity: number])[] = [
+  [0, 0.55],
+  [0.35, 0.22],
+  [1, 0],
+]
+
+/** The star's dot, as a share of its size. */
+export const CORE = 0.55
 
 /** The ground, from its middle out: the same in either theme, since the sky is the point. */
 export const SKY_TOP = '#0e1328'
 export const SKY_EDGE = '#04050b'
-/** The ink on the sky: names, counts, the line a drift draws. */
+/** The ink on the sky: covers' names, the line a drift draws. */
 export const SKY_INK = '#f4f5f9'
 
 /**
@@ -134,9 +136,57 @@ export function skyPoints(
       ...starTones(song),
       bright: brightness(song.playCount, top),
       tagIds: song.tagIds,
+      room: 0,
     })
   }
-  return out
+  const rooms = roomOf(out)
+  return out.map((point, index) => ({ ...point, room: rooms[index]! }))
+}
+
+/** Each point's mean distance to its three nearest, by a grid so a big library stays quick. */
+function roomOf(points: readonly MapPlace[]): number[] {
+  const cell = 0.02
+  const grid = new Map<string, number[]>()
+  const key = (x: number, y: number): string => `${Math.floor(x / cell)},${Math.floor(y / cell)}`
+  points.forEach((point, index) => {
+    const k = key(point.x, point.y)
+    const list = grid.get(k)
+    if (list) list.push(index)
+    else grid.set(k, [index])
+  })
+  return points.map((point, index) => {
+    const cx = Math.floor(point.x / cell)
+    const cy = Math.floor(point.y / cell)
+    // Out a ring at a time until three neighbours are found and no nearer one can be further out.
+    for (let ring = 1; ring <= 50; ring++) {
+      const near: number[] = []
+      for (let gx = cx - ring; gx <= cx + ring; gx++) {
+        for (let gy = cy - ring; gy <= cy + ring; gy++) {
+          for (const other of grid.get(`${gx},${gy}`) ?? []) {
+            if (other === index) continue
+            const o = points[other]!
+            near.push(Math.hypot(o.x - point.x, o.y - point.y))
+          }
+        }
+      }
+      near.sort((a, b) => a - b)
+      if (near.length >= 3 && near[2]! <= ring * cell) return (near[0]! + near[1]! + near[2]!) / 3
+      if (ring === 50 && near.length > 0) {
+        const three = near.slice(0, 3)
+        return three.reduce((sum, d) => sum + d, 0) / three.length
+      }
+    }
+    return 1
+  })
+}
+
+/**
+ * How far a star's glow reaches, in points: four times its size where it has
+ * the room, less in a crowd (most of the way to its neighbours), and never
+ * less than twice its size.
+ */
+export function glowReach(point: SkyPoint, size: number, scale: number, base: number): number {
+  return Math.max(size * 2, Math.min(size * GLOW, point.room * base * scale * 0.8))
 }
 
 /**
@@ -154,18 +204,12 @@ export function starAlpha(point: SkyPoint, lens: number | null): number {
   return lens !== null && !point.tagIds.includes(lens) ? own * 0.12 : own
 }
 
-/** The regions to draw, with how many of each tag's songs are on the map, under a lens only its own. */
-export function skyRegions(
-  regions: readonly TagRegion[],
-  points: readonly SkyPoint[],
-  lens: number | null,
-): SkyRegion[] {
-  return regions
-    .filter(region => lens === null || region.tagId === lens)
-    .map(region => ({
-      ...region,
-      count: points.filter(point => point.tagIds.includes(region.tagId)).length,
-    }))
+/**
+ * The tags' glows to draw: every one, or under a lens only its own. They are
+ * drawn without names, since a tag's songs are not all where it gathers.
+ */
+export function skyRegions(regions: readonly TagRegion[], lens: number | null): TagRegion[] {
+  return regions.filter(region => lens === null || region.tagId === lens)
 }
 
 /** The tags worth a lens chip: those with songs on the map, most first. */

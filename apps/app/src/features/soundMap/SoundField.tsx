@@ -11,7 +11,8 @@ import { nativeDriver } from '../../ports/nativeDriver'
 import type { FieldControl } from './fieldControl'
 import { fieldCursor, useFieldWheel } from './fieldInput'
 import { SkyLayer } from './SkyLayer'
-import type { MapTake, SkyPoint, SkyRegion } from './sky.model'
+import type { TagRegion } from '@selfmp3/client'
+import type { MapTake, SkyPoint } from './sky.model'
 import { baseOf, type FieldSize, type MapView } from './soundMapView.model'
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
@@ -48,7 +49,7 @@ export function SoundField({
   armed: boolean
   points: readonly SkyPoint[]
   songs: ReadonlyMap<number, Song>
-  regions: readonly SkyRegion[]
+  regions: readonly TagRegion[]
   lens: number | null
   takes: readonly MapTake[]
   stroke: readonly MapPlace[]

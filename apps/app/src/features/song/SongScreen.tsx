@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { plural, type Song } from '@selfmp3/shared'
+import { naturalOrder, plural, type Song } from '@selfmp3/shared'
 import { radius, space, type, useLibrary, useSimilar, withAlpha, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer } from '../../player/PlayerProvider'
@@ -99,7 +99,13 @@ function SongPage({ song }: { song: Song }): ReactNode {
   const moreRef = useRef<View>(null)
   const addTagRef = useRef<View>(null)
 
-  const tags = (library?.tags ?? []).filter(tag => song.tagIds.includes(tag.id))
+  const tags = useMemo(
+    () =>
+      (library?.tags ?? [])
+        .filter(tag => song.tagIds.includes(tag.id))
+        .sort((a, b) => naturalOrder(a.name, b.name)),
+    [library?.tags, song.tagIds],
+  )
   const isCurrent = player.current?.id === song.id
   const rest = bylineRest(song)
   const unplayed = useMemo(() => unplayedLine(song, new Date()), [song])

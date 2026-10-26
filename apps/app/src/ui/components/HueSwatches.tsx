@@ -67,9 +67,14 @@ export function HueSwatches({
 }): ReactNode {
   const swatches: readonly Swatch[] =
     options ??
-    (first === undefined || HUES.some(hue => hue === first) ? HUES : [first, ...HUES]).map(
-      tagSwatch,
-    )
+    (first === undefined || HUES.some(hue => hue === first)
+      ? HUES.map(tagSwatch)
+      : // Named apart from the palette's own colour nearest it, which it
+        // would otherwise share a name with: two choices both called "Teal".
+        [
+          { ...tagSwatch(first), name: `${hueName(first)}, this tag’s own` },
+          ...HUES.map(tagSwatch),
+        ])
   const nodes = useRef(new Map<number, View | null>())
   // The Tab stop: the chosen colour, or the first when none of these is chosen.
   const stop = swatches.some(swatch => swatch.hue === value) ? value : swatches[0]?.hue

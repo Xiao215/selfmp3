@@ -70,6 +70,17 @@ const ON = [
 ]
 
 /**
+ * An icon's painted parts, by `fill` or `stroke`: set on the drawing itself, or
+ * on the `<svg>` for every part to take (the line icons: Shuffle's, Profile's),
+ * which a rule for the parts alone left in their own pale colour. `within`
+ * narrows it to icons inside something.
+ */
+function painted(paint: 'fill' | 'stroke', within = ''): string {
+  const set = `[${paint}]:not([${paint}="none"])`
+  return `${within} svg${set}, ${within} svg ${set}`.trim()
+}
+
+/**
  * Forced colours (Windows' contrast themes): the browser paints every ground
  * Canvas, so the tones that mark the palette's lit result, the page you are
  * on and a chosen chip all vanish, and the icons, whose fills are the theme's
@@ -78,12 +89,12 @@ const ON = [
  */
 const FORCED = `
 @media (forced-colors: active) {
-  svg [fill]:not([fill="none"]) { fill: CanvasText !important; }
-  svg [stroke]:not([stroke="none"]) { stroke: CanvasText !important; }
+  ${painted('fill')} { fill: CanvasText !important; }
+  ${painted('stroke')} { stroke: CanvasText !important; }
   ${ON.join(', ')} { forced-color-adjust: none; background-color: Highlight !important; color: HighlightText !important; }
   ${ON.map(on => `${on} *`).join(', ')} { color: HighlightText !important; }
-  ${ON.map(on => `${on} svg [fill]:not([fill="none"])`).join(', ')} { fill: HighlightText !important; }
-  ${ON.map(on => `${on} svg [stroke]:not([stroke="none"])`).join(', ')} { stroke: HighlightText !important; }
+  ${ON.map(on => painted('fill', on)).join(', ')} { fill: HighlightText !important; }
+  ${ON.map(on => painted('stroke', on)).join(', ')} { stroke: HighlightText !important; }
 }
 `
 

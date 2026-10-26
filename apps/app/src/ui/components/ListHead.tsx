@@ -431,6 +431,7 @@ const styles = StyleSheet.create(theme => ({
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   actionsWide: { marginLeft: 'auto', paddingBottom: space.tight },
   nameSerif: nameTitle(theme.colors),
-  // A measuring copy: the name's width, out of sight and out of the way.
-  nameCopy: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0 },
+  // A measuring copy: the name's width, out of sight and out of the way — of
+  // a selection's too, which copied the name once for each copy.
+  nameCopy: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0, userSelect: 'none' },
 }))

@@ -95,6 +95,19 @@ export function TagsScreen(): ReactNode {
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
+  // The form put away from inside it — Escape, its × — gives focus back to the
+  // + that opened it: the form went with the focus in it, and left it on the page.
+  const newButton = useRef<View>(null)
+  const focusBack = useRef(false)
+  const closeNew = useCallback(() => {
+    focusBack.current = true
+    setAdding(false)
+  }, [])
+  useEffect(() => {
+    if (adding || !focusBack.current) return
+    focusBack.current = false
+    newButton.current?.focus()
+  }, [adding])
   const [suggesting, setSuggesting] = useState(false)
   const switches = useSmartSwitches()
   const { columns, tileWidth } = useTileGrid({ minTile: TILE_MIN_WIDTH, gap: GAP })
@@ -201,6 +214,7 @@ export function TagsScreen(): ReactNode {
   const actions = (
     <>
       <IconButton
+        ref={newButton}
         label="New tag"
         filled
         active={adding}
@@ -237,7 +251,7 @@ export function TagsScreen(): ReactNode {
               // its editor opens, on its tile.
               edit(tag)
             }}
-            onClose={() => setAdding(false)}
+            onClose={closeNew}
           />
         ) : null}
 

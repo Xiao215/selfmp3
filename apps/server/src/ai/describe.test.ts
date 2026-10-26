@@ -298,6 +298,17 @@ group('describe', () => {
     expect(llm.asked).toHaveLength(0)
   })
 
+  it('only orders the songs of an album asked for by how they sound, too', async () => {
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 15 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const calmAlbum = { ...nothing, albums: ['七里香'], sound: 'calm Mandarin pop' }
+    const result = await narrowAndPick({ ...deps(scriptedLlm({})), sound }, '七里香', calmAlbum, [])
+    expect(result.picks.map(pick => pick.songId)).toEqual([15, 14])
+  })
+
   it('gives the model the best-sounding songs, in that order, with a sound column', async () => {
     const llm = scriptedLlm({ 'describe-pick': [{ picks: [{ n: 1, why: 'calm' }] }] })
     const sound = {

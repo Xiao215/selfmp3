@@ -97,10 +97,11 @@ stay after them.
 
 The heart saves a like; **Liked** lists them (A1, 2026-10-25). It is a list that keeps
 itself, newest like first (`likedSongs`), not a stored playlist: nothing to rename or delete,
-no ⋯ on its tile. It is the first tile on the Playlists page — with no song liked yet it is
-still there, and its page says "No liked songs yet" — and, once a song is liked, the first row
-of the sidebar's Playlists, where songs dropped onto it are liked. Its page (`/playlists/liked`)
-is a tag's page with a heart for the dot: Play, Shuffle and the ⋯ every list has. It plays
+no ⋯ on its tile. On the Playlists page it comes after the New tile and the ones from links
+— with no song liked yet it is still there, and its page says "No liked songs yet" — and,
+once a song is liked, it is the first row of the sidebar's Playlists, where songs dropped
+onto it are liked. Its page (`/playlists/liked`) is a tag's page with a heart for the dot:
+Play, Shuffle and the ⋯ every list has. It plays
 with the `liked` source, so Up next is named "Liked", its line opens the page, Save never
 shows, and Recently played keeps it as a tile ("Keeps itself") that plays the likes as they
 are now.

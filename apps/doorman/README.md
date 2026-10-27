@@ -255,7 +255,9 @@ redirect URI in step 2).
   holds for its admin page) or by an owner on a device of their own; a
   server's grant is refused, though it is a session in the owner's name.
   Letter case does not matter. With no
-  owner and nobody on the list, nobody can sign in. Taking an address off the
+  owner and nobody on the list, nobody can sign in. An address added can sign
+  in as soon as KV has it, within about a minute everywhere: a refusal always
+  reads the list afresh. Taking an address off the
   list refuses its sessions, and any server's grant for it, within a minute,
   but does not end them: putting the address back revives them. To be rid of
   someone's sessions for good, have them sign out everywhere, or keep them off

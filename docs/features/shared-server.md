@@ -237,8 +237,10 @@ The doorman decides, and the server takes its word. Its owners — the `OWNER_EM
 set where the doorman is deployed — are always let in. Everyone else is on a list the owner
 keeps on the admin page's **People** tab (`/v1/access`, `apps/doorman/src/access.ts`,
 kept in KV; [admin.md](admin.md)), or the owner turns on **Anyone with a Google account**.
-Taking someone off refuses their next request within a minute, and with it any server's
-grant for them: the server can no longer reach their bucket.
+Someone added can sign in within about a minute, as soon as KV's copies have the change: a
+refusal always reads the list afresh, never a Worker's remembered copy. Taking someone off
+refuses their next request within a minute, and with it any server's grant for them: the
+server can no longer reach their bucket.
 
 ## Cost and risk
 

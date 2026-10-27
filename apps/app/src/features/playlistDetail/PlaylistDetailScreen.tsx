@@ -35,7 +35,7 @@ import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { usePullToRefresh } from '../library/usePullToRefresh'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { FOLLOWS_LABEL, isLive, playlistHeadLine } from '../playlists/playlists.model'
+import { isLive, playlistHeadLine } from '../playlists/playlists.model'
 import { DeletePlaylistDialog, usePlaylistMenu } from '../playlists/playlistMenu'
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
@@ -185,13 +185,8 @@ export function PlaylistDetailScreen(): ReactNode {
 
   const titles = (
     <>
-      {/* No PLAYLIST over the name; one that fills itself wears the mark by it. */}
+      {/* No PLAYLIST over the name, and no mark by it: the line below says Live. */}
       <View style={listHeadText.nameRow}>
-        {live ? (
-          <View accessibilityLabel={FOLLOWS_LABEL} {...tip(FOLLOWS_LABEL)}>
-            <Live size={iconSize.large} tone="textSecondary" />
-          </View>
-        ) : null}
         {renaming ? (
           <TextInput
             {...NO_AUTOFILL}
@@ -238,7 +233,6 @@ export function PlaylistDetailScreen(): ReactNode {
         </Text>
       ) : null}
       <Text style={listHeadText.summary}>
-        {/* The mark by the name says it; the word beside it says what the mark means. */}
         {live ? 'Live · ' : ''}
         {playlistHeadLine(count, seconds, playlist?.lastPlayedAt ?? null, new Date())}
       </Text>

@@ -18,6 +18,12 @@ const RANGES = [
   [90, '3 months'],
 ]
 const REFRESH_MS = 60_000
+/**
+ * How long an address just added can take to be let in everywhere: the doorman
+ * keeps its list in Cloudflare KV, which takes up to a minute to reach its
+ * other copies (apps/doorman/src/access.ts).
+ */
+const SETTLE_MS = 60_000
 
 const state = {
   tab: tabOf(location.pathname),
@@ -26,6 +32,8 @@ const state = {
   dataError: null,
   people: null,
   peopleError: null,
+  /** Addresses this page added, and when, until the doorman has them everywhere. */
+  added: new Map(),
   /** Friends' iPhones, asked for on the install page (the doorman's /v1/iphones). */
   iphones: null,
   iphonesError: null,
@@ -1078,10 +1086,15 @@ const ICON_PLUS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14
 
 function personRow(person) {
   const chip = person.owner ? '<span class="chip">owner</span>' : ''
+  const at = state.added.get(person.email)
+  const settling =
+    at !== undefined && Date.now() - at < SETTLE_MS
+      ? `<span class="hint">Just added: they can sign in by ${escape(new Date(at + SETTLE_MS).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }))}</span>`
+      : ''
   const end = person.owner
     ? '<span class="hint">always let in</span>'
     : `<button class="icon-btn" type="button" data-action="remove" data-email="${escape(person.email)}" aria-label="Remove ${escape(person.email)}" title="Remove" ${state.busy ? 'disabled' : ''}>${ICON_TRASH}</button>`
-  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span></div>${end}</div>`
+  return `<div class="row">${avatarOf(person.email)}<div class="lbl"><span class="name">${escape(person.email)}${chip}</span>${settling}</div>${end}</div>`
 }
 
 function peopleView() {
@@ -1264,11 +1277,21 @@ async function changeIphone(udid, method, done) {
 async function savePeople(change, done) {
   if (!state.people || state.busy) return
   const next = change({ anyone: state.people.anyone, emails: [...state.people.emails] })
+  const before = new Set(state.people.emails)
   state.busy = true
   render()
   try {
     state.people = await ask('/api/admin/people', { method: 'PUT', body: JSON.stringify(next) })
     state.peopleError = null
+    const fresh = state.people.emails.filter(email => !before.has(email))
+    if (fresh.length) {
+      for (const email of fresh) state.added.set(email, Date.now())
+      // The rows say so until then, and stop once it is true.
+      setTimeout(() => {
+        for (const email of fresh) state.added.delete(email)
+        if (state.tab === 'people') render()
+      }, SETTLE_MS)
+    }
     if (done) toast(done)
   } catch (error) {
     state.peopleError = error.message
@@ -1319,7 +1342,7 @@ function addTyped() {
   state.search = ''
   void savePeople(
     list => ({ ...list, emails: [...list.emails, ...fresh] }),
-    fresh.length === 1 ? `Added ${fresh[0]}` : `Added ${plural(fresh.length, 'person', 'people')}`,
+    `${fresh.length === 1 ? `Added ${fresh[0]}` : `Added ${plural(fresh.length, 'person', 'people')}`}. They can sign in within a minute.`,
   )
 }
 

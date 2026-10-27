@@ -72,24 +72,30 @@ export function LibraryAnswer({
           ? answer.tags
           : null
   const shown = songs.slice(0, shows)
+  // Judged from some of the songs only: the count is an estimate, and says so.
+  const about = answer.judged !== null && answer.judged.songs < answer.judged.of ? 'about ' : ''
   return (
     <>
       <AnswerHead>
         {/* Fewer listed than counted (a size asked for, the most a list holds, or songs
             not on this device yet): said, so "Play these" is not mistaken for all of them. */}
-        {answer.show === 'songs' && songs.length < answer.count
-          ? `${songs.length.toLocaleString('en')} of ${songCount(answer.count)}`
-          : `${songCount(answer.count)} · ${formatLongDuration(answer.seconds)}`}
+        {libraryHead(answer, songs.length, about)}
       </AnswerHead>
       <Text style={styles.muted}>
         {chosen.length > 0 ? chosen.join(' · ') : 'Your whole library'}
         {answer.sortBy ? ` · ${sortWords(answer.sortBy, answer.order)}` : ''}
       </Text>
+      {about ? (
+        <Text style={styles.muted}>
+          An estimate: judged {answer.judged!.songs.toLocaleString('en')} of the{' '}
+          {answer.judged!.of.toLocaleString('en')} songs it could be.
+        </Text>
+      ) : null}
       {answer.unknown.length > 0 ? (
         <Text style={styles.muted}>Your library has no {answer.unknown.join(', ')}.</Text>
       ) : null}
       {list ? (
-        <View style={styles.counts}>
+        <ScrollView style={{ maxHeight: height }} contentContainerStyle={styles.counts}>
           {list.map(each => (
             <View key={each.label} style={styles.countRow}>
               <Text style={styles.title} numberOfLines={1}>
@@ -98,7 +104,12 @@ export function LibraryAnswer({
               <Text style={styles.muted}>{plural(each.count, 'song', 'songs')}</Text>
             </View>
           ))}
-        </View>
+          {list.length < answer.distinct[listed(answer.show)] ? (
+            <Text style={styles.muted}>
+              and {(answer.distinct[listed(answer.show)] - list.length).toLocaleString('en')} more
+            </Text>
+          ) : null}
+        </ScrollView>
       ) : answer.show === 'count' ? (
         <Text style={styles.muted}>
           By{' '}
@@ -145,6 +156,36 @@ export function LibraryAnswer({
       </AnswerActions>
     </>
   )
+}
+
+type Library = Extract<AskAnswer, { kind: 'library' }>
+
+/** Which of the counted lists a library answer shows. */
+function listed(
+  show: 'artists' | 'albums' | 'tags' | 'count' | 'songs',
+): keyof Library['distinct'] {
+  return show === 'albums' ? 'albums' : show === 'tags' ? 'tags' : 'artists'
+}
+
+/**
+ * The answer's head: how many artists, albums or tags when that is what was
+ * asked, else how many songs (and how many of them are listed, when fewer).
+ */
+function libraryHead(answer: Library, listedSongs: number, about: string): string {
+  const songs = `${about}${songCount(answer.count)}`
+  switch (answer.show) {
+    case 'artists':
+      return `${about}${plural(answer.distinct.artists, 'artist', 'artists')} · ${songs}`
+    case 'albums':
+      return `${about}${plural(answer.distinct.albums, 'album', 'albums')} · ${songs}`
+    case 'tags':
+      return `${about}${plural(answer.distinct.tags, 'tag', 'tags')} · ${songs}`
+    case 'songs':
+      if (listedSongs < answer.count) return `${listedSongs.toLocaleString('en')} of ${songs}`
+      return `${songs} · ${formatLongDuration(answer.seconds)}`
+    case 'count':
+      return `${songs} · ${formatLongDuration(answer.seconds)}`
+  }
 }
 
 const styles = StyleSheet.create(theme => ({

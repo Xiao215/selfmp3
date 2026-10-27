@@ -10,9 +10,16 @@ import {
   type Song,
   type Stats,
 } from '@selfmp3/shared'
-import { EVERYTHING, libraryAnswer, none, playlistSongs, type AskPlaylist } from './askLibrary.js'
 import {
-  MAX_PICKS,
+  EVERYTHING,
+  libraryAnswer,
+  none,
+  playlistSongs,
+  songsInOrder,
+  songsThatAre,
+  type AskPlaylist,
+} from './askLibrary.js'
+import {
   PickOut,
   groundPicks,
   groundPlan,
@@ -22,7 +29,7 @@ import {
   type PlanOut,
 } from './describe.js'
 import { songTable } from './library.js'
-import { LlmError, Remembered } from './llm.js'
+import { Remembered } from './llm.js'
 import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import { findCopies } from './copies.js'
 import { fillGaps } from './fill.js'
@@ -48,7 +55,8 @@ import { tidy } from './tidy.js'
 export interface AskDeps extends DescribeDeps {
   /** The playlists, for "delete…", "rename…" (`matchPlaylist`) and their songs. */
   readonly playlists?: () => readonly AskPlaylist[]
-  readonly stats: (range: Stats['range']) => Stats
+  /** The listening in a range, with up to `top` songs, artists and tags (the Stats page's when left out). */
+  readonly stats: (range: Stats['range'], top?: number) => Stats
   readonly lyrics: (query: string) => { songId: number; line: string }[]
   /** The music catalogues, for names from outside the library (`names.ts`). */
   readonly findNames?: FindNames
@@ -129,6 +137,9 @@ const FIND_SIZE = 5
 const FIND_VERSION = 1
 /** How many songs "after this" adds to Up next when no number is said (A8). */
 const NEXT_SIZE = 10
+/** How many songs, artists or tags a listening question lists when no number is said, and at most. */
+const STATS_SIZE = 10
+const STATS_MOST = 50
 
 /** Songs whose title, artist or album holds a term, then ones whose lyrics do, once each. */
 export function songsMatching(
@@ -158,10 +169,20 @@ const FIND_SYSTEM = `Someone is looking for one song in their own library that t
 
 const songs = action({
   name: 'songs',
-  when: 'they want music: a playlist made, or something to listen to. Fill "filters". In "songs", play is true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"); next is true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"); like is true only when a song is playing and they want music that sounds like it ("more like this", "similar to this", "this but calmer"), and the songs are then ordered by how close they sound to it, so "more like this" needs no filters. Describe a change from it in sound ("calmer", "more upbeat", "with piano") and add its tags or artists only when they want the same kind ("more Genshin like this"). Otherwise like is false, even with a song playing ("play some YOASOBI next").',
-  fields: z.object({ play: z.boolean(), next: z.boolean(), like: z.boolean() }),
+  when: 'they want music: a playlist made, or something to listen to. Fill "filters". In "songs", play is true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"); next is true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"); like is true only when a song is playing and they want music that sounds like it ("more like this", "similar to this", "this but calmer"), and the songs are then ordered by how close they sound to it, so "more like this" needs no filters. Describe a change from it in sound ("calmer", "more upbeat", "with piano") and add its tags or artists only when they want the same kind ("more Genshin like this"). Otherwise like is false, even with a song playing ("play some YOASOBI next"). sortBy and order when they want the songs that come first in an order the library can sort by (sortBy says what, order which end: desc for the most, longest, newest or latest first); the songs are then exactly the first ones in that order. Else sortBy null and order desc.',
+  fields: z.object({
+    play: z.boolean(),
+    next: z.boolean(),
+    like: z.boolean(),
+    sortBy: z.enum(AskSortSchema.options).nullable(),
+    order: z.enum(AskOrderSchema.options),
+  }),
   filters: 'required',
-  run: async ({ deps, text, playing, nowPlaying, steps }, { play, next, like }, filters) => {
+  run: async (
+    { deps, text, playing, nowPlaying, steps },
+    { play, next, like, sortBy, order },
+    filters,
+  ) => {
     const steering = next && playing !== undefined
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
@@ -170,16 +191,31 @@ const songs = action({
     // it is what they move on from. Asked for any other way ("make a list of
     // them" while one of them plays), it is one of the songs like any other.
     const from = steering || like ? playing : undefined
-    const found = await narrowAndPick(
-      deps,
-      `${text}${nowPlaying}`,
-      understanding,
-      unknown,
-      from ? [from.id] : [],
-      steps,
-      // Only when they asked for music like it: what sounds close to it comes first.
-      like && playing ? playing.id : null,
-    )
+    const avoid = from ? [from.id] : []
+    // An order the library knows says which songs come first: sorted in code, not picked from a sample.
+    const found = sortBy
+      ? await songsInOrder(
+          deps,
+          `${text}${nowPlaying}`,
+          understanding,
+          unknown,
+          avoid,
+          {
+            sortBy,
+            order,
+          },
+          steps,
+        )
+      : await narrowAndPick(
+          deps,
+          `${text}${nowPlaying}`,
+          understanding,
+          unknown,
+          avoid,
+          steps,
+          // Only when they asked for music like it: what sounds close to it comes first.
+          like && playing ? playing.id : null,
+        )
     const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== from?.id) }
     return { kind: 'songs', lead: steering ? 'next' : play ? 'play' : 'save', describe }
   },
@@ -286,15 +322,17 @@ const tags = action({
 
 const stats = action({
   name: 'stats',
-  when: 'a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals.',
+  when: 'a question about their own listening (most played, how much, which artists). Fill "stats": range is 7d, 30d, 90d, 365d or all ("last month" is 30d, "this year" is 365d); about is songs, artists, tags or totals; size is how many to list when they say a number, else null.',
   fields: z.object({
     range: z.enum(AskStatsRangeSchema.options),
     about: z.enum(['songs', 'artists', 'tags', 'totals']),
+    size: z.number().int().min(1).max(STATS_MOST).nullable(),
   }),
   filters: 'unused',
-  run: ({ deps, steps }, { range, about }) => {
+  run: ({ deps, steps }, { range, about, size }) => {
+    const wanted = size ?? STATS_SIZE
     steps.begin('Reading your listening')
-    const stats = deps.stats(range)
+    const stats = deps.stats(range, wanted)
     steps.done()
     const items =
       about === 'songs'
@@ -314,7 +352,7 @@ const stats = action({
       about,
       plays: stats.totals.plays,
       minutes: stats.totals.minutes,
-      items: items.slice(0, 5),
+      items: items.slice(0, wanted),
     }
   },
 })
@@ -329,34 +367,15 @@ const library = action({
   }),
   filters: 'optional',
   run: async ({ deps, text, steps }, question, filters) => {
-    // How a song sounds or what it is about cannot be counted in code: the
-    // songs that are it are chosen as a playlist would be, then counted.
+    // A name the library lacks is counted as none of it, not looked for by a model.
     if (!filters || (filters.sound === null && filters.brief === null)) {
       return libraryAnswer(deps, filters, question)
     }
-    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
-    try {
-      const found = await narrowAndPick(
-        deps,
-        text,
-        { ...understanding, size: understanding.size ?? MAX_PICKS },
-        unknown,
-        [],
-        steps,
-      )
-      return libraryAnswer(
-        deps,
-        filters,
-        question,
-        found.picks.map(pick => pick.songId),
-      )
-    } catch (caught) {
-      // Choosing none is an answer here: none of their songs is that.
-      if (caught instanceof LlmError && caught.kind === 'invalid') {
-        return libraryAnswer(deps, filters, question, [])
-      }
-      throw caught
-    }
+    // How a song sounds or what it is about cannot be counted in code: a model
+    // judges each song the filters let in, and those it says are it are counted.
+    const { understanding } = groundPlan(filters, deps.songs(), deps.tags())
+    const judged = await songsThatAre(deps, text, understanding, steps)
+    return libraryAnswer(deps, filters, question, judged)
   },
 })
 
@@ -440,7 +459,7 @@ const playlists = action({
 
 const playlistEdit = action({
   name: 'playlistSongs',
-  when: 'they want songs put into or taken out of one playlist, or its songs put in order ("add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy"). Fill "playlistSongs": name copied from their playlist list as closely as you can; op add, remove or sort; for a sort, sortBy and order (asc is lowest, earliest or A first: calmest first is energy asc; year is when a song came out, addedAt when it joined the library), else sortBy null and order asc. For add and remove also fill "filters" with the filters that choose the songs (for remove, among the playlist\'s own songs), with brief for what the filters cannot say.',
+  when: 'they want songs put into or taken out of one playlist, or its songs put in order ("add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy"). Fill "playlistSongs": name copied from their playlist list as closely as you can; op add, remove or sort; for a sort, sortBy and order (asc is lowest, earliest or A first: calmest first is energy asc; year is when a song came out, addedAt when it joined the library), else sortBy null and order asc. For add and remove also fill "filters" with the filters that choose the songs (for remove, among the playlist\'s own songs), with brief for what the filters cannot say. Choose this for a live playlist too: its rules decide its songs, and the answer says how.',
   fields: z.object({
     name: z.string().max(120),
     op: z.enum(['add', 'remove', 'sort']),

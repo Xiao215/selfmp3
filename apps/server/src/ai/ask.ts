@@ -1,7 +1,7 @@
 import { z } from 'zod/v4'
 import type { AskAnswer, AskTurn } from '@selfmp3/shared'
 import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './askActions.js'
-import { none } from './askLibrary.js'
+import { none, rulesWords } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
@@ -27,8 +27,6 @@ import { NO_STEPS, type Steps } from './progress.js'
  * from — a question about what was just said, or a change to the request
  * before ("only the albums").
  */
-
-const VERSION = 19
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), to skip, pause or go back in what is playing, a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'
@@ -56,7 +54,7 @@ export function followed(text: string, before: readonly AskTurn[]): string {
     ]),
     '',
     `Now they say: ${text}`,
-    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
   ].join('\n')
 }
 
@@ -92,7 +90,7 @@ export function routeSystem(actions: readonly AskAction<unknown>[]): string {
 
 The actions:
 ${actions.map(each => `- ${each.name}: ${each.when}`).join('\n')}
-- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
+- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence, in the language of their newest words, on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
 
 "filters", for ${filtered.join(', ')}:
 ${FILTERS_GUIDE}`
@@ -122,33 +120,45 @@ export async function ask(
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
   const playlists = deps.playlists?.() ?? []
-  const prompt = `${libraryShape(songs, tags, deps.artistNames?.())}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
-  steps.begin('Reading what you asked')
-  const route = await remembered.get(
-    Remembered.key('ask-route', VERSION, prompt),
-    async () =>
-      (
-        await deps.llm.generate({
-          task: 'ask-route',
-          tier: 'fast',
-          system: SYSTEM,
-          prompt,
-          schema: FORM,
-        })
-      ).value,
+  // Each playlist with its kind: a live one's songs come from its rules, said in words.
+  const playlistLines = playlists.map(
+    playlist =>
+      `- “${playlist.name}”: ${playlist.kind === 'live' && playlist.rules ? `live, holds ${rulesWords(playlist.rules, tags)}` : playlist.kind}`,
   )
+  const prompt = `${libraryShape(songs, tags, deps.artistNames?.())}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, each name exactly as quoted, and whether it is manual (songs put in by hand) or live (filled by its rules):\n${playlistLines.join('\n') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
+  // Not remembered: asked again, the same words are read again, so Try again can come out differently.
+  const route = (more = ''): Promise<Route> =>
+    deps.llm
+      .generate({
+        task: 'ask-route',
+        tier: 'fast',
+        system: SYSTEM,
+        prompt: prompt + more,
+        schema: FORM,
+      })
+      .then(answer => answer.value)
+  steps.begin('Reading what you asked')
+  let routed = await route()
+  let missing = missingFrom(routed)
+  if (missing) {
+    // An action without what it needs is not trusted: the model is asked once more, told what it left out.
+    routed = await route(
+      `\n\n(Your last answer chose ${routed.action} and left "${missing}" empty. Answer again with it filled in, or choose none and say, in the language of their newest words, what you need to know.)`,
+    )
+    missing = missingFrom(routed)
+  }
   steps.done('Read what you asked')
 
-  const chosen = ASK_ACTIONS.find(each => each.name === route.action)
-  // An action without what it needs is not trusted: it falls through to "none".
-  const fields = chosen?.fields ? route[chosen.name] : null
-  if (
-    !chosen ||
-    (chosen.fields && (fields === null || fields === undefined)) ||
-    (chosen.filters === 'required' && route.filters === null)
-  ) {
-    return none(route.say ?? FALLBACK, route.try ?? [])
+  const chosen = ASK_ACTIONS.find(each => each.name === routed.action)
+  if (!chosen || missing) {
+    // Asked twice and still without it: said, in the model's words when it gave any.
+    const unsure =
+      missing === 'filters'
+        ? 'I couldn’t tell which songs you mean. Say an artist, an album, a tag or a kind of music.'
+        : 'I couldn’t tell all of what you want done. Say it another way.'
+    return none(routed.say ?? (missing ? unsure : FALLBACK), routed.try ?? [])
   }
+  const fields = chosen.fields ? routed[chosen.name] : null
   const context: AskContext = {
     deps: { ...deps, remembered },
     text: request,
@@ -158,5 +168,16 @@ export async function ask(
     now,
     steps,
   }
-  return chosen.run(context, fields, chosen.filters === 'unused' ? null : route.filters)
+  return chosen.run(context, fields, chosen.filters === 'unused' ? null : routed.filters)
+}
+
+/** The part of the form the chosen action needs and the router left empty, or null. */
+function missingFrom(route: Route): string | null {
+  const chosen = ASK_ACTIONS.find(each => each.name === route.action)
+  if (!chosen) return null
+  if (chosen.fields && (route[chosen.name] === null || route[chosen.name] === undefined)) {
+    return chosen.name
+  }
+  if (chosen.filters === 'required' && route.filters === null) return 'filters'
+  return null
 }

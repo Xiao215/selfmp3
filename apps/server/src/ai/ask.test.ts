@@ -82,14 +82,30 @@ function deps(replies: Record<string, unknown[]>) {
 const manual = (name: string, songIds: number[] = []) => ({
   name,
   kind: 'manual' as const,
+  rules: null,
   songIds: () => songIds,
+})
+/** A live playlist of the songs with any of these tags, as the server evaluates it. */
+const live = (name: string, tagIds: number[]) => ({
+  name,
+  kind: 'live' as const,
+  rules: {
+    match: 'any' as const,
+    rules: tagIds.map(tagId => ({ field: 'tag' as const, op: 'has' as const, tagId })),
+    orderBy: 'addedAt' as const,
+    order: 'desc' as const,
+    limit: null,
+  },
+  songIds: () =>
+    SONGS.filter(each => each.tagIds.some(id => tagIds.includes(id))).map(each => each.id),
 })
 const PLAYLISTS = [
   manual('chill · chinese · hype'),
   manual('chill · chinese'),
   manual('hi'),
   manual('running', [7, 9, 14]),
-  { ...manual('genshin'), kind: 'live' as const },
+  live('genshin', [2]),
+  live('jpop live', [3]),
 ]
 
 describe('matchPlaylist', () => {
@@ -148,11 +164,14 @@ describe('ask, about playlists', () => {
     })
   })
 
-  it('shows the model the playlists it may name', async () => {
+  it('shows the model the playlists it may name, each with its kind and a live one’s rules', async () => {
     const d = deps({ 'ask-route': [route({ action: 'none', say: 'x' })] })
     await ask(d, 'delete hi')
     expect(String(d.llm.asked[0]?.prompt)).toContain(
-      'chill · chinese · hype | chill · chinese | hi',
+      '- “chill · chinese · hype”: manual\n- “chill · chinese”: manual\n- “hi”: manual',
+    )
+    expect(String(d.llm.asked[0]?.prompt)).toContain(
+      '- “genshin”: live, holds songs tagged 原神纯音乐',
     )
   })
 })
@@ -163,7 +182,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: true, next: false, like: false },
+          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -190,7 +209,7 @@ describe('ask', () => {
         'ask-route': [
           route({
             action: 'songs',
-            songs: { play: true, next: false, like: false },
+            songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
             filters: { ...noFilters, albums: ['Jukebox'] },
           }),
         ],
@@ -210,7 +229,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: false, like: false },
+          songs: { play: false, next: false, like: false, sortBy: null, order: 'desc' },
           filters: { ...noFilters, albums: ['七里香'] },
         }),
       ],
@@ -226,7 +245,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true, like: false },
+          songs: { play: false, next: true, like: false, sortBy: null, order: 'desc' },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -252,7 +271,7 @@ describe('ask', () => {
         'ask-route': [
           route({
             action: 'songs',
-            songs: { play: false, next: true, like },
+            songs: { play: false, next: true, like, sortBy: null, order: 'desc' },
             filters: { ...noFilters, anyTags: ['原神纯音乐'] },
           }),
         ],
@@ -274,7 +293,7 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true, like: false },
+          songs: { play: false, next: true, like: false, sortBy: null, order: 'desc' },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -433,7 +452,7 @@ describe('ask', () => {
         'You answered: Proposed 8 name changes.',
         '',
         'Now they say: only the albums',
-        '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
+        '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
       ].join('\n'),
     )
     // The router and the action it chose both read all of it.
@@ -584,7 +603,9 @@ describe('ask', () => {
 
   it('answers a listening question from the plays, not from the model', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'stats', stats: { range: '30d', about: 'songs' } })],
+      'ask-route': [
+        route({ action: 'stats', stats: { range: '30d', about: 'songs', size: null } }),
+      ],
     })
     expect(await ask(d, 'what did I play most')).toEqual({
       kind: 'stats',
@@ -607,10 +628,156 @@ describe('ask', () => {
       place: 'import',
       say: 'Import takes a link.',
     })
+  })
 
-    // An action without what it needs is not trusted.
-    const broken = deps({ 'ask-route': [route({ action: 'songs', songs: null })] })
-    expect((await ask(broken, 'hm')).kind).toBe('none')
+  it('asks the router once more when the action it chose lacks what it needs, saying what', async () => {
+    const fixed = deps({
+      'ask-route': [
+        route({ action: 'stats', stats: null }),
+        route({ action: 'stats', stats: { range: 'all', about: 'totals', size: null } }),
+      ],
+    })
+    expect(await ask(fixed, 'how much have I listened')).toMatchObject({ kind: 'stats' })
+    expect(fixed.llm.asked[1]!.prompt).toContain(
+      'Your last answer chose stats and left "stats" empty',
+    )
+
+    // Twice without it: not trusted, and the answer says what was missing.
+    const broken = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+        }),
+        route({
+          action: 'songs',
+          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+        }),
+      ],
+    })
+    expect(await ask(broken, 'hm')).toMatchObject({
+      kind: 'none',
+      say: expect.stringContaining('which songs you mean'),
+    })
+    expect(broken.llm.asked[1]!.prompt).toContain('left "filters" empty')
+  })
+
+  it('reads the request afresh every time: the same words are routed again, not remembered', async () => {
+    const d = deps({
+      'ask-route': [
+        route({ action: 'none', say: 'first' }),
+        route({ action: 'none', say: 'second' }),
+      ],
+    })
+    expect(await ask(d, 'hm')).toMatchObject({ say: 'first' })
+    expect(await ask(d, 'hm')).toMatchObject({ say: 'second' })
+  })
+
+  it('lists as many of the most played as were asked for, ten when no number is said', async () => {
+    const tops: (number | undefined)[] = []
+    const many: Stats = {
+      ...STATS,
+      topArtists: Array.from({ length: 30 }, (_, i) => ({
+        key: `A${i}`,
+        plays: 30 - i,
+        minutes: 1,
+      })),
+    }
+    const asked = (size: number | null) => ({
+      ...deps({
+        'ask-route': [route({ action: 'stats', stats: { range: 'all', about: 'artists', size } })],
+      }),
+      stats: (_range: Stats['range'], top?: number) => {
+        tops.push(top)
+        return many
+      },
+    })
+    const twenty = await ask(asked(20), 'top 20 artists')
+    expect(twenty.kind === 'stats' && twenty.items.map(item => item.label)).toEqual(
+      many.topArtists.slice(0, 20).map(each => each.key),
+    )
+    const plain = await ask(asked(null), 'my top artists')
+    expect(plain.kind === 'stats' && plain.items).toHaveLength(10)
+    expect(tops).toEqual([20, 10])
+  })
+})
+
+describe('ask for songs in an order', () => {
+  const ordered = (filters: Record<string, unknown>, sortBy: string, order = 'desc') =>
+    route({
+      action: 'songs',
+      songs: { play: true, next: false, like: false, sortBy, order },
+      filters: { ...noFilters, ...filters },
+    })
+
+  it('plays exactly the first songs in the order, sorted in code and not picked from a sample', async () => {
+    // More songs than a pick's table holds, the most played far from the front of the library.
+    const library = Array.from({ length: 800 }, (_, i) =>
+      song(i + 1, { title: `Song ${i + 1}`, playCount: i === 640 ? 99 : (i * 7) % 50 }),
+    )
+    const d = {
+      ...deps({ 'ask-route': [ordered({ size: 20 }, 'plays')] }),
+      songs: () => library,
+    }
+    const answer = await ask(d, 'play my 20 most played songs')
+    if (answer.kind !== 'songs') throw new Error(answer.kind)
+    const plays = answer.describe.picks.map(pick => library[pick.songId - 1]!.playCount)
+    expect(plays).toHaveLength(20)
+    expect(plays[0]).toBe(99)
+    expect(plays).toEqual([...plays].sort((a, b) => b - a))
+    expect(Math.min(...plays)).toBeGreaterThanOrEqual(
+      [...library].sort((a, b) => b.playCount - a.playCount)[19]!.playCount,
+    )
+    expect(answer.describe.fit).toBe(800)
+    expect(d.llm.asked.map(each => each.task)).toEqual(['ask-route'])
+  })
+
+  it('fills a length in order, and leaves out the song steered from', async () => {
+    const d = deps({ 'ask-route': [ordered({ minutes: 10 }, 'duration')] })
+    const answer = await ask(d, 'my longest songs, ten minutes')
+    if (answer.kind !== 'songs') throw new Error(answer.kind)
+    // Every fixture song is 200 s but two: the longest first, until ten minutes are full.
+    const seconds = answer.describe.picks.map(
+      pick => SONGS.find(s => s.id === pick.songId)!.duration,
+    )
+    expect(seconds).toEqual([...seconds].sort((a, b) => b - a))
+    expect(seconds.slice(0, -1).reduce((a, b) => a + b, 0)).toBeLessThan(600)
+    expect(seconds.reduce((a, b) => a + b, 0)).toBeGreaterThanOrEqual(600)
+
+    const next = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: { play: false, next: true, like: false, sortBy: 'energy', order: 'desc' },
+          filters: { ...noFilters, anyTags: ['jpop'] },
+        }),
+      ],
+    })
+    const steered = await ask(next, 'the most energetic jpop next', 7)
+    expect(
+      steered.kind === 'songs' && steered.describe.picks.map(pick => pick.songId),
+    ).not.toContain(7)
+  })
+
+  it('judges words the order cannot say among the first in the order, and keeps the order', async () => {
+    const d = deps({
+      'ask-route': [ordered({ anyTags: ['jpop', '原神纯音乐'], brief: 'sung' }, 'energy')],
+      'describe-pick': [
+        {
+          picks: [
+            { n: 3, why: 'sung' },
+            { n: 1, why: 'sung' },
+          ],
+        },
+      ],
+    })
+    const answer = await ask(d, 'my most energetic songs with singing')
+    if (answer.kind !== 'songs') throw new Error(answer.kind)
+    const energies = answer.describe.picks.map(
+      pick => SONGS.find(s => s.id === pick.songId)!.audioFeatures!.energy!,
+    )
+    expect(energies).toHaveLength(2)
+    expect(energies[0]).toBeGreaterThan(energies[1]!)
   })
 })
 
@@ -678,24 +845,95 @@ describe('ask about the library', () => {
     expect(answer.songIds.at(-1)).toBe(13)
   })
 
-  it('counts what only a model can judge from the songs it chooses, not the whole library', async () => {
+  it('counts what only a model can judge by judging every song the filters let in', async () => {
     const d = deps({
-      'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'named for rain' } }],
-      'describe-pick': [{ picks: [{ n: 1, why: 'rain' }] }],
+      'ask-route': [
+        { ...question({}), filters: { ...noFilters, words: 'with', brief: 'named for rain' } },
+      ],
+      'ask-judge': [{ picks: [{ n: 1, why: 'rain' }] }],
     })
     const answer = await ask(d, 'how many songs about rain do I have')
-    expect(answer).toMatchObject({ kind: 'library', count: 1 })
+    expect(answer).toMatchObject({ kind: 'library', count: 1, judged: { songs: 8, of: 8 } })
+    // One table holding every song with words, not a sample of them.
+    expect(String(d.llm.asked[1]!.prompt).match(/^#\d+ \|/gm)).toHaveLength(8)
   })
 
-  it('counts none when the model finds none, rather than failing', async () => {
+  it('judges a big library a table at a time, and past the most it judges, says it is an estimate', async () => {
+    const library = (n: number) =>
+      Array.from({ length: n }, (_, i) => song(i + 1, { title: `Song ${i + 1}` }))
+    const every = (count: number) =>
+      Array.from({ length: count }, () => ({
+        picks: [
+          { n: 1, why: 'yes' },
+          { n: 2, why: 'yes' },
+        ],
+      }))
+    const all = {
+      ...deps({
+        'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'love songs' } }],
+        'ask-judge': every(3),
+      }),
+      songs: () => library(400),
+    }
+    const counted = await ask(all, 'how many love songs do I have')
+    expect(counted).toMatchObject({ count: 6, judged: { songs: 400, of: 400 } })
+    expect(all.llm.asked.filter(each => each.task === 'ask-judge')).toHaveLength(3)
+
+    const big = {
+      ...deps({
+        'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'love songs' } }],
+        'ask-judge': every(4),
+      }),
+      songs: () => library(1200),
+    }
+    // 8 of the 600 judged, an even spread of 1,200: about 16 in all.
+    expect(await ask(big, 'how many love songs do I have')).toMatchObject({
+      count: 16,
+      judged: { songs: 600, of: 1200 },
+    })
+  })
+
+  it('counts none when the model judges none, and fails when its answer cannot be read', async () => {
     const d = deps({
       'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'named for rain' } }],
-      'describe-pick': [{ picks: [] }],
+      'ask-judge': [{ picks: [] }],
     })
     expect(await ask(d, 'how many songs about rain do I have')).toMatchObject({
       kind: 'library',
       count: 0,
     })
+    const unreadable = deps({
+      'ask-route': [{ ...question({}), filters: { ...noFilters, brief: 'named for rain' } }],
+      'ask-judge': [new Error('unreadable')],
+    })
+    await expect(ask(unreadable, 'how many songs about rain do I have')).rejects.toThrow()
+  })
+
+  it('counts a song for everyone it is by, and how many artists, albums and tags there are', async () => {
+    const d = deps({
+      'ask-route': [
+        { ...question({ show: 'artists' }), filters: { ...noFilters, anyTags: ['原神纯音乐'] } },
+      ],
+    })
+    const answer = await ask(d, 'who is in 原神纯音乐')
+    expect(answer).toMatchObject({
+      count: 3,
+      judged: null,
+      artists: [
+        { label: 'HOYO-MiX', count: 3 },
+        { label: 'Yu-Peng Chen', count: 2 },
+      ],
+      distinct: { artists: 2, tags: 1 },
+    })
+    const albums = deps({
+      'ask-route': [
+        { ...question({ show: 'albums' }), filters: { ...noFilters, artists: ['周杰倫'] } },
+      ],
+    })
+    const jay = await ask(albums, '周杰伦的专辑我有几张')
+    expect(jay.kind === 'library' && jay.distinct.albums).toBe(
+      new Set(SONGS.filter(s => s.artist.startsWith('周杰倫')).map(s => s.album)).size,
+    )
   })
 })
 
@@ -745,6 +983,39 @@ describe('ask about a playlist’s songs', () => {
     })
     const live = deps({ 'ask-route': [edit({ name: 'genshin', op: 'sort', sortBy: 'energy' })] })
     expect(await ask(live, 'sort genshin')).toMatchObject({ kind: 'none' })
+  })
+
+  it('says when the songs to add to a live playlist are in it already, by the tag it follows', async () => {
+    const d = deps({
+      'ask-route': [edit({ name: 'jpop live' }, { ...noFilters, artists: ['YOASOBI'] })],
+    })
+    expect(await ask(d, 'add the yoasobi songs to jpop live')).toEqual({
+      kind: 'none',
+      say: 'All 2 of those songs are in jpop live already: it holds songs tagged jpop.',
+      try: [],
+    })
+  })
+
+  it('offers the tag change that puts songs into a live playlist, or takes them out', async () => {
+    const add = deps({
+      'ask-route': [edit({ name: 'jpop live' }, { ...noFilters, artists: ['周杰倫'] })],
+    })
+    expect(await ask(add, 'add jay chou to jpop live')).toEqual({
+      kind: 'none',
+      say: 'jpop live is live: it holds songs tagged jpop, so a song goes in by matching that, and 3 of those songs do not yet. Giving them its tag puts them in.',
+      try: ['give the songs by 周杰倫 the tag jpop'],
+    })
+    const remove = deps({
+      'ask-route': [
+        edit({ name: 'jpop live', op: 'remove' }, { ...noFilters, brief: 'the slow ones' }),
+      ],
+    })
+    expect(await ask(remove, 'take the slow ones out of jpop live')).toMatchObject({
+      kind: 'none',
+      try: ['take the tag jpop off the songs tagged jpop, the slow ones'],
+    })
+    // Nothing is proposed for a live playlist, so no model judges its songs.
+    expect(remove.llm.asked.map(each => each.task)).toEqual(['ask-route'])
   })
 
   it('asks which songs when the words choose none', async () => {

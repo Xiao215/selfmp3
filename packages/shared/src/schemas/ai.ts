@@ -500,13 +500,27 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']),
     count: z.number().int().nonnegative(),
     seconds: z.number().nonnegative(),
+    /**
+     * When a model judged the songs by meaning: how many it read of how many
+     * the filters let in. Fewer read than let in makes `count` an estimate,
+     * scaled up from them. Null when the filters alone counted.
+     */
+    judged: z
+      .object({ songs: z.number().int().nonnegative(), of: z.number().int().nonnegative() })
+      .nullable(),
     songIds: z.array(IdSchema),
     sortBy: AskSortSchema.nullable(),
     order: AskOrderSchema,
-    /** Who, which albums and which tags the songs are in, most songs first. */
+    /** Who, which albums and which tags the songs are in, most songs first (a song counts for everyone it is by). */
     artists: z.array(z.object({ label: z.string(), count: z.number().int() })),
     albums: z.array(z.object({ label: z.string(), count: z.number().int() })),
     tags: z.array(z.object({ label: z.string(), count: z.number().int() })),
+    /** How many different artists, albums and tags there are among them, past those listed. */
+    distinct: z.object({
+      artists: z.number().int().nonnegative(),
+      albums: z.number().int().nonnegative(),
+      tags: z.number().int().nonnegative(),
+    }),
   }),
   z.object({ kind: z.literal('open'), place: AskPlaceSchema, say: z.string() }),
   /**

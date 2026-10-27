@@ -8,6 +8,7 @@ import {
   formatDuration,
   fromSqliteTime,
   mainArtist,
+  splitArtists,
   type Song,
   type Tag,
 } from '@selfmp3/shared'
@@ -62,20 +63,29 @@ function quantile(sorted: readonly number[], q: number): number {
 }
 
 /**
- * Who a song is mostly by, as the library shows them: the first name it gives,
- * or the artist that name is joined to (`shownAs`, shared `joinedNames`).
+ * Everyone a song is by, as the library shows them: each name its credit
+ * gives (shared `splitArtists`), joined spellings under the name they are
+ * shown by, each once. What the library's artists count a song for, so "陈致逸,
+ * HOYO-MiX" is a HOYO-MiX song as well as a 陈致逸 one.
  */
-export function shownArtist(
+export function creditedArtists(
   song: Pick<Song, 'artist'>,
   shownAs: ReadonlyMap<string, string>,
-): string {
-  const main = mainArtist(song.artist)
-  return shownAs.get(artistKey(main)) ?? main
+): string[] {
+  const names = splitArtists(song.artist).map(name => shownAs.get(artistKey(name)) ?? name)
+  const seen = new Set<string>()
+  return names.filter(name => {
+    const key = artistKey(name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**
  * Rung two: the library's size and spread, its tags, who is in it most and its albums.
- * An artist under two spellings joined by their other names is one artist.
+ * An artist under two spellings joined by their other names is one artist, and
+ * a song counts for everyone it is by.
  */
 export function libraryShape(
   songs: readonly Song[],
@@ -96,7 +106,7 @@ export function libraryShape(
     .sort((a, b) => a - b)
   const withWords = songs.filter(hasWords).length
   const shownAs = joinedNames(songs, names)
-  const artists = tally(songs.map(song => shownArtist(song, shownAs)))
+  const artists = tally(songs.flatMap(song => creditedArtists(song, shownAs)))
   // A single's album is its own title, which says nothing an album can.
   const albums = tally(songs.map(song => song.album).filter(Boolean)).filter(
     ([, count]) => count >= 2,

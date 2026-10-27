@@ -1,7 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Easing, Image, Text, View } from 'react-native'
-import Reanimated, { FadeIn } from 'react-native-reanimated'
+import Reanimated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  type SharedValue,
+} from 'react-native-reanimated'
 import { useFocusEffect } from 'expo-router'
 import type { View as ViewType } from 'react-native'
 import Svg, {
@@ -45,68 +50,243 @@ import {
   type SkyLayerProps,
   type SkyPoint,
 } from './sky.model'
-import { tileSide, toScreen, visibleRect, type FieldSize, type MapView } from './soundMapView.model'
+import {
+  tileSide,
+  toScreen,
+  visibleRect,
+  type FieldSize,
+  type LiveView,
+  type MapView,
+} from './soundMapView.model'
 
 /** Covers this wide wear their titles underneath. */
 const NAMES_FROM = 30
 
 /**
  * The sound map's sky on a phone or an iPad (`SkyLayer.web.tsx` is the
- * browser's): the stars drawn as one SVG at the view the map last held still
- * at, and moved and scaled as a whole while a finger moves it, so 1,500 stars
- * are drawn again only when it settles. Each star is a dot over a glow that
- * keeps to the room its neighbours leave, and the stars of one colour share
- * one gradient. Close in, each opens into its cover, the most played first
- * (`starLook`). Behind them the deep sky twinkles (`DeepSky`). What moves with
- * the frame — the stroke, the playing song — is drawn over it at screen size.
+ * browser's). Everything a song is drawn with — the nebulae, the stars, the
+ * covers, what the tray holds, the song playing — is drawn once for the view
+ * the map last held still at, into a layer kept as one picture
+ * (`shouldRasterizeIOS`), and a move only moves and scales that picture on the
+ * native side (`useLiveView`): nothing is drawn again, and React does nothing,
+ * until the map settles. Each star is a dot over a glow that keeps to the room
+ * its neighbours leave, and the stars of one colour share one gradient. Close
+ * in, each opens into its cover, the most played first (`starLook`). Behind
+ * them the deep sky twinkles (`DeepSky`).
+ *
+ * The sky is drawn twice over (`useSlots`): when the map settles, the copy
+ * not showing is drawn for the new view, and once that is on screen the
+ * native side shows it, moved for where the map is, and hides the other in
+ * the same frame, so the sky never shows a frame of new stars at the old
+ * place, nor the old at the new.
+ *
+ * 2026-10-26: the map drew its nebulae and the tray's marks again every frame
+ * of a move, through React, and composited every open cover's rounded clip
+ * every frame; with covers up a pan ran at about 10 frames a second on the
+ * simulator and trailed the finger by seconds.
  */
 export function SkyLayer(
   props: SkyLayerProps & { pointerRef: RefObject<ViewType | null> },
 ): ReactNode {
-  const { field, view, settled, base, points, lens } = props
+  const { field, settled } = props
+  const view = useLiveView(props.live)
+  const { slots, front, shown } = useSlots(settled)
+  const { litOpen } = useMarked(props)
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Ground field={field} />
-      {props.still ? null : <DeepSky field={field} view={view} settled={settled} />}
-      <Nebulae {...props} />
-      <View
-        style={[
-          styles.layer,
-          { width: field.width, height: field.height },
-          sinceSettled(view, settled),
-        ]}
-      >
-        <Stars points={points} settled={settled} base={base} field={field} lens={lens} />
-        <Covers
-          points={points}
-          songs={props.songs}
-          settled={settled}
-          base={base}
-          field={field}
-          lens={lens}
-        />
-        <Glints points={points} settled={settled} base={base} field={field} lens={lens} />
-      </View>
-      <Overlay {...props} />
+      {props.still ? null : <DeepSky field={field} view={view} slots={slots} shown={shown} />}
+      {slots.map((drawn, slot) =>
+        drawn ? (
+          <Slot key={slot} slot={slot} view={view} shown={shown} field={field}>
+            <Sky
+              field={field}
+              settled={drawn}
+              base={props.base}
+              points={props.points}
+              songs={props.songs}
+              regions={props.regions}
+              lens={props.lens}
+              takes={props.takes}
+              playing={props.playing}
+              lit={props.lit}
+            />
+          </Slot>
+        ) : null,
+      )}
+      {litOpen ? <View pointerEvents="none" style={styles.spotVeil} /> : null}
+      <Slot slot={front} view={view} shown={shown} field={field}>
+        <Over {...props} />
+      </Slot>
     </View>
   )
 }
 
+/** Which copy of the sky is on screen, and the view it was drawn for. */
+interface Shown {
+  readonly slot: number
+  readonly view: MapView
+}
+
 /**
- * How far the map has moved since the stars were drawn: they are drawn where
- * the settled view put them, and a gesture in progress moves and scales that
- * drawing as a whole until it settles again.
+ * The two copies of the sky and the view each was last drawn for. A settled
+ * view is drawn into the copy not showing (`front` becomes it); after the
+ * commit that drew it, `shown` names it, and the native side swaps.
  */
-function sinceSettled(view: MapView, settled: MapView) {
-  const ratio = view.scale / settled.scale
-  return {
-    transform: [
-      { translateX: view.x - settled.x * ratio },
-      { translateY: view.y - settled.y * ratio },
-      { scale: ratio },
-    ],
-    transformOrigin: 'top left',
+function useSlots(settled: MapView): {
+  slots: readonly (MapView | null)[]
+  front: number
+  shown: SharedValue<Shown>
+} {
+  const [state, setState] = useState({
+    slots: [settled, null] as readonly (MapView | null)[],
+    front: 0,
+    last: settled,
+  })
+  let now = state
+  if (state.last !== settled) {
+    const back = 1 - state.front
+    now = {
+      slots: state.slots.map((drawn, slot) => (slot === back ? settled : drawn)),
+      front: back,
+      last: settled,
+    }
+    setState(now)
   }
+  const shown = useSharedValue<Shown>({ slot: now.front, view: now.last })
+  const { front, last } = now
+  useLayoutEffect(() => {
+    shown.value = { slot: front, view: last }
+  }, [front, last, shown])
+  return { slots: now.slots, front, shown }
+}
+
+/**
+ * One copy of the sky: shown while `shown` names it, moved and scaled from
+ * the view it was drawn for to where the map is.
+ */
+function Slot({
+  slot,
+  view,
+  shown,
+  field,
+  children,
+}: {
+  slot: number
+  view: SharedValue<MapView>
+  shown: SharedValue<Shown>
+  field: FieldSize
+  children: ReactNode
+}): ReactNode {
+  const moving = useAnimatedStyle(() => {
+    const on = shown.value.slot === slot
+    return {
+      opacity: on ? 1 : 0,
+      transform: sinceSettled(view.value, shown.value.view, field),
+    }
+  })
+  return (
+    <Reanimated.View style={[LAYER, { width: field.width, height: field.height }, moving]}>
+      {children}
+    </Reanimated.View>
+  )
+}
+
+/**
+ * Everything a song is drawn with, for one settled view, kept as one picture
+ * while the map moves (`shouldRasterizeIOS`): moving it composites that
+ * picture rather than every glow, cover and rim again.
+ */
+const Sky = memo(function Sky({
+  field,
+  settled,
+  base,
+  points,
+  songs,
+  regions,
+  lens,
+  takes,
+  playing,
+  lit,
+}: Pick<
+  SkyLayerProps,
+  | 'field'
+  | 'settled'
+  | 'base'
+  | 'points'
+  | 'songs'
+  | 'regions'
+  | 'lens'
+  | 'takes'
+  | 'playing'
+  | 'lit'
+>): ReactNode {
+  return (
+    <View style={[LAYER, { width: field.width, height: field.height }]} shouldRasterizeIOS>
+      <Nebulae field={field} settled={settled} base={base} regions={regions} lens={lens} />
+      <Stars points={points} settled={settled} base={base} field={field} lens={lens} />
+      <Covers
+        points={points}
+        songs={songs}
+        settled={settled}
+        base={base}
+        field={field}
+        lens={lens}
+      />
+      <Glints points={points} settled={settled} base={base} field={field} lens={lens} />
+      <Marks
+        field={field}
+        settled={settled}
+        base={base}
+        points={points}
+        takes={takes}
+        playing={playing}
+        lit={lit}
+        songs={songs}
+      />
+    </View>
+  )
+})
+
+/**
+ * A layer the size of the field. Not a themed style: Reanimated flattens an
+ * animated view's styles into one, and Unistyles cannot follow its own
+ * styles once flattened.
+ */
+const LAYER = { position: 'absolute', left: 0, top: 0 } as const
+/** The field, whole: a deep layer, moved about its middle. */
+const FILL = { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 } as const
+
+/**
+ * Where the map is, on the native side: the field's frames go straight to a
+ * shared value, which moves the sky without a render.
+ */
+function useLiveView(live: LiveView): SharedValue<MapView> {
+  const view = useSharedValue(live.now())
+  useEffect(() => {
+    view.value = live.now()
+    return live.watch(next => {
+      view.value = next
+    })
+  }, [live, view])
+  return view
+}
+
+/**
+ * How far the map has moved from `from` to `to`: a drawing made for `from`,
+ * moved and scaled by this, stands where `to` would draw it. The scale is
+ * about the field's middle, as a view's transform is by default, and the
+ * move makes up for it, so it does not hang on `transformOrigin`, which
+ * Reanimated leaves out when it moves a view without a render.
+ */
+function sinceSettled(to: MapView, from: MapView, field: FieldSize) {
+  'worklet'
+  const ratio = to.scale / from.scale
+  return [
+    { translateX: to.x - from.x * ratio - (field.width / 2) * (1 - ratio) },
+    { translateY: to.y - from.y * ratio - (field.height / 2) * (1 - ratio) },
+    { scale: ratio },
+  ]
 }
 
 /** The night ground and its dust, for the field's size. */
@@ -138,54 +318,80 @@ const Ground = memo(function Ground({ field }: { field: FieldSize }): ReactNode 
 
 /**
  * The deep sky (K3) on a phone: faint stars that are not songs, placed for
- * the view the map last held still at and moved, a part as far as the map
- * does, while a finger moves it (`deepSince`). Each is a small view of its own
- * in a group that follows one of three slow twinkles, run on the native side,
- * so nothing is drawn again while they twinkle. Under Reduce Motion they hold
- * still, and so they do while another page is over the map.
+ * the view the map last held still at, in each copy of the sky, and moved a
+ * part as far as the map does while a finger moves it (`deepSince`). Each
+ * follows one of three slow twinkles, run on the native side, so nothing is
+ * drawn again while they twinkle. Under Reduce Motion they hold still, and so
+ * they do while another page is over the map.
  */
 function DeepSky({
   field,
   view,
-  settled,
+  slots,
+  shown,
 }: {
   field: FieldSize
-  view: MapView
-  settled: MapView
+  view: SharedValue<MapView>
+  slots: readonly (MapView | null)[]
+  shown: SharedValue<Shown>
 }): ReactNode {
   const layers = useMemo(() => deepStars(), [])
   const reduced = useMotionReduced()
   const beats = useBeats(useFocused() && !reduced)
   return (
     <View style={StyleSheet.absoluteFill}>
-      {layers.map((stars, layer) => {
-        const parallax = DEEP_LAYERS[layer]!.parallax
-        const since = deepSince(view, settled, parallax)
-        return (
-          <View
-            key={layer}
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                transform: [
-                  { translateX: since.x },
-                  { translateY: since.y },
-                  { scale: since.scale },
-                ],
-              },
-            ]}
-          >
-            <DeepLayer
-              stars={stars}
-              parallax={parallax}
-              settled={settled}
-              field={field}
-              beats={beats}
-            />
-          </View>
-        )
-      })}
+      {slots.map((drawn, slot) =>
+        drawn
+          ? layers.map((stars, layer) => (
+              <DeepDrift
+                key={`${slot}-${layer}`}
+                slot={slot}
+                shown={shown}
+                stars={stars}
+                parallax={DEEP_LAYERS[layer]!.parallax}
+                view={view}
+                settled={drawn}
+                field={field}
+                beats={beats}
+              />
+            ))
+          : null,
+      )}
     </View>
+  )
+}
+
+/**
+ * One deep layer in one copy of the sky, moved a part as far as the map is
+ * on the native side (`deepSince`).
+ */
+function DeepDrift({
+  slot,
+  shown,
+  view,
+  parallax,
+  ...layer
+}: {
+  slot: number
+  shown: SharedValue<Shown>
+  stars: readonly DeepStar[]
+  parallax: number
+  view: SharedValue<MapView>
+  settled: MapView
+  field: FieldSize
+  beats: readonly Animated.Value[] | null
+}): ReactNode {
+  const drift = useAnimatedStyle(() => {
+    const since = deepSince(view.value, shown.value.view, parallax)
+    return {
+      opacity: shown.value.slot === slot ? 1 : 0,
+      transform: [{ translateX: since.x }, { translateY: since.y }, { scale: since.scale }],
+    }
+  })
+  return (
+    <Reanimated.View style={[FILL, drift]}>
+      <DeepLayer parallax={parallax} {...layer} />
+    </Reanimated.View>
   )
 }
 
@@ -232,6 +438,8 @@ function useBeats(twinkle: boolean): readonly Animated.Value[] | null {
  * of the field around it. They are grouped by the twinkle they follow, and
  * the group is what twinkles: one star an animated view was 380 views moved
  * every frame, about 40 % of a phone's time on the simulator (2026-10-26).
+ * Each group is one drawing, a path a colour and step of brightness, rather
+ * than a view a star, so a settle has a few paths to build, not 380 views.
  */
 const DeepLayer = memo(function DeepLayer({
   stars,
@@ -246,33 +454,45 @@ const DeepLayer = memo(function DeepLayer({
   field: FieldSize
   beats: readonly Animated.Value[] | null
 }): ReactNode {
-  const placed = deepPlaces(stars, parallax, settled, field, 0.25)
+  const placed = deepPlaces(stars, parallax, settled, field, DEEP_MARGIN)
+  const left = field.width * DEEP_MARGIN
+  const top = field.height * DEEP_MARGIN
+  const width = field.width + left * 2
+  const height = field.height + top * 2
   return (
     <>
       {DEEP_BEATS_MS.map((_, beat) => {
-        const own = placed.filter(({ star }) => star.beat === beat)
+        const paths = new Map<string, string[]>()
+        for (const { star, x, y, size } of placed) {
+          if (star.beat !== beat) continue
+          const key = `${star.tint} ${Math.max(1, Math.round(star.opacity * 20))}`
+          const r = size / 2
+          const dot = `M${x + left - r},${y + top}a${r},${r} 0 1,0 ${r * 2},0a${r},${r} 0 1,0 ${-r * 2},0`
+          const same = paths.get(key)
+          if (same) same.push(dot)
+          else paths.set(key, [dot])
+        }
         const opacity = beats
           ? beats[beat]!.interpolate({ inputRange: [0, 1], outputRange: [TWINKLE_LOW, 1] })
           : 1
         return (
-          <Animated.View key={beat} style={[StyleSheet.absoluteFill, { opacity }]}>
-            {own.map(({ star, x, y, size }, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.deepStar,
-                  {
-                    left: x - size / 2,
-                    top: y - size / 2,
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    backgroundColor: star.tint,
-                    opacity: star.opacity,
-                  },
-                ]}
-              />
-            ))}
+          <Animated.View
+            key={beat}
+            style={{ position: 'absolute', left: -left, top: -top, width, height, opacity }}
+          >
+            <Svg width={width} height={height}>
+              {[...paths].map(([key, dots]) => {
+                const [tint, twentieths] = key.split(' ')
+                return (
+                  <Path
+                    key={key}
+                    d={dots.join('')}
+                    fill={tint}
+                    fillOpacity={Number(twentieths) / 20}
+                  />
+                )
+              })}
+            </Svg>
           </Animated.View>
         )
       })}
@@ -280,8 +500,17 @@ const DeepLayer = memo(function DeepLayer({
   )
 })
 
+/** How far past the field's edges, as a share of it, the deep sky is drawn: what a move can bring in before it settles. */
+const DEEP_MARGIN = 0.25
+
 /** Each tag's region as a soft cloud in its colour, three rounds a little apart. */
-function Nebulae({ field, view, base, regions, lens }: SkyLayerProps): ReactNode {
+const Nebulae = memo(function Nebulae({
+  field,
+  settled: view,
+  base,
+  regions,
+  lens,
+}: Pick<SkyLayerProps, 'field' | 'settled' | 'base' | 'regions' | 'lens'>): ReactNode {
   return (
     <Svg width={field.width} height={field.height} style={StyleSheet.absoluteFill}>
       <Defs>
@@ -311,9 +540,16 @@ function Nebulae({ field, view, base, regions, lens }: SkyLayerProps): ReactNode
       })}
     </Svg>
   )
-}
+})
 
-/** Every star near the screen, each one circle filled with its colour's glow. */
+/**
+ * Every star near the screen: its glow, a circle filled with its colour's
+ * gradient, and over all the glows the dots, one path a colour and step of
+ * brightness. An SVG element is a native view of its own, so a star drawn as
+ * a group of them (two groups and two circles) made a library of 1,500 some
+ * 6,000 views to build each time the map settled, which held a phone for
+ * seconds (2026-10-26).
+ */
 const Stars = memo(function Stars({
   points,
   settled,
@@ -328,9 +564,11 @@ const Stars = memo(function Stars({
   lens: number | null
 }): ReactNode {
   const seen = visibleRect(settled, base, field)
-  // A screen's width either side: what a move can bring in before it settles.
-  const spanX = seen.x1 - seen.x0
-  const spanY = seen.y1 - seen.y0
+  // A little past the edges, for the glows that reach in: the drawing ends at
+  // the field's edge, so a star further out would be drawn for nothing (a
+  // screen either side was, until 2026-10-26).
+  const spanX = (seen.x1 - seen.x0) * 0.15
+  const spanY = (seen.y1 - seen.y0) * 0.15
   const near = points.filter(
     point =>
       point.x >= seen.x0 - spanX &&
@@ -339,6 +577,58 @@ const Stars = memo(function Stars({
       point.y <= seen.y1 + spanY,
   )
   const tones = new Set(near.map(point => point.glow))
+  const glows: ReactNode[] = []
+  const flares: ReactNode[] = []
+  // Each dot's circle, as path, by its colour and its opacity in tenths.
+  const dots = new Map<string, string[]>()
+  for (const point of near) {
+    const at = toScreen(settled, base, point)
+    const look = starLook(point, settled.scale)
+    const alpha = starAlpha(point, lens)
+    const fill = `url(#glow-${point.glow.slice(1)})`
+    glows.push(
+      <Circle
+        key={point.id}
+        cx={at.x}
+        cy={at.y}
+        r={glowReach(point, look.r, settled.scale, base)}
+        fill={fill}
+        opacity={alpha}
+      />,
+    )
+    if (look.share > 0.01) {
+      // An open cover's own glow behind it (K1).
+      glows.push(
+        <Circle
+          key={`h${point.id}`}
+          cx={at.x}
+          cy={at.y}
+          r={haloReach(point, look.side, settled.scale, base)}
+          fill={fill}
+          opacity={alpha * 0.5 * look.share}
+        />,
+      )
+    }
+    if (look.star <= 0.01) continue
+    if (point.flare) {
+      flares.push(
+        <G key={point.id} opacity={alpha * look.star}>
+          <Flare
+            x={at.x}
+            y={at.y}
+            reach={flareReach(point, look.r, settled.scale, base)}
+            color={point.core}
+          />
+        </G>,
+      )
+    }
+    const key = `${point.core} ${Math.max(1, Math.round(alpha * look.star * 10))}`
+    const r = look.r * CORE
+    const dot = `M${at.x - r},${at.y}a${r},${r} 0 1,0 ${r * 2},0a${r},${r} 0 1,0 ${-r * 2},0`
+    const same = dots.get(key)
+    if (same) same.push(dot)
+    else dots.set(key, [dot])
+  }
   return (
     <Svg width={field.width} height={field.height} style={StyleSheet.absoluteFill}>
       <Defs>
@@ -350,44 +640,11 @@ const Stars = memo(function Stars({
           </RadialGradient>
         ))}
       </Defs>
-      {near.map(point => {
-        const at = toScreen(settled, base, point)
-        const look = starLook(point, settled.scale)
-        const alpha = starAlpha(point, lens)
-        const glow = `url(#glow-${point.glow.slice(1)})`
-        return (
-          <G key={point.id} opacity={alpha}>
-            <Circle
-              cx={at.x}
-              cy={at.y}
-              r={glowReach(point, look.r, settled.scale, base)}
-              fill={glow}
-            />
-            {look.share > 0.01 ? (
-              // An open cover's own glow behind it (K1).
-              <Circle
-                cx={at.x}
-                cy={at.y}
-                r={haloReach(point, look.side, settled.scale, base)}
-                fill={glow}
-                opacity={0.5 * look.share}
-              />
-            ) : null}
-            {look.star > 0.01 ? (
-              <G opacity={look.star}>
-                {point.flare ? (
-                  <Flare
-                    x={at.x}
-                    y={at.y}
-                    reach={flareReach(point, look.r, settled.scale, base)}
-                    color={point.core}
-                  />
-                ) : null}
-                <Circle cx={at.x} cy={at.y} r={look.r * CORE} fill={point.core} />
-              </G>
-            ) : null}
-          </G>
-        )
+      {glows}
+      {flares}
+      {[...dots].map(([key, circles]) => {
+        const [core, tenths] = key.split(' ')
+        return <Path key={key} d={circles.join('')} fill={core} fillOpacity={Number(tenths) / 10} />
       })}
     </Svg>
   )
@@ -571,34 +828,44 @@ const Glints = memo(function Glints({
   )
 })
 
+/** What `Marks` and `Over` need to know: where a song is drawn, and the lit song's look. */
+function useMarked({
+  settled,
+  base,
+  points,
+  lit,
+}: Pick<SkyLayerProps, 'settled' | 'base' | 'points' | 'lit'>) {
+  const byId = useMemo(() => new Map(points.map(point => [point.id, point])), [points])
+  const at = (place: MapPlace): { x: number; y: number } => toScreen(settled, base, place)
+  const litPlace = lit === null ? undefined : byId.get(lit)
+  // Its cover open enough to be lit on a dimmed sky (H3), rather than ringed.
+  const litLook = litPlace ? starLook(litPlace, settled.scale) : null
+  const litOpen = litLook !== null && litLook.share > 0.5
+  return { byId, at, litPlace, litLook, litOpen }
+}
+
 /**
- * What moves with every frame, at screen size: the tray's lines and loops in
- * their colours, the stroke under the finger, the playing song wearing its
- * cover, the song pressed in the tray's list, the pressed spot.
+ * What is drawn with the sky, for where it last held still: the tray's lines
+ * and loops in their colours, the playing song wearing its cover, the song
+ * pressed in the tray's list ringed while it is still a star.
  */
-function Overlay({
+const Marks = memo(function Marks({
   field,
-  view,
+  settled,
   base,
   points,
   takes,
-  stroke,
   playing,
   lit,
-  pulse,
   songs,
-  panel,
-}: SkyLayerProps): ReactNode {
+}: Pick<
+  SkyLayerProps,
+  'field' | 'settled' | 'base' | 'points' | 'takes' | 'playing' | 'lit' | 'songs'
+>): ReactNode {
   const art = useArt(128)
   const accent = useUnistyles().theme.colors.accent
-  const byId = useMemo(() => new Map(points.map(point => [point.id, point])), [points])
-  const at = (place: MapPlace): { x: number; y: number } => toScreen(view, base, place)
-  const litPlace = lit === null ? undefined : byId.get(lit)
+  const { byId, at, litPlace, litOpen } = useMarked({ settled, base, points, lit })
   const litAt = litPlace ? at(litPlace) : null
-  const litSong = litPlace ? songs.get(litPlace.id) : undefined
-  // Its cover open enough to be lit on a dimmed sky (H3), rather than ringed.
-  const litLook = litPlace ? starLook(litPlace, view.scale) : null
-  const litOpen = litLook !== null && litLook.share > 0.5
   // The playing song wears its cover, ringed; lit, the spotlight is its look
   // instead, or the ring's disc and white edge showed round the lit cover.
   const playingPlace = playing === null ? undefined : byId.get(playing)
@@ -606,14 +873,7 @@ function Overlay({
   const nowSong = now ? songs.get(now.id) : undefined
   const nowUri = nowSong ? art(nowSong) : null
   const nowAt = now ? at(now) : null
-  const big = Math.max(22, now ? starLook(now, view.scale).side * 1.15 : 22)
-  const line = (places: readonly MapPlace[]): string =>
-    places
-      .map(place => {
-        const spot = at(place)
-        return `${spot.x},${spot.y}`
-      })
-      .join(' ')
+  const big = Math.max(22, now ? starLook(now, settled.scale).side * 1.15 : 22)
   return (
     <>
       <Svg width={field.width} height={field.height} style={StyleSheet.absoluteFill}>
@@ -621,7 +881,7 @@ function Overlay({
           take.kind === 'loop' ? (
             <Path
               key={`t${index}`}
-              d={`M${line(take.path).replaceAll(' ', ' L')} Z`}
+              d={`M${polyline(take.path, at).replaceAll(' ', ' L')} Z`}
               fill={take.tone}
               fillOpacity={0.07}
               stroke={take.tone}
@@ -632,7 +892,10 @@ function Overlay({
           ) : (
             <Polyline
               key={`t${index}`}
-              points={line(take.chain.flatMap(id => byId.get(id) ?? []))}
+              points={polyline(
+                take.chain.flatMap(id => byId.get(id) ?? []),
+                at,
+              )}
               fill="none"
               stroke={take.tone}
               strokeOpacity={0.85}
@@ -650,7 +913,7 @@ function Overlay({
                 key={`r${index}-${id}`}
                 cx={spot.x}
                 cy={spot.y}
-                r={ringRadius(place, view.scale, 5.5)}
+                r={ringRadius(place, settled.scale, 5.5)}
                 stroke={take.tone}
                 strokeOpacity={0.55}
                 strokeWidth={1}
@@ -659,33 +922,18 @@ function Overlay({
             )
           }),
         )}
-        {stroke.length > 1 ? (
-          <Polyline
-            points={line(stroke)}
-            stroke={accent}
-            strokeOpacity={0.95}
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="2 7"
-            fill="none"
-          />
-        ) : null}
         {nowAt ? (
           <Circle cx={nowAt.x} cy={nowAt.y} r={big * 1.05} fill={accent} fillOpacity={0.25} />
         ) : null}
-        {litAt && !litOpen ? (
+        {litAt && litPlace && !litOpen ? (
           <Circle
             cx={litAt.x}
             cy={litAt.y}
-            r={litPlace ? ringRadius(litPlace, view.scale, 7) : 7}
+            r={ringRadius(litPlace, settled.scale, 7)}
             stroke={SKY_INK}
             strokeWidth={1.5}
             fill="none"
           />
-        ) : null}
-        {pulse ? (
-          <Circle cx={pulse.x} cy={pulse.y} r={16} fill={accent} fillOpacity={0.35} />
         ) : null}
       </Svg>
       {now && nowAt ? (
@@ -705,12 +953,74 @@ function Overlay({
           {nowUri ? <Image source={{ uri: nowUri }} style={styles.coverImage} /> : null}
         </View>
       ) : null}
-      {litPlace && litAt && litSong && litLook && litOpen ? (
+    </>
+  )
+})
+
+/** Places as an SVG polyline's points. */
+function polyline(
+  places: readonly MapPlace[],
+  at: (place: MapPlace) => { x: number; y: number },
+): string {
+  return places
+    .map(place => {
+      const spot = at(place)
+      return `${spot.x},${spot.y}`
+    })
+    .join(' ')
+}
+
+/**
+ * What is over the sky and changes while it holds still, so is not kept with
+ * it: the stroke under the finger, the pressed spot, and the song pressed in
+ * the tray's list once its cover is open, lit over the veil that dims the
+ * sky (H3).
+ */
+function Over({
+  field,
+  settled,
+  base,
+  points,
+  stroke,
+  lit,
+  pulse,
+  songs,
+  panel,
+}: Pick<
+  SkyLayerProps,
+  'field' | 'settled' | 'base' | 'points' | 'stroke' | 'lit' | 'pulse' | 'songs' | 'panel'
+>): ReactNode {
+  const art = useArt(128)
+  const accent = useUnistyles().theme.colors.accent
+  const { at, litPlace, litLook, litOpen } = useMarked({ settled, base, points, lit })
+  const litSong = litPlace ? songs.get(litPlace.id) : undefined
+  return (
+    <>
+      {stroke.length > 1 || pulse ? (
+        <Svg width={field.width} height={field.height} style={StyleSheet.absoluteFill}>
+          {stroke.length > 1 ? (
+            <Polyline
+              points={polyline(stroke, at)}
+              stroke={accent}
+              strokeOpacity={0.95}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="2 7"
+              fill="none"
+            />
+          ) : null}
+          {pulse ? (
+            <Circle cx={pulse.x} cy={pulse.y} r={16} fill={accent} fillOpacity={0.35} />
+          ) : null}
+        </Svg>
+      ) : null}
+      {litPlace && litSong && litLook && litOpen ? (
         <LitSpot
           song={litSong}
           uri={art(litSong)}
           glow={litPlace.glow}
-          at={litAt}
+          at={at(litPlace)}
           side={litLook.side}
           corner={litLook.corner}
           clear={field.width - panel}
@@ -749,7 +1059,6 @@ function LitSpot({
   const middle = Math.min(at.x, clear - SPOT_WORDS / 2 - 8)
   return (
     <>
-      <View pointerEvents="none" style={styles.spotVeil} />
       {/* The glow is cast by a shape a little inside the cover, so none of its
           pale fill is left at the cover's soft edge as a light outline. */}
       <View
@@ -804,8 +1113,6 @@ const SPOT_WORDS = 240
 const SPOT_INSET = 2
 
 const styles = StyleSheet.create(() => ({
-  layer: { position: 'absolute', left: 0, top: 0 },
-  deepStar: { position: 'absolute' },
   cover: { position: 'absolute' },
   coverFace: { overflow: 'hidden', borderWidth: 1 },
   coverImage: { width: '100%', height: '100%' },

@@ -12,8 +12,9 @@ bar).
 
 **Where:** the phone, the computer, the web and the desktop app, at `/sound-map`. Ways in:
 
-- a **card on Home** under Your tags, a small still sky of the library with the song playing
-  lit (`MapCard.tsx`), shown once there are songs on the map;
+- a **card on Home** under Your tags, a small still sky of the library and nothing over it:
+  no words and no mark for the song playing, since the card is the map's shape, not where you
+  are in it (Xiao, 2026-10-26) (`MapCard.tsx`), shown once there are songs on the map;
 - a **sidebar row** on a computer, under Library;
 - **Draw it on the map** in New playlist, which opens the map with the pen ready
   (`?draw=1`);
@@ -97,7 +98,8 @@ off; nothing counts them.
 moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a
 tile was moved to became a new rule, and a few minutes of zooming filled Chrome's memory
 until the tab died (Xiao, 2026-10-26). The browser now draws the sky into one `<canvas>`, at
-most once a frame while it moves and not at all while it holds still (the ground and the deep sky are a second canvas
+most once a frame while it moves and not at all while it holds still, reading where the map is
+from the field (`LiveView`) rather than through a render (the ground and the deep sky are a second canvas
 under it, drawn again at most 25 times a second while they twinkle, so a twinkle never draws
 the songs again); nothing a song is drawn
 with is a style. It keeps a glow picture per colour and at most 240 covers (the oldest let
@@ -105,15 +107,29 @@ go). Measured in Chrome on the test library: zooming and moving for a minute lef
 rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 355 → 389
 nodes; 31 → 34 MB).
 
-**On a phone** the stars are one SVG, a circle a star filled with its colour's gradient,
-drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
-moves it; their sizes and covers are worked out again when it settles, and a cover that
-appears then fades in. The deep sky's stars are small views placed for the settled view and
-moved by `deepSince` while a finger moves the map; they are grouped by the twinkle they
-follow, and three looping `Animated` values on the native driver fade the six groups a layer
-has. One animated view a star was 380 views moved every frame, about 40 % of the app's time on
-the simulator; grouped, the map costs what it did without a deep sky. The stroke and the song
-playing are drawn over it at screen size each frame.
+**On a phone** a move costs no render. The field hands each frame's view to a Reanimated
+shared value (`LiveView`, `useLiveView`), and the native side moves and scales the sky drawn
+for where the map last held still; React draws again only when it settles. Everything a song
+is drawn with (the nebulae, the stars, the covers, what the tray holds, the song playing) is
+one layer kept as one picture while it moves (`shouldRasterizeIOS`), so a pan composites a
+picture rather than every cover's rounded clip and rim. The sky is drawn twice over
+(`useSlots`): a settled view is drawn into the copy not showing, and after the commit that
+drew it the native side shows that copy, moved for where the map is, and hides the other in
+the same frame, so new stars never show for a frame at the old place. The two transforms are
+not nested: a drawing scaled down by one view and up by another came out blurred. The stars
+are a glow circle each and, over all the glows, one path of dots a colour and step of
+brightness; the deep sky is a path a tint and step a twinkle group. An SVG element is a
+native view, and a star drawn as two groups and two circles made some 6,000 views to build
+at each settle, which held the phone for seconds.
+
+Measured on the iPhone 17 simulator with a 1,635-song library, covers open (2026-10-26):
+before, a pan drew about 10 frames a second and the map went on moving for two seconds after
+the finger stopped, since every frame drew the nebulae and the tray's marks again through
+React; after, the pan's events reach the field as they happen (none waits on a render) and
+the sky moved every 23 ms at the whole-map view and every 38 ms with covers open, which is the
+simulator's own compositor, drawing in software, at its limit rather than the app. Drawing a settled view went from about 2.3 s to 0.8 s at the whole-map
+view in a development build. The stroke being drawn, the pressed spot and the song lit from
+the tray are drawn over the sky and move with it.
 
 ### Gestures
 

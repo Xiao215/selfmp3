@@ -108,10 +108,12 @@ export const BUCKET_CAP_CODE = DOORMAN_ERROR.bucketCapExceeded
 export const LENDER_CAP_CODE = DOORMAN_ERROR.lenderCapExceeded
 
 /**
- * How long a cap's refusal is believed before the bucket is asked again: ten
- * minutes, then one real request finds out whether it is over — a cap raised
- * at backblaze.com should not wait for midnight. The replica's hold
- * (packages/replica/src/hold.ts) and the service worker's both last this long.
+ * The longest a cap's refusal is believed before the bucket is asked again:
+ * then one real request finds out whether it is over — a cap raised at
+ * backblaze.com should not wait for midnight. The replica's hold
+ * (packages/replica/src/hold.ts) starts shorter and grows to this with each
+ * refusal in a row; the service worker's and the desktop shell's last this
+ * long, and the page lets them go whenever it asks again itself.
  */
 export const BUCKET_HOLD_MS = 10 * 60_000
 

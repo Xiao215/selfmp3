@@ -1220,11 +1220,53 @@ describe('what looking costs the bucket', () => {
     expect(bucket.asked()).toBe(asked)
   })
 
+  /*
+   * R2-M9: whether reads are back can only be learnt by reading — the library's
+   * own look only lists, which Backblaze caps apart — so the app asks one byte.
+   */
+  it('asks one read to learn whether reads are back, held again or let go by its answer', async () => {
+    const { bucketHold, bucketRefusals, lapseBucketHold, releaseBucket } = await import('./hold.js')
+    const made = build(memoryStore())
+    await signedIn(made)
+    made.bucket.files.set(SNAPSHOT_KEY, SNAPSHOT)
+    await made.library.loadCloudLibrary(SESSION)
+    const audio = SNAPSHOT.songs[0]!.audio.key
+    try {
+      made.bucket.refuseReads(true)
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads.at(-1)).toBe(audio)
+      expect(bucketHold('read')).toMatchObject({ refusals: 1 })
+
+      // Asked while the hold still stands, which a read otherwise never is,
+      // and refused again: held for longer.
+      const asked = made.bucket.reads.length
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads).toHaveLength(asked + 1)
+      expect(bucketHold('read')).toMatchObject({ refusals: 2 })
+      lapseBucketHold()
+      await made.library.askBucketRead(SESSION)
+      expect(bucketHold('read')).toMatchObject({ refusals: 3 })
+
+      made.bucket.refuseReads(false)
+      await made.library.askBucketRead(SESSION)
+      expect(made.bucket.reads.at(-1)).toBe(audio)
+      expect(bucketHold('read')).toBeNull()
+      expect(bucketRefusals('read')).toBe(0)
+    } finally {
+      releaseBucket()
+    }
+  })
+
   it('lists once, and reads nothing it is held from, while the bucket refuses reads', async () => {
-    const { releaseBucket } = await import('./hold.js')
+    const { holdBucket, lapseBucketHold, releaseBucket } = await import('./hold.js')
     const made = build(memoryStore(), fakeBucket({ counting: true }))
     await signedIn(made)
     await made.library.loadCloudLibrary(SESSION)
+    // Refused four times in a row already today, so the next hold outlasts these looks.
+    for (let refused = 0; refused < 4; refused++) {
+      holdBucket('used up', 'read', 0)
+      lapseBucketHold()
+    }
 
     // A new snapshot goes up — and the day's reads are spent.
     await tagFromElsewhere(made.bucket, 'never mind')

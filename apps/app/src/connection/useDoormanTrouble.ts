@@ -2,9 +2,19 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { onlineManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError, queryKeys } from '@selfmp3/client'
 import { DOORMAN_PATHS } from '@selfmp3/shared'
-import { doormanTrouble, onDoormanTrouble, type DoormanTrouble } from '@selfmp3/replica'
+import {
+  bucketHold,
+  bucketRefusals,
+  doormanTrouble,
+  lapseBucketHold,
+  onDoormanTrouble,
+  type DoormanTrouble,
+} from '@selfmp3/replica'
+import { useBucketHold } from '../features/profile/useBucketHold'
 import { askBucketAgain } from '../ports/askBucketAgain'
+import { useTabHidden } from '../ports/tabHidden'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
+import { ASK_BEFORE_END_MS, askBucketNow } from './bucketAsk.model'
 
 /**
  * Whether the doorman is answering a cloud library, as the last request found
@@ -117,17 +127,68 @@ function useCloudOutbox<T>(fromCloud: boolean, read: () => T, none: T): T {
 }
 
 /**
- * Try again, on a storage refusing for the day: every hold let go, the bucket
- * looked at, and what waited sent. Without it, a cap raised at backblaze.com
- * was not noticed until the hold ran out ten minutes later, and the notice
+ * Ask the bucket again by itself while it refuses for the day: just before a
+ * hold runs out, while the page is in view, and when the page is looked at
+ * again (`askBucketNow`; a song pressed asks in `DownloadsProvider`). A cap
+ * raised at backblaze.com was otherwise noticed only by someone pressing Try
+ * again, and until then the notice went on promising hours more (R2-M9).
+ * A hidden tab asks nothing until it is looked at.
+ */
+export function useAskBucketBack(fromCloud: boolean): void {
+  const hold = useBucketHold()
+  const hidden = useTabHidden()
+  const askAgain = useAskBucketAgain()
+  const wasHidden = useRef(hidden)
+
+  useEffect(() => {
+    const returned = wasHidden.current && !hidden
+    wasHidden.current = hidden
+    if (!fromCloud || !returned) return
+    if (askBucketNow('returned', bucketHold(), bucketRefusals(), Date.now())) askAgain()
+  }, [fromCloud, hidden, askAgain])
+
+  useEffect(() => {
+    if (!fromCloud || hold === null || hidden) return undefined
+    const timer = setTimeout(askAgain, Math.max(0, hold.until - Date.now() - ASK_BEFORE_END_MS))
+    return () => clearTimeout(timer)
+  }, [fromCloud, hold, hidden, askAgain])
+}
+
+/**
+ * Try again, on a storage refusing for the day, and the asking the app does by
+ * itself: the bucket looked at, and what waited sent. Without it, a cap raised
+ * at backblaze.com was not noticed until the hold ran out, and the notice
  * saying so had nothing to press.
+ *
+ * Reads refused, one read finds out (`askBucketRead`) — the look only lists,
+ * which Backblaze caps apart — sent through the hold, so nothing on screen
+ * changes unless the answer does; answered, the service worker's and the
+ * desktop shell's holds go with the page's. Listings refused, their hold goes,
+ * or the look would be refused by it.
  */
 export function useAskBucketAgain(): () => void {
   const client = useQueryClient()
   return useCallback(() => {
-    askBucketAgain()
-    cloudLibrary.markCloudLibraryStale()
-    void client.invalidateQueries({ queryKey: queryKeys.library })
+    const look = (): void => {
+      cloudLibrary.markCloudLibraryStale()
+      void client.invalidateQueries({ queryKey: queryKeys.library })
+    }
+    if (bucketRefusals('read') > 0) {
+      void cloudSession
+        .loadSession()
+        .then(session => (session ? cloudLibrary.askBucketRead(session) : false))
+        .catch(() => false)
+        .then(asked => {
+          // Still refused: held for longer, and nothing else is worth asking.
+          if (asked && bucketHold('read') !== null) return
+          // Answered — or nothing to ask with, and whatever plays next finds out.
+          askBucketAgain()
+          look()
+        })
+    } else {
+      if (bucketHold('list') !== null) lapseBucketHold('list')
+      look()
+    }
     if (cloudLibrary.pendingCloudChanges() > 0) void cloudLibrary.flushCloudChanges()
   }, [client])
 }

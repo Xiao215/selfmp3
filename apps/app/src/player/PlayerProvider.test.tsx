@@ -678,6 +678,31 @@ describe('a run of songs that will not play', () => {
     expect(about(4)).toBe(false)
   })
 
+  // From the phone lane in round 4: eight quick Nexts on Now Playing after the
+  // run stopped seemed to do nothing but read the same song again. They had
+  // gone round its eight-song list, Next going back to the top at the end.
+  it('moves one song for each quick Next after the run stops, round the list at its end', async () => {
+    const list = [1, 2, 3, 4, 5, 6, 7, 8]
+    mockLibrary.songs = list.map(song)
+    await draw()
+    await act(() => api.playFrom(list, 0))
+    for (let failure = 0; failure < 8; failure++) await act(async () => fails())
+    expect(api.current?.id).toBe(4)
+    mockEngine.load.mockClear()
+
+    // Each press its own tap, and each song put on paused fails as well.
+    const press = async (): Promise<void> => {
+      await act(() => api.next())
+      await act(async () => fails())
+    }
+    for (let tap = 0; tap < 3; tap++) await press()
+    expect(api.current?.id).toBe(7)
+
+    for (let tap = 0; tap < 5; tap++) await press()
+    expect(loaded()).toEqual([5, 6, 7, 8, 1, 2, 3, 4])
+    expect(api.current?.id).toBe(4)
+  })
+
   it('counts no play for a song that failed and was moved past', async () => {
     await draw()
     await act(() => api.playFrom(SONGS, 0))

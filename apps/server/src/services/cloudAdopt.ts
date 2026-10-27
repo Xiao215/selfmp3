@@ -142,7 +142,10 @@ export class CloudAdopt {
     this.#adoptNames(snapshot)
     const empty = this.#nothingHere()
     const { prepared, same } = await this.#prepare(snapshot.songs)
-    const newPlaylists = snapshot.playlists.filter(list => !this.#sync.playlist(list.uid))
+    // Deleted here since that snapshot was written: not the bucket's to give back.
+    const newPlaylists = snapshot.playlists.filter(
+      list => !this.#sync.playlist(list.uid) && !this.#cloud.wasPlaylistRemoved(list.uid),
+    )
     const newTags = snapshot.tags.filter(tag => !this.#sync.tag(tag.uid))
     if (
       prepared.length === 0 &&

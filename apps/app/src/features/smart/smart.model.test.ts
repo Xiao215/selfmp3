@@ -15,6 +15,7 @@ import {
   askable,
   asksOnEnter,
   describeNotes,
+  logLine,
   onlyTags,
   parts,
   picksHere,
@@ -225,6 +226,28 @@ describe('answerRecap for playback', () => {
   it('says only what was asked, not that it was done: the device says what came of it', () => {
     const recap = answerRecap({ kind: 'playback', op: 'next', place: null }, () => undefined)
     expect(recap).toBe('Asked to skip to the next song.')
+  })
+})
+
+describe('logLine', () => {
+  it('says a list by its count and name', () => {
+    const describe = {
+      understanding: { name: 'Ballads' },
+      picks: [
+        { songId: 1, why: null },
+        { songId: 2, why: null },
+      ],
+    } as unknown as DescribeResult
+    expect(logLine({ kind: 'songs', lead: 'play', describe })).toBe('2 songs · Ballads')
+  })
+
+  it('says words by their first line, cut short when long', () => {
+    expect(logLine({ kind: 'none', say: 'Not sure.\nTry asking for a tag.', try: [] })).toBe(
+      'Not sure.',
+    )
+    const line = logLine({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null })
+    expect(line).toHaveLength(90)
+    expect(line.endsWith('…')).toBe(true)
   })
 })
 

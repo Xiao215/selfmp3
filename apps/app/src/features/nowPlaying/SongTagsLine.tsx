@@ -76,7 +76,7 @@ export function SongTagsLine({
         accessibilityLabel={label}
         accessibilityState={{ expanded: editing }}
         hitSlop={hitSlopFor(ADD)}
-        style={labelled ? styles.addLabelled : styles.addRound}
+        style={[labelled ? styles.addLabelled : styles.addRound, editing && styles.addOpen]}
       >
         {/* The dashed edge is the mark itself: an add chip (`S2`). */}
         {labelled ? (
@@ -118,5 +118,8 @@ const styles = StyleSheet.create(theme => ({
     borderStyle: 'dashed',
     borderColor: theme.colors.borderStrong,
   },
+  // While its window is up the chip is filled in, the panel's own tone, so the
+  // window reads as having come out of it.
+  addOpen: { borderStyle: 'solid', backgroundColor: theme.colors.surface2 },
   addText: { color: theme.colors.textSecondary, fontSize: type.small },
 }))

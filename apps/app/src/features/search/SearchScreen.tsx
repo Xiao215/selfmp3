@@ -48,11 +48,13 @@ import { artistLink } from '../tag/placeLinks'
 import { useOpenTag } from '../tag/useOpenTag'
 import { ASK_SUB, askable } from '../smart/smart.model'
 import { useSmartOn } from '../smart/useSmartOn'
+import { useConnection } from '../../connection/ConnectionProvider'
 import { useLibrarySearch } from './useLibrarySearch'
 import {
   ALL_LIMITS,
   allResults,
   beforeTyping,
+  guestWords,
   isSearchSection,
   matchCount,
   placesOf,
@@ -176,9 +178,13 @@ export function SearchScreen(): ReactNode {
   const matched = matchCount(found, lyricHits.length)
   const words = shown.trim()
   const smartOn = useSmartOn()
-  const offerAsk = smartOn && section === null && askable(words)
+  // A guest in a room (`opensSignedOut`): no Ask, which would open the sign-in page.
+  const guest = useConnection().status === 'missing'
+  const offerAsk = smartOn && !guest && section === null && askable(words)
+  const linksOn = adding !== null && youMay(adding, 'addLink')
+  const forGuest = guest ? guestWords(linksOn) : null
   // A YouTube or 网易云 link typed while adding: looked up, not searched for.
-  const link = adding && youMay(adding, 'addLink') ? playableLink(words) : null
+  const link = linksOn ? playableLink(words) : null
   // Ask is a page of its own (A1, 2026-10-24): Search stays under it, words and all, for Back.
   const ask = useCallback(
     (text: string) =>
@@ -248,11 +254,15 @@ export function SearchScreen(): ReactNode {
                   // Enter asks only when nothing matches (I1); with matches it puts
                   // the keyboard away and the results stay where they are.
                   onSubmitEditing={() => {
-                    if (search.enterAsks()) ask(query.trim())
+                    if (!guest && search.enterAsks()) ask(query.trim())
                     else field.current?.blur()
                   }}
                   placeholder={
-                    adding ? 'Songs, a link, or ask for some' : 'Songs, tags, artists, lyrics'
+                    forGuest
+                      ? forGuest.placeholder
+                      : adding
+                        ? 'Songs, a link, or ask for some'
+                        : 'Songs, tags, artists, lyrics'
                   }
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -372,7 +382,7 @@ export function SearchScreen(): ReactNode {
                   !offerAsk &&
                   counts[section ?? 'all'] === 0 &&
                   !(section === 'lyrics' && lyricsAway) ? (
-                    <NothingMatches words={shown.trim()} />
+                    <NothingMatches words={shown.trim()} line={forGuest?.nothing} />
                   ) : null}
                   <ChromeSpacer />
                 </ScrollView>
@@ -590,14 +600,14 @@ function Places({
 }
 
 /** What a search with no results says. */
-function NothingMatches({ words }: { words: string }): ReactNode {
+function NothingMatches({ words, line }: { words: string; line?: string }): ReactNode {
   return (
     <EmptyState
       compact
       testID="search-nothing"
       title={`Nothing matches “${clipText(words)}”`}
       // Fewer letters than two is nothing left to search with.
-      line={[...words].length > 2 ? 'Try fewer letters.' : 'Try other words.'}
+      line={line ?? ([...words].length > 2 ? 'Try fewer letters.' : 'Try other words.')}
     />
   )
 }

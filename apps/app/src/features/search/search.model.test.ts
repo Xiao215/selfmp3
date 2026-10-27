@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   allResults,
   beforeTyping,
+  guestWords,
   isSearchSection,
   lyricHitsHere,
   lyricsQueryFor,
@@ -245,5 +246,13 @@ describe('lyricHitsHere', () => {
       hit(48, 'b'),
       hit(47, 'a'),
     ])
+  })
+})
+
+describe('a guest in a room', () => {
+  it('is told a link is what they can add, or that the room takes none', () => {
+    expect(guestWords(true).nothing).toMatch(/link/)
+    expect(guestWords(true).placeholder).toMatch(/link/)
+    expect(guestWords(false).nothing).toBe('Links are off in this room.')
   })
 })

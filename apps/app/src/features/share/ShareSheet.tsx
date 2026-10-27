@@ -24,7 +24,7 @@ import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { Press } from '../../ui/components/Press'
-import { Check, QrCode, ShareOut } from '../../ui/components/Icons'
+import { Check, Copy, QrCode, ShareOut } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { Spinner } from '../../ui/components/Spinner'
 import { useCloudSession } from '../profile/useCloudSession'
@@ -37,14 +37,14 @@ import { closeShareSheet, useShareRequest, type ShareRequest } from './shareShee
 /**
  * The share sheet (docs/features/share-links.md, A1): the link is made as it
  * opens — Share link is what was asked for — and shown as what it sends, the
- * cover and the name, with Copy at the end of that row and Share… under it.
+ * cover and the name, with the copy icon at the end of that row and Share… under it.
  * There is one thing to send, the link: the doorman draws its card wherever
  * a chat draws cards. The QR code waits behind its button for a friend
  * standing beside you. Drawn once, by the shell, and by the phone's Now
  * Playing while it covers the shell.
  */
 
-/** How long Copy says Copied before it is Copy again. */
+/** How long the copy icon is a tick before it is the copy icon again. */
 const COPIED_MS = 2000
 
 /** One link per opening, however often a render or a strict effect asks for it. */
@@ -146,7 +146,7 @@ export function ShareSheet(): ReactNode {
         ) : shown && 'failed' in shown ? (
           <Text style={styles.text}>{shown.failed}</Text>
         ) : request && link && url ? (
-          // Keyed by the link, so a second link opens with its QR folded and Copy fresh.
+          // Keyed by the link, so a second link opens with its QR folded and its copy icon fresh.
           <MadeLink
             key={link.id}
             name={request.name}
@@ -179,7 +179,7 @@ function coverOf(songs: readonly Song[]): Song | null {
 }
 
 /**
- * The link, made: what it sends with Copy beside it, the QR behind its button,
+ * The link, made: what it sends with the copy icon beside it, the QR behind its button,
  * and Share…. In a browser the song opens the link's page in a new tab, to
  * see what a friend will.
  */
@@ -239,12 +239,9 @@ function MadeLink({
         >
           <QrCode tone={qr ? 'textPrimary' : 'textSecondary'} />
         </IconButton>
-        <Button
-          label={copied ? 'Copied' : 'Copy'}
-          icon={copied ? <Check tone="onAccent" /> : undefined}
-          variant="primary"
-          size="small"
-          accessibilityLabel={copied ? 'Link copied' : 'Copy link'}
+        <IconButton
+          label={copied ? 'Link copied' : 'Copy link'}
+          caption={copied ? 'Copied' : 'Copy link'}
           onPress={() =>
             void copyText(url).then(done => {
               if (done) setCopied(true)
@@ -252,7 +249,9 @@ function MadeLink({
             })
           }
           testID="share-sheet-copy"
-        />
+        >
+          {copied ? <Check tone="textPrimary" /> : <Copy tone="textSecondary" />}
+        </IconButton>
       </View>
       {qr ? (
         <View style={styles.qr}>
@@ -279,7 +278,7 @@ function MadeLink({
 const styles = StyleSheet.create(theme => ({
   body: { gap: space.md, paddingBottom: space.sm },
   text: lineSub(theme.colors),
-  // What the link sends, as one row: the cover, the name, then the QR and Copy.
+  // What the link sends, as one row: the cover, the name, then the QR and the copy icon.
   link: {
     flexDirection: 'row',
     alignItems: 'center',

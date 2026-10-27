@@ -30,9 +30,10 @@ made in one tap, holds what you picked, and ends by itself.
 A link holds every song of what was shared, however many: a tag of a thousand songs is a
 link of a thousand songs. **Share link** opens the share sheet
 (`features/share/ShareSheet.tsx`). The sheet makes the link as it opens and shows it as one
-row: the cover and the name of what it sends, a QR button, and **Copy**. Under it is
-**Share…**, for the system's share sheet, left out where the browser has none (Copy already
-does what it would). The QR button opens the code large, for a friend standing beside you.
+row: the cover and the name of what it sends, a QR button, and a copy button (the same
+icon as on /links, a tick once copied). Under it is **Share…**, for the system's share
+sheet, left out where the browser has none (copy already does what it would). The QR
+button opens the code large, for a friend standing beside you.
 In a browser the cover and the name open the link's page in a new tab (`openInNewTab`), to
 see what a friend will; the Mac app and a phone have no tabs, so there they are not a button.
 

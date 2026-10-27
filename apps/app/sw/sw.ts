@@ -36,13 +36,13 @@ import {
   CLOUD_SESSION_KEY,
   DOORMAN_PATHS,
   HASH_FILE_NAME,
-  PLAIN_PAGES,
   PLAYED_KEPT,
   REFRESH_HEADER,
   UNANSWERED_HEADER,
   WAIT_AHEAD_BYTES,
   parseDoormanRefusal,
   parseRange,
+  plainPageAt,
   relayedRange,
 } from '@selfmp3/shared/wire'
 import {
@@ -220,8 +220,7 @@ self.addEventListener('fetch', event => {
   // addresses: `privacy` or `privacy.html`, `install/` or its index file)
   // are not the app. Left to the browser, so loading one is never kept as the
   // app's offline index.
-  const page = url.pathname.slice(BASE.length).replace(/(?:\/index)?\.html$|\/$/, '')
-  if (Object.hasOwn(PLAIN_PAGES, page)) return
+  if (plainPageAt(url.pathname.slice(BASE.length)) !== null) return
 
   event.respondWith(handleShell(request, url))
 })

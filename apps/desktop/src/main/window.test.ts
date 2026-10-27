@@ -8,7 +8,7 @@ vi.mock('electron', () => ({
   shell: { openExternal },
 }))
 
-const { openOutside } = await import('./window.js')
+const { openOutside, outsideAddress } = await import('./window.js')
 
 describe('openOutside', () => {
   beforeEach(() => openExternal.mockClear())
@@ -27,5 +27,40 @@ describe('openOutside', () => {
       openOutside(url)
     }
     expect(openExternal).not.toHaveBeenCalled()
+  })
+})
+
+describe('outsideAddress', () => {
+  const own = ['app://selfmp3', 'http://localhost:8081']
+
+  it("keeps the app's own screens in the window", () => {
+    for (const url of [
+      'app://selfmp3',
+      'app://selfmp3/',
+      'app://selfmp3/library',
+      'app://selfmp3/playlists/52',
+      'http://localhost:8081/settings',
+    ]) {
+      expect(outsideAddress(url, own)).toBeNull()
+    }
+  })
+
+  it('sends the plain pages beside the app to where they are published', () => {
+    expect(outsideAddress('app://selfmp3/privacy.html', own)).toBe(
+      'https://xiao215.github.io/selfmp3/privacy.html',
+    )
+    expect(outsideAddress('app://selfmp3/bucket.html', own)).toBe(
+      'https://xiao215.github.io/selfmp3/bucket.html',
+    )
+    expect(outsideAddress('http://localhost:8081/install/', own)).toBe(
+      'https://xiao215.github.io/selfmp3/install/',
+    )
+  })
+
+  it('sends anywhere else out as it is', () => {
+    expect(outsideAddress('https://example.com/docs', own)).toBe('https://example.com/docs')
+    expect(outsideAddress('app://selfmp3.example/privacy.html', own)).toBe(
+      'app://selfmp3.example/privacy.html',
+    )
   })
 })

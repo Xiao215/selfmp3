@@ -91,10 +91,13 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   // macOS delivers a URL to a running app this way, and to a cold one just
-  // after `ready`; everywhere else it is argv, above and below.
+  // after `ready`; everywhere else it is argv, above and below. A link is
+  // something to look at, so a window closed with the red button comes back
+  // for it; before `ready` the window is about to open anyway.
   app.on('open-url', (event, url) => {
     event.preventDefault()
     deepLinks.deliver(url)
+    if (app.isReady()) showWindow()
   })
 
   app

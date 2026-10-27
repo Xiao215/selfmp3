@@ -20,6 +20,16 @@ export const PLAIN_PAGES = {
 } as const
 
 /**
+ * Which plain page a path below the app's base is, by any of its addresses
+ * (`privacy` or `privacy.html`, `install/` or its index file), or null for
+ * the app's own.
+ */
+export function plainPageAt(path: string): keyof typeof PLAIN_PAGES | null {
+  const page = path.replace(/^\/+/, '').replace(/(?:\/index)?\.html$|\/$/, '')
+  return Object.hasOwn(PLAIN_PAGES, page) ? (page as keyof typeof PLAIN_PAGES) : null
+}
+
+/**
  * The app's icon, for a plain page's tab and home-screen tile, from a page
  * `up` folders below the app (`'../'` for one in its own folder).
  */

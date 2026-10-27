@@ -244,11 +244,10 @@ export function listedPlaylists(
 
 /**
  * Playlists left with no songs, which no list above shows: one emptied on
- * another device, a live playlist whose rules match nothing now, or one from
- * before a playlist went with its last song (`usePlaylistRemoval`). The
- * sidebar lists them under the rest, so each can still be opened, filled
- * again, renamed or deleted; hidden everywhere, they stayed on the server for
- * good (bug bash R2-m12).
+ * another device, a tab closed before its emptying was sent, or a live
+ * playlist whose rules match nothing now. The sidebar lists them under the
+ * rest, so each can still be opened, filled again, renamed or deleted; hidden
+ * everywhere, they stayed on the server for good (bug bash R2-m12).
  */
 export function emptyPlaylists(playlists: readonly Playlist[]): readonly Playlist[] {
   return sortPlaylists(

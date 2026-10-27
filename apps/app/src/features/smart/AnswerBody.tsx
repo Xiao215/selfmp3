@@ -47,6 +47,7 @@ export function AnswerBody({
   onKeys,
   onAsk,
   onCarriedOut,
+  beside = false,
 }: {
   answer: Answer
   text: string
@@ -58,6 +59,8 @@ export function AnswerBody({
   onAsk?: (text: string) => void
   /** A playback answer, once done: what it came to, in its line. */
   onCarriedOut?: (said: string) => void
+  /** Room to the side (Ask on a computer): words with the songs they name beside them. */
+  beside?: boolean
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
@@ -67,22 +70,36 @@ export function AnswerBody({
       return <TogetherAnswer answer={answer} text={text} onDone={onDone} onOpen={onOpenPage} />
     case 'find':
       return <Found answer={answer} text={text} onDone={onDone} />
-    case 'explore':
-      return (
+    case 'explore': {
+      const words = (
+        <Words
+          text={answer.say}
+          testID="ask-explore-say"
+          // Music it told you about that you don't have: asked for next, as Get it.
+          get={answer.get && onAsk ? () => onAsk(`Get ${answer.get}`) : undefined}
+        />
+      )
+      const picks = (
+        <SongPicks
+          picks={answer.songIds.slice(0, 20).map(songId => ({ songId, why: null }))}
+          text={text}
+          onDone={onDone}
+        />
+      )
+      // With room, the songs it names stand beside the words, in a card of their
+      // own, rather than trailing under them (S1); a narrow page wraps them under.
+      return beside && answer.songIds.length > 0 ? (
+        <View style={styles.beside}>
+          <View style={styles.besideWords}>{words}</View>
+          <View style={styles.besideSongs}>{picks}</View>
+        </View>
+      ) : (
         <>
-          <Words
-            text={answer.say}
-            testID="ask-explore-say"
-            // Music it told you about that you don't have: asked for next, as Get it.
-            get={answer.get && onAsk ? () => onAsk(`Get ${answer.get}`) : undefined}
-          />
-          <SongPicks
-            picks={answer.songIds.slice(0, 20).map(songId => ({ songId, why: null }))}
-            text={text}
-            onDone={onDone}
-          />
+          {words}
+          {picks}
         </>
       )
+    }
     case 'tags':
       return (
         <TagsReview
@@ -319,6 +336,17 @@ function SongPicks({
 
 const styles = StyleSheet.create(theme => ({
   answer: { color: theme.colors.textPrimary, ...textStyle('body') },
+  beside: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: space.xl },
+  besideWords: { flexGrow: 1, flexShrink: 1, flexBasis: 340, minWidth: 0 },
+  besideSongs: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 300,
+    minWidth: 0,
+    padding: space.sm,
+    borderRadius: radius.card,
+    backgroundColor: theme.colors.surface1,
+  },
   words: { gap: space.xs },
   wordsActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },

@@ -11,6 +11,7 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   outcome: null,
   change: null,
   list: null,
+  line: null,
   ...patch,
 })
 

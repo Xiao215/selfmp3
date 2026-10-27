@@ -1279,6 +1279,37 @@ const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // 58. A kept playlist with no songs goes: one exists once it has a song,
+    // and taking out its last song deletes it (usePlaylistRemoval), but ones
+    // emptied before that stayed, listed only in the sidebar. A live one stays
+    // — its rules may match songs later — and so does one an import has yet
+    // to fill.
+    //
+    // `removed_playlists` is `removed_songs` for playlists: the uid of each
+    // deleted here until the snapshot without it is up, so a server reading
+    // the bucket's newest snapshot again — a restart, *Publish now* — does not
+    // take it back on (services/cloudAdopt.ts). This step's own deletions are
+    // the first: the next start reads a snapshot that still has them.
+    name: 'kept playlists with no songs go',
+    sql: `
+      CREATE TABLE IF NOT EXISTS removed_playlists (
+        uid        TEXT    PRIMARY KEY,
+        removed_at TEXT    NOT NULL DEFAULT (datetime('now'))
+      ) WITHOUT ROWID;
+      CREATE TRIGGER IF NOT EXISTS removed_playlist AFTER DELETE ON playlists BEGIN
+        INSERT OR IGNORE INTO removed_playlists (uid) VALUES (old.uid);
+      END;
+
+      DELETE FROM playlists
+       WHERE kind = 'manual'
+         AND NOT EXISTS (SELECT 1 FROM playlist_items i WHERE i.playlist_id = playlists.id)
+         AND NOT EXISTS (
+               SELECT 1 FROM import_jobs j
+                WHERE j.playlist_id = playlists.id AND j.status IN ('queued', 'running', 'error')
+             );
+    `,
+  },
 ]
 
 /** Bring the schema to the latest version. */

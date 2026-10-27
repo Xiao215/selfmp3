@@ -17,7 +17,8 @@ First launch opens on Welcome, whose one button is Continue with Google; the
 library is then the one in your bucket, and the server does not have to be
 answering. A device's first sign-in is followed, once, by First sync: the
 library arriving, and whether to keep every song on the device (off on a phone,
-on on a computer). Signing out returns to Welcome. There is no address to type
+on on a computer). Nothing is kept until that is answered: the switch is written
+when the page is left. Signing out returns to Welcome. There is no address to type
 in a normal build; a development build keeps a "Connect to a server by address"
 text action on Welcome, because the simulator flows cannot sign in to a Google
 account. The tabs are **Home · Library · Playlists**; Home's avatar opens

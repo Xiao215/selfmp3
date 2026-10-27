@@ -14,13 +14,14 @@ import { useLayoutValue } from '../../shell/useLayout'
 import { glassBlur, glassFill } from '../../ports/glassBlur'
 import { Button } from '../../ui/components/Button'
 import { Cover } from '../../ui/components/Cover'
+import { Fold } from '../../ui/components/Fold'
 import { IconButton } from '../../ui/components/IconButton'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { Press } from '../../ui/components/Press'
 import { TextField } from '../../ui/components/TextField'
 import {
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
   ListMusic,
   Pencil,
   Play,
@@ -47,10 +48,11 @@ export const TRAY_PANEL_WIDTH = 376
  * Folded, one line: the first covers, its name, how many and how long, Save
  * and Play. Open, a section a stroke, headed in the colour it is drawn in on
  * the map, with a × that drops it; its songs numbered in the order they will
- * play. On a computer it is a panel down the right of the map, the map laid
- * out beside it, and a song under the pointer is ringed on the map; on a
- * phone it is a sheet half the screen high, and a row swiped left leaves its
- * song out. Play, Save, and in ⋯ Up next, Shuffle and Clear. Nothing here is a
+ * play. On a computer it is one card down the right of the map, the map laid
+ * out beside it, and a song under the pointer is ringed on the map; folded,
+ * the card is its head alone (K4), the list folding up under it and back
+ * down. On a phone it is a sheet half the screen high, and a row swiped left
+ * leaves its song out. Play, Save, and in ⋯ Up next, Shuffle and Clear. Nothing here is a
  * playlist until Save makes one.
  */
 export function MapTray({
@@ -104,6 +106,9 @@ export function MapTray({
     : `${plural(songs.length, 'song', 'songs')}, ${formatLongDuration(seconds)}`
   const [renaming, setRenaming] = useState(false)
   const [more, setMore] = useState<ReadonlySet<number>>(new Set())
+  // A computer's column, and its head: the list takes what is between.
+  const [room, setRoom] = useState(0)
+  const [headRoom, setHeadRoom] = useState(0)
   const pull = useMemo(
     () =>
       Gesture.Pan()
@@ -173,12 +178,12 @@ export function MapTray({
     </View>
   )
 
-  if (!open) {
+  if (!open && !wide) {
     return (
       <View style={[styles.tray, glassBlur]} testID="sound-map-tray">
         <GestureDetector gesture={pull}>
           <View style={styles.head}>
-            {wide ? null : <View style={styles.grab} />}
+            <View style={styles.grab} />
             <View style={styles.row}>
               <Press
                 feedback="dim"
@@ -231,80 +236,158 @@ export function MapTray({
     )
   }
 
-  const head = (
-    <View style={styles.row}>
-      <View style={styles.words}>
-        {renaming ? (
-          <NameField
-            name={name}
-            onDone={next => {
-              setRenaming(false)
-              if (next !== undefined) onRename(next)
-            }}
-          />
-        ) : (
-          <View style={styles.nameRow}>
-            <Text style={styles.title} numberOfLines={1} testID="sound-map-tray-name">
-              {name}
-            </Text>
-            <IconButton
-              label="Rename"
-              size={32}
-              onPress={() => setRenaming(true)}
-              testID="sound-map-rename"
-            >
-              <Pencil size={iconSize.small} tone="textSecondary" />
-            </IconButton>
-          </View>
-        )}
-        <Text style={styles.sub} numberOfLines={1}>
-          {count}
-        </Text>
-      </View>
-      <IconButton
-        label={wide ? 'Hide the list' : 'Fold the list'}
-        filled
-        onPress={() => onOpen(false)}
-        testID="sound-map-tray-head"
-      >
-        {wide ? (
-          <ChevronRight size={iconSize.item} tone="textSecondary" />
-        ) : (
-          <ChevronDown size={iconSize.item} tone="textSecondary" />
-        )}
-      </IconButton>
+  const title = renaming ? (
+    <NameField
+      name={name}
+      onDone={next => {
+        setRenaming(false)
+        if (next !== undefined) onRename(next)
+      }}
+    />
+  ) : (
+    <View style={styles.nameRow}>
+      <Text style={styles.title} numberOfLines={1} testID="sound-map-tray-name">
+        {name}
+      </Text>
+      {open ? (
+        <IconButton
+          label="Rename"
+          size={32}
+          onPress={() => setRenaming(true)}
+          testID="sound-map-rename"
+        >
+          <Pencil size={iconSize.small} tone="textSecondary" />
+        </IconButton>
+      ) : null}
     </View>
   )
+  const sub = (
+    <View style={styles.subRow}>
+      {sections.map(section => (
+        <View
+          key={section.take.id}
+          style={[styles.dot, { backgroundColor: section.take.tone }]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ))}
+      <Text style={styles.sub} numberOfLines={1}>
+        {count}
+      </Text>
+    </View>
+  )
+  const list = (
+    <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      {sections.map(section => (
+        <Section
+          key={section.take.id}
+          section={section}
+          all={more.has(section.take.id)}
+          onAll={() => setMore(before => new Set(before).add(section.take.id))}
+          onDrop={() => onDrop(section.take)}
+          onBringBack={() => onBringBack(section.left)}
+          onRemove={onRemove}
+          onShow={onShow}
+          onLight={onLight}
+        />
+      ))}
+    </ScrollView>
+  )
+
+  if (wide) {
+    // One card down the right (K4): its head stays where it is, and the list
+    // folds up under it, or down out of it, taking the rest of the column.
+    return (
+      <View
+        style={styles.column}
+        pointerEvents="box-none"
+        onLayout={event => setRoom(event.nativeEvent.layout.height)}
+      >
+        <View style={[styles.tray, styles.panel, glassBlur]} testID="sound-map-tray">
+          <View
+            style={styles.headWide}
+            onLayout={event => setHeadRoom(event.nativeEvent.layout.height)}
+          >
+            <View style={styles.row}>
+              {open ? (
+                <View style={styles.words}>
+                  {title}
+                  {sub}
+                </View>
+              ) : (
+                <Press
+                  feedback="dim"
+                  onPress={() => onOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show the songs in ${name}`}
+                  accessibilityState={{ expanded: false }}
+                  style={styles.words}
+                  wrap={styles.grow}
+                  testID="sound-map-tray-words"
+                >
+                  {title}
+                  {sub}
+                </Press>
+              )}
+              {open ? null : (
+                <IconButton
+                  label="Play"
+                  filled="primary"
+                  disabled={empty}
+                  onPress={onPlay}
+                  testID="sound-map-play"
+                >
+                  <Play size={iconSize.item} color={theme.colors.onPrimary} />
+                </IconButton>
+              )}
+              <IconButton
+                label={open ? 'Fold the list' : 'Show the list'}
+                filled
+                onPress={() => onOpen(!open)}
+                testID="sound-map-tray-head"
+              >
+                {open ? (
+                  <ChevronUp size={iconSize.item} tone="textSecondary" />
+                ) : (
+                  <ChevronDown size={iconSize.item} tone="textSecondary" />
+                )}
+              </IconButton>
+            </View>
+          </View>
+          <Fold open={open}>
+            <View style={[styles.body, { height: Math.max(0, room - headRoom) }]}>
+              {list}
+              <View style={styles.foot}>{actions}</View>
+            </View>
+          </Fold>
+        </View>
+      </View>
+    )
+  }
 
   return (
     <View style={[styles.tray, styles.opened, glassBlur]} testID="sound-map-tray">
-      {wide ? (
-        <View style={styles.headWide}>{head}</View>
-      ) : (
-        <GestureDetector gesture={pull}>
-          <View style={styles.head}>
-            <View style={styles.grab} />
-            {head}
-            {actions}
+      <GestureDetector gesture={pull}>
+        <View style={styles.head}>
+          <View style={styles.grab} />
+          <View style={styles.row}>
+            <View style={styles.words}>
+              {title}
+              {sub}
+            </View>
+            <IconButton
+              label="Fold the list"
+              filled
+              onPress={() => onOpen(false)}
+              testID="sound-map-tray-head"
+            >
+              <ChevronDown size={iconSize.item} tone="textSecondary" />
+            </IconButton>
           </View>
-        </GestureDetector>
-      )}
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {sections.map(section => (
-          <Section
-            key={section.take.id}
-            section={section}
-            all={more.has(section.take.id)}
-            onAll={() => setMore(before => new Set(before).add(section.take.id))}
-            onDrop={() => onDrop(section.take)}
-            onBringBack={() => onBringBack(section.left)}
-            onRemove={onRemove}
-            onShow={onShow}
-            onLight={onLight}
-          />
-        ))}
-      </ScrollView>
-      {wide ? <View style={styles.foot}>{actions}</View> : null}
+          {actions}
+        </View>
+      </GestureDetector>
+      {list}
     </View>
   )
 }
@@ -616,8 +699,18 @@ const styles = StyleSheet.create(theme => ({
     ...floating(theme.colors),
   },
   opened: { flex: 1, paddingHorizontal: space.xs, paddingBottom: 0 },
+  column: { flex: 1 },
+  panel: { paddingHorizontal: space.xs, paddingBottom: 0 },
+  body: { minHeight: 0 },
+  subRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   head: { paddingTop: space.xs, paddingHorizontal: space.sm, gap: space.xs },
-  headWide: { paddingTop: space.md, paddingLeft: space.md, paddingRight: space.sm },
+  headWide: {
+    paddingTop: space.md,
+    paddingBottom: space.sm,
+    paddingLeft: space.md,
+    paddingRight: space.sm,
+  },
   grab: {
     alignSelf: 'center',
     width: 32,

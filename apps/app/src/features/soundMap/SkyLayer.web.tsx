@@ -223,8 +223,8 @@ function draw(
   ground: HTMLCanvasElement | null,
   cover: (song: Song) => HTMLImageElement | null,
 ): void {
-  const { field, view, base, points, regions, lens, takes, stroke, playing, lit, pulse, songs } =
-    props
+  const { field, view, base, points, regions, lens, takes, stroke, playing, lit, panel } = props
+  const { pulse, songs } = props
   const { width, height } = field
   const dpr = dprOf()
   if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
@@ -294,6 +294,11 @@ function draw(
       ctx.fill()
     }
   }
+  // The star under the pointer, named before it is pressed; else the one the
+  // pointer is on in the tray's list.
+  const under =
+    (pointer ? songUnder(points, at, pointer, covers ? side / 2 + 4 : 14) : null) ??
+    (lit === null ? null : (byId.get(lit) ?? null))
   for (const { point, x, y } of shown) {
     const song = songs.get(point.id)
     ctx.globalAlpha = lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1
@@ -308,8 +313,8 @@ function draw(
       ctx.fillStyle = point.glow
       ctx.fill()
     }
-    // Close enough, each cover wears its name.
-    if (song && side >= NAMES_FROM) {
+    // Close enough, each cover wears its name: the one pointed at wears its card instead.
+    if (song && side >= NAMES_FROM && point !== under) {
       ctx.globalAlpha *= 0.92
       ctx.fillStyle = SKY_INK
       ctx.font = `600 10px ${FONT}`
@@ -417,13 +422,12 @@ function draw(
     ctx.fill()
   }
 
-  // The star under the pointer, named before it is pressed; else the one the
-  // pointer is on in the tray's list.
-  const under =
-    (pointer ? songUnder(points, at, pointer, covers ? side / 2 + 4 : 14) : null) ??
-    (lit === null ? null : (byId.get(lit) ?? null))
+  // The song pointed at. Close in, its cover lifts into its own name card (H2);
+  // further out, the star is ringed and named beside it.
   const song = under ? songs.get(under.id) : undefined
-  if (under && song) {
+  if (under && song && covers) {
+    songCard(ctx, song, at(under), side, cover(song), under.glow, field.width - panel, field)
+  } else if (under && song) {
     const spot = at(under)
     ctx.strokeStyle = SKY_INK
     ctx.lineWidth = 1.5
@@ -433,6 +437,68 @@ function draw(
     tooltip(ctx, song, spot, covers ? side / 2 + 8 : 14, field)
   }
 }
+
+/**
+ * A cover pointed at, close in: lifted a little and set at the left end of a
+ * dark card with its title and artist, one thing rather than a ring round the
+ * cover and a label beside it. The cover stays on its star; the words go to
+ * whichever side has the room, short of the tray's panel (`clear`).
+ */
+function songCard(
+  ctx: CanvasRenderingContext2D,
+  song: Song,
+  spot: { x: number; y: number },
+  side: number,
+  image: HTMLImageElement | null,
+  glow: string,
+  clear: number,
+  field: FieldSize,
+): void {
+  const big = Math.max(CARD_COVER.min, Math.min(CARD_COVER.max, side * 1.3))
+  const pad = 4
+  ctx.textAlign = 'left'
+  ctx.font = `600 13px ${FONT}`
+  const title = fitText(ctx, song.title, 220)
+  const titleWidth = ctx.measureText(title).width
+  ctx.font = `400 12px ${FONT}`
+  const line = fitText(ctx, song.artist, 220)
+  const words = Math.max(titleWidth, ctx.measureText(line).width)
+  const width = pad + big + 12 + words + 16
+  const height = big + pad * 2
+  const right = spot.x - big / 2 - pad + width <= clear - 8
+  const x = right ? spot.x - big / 2 - pad : spot.x + big / 2 + pad - width
+  const y = Math.max(8, Math.min(field.height - height - 8, spot.y - height / 2))
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.55)'
+  ctx.shadowBlur = 24
+  ctx.shadowOffsetY = 8
+  ctx.fillStyle = 'rgba(31,34,44,0.96)'
+  ctx.beginPath()
+  ctx.roundRect(x, y, width, height, 14)
+  ctx.fill()
+  ctx.restore()
+  const coverX = right ? x + pad : x + width - pad - big
+  roundRect(ctx, coverX, y + pad, big, 10)
+  if (image) {
+    ctx.save()
+    ctx.clip()
+    ctx.drawImage(image, coverX, y + pad, big, big)
+    ctx.restore()
+  } else {
+    ctx.fillStyle = glow
+    ctx.fill()
+  }
+  const textX = right ? coverX + big + 12 : x + 16
+  ctx.fillStyle = SKY_INK
+  ctx.font = `600 13px ${FONT}`
+  ctx.fillText(title, textX, y + height / 2 - 3)
+  ctx.fillStyle = 'rgba(244,245,249,0.68)'
+  ctx.font = `400 12px ${FONT}`
+  ctx.fillText(line, textX, y + height / 2 + 14)
+}
+
+/** The cover in a song's card: a little larger than the tile, within reason. */
+const CARD_COVER = { min: 52, max: 96 }
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
 /** Covers this wide wear their titles underneath. */

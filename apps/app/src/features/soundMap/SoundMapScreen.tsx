@@ -42,14 +42,17 @@ import { newPlaylist } from '../playlists/playlists.model'
 import { FieldControl } from './fieldControl'
 import { useShiftHeld } from './fieldInput'
 import { MapHint, useMapHint } from './MapHint'
-import { MapTray } from './MapTray'
+import { MapTray, TRAY_PANEL_WIDTH } from './MapTray'
 import { SoundField } from './SoundField'
-import { chainAlong, lensTags, skyPoints, skyRegions, type MapTake } from './sky.model'
+import { chainAlong, lensTags, skyPoints, skyRegions, takeTone, type MapTake } from './sky.model'
+import { trayOrder, traySections } from './tray.model'
 
 /** A drawn stroke's points closer than this (0–1) are one point. */
 const PATH_STEP = 0.004
 /** A stroke that ends within this many reaches of where it began has gone round: a loop. */
 const LOOP_CLOSE = 2.5
+/** How much of a phone's screen the tray's sheet takes, opened. */
+const SHEET_SHARE = 0.5
 
 /**
  * `/sound-map` (docs/features/sound-map.md): the library as a night sky,
@@ -63,8 +66,10 @@ const LOOP_CLOSE = 2.5
  *
  * A tap plays the songs nearest it. Holding, then dragging, draws: a line
  * takes the songs along it as a drift from one place to the other, a loop
- * the songs inside. Each stroke goes into the tray at the foot, to play, add
- * to Up next or save as a playlist.
+ * the songs inside. Each stroke goes into the tray, a section of its own in
+ * its colour, to play, add to Up next or save as a playlist: on a computer a
+ * panel down the right that the map is laid out beside, on a phone at the foot,
+ * opening as a sheet half the screen high.
  *
  * `?song=` opens it on a song (Show on the map); `?draw=1` with the pen ready
  * (New playlist's Draw it on the map).
@@ -128,32 +133,54 @@ export function SoundMapScreen(): ReactNode {
 
   const hint = useMapHint(points.length > 0)
 
-  // What the tray holds: every stroke since it was cleared, and the songs left out of it.
+  // What the tray holds: every stroke since it was cleared, the songs left out
+  // of it, and a name of its own if one was typed.
   const [takes, setTakes] = useState<readonly MapTake[]>([])
   const [left, setLeft] = useState<ReadonlySet<number>>(new Set())
+  const [named, setNamed] = useState<string | null>(null)
   const [trayOpen, setTrayOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const trayIds = useMemo(() => {
-    const seen = new Set<number>()
-    const out: number[] = []
-    for (const take of takes) {
-      for (const id of take.ids) {
-        if (seen.has(id) || left.has(id)) continue
-        seen.add(id)
-        out.push(id)
-      }
-    }
-    return out
-  }, [takes, left])
-  const traySongs = useMemo(() => trayIds.flatMap(id => songs.get(id) ?? []), [trayIds, songs])
+  const nextTake = useRef(1)
+  const sections = useMemo(() => traySections(takes, left, songs), [takes, left, songs])
+  const trayIds = useMemo(() => trayOrder(sections), [sections])
   const trayName = useMemo(
-    () => [...new Set(takes.map(take => take.name).filter(Boolean))].join(' · '),
-    [takes],
+    () => named ?? [...new Set(takes.map(take => take.name).filter(Boolean))].join(' · '),
+    [takes, named],
   )
-  const clearTray = (): void => {
+  // The song the pointer is on in the tray's list, or the one last pressed there.
+  const [lit, setLit] = useState<number | null>(null)
+  const emptyTray = (): void => {
     setTakes([])
     setLeft(new Set())
+    setNamed(null)
     setTrayOpen(false)
+    setLit(null)
+  }
+  const clearTray = (): void => {
+    const was = { takes, left, named }
+    emptyTray()
+    showUndoToast('Cleared what was drawn', () => {
+      setTakes(was.takes)
+      setLeft(was.left)
+      setNamed(was.named)
+    })
+  }
+  const dropTake = (take: MapTake): void => {
+    const at = takes.indexOf(take)
+    if (takes.length === 1) {
+      setNamed(null)
+      setTrayOpen(false)
+    }
+    setTakes(before => before.filter(each => each !== take))
+    showUndoToast(`Dropped “${take.name || take.kind}”`, () =>
+      setTakes(before => [...before.slice(0, at), take, ...before.slice(at)]),
+    )
+  }
+  const showSong = (id: number): void => {
+    const place = places.find(each => each.id === id)
+    if (!place) return
+    setLit(id)
+    control.flyToSong(place)
   }
 
   // The stroke being drawn.
@@ -197,19 +224,24 @@ export function SoundMapScreen(): ReactNode {
       : songsAlongPath(places, drawn, reach.current, songs)
     // Nothing taken: the stroke simply goes, as it came, with no word about it.
     if (ids.length === 0) return
-    const take: MapTake = {
+    const take: Omit<MapTake, 'id' | 'tone'> = {
       kind: loop ? 'loop' : 'line',
       name: loop ? loopName(places, ids, songs, tags) : pathName(places, drawn, songs, tags),
       ids,
       chain: loop ? ids : chainAlong(places, drawn, ids),
       path: drawn,
     }
-    setTakes(before => [...before, take])
+    const id = nextTake.current++
+    setTakes(before => [...before, { ...take, id, tone: takeTone(before) }])
   }, [places, songs, tags, hintDone])
 
   const playTray = (): void => {
     if (trayIds.length === 0) return
     player.playFrom(trayIds, 0, { source: { kind: 'songs', origin: 'map', name: trayName } })
+  }
+  const shuffleTray = (): void => {
+    if (trayIds.length === 0) return
+    player.playShuffled(trayIds, { kind: 'songs', origin: 'map', name: trayName })
   }
   const upNextTray = (): void => {
     if (trayIds.length === 0) return
@@ -228,7 +260,7 @@ export function SoundMapScreen(): ReactNode {
     void (async () => {
       try {
         const created = await createPlaylist({ input, songIds: trayIds, refresh: 'wait' })
-        clearTray()
+        emptyTray()
         showUndoToast(
           { over: 'Saved as a playlist', say: created.name },
           async () => {
@@ -275,30 +307,50 @@ export function SoundMapScreen(): ReactNode {
   }
 
   // What the page lays over the field, which fitting and flying keep clear of:
-  // its head, and the tray as it is folded (opened, it lies over the map for a while).
+  // its head; on a computer the tray's panel down the right (or, hidden, its
+  // folded line at the foot); on a phone the tray at the foot, folded, or open
+  // as a sheet half the screen high.
+  const [field, setField] = useState<{ width: number; height: number } | null>(null)
   const [head, setHead] = useState(0)
   const [tray, setTray] = useState(0)
   const [folded, setFolded] = useState(0)
   const [tools, setTools] = useState(0)
   const bottom = (wide ? 0 : chrome) + space.md
-  const trayRoom = takes.length > 0 ? folded : 0
+  const holding = takes.length > 0
+  const panel = wide && holding && trayOpen
+  const sheet = !wide && holding && trayOpen ? Math.round((field?.height ?? 0) * SHEET_SHARE) : 0
+  const trayRoom = !holding || panel ? 0 : trayOpen ? sheet : folded
+  const panelRoom = panel ? TRAY_PANEL_WIDTH + space.md : 0
   useEffect(() => {
-    control.setInsets({ top: head, bottom: bottom + trayRoom })
-  }, [control, head, bottom, trayRoom])
+    control.setInsets({ top: head, bottom: bottom + trayRoom, right: panelRoom })
+  }, [control, head, bottom, trayRoom, panelRoom])
   const onTray = (event: LayoutChangeEvent): void => {
     const height = event.nativeEvent.layout.height
     setTray(height)
     if (!trayOpen) setFolded(height)
   }
-  // On a phone the buttons stand over the folded tray, and stay there when it
-  // opens over them; on a computer they are beside it, at the foot.
-  const toolsBottom = wide || trayRoom === 0 ? 0 : trayRoom + space.sm
+  // A computer opens the panel with the first stroke; a phone keeps the tray
+  // folded until it is pulled up. Whatever opens over a stroke, or a stroke
+  // drawn where the tray lies, the map slides out from under it.
+  const had = useRef({ takes: 0, open: false })
+  useEffect(() => {
+    const before = had.current
+    had.current = { takes: takes.length, open: trayOpen }
+    if (before.takes === 0 && takes.length > 0 && wide && !trayOpen) {
+      setTrayOpen(true)
+      return
+    }
+    if (trayOpen && !before.open) control.keepClear(takes.flatMap(take => take.path))
+    else if (takes.length > before.takes) control.keepClear(takes[takes.length - 1]!.path)
+  }, [control, takes, trayOpen, wide])
+  // On a phone the buttons stand over the folded tray, and the open sheet lies
+  // over them; on a computer they stand at the foot, left of the tray's column.
+  const toolsBottom = wide || !holding ? 0 : folded + space.sm
   // The toasts rise above the tray and the buttons rather than cover Play or the pen.
   useEffect(() => {
-    setPageFoot(Math.max(tray, toolsBottom + tools) + space.md)
-  }, [tray, toolsBottom, tools])
+    setPageFoot(Math.max(panel ? 0 : tray, toolsBottom + tools) + space.md)
+  }, [panel, tray, toolsBottom, tools])
 
-  const [field, setField] = useState<{ width: number; height: number } | null>(null)
   const shown = places.length > 0
 
   return (
@@ -338,6 +390,7 @@ export function SoundMapScreen(): ReactNode {
                 lens={lens}
                 takes={takes}
                 stroke={stroke}
+                lit={lit}
                 onPress={onPress}
                 onPathStart={onPathStart}
                 onPathMove={onPathMove}
@@ -345,7 +398,11 @@ export function SoundMapScreen(): ReactNode {
               />
             </View>
 
-            <SafeAreaView edges={['top']} style={styles.top} pointerEvents="box-none">
+            <SafeAreaView
+              edges={['top']}
+              style={[styles.top, panel && styles.topBesidePanel]}
+              pointerEvents="box-none"
+            >
               <View
                 style={[styles.head, pageFrame(wide)]}
                 pointerEvents="box-none"
@@ -384,7 +441,11 @@ export function SoundMapScreen(): ReactNode {
             </SafeAreaView>
 
             <View
-              style={[styles.tools, wide && styles.toolsWide, { bottom: bottom + toolsBottom }]}
+              style={[
+                styles.tools,
+                wide && (holding ? styles.toolsBesideTray : styles.toolsWide),
+                { bottom: bottom + toolsBottom },
+              ]}
               pointerEvents="box-none"
               onLayout={event => setTools(event.nativeEvent.layout.height)}
             >
@@ -436,21 +497,35 @@ export function SoundMapScreen(): ReactNode {
               </IconButton>
             </View>
 
-            {takes.length > 0 ? (
+            {holding ? (
               <View
-                style={[styles.tray, wide && styles.trayWide, { bottom }]}
+                style={[
+                  wide ? styles.trayWide : styles.tray,
+                  { bottom },
+                  panel && styles.panel,
+                  sheet > 0 && { height: sheet },
+                ]}
                 pointerEvents="box-none"
                 onLayout={onTray}
               >
                 <MapTray
                   name={trayName}
-                  songs={traySongs}
+                  sections={sections}
                   open={trayOpen}
+                  wide={wide}
                   saving={saving}
                   onOpen={setTrayOpen}
+                  onRename={setNamed}
                   onRemove={id => setLeft(before => new Set(before).add(id))}
+                  onBringBack={ids =>
+                    setLeft(before => new Set([...before].filter(id => !ids.includes(id))))
+                  }
+                  onDrop={dropTake}
+                  onShow={showSong}
+                  onLight={setLit}
                   onClear={clearTray}
                   onPlay={playTray}
+                  onShuffle={shuffleTray}
                   onSave={saveTray}
                   onUpNext={upNextTray}
                 />
@@ -476,9 +551,13 @@ const styles = StyleSheet.create(theme => ({
   chips: { gap: space.xs },
   chipsPhone: { paddingHorizontal: space.gutter },
   chipsWide: { paddingHorizontal: space.gutterWide },
+  topBesidePanel: { right: TRAY_PANEL_WIDTH + space.md },
   tools: { position: 'absolute', right: space.md, gap: space.sm, zIndex: 1 },
   toolsWide: { right: space.gutterWide },
+  toolsBesideTray: { right: TRAY_PANEL_WIDTH + space.md * 2 },
   // Over the buttons once opened, as a sheet is.
   tray: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2 },
-  trayWide: { left: 0, right: 0, alignSelf: 'center', marginHorizontal: 'auto', maxWidth: 560 },
+  // A column down the right: the panel from top to foot, or folded at the foot.
+  trayWide: { position: 'absolute', right: space.md, width: TRAY_PANEL_WIDTH, zIndex: 2 },
+  panel: { top: space.md },
 }))

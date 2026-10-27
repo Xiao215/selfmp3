@@ -350,9 +350,9 @@ const Covers = memo(function Covers({
 })
 
 /**
- * What moves with every frame, at screen size: the tray's lines and loops,
- * the stroke under the finger, the playing song wearing its cover, the
- * pressed spot.
+ * What moves with every frame, at screen size: the tray's lines and loops in
+ * their colours, the stroke under the finger, the playing song wearing its
+ * cover, the song pressed in the tray's list, the pressed spot.
  */
 function Overlay({
   field,
@@ -362,6 +362,7 @@ function Overlay({
   takes,
   stroke,
   playing,
+  lit,
   pulse,
   songs,
 }: SkyLayerProps): ReactNode {
@@ -376,6 +377,8 @@ function Overlay({
   const nowUri = nowSong ? art(nowSong) : null
   const nowAt = now ? at(now) : null
   const big = Math.max(22, covers ? side * 1.15 : 22)
+  const litPlace = lit === null ? undefined : byId.get(lit)
+  const litAt = litPlace ? at(litPlace) : null
   const line = (places: readonly MapPlace[]): string =>
     places
       .map(place => {
@@ -391,19 +394,21 @@ function Overlay({
             <Path
               key={`t${index}`}
               d={`M${line(take.path).replaceAll(' ', ' L')} Z`}
-              fill={accent}
-              fillOpacity={0.08}
-              stroke="rgba(244,245,249,0.7)"
-              strokeWidth={1.4}
-              strokeDasharray="5 5"
+              fill={take.tone}
+              fillOpacity={0.07}
+              stroke={take.tone}
+              strokeOpacity={0.9}
+              strokeWidth={1.8}
+              strokeDasharray="6 5"
             />
           ) : (
             <Polyline
               key={`t${index}`}
               points={line(take.chain.flatMap(id => byId.get(id) ?? []))}
               fill="none"
-              stroke="rgba(244,245,249,0.72)"
-              strokeWidth={1.1}
+              stroke={take.tone}
+              strokeOpacity={0.85}
+              strokeWidth={1.4}
             />
           ),
         )}
@@ -418,7 +423,8 @@ function Overlay({
                 cx={spot.x}
                 cy={spot.y}
                 r={covers ? side * 0.7 : 5.5}
-                stroke="rgba(244,245,249,0.5)"
+                stroke={take.tone}
+                strokeOpacity={0.55}
                 strokeWidth={1}
                 fill="none"
               />
@@ -439,6 +445,16 @@ function Overlay({
         ) : null}
         {nowAt ? (
           <Circle cx={nowAt.x} cy={nowAt.y} r={big * 1.05} fill={accent} fillOpacity={0.25} />
+        ) : null}
+        {litAt ? (
+          <Circle
+            cx={litAt.x}
+            cy={litAt.y}
+            r={covers ? side * 0.72 : 7}
+            stroke={SKY_INK}
+            strokeWidth={1.5}
+            fill="none"
+          />
         ) : null}
         {pulse ? (
           <Circle cx={pulse.x} cy={pulse.y} r={16} fill={accent} fillOpacity={0.35} />

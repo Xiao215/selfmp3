@@ -223,7 +223,8 @@ function draw(
   ground: HTMLCanvasElement | null,
   cover: (song: Song) => HTMLImageElement | null,
 ): void {
-  const { field, view, base, points, regions, lens, takes, stroke, playing, pulse, songs } = props
+  const { field, view, base, points, regions, lens, takes, stroke, playing, lit, pulse, songs } =
+    props
   const { width, height } = field
   const dpr = dprOf()
   if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
@@ -328,11 +329,11 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
       })
       ctx.closePath()
-      ctx.fillStyle = withAlpha(accent, 0.08)
+      ctx.fillStyle = withAlpha(take.tone, 0.07)
       ctx.fill()
-      ctx.setLineDash([5, 5])
-      ctx.strokeStyle = 'rgba(244,245,249,0.7)'
-      ctx.lineWidth = 1.4
+      ctx.setLineDash([6, 5])
+      ctx.strokeStyle = withAlpha(take.tone, 0.9)
+      ctx.lineWidth = 1.8
       ctx.stroke()
       ctx.setLineDash([])
     } else {
@@ -346,8 +347,8 @@ function draw(
         else ctx.lineTo(spot.x, spot.y)
         first = false
       }
-      ctx.strokeStyle = 'rgba(244,245,249,0.72)'
-      ctx.lineWidth = 1.1
+      ctx.strokeStyle = withAlpha(take.tone, 0.85)
+      ctx.lineWidth = 1.4
       ctx.stroke()
     }
     for (const id of take.ids) {
@@ -358,7 +359,7 @@ function draw(
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, 2.2, 0, Math.PI * 2)
       ctx.fill()
-      ctx.strokeStyle = 'rgba(244,245,249,0.5)'
+      ctx.strokeStyle = withAlpha(take.tone, 0.55)
       ctx.lineWidth = 1
       ctx.beginPath()
       ctx.arc(spot.x, spot.y, covers ? side * 0.7 : 5.5, 0, Math.PI * 2)
@@ -416,8 +417,11 @@ function draw(
     ctx.fill()
   }
 
-  // The star under the pointer, named before it is pressed.
-  const under = pointer ? songUnder(points, at, pointer, covers ? side / 2 + 4 : 14) : null
+  // The star under the pointer, named before it is pressed; else the one the
+  // pointer is on in the tray's list.
+  const under =
+    (pointer ? songUnder(points, at, pointer, covers ? side / 2 + 4 : 14) : null) ??
+    (lit === null ? null : (byId.get(lit) ?? null))
   const song = under ? songs.get(under.id) : undefined
   if (under && song) {
     const spot = at(under)

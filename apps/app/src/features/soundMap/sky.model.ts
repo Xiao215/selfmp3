@@ -31,13 +31,29 @@ export interface SkyPoint extends PlacedSong {
 
 /** What a stroke took: the songs along a line or inside a loop, and what to call them. */
 export interface MapTake {
+  /** Which stroke it is, while the tray holds it: what its section and its drop are keyed by. */
+  readonly id: number
   readonly kind: 'line' | 'loop'
+  /** Its colour, the same on the map and on its section in the tray (`takeTone`). */
+  readonly tone: string
   readonly name: string
   readonly ids: readonly number[]
   /** A line's songs in the order the line passes them, which is how its constellation is drawn. */
   readonly chain: readonly number[]
   /** The stroke as drawn, 0–1: a loop's outline is drawn back over the map. */
   readonly path: readonly MapPlace[]
+}
+
+/**
+ * The strokes' colours, told apart by lightness as well as hue, all bright
+ * enough to read on the night sky: amber, teal, pink, violet, green.
+ */
+export const TAKE_TONES = ['#f2b65a', '#5fd3c6', '#f28fb5', '#a99cff', '#9ad66b'] as const
+
+/** A new stroke's colour: the first one no stroke in the tray wears, or round again. */
+export function takeTone(takes: readonly MapTake[]): string {
+  const worn = new Set(takes.map(take => take.tone))
+  return TAKE_TONES.find(tone => !worn.has(tone)) ?? TAKE_TONES[takes.length % TAKE_TONES.length]!
 }
 
 /** What the sky is drawn from, the same for the phone's layer and the browser's. */
@@ -56,6 +72,8 @@ export interface SkyLayerProps {
   /** The stroke being drawn now. */
   readonly stroke: readonly MapPlace[]
   readonly playing: number | null
+  /** The song the pointer is on in the tray's list: ringed and named on the map. */
+  readonly lit: number | null
   /** Where the map was just pressed, for a moment. */
   readonly pulse: { x: number; y: number } | null
   readonly songs: ReadonlyMap<number, Song>

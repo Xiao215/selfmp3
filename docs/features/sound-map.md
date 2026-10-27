@@ -29,9 +29,10 @@ stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`
 computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
 every page has it (`PageHeader`: the way back on a phone, and the name, with no count
 under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); bottom right the buttons (the song playing,
-the pen, and on a computer +, − and show all); at the foot, once something is taken, the
-tray. The buttons hold their place: on a phone they stand over the folded tray and the
-opened tray lies over them as a sheet does; on a computer they are beside it. The page is dark in either theme, since the
+the pen, and on a computer +, − and show all); once something is taken, the tray: on a phone
+at the foot, on a computer a panel down the right. The buttons hold their place: on a phone
+they stand over the folded tray and the opened tray lies over them as a sheet does; on a
+computer they stand to its left. The page is dark in either theme, since the
 sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
 off; nothing counts them.
 
@@ -62,8 +63,9 @@ off; nothing counts them.
 - **Close in,** once a star would be 18 points wide (`COVER_FROM`), the stars on screen show
   their covers, and from 30 points their titles. Only those on screen ask for a picture.
 - **The song playing** is the one star wearing its cover, ringed.
-- **What the tray holds** is drawn over the sky: a line's songs joined as a constellation in
-  the order the line passes them (`chainAlong`), a loop as its dashed outline.
+- **What the tray holds** is drawn over the sky, each stroke in its own colour: a line's songs
+  joined as a constellation in the order the line passes them (`chainAlong`), a loop as its
+  dashed outline.
 - **On a computer,** the star under the pointer is ringed and named (title and artist)
   before it is pressed.
 
@@ -131,13 +133,46 @@ A stroke that takes nothing goes without a word (Xiao, 2026-10-26: the message w
 
 ### The tray
 
-`MapTray.tsx`. Each stroke adds to it; it holds every stroke since it was last cleared, each
-song once. Folded: the first three covers, its name (the strokes' names joined with " · "),
-how many songs and how long, **Save** and **Play**. Pressed or pulled up: the songs in the
-order they will play, each with a × to leave it out, and **Up next**, **Save as playlist** and
-**Play**; × in its head clears it. Save makes a playlist of exactly those songs named after
-the strokes (made unique), with Undo and Open, and empties the tray. Play plays them as "Map"
-under that name. The toasts rise above the tray and the buttons over it (`setPageFoot`).
+`MapTray.tsx`, redrawn 2026-10-26 from Xiao's picks on
+<https://claude.ai/artifact/VDscppdVDPXCeQ3M5MCnw2> (A1 B1 C1 P1): the old tray was a phone's
+sheet even on a computer, opened over the middle of the map and so over the loop just drawn,
+its head's × cleared everything though it read as "close", every row wore a ×, and the
+strokes ran together as one list.
+
+Each stroke adds to it; it holds every stroke since it was last cleared, each song once.
+
+- **Sections** (`traySections`, `tray.model.ts`): one a stroke, in the order drawn, headed by
+  its mark (a dashed ring for a loop, a curve for a line) in **its colour**, the same colour
+  its outline or constellation is drawn in on the map (`takeTone`: the first of five colours
+  no stroke in the tray wears), then its name, kind and count, and a × that drops that stroke
+  alone, with Undo. A song two strokes took sits in the first one's section. The songs are
+  numbered across sections in the order they will play, with their lengths; a section shows
+  eight until "N more"; songs left out are counted under it with **Bring back**.
+- **A row** pressed flies the map to its star and rings it (`lit`). Leaving a song out is a ×
+  where the length was, shown on hover or focus, where there is a pointer (the web), and a
+  swipe left to **Leave out** where there is not; a screen reader has it as the row's action.
+- **The head**: the name (the strokes' names joined with " · "), with a pencil to type one of
+  its own, used by Save and Play; how many songs and how long; and a chevron that hides or
+  folds the list, nothing more.
+- **The buttons** (C1): **Play**, **Save**, and **⋯** with Add to Up next, Shuffle and Clear
+  what's drawn (with Undo).
+- **Folded**: the first three covers, the name, how many and how long, Save and Play.
+
+**On a computer** it is a panel 376 points wide down the right of the map, from the top to
+the player bar, opened with the first stroke; the map is fitted and centred in what is left
+(`FieldInsets.right`), the head's tag chips stop short of it, + and − zoom about the middle
+of what is left, and the buttons stand to its left. The pointer on a row rings and names its
+star on the map as the pointer on a star does. Hidden, it folds to its one line at the foot
+of the same column.
+
+**On a phone** it stays folded at the foot until pulled up or pressed, and opens as a sheet
+half the screen high, its buttons under its head; the map's clear part shrinks to above it.
+
+Whenever the panel or the sheet opens, or a stroke is drawn where the tray lies, the map
+slides at the same scale until the strokes are clear of it (`keepClear`, `keptClear`). Save
+makes a playlist of exactly the songs held, with Undo and Open, and empties the tray. Play
+plays them as "Map" under the tray's name. The toasts rise above the tray and the buttons over
+it (`setPageFoot`), and on a computer, beside the panel, above the buttons only.
 
 ### The lens
 

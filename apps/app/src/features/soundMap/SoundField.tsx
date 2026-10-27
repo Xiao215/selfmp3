@@ -40,6 +40,7 @@ export function SoundField({
   lens,
   takes,
   stroke,
+  lit,
   onPress,
   onPathStart,
   onPathMove,
@@ -53,6 +54,8 @@ export function SoundField({
   lens: number | null
   takes: readonly MapTake[]
   stroke: readonly MapPlace[]
+  /** The song the pointer is on in the tray's list, ringed on the map. */
+  lit: number | null
   onPress: (spot: MapPlace) => void
   onPathStart: (spot: MapPlace) => void
   onPathMove: (spot: MapPlace, reach: number) => void
@@ -168,6 +171,7 @@ export function SoundField({
             takes={takes}
             stroke={stroke}
             playing={playing}
+            lit={lit}
             pulse={pulse}
             songs={songs}
             pointerRef={fieldRef}

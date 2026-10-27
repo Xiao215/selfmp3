@@ -69,13 +69,17 @@ function unorient(place: MapPlace, turned: boolean | undefined): MapPlace {
 /** A map this much wider than tall, on a field as much taller than wide, is turned. */
 const TURN_RATIO = 1.25
 
-/** What the page lays over the field's top and foot: its head, and the tray or player. */
+/**
+ * What the page lays over the field: its head at the top, the tray or player
+ * at the foot, and on a computer the tray's panel down the right.
+ */
 export interface FieldInsets {
   readonly top: number
   readonly bottom: number
+  readonly right: number
 }
 
-const NO_INSETS: FieldInsets = { top: 0, bottom: 0 }
+const NO_INSETS: FieldInsets = { top: 0, bottom: 0, right: 0 }
 
 /**
  * Every song in view, centred and as large as the field allows: a map wider
@@ -91,7 +95,7 @@ export function fitView(
 ): MapView {
   const base = baseOf(field)
   const clear = {
-    width: field.width,
+    width: Math.max(1, field.width - insets.right),
     height: Math.max(1, field.height - insets.top - insets.bottom),
   }
   const turned =
@@ -125,10 +129,50 @@ export function centredOn(
   const next = { ...view, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale)), x: 0, y: 0 }
   const at = toScreen(next, base, place)
   const middle = {
-    x: field.width / 2,
+    x: (field.width - insets.right) / 2,
     y: insets.top + (field.height - insets.top - insets.bottom) / 2,
   }
   return { ...next, x: middle.x - at.x, y: middle.y - at.y }
+}
+
+/** How far inside what is left clear `keptClear` keeps a stroke's edge. */
+const CLEAR_MARGIN = 24
+
+/**
+ * The view moved, at the same scale, just far enough that `places` lie in
+ * what the page leaves clear: a loop drawn where the tray's panel or sheet
+ * then opens slides out from under it. A stroke larger than the clear part is
+ * centred in it. Null when it is clear already.
+ */
+export function keptClear(
+  view: MapView,
+  field: FieldSize,
+  places: readonly MapPlace[],
+  insets: FieldInsets = NO_INSETS,
+): MapView | null {
+  if (places.length === 0) return null
+  const base = baseOf(field)
+  let x0 = Infinity
+  let y0 = Infinity
+  let x1 = -Infinity
+  let y1 = -Infinity
+  for (const place of places) {
+    const spot = toScreen(view, base, place)
+    x0 = Math.min(x0, spot.x)
+    y0 = Math.min(y0, spot.y)
+    x1 = Math.max(x1, spot.x)
+    y1 = Math.max(y1, spot.y)
+  }
+  const shift = (low: number, high: number, from: number, to: number): number => {
+    if (high - low > to - from) return (from + to) / 2 - (low + high) / 2
+    if (high > to) return to - high
+    if (low < from) return from - low
+    return 0
+  }
+  const dx = shift(x0, x1, CLEAR_MARGIN, field.width - insets.right - CLEAR_MARGIN)
+  const dy = shift(y0, y1, insets.top + CLEAR_MARGIN, field.height - insets.bottom - CLEAR_MARGIN)
+  if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return null
+  return { ...view, x: view.x + dx, y: view.y + dy }
 }
 
 /**

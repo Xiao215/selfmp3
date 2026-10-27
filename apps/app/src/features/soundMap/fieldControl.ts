@@ -6,6 +6,7 @@ import {
   boundsOf,
   centredOn,
   fitView,
+  keptClear,
   panBy,
   pathReach,
   toMap,
@@ -52,7 +53,7 @@ const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2)
 export class FieldControl {
   #view: MapView | null = null
   #field: FieldSize | null = null
-  #insets: FieldInsets = { top: 0, bottom: 0 }
+  #insets: FieldInsets = { top: 0, bottom: 0, right: 0 }
   #pinchFrom = 1
   #panFrom: { x: number; y: number } | null = null
   #wheelTimer: ReturnType<typeof setTimeout> | null = null
@@ -83,7 +84,7 @@ export class FieldControl {
     if (waiting) this.flyToSong(waiting, true)
   }
 
-  /** What the page lays over the field's head and foot, which a fit keeps clear of. */
+  /** What the page lays over the field's head, foot and right, which a fit keeps clear of. */
   setInsets(insets: FieldInsets): void {
     this.#insets = insets
     if (!this.#touched) this.fit(false)
@@ -125,12 +126,30 @@ export class FieldControl {
     else this.#fly(target)
   }
 
-  /** The + and − buttons: about the middle of the field. */
+  /**
+   * What the tray holds, out from under it: when its panel or sheet opens over
+   * a stroke, the map slides (at the same scale) until the stroke is clear.
+   */
+  keepClear(places: readonly MapPlace[]): void {
+    const view = this.#view
+    const field = this.#field
+    if (!view || !field) return
+    const target = keptClear(view, field, places, this.#insets)
+    if (target) this.#fly(target)
+  }
+
+  /** The + and − buttons: about the middle of what the page leaves clear. */
   zoomBy(factor: number): void {
     const view = this.#view
     const field = this.#field
     if (!view || !field) return
-    this.#fly(zoomAt(view, factor, { x: field.width / 2, y: field.height / 2 }))
+    const { top, bottom, right } = this.#insets
+    this.#fly(
+      zoomAt(view, factor, {
+        x: (field.width - right) / 2,
+        y: top + (field.height - top - bottom) / 2,
+      }),
+    )
   }
 
   /** A double tap: in, about where it landed, as a street map does. */

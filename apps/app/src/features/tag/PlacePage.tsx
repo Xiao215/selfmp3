@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ReactElement, ReactNode, RefObject } from 'react'
-import { Animated, Text, View } from 'react-native'
+import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { useNavigation, useRouter } from 'expo-router'
-import type { NativeStackNavigationProp } from 'expo-router'
+import { useRouter } from 'expo-router'
 import type { Song } from '@selfmp3/shared'
 import { space, tagColors, type, useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
@@ -27,8 +26,7 @@ import { useSongRows } from '../../ui/components/useSongRows'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
 import { useSongColor } from '../../ui/useSongColor'
 import { useSelection, type Selection } from '../../selection/useSelection'
-import { spring } from '../../ui/motion'
-import { takePlaceHandoff } from '../../ui/coverHandoff'
+import { useHeroGrow } from '../../ui/useHeroGrow'
 import {
   combinedLink,
   combinedName,
@@ -53,7 +51,6 @@ import {
   type Place,
 } from './tag.model'
 import { rowTitle } from '../../ui/surfaces'
-import { MOVE_MS } from '../../ui/motion.model'
 import { useShownScheme } from '../../ui/theme/unistyles'
 
 /**
@@ -61,7 +58,7 @@ import { useShownScheme } from '../../ui/theme/unistyles'
  * several of them together.
  *
  * A tag's page is always that one tag (docs/features/lists.md, B1): lit by
- * its covers, with Play, Shuffle and Combine with…. Combining never changes
+ * its covers, with Play, Shuffle and Mix in…. Combining never changes
  * the page under you: the tags and artists picked open as a page of their own
  * on top of it (`/combined`), where chips say what is on and every one
  * **adds** its songs, and Back comes back to the tag. Rows carry no tag chips
@@ -169,133 +166,23 @@ export function PlacePage({
     const link = combinedLink(together)
     router.push({ pathname: '/combined', params: { ...link.params } })
   }
-  // The board has the tapped tile stretching into this head (docs/ui-mock
-  // `M2`, 2). Without shared elements the head grows into place from where
-  // the tile was: the tile hands its frame over as it is tapped
-  // (`ui/coverHandoff.ts`), the hero measures its own once laid out, and the
-  // one spring carries it from the one to the other — a translation between
-  // the two centres and a scale by their widths — while the stack crossfades
-  // the page in around it. Opened any other way (Back, an address, a row's
-  // name), there is no frame and the head is simply there.
-  const [handed] = useState(() => takePlaceHandoff())
-  const [entrance] = useState(() => new Animated.Value(handed ? 0 : 1))
-  const [start] = useState(() => ({
-    dx: new Animated.Value(0),
-    dy: new Animated.Value(0),
-    grow: new Animated.Value(0),
-  }))
-  // Going back to the tile, once Back has been pressed (Xiao chose D, 2026-10-04).
-  const [home] = useState(() => new Animated.Value(0))
-  const [grow] = useState(() => {
-    // How far from its place the hero is, 0 to 1: still growing out of the
-    // tile, or on its way back into it.
-    const left = Animated.add(
-      entrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-      home,
-    ).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' })
-    return {
-      opacity: entrance,
-      transform: [
-        { translateX: Animated.multiply(left, start.dx) },
-        { translateY: Animated.multiply(left, start.dy) },
-        { scale: Animated.add(1, Animated.multiply(left, start.grow)) },
-      ],
-    }
-  })
-  const heroRef = useRef<View>(null)
-  const heroPlaced = useRef(false)
+  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`).
+  const hero = useHeroGrow(wide)
+  const heroRef = hero.heroRef
   const listActions = useListActions(ids, {
     heroRef,
     selection,
     shareAs: title,
     togetherAs: title,
   })
-  /** The hero's way between the tile and where it is laid out now. */
-  const aimAtTile = (
-    tile: NonNullable<typeof handed>,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ): void => {
-    start.dx.setValue(tile.x + tile.width / 2 - (x + width / 2))
-    start.dy.setValue(tile.y + tile.height / 2 - (y + height / 2))
-    start.grow.setValue(tile.width / width - 1)
-  }
-  /*
-   * The grow waits for the navigator's crossfade to start as well as for the
-   * hero to be measured. Sent at layout, it would all but land before the
-   * native side began the fade, so the page would arrive with the head already
-   * in place and the tile would seem not to grow at all.
-   */
-  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>()
-  const growReady = useRef({ measured: false, fading: false })
-  const growWhenReady = (): void => {
-    const ready = growReady.current
-    if (ready.measured && ready.fading) spring(entrance, 1)
-  }
-  useEffect(() => {
-    if (!handed) return undefined
-    const letGo = (): void => {
-      growReady.current.fading = true
-      growWhenReady()
-    }
-    const off = navigation.addListener('transitionStart', event => {
-      if (!event.data.closing) letGo()
-    })
-    // A stack with no moves — a browser's — says nothing; nor does one asked
-    // for less motion, where the spring lands at once anyway.
-    const late = setTimeout(letGo, MOVE_MS.placeHandOff)
-    return () => {
-      off()
-      clearTimeout(late)
-    }
-    // Once, for the page's arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const placeHero = (): void => {
-    if (!handed || heroPlaced.current) return
-    heroPlaced.current = true
-    const node = heroRef.current
-    if (!node) {
-      growReady.current.measured = true
-      growWhenReady()
-      return
-    }
-    node.measureInWindow((x, y, width, height) => {
-      if (width > 0) aimAtTile(handed, x, y, width, height)
-      growReady.current.measured = true
-      growWhenReady()
-    })
-  }
-
-  /*
-   * Back, on a phone, from a place that grew out of its Home tile: the
-   * opening in reverse (Xiao chose D, 2026-10-04). The hero is aimed at the
-   * tile from where it sits now — the page may have scrolled — and sets off
-   * with the press: the navigator tells a page that is going nothing about
-   * when its fade starts. The swipe back is left to the navigator: a hand
-   * dragging the page can still change its mind.
-   */
+  // Back, on a phone, from a place that grew out of its tile: the opening in reverse.
   const backShown = usePageBack('/').shown
   const back = (): void => {
     if (!router.canGoBack()) {
       router.replace('/')
       return
     }
-    const node = heroRef.current
-    if (!handed || wide || !node) {
-      router.back()
-      return
-    }
-    node.measureInWindow((x, y, width, height) => {
-      // Scrolled out of sight, it has nothing to carry back.
-      if (width > 0 && y + height > 0) {
-        aimAtTile(handed, x, y, width, height)
-        spring(home, 1)
-      }
-      router.back()
-    })
+    hero.back(() => router.back())
   }
 
   const listHead = (
@@ -321,8 +208,8 @@ export function PlacePage({
         </>
       }
       heroRef={heroRef}
-      heroStyle={grow}
-      onHeroLayout={placeHero}
+      heroStyle={hero.heroStyle}
+      onHeroLayout={hero.onHeroLayout}
       cover={artistAlone ? null : <PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
@@ -368,7 +255,7 @@ export function PlacePage({
           {combining ? null : (
             <Button
               testID="place-combine"
-              label="Combine with…"
+              label="Mix in…"
               accessibilityLabel={`Combine ${title} with another tag or artist`}
               icon={<Plus tone="textPrimary" />}
               onPress={() => setAdding(true)}

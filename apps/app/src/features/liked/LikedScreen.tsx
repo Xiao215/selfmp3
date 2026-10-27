@@ -1,18 +1,22 @@
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
+import { useRouter } from 'expo-router'
 import { useLibrary } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayerCommands } from '../../player/PlayerProvider'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { HeartOutline } from '../../ui/components/EmptyPictures'
 import { Heart } from '../../ui/components/Icons'
 import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHead'
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
+import { goBack } from '../../ui/useBackTo'
+import { useHeroGrow } from '../../ui/useHeroGrow'
 import { useSongColor } from '../../ui/useSongColor'
 import { useSelection } from '../../selection/useSelection'
 import { LIKED_SOURCE, likedSongs } from '../lists/lists.model'
@@ -40,7 +44,10 @@ export function LikedScreen(): ReactNode {
   const selection = useSelection(ids)
   const lead = useMemo(() => songs.find(song => song.hasArt) ?? songs[0] ?? null, [songs])
   const light = useSongColor(lead, lead ? artFor(lead) : null)
-  const heroRef = useRef<View>(null)
+  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`, I1).
+  const hero = useHeroGrow(wide)
+  const heroRef = hero.heroRef
+  const router = useRouter()
   const listActions = useListActions(ids, {
     heroRef,
     selection,
@@ -55,7 +62,10 @@ export function LikedScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <BackButton to="/playlists" />
+          <BackButton
+            to="/playlists"
+            onPress={() => hero.back(() => goBack(router, '/playlists'))}
+          />
           <MoreMenu
             name="Liked"
             items={listActions}
@@ -66,7 +76,10 @@ export function LikedScreen(): ReactNode {
         </>
       }
       heroRef={heroRef}
-      cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
+      heroStyle={hero.heroStyle}
+      onHeroLayout={hero.onHeroLayout}
+      // Nothing liked yet: no blank square over the heart that says what goes here (J1).
+      cover={ids.length > 0 ? <PlaylistCover songIds={ids} size={wide ? 176 : 196} /> : null}
       titles={
         <>
           <View style={listHeadText.nameRow}>
@@ -105,8 +118,9 @@ export function LikedScreen(): ReactNode {
           <EmptyState
             compact
             testID="liked-empty"
-            title="No liked songs yet"
-            line="Songs you like show up here."
+            picture={<HeartOutline />}
+            title="Songs you like land here"
+            line="Like a song from Now Playing, or from its ⋯ menu."
           />
         }
       />

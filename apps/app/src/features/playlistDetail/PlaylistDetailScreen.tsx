@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 // eslint-disable-next-line @typescript-eslint/no-restricted-imports -- the name and the description are edited in place, in the head's own type
 import { Text, TextInput, View } from 'react-native'
@@ -40,7 +40,8 @@ import { DeletePlaylistDialog, usePlaylistMenu } from '../playlists/playlistMenu
 import { usePlaylistPlayback } from '../playlists/usePlaylistPlayback'
 import { AddSongsSheet } from './AddSongsSheet'
 import { FollowsRow } from './FollowsRow'
-import { usePageBack } from '../../ui/useBackTo'
+import { goBack, usePageBack } from '../../ui/useBackTo'
+import { useHeroGrow } from '../../ui/useHeroGrow'
 import { Press } from '../../ui/components/Press'
 import { lineSub } from '../../ui/surfaces'
 import { NO_AUTOFILL } from '../../ui/noAutofill'
@@ -88,7 +89,9 @@ export function PlaylistDetailScreen(): ReactNode {
   const updatePlaylist = useUpdatePlaylist()
   const reorderPlaylist = useReorderPlaylist()
 
-  const heroRef = useRef<View>(null)
+  // The head grows out of the tile that opened it, and back into it (`useHeroGrow`, I1).
+  const hero = useHeroGrow(wide)
+  const heroRef = hero.heroRef
   const [renaming, setRenaming] = useState(params.rename === '1')
   const [draftName, setDraftName] = useState<string | null>(null)
   const [describing, setDescribing] = useState(params.describe === '1')
@@ -235,6 +238,8 @@ export function PlaylistDetailScreen(): ReactNode {
         </Text>
       ) : null}
       <Text style={listHeadText.summary}>
+        {/* The mark by the name says it; the word beside it says what the mark means. */}
+        {live ? 'Live · ' : ''}
         {playlistHeadLine(count, seconds, playlist?.lastPlayedAt ?? null, new Date())}
       </Text>
     </>
@@ -268,12 +273,21 @@ export function PlaylistDetailScreen(): ReactNode {
         light={light.color}
         art={leadArt}
         heroRef={heroRef}
+        heroStyle={hero.heroStyle}
+        onHeroLayout={hero.onHeroLayout}
         topBar={
           // The ⋯ in the corner, as on a tag's, an artist's and a combined
           // page (P11 A); a computer's ‹ only for a playlist opened from
           // inside a page, not from the sidebar.
           <>
-            {!wide || pageBackShown ? <BackButton to="/playlists" /> : <View />}
+            {!wide || pageBackShown ? (
+              <BackButton
+                to="/playlists"
+                onPress={() => hero.back(() => goBack(router, '/playlists'))}
+              />
+            ) : (
+              <View />
+            )}
             {moreButton}
           </>
         }

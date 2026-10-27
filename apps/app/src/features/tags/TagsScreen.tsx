@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router'
 import type { Tag } from '@selfmp3/shared'
 import { hitSlopFor, radius, space, type, useLibrary, iconSize } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
 import { useOpenSearch } from '../../shell/palette'
 import { useEscape } from '../../shell/useEscape'
@@ -44,6 +44,7 @@ import { usePlayAndTag } from '../tag/usePlayAndTag'
 import { useSmartOn } from '../smart/useSmartOn'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
+import { handOffPlace } from '../../ui/coverHandoff'
 import {
   firstDrawn,
   leadSong,
@@ -94,6 +95,7 @@ export function TagsScreen(): ReactNode {
   const { wide, finePointer } = useLayoutFlags()
   const router = useRouter()
   const player = usePlayerCommands()
+  const playingTag = usePlayingTag()
   const { data: library } = useLibrary()
   const playAndTag = usePlayAndTag()
   const [adding, setAdding] = useState(false)
@@ -127,7 +129,21 @@ export function TagsScreen(): ReactNode {
     if (node) rowRefs.current.set(tagId, node)
     else rowRefs.current.delete(tagId)
   }, [])
-  const openTag = useCallback((standing: TagStanding) => latest.current.open(standing.tag), [])
+  // A tile hands its sleeve's frame to the tag's page, whose head grows out of
+  // it (`useHeroGrow`, I1); a chip under a tile, too short to be one, does not.
+  const openTag = useCallback((standing: TagStanding) => {
+    const go = (): void => latest.current.open(standing.tag)
+    const node = rowRefs.current.get(standing.tag.id)
+    if (!node) {
+      go()
+      return
+    }
+    node.measureInWindow((x, y, width, height) => {
+      const side = Math.round(width / SLEEVE_ASPECT)
+      if (side > 0 && height >= side) handOffPlace({ x, y, width: side, height: side })
+      go()
+    })
+  }, [])
   const playTag = useCallback((standing: TagStanding) => {
     const ids = standing.songs.map(song => song.id)
     if (ids.length === 0) return
@@ -203,6 +219,7 @@ export function TagsScreen(): ReactNode {
           onOpen={openTag}
           onPlay={playTag}
           onEdit={edit}
+          spinning={entry.standing.tag.id === playingTag}
         />
       )}
     />
@@ -543,6 +560,15 @@ function UntaggedCard({
 }
 
 /**
+ * The tag playing right now, by id, while it plays: its record turns on its
+ * tile (I2). A pause, or anything but a single tag playing, is none.
+ */
+function usePlayingTag(): number | null {
+  const { source, isPlaying } = usePlayer()
+  return isPlaying && source?.kind === 'tag' ? source.tagId : null
+}
+
+/**
  * One tag in the grid: its tile, and, when it holds other tags, a chip for
  * each under it. Memoised, as its tile is: the page drawing its next tiles as
  * it scrolls redrew every chip already drawn, hundreds of them (bug bash m50).
@@ -556,6 +582,7 @@ const Entry = memo(function Entry({
   onOpen,
   onPlay,
   onEdit,
+  spinning,
 }: {
   entry: TagEntry
   order: ReadonlyMap<number, number>
@@ -565,6 +592,8 @@ const Entry = memo(function Entry({
   onOpen: (standing: TagStanding) => void
   onPlay: (standing: TagStanding) => void
   onEdit: EditTag
+  /** This tag is what is playing: its record turns. */
+  spinning: boolean
 }): ReactNode {
   const { standing, inside } = entry
   const tile = (
@@ -577,6 +606,7 @@ const Entry = memo(function Entry({
       onOpen={onOpen}
       onPlay={onPlay}
       onEdit={onEdit}
+      spinning={spinning}
     />
   )
   if (inside.length === 0) return tile
@@ -603,6 +633,7 @@ const TagTile = memo(function TagTile({
   onOpen,
   onPlay,
   onEdit,
+  spinning,
 }: {
   standing: TagStanding
   /** Its place in the most-played order. */
@@ -613,6 +644,7 @@ const TagTile = memo(function TagTile({
   onOpen: (standing: TagStanding) => void
   onPlay: (standing: TagStanding) => void
   onEdit: EditTag
+  spinning: boolean
 }): ReactNode {
   const { tag } = standing
   const lead = useMemo(() => leadSong(standing.songs), [standing.songs])
@@ -621,7 +653,16 @@ const TagTile = memo(function TagTile({
   return (
     <GridTile
       tileRef={node => rowRef(tag.id, node)}
-      cover={out => <TagSleeve song={lead} hue={tag.hue} name={tag.name} width={width} out={out} />}
+      cover={out => (
+        <TagSleeve
+          song={lead}
+          hue={tag.hue}
+          name={tag.name}
+          width={width}
+          out={out}
+          spinning={spinning}
+        />
+      )}
       look="display"
       titleLead={<TagDot hue={tag.hue} />}
       title={tag.name}
@@ -673,7 +714,7 @@ const TagTile = memo(function TagTile({
 
 /**
  * What a holder holds (AG1): each tag whose songs are all in this one, as a
- * small chip under the holder's tile — "Inside: ● late night drives… 3" — so
+ * small chip under the holder's tile — "Includes ● late night drives… (3)" — so
  * it reads as part of the tag it is in rather than as a tag beside it. A chip
  * opens its tag, and holding it or a right-click edits it, as a tile does.
  */
@@ -712,12 +753,12 @@ function InsideChips({
               style={styles.insideChip}
               {...rightClick(() => onEdit(tag))}
             >
-              {at === 0 ? <Text style={styles.insideLabel}>Inside:</Text> : null}
+              {at === 0 ? <Text style={styles.insideLabel}>Includes</Text> : null}
               <TagDot hue={tag.hue} size={7} />
               <Text style={styles.insideName} numberOfLines={1}>
                 {tag.name}
               </Text>
-              <Text style={styles.insideCount}>{standing.songs.length.toLocaleString()}</Text>
+              <Text style={styles.insideCount}>({standing.songs.length.toLocaleString()})</Text>
             </Press>
           </View>
         )

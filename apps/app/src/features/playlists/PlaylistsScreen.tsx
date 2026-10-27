@@ -27,6 +27,7 @@ import { GridTile, TileGrid, useTileGrid, type TileFocus } from '../../ui/compon
 import { useAccent } from '../../ui/accent'
 import { tip } from '../../ui/tip'
 import { Heart, Live, Play, Plus } from '../../ui/components/Icons'
+import { useTileHandoff } from '../../ui/useHeroGrow'
 import { Menu } from '../../ui/components/MoreMenu'
 import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { Select } from '../../ui/components/Select'
@@ -291,10 +292,11 @@ function LikedTile({
   onPress: () => void
 }): ReactNode {
   const { theme } = useUnistyles()
+  const { ref: coverRef, open: openFromCover } = useTileHandoff()
   return (
     <GridTile
       cover={
-        <View>
+        <View ref={coverRef} collapsable={false}>
           <PlaylistCover songIds={songIds} />
           <View style={styles.fillsMark}>
             <Heart size={iconSize.field} filled color={theme.colors.danger} />
@@ -307,7 +309,7 @@ function LikedTile({
           ? 'Songs you like'
           : `${plural(songIds.length, 'song', 'songs')} · keeps itself`
       }
-      onPress={onPress}
+      onPress={() => openFromCover(onPress)}
       label="Liked"
       testID="playlists-liked-tile"
     />
@@ -374,10 +376,12 @@ const PlaylistTile = memo(function PlaylistTile({
 }): ReactNode {
   const { theme } = useUnistyles()
   const live = isLive(playlist)
+  // Its cover is where the playlist's page grows from (`useHeroGrow`, I1).
+  const { ref: coverRef, open: openFromCover } = useTileHandoff()
   return (
     <GridTile
       cover={
-        <View>
+        <View ref={coverRef} collapsable={false}>
           <PlaylistCover playlist={playlist} />
           {/* A round mark: the line under the name says what it fills from. */}
           {live ? (
@@ -389,7 +393,7 @@ const PlaylistTile = memo(function PlaylistTile({
       }
       title={playlist.name}
       sub={line}
-      onPress={() => onOpen(playlist)}
+      onPress={() => openFromCover(() => onOpen(playlist))}
       onMenu={at => onMenu(playlist, at)}
       label={playlist.name}
       hint={finePointer ? 'Right-click for more actions' : 'Hold for more actions'}

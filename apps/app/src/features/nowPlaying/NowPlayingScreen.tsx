@@ -61,7 +61,7 @@ import { openQueueSheet } from '../queue/queueSheet.store'
 import { ArtistLinks } from './ArtistLinks'
 import { leaveTo, putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
-import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { canRomanize, RomanizeButton } from './LyricsTools'
 import { SongTagsLine } from './SongTagsLine'
 import { useNowPlayingSong } from './useNowPlayingSong'
 import { NowPlayingStage } from './NowPlayingStage'
@@ -202,8 +202,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   const songColor = useSongColor(song, uri)
   const lyrics = useSongWords(song)
   const words = lyrics.words
-  // Not while offline: the words may exist, and there is text to say why they are not here.
-  const noLyrics = words.status === 'missing' && !words.offline
 
   const [sleepOpen, setSleepOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -458,7 +456,6 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
             song={song}
             uri={uri}
             lyrics={lyrics}
-            noLyrics={noLyrics}
             onBack={() => setView('cover')}
             fingerOnWords={fingerOnWords}
             onDeck={wordsDeck}
@@ -851,14 +848,12 @@ function BreathingCover({
  * The words alone (`P22`): a small header with the way back, the song and the
  * romaji or pinyin switch; the lyrics across the page; and the scrubber and
  * the transport under them. A song with no lyrics says so where the words
- * would be — no visual on a phone (Xiao, 2026-10-09) — and the switch's place
- * asks the lookup for lyrics again, as the computer's does.
+ * would be — no visual on a phone (Xiao, 2026-10-09).
  */
 function WordsView({
   song,
   uri,
   lyrics,
-  noLyrics,
   onBack,
   fingerOnWords,
   onDeck,
@@ -868,7 +863,6 @@ function WordsView({
   /** How tall the scrubber and the transport are together, so the toasts keep above them. */
   onDeck: (height: number) => void
   lyrics: ReturnType<typeof useSongWords>
-  noLyrics: boolean
   onBack: () => void
   /** Set while a finger that came down on the words is still down: the page's pull leaves it to the list. */
   fingerOnWords: TouchFlag
@@ -885,13 +879,7 @@ function WordsView({
         cover={uri}
         coverTitle={song.album || song.title}
         onBack={onBack}
-        tool={
-          canRomanize(lyrics) ? (
-            <RomanizeButton lyrics={lyrics} />
-          ) : noLyrics ? (
-            <FindLyricsButton onPress={lyrics.lookAgain} />
-          ) : null
-        }
+        tool={canRomanize(lyrics) ? <RomanizeButton lyrics={lyrics} /> : null}
       />
       <PhoneWordsBody
         words={lyrics.words}

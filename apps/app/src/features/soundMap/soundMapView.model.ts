@@ -24,6 +24,41 @@ export interface FieldSize {
   readonly height: number
 }
 
+/**
+ * Where the map is as it moves, read by whatever draws it without a render:
+ * a move is many frames a second, and drawing the page again for each one
+ * was what made the map lag behind a finger (2026-10-26).
+ */
+export interface LiveView {
+  readonly now: () => MapView
+  /** Told every frame of a move; returns the way to stop listening. */
+  readonly watch: (moved: (view: MapView) => void) => () => void
+}
+
+/** The live view a field feeds: `show` each frame, and the sky reads it. */
+export function liveView(first: MapView): LiveView & { show: (view: MapView) => void } {
+  let view = first
+  const watchers = new Set<(view: MapView) => void>()
+  return {
+    now: () => view,
+    watch: moved => {
+      watchers.add(moved)
+      return () => {
+        watchers.delete(moved)
+      }
+    },
+    show: next => {
+      view = next
+      for (const moved of watchers) moved(next)
+    },
+  }
+}
+
+/** A view that never moves: Home's card. */
+export function stillView(view: MapView): LiveView {
+  return { now: () => view, watch: () => () => {} }
+}
+
 const MIN_SCALE = 0.8
 export const MAX_SCALE = 24
 /** Room around the map at its fitted size, so tiles at the edge are not cut. */

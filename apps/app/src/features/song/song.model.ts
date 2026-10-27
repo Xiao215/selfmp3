@@ -63,6 +63,8 @@ interface StoryRow {
 export interface WeekStrip {
   /** Each bar from 0 to 1. */
   readonly bars: readonly number[]
+  /** The plays in each bar, written over it on Now Playing's Details. */
+  readonly counts: readonly number[]
   /** The tallest bar, drawn in the accent. */
   readonly peak: number
   /** "Weeks since 3 March", under the strip. */
@@ -235,9 +237,111 @@ function weekStrip(weeks: ReadonlyMap<number, number>, from: Date, now: Date): W
   if (most === 0) return null
   return {
     bars: counts.map(n => n / most),
+    counts,
     peak: counts.indexOf(most),
     caption: `${per === 1 ? 'Weeks since' : 'Since'} ${dayWords(from, now)}`,
   }
+}
+
+/**
+ * The head of Now Playing's Details: "Yours since 3 August." over "14 plays,
+ * 45 min together · mostly late at night". A song never played says so
+ * instead. The minutes and the time of day are the server's; without one the
+ * line is the song record's play count alone.
+ */
+export function togetherHead(
+  song: Pick<Song, 'addedAt' | 'playCount'>,
+  history: SongHistory | null,
+  now: Date,
+): { title: string; line: string } {
+  const plays = history?.plays ?? song.playCount
+  const added = parseWhen(song.addedAt)
+  const since = Number.isNaN(added.getTime()) ? null : dayWords(added, now)
+  if (plays === 0) {
+    return { title: 'Not played yet.', line: since ? `Here since ${since}` : '' }
+  }
+  const parts = [plural(plays, 'play', 'plays')]
+  if (history && history.msPlayed > 0) {
+    parts[0] += `, ${formatListenTime(history.msPlayed / 60_000)} together`
+  }
+  const usual = history ? usualTime(history.hours) : null
+  if (usual) parts.push(usual)
+  return { title: since ? `Yours since ${since}.` : 'Yours a while now.', line: parts.join(' · ') }
+}
+
+/**
+ * The song page's story as Now Playing's Details lays it out, under a head
+ * that already says since when and how much: the first card names where it
+ * came from rather than the day (the head's "Yours since"), and the last play
+ * leaves out the count the head gives.
+ */
+export function togetherCards(
+  song: Pick<Song, 'addedAt' | 'sourceUrl' | 'playCount' | 'lastPlayedAt'>,
+  history: SongHistory | null,
+  now: Date,
+): readonly StoryRow[] {
+  const cameWith = history?.cameWith ?? null
+  return songStory(song, history, now).rows.map(row => {
+    if (row.key === 'came') {
+      return {
+        ...row,
+        label: 'Came from',
+        value: cameName(song, cameWith),
+        sub: cameVia(song, cameWith),
+      }
+    }
+    if (row.key === 'last') return { ...row, sub: '' }
+    return row
+  })
+}
+
+/** "Mina's link", "YouTube Music", or "A file of yours". */
+function cameName(song: Pick<Song, 'sourceUrl'>, cameWith: CameWith | null): string {
+  if (cameWith) return `${cameWith.from}'s ${cameWith.kind}`
+  return song.sourceUrl ? sourceName(song.sourceUrl) : 'A file of yours'
+}
+
+/** Where a friend's song was from before them, when it is known. */
+function cameVia(song: Pick<Song, 'sourceUrl'>, cameWith: CameWith | null): string {
+  return cameWith && song.sourceUrl ? `first from ${sourceName(song.sourceUrl)}` : ''
+}
+
+/** The parts of a day plays fall in, as the line says them. */
+const DAY_PARTS = [
+  'mostly in the morning',
+  'mostly in the afternoon',
+  'mostly in the evening',
+  'mostly late at night',
+] as const
+
+/** Which of `DAY_PARTS` a local hour is in: before five in the morning is still the night before. */
+function dayPart(hour: number): number {
+  if (hour >= 22 || hour < 5) return 3
+  if (hour >= 17) return 2
+  if (hour >= 12) return 1
+  return 0
+}
+
+/** Fewer plays than this have no habit to speak of. */
+const USUAL_MIN_PLAYS = 4
+
+/**
+ * "mostly late at night", when at least half its plays began in one part of
+ * the day; null for a song played at any hour, or too few times to say.
+ */
+export function usualTime(hours: SongHistory['hours']): string | null {
+  const counts = DAY_PARTS.map(() => 0)
+  let total = 0
+  for (const hour of hours) {
+    const at = parseWhen(hour.at)
+    if (Number.isNaN(at.getTime())) continue
+    const part = dayPart(at.getHours())
+    counts[part] = (counts[part] ?? 0) + hour.plays
+    total += hour.plays
+  }
+  if (total < USUAL_MIN_PLAYS) return null
+  const most = Math.max(...counts)
+  return most * 2 >= total ? (DAY_PARTS[counts.indexOf(most)] ?? null) : null
 }
 
 /**

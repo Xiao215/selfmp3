@@ -13,7 +13,7 @@ import { fieldCursor, useFieldWheel } from './fieldInput'
 import { SkyLayer } from './SkyLayer'
 import type { TagRegion } from '@selfmp3/client'
 import type { MapTake, SkyPoint } from './sky.model'
-import { baseOf, type FieldSize, type MapView } from './soundMapView.model'
+import { baseOf, liveView, type FieldSize, type MapView } from './soundMapView.model'
 
 /** How long a finger holds still before a drag draws rather than moves the map. */
 const HOLD_MS = 320
@@ -66,7 +66,9 @@ export function SoundField({
   onPathEnd: () => void
 }): ReactNode {
   const [field, setField] = useState<FieldSize | null>(null)
-  const [view, setView] = useState<MapView | null>(null)
+  // Where the map is, each frame, for the sky to read without a render: the
+  // page is drawn again only when a move settles.
+  const [live] = useState(() => liveView({ scale: 1, x: 0, y: 0 }))
   // The view the stars were last drawn for: changes only when a move settles.
   const [settled, setSettled] = useState<MapView | null>(null)
   const [hold, setHold] = useState<{ x: number; y: number } | null>(null)
@@ -79,20 +81,28 @@ export function SoundField({
     return () => clearTimeout(timer)
   }, [pulse])
 
+  // The page's handlers, newest first, read when the field calls: listening
+  // again whenever one changed stopped any flight under way (a listener let
+  // go lands it), so the tray opening, or a stroke drawn, left the map where
+  // it was instead of sliding the stroke clear (2026-10-26).
+  const handlers = useRef({ onPress, onPathStart, onPathMove, onPathEnd })
+  useLayoutEffect(() => {
+    handlers.current = { onPress, onPathStart, onPathMove, onPathEnd }
+  })
   useLayoutEffect(
     () =>
       control.listen({
-        show: setView,
+        show: live.show,
         settle: setSettled,
         press: (spot, point, reach) => {
-          if (onPress(spot, reach)) setPulse(point)
+          if (handlers.current.onPress(spot, reach)) setPulse(point)
         },
         hold: setHold,
-        pathStart: onPathStart,
-        pathMove: onPathMove,
-        pathEnd: onPathEnd,
+        pathStart: spot => handlers.current.onPathStart(spot),
+        pathMove: (spot, reach) => handlers.current.onPathMove(spot, reach),
+        pathEnd: () => handlers.current.onPathEnd(),
       }),
-    [control, onPress, onPathStart, onPathMove, onPathEnd],
+    [control, live],
   )
 
   const onLayout = useCallback(
@@ -162,10 +172,10 @@ export function SoundField({
         accessibilityLabel={`Sound map, ${points.length} songs. Tap to play the songs there; hold, then drag, to draw a line or a loop.`}
         testID="sound-map-field"
       >
-        {field && view && settled ? (
+        {field && settled ? (
           <SkyLayer
             field={field}
-            view={view}
+            live={live}
             settled={settled}
             base={baseOf(field)}
             points={points}

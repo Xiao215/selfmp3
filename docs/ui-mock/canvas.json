@@ -829,7 +829,7 @@
       "y": 5200,
       "w": 420,
       "maxH": 840,
-      "text": "The mini player is a floating card above the bar with a progress wash and a queue button; tapping it opens Now Playing.\n\nNow Playing: no selector at the top. ⓘ opens the song's page. The foot is Lyrics · Sleep · queue. Tags wrap quietly under the artist. Lyrics is a swipe or the pill and opens the lyrics-only page. A song without lyrics shows Ripples instead, coloured from its cover, with a Find lyrics button that asks again.\n\nUp next is a sheet that covers the mini player and the bar. The playing song is on top with an equaliser. Hold to move, swipe left to remove; no grips, no ×. Played songs sink to the end, greyed.\n\nLock screen: the system player; no Loved button and no add-tag button. Widget: four tag tiles, tap to play, and what is playing.",
+      "text": "The mini player is a floating card above the bar with a progress wash and a queue button; tapping it opens Now Playing.\n\nNow Playing: no selector at the top. ⓘ opens the song's page. The foot is Lyrics · Sleep · queue. Tags wrap quietly under the artist. Lyrics is a swipe or the pill and opens the lyrics-only page. A song without lyrics shows Ripples instead, coloured from its cover.\n\nUp next is a sheet that covers the mini player and the bar. The playing song is on top with an equaliser. Hold to move, swipe left to remove; no grips, no ×. Played songs sink to the end, greyed.\n\nLock screen: the system player; no Loved button and no add-tag button. Widget: four tag tiles, tap to play, and what is playing.",
       "color": "blue",
       "page": "phone"
     },

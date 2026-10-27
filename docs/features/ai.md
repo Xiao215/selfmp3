@@ -529,8 +529,8 @@ and cannot say "古典 or 原神纯音乐, and calm".
 5. **Answer**: the parts as applied, how many songs fit, what was let go and what the
    library lacks, and the picks with reasons.
 
-Taking a chip away does not read the words again: **Pick again** sends the parts back and
-only steps 2 to 4 run.
+Taking a chip away does not read the words again: the page picks again at once, sending the
+parts back, and only steps 2 to 4 run.
 
 ## Tags: your tags put right
 

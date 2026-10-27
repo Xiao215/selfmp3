@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import type { StyleProp, ViewStyle } from 'react-native'
-import { StyleSheet } from 'react-native-unistyles'
+import { useUnistyles } from 'react-native-unistyles'
 import { tagColors } from '@selfmp3/client'
 import { useShownScheme } from '../theme/unistyles'
 
@@ -23,18 +23,21 @@ export function TagDot({
   style?: StyleProp<ViewStyle>
 }): ReactNode {
   const scheme = useShownScheme()
+  const { theme } = useUnistyles()
+  // The colour is worked out here, not left to a themed style with the hue laid
+  // over it: on a phone, inside a ScopedTheme (the sound map's), Unistyles laid
+  // the themed grey back over the hue, and every tag's dot was grey (2026-10-26).
   return (
     <View
       style={[
-        styles.dot,
-        { width: size, height: size, borderRadius: size / 2 },
-        hue === undefined ? null : { backgroundColor: tagColors(hue, scheme).dot },
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: hue === undefined ? theme.colors.textMuted : tagColors(hue, scheme).dot,
+        },
         style,
       ]}
     />
   )
 }
-
-const styles = StyleSheet.create(theme => ({
-  dot: { backgroundColor: theme.colors.textMuted },
-}))

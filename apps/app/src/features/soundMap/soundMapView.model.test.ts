@@ -6,7 +6,9 @@ import {
   centredOn,
   fitView,
   keptClear,
+  liveView,
   MAX_SCALE,
+  stillView,
   tileSide,
   toMap,
   toScreen,
@@ -110,5 +112,24 @@ describe('the sound map’s view', () => {
     expect(toScreen(moved!, base, under[1]!).x).toBeCloseTo(field.width - 400 - 24, 5)
     const clear = [toMap(view, base, { x: 100, y: 300 }), toMap(view, base, { x: 200, y: 350 })]
     expect(keptClear(view, field, clear, insets)).toBeNull()
+  })
+})
+
+describe('the live view', () => {
+  it('tells its watchers each view, and lets one stop listening', () => {
+    const live = liveView({ scale: 1, x: 0, y: 0 })
+    const seen: number[] = []
+    const stop = live.watch(view => seen.push(view.x))
+    live.show({ scale: 1, x: 5, y: 0 })
+    stop()
+    live.show({ scale: 1, x: 9, y: 0 })
+    expect(seen).toEqual([5])
+    expect(live.now().x).toBe(9)
+  })
+
+  it('holds still when still', () => {
+    const still = stillView({ scale: 2, x: 1, y: 1 })
+    expect(still.now()).toEqual({ scale: 2, x: 1, y: 1 })
+    expect(() => still.watch(() => {})()).not.toThrow()
   })
 })

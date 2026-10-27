@@ -43,7 +43,6 @@ import { answerSongs, describeNotes, parts } from './smart.model'
 import { noServerToAsk } from '../../connection/via'
 import { useSmartServer } from './useSmartServer'
 import { StatusLine } from '../../ui/components/StatusLine'
-import { OPACITY } from '../../ui/motion.model'
 
 /**
  * An answer to Ask as a page of its own, `/answer?id=…` (docs/features/lists.md,
@@ -59,8 +58,8 @@ import { OPACITY } from '../../ui/motion.model'
  * is Up next by the name of your question, and Save is there. The order you
  * put it in is the order it plays and saves in, for as long as the app is open.
  *
- * What it understood is shown as chips; taking one away and pressing
- * Different songs picks again from what is left.
+ * What it understood is shown as chips; taking one away picks again at once
+ * from what is left, where the songs shown that still fit can stay.
  */
 export function AnswerScreen(): ReactNode {
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -133,7 +132,7 @@ export function AnswerView({
         avoid: asked.avoid,
       })
     },
-    onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer),
+    onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer, asked.understanding),
   })
 
   if (!kept || !result) {
@@ -163,8 +162,14 @@ export function AnswerView({
     fly(heroRef.current, ids.slice(index))
     player.playFrom(ids, index, { source })
   }
+  // A chip taken away picks again at once; until the songs come (or when they
+  // could not), what is shown is still the old answer, and says so.
   const notes = edited
-    ? ['Changed. Different songs picks from what these let in.']
+    ? [
+        again.isPending
+          ? 'Picking again from what these let in…'
+          : 'Changed. Different songs picks from what these let in.',
+      ]
     : describeNotes(result, ids.length).slice(1)
 
   const save = async (): Promise<void> => {
@@ -253,7 +258,18 @@ export function AnswerView({
           </Text>
           <View style={styles.chips}>
             {parts(understanding, tags).map(part => {
-              const takeAway = (): void => editAnswer(kept.id, part.without(understanding))
+              const takeAway = (): void => {
+                const left = part.without(understanding)
+                editAnswer(kept.id, left)
+                // Nothing avoided: the songs shown that still fit may stay.
+                if (server.api)
+                  again.mutate({
+                    answerId: kept.id,
+                    text: kept.text,
+                    understanding: left,
+                    avoid: [],
+                  })
+              }
               return (
                 <Chip
                   key={part.key}
@@ -314,7 +330,7 @@ export function AnswerView({
   return (
     <View style={styles.screen} testID="answer-page">
       {bar.beforeList}
-      <View style={[styles.listArea, edited && styles.stale]}>
+      <View style={styles.listArea}>
         <OrderedSongList
           songs={songs}
           label={`Songs picked for ${kept.text}`}
@@ -338,7 +354,6 @@ const styles = StyleSheet.create(theme => ({
   // Ask's trail takes the corner's width, the ⋯ at its end.
   top: { flex: 1, minWidth: 0, marginRight: space.sm },
   listArea: { flex: 1, minHeight: 0 },
-  stale: { opacity: OPACITY.dim },
   // Words asked run longer than a tag's name: smaller, so three lines still hold them.
   nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },

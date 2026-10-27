@@ -41,7 +41,7 @@ appId: com.selfmp3.app
 # Off already on a phone nobody has turned it on for.
 - runFlow:
     when:
-      visible: 'New songs, by themselves'
+      visible: 'Wi-Fi downloads, On'
     commands:
       - tapOn:
           id: 'setting-auto-download'

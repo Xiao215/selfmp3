@@ -33,7 +33,13 @@ import {
   type SkyPoint,
   type StarLook,
 } from './sky.model'
-import { tileSide, toScreen, type FieldSize, type MapView } from './soundMapView.model'
+import {
+  tileSide,
+  toScreen,
+  type FieldSize,
+  type LiveView,
+  type MapView,
+} from './soundMapView.model'
 
 /**
  * The sound map's sky in a browser and the desktop app: one canvas for the
@@ -61,10 +67,10 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
 
   const latest = useRef({ props, hover, art, byId, accent })
   const frame = useRef<number | null>(null)
-  // Every render is a frame to draw: the newest props are kept for it, and
-  // several renders before the next frame draw once.
-  useLayoutEffect(() => {
-    latest.current = { props, hover, art, byId, accent }
+  // A frame to draw, at most one a frame: asked for by every render, with the
+  // newest props kept for it, and by every frame of a move, which reads where
+  // the map is from `live` without a render.
+  const paint = useCallback(() => {
     if (frame.current !== null) return
     frame.current = requestAnimationFrame(() => {
       frame.current = null
@@ -72,11 +78,16 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
       const ctx = canvas?.getContext('2d')
       if (!canvas || !ctx) return
       const { props: now, hover: pointer, art: artOf, byId: placed, accent: ink } = latest.current
-      draw(ctx, canvas, now, placed, ink, pointer, song =>
+      draw(ctx, canvas, now, now.live.now(), placed, ink, pointer, song =>
         coverImage(artOf(song), () => setCovers(n => n + 1)),
       )
     })
+  }, [])
+  useLayoutEffect(() => {
+    latest.current = { props, hover, art, byId, accent }
+    paint()
   })
+  useEffect(() => props.live.watch(paint), [props.live, paint])
   useEffect(
     () => () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current)
@@ -87,7 +98,7 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
 
   return (
     <>
-      <DeepSky field={field} view={props.view} still={props.still ?? false} />
+      <DeepSky field={field} live={props.live} still={props.still ?? false} />
       <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
     </>
   )
@@ -113,11 +124,11 @@ const TWINKLE_FRAME_MS = 40
  */
 function DeepSky({
   field,
-  view,
+  live,
   still,
 }: {
   field: FieldSize
-  view: MapView
+  live: LiveView
   still: boolean
 }): ReactNode {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -131,7 +142,7 @@ function DeepSky({
     }, []),
   )
   const layers = useMemo(() => (still ? [] : deepStars()), [still])
-  const latest = useRef({ view, ground })
+  const latest = useRef({ ground })
   const wake = useRef<(() => void) | null>(null)
   useEffect(() => {
     const twinkle = !still && !reduced && focused
@@ -143,7 +154,8 @@ function DeepSky({
     }
     const tick = (now: number): void => {
       frame = twinkle ? requestAnimationFrame(tick) : null
-      const { view: at, ground: back } = latest.current
+      const at = live.now()
+      const { ground: back } = latest.current
       const changed = at !== drawn.view || back !== drawn.ground
       if (!changed && (!twinkle || now - drawn.at < TWINKLE_FRAME_MS)) return
       drawn = { view: at, ground: back, at: now }
@@ -159,11 +171,12 @@ function DeepSky({
       if (frame !== null) cancelAnimationFrame(frame)
       wake.current = null
     }
-  }, [field, focused, layers, reduced, still])
+  }, [field, focused, layers, live, reduced, still])
   useLayoutEffect(() => {
-    latest.current = { view, ground }
+    latest.current = { ground }
     wake.current?.()
   })
+  useEffect(() => live.watch(() => wake.current?.()), [live])
   return <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
 }
 
@@ -340,12 +353,13 @@ function draw(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   props: SkyLayerProps,
+  view: MapView,
   byId: ReadonlyMap<number, SkyPoint>,
   accent: string,
   pointer: { x: number; y: number } | null,
   cover: (song: Song) => HTMLImageElement | null,
 ): void {
-  const { field, view, base, points, regions, lens, takes, stroke, playing, lit, panel } = props
+  const { field, base, points, regions, lens, takes, stroke, playing, lit, panel } = props
   const { pulse, songs } = props
   const { width, height } = field
   const dpr = dprOf()

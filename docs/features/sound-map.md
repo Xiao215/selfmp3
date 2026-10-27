@@ -12,8 +12,9 @@ bar).
 
 **Where:** the phone, the computer, the web and the desktop app, at `/sound-map`. Ways in:
 
-- a **card on Home** under Your tags, a small still sky of the library with the song playing
-  lit (`MapCard.tsx`), shown once there are songs on the map;
+- a **card on Home** under Your tags, a small still sky of the library and nothing over it:
+  no words and no mark for the song playing, since the card is the map's shape, not where you
+  are in it (Xiao, 2026-10-26) (`MapCard.tsx`), shown once there are songs on the map;
 - a **sidebar row** on a computer, under Library;
 - **Draw it on the map** in New playlist, which opens the map with the pen ready
   (`?draw=1`);
@@ -28,11 +29,14 @@ A cloud library draws it offline from a file in the bucket.
 stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`); on a
 computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
 every page has it (`PageHeader`: the way back on a phone, and the name, with no count
-under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); bottom right the buttons (the song playing,
-the pen, and on a computer +, − and show all); once something is taken, the tray: on a phone
-at the foot, on a computer a panel down the right. The buttons hold their place: on a phone
-they stand over the folded tray and the opened tray lies over them as a sheet does; on a
-computer they stand to its left. The page is dark in either theme, since the
+under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); the buttons (the song playing,
+the pen, and on a computer +, − and show all) at the foot, on the right on a phone and on the
+left on a computer; once something is taken, the tray: on a phone at the foot, on a computer
+a panel down the right. The buttons hold their place: on a phone they stand over the folded
+tray and the opened tray lies over them as a sheet does; on a computer the panel never
+reaches them (2026-10-27: on the right they moved over each time it opened). On a computer
+the page wears no way back however it was opened, Home's card included, since the sidebar
+has a row for it (Xiao, 2026-10-27). The page is dark in either theme, since the
 sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
 off; nothing counts them.
 
@@ -97,7 +101,8 @@ off; nothing counts them.
 moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a
 tile was moved to became a new rule, and a few minutes of zooming filled Chrome's memory
 until the tab died (Xiao, 2026-10-26). The browser now draws the sky into one `<canvas>`, at
-most once a frame while it moves and not at all while it holds still (the ground and the deep sky are a second canvas
+most once a frame while it moves and not at all while it holds still, reading where the map is
+from the field (`LiveView`) rather than through a render (the ground and the deep sky are a second canvas
 under it, drawn again at most 25 times a second while they twinkle, so a twinkle never draws
 the songs again); nothing a song is drawn
 with is a style. It keeps a glow picture per colour and at most 240 covers (the oldest let
@@ -105,15 +110,29 @@ go). Measured in Chrome on the test library: zooming and moving for a minute lef
 rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 355 → 389
 nodes; 31 → 34 MB).
 
-**On a phone** the stars are one SVG, a circle a star filled with its colour's gradient,
-drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
-moves it; their sizes and covers are worked out again when it settles, and a cover that
-appears then fades in. The deep sky's stars are small views placed for the settled view and
-moved by `deepSince` while a finger moves the map; they are grouped by the twinkle they
-follow, and three looping `Animated` values on the native driver fade the six groups a layer
-has. One animated view a star was 380 views moved every frame, about 40 % of the app's time on
-the simulator; grouped, the map costs what it did without a deep sky. The stroke and the song
-playing are drawn over it at screen size each frame.
+**On a phone** a move costs no render. The field hands each frame's view to a Reanimated
+shared value (`LiveView`, `useLiveView`), and the native side moves and scales the sky drawn
+for where the map last held still; React draws again only when it settles. Everything a song
+is drawn with (the nebulae, the stars, the covers, what the tray holds, the song playing) is
+one layer kept as one picture while it moves (`shouldRasterizeIOS`), so a pan composites a
+picture rather than every cover's rounded clip and rim. The sky is drawn twice over
+(`useSlots`): a settled view is drawn into the copy not showing, and after the commit that
+drew it the native side shows that copy, moved for where the map is, and hides the other in
+the same frame, so new stars never show for a frame at the old place. The two transforms are
+not nested: a drawing scaled down by one view and up by another came out blurred. The stars
+are a glow circle each and, over all the glows, one path of dots a colour and step of
+brightness; the deep sky is a path a tint and step a twinkle group. An SVG element is a
+native view, and a star drawn as two groups and two circles made some 6,000 views to build
+at each settle, which held the phone for seconds.
+
+Measured on the iPhone 17 simulator with a 1,635-song library, covers open (2026-10-26):
+before, a pan drew about 10 frames a second and the map went on moving for two seconds after
+the finger stopped, since every frame drew the nebulae and the tray's marks again through
+React; after, the pan's events reach the field as they happen (none waits on a render) and
+the sky moved every 23 ms at the whole-map view and every 38 ms with covers open, which is the
+simulator's own compositor, drawing in software, at its limit rather than the app. Drawing a settled view went from about 2.3 s to 0.8 s at the whole-map
+view in a development build. The stroke being drawn, the pressed spot and the song lit from
+the tray are drawn over the sky and move with it.
 
 ### Gestures
 
@@ -196,7 +215,7 @@ Each stroke adds to it; it holds every stroke since it was last cleared, each so
 **On a computer** it is a panel 376 points wide down the right of the map, from the top to
 the player bar, opened with the first stroke; the map is fitted and centred in what is left
 (`FieldInsets.right`), the head's tag chips stop short of it, + and − zoom about the middle
-of what is left, and the buttons stand to its left. The pointer on a row rings and names its
+of what is left. The pointer on a row rings and names its
 star on the map as the pointer on a star does. Folded (K4, 2026-10-26: a line at the foot
 that appeared and vanished with no motion read as broken), the card keeps its head where it
 was and the list folds up under it, its height and its fade sliding together (`Fold`); it

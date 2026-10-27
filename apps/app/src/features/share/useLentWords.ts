@@ -71,7 +71,5 @@ export function useLentWords(
     setRomanization: (on: boolean) => {
       if (language !== 'none') setRomanizationOn(language, on)
     },
-    // There is nowhere else to look: the link lends what its sender has.
-    lookAgain: () => undefined,
   }
 }

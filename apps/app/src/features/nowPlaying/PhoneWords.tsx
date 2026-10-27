@@ -53,7 +53,7 @@ export function PhoneWordsHead({
   /** What the cover's stand-in is drawn from: the page's big cover's own. */
   coverTitle: string
   onBack: () => void
-  /** Romaji or pinyin, or Now Playing's Find lyrics. */
+  /** Romaji or pinyin, for words that have them. */
   tool: ReactNode
   /** Where the page lays it, when not across its whole width: a link's, in its one column. */
   style?: StyleProp<ViewStyle>

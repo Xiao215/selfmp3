@@ -412,6 +412,58 @@ export function answerRecap(
   return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
 }
 
+/** The longest line Ask's log gives an answer before it is cut short. */
+const LOG_LINE_MAX = 90
+
+/**
+ * An answer as one line of Ask's log (S1, 2026-10-27): what came of it, for a
+ * person and short — how many songs and their name, what is waiting to be
+ * looked over, or the start of what was said. `answerRecap` is the model's.
+ */
+export function logLine(answer: AskAnswer): string {
+  const first = (said: string): string => {
+    const line = said.split('\n')[0]?.trim() ?? ''
+    return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+  }
+  const songs = (count: number): string => plural(count, 'song', 'songs')
+  switch (answer.kind) {
+    case 'songs':
+      return `${songs(answer.describe.picks.length)} · ${answer.describe.understanding.name}`
+    case 'together':
+      return answer.describe
+        ? `A listening room with ${songs(answer.describe.picks.length)}`
+        : 'A listening room'
+    case 'find':
+      return plural(answer.picks.length, 'song found', 'songs found')
+    case 'explore':
+    case 'open':
+    case 'none':
+      return first(answer.say)
+    case 'tags':
+      return `${plural(answer.review.changes.length, 'tag change', 'tag changes')} to look over`
+    case 'tidy':
+      return `${plural(answer.tidy.changes.length, 'name change', 'name changes')} to look over`
+    case 'copies':
+      return `${songs(answer.copies.copies.length)} you have more than once`
+    case 'remember':
+      return 'Something to remember'
+    case 'getMusic':
+      return `${plural(answer.items.length, 'match', 'matches')} to get`
+    case 'playlists':
+      return answer.op === 'delete'
+        ? `${plural(answer.names.length, 'playlist', 'playlists')} to delete`
+        : 'A playlist to rename'
+    case 'playlistSongs':
+      return `A change to ${answer.playlist}`
+    case 'library':
+      return songs(answer.count)
+    case 'stats':
+      return `${plural(answer.plays, 'play', 'plays')} in ${rangeWords(answer.range)}`
+    case 'playback':
+      return `Asked to ${PLAYBACK_ASKED[answer.op]}`
+  }
+}
+
 /**
  * A change in a review (Tidy up's names, Tags' changes) as this device has it:
  * its key, whether a plain rule or the model found it, and its songs here.

@@ -6,6 +6,8 @@ import {
   iosAssetUrl,
   announcesIosBuild,
   IOS_ANNOUNCE_GAP_MS,
+  IOS_INSTALL_WATCH_MS,
+  iosInstallOutcome,
   isNewerIosBuild,
   iphoneKey,
   renderIosManifest,
@@ -50,6 +52,16 @@ describe('the iPhone app for friends', () => {
     expect(isNewerIosBuild(latest(120), 121)).toBe(false)
     expect(isNewerIosBuild(null, 1)).toBe(false)
     expect(isNewerIosBuild(latest(120), Number.NaN)).toBe(false)
+  })
+
+  it('tells, on starting again, whether the build handed to iOS went in', () => {
+    const tried = { build: 120, at: 0 }
+    expect(iosInstallOutcome(tried, 120, 60_000)).toBe('in')
+    expect(iosInstallOutcome(tried, 121, 60_000)).toBe('in')
+    expect(iosInstallOutcome(tried, 119, 60_000)).toBe('not-in')
+    expect(iosInstallOutcome(tried, 119, IOS_INSTALL_WATCH_MS + 1)).toBeNull()
+    expect(iosInstallOutcome(null, 119, 0)).toBeNull()
+    expect(iosInstallOutcome(tried, Number.NaN, 0)).toBeNull()
   })
 
   it('says a newer build is ready at most once a day, and each build once', () => {

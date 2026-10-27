@@ -125,6 +125,24 @@ export function announcesIosBuild(
   return build !== last.build && now - last.at >= IOS_ANNOUNCE_GAP_MS
 }
 
+/** How long after a build was handed to iOS the app, started again, still speaks of it. */
+export const IOS_INSTALL_WATCH_MS = 60 * 60 * 1000
+
+/**
+ * What became of the build last handed to iOS, as the app starting again
+ * finds it: `in` when this is it or later, `not-in` when this is still the
+ * older one — iOS stopped it, or the install was never chosen — and null when
+ * there was none, or it was long enough ago not to be worth a word.
+ */
+export function iosInstallOutcome(
+  tried: { readonly build: number; readonly at: number } | null,
+  currentBuild: number,
+  now: number,
+): 'in' | 'not-in' | null {
+  if (!tried || !Number.isFinite(currentBuild) || now - tried.at > IOS_INSTALL_WATCH_MS) return null
+  return currentBuild >= tried.build ? 'in' : 'not-in'
+}
+
 const xml = (text: string): string =>
   text.replace(/[&<>]/g, char => (char === '&' ? '&amp;' : char === '<' ? '&lt;' : '&gt;'))
 

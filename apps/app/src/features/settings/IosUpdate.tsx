@@ -1,6 +1,13 @@
 import { useEffect } from 'react'
+import { AppState, Linking } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
-import { announcesIosBuild, isNewerIosBuild, type IosLatest } from '@selfmp3/shared'
+import {
+  IOS_INSTALL_PAGE_URL,
+  announcesIosBuild,
+  iosInstallOutcome,
+  isNewerIosBuild,
+  type IosLatest,
+} from '@selfmp3/shared'
 import { STALE } from '@selfmp3/client'
 import { iosUpdate } from '../../ports/iosUpdate'
 import { prefs } from '../../ports/prefs'
@@ -18,12 +25,18 @@ import type { UpdateStatus } from './AboutCard'
 /** The build last announced in a toast, and when, so the toasts come at most once a day. */
 const ANNOUNCED_KEY = 'iosUpdateAnnounced'
 const ANNOUNCED_AT_KEY = 'iosUpdateAnnouncedAt'
+/** The build last handed to iOS to install, and when, for the app started again to say how it went. */
+const TRIED_KEY = 'iosUpdateTried'
+const TRIED_AT_KEY = 'iosUpdateTriedAt'
 
-function lastAnnounced(): { build: number; at: number } | null {
-  const build = Number(prefs.get(ANNOUNCED_KEY))
-  const at = Number(prefs.get(ANNOUNCED_AT_KEY) ?? 0)
-  return Number.isFinite(build) && prefs.get(ANNOUNCED_KEY) !== null ? { build, at } : null
+function remembered(buildKey: string, atKey: string): { build: number; at: number } | null {
+  const kept = prefs.get(buildKey)
+  const build = Number(kept)
+  const at = Number(prefs.get(atKey) ?? 0)
+  return kept && Number.isFinite(build) ? { build, at } : null
 }
+
+const lastAnnounced = () => remembered(ANNOUNCED_KEY, ANNOUNCED_AT_KEY)
 
 function useLatestBuild() {
   return useQuery({
@@ -38,18 +51,95 @@ function useLatestBuild() {
 const newerThanThis = (latest: IosLatest | null | undefined): IosLatest | null =>
   latest && isNewerIosBuild(latest, iosUpdate.build) ? latest : null
 
-const install = () => void iosUpdate.install()
+const openInstallPage = () => void Linking.openURL(IOS_INSTALL_PAGE_URL)
+
+/**
+ * Hands the build to iOS, and says what is happening, which iOS does not:
+ * after its own Install it downloads the build, then waits for self.mp3 to
+ * leave the screen before putting it in — the app asking is the app being
+ * replaced. Pressing Install used to end there, with nothing to see
+ * (2026-10-27). The message stays until answered, and Home steps back to
+ * the Home Screen, where the icon shows the rest; the app started again says
+ * whether the build went in (`sayInstallOutcome`).
+ */
+function install(build: number): void {
+  iosUpdate.install().then(
+    () => {
+      prefs.set(TRIED_KEY, String(build))
+      prefs.set(TRIED_AT_KEY, String(Date.now()))
+      showToast(
+        {
+          say: `Build ${build} goes in from the Home Screen`,
+          under: 'self.mp3 has to close for it. Its icon there shows how far it’s got.',
+        },
+        'info',
+        { autoDismissMs: 0, actions: [{ label: 'Home', onPress: leaveForInstall(build) }] },
+      )
+    },
+    () =>
+      showToast(
+        {
+          say: 'Couldn’t start the install',
+          under: 'iOS wouldn’t open it. Safari can, from the install page.',
+        },
+        'error',
+        { actions: [{ label: 'Open', onPress: openInstallPage }] },
+      ),
+  )
+}
+
+/**
+ * Steps back for iOS to put the build in. Putting it in ends this app, so
+ * coming back to this one still running means it has not gone in yet.
+ */
+const leaveForInstall = (build: number) => (): void => {
+  const back = AppState.addEventListener('change', state => {
+    if (state !== 'active') return
+    back.remove()
+    notIn(build)
+  })
+  iosUpdate.leave()
+}
+
+function notIn(build: number): void {
+  showToast(
+    {
+      say: `Build ${build} hasn’t gone in`,
+      under: 'Try again, or from its page in Safari.',
+    },
+    'error',
+    {
+      actions: [
+        { label: 'Install', onPress: () => install(build) },
+        { label: 'Page', onPress: openInstallPage },
+      ],
+    },
+  )
+}
+
+/** The app started again after handing a build to iOS: whether it went in. */
+function sayInstallOutcome(): void {
+  const tried = remembered(TRIED_KEY, TRIED_AT_KEY)
+  if (!tried) return
+  prefs.set(TRIED_KEY, '')
+  const outcome = iosInstallOutcome(tried, iosUpdate.build, Date.now())
+  if (outcome === 'in') showToast(`Updated to build ${iosUpdate.build}`, 'good')
+  else if (outcome === 'not-in') notIn(tried.build)
+}
 
 /** Mounted with the toasts; draws nothing of its own. */
 export function IosUpdateNotice(): null {
   const newer = newerThanThis(useLatestBuild().data)
+  useEffect(() => {
+    if (iosUpdate.offered) sayInstallOutcome()
+  }, [])
   useEffect(() => {
     const now = Date.now()
     if (!newer || !announcesIosBuild(newer.build, lastAnnounced(), now)) return
     prefs.set(ANNOUNCED_KEY, String(newer.build))
     prefs.set(ANNOUNCED_AT_KEY, String(now))
     showToast('A newer self.mp3 is ready.', 'info', {
-      actions: [{ label: 'Install', onPress: install }],
+      actions: [{ label: 'Install', onPress: () => install(newer.build) }],
     })
   }, [newer])
   return null
@@ -67,7 +157,12 @@ export function useIosUpdateStatus(): UpdateStatus | null {
     return {
       tone: 'ready',
       line: `Build ${newer.build} is ready`,
-      action: { label: 'Install', onPress: install, primary: true, testID: 'settings-ios-update' },
+      action: {
+        label: 'Install',
+        onPress: () => install(newer.build),
+        primary: true,
+        testID: 'settings-ios-update',
+      },
     }
   }
   const check = {

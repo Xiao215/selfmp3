@@ -45,9 +45,11 @@ import { useSmartOn } from '../smart/useSmartOn'
 import { SuggestTagsSheet } from '../smart/SuggestTagsSheet'
 import { SLEEVE_ASPECT, TagSleeve } from './TagSleeve'
 import {
+  firstDrawn,
   leadSong,
   tagsHeadline,
   tagsLayout,
+  tagsLayoutSize,
   UNTAGGED_HINT,
   waitingArtists,
   waitingLine,
@@ -146,16 +148,10 @@ export function TagsScreen(): ReactNode {
     [library],
   )
   const laidOut = useMemo(() => tagsLayout(standings), [standings])
-  // A screenful or two of tiles, and more as the scroll nears the end.
-  const { drawn, ...ahead } = useDrawnAhead(
-    laidOut.main.length + laidOut.justStarted.length + laidOut.empty.length,
-  )
-  const layout = useMemo(() => {
-    const main = laidOut.main.slice(0, drawn)
-    const justStarted = laidOut.justStarted.slice(0, drawn - main.length)
-    const empty = laidOut.empty.slice(0, drawn - main.length - justStarted.length)
-    return { main, justStarted, empty }
-  }, [laidOut, drawn])
+  // A screenful or two of tiles and the chips under them, and more as the
+  // scroll nears the end.
+  const { drawn, ...ahead } = useDrawnAhead(tagsLayoutSize(laidOut))
+  const layout = useMemo(() => firstDrawn(laidOut, drawn), [laidOut, drawn])
   /*
    * A pointer has the ⋯ and right-click; a finger has only the hold, which
    * nothing on a tile says, so it is shown once on the first tile.
@@ -546,8 +542,12 @@ function UntaggedCard({
   )
 }
 
-/** One tag in the grid: its tile, and, when it holds other tags, a chip for each under it. */
-function Entry({
+/**
+ * One tag in the grid: its tile, and, when it holds other tags, a chip for
+ * each under it. Memoised, as its tile is: the page drawing its next tiles as
+ * it scrolls redrew every chip already drawn, hundreds of them (bug bash m50).
+ */
+const Entry = memo(function Entry({
   entry,
   order,
   width,
@@ -587,7 +587,7 @@ function Entry({
       <InsideChips inside={inside} order={order} rowRef={rowRef} onOpen={onOpen} onEdit={onEdit} />
     </View>
   )
-}
+})
 
 /**
  * One tag's tile: its record (`TagSleeve`), then its name and size. Memoised,

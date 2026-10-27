@@ -176,6 +176,11 @@ function AnchoredPopover({
   // Which side it opens on needs the panel's own height, which is only known
   // once it has laid out; until then it is drawn transparent, off screen.
   const [panelHeight, setPanelHeight] = useState(0)
+  // Which opening this is. The panel is a new view each time: react-native-web
+  // reports a view's layout only when its size changes, so a panel re-opened
+  // at the same size — a right-click on another row while one row's menu is
+  // up — never measured itself again and stayed waiting off screen.
+  const [opening, setOpening] = useState(0)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
   // The room it opens into, only while there is a panel to place: a closed
@@ -191,6 +196,7 @@ function AnchoredPopover({
     // while its panel is up, and measuring is a round trip to the shadow tree.
     anchorRef.current?.measureInWindow((x, y, w, h) => {
       setPanelHeight(0)
+      setOpening(count => count + 1)
       setAnchor({ x, y, width: w, height: h })
     })
   }, [open, anchorRef])
@@ -317,6 +323,7 @@ function AnchoredPopover({
           {...CATCHER}
         />
         <Animated.View
+          key={opening}
           {...panelA11y(label, onClose)}
           testID={testID}
           onLayout={event => {

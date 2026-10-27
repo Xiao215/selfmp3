@@ -23,6 +23,7 @@ import { Popover } from './Popover'
 import type { PopoverAnchor } from '../rightClick'
 import { Press } from './Press'
 import {
+  offeredTags,
   settledTicks,
   songPickerTicks,
   songTagChange,
@@ -30,6 +31,7 @@ import {
   tagsAcross,
   undoTagChange,
   withPendingTicks,
+  type Offered,
   type PendingTick,
 } from './tagPicker.model'
 import { SearchField } from './SearchField'
@@ -229,12 +231,6 @@ interface TagSource {
   readonly create: (name: string) => Promise<Tag>
 }
 
-/** A tag in the list, and whether it is one of `from`'s yet — or only this device's. */
-interface Offered {
-  readonly tag: Tag
-  readonly there: boolean
-}
-
 /**
  * The picker itself, for tags on a song or tags for songs not yet here (an
  * import, a migration): search as you type, tick, and make a tag on the spot.
@@ -263,16 +259,7 @@ export function TagSearchList({
   // its keyboard comes up only when the field is tapped: most picks are a tick.
   const wide = useLayoutValue(layout => layout.wide)
   const { data: library } = useLibrary()
-  const tags = useMemo<readonly Offered[]>(() => {
-    if (!from) return (library?.tags ?? []).map(tag => ({ tag, there: true }))
-    const named = new Set(from.tags.map(tag => tag.name.toLowerCase()))
-    return [
-      ...from.tags.map(tag => ({ tag, there: true })),
-      ...(library?.tags ?? [])
-        .filter(tag => !named.has(tag.name.toLowerCase()))
-        .map(tag => ({ tag, there: false })),
-    ]
-  }, [from, library?.tags])
+  const tags = useMemo(() => offeredTags(library?.tags ?? [], from?.tags), [from, library?.tags])
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const createHere = useCreateTag()

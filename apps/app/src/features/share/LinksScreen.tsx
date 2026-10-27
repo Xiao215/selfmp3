@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
 import { plural } from '@selfmp3/shared'
 import type { ShareAskEntry, ShareSummary } from '@selfmp3/shared'
-import { iconSize, radius, shareLinkUrl, space, type } from '@selfmp3/client'
+import { radius, shareLinkUrl, space, type } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { copyText } from '../../ports/clipboard'
@@ -19,8 +19,9 @@ import { lineSub, pageFrame } from '../../ui/surfaces'
 import { showToast } from '../../ui/toast'
 import { Button } from '../../ui/components/Button'
 import { ConfirmDialog } from '../../ui/components/ConfirmDialog'
-import { Link, Trash } from '../../ui/components/Icons'
+import { Trash } from '../../ui/components/Icons'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { LinkPageOutline } from '../../ui/components/EmptyPictures'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { Press } from '../../ui/components/Press'
@@ -281,14 +282,14 @@ export function LinksScreen(): ReactNode {
           {/* Nothing shared yet, or nothing that can share: a server connected by address. */}
           {!fromCloud ? (
             <EmptyState
-              icon={<Link size={iconSize.large} tone="textMuted" />}
-              title="No share links here"
-              line="Share links need a self.mp3 sign-in."
+              picture={<LinkPageOutline />}
+              title="Sign in to share a link"
+              line="Links need a self.mp3 account; this library is reached by its address."
               testID="links-none"
             />
           ) : !isLoading && (links ?? []).length === 0 ? (
             <EmptyState
-              icon={<Link size={iconSize.large} tone="textMuted" />}
+              picture={<LinkPageOutline />}
               title="No links yet"
               line="Share a song or playlist from its ⋯ menu."
               testID="links-empty"

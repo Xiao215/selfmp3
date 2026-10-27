@@ -30,9 +30,11 @@ import { useEscape } from '../../shell/useEscape'
 import { useLayoutValue } from '../../shell/useLayout'
 import { BackButton } from '../../ui/components/BackButton'
 import { Chip } from '../../ui/components/Chip'
+import { Button } from '../../ui/components/Button'
 import { EmptyState } from '../../ui/components/EmptyState'
+import { GhostSky } from '../../ui/components/EmptyPictures'
 import { IconButton } from '../../ui/components/IconButton'
-import { DrawLine, Expand, Locate, Minus, Plus, SoundMap } from '../../ui/components/Icons'
+import { DrawLine, Expand, Locate, Minus, Plus } from '../../ui/components/Icons'
 import { PageHeader } from '../../ui/components/PageHeader'
 import { PageLoading } from '../../ui/components/PageLoading'
 import { pageFrame } from '../../ui/surfaces'
@@ -384,12 +386,28 @@ export function SoundMapScreen(): ReactNode {
             <View style={styles.emptyHead}>
               <BackButton to="/" testID="sound-map-back" />
             </View>
+            {/* The sky it will be, faint, and the one thing that fills it (J1). */}
             <EmptyState
-              icon={<SoundMap tone="textSecondary" />}
-              title="Nothing on the map yet"
-              line="Each song is placed once it has been heard."
+              picture={<GhostSky />}
+              title="Your songs, by how they sound"
+              line="Each song lands here once you have heard it."
               testID="sound-map-empty"
-            />
+            >
+              {songs.size > 0 ? (
+                <Button
+                  label="Play something"
+                  variant="primary"
+                  onPress={() =>
+                    player.playShuffled([...songs.keys()], {
+                      kind: 'songs',
+                      origin: 'map',
+                      name: 'Your library',
+                    })
+                  }
+                  testID="sound-map-play-something"
+                />
+              ) : null}
+            </EmptyState>
           </SafeAreaView>
         ) : (
           <>

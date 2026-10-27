@@ -12,12 +12,15 @@ import { lineSub } from '../surfaces'
  * page.
  *
  * `children` go under the line — the button, or the one thing a page needs to
- * show there (Library's "You're looking inside" and its tags). `compact` is
- * for a sheet, a panel or the palette, where a page's room above it would push
- * it out of sight.
+ * show there (Library's "You're looking inside" and its tags). `picture`
+ * takes the icon's place with a faint drawing of what the page becomes
+ * (`EmptyPictures`): the sound map's sky, Liked's heart, a link's page.
+ * `compact` is for a sheet, a panel or the palette, where a page's room above
+ * it would push it out of sight.
  */
 export function EmptyState({
   icon,
+  picture,
   title,
   line,
   children,
@@ -26,6 +29,8 @@ export function EmptyState({
   style,
 }: {
   icon?: ReactNode
+  /** A drawing of what will be here, in place of the icon's round mark. */
+  picture?: ReactNode
   title: string
   line?: ReactNode
   children?: ReactNode
@@ -35,7 +40,14 @@ export function EmptyState({
 }): ReactNode {
   return (
     <View style={[styles.empty, compact && styles.compact, style]} testID={testID}>
-      {icon ? <View style={styles.icon}>{icon}</View> : null}
+      {picture ? (
+        // A picture of nothing there yet: the title says it.
+        <View style={styles.picture} aria-hidden>
+          {picture}
+        </View>
+      ) : icon ? (
+        <View style={styles.icon}>{icon}</View>
+      ) : null}
       <Text style={styles.title} accessibilityRole="header" aria-level={2}>
         {title}
       </Text>
@@ -66,6 +78,7 @@ const styles = StyleSheet.create(theme => ({
     marginBottom: space.xs,
     backgroundColor: theme.colors.surface1,
   },
+  picture: { marginBottom: space.md },
   title: {
     color: theme.colors.textPrimary,
     ...textStyle('body'),

@@ -452,8 +452,10 @@ function liveEdit(
   playlist: AskPlaylist,
   plan: z.infer<typeof PlanOut> | null,
   op: 'add' | 'remove' | 'sort',
+  /** The songs pointed at, when the request named them by handle. */
+  within: readonly Song[] | null = null,
 ): AskAnswer {
-  const songs = deps.songs()
+  const songs = within ?? deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
   const rules = playlist.rules
@@ -470,7 +472,7 @@ function liveEdit(
     deps.artistNames?.() ?? NO_JOINS,
   )
   const judged = understanding.brief !== null || understanding.sound !== null
-  if (!chooses(understanding) && !judged) {
+  if (!within && !chooses(understanding) && !judged) {
     return none(
       `${playlist.name} is live: it holds ${holds}. Say which songs you mean: an artist, an album, a tag, or a kind of song.`,
     )
@@ -528,8 +530,14 @@ export async function playlistSongs(
   plan: z.infer<typeof PlanOut> | null,
   edit: { op: 'add' | 'remove' | 'sort'; sortBy: AskSort | null; order: AskOrder },
   steps: Steps = NO_STEPS,
+  /**
+   * The songs the request pointed at by handle (`scope.ts`): the songs added
+   * or taken out are among these alone, and without filters they are all of
+   * them.
+   */
+  within: readonly Song[] | null = null,
 ): Promise<AskAnswer> {
-  if (playlist.kind === 'live') return liveEdit(deps, playlist, plan, edit.op)
+  if (playlist.kind === 'live') return liveEdit(deps, playlist, plan, edit.op, within)
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
@@ -568,7 +576,7 @@ export async function playlistSongs(
     tags,
     deps.artistNames?.() ?? NO_JOINS,
   )
-  if (!chooses(understanding) && understanding.brief === null) {
+  if (!within && !chooses(understanding) && understanding.brief === null) {
     return none(
       adding
         ? `Say which songs to add to ${playlist.name}: an artist, an album, a tag, or a kind of song.`
@@ -576,8 +584,18 @@ export async function playlistSongs(
     )
   }
   const inPlaylist = new Set(members.map(song => song.id))
-  const pool = adding ? songs.filter(song => !inPlaylist.has(song.id)) : members
+  const pointed = within ? new Set(within.map(song => song.id)) : null
+  const pool = (
+    adding ? (within ?? songs).filter(song => !inPlaylist.has(song.id)) : members
+  ).filter(song => !pointed || pointed.has(song.id))
   const fitting = songsFitting(pool, tags, understanding, now, deps.artistNames?.())
+  if (within && fitting.length === 0) {
+    return none(
+      adding
+        ? `${within.length === 1 ? 'That song is' : `All ${within.length} of those songs are`} in ${playlist.name} already.`
+        : `None of those songs are in ${playlist.name}.`,
+    )
+  }
   const answer = (
     chosen: { songId: number; why: string | null }[],
     by: 'rule' | 'model',

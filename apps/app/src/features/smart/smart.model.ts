@@ -1,6 +1,13 @@
-import { EVERY_SONG, plural, formatLongDuration, tidyValue } from '@selfmp3/shared'
+import {
+  ASK_OBJECT_SONGS,
+  EVERY_SONG,
+  plural,
+  formatLongDuration,
+  tidyValue,
+} from '@selfmp3/shared'
 import type {
   AskAnswer,
+  AskObject,
   AskOrder,
   AskPlaybackOp,
   AskSort,
@@ -333,8 +340,8 @@ const PLAYBACK_ASKED: Readonly<Record<AskPlaybackOp, string>> = {
   upNext: 'play a song from Up next',
 }
 
-/** The most songs a recap names; past that it says how many more. */
-const RECAP_SONGS = 10
+/** The most tag or name changes a recap names. */
+const RECAP_CHANGES = 10
 /** As long as a recap may be: what the server takes for one turn's answer. */
 const RECAP_MAX = 2000
 
@@ -342,44 +349,34 @@ const RECAP_MAX = 2000
  * What an answer showed, in words, for the follow-ups after it (F1): the
  * model hears what it said before, so it answers what is asked now rather
  * than everything again. Words answers are their words; lists and reviews
- * are a line saying what they offered. `titleOf` names a song by the
- * server's id, as this device has it.
+ * are a line saying what they offered. The songs themselves go as the turn's
+ * objects (`objectsOf`), by id, so the recap does not name them.
  */
-export function answerRecap(
-  answer: AskAnswer,
-  titleOf: (serverId: number) => string | undefined,
-): string {
-  const songs = (ids: readonly number[]): string => {
-    const named = ids.flatMap(id => titleOf(id) ?? [])
-    const shown = named.slice(0, RECAP_SONGS).join('; ')
-    return named.length > RECAP_SONGS ? `${shown}; and ${named.length - RECAP_SONGS} more` : shown
-  }
+export function answerRecap(answer: AskAnswer): string {
   const picked = (result: DescribeResult): string =>
-    `${plural(result.picks.length, 'song', 'songs')} (“${result.understanding.name}”): ${songs(result.picks.map(pick => pick.songId))}`
+    `${plural(result.picks.length, 'song', 'songs')} (“${result.understanding.name}”)`
   const recap = ((): string => {
     switch (answer.kind) {
       case 'songs':
-        return `Offered ${picked(answer.describe)}`
+        return `Offered ${picked(answer.describe)} ${LEAD_WORDS[answer.lead]}`
       case 'together':
         return answer.describe
           ? `Offered a listening room with ${picked(answer.describe)}`
           : 'Offered to open a listening room.'
       case 'find':
-        return `Found ${songs(answer.picks.map(pick => pick.songId))}`
+        return `Found ${plural(answer.picks.length, 'song', 'songs')} that could be it`
       case 'explore':
-        return answer.songIds.length > 0
-          ? `${answer.say}\nSongs of theirs: ${songs(answer.songIds)}`
-          : answer.say
+        return answer.say
       case 'tags':
         return `Proposed ${plural(answer.review.changes.length, 'tag change', 'tag changes')}: ${answer.review.changes
-          .slice(0, RECAP_SONGS)
+          .slice(0, RECAP_CHANGES)
           .map(change => `${change.op} ${change.tag}${change.to ? ` → ${change.to}` : ''}`)
           .join('; ')}`
       case 'tidy':
         return [
           answer.tidy.reply,
           `Proposed ${plural(answer.tidy.changes.length, 'name change', 'name changes')}: ${answer.tidy.changes
-            .slice(0, RECAP_SONGS)
+            .slice(0, RECAP_CHANGES)
             .map(change => `${change.from} → ${change.to}`)
             .join('; ')}`,
         ]
@@ -400,7 +397,7 @@ export function answerRecap(
       case 'playlistSongs':
         return answer.op === 'sort'
           ? `Proposed putting ${answer.playlist} in order by ${answer.sortBy ?? 'name'}`
-          : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}: ${songs(answer.songs.map(pick => pick.songId))}`
+          : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}`
       case 'library': {
         const listed =
           answer.show === 'artists'
@@ -412,7 +409,7 @@ export function answerRecap(
                 : null
         const about = answer.judged && answer.judged.songs < answer.judged.of ? 'About ' : ''
         const counted = `${about}${plural(answer.count, 'song', 'songs')}`
-        if (!listed) return `${counted}: ${songs(answer.songIds)}`
+        if (!listed) return counted
         const distinct =
           answer.show === 'albums'
             ? answer.distinct.albums
@@ -420,7 +417,7 @@ export function answerRecap(
               ? answer.distinct.tags
               : answer.distinct.artists
         return `${counted} in ${distinct} ${answer.show}: ${listed
-          .slice(0, RECAP_SONGS)
+          .slice(0, RECAP_CHANGES)
           .map(each => `${each.label} (${each.count})`)
           .join('; ')}`
       }
@@ -438,6 +435,121 @@ export function answerRecap(
     }
   })()
   return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
+}
+
+/** What a song answer was offered for, after its name in a recap. */
+const LEAD_WORDS: Readonly<Record<'play' | 'save' | 'next', string>> = {
+  play: 'to play now',
+  save: 'to keep as a playlist',
+  next: 'to play after the song playing',
+}
+
+/** The longest an object's label is. */
+const LABEL_MAX = 120
+
+/**
+ * What an answer showed, as objects a follow-up can name by handle (F1,
+ * AGENT-DESIGN 2.1): its songs by the server's ids in the order shown, each
+ * with the reason it was given, and for a list what it understood and what
+ * it was for. The handle is `t{turn}.1`, `turn` its place on the page, 1 for
+ * the first: an answer is one card today. `shown` is a list's songs as shown
+ * now (moved on its page, changed since), `understanding` what it understands
+ * now; an answer that showed no songs has none.
+ */
+export function objectsOf(
+  answer: AskAnswer,
+  turn: number,
+  shown?: { songIds: readonly number[]; understanding: Understanding },
+): AskObject[] {
+  const object = (
+    kind: AskObject['kind'],
+    label: string,
+    songs: readonly { songId: number; why?: string | null }[],
+    more: Partial<Pick<AskObject, 'playlist' | 'lead' | 'like' | 'understanding'>> = {},
+  ): AskObject[] => {
+    const kept = songs.slice(0, ASK_OBJECT_SONGS)
+    if (kept.length === 0) return []
+    return [
+      {
+        handle: `t${turn}.1`,
+        kind,
+        label: label.length > LABEL_MAX ? `${label.slice(0, LABEL_MAX - 1)}…` : label,
+        songIds: kept.map(song => song.songId),
+        why: kept.map(song => song.why ?? null),
+        playlist: more.playlist ?? null,
+        lead: more.lead ?? null,
+        like: more.like ?? null,
+        understanding: more.understanding ?? null,
+      },
+    ]
+  }
+  // A list as it is shown now, each song with the reason it was picked.
+  const listed = (result: DescribeResult): { songId: number; why: string | null }[] => {
+    if (!shown) return result.picks
+    const why = new Map(result.picks.map(pick => [pick.songId, pick.why]))
+    return shown.songIds.map(songId => ({ songId, why: why.get(songId) ?? null }))
+  }
+  const ids = (songIds: readonly number[]) => [...new Set(songIds)].map(songId => ({ songId }))
+  switch (answer.kind) {
+    case 'songs':
+      return object('songs', answer.describe.understanding.name, listed(answer.describe), {
+        lead: answer.lead,
+        like: answer.like,
+        understanding: shown?.understanding ?? answer.describe.understanding,
+      })
+    case 'together':
+      return answer.describe
+        ? object('together', answer.describe.understanding.name, listed(answer.describe), {
+            understanding: shown?.understanding ?? answer.describe.understanding,
+          })
+        : []
+    case 'find':
+      return object('find', 'Songs that could be it', answer.picks)
+    case 'library':
+      return object('library', plural(answer.count, 'song', 'songs'), ids(answer.songIds), {
+        understanding: answer.understanding,
+      })
+    case 'stats':
+      return object(
+        'stats',
+        `Most played in ${rangeWords(answer.range)}`,
+        ids(answer.items.flatMap(item => (item.songId === null ? [] : [item.songId]))),
+      )
+    case 'explore':
+      return object('explore', answer.say.split('\n')[0] ?? '', ids(answer.songIds))
+    case 'playlistSongs':
+      return object(
+        'playlistSongs',
+        `${answer.op === 'add' ? 'To add to' : answer.op === 'remove' ? 'To take out of' : 'In order'} ${answer.playlist}`,
+        answer.songs,
+        { playlist: answer.playlist },
+      )
+    case 'tags':
+      return object(
+        'tagChanges',
+        plural(answer.review.changes.length, 'tag change', 'tag changes'),
+        ids(answer.review.changes.flatMap(change => change.songIds)),
+      )
+    case 'tidy':
+      return object(
+        'nameChanges',
+        plural(answer.tidy.changes.length, 'name change', 'name changes'),
+        ids(answer.tidy.changes.flatMap(change => change.songIds)),
+      )
+    case 'copies':
+      return object(
+        'copies',
+        plural(answer.copies.copies.length, 'song you have twice', 'songs you have twice'),
+        ids(answer.copies.copies.flatMap(copy => [copy.keep, ...copy.songIds])),
+      )
+    case 'remember':
+    case 'getMusic':
+    case 'playlists':
+    case 'open':
+    case 'playback':
+    case 'none':
+      return []
+  }
 }
 
 /** The longest line Ask's log gives an answer before it is cut short. */

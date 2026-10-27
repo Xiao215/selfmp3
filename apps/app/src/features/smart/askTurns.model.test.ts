@@ -13,10 +13,11 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   id,
   asked: `question ${id}`,
   playing: null,
+  screen: null,
   before: [],
   answered: `answer ${id}`,
   outcome: null,
-  change: null,
+  objects: [],
   list: null,
   line: null,
   ...patch,
@@ -26,9 +27,40 @@ describe('beforeTurn', () => {
   it('is every turn before, with what came of a proposal', () => {
     const turns = [turn(1, { outcome: 'Fixed 3 songs' }), turn(2), turn(3, { answered: null })]
     expect(beforeTurn(turns, 2)).toEqual([
-      { asked: 'question 1', answered: 'answer 1\nThen: Fixed 3 songs' },
-      { asked: 'question 2', answered: 'answer 2' },
+      { asked: 'question 1', answered: 'answer 1\nThen: Fixed 3 songs', objects: [] },
+      { asked: 'question 2', answered: 'answer 2', objects: [] },
     ])
+  })
+
+  it('carries what each answer showed, and the one on the screen however long ago it was asked', () => {
+    const shown = (at: number) => ({
+      handle: `t${at}.1`,
+      kind: 'songs' as const,
+      label: `list ${at}`,
+      songIds: [at * 10],
+      why: [null],
+      playlist: null,
+      lead: 'play' as const,
+      like: null,
+      understanding: null,
+    })
+    const turns = Array.from({ length: 12 }, (_, at) => turn(at + 1, { objects: [shown(at + 1)] }))
+    const newest = beforeTurn(turns, 12)
+    expect(newest.map(each => each.asked)[0]).toBe('question 5')
+    expect(newest.at(-1)?.objects).toEqual([shown(12)])
+    const withScreen = beforeTurn(turns, 12, 't2.1')
+    expect(withScreen).toHaveLength(ASK_BEFORE_MAX)
+    expect(withScreen.map(each => each.asked)).toEqual([
+      'question 2',
+      ...Array.from({ length: ASK_BEFORE_MAX - 1 }, (_, at) => `question ${at + 6}`),
+    ])
+    expect(
+      AskRequestSchema.safeParse({
+        text: 'play the 1st one',
+        context: { playing: null, screen: 't2.1' },
+        before: withScreen,
+      }).success,
+    ).toBe(true)
   })
 
   it('sends only the newest turns of a long conversation, so the tenth is asked', () => {

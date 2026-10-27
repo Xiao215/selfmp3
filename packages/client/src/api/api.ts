@@ -51,7 +51,8 @@ import {
   TidyResultSchema,
   ImportNamesSchema,
   type ImportNamesRequest,
-  type AskTurn,
+  type AskContext,
+  type AskTurnInput,
   WrittenReportSchema,
   DescribeResultSchema,
   TagReviewSchema,
@@ -457,12 +458,13 @@ export function createApi({ context, fetch }: ApiOptions) {
     /** The Search box's Ask: one request, routed to one thing the app can do. */
     ask: (
       text: string,
-      playing: number | null = null,
+      /** The song playing and the answer on the screen, by the server's ids and handles. */
+      context: AskContext = { playing: null, screen: null },
       ticket?: string,
       /** The conversation before this, when it follows up on an answer. */
-      before: readonly AskTurn[] = [],
+      before: readonly AskTurnInput[] = [],
       signal?: ClientSignal,
-    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, playing, ticket, before }, signal),
+    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, context, ticket, before }, signal),
 
     /**
      * How an Ask named by `ticket` is going, while its answer is on the way;

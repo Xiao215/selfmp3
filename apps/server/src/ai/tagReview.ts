@@ -12,7 +12,6 @@ import {
 import { tagCatalog } from './library.js'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { ScopeField, scopeLines, scopeOf, type Held } from './scope.js'
 import { bare, chunks, pool, tally } from './text.js'
 
 /**
@@ -33,11 +32,12 @@ import { bare, chunks, pool, tally } from './text.js'
  * his Mandarin ones), the model answers for some of them. Every name it
  * returns is checked against the library.
  *
- * A request may point at songs instead of describing them ("tag this one"):
- * the plan names them by handle (`scope.ts`), and only they are looked at.
+ * A request may point at songs instead of describing them ("tag this one",
+ * "tag these 夜"): Ask's router names them by handle (`scope.ts`) and hands
+ * them over, and only they are looked at.
  */
 
-const VERSION = 2
+const VERSION = 3
 
 /** Groups per model call, so a call stays small and quick. */
 const GROUPS_PER_CALL = 50
@@ -71,8 +71,6 @@ const PlanOut = z.object({
   songs: z.enum(['without', 'with', 'all', 'untagged', 'none']),
   /** Only these artists' songs, when the request names them. */
   artists: z.array(z.string()).max(12),
-  /** The songs it points at instead, by handle: then only those. */
-  from: ScopeField,
 })
 
 const GroupsOut = z.object({
@@ -101,7 +99,8 @@ Reply with JSON only:
 - newTag: the name of a tag the request wants that they do not have yet, else null.
 - songs: which songs to look at against the focus tags. without: songs that do not carry them yet ("songs that should be X", "tag … as X"). with: songs that carry them ("take X off …", "which X songs are wrong"). all: both. untagged: only songs with no tag. none: no songs, only ops. For a checkup, all.
 - artists: when the request names artists ("tag every 周杰倫 song …"), those names as the library spells them; else empty.
-- from: when the request points at a song listed under "Songs they may mean" instead of describing songs, that song's handle; else null. Its songs are then the only ones looked at, against the focus tags, and artists is empty.`
+
+When the request is about songs listed under "The songs it is about", those are the only songs looked at, against the focus tags, and artists is empty.`
 
 const GROUPS_SYSTEM = `You look after the tags in someone's own music library. You are given their request, their tags with what each already holds, the tags in question, and groups of their songs. Each group is songs by one artist that carry the same tags and whose titles are in one script, each song numbered, with its album. Their tags are their own vocabulary: a song belongs in a tag by the same logic as the songs already there (language and scene, game or show, period, genre), not by what the word usually means.
 
@@ -128,8 +127,11 @@ interface TagReviewInput {
   readonly text: string | null
   /** The most songs to change, when the request gives a number ("tag 5 of my untagged songs"). */
   readonly limit?: number | null
-  /** The songs the request may point at by handle (`scope.ts`): the one playing. */
-  readonly held?: Held
+  /**
+   * The songs the request points at, named by handle and resolved (`scope.ts`):
+   * then those and no others. Null or left out: the songs the words describe.
+   */
+  readonly scope?: readonly Song[] | null
 }
 
 /** Songs by one artist that carry the same tags, with titles in one script. */
@@ -257,6 +259,24 @@ export function groupSongs(songs: readonly Song[]): Group[] {
       script: scriptOf(group[0]!.title),
       songs: group,
     }))
+}
+
+/** The most songs pointed at that the plan's prompt lists. */
+const POINTED_SHOWN = 40
+
+/** Songs pointed at, as the plan reads them: `title | artist | album | tags`. */
+function songLines(songs: readonly Song[], tags: readonly Tag[]): string {
+  const names = new Map(tags.map(tag => [tag.id, tag.name]))
+  const lines = songs
+    .slice(0, POINTED_SHOWN)
+    .map(
+      song =>
+        `${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${
+          song.tagIds.map(id => names.get(id) ?? '?').join(', ') || 'no tags'
+        }`,
+    )
+  const more = songs.length - POINTED_SHOWN
+  return more > 0 ? [...lines, `…and ${more} more`].join('\n') : lines.join('\n')
 }
 
 function groupLine(group: Group, names: ReadonlyMap<number, string>): string {
@@ -468,17 +488,16 @@ export async function tagReview(
     newTag: null,
     songs: 'untagged',
     artists: [],
-    from: null,
   }
-  const held = input.held ?? { playing: undefined }
+  const scope = input.scope ?? null
   if (input.text !== null) {
     steps.begin('Reading your tags')
     const artists = tally(songs.map(song => mainArtist(song.artist)))
       .slice(0, 300)
       .map(([name, n]) => `${name} ${n}`)
       .join(', ')
-    const pointed = scopeLines(held, tags)
-    const prompt = `Their tags:\n${catalog}\n\nTheir artists, most songs first: ${artists}${pointed ? `\n\nSongs they may mean:\n${pointed}` : ''}\n\nThe request:\n${input.text}`
+    const pointed = scope ? songLines(scope, tags) : ''
+    const prompt = `Their tags:\n${catalog}\n\nTheir artists, most songs first: ${artists}${pointed ? `\n\nThe songs it is about:\n${pointed}` : ''}\n\nThe request:\n${input.text}`
     plan = await remembered.get(
       Remembered.key('tags-plan', VERSION, prompt),
       async () =>
@@ -496,9 +515,6 @@ export async function tagReview(
   }
   const checkup = input.text !== null && plan.checkup
   const songsMode = checkup ? 'all' : plan.songs
-  // The songs it points at, when it does: those and no others.
-  const scope = scopeOf(plan.from, held)
-  if (scope?.length === 0) notes.push('Nothing is playing to look at.')
 
   // The tag the request wants made, when it is not one of theirs already.
   const newName = plan.newTag?.trim().replace(/\s+/g, ' ') ?? ''

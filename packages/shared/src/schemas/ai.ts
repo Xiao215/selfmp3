@@ -185,17 +185,82 @@ export type TagReview = z.infer<typeof TagReviewSchema>
 export const ASK_ANSWERED_MAX = 2000
 /** The most earlier turns a follow-up is asked after: a longer conversation sends its newest. */
 export const ASK_BEFORE_MAX = 8
+/** The most songs an answer's object carries back, in its order. */
+export const ASK_OBJECT_SONGS = 200
 
 /**
- * One turn of an Ask conversation: what was asked, and what the answer shown
- * for it said — its words, or a line the device writes for a list or a review
- * ("Showed 12 songs: …").
+ * A handle names something an answer showed, for the rest of the conversation
+ * (AGENT-DESIGN 2.1): `t3.1` is the third turn's first card. The device gives
+ * it, from where the turn stands on its page, so it stays the same however
+ * many turns are sent after it.
+ */
+export const AskHandleSchema = z.string().regex(/^t\d{1,3}\.\d{1,2}$/)
+export type AskHandle = z.infer<typeof AskHandleSchema>
+
+/** What an answer showed, as an object a follow-up can name. */
+export const AskObjectKindSchema = z.enum([
+  'songs',
+  'together',
+  'find',
+  'library',
+  'stats',
+  'explore',
+  'playlistSongs',
+  'tagChanges',
+  'nameChanges',
+  'copies',
+])
+export type AskObjectKind = z.infer<typeof AskObjectKindSchema>
+
+/**
+ * Something an earlier answer showed, sent back by the device so a follow-up
+ * can act on it by its handle ("play the 3rd one", "add these to gym", "why
+ * is 大海 in here"): the server keeps no conversation, and the device already
+ * holds the server's ids. `songIds` are the songs in the order shown, `why`
+ * each one's reason where the answer gave one, in the same order.
+ */
+export const AskObjectSchema = z.object({
+  handle: AskHandleSchema,
+  kind: AskObjectKindSchema,
+  /** Its name or a few words on what it is ("Rainy day", "5 tag changes"). */
+  label: z.string().max(120),
+  songIds: z.array(IdSchema).max(ASK_OBJECT_SONGS),
+  why: z.array(z.string().max(140).nullable()).max(ASK_OBJECT_SONGS).default([]),
+  /** The playlist it is about, for a playlist's songs. */
+  playlist: z.string().max(120).nullable().default(null),
+  /** What a song list was offered for: to play now, to keep, or after the song playing. */
+  lead: z.enum(['play', 'save', 'next']).nullable().default(null),
+  /** The song a list sounds like, when it was asked to (`like`), by the server's id. */
+  like: IdSchema.nullable().default(null),
+  /** What a song list understood, as it stands now: what a change to it starts from. */
+  understanding: UnderstandingSchema.nullable().default(null),
+})
+export type AskObject = z.infer<typeof AskObjectSchema>
+export type AskObjectInput = z.input<typeof AskObjectSchema>
+
+/**
+ * One turn of an Ask conversation: what was asked, what the answer shown for
+ * it said — its words, or a line the device writes for a list or a review
+ * ("Showed 12 songs (“…”)") — and what it showed, by handle.
  */
 export const AskTurnSchema = z.object({
   asked: z.string().trim().min(1).max(ASK_TEXT_MAX),
   answered: z.string().trim().max(ASK_ANSWERED_MAX),
+  objects: z.array(AskObjectSchema).max(4).default([]),
 })
 export type AskTurn = z.infer<typeof AskTurnSchema>
+export type AskTurnInput = z.input<typeof AskTurnSchema>
+
+/**
+ * Where the asking device is: the song playing, what "this" means (A8), and
+ * the answer on its screen, what "these" means — the field's "↳ these songs",
+ * null once it is let go.
+ */
+export const AskContextSchema = z.object({
+  playing: IdSchema.nullable().default(null),
+  screen: AskHandleSchema.nullable().default(null),
+})
+export type AskContext = z.infer<typeof AskContextSchema>
 
 /**
  * The Search box's Ask (docs/features/ai.md, "S1"): one request, routed to one
@@ -203,8 +268,7 @@ export type AskTurn = z.infer<typeof AskTurnSchema>
  */
 export const AskRequestSchema = z.object({
   text: z.string().trim().min(1).max(ASK_TEXT_MAX),
-  /** The song playing on the asking device, by the server's id: what "this" means (A8). */
-  playing: IdSchema.nullable().default(null),
+  context: AskContextSchema.default({ playing: null, screen: null }),
   /** Names this request, so the device can ask how it is going (`AskProgress`). */
   ticket: AskTicketSchema.optional(),
   /**
@@ -394,6 +458,8 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     /** play: now; save: a playlist; next: after the song playing, in Up next (A8). */
     lead: z.enum(['play', 'save', 'next']),
     describe: DescribeResultSchema,
+    /** The song they asked for music like, by the server's id: a change to the list keeps it. */
+    like: IdSchema.nullable().default(null),
   }),
   /**
    * Listening with friends: a room to open, or songs for the room the device

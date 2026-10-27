@@ -22,7 +22,14 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { AI_ERROR, ASK_TEXT_MAX, joinedArtists, plural, type AskAnswer } from '@selfmp3/shared'
+import {
+  AI_ERROR,
+  ASK_TEXT_MAX,
+  joinedArtists,
+  plural,
+  type AskAnswer,
+  type AskObject,
+} from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -57,7 +64,6 @@ import { SafeAreaView } from '../../ui/components/SafeAreaView'
 import { ScrollView } from '../../ui/components/Scroll'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { NO_AUTOFILL } from '../../ui/noAutofill'
-import { useSongsById } from '../../ui/songsById'
 import { floating, pageFrame } from '../../ui/surfaces'
 import { useSvgId } from '../../ui/useSvgId'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
@@ -75,7 +81,7 @@ import { askKept } from './askKept'
 import { forgetThread, keepThread, keptThread } from './askThread.store'
 import {
   keepAnswer,
-  keptAnswer,
+  type keptAnswer,
   shownOnServer,
   understandingOf,
   useKeptAnswer,
@@ -88,7 +94,7 @@ import {
   tooLongToAsk,
   type Turn,
 } from './askTurns.model'
-import { answerRecap, askSuggestions, logLine, picksHere } from './smart.model'
+import { answerRecap, askSuggestions, logLine, objectsOf, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { StopButton } from './StopButton'
@@ -98,7 +104,8 @@ import { Working } from './Working'
 
 /**
  * An ask's query key: the server it went to, the turn, every question of the
- * conversation up to this one, and the song playing then. A turn drawn again
+ * conversation up to this one, the song playing then and the answer on the
+ * screen. A turn drawn again
  * (Back from its list) is the same answer, kept for as long as the app is
  * open; the same words in a new turn are asked again, so "pause" said twice
  * pauses twice and a change said again changes the list as it is now. The
@@ -109,8 +116,9 @@ function askKey(
   turn: number,
   asked: readonly string[],
   playing: number | null,
+  screen: string | null,
 ) {
-  return viaKey(via, 'ai', 'ask', turn, asked, playing)
+  return viaKey(via, 'ai', 'ask', turn, asked, playing, screen)
 }
 
 /** Names each turn, across the app's life: two pages' turns never share one. */
@@ -157,8 +165,10 @@ const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
  * at another.
  *
  * The field asks the next question, after everything before it (F1: the
- * server hears each earlier question with what was shown for it, and answers
- * the newest). On a list it wears the list's chip and changes it (B1). While
+ * server hears each earlier question with what was shown for it, the songs
+ * by handle, and answers the newest). On a list it wears the list's chip:
+ * the words go with that list as what is on the screen, and Ask decides
+ * whether they change it or act on it ("Ask decides", 2026-10-27). While
  * one is worked on its send is a Stop, which takes the turn back off the page
  * and its words back into the field. ‹ goes back to Search with the question
  * still typed; a conversation is not kept after it.
@@ -176,20 +186,20 @@ export function AskScreen(): ReactNode {
   const window = useWindowDimensions()
   const server = useSmartServer()
   const player = usePlayer()
-  const songsById = useSongsById()
 
   const playingNow = (): number | null => {
     const id = player.current?.id
     return id === undefined ? null : (server.onServer(id) ?? null)
   }
-  const turnFor = (asked: string, was: readonly Turn[], change: string | null = null): Turn => ({
+  const turnFor = (asked: string, was: readonly Turn[], screen: string | null = null): Turn => ({
     id: nextTurn++,
     asked,
     playing: playingNow(),
-    before: beforeTurn(was, was.length),
+    screen,
+    before: beforeTurn(was, was.length, screen),
     answered: null,
     outcome: null,
-    change,
+    objects: [],
     list: null,
     line: null,
   })
@@ -221,12 +231,17 @@ export function AskScreen(): ReactNode {
   const shownId = wide ? (picked ?? latestId) : picked
   const onLog = !wide && (shownId === null || turns.length === 0)
   const shownTurn = turns.find(turn => turn.id === shownId)
-  // The list shown is what the field's chip changes (B1), until the chip is
-  // let go (its ×, or ⌫ in an empty field): then words are a question.
+  // The list shown wears the field's chip, "↳ these songs" (B1): what words
+  // that point at songs mean. Let go (its ×, or ⌫ in an empty field), the
+  // words are asked with nothing on the screen.
   const [letGoOf, setLetGoOf] = useState<string | null>(null)
   const target = onLog ? null : (shownTurn?.list ?? null)
   const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
   const changingSongs = changing ? changingCount(changing, server.onDevice) : 0
+  // The answer on the screen, by its object's handle: the list while it wears
+  // the chip, or any other answer that showed songs.
+  const screen =
+    onLog || (target !== null && !changing) ? null : (shownTurn?.objects[0]?.handle ?? null)
   // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
   const answerKeys = !typing && !working ? keys : null
 
@@ -235,9 +250,8 @@ export function AskScreen(): ReactNode {
   const ask = (words: string, fromField = false): void => {
     const asked = words.trim()
     if (!asked || working || !server.api) return
-    // Typed while the chip is on, the words change that list.
-    const change = fromField && changing ? changing.id : null
-    setTurns(was => [...was, turnFor(asked, was, change)])
+    // Asked with what is on the screen: the router decides whether the words change it or act on it.
+    setTurns(was => [...was, turnFor(asked, was, screen)])
     setKeys(null)
     if (fromField) draft.current?.write('')
   }
@@ -257,9 +271,17 @@ export function AskScreen(): ReactNode {
   })
   const askFromAnswer = useCallback((words: string) => askNow.current(words), [])
   const answered = useCallback(
-    (id: number, recap: string, list: string | null, line: string | null) => {
+    (
+      id: number,
+      recap: string,
+      list: string | null,
+      line: string | null,
+      objects: readonly AskObject[],
+    ) => {
       setTurns(was =>
-        was.map(turn => (turn.id === id ? { ...turn, answered: recap, list, line } : turn)),
+        was.map(turn =>
+          turn.id === id ? { ...turn, answered: recap, list, line, objects } : turn,
+        ),
       )
     },
     [],
@@ -269,14 +291,6 @@ export function AskScreen(): ReactNode {
   }, [])
   // Try again: the turn is worked on again, with its Stop, and the next question waits for it.
   const retry = useCallback((id: number) => setTurns(was => retried(was, id)), [])
-  const titleOf = useCallback(
-    (serverId: number) => {
-      const id = server.onDevice(serverId)
-      const song = id === undefined ? undefined : songsById.get(id)
-      return song ? `${song.title} — ${song.artist}` : undefined
-    },
-    [server, songsById],
-  )
 
   const passToAnswer = (event: {
     key: string
@@ -346,8 +360,8 @@ export function AskScreen(): ReactNode {
           changing
             ? // The chip already says which songs.
               changingSongs === 1
-              ? 'Change it…'
-              : 'Change them…'
+              ? 'Ask about it…'
+              : 'Ask about them…'
             : turns.length === 0
               ? 'Ask anything…'
               : 'Ask a follow-up…'
@@ -403,15 +417,15 @@ export function AskScreen(): ReactNode {
                     <ServerAway reach={server.reach} need="ai" testID="ask-server" />
                   </Stage>
                 ) : (
-                  turns.map(turn => (
+                  turns.map((turn, index) => (
                     <TurnStage
                       key={turn.id}
                       turn={turn}
+                      number={index + 1}
                       shown={turn.id === shownId}
                       latest={turn.id === latestId}
                       top={top}
                       via={reachedConnection(server.reach)?.baseUrl ?? null}
-                      titleOf={titleOf}
                       listHeight={listHeight}
                       onAnswered={answered}
                       onSettle={settle}
@@ -544,11 +558,7 @@ function LogLine({
     ? (list.order ?? picksHere(list.result, server.onDevice).map(pick => pick.songId))
     : []
   const waiting = turn.answered === null
-  const line = waiting
-    ? 'Working on it…'
-    : (turn.outcome ??
-      (turn.line && turn.change ? `Changed it · ${turn.line}` : turn.line) ??
-      'Couldn’t answer that')
+  const line = waiting ? 'Working on it…' : (turn.outcome ?? turn.line ?? 'Couldn’t answer that')
   return (
     <Press
       feedback="dim"
@@ -682,11 +692,11 @@ function Suggestions({ onAsk }: { onAsk: (words: string) => void }): ReactNode {
  */
 const TurnStage = memo(function TurnStage({
   turn,
+  number,
   shown: onStage,
   latest,
   top,
   via,
-  titleOf,
   listHeight,
   onAnswered,
   onSettle,
@@ -695,15 +705,22 @@ const TurnStage = memo(function TurnStage({
   onKeys,
 }: {
   turn: Turn
+  /** Its place on the page, 1 for the first: its objects' handles say it (`objectsOf`). */
+  number: number
   /** On the stage; otherwise drawn but hidden. */
   shown: boolean
   latest: boolean
   /** On a phone, the way back to the log; on a computer, nothing: the log is beside it. */
   top: ReactNode
   via: string | null
-  titleOf: (serverId: number) => string | undefined
   listHeight: number
-  onAnswered: (id: number, recap: string, list: string | null, line: string | null) => void
+  onAnswered: (
+    id: number,
+    recap: string,
+    list: string | null,
+    line: string | null,
+    objects: readonly AskObject[],
+  ) => void
   onSettle: (id: number, outcome: string) => void
   /** Try again, before it is asked again. */
   onRetry: (id: number) => void
@@ -715,11 +732,6 @@ const TurnStage = memo(function TurnStage({
   const { wide } = useLayoutFlags()
   const room = useContext(AddingToRoom)
   const said = turn.before
-  // A change is told by what the list was first asked as: its page, its Save
-  // and its Up next carry those words.
-  const [text] = useState(() =>
-    turn.change ? (keptAnswer(turn.change)?.text ?? turn.asked) : turn.asked,
-  )
   // More than the server takes is said here rather than sent to be refused.
   const tooLong = tooLongToAsk(turn.asked)
   // Names the request, so how it is going can be asked after while it runs,
@@ -727,34 +739,26 @@ const TurnStage = memo(function TurnStage({
   // each time: a Stop meant for one request must not reach the next.
   const [ticket, setTicket] = useState<string | null>(null)
   const answer = useQuery<AskAnswer>({
-    queryKey: turn.change
-      ? viaKey(via, 'ai', 'change', turn.id, turn.change, turn.asked)
-      : askKey(via, turn.id, [...said.map(each => each.asked), turn.asked], turn.playing),
+    queryKey: askKey(
+      via,
+      turn.id,
+      [...said.map(each => each.asked), turn.asked],
+      turn.playing,
+      turn.screen,
+    ),
     // Read, so React Query drops the request when nobody watches it any more:
     // Stop, the page left. The server stops asking the model with it.
     queryFn: async ({ signal }) => {
       const named = newTicket()
       setTicket(named)
-      if (turn.change) {
-        // Said with the chip: the list changed as Change it changes one, the
-        // songs shown that still fit kept in their places (B1).
-        const list = keptAnswer(turn.change)
-        if (!list) throw new Error('That list is gone. Ask for it again.')
-        const describe = await server.api!.refineAnswer(
-          {
-            text: list.text,
-            understanding: understandingOf(list),
-            change: turn.asked,
-            shown: shownOnServer(list, server.onServer),
-            ticket: named,
-          },
-          signal,
-        )
-        return { kind: 'songs', lead: 'play', describe }
-      }
       return askKept(
         server.api!,
-        { text: turn.asked, playing: turn.playing, ticket: named, before: said },
+        {
+          text: turn.asked,
+          context: { playing: turn.playing, screen: turn.screen },
+          ticket: named,
+          before: said,
+        },
         signal,
       )
     },
@@ -767,9 +771,12 @@ const TurnStage = memo(function TurnStage({
   const live = useAskProgress(ticket, waiting)
   const data = answer.data
   // A list changed in words (Change it) is told as it is now shown, not as it first came.
-  const keptId = data?.kind === 'songs' ? keepAnswer(text, data.describe) : undefined
+  const keptId = data?.kind === 'songs' ? keepAnswer(turn.asked, data.describe) : undefined
   const kept = useKeptAnswer(keptId)
-  const shown = data?.kind === 'songs' && kept ? { ...data, describe: kept.result } : data
+  const shown = useMemo(
+    () => (data?.kind === 'songs' && kept ? { ...data, describe: kept.result } : data),
+    [data, kept],
+  )
   // A playback answer is told as what it came to on this device ("Nothing is playing.").
   const [carried, setCarried] = useState<string | null>(null)
   const recap = waiting
@@ -777,7 +784,7 @@ const TurnStage = memo(function TurnStage({
     : shown
       ? shown.kind === 'playback' && carried !== null
         ? carried
-        : answerRecap(shown, titleOf)
+        : answerRecap(shown)
       : answer.isError || tooLong
         ? FAILED
         : null
@@ -792,11 +799,34 @@ const TurnStage = memo(function TurnStage({
         ? carried
         : logLine(shown)
       : null
+  // What it showed, for the follow-ups to name by handle: a list as it is shown now.
+  const objects = useMemo(
+    () =>
+      recap === null || !shown
+        ? []
+        : objectsOf(
+            shown,
+            number,
+            kept
+              ? {
+                  songIds: shownOnServer(kept, server.onServer),
+                  understanding: understandingOf(kept),
+                }
+              : undefined,
+          ),
+    [recap, shown, number, kept, server.onServer],
+  )
   useEffect(() => {
-    if (recap !== null && (recap !== turn.answered || list !== turn.list || line !== turn.line)) {
-      onAnswered(turn.id, recap, list, line)
+    if (
+      recap !== null &&
+      (recap !== turn.answered ||
+        list !== turn.list ||
+        line !== turn.line ||
+        JSON.stringify(objects) !== JSON.stringify(turn.objects))
+    ) {
+      onAnswered(turn.id, recap, list, line, objects)
     }
-  }, [recap, list, line, turn.answered, turn.list, turn.line, turn.id, onAnswered])
+  }, [recap, list, line, objects, turn, onAnswered])
   const settled = turn.outcome !== null
   // Only the newest answer's keys work, and only while it is shown whole.
   useEffect(() => {
@@ -810,7 +840,7 @@ const TurnStage = memo(function TurnStage({
   if (list !== null && data?.kind === 'songs' && data.lead !== 'next' && !room) {
     return (
       <View style={[styles.stage, !onStage && styles.hidden]} testID={`ask-turn-${turn.id}`}>
-        <AnswerView key={list} id={list} asked={turn.asked} top={top} />
+        <AnswerView key={list} id={list} asked={turn.asked} top={top} lead={data.lead} />
       </View>
     )
   }
@@ -865,7 +895,7 @@ const TurnStage = memo(function TurnStage({
             <View testID={`ask-answer-${data.kind}`}>
               <AnswerBody
                 answer={data}
-                text={text}
+                text={turn.asked}
                 // A proposal acted on or put aside becomes what came of it; anything
                 // else stays to come back to.
                 onDone={outcome => (settles && outcome ? onSettle(turn.id, outcome) : undefined)}
@@ -944,9 +974,9 @@ interface DraftHandle {
  * sends; a browser keeps the focus in it, since the next follow-up is likely.
  *
  * After a list it wears the list as a chip, "↳ these 19 songs" (B1,
- * 2026-10-26): what is typed then changes that list. Its ×, or ⌫ in the
- * empty field, lets the list go, and the words are a question again. The one
- * field does what the song card's own Change it did.
+ * 2026-10-26): what "these" means, the list sent as what is on the screen.
+ * Its ×, or ⌫ in the empty field, lets the list go, and the words are asked
+ * with nothing on the screen.
  */
 function AskField({
   inputRef,
@@ -965,7 +995,7 @@ function AskField({
   onSend: (words: string) => void
   /** While an answer is worked on: what Stop does. */
   onStop: (() => void) | null
-  /** The list what is typed changes, and how to let it go. */
+  /** The list "these" means, and how to let it go. */
   chip: { label: string; name: string; onLetGo: () => void } | null
   placeholder: string
   autoFocus: boolean
@@ -985,7 +1015,7 @@ function AskField({
   return (
     <View style={[styles.field, focused && { borderColor: accent.accent }]}>
       {chip ? (
-        <View style={styles.chip} testID="ask-chip" accessibilityLabel={`Changing ${chip.name}`}>
+        <View style={styles.chip} testID="ask-chip" accessibilityLabel={`About ${chip.name}`}>
           <Text style={styles.chipText} numberOfLines={1}>
             {`↳ ${chip.label}`}
           </Text>

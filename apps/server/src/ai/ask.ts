@@ -1,11 +1,12 @@
 import { z } from 'zod/v4'
-import type { AskAnswer, AskTurn } from '@selfmp3/shared'
+import type { AskAnswer, AskRequest, AskTurn, Song } from '@selfmp3/shared'
 import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './askActions.js'
 import { none, rulesWords } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { objectLines, type Held } from './scope.js'
 
 /**
  * S1 · the Search box's Ask (docs/features/ai.md).
@@ -22,10 +23,13 @@ import { NO_STEPS, type Steps } from './progress.js'
  * endpoint takes reliably.
  *
  * A follow-up is asked after the conversation before it (`followed`): each
- * earlier question with what was shown for it. The router and the action it
- * chooses answer the newest words, reading the rest as what they follow on
- * from — a question about what was just said, or a change to the request
- * before ("only the albums").
+ * earlier question with what was shown for it, and what each answer showed as
+ * objects named by handle (`t2.1`), their songs numbered. The router and the
+ * action it chooses answer the newest words, reading the rest as what they
+ * follow on from: a question about what was just said, a change to a list
+ * shown, or something done with songs an answer showed, named by handle and
+ * place (`scope.ts`) rather than described again. The answer on the device's
+ * screen (`context.screen`) is what words pointing at songs mean.
  */
 
 const FALLBACK =
@@ -43,18 +47,43 @@ type Route = Record<string, unknown> & {
  * The request as the router and the actions read it: what they say now, after
  * the conversation so far. Each earlier turn comes with what was shown for it,
  * so it is context and not asked again: the newest words are what is answered.
+ * What the answers showed is set out by handle, the one on their screen
+ * first, each with its songs numbered (`objectLines`), so a follow-up names
+ * them by handle and place.
  */
-export function followed(text: string, before: readonly AskTurn[]): string {
+export function followed(
+  text: string,
+  before: readonly AskTurn[],
+  screen: string | null = null,
+  songs: ReadonlyMap<number, Song> = new Map(),
+): string {
   if (before.length === 0) return text
+  const objects = before.flatMap(turn => turn.objects)
+  const onScreen = objects.find(object => object.handle === screen)
+  const shown = onScreen ? [onScreen, ...objects.filter(object => object !== onScreen)] : objects
   return [
     'Earlier in this conversation:',
     ...before.flatMap(turn => [
       `They asked: ${turn.asked}`,
       `You answered: ${turn.answered || '(nothing)'}`,
+      ...(turn.objects.length > 0
+        ? [`It showed: ${turn.objects.map(object => object.handle).join(', ')}`]
+        : []),
     ]),
+    ...(shown.length > 0
+      ? [
+          '',
+          'What the answers showed, by handle:',
+          ...shown.map(object => objectLines(object, songs)),
+        ]
+      : []),
+    '',
+    onScreen
+      ? `On their screen now: ${onScreen.handle}. Words that point at songs without saying where they are point at its songs.`
+      : 'Nothing from this conversation is on their screen now.',
     '',
     `Now they say: ${text}`,
-    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Songs an answer showed are named by its handle and their places in its list, never described again. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
   ].join('\n')
 }
 
@@ -102,19 +131,23 @@ const SYSTEM = routeSystem(ASK_ACTIONS)
 export async function ask(
   deps: AskDeps,
   text: string,
-  playingId: number | null = null,
+  /** The song playing on the device and the answer on its screen. */
+  where: AskRequest['context'] = { playing: null, screen: null },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
   /** The conversation before this, when it follows up on an answer. */
   before: readonly AskTurn[] = [],
 ): Promise<AskAnswer> {
-  const request = withNotes(followed(text, before), deps.notes?.() ?? [])
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
+  const byId = new Map(songs.map(song => [song.id, song]))
+  const request = withNotes(followed(text, before, where.screen, byId), deps.notes?.() ?? [])
 
-  const playing = songs.find(song => song.id === playingId)
+  const playing = where.playing === null ? undefined : byId.get(where.playing)
+  // What the handles name: the song playing, and what each earlier answer showed.
+  const held: Held = { playing, objects: before.flatMap(turn => turn.objects) }
   // "This", for the router and for the pick: the song as the table draws a row.
   const nowPlaying = playing
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
@@ -162,6 +195,9 @@ export async function ask(
   const context: AskContext = {
     deps: { ...deps, remembered },
     text: request,
+    words: text,
+    before,
+    held,
     playing,
     nowPlaying,
     playlists,
@@ -179,5 +215,5 @@ function missingFrom(route: Route): string | null {
     return chosen.name
   }
   if (chosen.filters === 'required' && route.filters === null) return 'filters'
-  return null
+  return chosen.missing?.(route[chosen.name], route.filters) ?? null
 }

@@ -1,4 +1,10 @@
-import { ASK_ANSWERED_MAX, ASK_BEFORE_MAX, ASK_TEXT_MAX, type AskTurn } from '@selfmp3/shared'
+import {
+  ASK_ANSWERED_MAX,
+  ASK_BEFORE_MAX,
+  ASK_TEXT_MAX,
+  type AskObject,
+  type AskTurn,
+} from '@selfmp3/shared'
 
 /** One thing asked on the Ask page, and what came of it once it has come. */
 export interface Turn {
@@ -7,6 +13,11 @@ export interface Turn {
   readonly asked: string
   /** The song playing when it was asked, by the server's id: what "this" meant then (A8). */
   readonly playing: number | null
+  /**
+   * The answer on the screen when it was asked, by its object's handle: what
+   * "these" meant then, the field wearing its chip. Null once the chip is let go.
+   */
+  readonly screen: string | null
   /**
    * The conversation it follows on from (`beforeTurn`), fixed when it is
    * asked: a later recap is not a new question.
@@ -20,11 +31,10 @@ export interface Turn {
    */
   readonly outcome: string | null
   /**
-   * The list it changes (B1, 2026-10-26): said with the field's "↳ these
-   * songs", the words go to that kept answer (`answers.store`) as Change it's
-   * did, rather than being asked of the router. Null for a question.
+   * What its answer showed, as objects the turns after it name by handle
+   * (`objectsOf`); empty until it is answered, and for an answer of words.
    */
-  readonly change: string | null
+  readonly objects: readonly AskObject[]
   /** The kept answer its songs are, once it has some to show; null for any other answer. */
   readonly list: string | null
   /** What came of it, as Ask's log says it under the question (`logLine`); null until answered. */
@@ -38,33 +48,43 @@ export function tooLongToAsk(asked: string): boolean {
 
 /**
  * The conversation the turn at `index` is asked after (F1): each turn before
- * it with what was shown for it, and what came of a proposal once it did. A
- * long conversation sends only its newest turns, as many as the server
- * hears; a question too long to have been asked is left out, and a recap cut
+ * it with what was shown for it and its objects, and what came of a proposal
+ * once it did. A long conversation sends only its newest turns, as many as
+ * the server hears, and the one whose answer is on the screen (`screen`, a
+ * handle) wherever it is, so "these" can be acted on however long ago it was
+ * asked; a question too long to have been asked is left out, and a recap cut
  * to what the server takes for one.
  */
-export function beforeTurn(turns: readonly Turn[], index: number): readonly AskTurn[] {
-  return turns
-    .slice(0, index)
-    .filter(turn => !tooLongToAsk(turn.asked))
-    .slice(-ASK_BEFORE_MAX)
-    .map(turn => {
-      const answered = turn.outcome
-        ? `${turn.answered ?? ''}\nThen: ${turn.outcome}`
-        : (turn.answered ?? '')
-      return {
-        asked: turn.asked,
-        answered:
-          answered.length > ASK_ANSWERED_MAX
-            ? `${answered.slice(0, ASK_ANSWERED_MAX - 1)}…`
-            : answered,
-      }
-    })
+export function beforeTurn(
+  turns: readonly Turn[],
+  index: number,
+  screen: string | null = null,
+): readonly AskTurn[] {
+  const asked = turns.slice(0, index).filter(turn => !tooLongToAsk(turn.asked))
+  const onScreen = asked.find(turn => turn.objects.some(object => object.handle === screen))
+  const newest = asked.slice(-ASK_BEFORE_MAX)
+  const sent =
+    onScreen && !newest.includes(onScreen)
+      ? [onScreen, ...asked.slice(-(ASK_BEFORE_MAX - 1))]
+      : newest
+  return sent.map(turn => {
+    const answered = turn.outcome
+      ? `${turn.answered ?? ''}\nThen: ${turn.outcome}`
+      : (turn.answered ?? '')
+    return {
+      asked: turn.asked,
+      answered:
+        answered.length > ASK_ANSWERED_MAX
+          ? `${answered.slice(0, ASK_ANSWERED_MAX - 1)}…`
+          : answered,
+      objects: [...turn.objects],
+    }
+  })
 }
 
 /** A turn asked again (Try again): waiting for its answer, as a new one is. */
 export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
-  return turns.map(turn => (turn.id === id ? { ...turn, answered: null } : turn))
+  return turns.map(turn => (turn.id === id ? { ...turn, answered: null, objects: [] } : turn))
 }
 
 /**

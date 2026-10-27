@@ -2,6 +2,7 @@ import type {
   AiSetup,
   ArtistJoinNames,
   AskAnswer,
+  AskRequest,
   ImportNames,
   ImportNamesRequest,
   TidyResult,
@@ -96,14 +97,14 @@ export class SmartFeatures {
 
   ask(
     text: string,
-    playing: number | null = null,
+    where: AskRequest['context'] = { playing: null, screen: null },
     ticket?: string,
     before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
   ): Promise<AskAnswer> {
     return this.#progress.outlast(ticket, signal, (steps, stop) =>
-      ask(this.#stoppedBy(stop), text, playing, steps, before),
+      ask(this.#stoppedBy(stop), text, where, steps, before),
     )
   }
 

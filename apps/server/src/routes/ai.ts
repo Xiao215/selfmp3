@@ -67,7 +67,7 @@ export function aiRoutes(container: Container): Router {
     route({ body: AskRequestSchema }, ({ body, res }): Promise<AskAnswer> => {
       allowed()
       return answering(
-        container.smart.ask(body.text, body.playing, body.ticket, body.before, whileWaited(res)),
+        container.smart.ask(body.text, body.context, body.ticket, body.before, whileWaited(res)),
       )
     }),
   )

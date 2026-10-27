@@ -6,6 +6,11 @@ import { SONGS, TAGS, scriptedLlm, song } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
 
+/** The song playing, as the device sends it, with nothing on its screen. */
+const whilePlaying = (id: number) => ({ playing: id, screen: null })
+/** A form's scope naming the song playing. */
+const PLAYING = { handle: 'playing', picks: null }
+
 const noFilters = {
   name: 'x',
   anyTags: [],
@@ -30,6 +35,9 @@ const route = (overrides: Record<string, unknown>) => ({
   action: 'none',
   filters: null,
   songs: null,
+  change: null,
+  reply: null,
+  tags: null,
   playback: null,
   find: null,
   stats: null,
@@ -182,7 +190,15 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: true,
+            next: false,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -209,7 +225,15 @@ describe('ask', () => {
         'ask-route': [
           route({
             action: 'songs',
-            songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+            songs: {
+              play: true,
+              next: false,
+              from: null,
+              like: null,
+              name: null,
+              sortBy: null,
+              order: 'desc',
+            },
             filters: { ...noFilters, albums: ['Jukebox'] },
           }),
         ],
@@ -229,12 +253,20 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: false, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: false,
+            next: false,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
           filters: { ...noFilters, albums: ['七里香'] },
         }),
       ],
     })
-    const answer = await ask(d, 'make a list of them', 14)
+    const answer = await ask(d, 'make a list of them', whilePlaying(14))
     expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
       14, 15,
     ])
@@ -245,12 +277,20 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: false,
+            next: true,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
     })
-    const answer = await ask(d, 'more like this after', 7)
+    const answer = await ask(d, 'more like this after', whilePlaying(7))
     expect(answer).toMatchObject({ kind: 'songs', lead: 'next' })
     expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([8])
     const playing = SONGS.find(song => song.id === 7)!
@@ -271,16 +311,24 @@ describe('ask', () => {
         'ask-route': [
           route({
             action: 'songs',
-            songs: { play: false, next: true, like, sortBy: null, order: 'desc' },
+            songs: {
+              play: false,
+              next: true,
+              from: null,
+              like: like ? PLAYING : null,
+              name: null,
+              sortBy: null,
+              order: 'desc',
+            },
             filters: { ...noFilters, anyTags: ['原神纯音乐'] },
           }),
         ],
       }),
       sound,
     })
-    await ask(steer(false), 'play some Genshin next', 7)
+    await ask(steer(false), 'play some Genshin next', whilePlaying(7))
     expect(seeds).toEqual([])
-    const answer = await ask(steer(true), 'more like this', 7)
+    const answer = await ask(steer(true), 'more like this', whilePlaying(7))
     expect(seeds).toEqual([7])
     // The closest-sounding first, the song playing left out.
     expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
@@ -293,7 +341,15 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: false,
+            next: true,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
           filters: { ...noFilters, artists: ['YOASOBI'] },
         }),
       ],
@@ -303,7 +359,7 @@ describe('ask', () => {
 
   it('hands anything about tags to the tag review, with the request itself', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tags' })],
+      'ask-route': [route({ action: 'tags', tags: { from: null } })],
       'tags-plan': [
         {
           checkup: false,
@@ -342,7 +398,9 @@ describe('ask', () => {
 
   it('hands the tag review the number of songs asked for', async () => {
     const d = deps({
-      'ask-route': [route({ action: 'tags', filters: { ...noFilters, size: 2 } })],
+      'ask-route': [
+        route({ action: 'tags', tags: { from: null }, filters: { ...noFilters, size: 2 } }),
+      ],
       'tags-plan': [
         {
           checkup: false,
@@ -453,8 +511,9 @@ describe('ask', () => {
     const first = {
       asked: 'give the 原神纯音乐 songs their official Chinese names',
       answered: 'Proposed 8 name changes.',
+      objects: [],
     }
-    await ask(d, 'only the albums', null, undefined, [first])
+    await ask(d, 'only the albums', undefined, undefined, [first])
     const request = followed('only the albums', [first])
     expect(request).toBe(
       [
@@ -462,8 +521,10 @@ describe('ask', () => {
         `They asked: ${first.asked}`,
         'You answered: Proposed 8 name changes.',
         '',
+        'Nothing from this conversation is on their screen now.',
+        '',
         'Now they say: only the albums',
-        '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
+        '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Songs an answer showed are named by its handle and their places in its list, never described again. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
       ].join('\n'),
     )
     // The router and the action it chose both read all of it.
@@ -538,14 +599,14 @@ describe('ask', () => {
   it('changes the song playing and no other, when the request points at it', async () => {
     const d = deps({
       'ask-route': [
-        route({ action: 'tidy', tidy: { what: 'change', lookUp: false, from: 'playing' } }),
-        route({ action: 'tidy', tidy: { what: 'change', lookUp: false, from: 'playing' } }),
+        route({ action: 'tidy', tidy: { what: 'change', lookUp: false, from: PLAYING } }),
+        route({ action: 'tidy', tidy: { what: 'change', lookUp: false, from: PLAYING } }),
       ],
       'tidy-asked': [
         { edits: [{ n: 1, field: 'title', to: '夜に駆ける!', why: 'As you asked' }], say: '' },
       ],
     })
-    const answer = await ask(d, 'this title should end with a !', 8)
+    const answer = await ask(d, 'this title should end with a !', whilePlaying(8))
     if (answer.kind !== 'tidy') throw new Error(`not tidy: ${answer.kind}`)
     expect(answer.tidy.changes.map(each => each.songIds)).toEqual([[8]])
     expect(answer.tidy.looked).toBe(1)
@@ -706,11 +767,27 @@ describe('ask', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: true,
+            next: false,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
         }),
         route({
           action: 'songs',
-          songs: { play: true, next: false, like: false, sortBy: null, order: 'desc' },
+          songs: {
+            play: true,
+            next: false,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: null,
+            order: 'desc',
+          },
         }),
       ],
     })
@@ -765,7 +842,7 @@ describe('ask for songs in an order', () => {
   const ordered = (filters: Record<string, unknown>, sortBy: string, order = 'desc') =>
     route({
       action: 'songs',
-      songs: { play: true, next: false, like: false, sortBy, order },
+      songs: { play: true, next: false, from: null, like: null, name: null, sortBy, order },
       filters: { ...noFilters, ...filters },
     })
 
@@ -807,12 +884,20 @@ describe('ask for songs in an order', () => {
       'ask-route': [
         route({
           action: 'songs',
-          songs: { play: false, next: true, like: false, sortBy: 'energy', order: 'desc' },
+          songs: {
+            play: false,
+            next: true,
+            from: null,
+            like: null,
+            name: null,
+            sortBy: 'energy',
+            order: 'desc',
+          },
           filters: { ...noFilters, anyTags: ['jpop'] },
         }),
       ],
     })
-    const steered = await ask(next, 'the most energetic jpop next', 7)
+    const steered = await ask(next, 'the most energetic jpop next', whilePlaying(7))
     expect(
       steered.kind === 'songs' && steered.describe.picks.map(pick => pick.songId),
     ).not.toContain(7)
@@ -849,11 +934,13 @@ describe('the router, built from the actions', () => {
 
   it('gives each action with fields its own part of the form, and the rest none', () => {
     const form = routeForm(ASK_ACTIONS)
-    expect(form.parse(route({ action: 'tags' }))).toMatchObject({ action: 'tags' })
+    expect(form.parse(route({ action: 'tags', tags: { from: null } }))).toMatchObject({
+      action: 'tags',
+    })
     expect(() => form.parse(route({ action: 'dance' }))).toThrow()
     const keys = Object.keys(form.parse(route({ action: 'tidy' })))
     expect(keys).toEqual(expect.arrayContaining(['songs', 'find', 'playlistSongs', 'tidy', 'open']))
-    expect(keys).not.toContain('tags')
+    expect(keys).not.toContain('explore')
   })
 
   it('takes a new action as an entry, with nothing else to change', () => {
@@ -876,7 +963,7 @@ describe('ask about the library', () => {
   const question = (overrides: Record<string, unknown>) =>
     route({
       action: 'library',
-      library: { show: 'count', sortBy: null, order: 'asc', ...overrides },
+      library: { from: null, show: 'count', sortBy: null, order: 'asc', ...overrides },
     })
 
   it('counts the songs the filters choose, and says who they are by', async () => {
@@ -1001,7 +1088,14 @@ describe('ask about a playlist’s songs', () => {
     route({
       action: 'playlistSongs',
       filters,
-      playlistSongs: { name: 'running', op: 'add', sortBy: null, order: 'asc', ...overrides },
+      playlistSongs: {
+        name: 'running',
+        from: null,
+        op: 'add',
+        sortBy: null,
+        order: 'asc',
+        ...overrides,
+      },
     })
 
   it('adds the songs the filters choose that are not in it yet', async () => {
@@ -1111,7 +1205,7 @@ describe('ask, about the music playing', () => {
   it('hands skipping, going back, restarting and pausing to the device, with no place', async () => {
     for (const op of ['next', 'previous', 'restart', 'pause', 'resume']) {
       // A place the router filled in anyway means nothing for these.
-      expect(await ask(control({ op, place: 2 }), 'skip this song', 7)).toEqual({
+      expect(await ask(control({ op, place: 2 }), 'skip this song', whilePlaying(7))).toEqual({
         kind: 'playback',
         op,
         place: null,
@@ -1172,5 +1266,180 @@ describe('songsMatching', () => {
       [7, 'a line'],
       [8, null],
     ])
+  })
+})
+
+describe('ask, acting on what an earlier answer showed', () => {
+  // An Up next list of three songs (and one the library no longer has), as the device sends it back.
+  const shown = {
+    handle: 't1.1',
+    kind: 'songs' as const,
+    label: 'J-pop next',
+    songIds: [7, 8, 9, 999],
+    why: ['bright', 'fast', null, 'gone'],
+    playlist: null,
+    lead: 'next' as const,
+    like: 13,
+    understanding: { ...noFilters, name: 'J-pop next', anyTags: ['jpop'] },
+  }
+  const before = [
+    {
+      asked: 'some jpop next',
+      answered: 'Offered 4 songs (“J-pop next”) to play after the song playing',
+      objects: [shown],
+    },
+  ]
+  const onScreen = { playing: 13, screen: 't1.1' }
+  const songsPart = (overrides: Record<string, unknown>) => ({
+    play: false,
+    next: false,
+    from: null,
+    like: null,
+    name: null,
+    sortBy: null,
+    order: 'desc',
+    ...overrides,
+  })
+
+  it('shows the router each object by handle, its songs numbered with their reasons, the screen’s first', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: songsPart({ play: true, from: { handle: 't1.1', picks: [2] } }),
+        }),
+      ],
+    })
+    const answer = await ask(d, 'play the 2nd one', onScreen, undefined, before)
+    const prompt = d.llm.asked[0]!.prompt
+    expect(prompt).toContain('It showed: t1.1')
+    expect(prompt).toContain(
+      't1.1 — “J-pop next” (songs, offered to play next), 4 songs:\n  1. アイドル · YOASOBI (why: bright)\n  2. 夜に駆ける · YOASOBI (why: fast)',
+    )
+    expect(prompt).toContain('On their screen now: t1.1.')
+    // Exactly the song at that place, played now, with the reason it was shown with.
+    expect(answer).toMatchObject({
+      kind: 'songs',
+      lead: 'play',
+      like: 13,
+      describe: { picks: [{ songId: 8, why: 'fast' }], fit: 1 },
+    })
+    expect(d.llm.asked).toHaveLength(1)
+  })
+
+  it('keeps exactly the songs shown under the name given, only those the library has', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: songsPart({ from: { handle: 't1.1', picks: null }, name: 'Morning' }),
+        }),
+      ],
+    })
+    const answer = await ask(d, 'save it as Morning', onScreen, undefined, before)
+    expect(answer).toMatchObject({ kind: 'songs', lead: 'save' })
+    expect(answer.kind === 'songs' && answer.describe.understanding.name).toBe('Morning')
+    expect(answer.kind === 'songs' && answer.describe.picks.map(pick => pick.songId)).toEqual([
+      7, 8, 9,
+    ])
+  })
+
+  it('adds the songs shown to a playlist, leaving out the ones already in it', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'playlistSongs',
+          playlistSongs: {
+            name: 'running',
+            from: { handle: 't1.1', picks: null },
+            op: 'add',
+            sortBy: null,
+            order: 'asc',
+          },
+        }),
+      ],
+    })
+    const answer = await ask(d, 'add these to running', onScreen, undefined, before)
+    expect(answer).toMatchObject({
+      kind: 'playlistSongs',
+      playlist: 'running',
+      op: 'add',
+      by: 'rule',
+    })
+    expect(answer.kind === 'playlistSongs' && answer.songs.map(each => each.songId)).toEqual([8])
+  })
+
+  it('takes out the songs named and keeps the rest as they were, still next and like the song', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'change', change: { from: 't1.1', drop: [1] } })],
+    })
+    const answer = await ask(d, 'not アイドル', onScreen, undefined, before)
+    expect(answer).toMatchObject({ kind: 'songs', lead: 'next', like: 13 })
+    expect(answer.kind === 'songs' && answer.describe.picks).toEqual([
+      { songId: 8, why: 'fast' },
+      { songId: 9, why: null },
+    ])
+    expect(d.llm.asked).toHaveLength(1)
+  })
+
+  it('changes a list from what it understood, keeping the songs that still fit and what it was for', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'change', change: { from: 't1.1', drop: null } })],
+      'refine-plan': [{ ...shown.understanding, size: 2 }],
+    })
+    const answer = await ask(d, 'just two', onScreen, undefined, before)
+    expect(d.llm.asked[1]!.prompt).toContain('What they first asked:\nsome jpop next')
+    expect(d.llm.asked[1]!.prompt).toContain('What to change:\njust two')
+    expect(answer).toMatchObject({ kind: 'songs', lead: 'next', like: 13 })
+    expect(answer.kind === 'songs' && answer.describe.picks).toEqual([
+      { songId: 7, why: 'bright' },
+      { songId: 8, why: 'fast' },
+    ])
+  })
+
+  it('answers why a song is in a list from what was shown, with the song it is about', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'reply',
+          reply: { say: 'It was picked for being fast.', from: { handle: 't1.1', picks: [2] } },
+        }),
+      ],
+    })
+    expect(await ask(d, 'why is 夜に駆ける in here', onScreen, undefined, before)).toEqual({
+      kind: 'explore',
+      say: 'It was picked for being fast.',
+      songIds: [8],
+      get: null,
+    })
+  })
+
+  it('hands the tag review the songs pointed at, and only those', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'tags', tags: { from: { handle: 't1.1', picks: [1, 3] } } })],
+      'tags-plan': [
+        { checkup: false, ops: [], focus: ['jpop'], newTag: null, songs: 'all', artists: [] },
+      ],
+      'tags-groups': [{ groups: [] }],
+    })
+    const answer = await ask(d, 'are these right as jpop', onScreen, undefined, before)
+    expect(d.llm.asked[1]!.prompt).toContain('The songs it is about:\nアイドル | YOASOBI |')
+    expect(answer).toMatchObject({ kind: 'tags', review: { looked: 2 } })
+  })
+
+  it('says so when a handle names nothing here, rather than reaching for the whole library', async () => {
+    const d = deps({
+      'ask-route': [
+        route({
+          action: 'songs',
+          songs: songsPart({ play: true, from: { handle: 't4.1', picks: null } }),
+        }),
+      ],
+    })
+    expect(await ask(d, 'play that one', onScreen, undefined, before)).toEqual({
+      kind: 'none',
+      say: 'Those songs aren’t in your library any more.',
+      try: [],
+    })
   })
 })

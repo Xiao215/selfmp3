@@ -23,7 +23,6 @@ const plan = (overrides: Record<string, unknown>) => ({
   newTag: null,
   songs: 'none',
   artists: [],
-  from: null,
   ...overrides,
 })
 
@@ -311,35 +310,23 @@ describe('tagReview, a request', () => {
 })
 
 describe('tagReview, songs it points at and songs one by one', () => {
-  it('looks at the song playing and no other, when the plan says the request points at it', async () => {
+  it('looks at the songs it is handed and no others', async () => {
     const llm = scriptedLlm({
-      'tags-plan': [plan({ focus: ['jpop'], songs: 'without', from: 'playing' })],
+      'tags-plan': [plan({ focus: ['jpop'], songs: 'without' })],
       'tags-groups': [{ groups: [group('g1', { add: ['jpop'] })] }],
     })
     const result = await tagReview(
       { llm, songs: () => SONGS, tags: () => TAGS },
-      { text: 'tag this jpop', held: { playing: byId(13) } },
+      { text: 'tag this jpop', scope: [byId(13)] },
     )
     expect(result.looked).toBe(1)
     expect(result.changes).toEqual([
       expect.objectContaining({ op: 'add', tag: 'jpop', songIds: [13] }),
     ])
     expect(llm.asked[0]!.prompt).toContain(
-      'Songs they may mean:\nplaying: Prostitution | Yorushika | Plagiarism | no tags',
+      'The songs it is about:\nProstitution | Yorushika | Plagiarism | no tags',
     )
     expect(llm.asked[1]!.prompt).toContain('| Yorushika | 1 song | no tags |')
-  })
-
-  it('says nothing is playing rather than looking at the whole library', async () => {
-    const llm = scriptedLlm({
-      'tags-plan': [plan({ focus: ['jpop'], songs: 'without', from: 'playing' })],
-    })
-    const result = await tagReview(
-      { llm, songs: () => SONGS, tags: () => TAGS },
-      { text: 'tag this jpop', held: { playing: undefined } },
-    )
-    expect(result).toMatchObject({ changes: [], looked: 0, note: 'Nothing is playing to look at.' })
-    expect(llm.asked.map(each => each.task)).toEqual(['tags-plan'])
   })
 
   it('takes a change for some of a group’s songs, each song once', async () => {

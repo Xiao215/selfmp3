@@ -76,7 +76,7 @@ const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${so
 if (what === 'ask') {
   // PLAYING=<song id> asks as if that song were playing (A8).
   const playing = process.env['PLAYING'] ? Number(process.env['PLAYING']) : null
-  const answer = await smart.ask(words.join(' '), playing)
+  const answer = await smart.ask(words.join(' '), { playing, screen: null })
   if (answer.kind === 'tags') {
     printTagReview(answer.review)
     process.exit(0)

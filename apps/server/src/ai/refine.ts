@@ -40,6 +40,12 @@ export async function refine(
   deps: DescribeDeps,
   request: Pick<RefineRequest, 'text' | 'understanding' | 'change' | 'shown'>,
   steps: Steps = NO_STEPS,
+  /**
+   * The song the list was asked to sound like (an Up next list's "more like
+   * this"), by id: the songs picked for the change are still ordered by how
+   * close they sound to it, and it stays out of them.
+   */
+  like: number | null = null,
 ): Promise<DescribeResult> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
@@ -124,10 +130,11 @@ export async function refine(
     `${request.text}\n${request.change}`,
     rest,
     unknown,
-    kept,
+    like === null ? kept : [...kept, like],
     steps,
+    like,
   )
-  const added = more.picks.filter(pick => !kept.includes(pick.songId))
+  const added = more.picks.filter(pick => !kept.includes(pick.songId) && pick.songId !== like)
   return {
     ...more,
     understanding: {

@@ -8,6 +8,8 @@ import {
   editDistance,
   NO_JOINS,
   type AskAnswer,
+  type AskTurn,
+  type DescribeResult,
   type Song,
   type Stats,
 } from '@selfmp3/shared'
@@ -37,7 +39,17 @@ import { fillGaps } from './fill.js'
 import type { Steps } from './progress.js'
 import { explore } from './explore.js'
 import { getMusic, type MusicCatalogue } from './getMusic.js'
-import { ScopeField, SCOPE_WHEN, scopeOf } from './scope.js'
+import { refine } from './refine.js'
+import {
+  heldObject,
+  PLAYING,
+  ScopeField,
+  SCOPE_WHEN,
+  scopeOf,
+  scopeWhy,
+  type Held,
+  type Scope,
+} from './scope.js'
 import { tagReview } from './tagReview.js'
 import { bare } from './text.js'
 import { oneSpelling, tidy } from './tidy.js'
@@ -79,7 +91,14 @@ export interface AskDeps extends DescribeDeps {
 /** What every action is run with: the request, and the library as it was asked about. */
 export interface AskContext {
   readonly deps: AskDeps & { readonly remembered: Remembered }
+  /** The request as asked after the conversation (`followed`). */
   readonly text: string
+  /** Their newest words alone. */
+  readonly words: string
+  /** The conversation before, for what an object's turn first asked. */
+  readonly before: readonly AskTurn[]
+  /** What the handles name (`scope.ts`): the song playing and what earlier answers showed. */
+  readonly held: Held
   /** The song playing on the asking device, and the line the router saw for it. */
   readonly playing: Song | undefined
   readonly nowPlaying: string
@@ -99,8 +118,22 @@ export interface AskAction<F> {
   readonly fields: z.ZodType<F> | null
   /** Whether it reads the shared filters, and whether it cannot answer without them. */
   readonly filters: 'required' | 'optional' | 'unused'
+  /**
+   * What the router left out that this action cannot do without, past its
+   * fields and required filters, or null: asked once more, as they are.
+   */
+  missing?(fields: F, filters: Plan | null): string | null
   /** A method, so an entry fits the list whatever its fields are. */
   run(context: AskContext, fields: F, filters: Plan | null): AskAnswer | Promise<AskAnswer>
+}
+
+/** What is said when a handle names no songs here, rather than reaching for the whole library. */
+function pointedAtNothing(from: NonNullable<Scope>): AskAnswer {
+  return none(
+    from.handle === PLAYING
+      ? 'Nothing is playing to look at.'
+      : 'Those songs aren’t in your library any more.',
+  )
 }
 
 /** An entry, with its fields' type read off its schema. */
@@ -173,34 +206,51 @@ const FIND_SYSTEM = `Someone is looking for one song in their own library that t
 
 const songs = action({
   name: 'songs',
-  when: 'they want music: a playlist made, or something to listen to. Fill "filters". In "songs", play is true when they want it now ("play…", "put on…", "something for right now"), false when they want it kept ("make a playlist…"); next is true when they want it after the song playing ("next", "after this", "queue up…", "up next"), or when they ask to steer what is playing ("more like this", "something calmer"); like is true only when a song is playing and they want music that sounds like it ("more like this", "similar to this", "this but calmer"), and the songs are then ordered by how close they sound to it, so "more like this" needs no filters. Describe a change from it in sound ("calmer", "more upbeat", "with piano") and add its tags or artists only when they want the same kind ("more Genshin like this"). Otherwise like is false, even with a song playing ("play some YOASOBI next"). sortBy and order when they want the songs that come first in an order the library can sort by (sortBy says what, order which end: desc for the most, longest, newest or latest first); the songs are then exactly the first ones in that order. Else sortBy null and order desc.',
+  when:
+    'they want music: a playlist made, or something to listen to, new or from what an earlier answer showed. In "songs", play is true when they want it now, false when they want it kept; next is true when they want it after the song playing (next, after this, up next, queued), or when they ask to steer what is playing. ' +
+    SCOPE_WHEN +
+    ' With from, the songs are exactly those, in that order (what was shown, or some of it, played, kept or queued), and filters is null. Without from, fill "filters" with the songs they describe. like names the one song they want music that sounds like, the way from names songs (the song playing, or one place in an earlier answer), and the songs are then ordered by how close they sound to it, so music like a song needs no filters; describe a change from it in sound, and add its tags or artists only when they want the same kind. Otherwise like is null, even with a song playing. name is what they call the list when they give it a name, else null. sortBy and order when they want the songs that come first in an order the library can sort by (sortBy says what, order which end: desc for the most, longest, newest or latest first); the songs are then exactly the first ones in that order. Else sortBy null and order desc.',
   fields: z.object({
     play: z.boolean(),
     next: z.boolean(),
-    like: z.boolean(),
+    from: ScopeField,
+    like: ScopeField,
+    name: z.string().max(60).nullable(),
     sortBy: z.enum(AskSortSchema.options).nullable(),
     order: z.enum(AskOrderSchema.options),
   }),
-  filters: 'required',
+  filters: 'optional',
+  missing: ({ from, like }, filters) =>
+    from === null && like === null && filters === null ? 'filters' : null,
   run: async (
-    { deps, text, playing, nowPlaying, steps },
-    { play, next, like, sortBy, order },
+    { deps, text, held, playing, nowPlaying, steps },
+    { play, next, from, like, name, sortBy, order },
     filters,
   ) => {
     const steering = next && playing !== undefined
+    const lead = steering ? 'next' : play ? 'play' : 'save'
+    const library = deps.songs()
+    // Songs already shown: exactly those, nothing picked.
+    const pointed = scopeOf(from, held, library)
+    if (from && pointed?.length === 0) return pointedAtNothing(from)
+    if (from && pointed)
+      return { kind: 'songs', lead, ...shownSongs(deps, held, from, pointed, name) }
+    const likeSong = scopeOf(like, held, library)?.[0]
+    if (like && !likeSong) return pointedAtNothing(like)
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
-    const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
+    const asked = filters ?? EVERYTHING
+    const plan = steering ? { ...asked, size: asked.size ?? NEXT_SIZE } : asked
     const { understanding, unknown } = groundPlan(
-      plan,
-      deps.songs(),
+      { ...plan, name: name?.trim() || plan.name },
+      library,
       deps.tags(),
       deps.artistNames?.() ?? NO_JOINS,
     )
-    // Steering from the song playing ("next", "more like this") leaves it out:
-    // it is what they move on from. Asked for any other way ("make a list of
-    // them" while one of them plays), it is one of the songs like any other.
-    const from = steering || like ? playing : undefined
-    const avoid = from ? [from.id] : []
+    // Steering from a song (next, more like it) leaves it out: it is what they
+    // move on from. Asked for any other way (a list of them while one of them
+    // plays), it is one of the songs like any other.
+    const leaving = likeSong ?? (steering ? playing : undefined)
+    const avoid = leaving ? [leaving.id] : []
     // An order the library knows says which songs come first: sorted in code, not picked from a sample.
     const found = sortBy
       ? await songsInOrder(
@@ -223,10 +273,116 @@ const songs = action({
           avoid,
           steps,
           // Only when they asked for music like it: what sounds close to it comes first.
-          like && playing ? playing.id : null,
+          likeSong?.id ?? null,
         )
-    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== from?.id) }
-    return { kind: 'songs', lead: steering ? 'next' : play ? 'play' : 'save', describe }
+    const describe = { ...found, picks: found.picks.filter(pick => pick.songId !== leaving?.id) }
+    return { kind: 'songs', lead, describe, like: likeSong?.id ?? null }
+  },
+})
+
+/**
+ * Songs an earlier answer showed, as a song answer of their own: exactly
+ * those, in that order, each with the reason it was shown with. Named, the
+ * list takes the name; else the name it had.
+ */
+function shownSongs(
+  deps: AskDeps,
+  held: Held,
+  from: NonNullable<Scope>,
+  pointed: readonly Song[],
+  name: string | null,
+): { describe: DescribeResult; like: number | null } {
+  const object = from.handle === PLAYING ? undefined : heldObject(held, from.handle)
+  const why = scopeWhy(from, held)
+  const base =
+    object?.understanding ??
+    groundPlan(EVERYTHING, deps.songs(), deps.tags(), deps.artistNames?.() ?? NO_JOINS)
+      .understanding
+  const called = name?.trim() || (object && !object.understanding ? object.label : '') || base.name
+  return {
+    describe: {
+      understanding: { ...base, name: called.slice(0, 60), size: null, minutes: null },
+      fit: pointed.length,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: pointed.map(song => ({ songId: song.id, why: why.get(song.id) ?? null })),
+    },
+    like: object?.like ?? null,
+  }
+}
+
+/** The most places a change may take out of a list at once. */
+const MOST_DROPPED = 50
+
+/**
+ * A list an earlier answer showed, changed (docs/features/ai.md, "Change
+ * it"): the songs it names taken out and the rest kept as they were, or the
+ * words read as a change to what it understood (`refine.ts`), the songs that
+ * still fit kept in their places. It keeps what it was for: to play, to keep,
+ * or after the song playing, sounding like it.
+ */
+const change = action({
+  name: 'change',
+  when: 'they want a song list an earlier answer showed changed, rather than something done with it as it is or a question about it: more or fewer songs, longer or shorter, a different sound, some of its songs taken out, other music let in. Fill "change": from is that list\'s handle; drop is the places in its list of the songs they want taken out when taking those out is all of the change, else null.',
+  fields: z.object({
+    from: z.string().max(12),
+    drop: z.array(z.number().int().min(1).max(200)).max(MOST_DROPPED).nullable(),
+  }),
+  filters: 'unused',
+  run: async ({ deps, words, before, held, steps }, { from, drop }) => {
+    const object = heldObject(held, from)
+    if (!object) return none('Say which list to change.')
+    const all = { handle: from, picks: null }
+    const shown = scopeOf(all, held, deps.songs()) ?? []
+    if (shown.length === 0) return pointedAtNothing(all)
+    const lead = object.lead ?? 'play'
+    if (drop && drop.length > 0) {
+      const gone = new Set(drop.flatMap(place => object.songIds[place - 1] ?? []))
+      const left = shown.filter(song => !gone.has(song.id))
+      const { describe } = shownSongs(deps, held, all, left, null)
+      return { kind: 'songs', lead, describe, like: object.like }
+    }
+    const understanding =
+      object.understanding ?? shownSongs(deps, held, all, shown, null).describe.understanding
+    const asked = before.find(turn => turn.objects.some(each => each.handle === from))?.asked
+    const changed = await refine(
+      deps,
+      {
+        text: asked ?? understanding.name,
+        understanding,
+        change: words,
+        shown: shown.map(song => song.id),
+      },
+      steps,
+      object.like,
+    )
+    // The songs it kept come back with the reasons they were shown with.
+    const why = scopeWhy(all, held)
+    const describe = {
+      ...changed,
+      picks: changed.picks.map(pick => ({
+        songId: pick.songId,
+        why: pick.why ?? why.get(pick.songId) ?? null,
+      })),
+    }
+    return { kind: 'songs', lead, describe, like: object.like }
+  },
+})
+
+/**
+ * A question an earlier answer already answers: said from what was shown,
+ * each song's reason beside it, with the songs it is about. Nothing is looked
+ * up; a question what was shown cannot answer is another action's.
+ */
+const reply = action({
+  name: 'reply',
+  when: 'a question about something an earlier answer showed that what it showed already answers: why a song is in a list (each song\'s reason is beside it, when it was given one), where a song is in it, what the list was. Fill "reply": say is the answer in at most three sentences, in the language of their newest words, from what the conversation shows and nothing else; from names the songs it is about the way songs are named by handle and place, or null. When what was shown cannot answer it, choose the action that can find out instead.',
+  fields: z.object({ say: z.string().min(1).max(600), from: ScopeField }),
+  filters: 'unused',
+  run: ({ deps, held }, { say, from }) => {
+    const about = scopeOf(from, held, deps.songs()) ?? []
+    return { kind: 'explore', say, songIds: about.map(song => song.id), get: null }
   },
 })
 
@@ -325,14 +481,21 @@ const find = action({
 
 const tags = action({
   name: 'tags',
-  when: 'anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn\'t Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. The request itself says which songs and tags. When they say how many songs to change, fill "filters" with that number as size and nothing else; otherwise filters is null.',
-  fields: null,
+  when:
+    'anything about their tags: songs given a tag or taken out of one, even when they leave it to you to say which songs ("tag every 周杰倫 song 中文流行", "tag the songs that should be 中文流行", "take ipop off what isn\'t Japanese"), a tag renamed, merged into another or deleted, or their tags checked or tidied up. The request itself says which songs and tags. Fill "tags": ' +
+    SCOPE_WHEN +
+    ' When they say how many songs to change, fill "filters" with that number as size and nothing else; otherwise filters is null.',
+  fields: z.object({ from: ScopeField }),
   filters: 'optional',
-  // The song playing goes along, for a request that points at it: the review's plan says when one does.
-  run: async ({ deps, text, playing, steps }, _fields, filters) => ({
-    kind: 'tags',
-    review: await tagReview(deps, { text, limit: filters?.size ?? null, held: { playing } }, steps),
-  }),
+  // The songs it points at go along, and the review looks at those and no others.
+  run: async ({ deps, text, held, steps }, { from }, filters) => {
+    const scope = scopeOf(from, held, deps.songs())
+    if (from && scope?.length === 0) return pointedAtNothing(from)
+    return {
+      kind: 'tags',
+      review: await tagReview(deps, { text, limit: filters?.size ?? null, scope }, steps),
+    }
+  },
 })
 
 const stats = action({
@@ -374,14 +537,22 @@ const stats = action({
 
 const library = action({
   name: 'library',
-  when: 'a question about what is in their library, not about their listening ("how many YOASOBI songs do I have", "what did I add this week", "my longest song", "which songs have no lyrics", "who is in 中文流行"). Fill "filters" with the filters that choose the songs (null for the whole library; size for how many to list, such as 1 for "my longest song") and "library": show is count (how many), songs (which ones), artists, albums or tags (who or what they are by or in); sortBy and order when they ask for the most, least, longest, newest and so on (asc is lowest, earliest or A first; year is when a song came out, addedAt when it joined the library), else sortBy null.',
+  when:
+    'a question about what is in their library, not about their listening ("how many YOASOBI songs do I have", "what did I add this week", "my longest song", "which songs have no lyrics", "who is in 中文流行"). Fill "filters" with the filters that choose the songs (null for the whole library; size for how many to list, such as 1 for "my longest song") and "library": from when the question is about songs already in front of them, which are then the only songs counted (' +
+    SCOPE_WHEN +
+    '); show is count (how many), songs (which ones), artists, albums or tags (who or what they are by or in); sortBy and order when they ask for the most, least, longest, newest and so on (asc is lowest, earliest or A first; year is when a song came out, addedAt when it joined the library), else sortBy null.',
   fields: z.object({
+    from: ScopeField,
     show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']),
     sortBy: z.enum(AskSortSchema.options).nullable(),
     order: z.enum(AskOrderSchema.options),
   }),
   filters: 'optional',
-  run: async ({ deps, text, steps }, question, filters) => {
+  run: async ({ deps: all, text, held, steps }, question, filters) => {
+    // Songs it points at are the library the question is asked of.
+    const scope = scopeOf(question.from, held, all.songs())
+    if (question.from && scope?.length === 0) return pointedAtNothing(question.from)
+    const deps = scope ? { ...all, songs: () => [...scope] } : all
     // A name the library lacks is counted as none of it, not looked for by a model.
     if (!filters || (filters.sound === null && filters.brief === null)) {
       return libraryAnswer(deps, filters, question)
@@ -411,10 +582,10 @@ const tidyUp = action({
     from: ScopeField,
   }),
   filters: 'optional',
-  run: async ({ deps, text, now, playing, steps }, { what, lookUp, from }, filters) => {
+  run: async ({ deps, text, now, held, steps }, { what, lookUp, from }, filters) => {
     // The songs it points at, when it does; else the ones the filters choose.
-    const scope = scopeOf(from, { playing })
-    if (scope?.length === 0) return none('Nothing is playing to look at.')
+    const scope = scopeOf(from, held, deps.songs())
+    if (from && scope?.length === 0) return pointedAtNothing(from)
     if (what === 'checkup' && scope === null && filters === null) {
       return { kind: 'tidy', tidy: await tidy(deps, steps) }
     }
@@ -503,19 +674,25 @@ const playlists = action({
 
 const playlistEdit = action({
   name: 'playlistSongs',
-  when: 'they want songs put into or taken out of one playlist, or its songs put in order ("add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy"). Fill "playlistSongs": name copied from their playlist list as closely as you can; op add, remove or sort; for a sort, sortBy and order (asc is lowest, earliest or A first: calmest first is energy asc; year is when a song came out, addedAt when it joined the library), else sortBy null and order asc. For add and remove also fill "filters" with the filters that choose the songs (for remove, among the playlist\'s own songs), with brief for what the filters cannot say. Choose this for a live playlist too: its rules decide its songs, and the answer says how.',
+  when:
+    'they want songs put into or taken out of one playlist, or its songs put in order ("add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin by energy"). Fill "playlistSongs": name copied from their playlist list as closely as you can; op add, remove or sort; for a sort, sortBy and order (asc is lowest, earliest or A first: calmest first is energy asc; year is when a song came out, addedAt when it joined the library), else sortBy null and order asc. For add and remove, from when the songs are ones already in front of them (' +
+    SCOPE_WHEN +
+    '), and then filters is null; otherwise fill "filters" with the filters that choose the songs (for remove, among the playlist\'s own songs), with brief for what the filters cannot say. Choose this for a live playlist too: its rules decide its songs, and the answer says how.',
   fields: z.object({
     name: z.string().max(120),
+    from: ScopeField,
     op: z.enum(['add', 'remove', 'sort']),
     sortBy: z.enum(AskSortSchema.options).nullable(),
     order: z.enum(AskOrderSchema.options),
   }),
   filters: 'optional',
-  run: ({ deps, text, playlists, steps }, edit, filters) => {
+  run: ({ deps, text, held, playlists, steps }, edit, filters) => {
     const name = matchPlaylist(edit.name, playlists)
     const playlist = playlists.find(each => each.name === name)
     if (!playlist) return none(`No playlist here is called “${edit.name}”.`)
-    return playlistSongs(deps, playlist, text, filters, edit, steps)
+    const scope = edit.op === 'sort' ? null : scopeOf(edit.from, held, deps.songs())
+    if (edit.from && scope?.length === 0) return pointedAtNothing(edit.from)
+    return playlistSongs(deps, playlist, text, filters, edit, steps, scope)
   },
 })
 
@@ -553,6 +730,8 @@ const open = action({
 /** Every action, in the order the router is told them. */
 export const ASK_ACTIONS: readonly AskAction<unknown>[] = [
   songs,
+  change,
+  reply,
   together,
   playback,
   find,

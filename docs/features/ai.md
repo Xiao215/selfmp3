@@ -224,7 +224,7 @@ stage, whose answer sat against the page's left edge while its field sat in the 
 
 On a computer the page is two parts. On the left, a 360 pane a step up from the ground: a
 log of what was asked, one line each, the newest last — the question, and under it what
-came of it (`logLine`: "14 songs · YOASOBI & 幾田りら", "Changed it · 5 songs · Ballads",
+came of it (`logLine`: "14 songs · YOASOBI & 幾田りら", "5 songs · Ballads",
 "2 name changes to look over", the start of what was said), with the list's covers or a
 spinner beside it — and the field at the log's foot, under the conversation it continues.
 On the right, the answer you're on, always filled: a list is the list itself (the answer's
@@ -244,7 +244,8 @@ is not the one shown, so a question still being answered is not given up by look
 another.
 
 The field floats with 24 under it on a computer (12 on a phone): "Ask a follow-up…", or on
-a list, the list's chip (Change it, below). While a turn is worked on its send is the one
+a list, the list's chip, "↳ these 19 songs" (Follow-ups, below): what "these" means, and
+nothing more. While a turn is worked on its send is the one
 Stop, which takes that turn off the page and puts its words back in the field. ‹ goes back
 to Search, and the conversation is not kept after it (so there is no "new chat" button);
 the page drawn again any other way finds its turns as they were (`askThread.store.ts`). A
@@ -273,6 +274,13 @@ the app's small print, under the rows. Done with (Fix, Close, Not now), a propos
 what came of it ("Fixed 31 songs", "Closed. Nothing changed."), and the turn keeps the
 model's words and that line (S1), which the next follow-up is told too. An answer you play
 from stays as it is.
+
+A list does what the words led with (Xiao, "Play now, rest proposes", 2026-10-27): asked to
+play — a list, one song from one, "play it" — it starts playing as it comes, once however
+often it is drawn again, as a playback answer is carried out (`AnswerView`'s `lead`); asked
+to keep ("save it as Morning"), its head leads with one **Save as “Morning”** that makes the
+playlist of exactly the songs shown. Adding to a playlist, tags and names stay proposals,
+each with its one button.
 
 Words answers (`explore`, `none`, `open`) can be selected in part: on iOS they are a
 read-only system text view (`ports/selectableText.tsx`), since a selectable `Text` there
@@ -309,14 +317,16 @@ is: what would change is the loop, not the actions.
 
 | Action | The words | What runs | Second call |
 |---|---|---|---|
-| `songs` | "play something calm for reading", "make a playlist of…", "play my 20 most played" | Describe's steps 2–3 (the route *is* the plan); with an order (`sortBy`), the first songs in it, sorted in code (`songsInOrder`) | the pick; none for an order alone |
+| `songs` | "play something calm for reading", "make a playlist of…", "play my 20 most played"; after a list, "play the 3rd one", "save it as Morning", "more like the 2nd one" | Describe's steps 2–3 (the route *is* the plan); with an order (`sortBy`), the first songs in it, sorted in code (`songsInOrder`); with `from`, exactly the songs an answer showed, none picked; with `like`, ordered by how close they sound to that song | the pick; none for an order alone or for songs shown |
+| `change` | after a list: "not 晴天", "10 首", "calmer" | the songs named taken out (`drop`), or Change it's refine (`refine.ts`) from what the list understood, the songs that still fit kept; it keeps its lead and the song it sounds like | none for a drop; the refine plan |
+| `reply` | "why is 大海 in here" | the router's own sentences, from what was shown (each song's why is in the prompt), with the songs it is about | none |
 | `playback` | "skip this song", "go back", "pause", "play the last song in Up next", "play the third song in the queue" | the device carries it out on its own player (Controlling what plays, below) | none |
 | `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index; when none of yours is it, `explore` instead, so a song you don't have is told about rather than a dead end | a pick of at most 5 |
-| `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
+| `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags", "tag these 夜" | the tag review, with the request itself and the songs `from` names (Tags, below) | the plan, then the groups |
 | `stats` | "what did I play most last month", "top 20 artists" | the stats the Stats page shows, as many as asked (ten unless a number is said, fifty at most); the model only chose the window, what about and how many | none |
 | `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none; for a meaning, every song judged (`songsThatAre`) |
 | `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too", "fill in what's missing", "do I have any song twice?" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something"); what is missing looked up (A4, "Filling in what's missing"); songs held twice (A4, "Copies") | the names pass, one call per 60 songs, or a call only where the catalogues or the copies need judging |
-| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code; a live playlist is answered with its rules | a pick only when the words go past the filters |
+| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first", "add these to gym" | the filters choose the songs, or `from` names them; a sort is code; a live playlist is answered with its rules | a pick only when the words go past the filters |
 | `remember` | "from now on, Chinese names only" | a card that saves the note (Remembered preferences, below) | none |
 | `playlists` | "delete the chill playlists", "rename hi to 华语慢歌" | the names matched to yours (Playlists from the box, below) | none |
 | `explore` | "which albums do I have only part of" | the model looks things up with tools (Looking things up, below) | the tool loop |
@@ -422,9 +432,9 @@ rather than looking finished.
 ## Change it
 
 A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer".
-On the Ask page that is the page's one field while it wears the list's chip ("↳ these 19
-songs", B1, 2026-10-26; never cut short, and "this song" with "Change it…" beside it for a
-list of one); on the answer's own page it is a field under its head
+On the Ask page that is the page's one field, said about the list on the screen ("↳ these 19
+songs", B1, 2026-10-26; never cut short, and "this song" with "Ask about it…" beside it
+for a list of one), where Ask decides it is a change; on the answer's own page it is a field under its head
 (`smart/ChangeIt.tsx`, "Change these songs…"). No suggested changes are offered: what to
 say is yours (Xiao, 2026-10-04).
 
@@ -435,14 +445,19 @@ the rest is picked (Describe's step 3, around them), so "10 首" after two songs
 two and adds eight. A change to the brief is a change of taste and picks again from the
 start. Its stages report through the same ticket as Ask's.
 
-Said in Ask, a change is a turn like a question: your words are its title and the changed
-list its answer, kept beside the one it changed (`smart/answers.store.ts`), so the log's
-lines are its versions and an earlier one shows the list as it was. The chip's ×, or ⌫ in the empty field, lets the list go, and the next
-words are a question (the field says so under it with a mouse). On the answer's own page
-the field itself says what is happening while it works, in the same place, so nothing
-moves; when it lands, the list there is the new one (Different songs does the same). Until
-2026-10-26 a song card in Ask had its own Change it under it, beside the page's field, and
-a trail of versions above that.
+Said in Ask's field, a change is a follow-up like any other (Follow-ups, below): the router
+reads it with the list as the screen's object and chooses `change`, which runs this same
+refine on the server from what the list understood (sent back in its object), or takes out
+the songs named by their places and keeps the rest untouched. The changed list keeps what
+the list was for: an Up next list stays Up next, still ordered by how close the songs sound to
+the song it was asked to sound like. Its answer is a turn of its own, kept beside the one it
+changed (`smart/answers.store.ts`), so an earlier line of the log shows the list as it was. On
+the answer's own page the field itself says what is happening while it works, in the same
+place, so nothing moves; when it lands, the list there is the new one (Different songs does
+the same). Until 2026-10-26 a song card in Ask had its own Change it under it, beside the
+page's field, and a trail of versions above that; until 2026-10-27 the chip sent the words
+straight to `/api/ai/refine`, so "play the 3rd one" or "add these to gym" came back as the
+list changed (Xiao's "Ask decides").
 
 ## Looking things up (`explore`)
 
@@ -491,19 +506,38 @@ them, each with Remove.
 ## Follow-ups
 
 Whatever is typed in the Ask page's field is a new turn, asked after the conversation
-before it: the request carries `before`, each earlier question with what was shown for it
-(`AskTurn`). A words answer is its words; a list or a review is a line the device writes
-(`answerRecap` in `smart.model.ts`: "Offered 12 songs (“…”): …", "Proposed 8 name
-changes: …"). A list changed with Change it is told as it is shown now, and a playback
-answer as what it came to on this device ("Nothing is playing."). A long conversation
-sends only its newest eight turns (`ASK_BEFORE_MAX`). The server sets them out as turns
-and asks for the newest
-(`followed` in `ask.ts`: "Earlier in this conversation: They asked … You answered … Now
-they say …"), so the model neither looks everything up again nor re-answers it, and "only
-the albums" after a song list is still that request changed. Until 2026-10-24 only the
-earlier questions were sent, as one request to "answer all of it together": a third
-question got its answer in the last sentence of a re-answer of all three. A list answer's
-chip sends the words as a change instead (above), which keeps the songs it already chose.
+before it (`AskRequest`): `before`, each earlier question with what was shown for it
+(`AskTurn`), and `context`, the song playing and the answer on the screen. A words answer
+is its words; a list or a review is a line the device writes (`answerRecap` in
+`smart.model.ts`: "Offered 12 songs (“…”) to play now", "Proposed 8 name changes: …"),
+and a playback answer what it came to on this device ("Nothing is playing.").
+
+What an answer showed goes back as **objects** (`AskObject`, AGENT-DESIGN 2.1;
+`objectsOf`): a handle, `t3.1` for the third turn's answer (its place on the page, so it
+stays the same however many turns are sent), a kind and a label, its songs by the server's
+ids in the order shown (at most 200) with each one's reason, and for a list what it was for
+(`lead`), the song it sounds like (`like`) and what it understood as it stands now. The
+server keeps no conversation: the device already holds the ids (`answers.store`,
+`askKept`), and a list changed or moved on its page is sent as it is now. The chip on a
+list ("↳ these 19 songs") puts its handle in `context.screen`; its ×, or ⌫ in the empty
+field, lets it go, and the words are asked with nothing on the screen. Any other answer that
+showed songs is the screen's while it is shown.
+
+The server sets the turns out and asks for the newest (`followed` in `ask.ts`: "Earlier in
+this conversation: They asked … You answered … It showed: t1.1", then each object with its
+songs numbered, at most 40 rows, the screen's first, "On their screen now: t2.1", and "Now
+they say …"). The router answers by handle: every action that takes songs has a `from`
+scope — a handle and places in its list, 1 for the first, or `playing` for the song playing
+— resolved in code (`scope.ts`, `scopeOf`) to songs the library has, so an id the device sent
+that is not one of them, or a place past the list's end, names nothing, and a handle that
+names nothing is said rather than the whole library used. `songs` with `from` is exactly
+those songs, to play, keep or queue; `like` is the song to sound like; `change` changes a
+list; `reply` answers from what was shown; `tags`, `tidy`, `library` and `playlistSongs`
+look at those songs and no others. A long conversation sends only its newest eight turns
+(`ASK_BEFORE_MAX`), and the one on the screen wherever it is. Replies are written in the
+language of the newest words. Until 2026-10-24 only the earlier questions were sent, as one
+request to "answer all of it together"; until 2026-10-27 lists went back as ten titles, so a
+follow-up re-derived its songs from filters and "the second one" could not be found.
 
 A tidy answer that changes nothing still answers: the model says which song it took them to
 mean and why it stays (`say`, kept as `reply`, two sentences at most), above "Nothing to change

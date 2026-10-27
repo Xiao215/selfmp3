@@ -68,6 +68,12 @@ export const MOVE_MS = {
   /** The stage's chrome going while nothing moves, and coming back the moment a pointer does. */
   idleOut: 400,
   idleIn: 100,
+  /**
+   * A panel coming out of the control that opened it — a menu, the tag picker
+   * — on the overshoot, so it starts at once and settles into place; it goes
+   * back in over `motion.base`.
+   */
+  panel: 220,
   /** A hover caption fading up, and away. */
   tooltip: 120,
   /** How long the pointer rests on a control before its caption appears. */

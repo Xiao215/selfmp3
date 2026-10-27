@@ -593,17 +593,20 @@ function Overlay({
   const accent = useUnistyles().theme.colors.accent
   const byId = useMemo(() => new Map(points.map(point => [point.id, point])), [points])
   const at = (place: MapPlace): { x: number; y: number } => toScreen(view, base, place)
-  const now = playing === null ? undefined : byId.get(playing)
-  const nowSong = now ? songs.get(now.id) : undefined
-  const nowUri = nowSong ? art(nowSong) : null
-  const nowAt = now ? at(now) : null
-  const big = Math.max(22, now ? starLook(now, view.scale).side * 1.15 : 22)
   const litPlace = lit === null ? undefined : byId.get(lit)
   const litAt = litPlace ? at(litPlace) : null
   const litSong = litPlace ? songs.get(litPlace.id) : undefined
   // Its cover open enough to be lit on a dimmed sky (H3), rather than ringed.
   const litLook = litPlace ? starLook(litPlace, view.scale) : null
   const litOpen = litLook !== null && litLook.share > 0.5
+  // The playing song wears its cover, ringed; lit, the spotlight is its look
+  // instead, or the ring's disc and white edge showed round the lit cover.
+  const playingPlace = playing === null ? undefined : byId.get(playing)
+  const now = litOpen && playingPlace === litPlace ? undefined : playingPlace
+  const nowSong = now ? songs.get(now.id) : undefined
+  const nowUri = nowSong ? art(nowSong) : null
+  const nowAt = now ? at(now) : null
+  const big = Math.max(22, now ? starLook(now, view.scale).side * 1.15 : 22)
   const line = (places: readonly MapPlace[]): string =>
     places
       .map(place => {
@@ -742,10 +745,28 @@ function LitSpot({
 }): ReactNode {
   const side = Math.max(52, open * 1.15)
   const half = side / 2
+  const radius = corner * (side / open)
   const middle = Math.min(at.x, clear - SPOT_WORDS / 2 - 8)
   return (
     <>
       <View pointerEvents="none" style={styles.spotVeil} />
+      {/* The glow is cast by a shape a little inside the cover, so none of its
+          pale fill is left at the cover's soft edge as a light outline. */}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.spotCover,
+          {
+            left: at.x - half + SPOT_INSET,
+            top: at.y - half + SPOT_INSET,
+            width: side - SPOT_INSET * 2,
+            height: side - SPOT_INSET * 2,
+            borderRadius: Math.max(0, radius - SPOT_INSET),
+            backgroundColor: glow,
+            boxShadow: `0 0 22px ${glow}`,
+          },
+        ]}
+      />
       <View
         pointerEvents="none"
         style={[
@@ -755,9 +776,8 @@ function LitSpot({
             top: at.y - half,
             width: side,
             height: side,
-            borderRadius: corner * (side / open),
-            backgroundColor: glow,
-            boxShadow: `0 0 22px ${glow}`,
+            borderRadius: radius,
+            backgroundColor: uri ? undefined : glow,
           },
         ]}
       >
@@ -780,6 +800,8 @@ function LitSpot({
 
 /** How wide the lit song's name may run under it. */
 const SPOT_WORDS = 240
+/** How far inside the lit cover's edge its glow is cast from. */
+const SPOT_INSET = 2
 
 const styles = StyleSheet.create(() => ({
   layer: { position: 'absolute', left: 0, top: 0 },

@@ -542,10 +542,12 @@ function draw(
     ctx.setLineDash([])
   }
 
-  // The playing song: the one star wearing its cover.
+  // The playing song: the one star wearing its cover. Lit by the pointer, the
+  // spotlight is its look instead: the two together left the playing ring's
+  // disc and white edge showing round the lit cover.
   const now = playing === null ? undefined : byId.get(playing)
   const nowSong = now ? songs.get(now.id) : undefined
-  if (now && nowSong) {
+  if (now && nowSong && !(underOpen && under === now)) {
     const spot = at(now)
     const big = Math.max(22, starLook(now, view.scale).side * 1.15)
     ctx.fillStyle = withAlpha(accent, 0.25)
@@ -622,18 +624,28 @@ function spotlight(
   ctx.globalAlpha = 0.9
   ctx.drawImage(glowOf(point.glow), spot.x - halo, spot.y - halo, halo * 2, halo * 2)
   ctx.globalAlpha = 1
+  const corner = look.corner * (side / look.side)
+  // The glow is cast by a shape a little inside the cover, so none of its pale
+  // fill is left at the cover's soft edge as a light outline (2026-10-26).
+  const inset = image ? SPOTLIGHT_INSET : 0
   ctx.save()
   ctx.shadowColor = withAlpha(point.glow, 0.6)
   ctx.shadowBlur = 22
   ctx.beginPath()
-  ctx.roundRect(spot.x - half, spot.y - half, side, side, look.corner * (side / look.side))
+  ctx.roundRect(
+    spot.x - half + inset,
+    spot.y - half + inset,
+    side - inset * 2,
+    side - inset * 2,
+    Math.max(0, corner - inset),
+  )
   ctx.fillStyle = point.glow
   ctx.fill()
   ctx.restore()
   if (image) {
     ctx.save()
     ctx.beginPath()
-    ctx.roundRect(spot.x - half, spot.y - half, side, side, look.corner * (side / look.side))
+    ctx.roundRect(spot.x - half, spot.y - half, side, side, corner)
     ctx.clip()
     ctx.drawImage(image, spot.x - half, spot.y - half, side, side)
     ctx.restore()
@@ -661,6 +673,8 @@ function spotlight(
 const SPOTLIGHT_DIM = 0.3
 /** The lit cover is at least this wide. */
 const SPOTLIGHT_COVER = 52
+/** How far inside a lit cover's edge its glow is cast from. */
+const SPOTLIGHT_INSET = 2
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
 /** Covers this wide wear their titles underneath. */

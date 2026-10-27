@@ -132,6 +132,12 @@ export const DescribeResultSchema = z.object({
   loosened: z.array(z.string()),
   /** Tags or artists the words named that this library does not have. */
   unknown: z.array(z.string()),
+  /**
+   * What else made the songs fewer than what fit, in plain words: the line
+   * the listening drew, resting songs set aside, a size nobody asked for, or
+   * why none were chosen. Never silent: an answer shorter than it could be says so.
+   */
+  notes: z.array(z.string()),
   picks: z.array(DescribePickSchema),
 })
 export type DescribeResult = z.infer<typeof DescribeResultSchema>

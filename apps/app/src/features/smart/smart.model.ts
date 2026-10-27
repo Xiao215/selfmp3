@@ -234,8 +234,9 @@ export function answerSongs<S extends { readonly id: number }>(
 
 /**
  * What a describe answer says beside its songs: what fit, what it set aside,
- * and the songs picked that this device does not have yet (`here` is how many
- * it shows), so a song missing here never reads as one it chose to leave out.
+ * the songs picked that this device does not have yet (`here` is how many
+ * it shows), so a song missing here never reads as one it chose to leave out,
+ * and whatever else made the songs fewer (the server's `notes`).
  */
 export function describeNotes(result: DescribeResult, here: number): string[] {
   const notes: string[] = []
@@ -255,6 +256,7 @@ export function describeNotes(result: DescribeResult, here: number): string[] {
   if (result.unknown.length > 0) {
     notes.push(`Your library has no ${result.unknown.join(', ')}.`)
   }
+  notes.push(...result.notes)
   return notes
 }
 

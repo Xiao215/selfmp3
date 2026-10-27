@@ -503,9 +503,19 @@ and cannot say "古典 or 原神纯音乐, and calm".
    a name, how many songs you asked for if you did, a **sound**: how the music should sound,
    in English, for the listening model ("calm orchestral music with strings and flute";
    [audio-intelligence.md](audio-intelligence.md#how-songs-sound)), and a **brief**: whatever
-   in your words the parts and the sound cannot say ("named for rain", "songs about leaving"). The check spells each tag and
-   artist the library's way and sets aside names the library does not have, which the
-   answer lists.
+   in your words the parts and the sound cannot say ("named for rain", "songs about leaving").
+   A mood, an occasion or an activity goes in the brief as well as the sound, since the
+   listening model hears instruments and style but cannot tell what suits a gym or a rainy
+   day; so does a quality every song must have when the words keep only some of a place's
+   songs. Energy is set only for a level asked for outright: it measures how loud and dense
+   a recording is, and kinds of music sit far apart on it (in Xiao's library, 82% of 中文流行
+   is above 0.68 against a library two-thirds orchestral), so a mood read as energy kept one
+   kind and shut out the rest ("rainy day vibes" answered 25 Genshin pieces, 2026-10-27).
+   The check spells each tag, artist and album the library's way: case ignored; the same
+   once Chinese is folded to pinyin, so 周杰伦 is 周杰倫 and 米津玄师 is 米津玄師; an artist's
+   other names ("Jay Chou"); or a Latin name one letter off ("Yorushka"). The last three only
+   when a single name answers. Names the library does not have are set aside, and the answer
+   lists them; a name found under another spelling never is.
 2. **Narrow** (no model, `songsFitting`). Nothing fits: the narrowing parts are let go one
    at a time, in a fixed order (tempo, energy, words, the years, the time windows, loved, left-out
    tags), until something does, and the answer says what was let go. Places are never let
@@ -518,16 +528,25 @@ and cannot say "古典 or 原神纯音乐, and calm".
    "violin songs" with six violin pieces answers six, not those six and nineteen near
    misses; songs not heard yet cannot be vouched for and stay out. Inside the tags, artists or albums
    asked for it only orders: they already chose the songs, and the line drawn from one best
-   match left "比较温和的jpop" with one song of a hundred jpop. Steering from a song only
-   orders. Nothing else in Ask touches the listening model.
+   match left "比较温和的jpop" with one song of a hundred jpop. There the songs within the
+   line are marked `close` in the pick's table, and the pick cuts by them when the brief
+   says every song must have the sound ("only the ones with erhu"), and only orders by them
+   when it does not. Steering from a song only orders. Nothing else in Ask touches the
+   listening model.
 4. **Pick** (smart tier), only when there is a brief or more songs fit than were asked for
-   (25 when not said). With a sound and no brief, the best-sounding are taken as they are,
-   with no call. Otherwise shown your words, the brief, the sound and the candidate table
-   (rung 3, at most 300 rows: the best-sounding, when there is a sound, with a `sound` column
-   0–100; a sample otherwise). Returns songs by row number, each with a reason of a few words.
-   The check keeps only numbers in the table, drops repeats, and stops at the size asked for.
-5. **Answer**: the parts as applied, how many songs fit, what was let go and what the
-   library lacks, and the picks with reasons.
+   (25 when not said). With a sound and no brief — the words only say what it should sound
+   like — the best-sounding are taken as they are, with no call. Otherwise shown your words,
+   the brief, the sound and the candidate table (rung 3, at most 300 rows: the best-sounding,
+   when there is a sound, with a `sound` column 0–100; a sample otherwise). Returns songs by
+   row number, each with a reason of a few words. The check keeps only numbers in the table,
+   drops repeats, and stops at the size asked for. Choosing none is an answer, not a failure:
+   no songs, and a note that none of those that fit suited the brief (until 2026-10-27 it
+   was "The model's answer didn't make sense", and asking again drew the same table).
+5. **Answer**: the parts as applied, how many songs fit, what was let go, what the library
+   lacks, the picks with reasons, and `notes`: whatever else made the songs fewer than fit —
+   the sound's line over the whole library, resting songs left out, 25 standing in for a
+   number nobody said, or why none were chosen. The answer page lists them under its head;
+   a card with no songs says them in place of "No song of yours fits that".
 
 Taking a chip away does not read the words again: the page picks again at once, sending the
 parts back, and only steps 2 to 4 run.

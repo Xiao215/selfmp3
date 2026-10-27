@@ -6,6 +6,7 @@ import {
   AskSortSchema,
   AskStatsRangeSchema,
   editDistance,
+  NO_JOINS,
   type AskAnswer,
   type Song,
   type Stats,
@@ -22,7 +23,7 @@ import {
   type PlanOut,
 } from './describe.js'
 import { songTable } from './library.js'
-import { LlmError, Remembered } from './llm.js'
+import { Remembered } from './llm.js'
 import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import { findCopies } from './copies.js'
 import { fillGaps } from './fill.js'
@@ -165,7 +166,12 @@ const songs = action({
     const steering = next && playing !== undefined
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
-    const { understanding, unknown } = groundPlan(plan, deps.songs(), deps.tags())
+    const { understanding, unknown } = groundPlan(
+      plan,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     // Steering from the song playing ("next", "more like this") leaves it out:
     // it is what they move on from. Asked for any other way ("make a list of
     // them" while one of them plays), it is one of the songs like any other.
@@ -199,7 +205,12 @@ const together = action({
   filters: 'optional',
   run: async ({ deps, text, steps }, _fields, filters) => {
     if (!filters) return { kind: 'together', describe: null }
-    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
+    const { understanding, unknown } = groundPlan(
+      filters,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     const describe = await narrowAndPick(deps, text, understanding, unknown, [], steps, null)
     return { kind: 'together', describe }
   },
@@ -334,29 +345,27 @@ const library = action({
     if (!filters || (filters.sound === null && filters.brief === null)) {
       return libraryAnswer(deps, filters, question)
     }
-    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
-    try {
-      const found = await narrowAndPick(
-        deps,
-        text,
-        { ...understanding, size: understanding.size ?? MAX_PICKS },
-        unknown,
-        [],
-        steps,
-      )
-      return libraryAnswer(
-        deps,
-        filters,
-        question,
-        found.picks.map(pick => pick.songId),
-      )
-    } catch (caught) {
-      // Choosing none is an answer here: none of their songs is that.
-      if (caught instanceof LlmError && caught.kind === 'invalid') {
-        return libraryAnswer(deps, filters, question, [])
-      }
-      throw caught
-    }
+    const { understanding, unknown } = groundPlan(
+      filters,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
+    // Choosing none is an answer here too, and counts none: none of their songs is that.
+    const found = await narrowAndPick(
+      deps,
+      text,
+      { ...understanding, size: understanding.size ?? MAX_PICKS },
+      unknown,
+      [],
+      steps,
+    )
+    return libraryAnswer(
+      deps,
+      filters,
+      question,
+      found.picks.map(pick => pick.songId),
+    )
   },
 })
 
@@ -371,7 +380,12 @@ const tidyUp = action({
   run: async ({ deps, text, now, steps }, { what, lookUp }, filters) => {
     if (what === 'checkup') return { kind: 'tidy', tidy: await tidy(deps, steps) }
     const songs = deps.songs()
-    const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
+    const { understanding, unknown } = groundPlan(
+      filters ?? EVERYTHING,
+      songs,
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     const chosen = songsFitting(songs, deps.tags(), understanding, now, deps.artistNames?.())
     if (what === 'copies') {
       return { kind: 'copies', copies: await findCopies(deps, chosen, steps) }

@@ -174,12 +174,14 @@ describe('describeNotes', () => {
       fit: 40,
       loosened: ['the energy'],
       unknown: ['Lo-fi'],
+      notes: ['Left out 2 songs you’ve set to rest.'],
       picks: [],
     }
     expect(describeNotes(result, 25)).toEqual([
       'Picked 25 of the 40 that fit',
       'Nothing fit all of it, so it let go of the energy.',
       'Your library has no Lo-fi.',
+      'Left out 2 songs you’ve set to rest.',
     ])
   })
 
@@ -189,6 +191,7 @@ describe('describeNotes', () => {
       fit: 5,
       loosened: [],
       unknown: [],
+      notes: [],
       picks: [1, 2, 3, 4, 5].map(songId => ({ songId, why: null })),
     }
     expect(describeNotes(result, 4)).toEqual([

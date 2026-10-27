@@ -464,6 +464,7 @@ describe('Recently played', () => {
       fit: 9,
       loosened: [],
       unknown: [],
+      notes: [],
       picks: [{ songId: 3, why: null }],
     }
     const lists = withListStarted([], asked, [3], 100, result)

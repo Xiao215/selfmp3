@@ -16,7 +16,6 @@ import {
   type PlanOut,
 } from './describe.js'
 import { shownArtist } from './library.js'
-import { LlmError } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { tally } from './text.js'
 
@@ -150,8 +149,8 @@ export function libraryAnswer(
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
-  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
   const joins = deps.artistNames?.() ?? NO_JOINS
+  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags, joins)
   const shownAs = joinedNames(songs, joins)
   const byId = new Map(songs.map(song => [song.id, song]))
   const fitting = chosen
@@ -225,7 +224,12 @@ export async function playlistSongs(
   }
 
   const adding = edit.op === 'add'
-  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
+  const { understanding, unknown } = groundPlan(
+    plan ?? EVERYTHING,
+    songs,
+    tags,
+    deps.artistNames?.() ?? NO_JOINS,
+  )
   if (!chooses(understanding) && understanding.brief === null) {
     return none(
       adding
@@ -274,11 +278,6 @@ export async function playlistSongs(
     // A playlist's songs are edited whether or not they are resting.
     false,
   )
-  try {
-    return answer((await judging).picks, 'model')
-  } catch (caught) {
-    // Choosing none is an answer here: nothing in the playlist is what they meant.
-    if (caught instanceof LlmError && caught.kind === 'invalid') return answer([], 'model')
-    throw caught
-  }
+  // Choosing none is an answer here too: nothing in the playlist is what they meant.
+  return answer((await judging).picks, 'model')
 }

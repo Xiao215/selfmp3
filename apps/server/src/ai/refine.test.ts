@@ -36,6 +36,32 @@ const deps = (llm: ReturnType<typeof scriptedLlm>) => ({
 const fitting = songsFitting(SONGS, TAGS, jpop, NOW).map(song => song.id)
 
 describe('changing an answer', () => {
+  it('cuts the songs of a place to the ones that sound like an "only" change, by the pick', async () => {
+    // Of the jpop, song 8 alone is heard close to the sound the change asks for.
+    const sound = {
+      match: (_text: string, ids: readonly number[]) =>
+        Promise.resolve(new Map(ids.map(id => [id, id === 8 ? 0.3 : 0.1]))),
+      closeTo: () => null,
+    }
+    const narrowed = { ...jpop, size: null, sound: 'piano', brief: 'every song has piano' }
+    const llm = scriptedLlm({
+      'refine-plan': [narrowed],
+      'describe-pick': [{ picks: [{ n: 1, why: 'piano' }] }],
+    })
+    const result = await refine(
+      { ...deps(llm), sound },
+      {
+        text: 'jpop',
+        understanding: { ...jpop, size: null },
+        change: 'only piano',
+        shown: fitting,
+      },
+    )
+    expect(result.picks.map(pick => pick.songId)).toEqual([8])
+    expect(llm.asked.map(request => request.task)).toEqual(['refine-plan', 'describe-pick'])
+    expect(String(llm.asked[1]?.prompt)).toMatch(/\| sound 100 close\n/)
+  })
+
   it('keeps the songs shown and adds the rest when only the count changes', async () => {
     const llm = scriptedLlm({ 'refine-plan': [{ ...jpop, size: 3 }] })
     const shown = [fitting[1]!]

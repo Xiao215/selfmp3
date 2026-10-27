@@ -7,6 +7,9 @@ import {
   artistKey,
   joinedKeys,
   NO_JOINS,
+  editDistance,
+  libraryArtists,
+  namesFor,
   splitArtists,
   UnderstandingSchema,
   type ArtistJoinNames,
@@ -18,7 +21,8 @@ import {
   type Understanding,
 } from '@selfmp3/shared'
 import { hasWords, libraryShape, songTable } from './library.js'
-import { LlmError, Remembered, type Llm } from './llm.js'
+import { normalizeForMatch } from '../services/youtubeMatch.js'
+import { Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
 /**
@@ -51,8 +55,8 @@ function lengthWords(seconds: number): string {
  */
 const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 6
-const PICK_VERSION = 3
+const PLAN_VERSION = 7
+const PICK_VERSION = 4
 
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
 
@@ -88,7 +92,7 @@ export const FILTERS_GUIDE = `The filters:
 - albums: album names, spelled as the library's album list spells them. Also widens: a song on any of them is in too.
   Tags, artists and albums are "places" that add songs together. Leave all three empty to start from the whole library.
 - noTags: tag names whose songs must be left out.
-- energy: 0–1 from audio analysis. Calm, quiet, sleepy, soft music is low (max around the library's lower quarter); upbeat, loud, workout music is high (min around the upper quarter). Use the library's own spread, not fixed numbers. Leave both null if energy was not implied.
+- energy: 0–1 from audio analysis of how loud and dense a recording is, not of its mood. Kinds of music sit far apart on it (an orchestral soundtrack sits low and almost any pop song high), so a range drawn from the whole library's spread keeps one kind and shuts out the rest. Set it only when they ask for a level of energy or loudness in so many words, from the library's own spread; leave both null for a mood, an occasion or an activity, which go to sound and brief.
 - bpm: only when a tempo is clearly asked for (running, a dance); tempo detection is unreliable for classical and rubato music, so prefer energy.
 - year: the year a song came out, from its release (the library's spread is given). For an era: "2000s" or "00年代" is 2000–2009, "90s" 1990–1999. "Old songs", "throwbacks", "老歌" sit below the library's lower quarter; "recent releases", "this year's songs" are the last year or two. A classical recording's year is the recording's, not the composer's: ask for a composer by artist, never by year. Not for what is new to the library ("just added", "new stuff"): that is addedWithinDays.
 - words: "with" for songs with lyrics, "without" for instrumental (studying, focus, "no vocals"). Null when not implied.
@@ -97,10 +101,10 @@ export const FILTERS_GUIDE = `The filters:
 - size: a number of songs, only if they say one; ${EVERY_SONG} when they want every song the other filters let in.
 - minutes: how long it should play, only if they say a length ("2 hours" is 120, "half an hour" is 30). Never turn a length into a number of songs: songs differ in length, and the app counts them. Set size or minutes, never both.
 - sound: how the music should sound, in English, for a model that listens to every song: instruments, mood, genre and style in a short phrase, such as "calm orchestral music with strings and flute", "intense epic battle music", "solo classical piano", "upbeat Japanese pop with female vocals". Write it in English whatever language the description is in, and only in positive words: the listening model does not understand "no" or "without" (no vocals is words "without"). Of the songs the other filters let in, it keeps the ones that sound like it, best first. Null when the description says nothing about how the music sounds; never set it just to order songs the other filters already choose.
-- brief: what the description wants that the filters and sound cannot express, in a few words, such as "named for rain" or "songs about leaving home". Null if they say it all.
+- brief: what the description wants that the filters and sound cannot express, in a few plain words. A mood, a feeling, an occasion or an activity the songs are for belongs here as well as in sound: the listening model hears instruments and style, but whether a song suits a moment is judged song by song from the brief. When the words keep only some of the songs a place lets in, say in brief what every song must have. Null only when the filters and sound say all of it.
 - name: a short, plain playlist name in the description's language, no emoji.
 
-Prefer sound to energy and bpm for how music feels: "calm", "intense", "dreamy" or "epic" is sound, and energy or bpm only when they ask for a level or a tempo outright.
+Prefer sound to energy and bpm for how music feels, and energy or bpm only when they ask for a level or a tempo outright.
 
 Rules: use only tag names that appear in the library's tag list, exactly; a tag it lacks is a wish for brief. The artist and album lists show only the most common: an artist or album the description names goes in artists or albums even when the list does not show it, and the app finds it in the library. Never invent a name the description does not give. Prefer fewer filters: every filter you add removes songs. Anything the description welcomes, even "a few X are fine", is a place: add it, and say the mix in brief ("mostly piano, a few Genshin"). When a filter would shut out a place they asked for (the words filter shutting out every song of an artist they named), leave the filter out and say it in brief.`
 
@@ -114,7 +118,7 @@ const PICK_SYSTEM = `You choose songs for a playlist from a numbered table of so
 
 You are given the description they wrote, sometimes what it wants beyond the filters, how many songs to choose, and the table.
 
-Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Judge every song against the whole description yourself, with what you know of the music and what the table says, and leave out a song that does not fit it. Choose the songs that fit the description best, in a good listening order. Unless the description asks for particular artists, spread the choice across artists rather than filling it with one. When the table has a sound column, a listening model has already heard every song: it scores 0–100 how well the song sounds like what was asked, the table is in that order, and you should trust it over what a title suggests. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer.`
+Reply with JSON only: picks, each the song's number from the table (n) and why it fits in at most ten plain words, written for the listener ("slow solo piano", "named for rain"). Judge every song against the whole description yourself, with what you know of the music and what the table says, and leave out a song that does not fit it. Choose the songs that fit the description best, in a good listening order. Unless the description asks for particular artists, spread the choice across artists rather than filling it with one. When the table has a sound column, a listening model has already heard every song: it scores 0–100 how well the song sounds like what was asked, the table is in that order, and you should trust it over what a title suggests. A song marked close is within the listening model's own line of the best match: when the description wants every song to have the sound or what it wants beyond the filters, leave out the songs that neither that mark nor what you know of them gives reason to think have it, even if that leaves few. Never use a number that is not in the table, never repeat one, and choose no more than asked. If fewer fit well, choose fewer; if none fit, choose none.`
 
 /** The listening model's two questions (sound/sound.ts); each answers null when it cannot. */
 interface SoundRanker {
@@ -143,21 +147,63 @@ function days(n: number): string {
   return n === 1 ? '1 day' : `${n} days`
 }
 
+/** A name the library has, and the other names it also answers to. */
+interface Known {
+  readonly name: string
+  readonly also: readonly string[]
+}
+
+/** Latin letters, digits and punctuation only: where a slip of one letter is a misspelling. */
+const LATIN = /^[\p{Script=Latin}\p{N}\p{P}\p{Zs}]+$/u
+
 /**
  * Names the library has, as it spells them, and the ones it does not.
- * A model that writes "yoasobi" for "YOASOBI" still means the artist.
+ *
+ * A name is the library's when it is spelt the same with case ignored; or
+ * when it, or one of the other names the library keeps for it (an artist's
+ * names, shared artistJoins.ts), reads the same once case, accents and
+ * punctuation are set aside and Chinese is folded to pinyin (simplified and
+ * traditional, or a Japanese kanji name written the Chinese way); or, written
+ * in Latin letters, when it is one letter off a name. The last two only when
+ * one artist answers, though the library may hold them under two spellings
+ * that name each other (Kenshi Yonezu and 米津玄師, both found): then both are
+ * taken. A fold or a slip that fits two names not linked so cannot say which
+ * was meant. A name that matched any of these is never reported as missing.
  */
 function resolveNames(
   wanted: readonly string[],
-  known: readonly string[],
+  known: readonly Known[],
 ): { found: string[]; unknown: string[] } {
   const found: string[] = []
   const unknown: string[] = []
+  const spellings = (each: Known): Set<string> =>
+    new Set([each.name, ...each.also].map(normalizeForMatch))
+  // One artist, perhaps under spellings that name each other; none when two are not linked.
+  const onePerson = (matches: readonly Known[]): readonly Known[] => {
+    const [first, ...rest] = matches
+    if (!first) return []
+    const linked = (other: Known): boolean =>
+      other.name === first.name ||
+      spellings(first).has(normalizeForMatch(other.name)) ||
+      spellings(other).has(normalizeForMatch(first.name))
+    return rest.every(linked) ? matches : []
+  }
   for (const name of wanted) {
-    const match = known.find(candidate => sameName(candidate, name))
-    if (match) {
-      if (!found.includes(match)) found.push(match)
-    } else unknown.push(name)
+    const folded = normalizeForMatch(name)
+    const near = (spelling: string): boolean =>
+      LATIN.test(name) &&
+      folded.length >= 5 &&
+      editDistance(folded, normalizeForMatch(spelling), 1) <= 1
+    const exact = known.find(each => sameName(each.name, name))
+    let matches: readonly Known[] = exact ? [exact] : []
+    if (matches.length === 0 && folded) {
+      matches = onePerson(known.filter(each => spellings(each).has(folded)))
+    }
+    if (matches.length === 0) {
+      matches = onePerson(known.filter(each => [each.name, ...each.also].some(near)))
+    }
+    for (const match of matches) if (!found.includes(match.name)) found.push(match.name)
+    if (matches.length === 0) unknown.push(name)
   }
   return { found, unknown }
 }
@@ -353,15 +399,20 @@ export function groundPlan(
   plan: z.infer<typeof PlanOut>,
   songs: readonly Song[],
   tags: readonly Tag[],
+  names: ArtistJoinNames,
 ): { understanding: Understanding; unknown: string[] } {
-  const tagNames = tags.map(tag => tag.name)
-  const artistNames = [...new Set(songs.flatMap(song => splitArtists(song.artist)))]
+  const tagNames = tags.map(tag => ({ name: tag.name, also: [] }))
+  const artistNames = libraryArtists(songs).map(artist => ({
+    name: artist.name,
+    also: namesFor(names.artistNames, artist.key),
+  }))
   const anyTags = resolveNames(plan.anyTags, tagNames)
   const noTags = resolveNames(plan.noTags, tagNames)
   const artists = resolveNames(plan.artists, artistNames)
-  const albums = resolveNames(plan.albums, [
-    ...new Set(songs.map(song => song.album).filter(Boolean)),
-  ])
+  const albums = resolveNames(
+    plan.albums,
+    [...new Set(songs.map(song => song.album).filter(Boolean))].map(name => ({ name, also: [] })),
+  )
   // Places asked for and none of them here: still what the words want, so the
   // pick looks for them, rather than the whole library standing in for them.
   const lost = [...artists.unknown, ...albums.unknown]
@@ -436,7 +487,7 @@ export async function describe(
           })
         ).value,
     )
-    ;({ understanding, unknown } = groundPlan(plan, songs, tags))
+    ;({ understanding, unknown } = groundPlan(plan, songs, tags, deps.artistNames?.() ?? NO_JOINS))
   }
 
   return narrowAndPick(deps, request.text, understanding, unknown, request.avoid ?? [])
@@ -479,9 +530,17 @@ export async function narrowAndPick(
     fitting = songsFitting(songs, tags, applied, now, deps.artistNames?.())
   }
 
+  // What else makes the songs fewer than fit, said beside them: an answer
+  // never comes out shorter than it could be without saying why.
+  const notes: string[] = []
+
   // Resting songs (shared rest.ts) stay out while anything else fits.
   const awake = restingStayOut ? fitting.filter(song => !isResting(song, now)) : fitting
-  if (awake.length > 0) fitting = awake
+  if (awake.length > 0 && awake.length < fitting.length) {
+    const resting = fitting.length - awake.length
+    notes.push(`Left out ${resting === 1 ? '1 song' : `${resting} songs`} you’ve set to rest.`)
+    fitting = awake
+  }
 
   steps.done(
     fitting.length === 0
@@ -494,16 +553,18 @@ export async function narrowAndPick(
   // chooses: it keeps only the songs that sound like it, so a sound few songs
   // have is not padded out with ones that do not, and songs not heard yet
   // cannot be vouched for and stay out with them. Inside the tags, artists or
-  // albums they named it only orders: those already chose the songs, and a sound
-  // there ("calm" jpop) is which of them to play first. Its line is drawn from
-  // the one best match, and inside a single kind of music a song or two can
-  // stand that far above the rest: "比较温和的jpop" answered one song of a
-  // hundred.
+  // albums they named it does not cut on its own: those already chose the
+  // songs, and its line is drawn from the one best match, so inside a single
+  // kind of music a song or two can stand that far above the rest
+  // ("比较温和的jpop" answered one song of a hundred). There the songs within
+  // the line are only marked for the pick, which cuts when the words want
+  // every song to have the sound, and only orders when they do not.
   const choosesBySound =
     understanding.anyTags.length === 0 &&
     understanding.artists.length === 0 &&
     understanding.albums.length === 0
   let places: Map<number, number> | null = null
+  let near: Set<number> | null = null
   if (fitting.length > 1 && (understanding.sound !== null || like !== null)) {
     steps.begin(
       understanding.sound
@@ -514,7 +575,13 @@ export async function narrowAndPick(
     if (heard) {
       places = heard.places
       const kept = choosesBySound ? heard.kept : null
+      if (kept && kept.size < fitting.length) {
+        notes.push(
+          `Kept the ${kept.size} of ${fitting.length} songs that sound closest to what you described.`,
+        )
+      }
       if (kept) fitting = fitting.filter(song => kept.has(song.id))
+      else near = heard.kept
       steps.done(
         kept
           ? `${kept.size} of the ${heard.places.size} heard ${kept.size === 1 ? 'sounds' : 'sound'} like it`
@@ -564,7 +631,7 @@ export async function narrowAndPick(
       `Choose up to ${count} songs.`,
       '',
       `The table holds the songs the filters let in: a rough first cut, so some may not fit the description (number | title | artist | album | year | tags | energy | tempo | length | words | plays${places ? ' | sound' : ''}):`,
-      songTable(table, tags, now, places ? song => soundColumn(places, song) : undefined),
+      songTable(table, tags, now, places ? song => soundColumn(places, near, song) : undefined),
     ].join('\n')
     const key = Remembered.key('describe-pick', PICK_VERSION, prompt)
     const answer = await remembered.get(
@@ -606,13 +673,30 @@ export async function narrowAndPick(
         : `Choosing ${Math.min(size, fitting.length)} that suit it`,
     )
     picks = await pickFrom(fitting, size)
-    if (picks.length === 0) throw new LlmError('invalid', 'The model picked no song from the table')
-    if (target !== null) picks = await fillTo(picks)
+    // Choosing none is an answer: none of the songs that fit is what the words
+    // want. It is said, never filled from the songs the model turned down.
+    if (picks.length === 0) {
+      notes.push(
+        `None of the ${fitting.length === 1 ? 'song' : `${fitting.length} songs`} that fit ${understanding.brief ? `seemed to be “${understanding.brief}”` : 'seemed to suit it'}.`,
+      )
+    } else if (target !== null) picks = await fillTo(picks)
     steps.done(
-      target !== null
-        ? `Chose ${picks.length}, ${lengthWords(length(picks))}`
-        : `Chose ${picks.length}`,
+      picks.length === 0
+        ? 'None of them suits it'
+        : target !== null
+          ? `Chose ${picks.length}, ${lengthWords(length(picks))}`
+          : `Chose ${picks.length}`,
     )
+  }
+  // A playlist's worth stands in for a number nobody said: said, so a short
+  // list of many that fit reads as a size, not as all there is.
+  if (
+    understanding.size === null &&
+    target === null &&
+    picks.length === size &&
+    fitting.length > size
+  ) {
+    notes.push(`No number was asked for, so it stopped at ${size}.`)
   }
 
   /**
@@ -664,11 +748,15 @@ export async function narrowAndPick(
     return [...candidates].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
   }
 
-  return { understanding: applied, fit: fitting.length, loosened, unknown, picks }
+  return { understanding: applied, fit: fitting.length, loosened, unknown, notes, picks }
 }
 
-/** The sound column: a song's place, 0–100, or "?" for one not heard yet. */
-function soundColumn(places: Map<number, number>, song: Song): string {
+/**
+ * The sound column: a song's place, 0–100, or "?" for one not heard yet;
+ * "close" when it is within the listening model's line of the best match.
+ */
+function soundColumn(places: Map<number, number>, near: Set<number> | null, song: Song): string {
   const place = places.get(song.id)
-  return place === undefined ? 'sound ?' : `sound ${Math.round(place)}`
+  if (place === undefined) return 'sound ?'
+  return `sound ${Math.round(place)}${near?.has(song.id) ? ' close' : ''}`
 }

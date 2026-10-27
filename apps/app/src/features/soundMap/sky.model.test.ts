@@ -3,6 +3,11 @@ import type { Song } from '@selfmp3/shared'
 import {
   brightness,
   chainAlong,
+  coverShare,
+  deepPlaces,
+  deepSince,
+  deepStars,
+  deepTwinkle,
   dustSpecks,
   flareReach,
   glowReach,
@@ -11,10 +16,13 @@ import {
   skyPoints,
   skyRegions,
   songUnder,
+  ringRadius,
   starAlpha,
+  starLook,
   starRadius,
   starTones,
 } from './sky.model'
+import { tileSide } from './soundMapView.model'
 
 const song = (id: number, fields: Partial<Song> = {}): Song =>
   ({ id, title: `Song ${id}`, playCount: 0, tagIds: [], coverTone: null, ...fields }) as Song
@@ -165,5 +173,66 @@ describe('the night sky', () => {
     const [star] = many(id => id)
     // Its arms reach past its glow where there is room, never across a crowd.
     expect(flareReach(star!, 2, 1, 500)).toBeLessThanOrEqual(12)
+  })
+
+  it('opens the most played stars into covers first, each over a stretch of zooming', () => {
+    // Far out, every star a star.
+    expect(coverShare(1, tileSide(1))).toBe(0)
+    expect(coverShare(0, tileSide(1))).toBe(0)
+    // Somewhere between, the favourite is open while the never played is still a star.
+    const middle = 24
+    expect(coverShare(1, middle)).toBe(1)
+    expect(coverShare(0, middle)).toBe(0)
+    // Close in, every one open.
+    expect(coverShare(0, 40)).toBe(1)
+    // No step: a little more zoom opens a star a little more.
+    const steps = Array.from({ length: 40 }, (_, at) => coverShare(0.5, 10 + at))
+    for (let at = 1; at < steps.length; at++) {
+      expect(steps[at]! - steps[at - 1]!).toBeLessThan(0.2)
+    }
+  })
+
+  it('crossfades a star into its cover so a place never dims halfway, and keeps its plays as brightness', () => {
+    const scaleFor = (side: number) => Math.pow(side / 8, 1 / 0.6)
+    for (let side = 10; side <= 45; side += 0.5) {
+      const look = starLook({ bright: 0.5 }, scaleFor(side))
+      expect(Math.max(look.star, look.cover)).toBeGreaterThan(0.95)
+    }
+    const star = starLook({ bright: 1 }, 1)
+    // A star: the dot alone, round.
+    expect(star).toMatchObject({ share: 0, star: 1, cover: 0 })
+    expect(star.corner).toBe(star.side / 2)
+    const open = starLook({ bright: 1 }, scaleFor(40))
+    expect(open.side).toBeCloseTo(40, 5)
+    expect(open.corner).toBeCloseTo(40 * 0.16, 5)
+    expect(open.veil).toBe(0)
+    expect(starLook({ bright: 0 }, scaleFor(48)).veil).toBeGreaterThan(0.3)
+    // A ring is round the star, then round the cover.
+    expect(ringRadius({ bright: 1 }, 1, 5.5)).toBe(5.5)
+    expect(ringRadius({ bright: 1 }, scaleFor(40), 5.5)).toBeCloseTo(28, 5)
+  })
+
+  it('lays a deep sky behind that follows the map only a little, the same stars every time', () => {
+    const [far, near] = deepStars()
+    expect(deepStars()[0]).toEqual(far)
+    const field = { width: 400, height: 800 }
+    const view = { scale: 1, x: 0, y: 0 }
+    const moved = { scale: 1, x: 100, y: 0 }
+    const before = new Map(deepPlaces(near!, 0.3, view, field).map(p => [p.star, p.x]))
+    const shifts = deepPlaces(near!, 0.3, moved, field)
+      .filter(p => before.has(p.star))
+      .map(p => p.x - before.get(p.star)!)
+      .filter(shift => Math.abs(shift) < 100)
+    // The map moved 100 points; its deep sky, a part of that, the same way.
+    expect(shifts.length).toBeGreaterThan(10)
+    for (const shift of shifts) expect(shift).toBeCloseTo(18, 5)
+    // While a finger moves it, the drawn layer goes where it would be drawn.
+    expect(deepSince(moved, view, 0.3)).toEqual({ x: 18, y: 0, scale: 1 })
+    // Every star stays on the field, and twinkles between dim and its own brightness.
+    for (const p of deepPlaces(far!, 0.12, view, field)) {
+      expect(p.x).toBeGreaterThanOrEqual(0)
+      expect(p.x).toBeLessThanOrEqual(400)
+      expect(deepTwinkle(p.star, 0) + deepTwinkle(p.star, 1)).toBeCloseTo(p.star.opacity * 1.45, 5)
+    }
   })
 })

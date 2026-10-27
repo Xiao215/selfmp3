@@ -228,9 +228,6 @@ export function tileSide(scale: number): number {
   return Math.min(64, Math.max(7, 8 * Math.pow(scale, 0.6)))
 }
 
-/** Covers are drawn on tiles at least this wide; smaller, a tile is its cover's colour. */
-export const COVER_FROM = 18
-
 /** The part of the map on screen, 0–1, with a tile's width of margin. */
 export function visibleRect(
   view: MapView,

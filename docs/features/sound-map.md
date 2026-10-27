@@ -60,8 +60,26 @@ off; nothing counts them.
   cloud in the tag's colour, without its name: a tag's songs are not all where it gathers,
   and a name over one place said they were (Xiao, 2026-10-26). The lens says where a tag's
   songs are.
-- **Close in,** once a star would be 18 points wide (`COVER_FROM`), the stars on screen show
-  their covers, and from 30 points their titles. Only those on screen ask for a picture.
+- **Close in,** each star opens into its cover (`starLook`, `coverShare`), chosen by Xiao on
+  2026-10-26 from <https://claude.ai/artifact/N3rnaLedMvnnCuKUQU3pSH> (T1 + T2 + K1 + K3):
+  until then one zoom step turned every star into a square at once, and the sky was gone.
+  - **Not at one zoom, and favourites first** (T1, T2). The most played star starts to open
+    once a tile would be 11 points wide (`COVER_EARLIEST`), the least played 14 points later,
+    and each takes 10 more: halfway in, the covers of the songs played most sit among
+    stars. As it opens the dot swells into the cover, round easing to the tile's rounded
+    square, the cover fading up as the star fades out, the two overlapping so a place never
+    dims halfway.
+  - **A cover keeps its star's light** (K1): a glow in its colour behind it, held to the
+    room its neighbours leave (`haloReach`) so a crowd is not fogged over; a faint rim; its
+    plays as brightness, the least played under a veil of black up to 40 %; and a flared
+    star's flare as a glint on its top right corner (`glint`).
+  - Open covers wear their titles from 30 points. Only covers opening ask for a picture.
+- **The deep sky** (K3): two layers of faint stars that are not songs, behind everything
+  (`deepStars`, `deepPlaces`). Each is a tile that repeats, moving 7 % and 18 % as far as the
+  map does and growing by the 0.12th and 0.3th power of its scale, so close in, with covers
+  filling the screen, there is still depth behind them. Each star follows one of three slow
+  twinkles (3.1, 4.3 and 5.7 s, `DEEP_BEATS_MS`). None under Reduce Motion, and none on
+  Home's card (`still`).
 - **The song playing** is the one star wearing its cover, ringed.
 - **What the tray holds** is drawn over the sky, each stroke in its own colour: a line's songs
   joined as a constellation in the order the line passes them (`chainAlong`), a loop as its
@@ -73,7 +91,9 @@ off; nothing counts them.
 moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a
 tile was moved to became a new rule, and a few minutes of zooming filled Chrome's memory
 until the tab died (Xiao, 2026-10-26). The browser now draws the sky into one `<canvas>`, at
-most once a frame while it moves and not at all while it holds still; nothing a song is drawn
+most once a frame while it moves and not at all while it holds still (the ground and the deep sky are a second canvas
+under it, drawn again at most 25 times a second while they twinkle, so a twinkle never draws
+the songs again); nothing a song is drawn
 with is a style. It keeps a glow picture per colour and at most 240 covers (the oldest let
 go). Measured in Chrome on the test library: zooming and moving for a minute left the CSS
 rules, the DOM and the heap where they started (556 → 572 rules, the tray's; 355 → 389
@@ -81,7 +101,10 @@ nodes; 31 → 34 MB).
 
 **On a phone** the stars are one SVG, a circle a star filled with its colour's gradient,
 drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
-moves it; their sizes and covers are worked out again when it settles. The stroke and the song
+moves it; their sizes and covers are worked out again when it settles, and a cover that
+appears then fades in. The deep sky's stars are small views placed for the settled view and
+moved by `deepSince` while a finger moves the map; three looping `Animated` values on the
+native driver twinkle them, so nothing is drawn again for a twinkle. The stroke and the song
 playing are drawn over it at screen size each frame.
 
 ### Gestures

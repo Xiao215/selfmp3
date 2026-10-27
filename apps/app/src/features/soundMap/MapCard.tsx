@@ -91,6 +91,7 @@ export function MapCard(): ReactNode {
               pulse={null}
               songs={songs}
               pointerRef={pointerRef}
+              still
             />
           ) : null}
         </View>

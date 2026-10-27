@@ -1,6 +1,6 @@
 import { hueFromString, type MapPlace, type Song } from '@selfmp3/shared'
 import { oklchToHex, type PlacedSong, type TagRegion } from '@selfmp3/client'
-import type { FieldSize, MapView } from './soundMapView.model'
+import { tileSide, type FieldSize, type MapView } from './soundMapView.model'
 
 /**
  * The sound map drawn as a night sky (C2, docs/features/sound-map.md): each
@@ -77,6 +77,8 @@ export interface SkyLayerProps {
   /** Where the map was just pressed, for a moment. */
   readonly pulse: { x: number; y: number } | null
   readonly songs: ReadonlyMap<number, Song>
+  /** A still picture, as Home's card is: no deep sky drifting or twinkling behind. */
+  readonly still?: boolean
 }
 
 /** A glow reaches at most this many times a star's size, where it has the room. */
@@ -352,4 +354,196 @@ export function songUnder(
     }
   }
   return best
+}
+
+/**
+ * Close in, stars open into their covers (T1 + T2, chosen by Xiao on
+ * 2026-10-26 from <https://claude.ai/artifact/N3rnaLedMvnnCuKUQU3pSH>): not all
+ * at one zoom, but each over a stretch of zooming, and the most played first,
+ * so halfway in the covers of the songs played most sit among stars. A tile
+ * this wide is where the most played star starts to open, and the least
+ * played starts `COVER_SPREAD` later; each takes `COVER_OPENS` to open.
+ */
+const COVER_EARLIEST = 11
+const COVER_SPREAD = 14
+const COVER_OPENS = 10
+/** How dark the least played song's cover is laid over, so plays still read as brightness (K1). */
+const COVER_VEIL = 0.4
+
+const smooth = (value: number): number => {
+  const t = Math.min(1, Math.max(0, value))
+  return t * t * (3 - 2 * t)
+}
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
+
+/** How far a star has opened into its cover at a tile's side, 0 (a star) to 1 (its cover). */
+export function coverShare(bright: number, side: number): number {
+  return smooth((side - COVER_EARLIEST - (1 - bright) * COVER_SPREAD) / COVER_OPENS)
+}
+
+/** How a song is drawn at a scale: its star, its cover, or a moment between. */
+export interface StarLook {
+  /** 0–1, `coverShare`. */
+  readonly share: number
+  /** The star's size, in points: it swells a little as it opens. */
+  readonly r: number
+  /** The dot's and the flare's opacity, out as the cover comes in, overlapping so a place never dims halfway. */
+  readonly star: number
+  /** The cover's opacity. */
+  readonly cover: number
+  /** The cover's side, in points: from the star's dot to the whole tile. */
+  readonly side: number
+  /** Its corners' radius: round as the star while it opens, the tile's rounded square once open. */
+  readonly corner: number
+  /** Black laid over the cover, 0–`COVER_VEIL`: the less played, the dimmer. */
+  readonly veil: number
+}
+
+export function starLook(point: Pick<SkyPoint, 'bright'>, scale: number): StarLook {
+  const tile = tileSide(scale)
+  const share = coverShare(point.bright, tile)
+  const open = smooth(share)
+  const r = starRadius(scale, point.bright) * (1 + 0.8 * share)
+  const side = lerp(r * CORE * 2, tile, open)
+  return {
+    share,
+    r,
+    star: 1 - smooth((share - 0.35) / 0.65),
+    cover: smooth(share / 0.45),
+    side,
+    corner: lerp(side / 2, side * 0.16, open),
+    veil: COVER_VEIL * (1 - point.bright),
+  }
+}
+
+/**
+ * The glow behind an open cover, in points from its middle: past the cover's
+ * edge where there is room, held to most of the way to its neighbours where
+ * there is not, so a crowd of covers is not fogged over.
+ */
+export function haloReach(point: SkyPoint, side: number, scale: number, base: number): number {
+  return Math.max(side * 0.55, Math.min(side * 1.2, point.room * base * scale * 0.75))
+}
+
+/**
+ * A flared star's flare once it is a cover: a small glint on the cover's top
+ * right corner, so the most played still shine close in.
+ */
+export function glint(side: number): { dx: number; dy: number; reach: number } {
+  return { dx: side * 0.41, dy: -side * 0.41, reach: Math.max(8, side * 0.42) }
+}
+
+/** How far a ring round a song reaches: round its cover once it has opened, else its star. */
+export function ringRadius(point: Pick<SkyPoint, 'bright'>, scale: number, least: number): number {
+  return Math.max(least, starLook(point, scale).side * 0.7)
+}
+
+/**
+ * The deep sky (K3): faint stars that are not songs, in two layers behind the
+ * map, each moving and growing more slowly than the map does, so it has depth
+ * close in when covers fill the screen. Each twinkles, slowly.
+ */
+export interface DeepStar {
+  /** Where in its layer's tile, 0–1. */
+  readonly u: number
+  readonly v: number
+  readonly size: number
+  readonly opacity: number
+  readonly tint: string
+  /** Which of three twinkles it follows, so a few timers serve every star. */
+  readonly beat: 0 | 1 | 2
+  /** Brightest where its twinkle is lowest, so the stars of one beat do not all pulse together. */
+  readonly flip: boolean
+}
+
+/** Each layer: how much of the map's movement it follows, and how many stars it holds. */
+export const DEEP_LAYERS = [
+  { parallax: 0.12, count: 240 },
+  { parallax: 0.3, count: 140 },
+] as const
+
+/** The deep sky's stars, the same every time. */
+export function deepStars(): DeepStar[][] {
+  let seed = 5
+  const next = (): number => {
+    seed = (seed * 16807) % 2147483647
+    return seed / 2147483647
+  }
+  return DEEP_LAYERS.map(({ count }, layer) =>
+    Array.from({ length: count }, () => {
+      const tint = next()
+      return {
+        u: next(),
+        v: next(),
+        size: (layer === 0 ? 0.5 : 0.8) + next() * (layer === 0 ? 0.7 : 1.1),
+        opacity: 0.15 + next() * (layer === 0 ? 0.3 : 0.45),
+        tint: tint < 0.2 ? '#ffd9b0' : tint < 0.4 ? '#b9c8ff' : '#eef1ff',
+        beat: Math.floor(next() * 3) as 0 | 1 | 2,
+        flip: next() < 0.5,
+      }
+    }),
+  )
+}
+
+/**
+ * Where a layer's stars are on the field for a view, with `margin` (a share
+ * of the field) around it: the layer is a tile that repeats, moved by a part
+ * of how far the map has moved from its middle and scaled by a root of its
+ * scale, and drawn about the field's middle.
+ */
+export function deepPlaces(
+  stars: readonly DeepStar[],
+  parallax: number,
+  view: MapView,
+  field: FieldSize,
+  margin = 0,
+): { star: DeepStar; x: number; y: number; size: number }[] {
+  const tile = Math.max(field.width, field.height) * 1.2
+  const zoom = Math.pow(view.scale, parallax)
+  const shiftX = (field.width / 2 - view.x) * parallax * 0.6
+  const shiftY = (field.height / 2 - view.y) * parallax * 0.6
+  const wrap = (value: number): number => (((value % tile) + tile) % tile) - tile / 2
+  const grow = Math.min(2, Math.sqrt(zoom))
+  const out: { star: DeepStar; x: number; y: number; size: number }[] = []
+  const padX = field.width * margin
+  const padY = field.height * margin
+  for (const star of stars) {
+    const x = field.width / 2 + wrap(star.u * tile - shiftX) * zoom
+    const y = field.height / 2 + wrap(star.v * tile - shiftY) * zoom
+    if (x < -padX || y < -padY || x > field.width + padX || y > field.height + padY) continue
+    out.push({ star, x, y, size: star.size * grow })
+  }
+  return out
+}
+
+/** A deep star's opacity at a moment of its beat (0–1). */
+export function deepTwinkle(star: DeepStar, beat: number): number {
+  const level = star.flip ? 1 - beat : beat
+  return star.opacity * (0.45 + 0.55 * level)
+}
+
+/** The three twinkles' lengths, a rise and a fall each, apart so they never line up. */
+export const DEEP_BEATS_MS = [3100, 4300, 5700] as const
+
+/** Where a twinkle is at a moment, 0–1. */
+export function deepBeat(beat: 0 | 1 | 2, ms: number): number {
+  return 0.5 - 0.5 * Math.cos((2 * Math.PI * ms) / DEEP_BEATS_MS[beat])
+}
+
+/**
+ * How far a deep layer drawn at the `settled` view has to move and grow, about
+ * the field's middle, to stand where it would be drawn for `view`: what a
+ * phone does to it while a finger moves the map, until it is drawn again.
+ */
+export function deepSince(
+  view: MapView,
+  settled: MapView,
+  parallax: number,
+): { x: number; y: number; scale: number } {
+  const zoom = Math.pow(view.scale, parallax)
+  return {
+    x: (view.x - settled.x) * parallax * 0.6 * zoom,
+    y: (view.y - settled.y) * parallax * 0.6 * zoom,
+    scale: zoom / Math.pow(settled.scale, parallax),
+  }
 }

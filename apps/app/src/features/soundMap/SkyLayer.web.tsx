@@ -5,28 +5,40 @@ import { useUnistyles } from 'react-native-unistyles'
 import type { MapPlace, Song } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
+import { useMotionReduced } from '../../ui/motion'
 import { useFieldPointer } from './fieldInput'
 import {
   CORE,
+  DEEP_LAYERS,
+  deepBeat,
+  deepPlaces,
+  deepStars,
+  deepTwinkle,
   dustSpecks,
   flareReach,
+  glint,
   glowReach,
   GLOW_STOPS,
+  haloReach,
+  ringRadius,
   SKY_EDGE,
   SKY_INK,
   SKY_TOP,
   songUnder,
   starAlpha,
-  starRadius,
+  starLook,
+  type DeepStar,
   type SkyLayerProps,
   type SkyPoint,
+  type StarLook,
 } from './sky.model'
-import { COVER_FROM, tileSide, toScreen, type FieldSize } from './soundMapView.model'
+import { tileSide, toScreen, type FieldSize, type MapView } from './soundMapView.model'
 
 /**
- * The sound map's sky in a browser and the desktop app: one canvas, drawn
- * again at most once a frame while the map moves, and not at all while it
- * holds still.
+ * The sound map's sky in a browser and the desktop app: one canvas for the
+ * songs, drawn again at most once a frame while the map moves, and not at all
+ * while it holds still, over one for the ground and the deep sky (`DeepSky`),
+ * which twinkles on its own.
  *
  * One canvas rather than an element a song. The page this replaced drew 1,500
  * views and moved each one, and every place a view was moved to became a new
@@ -44,7 +56,6 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   // A cover that arrives asks for the sky to be drawn again.
   const [covers, setCovers] = useState(0)
   useFieldPointer(pointerRef, setHover)
-  const ground = useGround(field)
   const byId = useMemo(() => new Map(props.points.map(point => [point.id, point])), [props.points])
 
   const latest = useRef({ props, hover, art, byId, accent })
@@ -60,7 +71,7 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
       const ctx = canvas?.getContext('2d')
       if (!canvas || !ctx) return
       const { props: now, hover: pointer, art: artOf, byId: placed, accent: ink } = latest.current
-      draw(ctx, canvas, now, placed, ink, pointer, ground, song =>
+      draw(ctx, canvas, now, placed, ink, pointer, song =>
         coverImage(artOf(song), () => setCovers(n => n + 1)),
       )
     })
@@ -74,12 +85,115 @@ export function SkyLayer(props: SkyLayerProps & { pointerRef: RefObject<View | n
   void covers
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
-    />
+    <>
+      <DeepSky field={field} view={props.view} still={props.still ?? false} />
+      <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
+    </>
   )
+}
+
+const FILL = {
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  display: 'block',
+} as const
+
+/** The deep sky is drawn again this often while it twinkles and the map holds still. */
+const TWINKLE_FRAME_MS = 40
+
+/**
+ * The ground behind the songs: the night, its dust, and the deep sky (K3),
+ * faint stars that are not songs, drifting a little as the map moves and
+ * twinkling. On a canvas of its own, so a twinkle never draws the songs again.
+ * Under Reduce Motion, or still as on Home's card, it does not twinkle.
+ */
+function DeepSky({
+  field,
+  view,
+  still,
+}: {
+  field: FieldSize
+  view: MapView
+  still: boolean
+}): ReactNode {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const ground = useGround(field)
+  const reduced = useMotionReduced()
+  const layers = useMemo(() => (still ? [] : deepStars()), [still])
+  const latest = useRef({ view, ground })
+  const wake = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    const twinkle = !still && !reduced
+    let frame: number | null = null
+    let drawn: { view: MapView | null; ground: HTMLCanvasElement | null; at: number } = {
+      view: null,
+      ground: null,
+      at: -Infinity,
+    }
+    const tick = (now: number): void => {
+      frame = twinkle ? requestAnimationFrame(tick) : null
+      const { view: at, ground: back } = latest.current
+      const changed = at !== drawn.view || back !== drawn.ground
+      if (!changed && (!twinkle || now - drawn.at < TWINKLE_FRAME_MS)) return
+      drawn = { view: at, ground: back, at: now }
+      const canvas = canvasRef.current
+      const ctx = canvas?.getContext('2d')
+      if (canvas && ctx) paintDeep(ctx, canvas, field, back, layers, at, twinkle ? now : null)
+    }
+    frame = requestAnimationFrame(tick)
+    wake.current = () => {
+      if (frame === null) frame = requestAnimationFrame(tick)
+    }
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame)
+      wake.current = null
+    }
+  }, [field, layers, reduced, still])
+  useLayoutEffect(() => {
+    latest.current = { view, ground }
+    wake.current?.()
+  })
+  return <canvas ref={canvasRef} aria-hidden="true" style={FILL} />
+}
+
+function paintDeep(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  field: FieldSize,
+  ground: HTMLCanvasElement | null,
+  layers: readonly (readonly DeepStar[])[],
+  view: MapView,
+  ms: number | null,
+): void {
+  const dpr = dprOf()
+  if (
+    canvas.width !== Math.round(field.width * dpr) ||
+    canvas.height !== Math.round(field.height * dpr)
+  ) {
+    canvas.width = Math.round(field.width * dpr)
+    canvas.height = Math.round(field.height * dpr)
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  if (ground) ctx.drawImage(ground, 0, 0)
+  else ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  layers.forEach((stars, layer) => {
+    for (const { star, x, y, size } of deepPlaces(
+      stars,
+      DEEP_LAYERS[layer]!.parallax,
+      view,
+      field,
+    )) {
+      ctx.globalAlpha = ms === null ? star.opacity : deepTwinkle(star, deepBeat(star.beat, ms))
+      ctx.fillStyle = star.tint
+      ctx.beginPath()
+      ctx.arc(x, y, size / 2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  })
+  ctx.globalAlpha = 1
 }
 
 /** Density is capped at two: a third would treble the pixels for nothing a star shows. */
@@ -220,7 +334,6 @@ function draw(
   byId: ReadonlyMap<number, SkyPoint>,
   accent: string,
   pointer: { x: number; y: number } | null,
-  ground: HTMLCanvasElement | null,
   cover: (song: Song) => HTMLImageElement | null,
 ): void {
   const { field, view, base, points, regions, lens, takes, stroke, playing, lit, pulse, songs } =
@@ -232,8 +345,7 @@ function draw(
     canvas.height = Math.round(height * dpr)
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0)
-  if (ground) ctx.drawImage(ground, 0, 0)
-  else ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   const at = (place: MapPlace): { x: number; y: number } => toScreen(view, base, place)
 
@@ -264,12 +376,11 @@ function draw(
   ctx.globalCompositeOperation = 'source-over'
 
   // The stars, laid over each other as paint is rather than added up as light: added,
-  // a place of a few hundred songs summed to one white blur. Close in, the
-  // covers on screen in place of theirs.
-  const side = tileSide(view.scale)
-  const covers = side >= COVER_FROM
-  const margin = covers ? side : 24
-  const shown: { point: SkyPoint; x: number; y: number }[] = []
+  // a place of a few hundred songs summed to one white blur. Close in, each
+  // opens into its cover, the most played first (`starLook`).
+  const tile = tileSide(view.scale)
+  const margin = tile + 24
+  const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []
   for (const point of points) {
     const spot = at(point)
     if (
@@ -280,41 +391,69 @@ function draw(
     ) {
       continue
     }
-    const r = starRadius(view.scale, point.bright) * (covers ? 1.8 : 1)
-    const reach = glowReach(point, r, view.scale, base)
+    const look = starLook(point, view.scale)
+    const reach = glowReach(point, look.r, view.scale, base)
     const alpha = starAlpha(point, lens)
     ctx.globalAlpha = alpha
     ctx.drawImage(glowOf(point.glow), spot.x - reach, spot.y - reach, reach * 2, reach * 2)
-    if (covers) shown.push({ point, x: spot.x, y: spot.y })
-    else {
-      if (point.flare) flare(ctx, spot, flareReach(point, r, view.scale, base), point.core)
+    if (look.star > 0.01) {
+      ctx.globalAlpha = alpha * look.star
+      if (point.flare) flare(ctx, spot, flareReach(point, look.r, view.scale, base), point.core)
       ctx.fillStyle = point.core
       ctx.beginPath()
-      ctx.arc(spot.x, spot.y, r * CORE, 0, Math.PI * 2)
+      ctx.arc(spot.x, spot.y, look.r * CORE, 0, Math.PI * 2)
       ctx.fill()
     }
+    if (look.cover > 0.01) shown.push({ point, x: spot.x, y: spot.y, look })
   }
-  for (const { point, x, y } of shown) {
+  // The most played on top.
+  shown.sort((a, b) => a.point.bright - b.point.bright)
+  for (const { point, x, y, look } of shown) {
     const song = songs.get(point.id)
-    ctx.globalAlpha = lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1
-    roundRect(ctx, x - side / 2, y - side / 2, side, side * 0.16)
+    const dim = lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1
+    const { side, corner } = look
+    const half = side / 2
+    // A cover keeps its star's light (K1): a glow behind it, a rim, its plays
+    // as brightness, and a flared star's flare as a glint on its corner.
+    const halo = haloReach(point, side, view.scale, base)
+    ctx.globalAlpha = 0.5 * look.share * dim
+    ctx.drawImage(glowOf(point.glow), x - halo, y - halo, halo * 2, halo * 2)
+    ctx.globalAlpha = look.cover * dim
+    ctx.beginPath()
+    ctx.roundRect(x - half, y - half, side, side, corner)
     const image = song ? cover(song) : null
-    if (image) {
-      ctx.save()
-      ctx.clip()
-      ctx.drawImage(image, x - side / 2, y - side / 2, side, side)
-      ctx.restore()
-    } else {
+    ctx.save()
+    ctx.clip()
+    if (image) ctx.drawImage(image, x - half, y - half, side, side)
+    else {
       ctx.fillStyle = point.glow
+      ctx.fillRect(x - half, y - half, side, side)
+    }
+    if (look.veil > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${look.veil})`
+      ctx.fillRect(x - half, y - half, side, side)
+    }
+    ctx.restore()
+    ctx.globalAlpha = look.cover * dim * 0.35
+    ctx.strokeStyle = point.core
+    ctx.lineWidth = 1
+    ctx.stroke()
+    if (point.flare) {
+      const shine = glint(side)
+      ctx.globalAlpha = look.share * dim
+      flare(ctx, { x: x + shine.dx, y: y + shine.dy }, shine.reach, point.core)
+      ctx.fillStyle = SKY_INK
+      ctx.beginPath()
+      ctx.arc(x + shine.dx, y + shine.dy, 1.6, 0, Math.PI * 2)
       ctx.fill()
     }
-    // Close enough, each cover wears its name.
-    if (song && side >= NAMES_FROM) {
-      ctx.globalAlpha *= 0.92
+    // Close enough, each open cover wears its name.
+    if (song && look.share > 0.9 && tile >= NAMES_FROM) {
+      ctx.globalAlpha = look.cover * dim * 0.92
       ctx.fillStyle = SKY_INK
       ctx.font = `600 10px ${FONT}`
       ctx.textAlign = 'center'
-      ctx.fillText(fitText(ctx, song.title, side + 16), x, y + side / 2 + 12)
+      ctx.fillText(fitText(ctx, song.title, side + 16), x, y + half + 12)
     }
   }
   ctx.globalAlpha = 1
@@ -362,7 +501,7 @@ function draw(
       ctx.strokeStyle = withAlpha(take.tone, 0.55)
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.arc(spot.x, spot.y, covers ? side * 0.7 : 5.5, 0, Math.PI * 2)
+      ctx.arc(spot.x, spot.y, ringRadius(place, view.scale, 5.5), 0, Math.PI * 2)
       ctx.stroke()
     }
   }
@@ -388,7 +527,7 @@ function draw(
   const nowSong = now ? songs.get(now.id) : undefined
   if (now && nowSong) {
     const spot = at(now)
-    const big = Math.max(22, covers ? side * 1.15 : 22)
+    const big = Math.max(22, starLook(now, view.scale).side * 1.15)
     ctx.fillStyle = withAlpha(accent, 0.25)
     ctx.beginPath()
     ctx.arc(spot.x, spot.y, big * 1.05, 0, Math.PI * 2)
@@ -420,7 +559,7 @@ function draw(
   // The star under the pointer, named before it is pressed; else the one the
   // pointer is on in the tray's list.
   const under =
-    (pointer ? songUnder(points, at, pointer, covers ? side / 2 + 4 : 14) : null) ??
+    (pointer ? songUnder(points, at, pointer, Math.max(14, tile / 2 + 4)) : null) ??
     (lit === null ? null : (byId.get(lit) ?? null))
   const song = under ? songs.get(under.id) : undefined
   if (under && song) {
@@ -428,9 +567,9 @@ function draw(
     ctx.strokeStyle = SKY_INK
     ctx.lineWidth = 1.5
     ctx.beginPath()
-    ctx.arc(spot.x, spot.y, covers ? side * 0.72 : 7, 0, Math.PI * 2)
+    ctx.arc(spot.x, spot.y, ringRadius(under, view.scale, 7), 0, Math.PI * 2)
     ctx.stroke()
-    tooltip(ctx, song, spot, covers ? side / 2 + 8 : 14, field)
+    tooltip(ctx, song, spot, Math.max(14, starLook(under, view.scale).side / 2 + 8), field)
   }
 }
 

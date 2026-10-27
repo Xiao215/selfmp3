@@ -236,7 +236,6 @@ export const AskObjectSchema = z.object({
   understanding: UnderstandingSchema.nullable().default(null),
 })
 export type AskObject = z.infer<typeof AskObjectSchema>
-export type AskObjectInput = z.input<typeof AskObjectSchema>
 
 /**
  * One turn of an Ask conversation: what was asked, what the answer shown for

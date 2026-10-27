@@ -39,8 +39,6 @@ export interface Held {
   readonly objects: readonly AskObject[]
 }
 
-export const NOTHING_HELD: Held = { playing: undefined, objects: [] }
-
 /** The object a handle names, or undefined. */
 export function heldObject(held: Held, handle: string): AskObject | undefined {
   return held.objects.find(object => object.handle === handle)
@@ -66,7 +64,7 @@ export function scopeOf(from: Scope, held: Held, songs: readonly Song[]): readon
 }
 
 /** Why each song of an object is in it, by id, where the answer said. */
-export function whyOf(object: AskObject): ReadonlyMap<number, string | null> {
+function whyOf(object: AskObject): ReadonlyMap<number, string | null> {
   return new Map(object.songIds.map((id, index) => [id, object.why[index] ?? null]))
 }
 

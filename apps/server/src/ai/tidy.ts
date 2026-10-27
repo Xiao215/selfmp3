@@ -815,7 +815,7 @@ export function inTheirLanguage(request: string, said: string | null): string | 
 }
 
 /** One artist's names as the model reads them: each with the songs that carry it. */
-export interface NameGroup {
+interface NameGroup {
   readonly names: readonly { readonly name: string; readonly songs: readonly Song[] }[]
 }
 

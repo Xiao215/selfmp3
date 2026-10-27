@@ -1,7 +1,8 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Animated, Easing, Image, Text, View } from 'react-native'
 import Reanimated, { FadeIn } from 'react-native-reanimated'
+import { useFocusEffect } from 'expo-router'
 import type { View as ViewType } from 'react-native'
 import Svg, {
   Circle,
@@ -39,6 +40,7 @@ import {
   SKY_TOP,
   starAlpha,
   starLook,
+  TWINKLE_LOW,
   type DeepStar,
   type SkyLayerProps,
   type SkyPoint,
@@ -137,9 +139,10 @@ const Ground = memo(function Ground({ field }: { field: FieldSize }): ReactNode 
 /**
  * The deep sky (K3) on a phone: faint stars that are not songs, placed for
  * the view the map last held still at and moved, a part as far as the map
- * does, while a finger moves it (`deepSince`). Each is a small view of its own,
- * lit by one of three slow twinkles run on the native side, so nothing is
- * drawn again while they twinkle. Under Reduce Motion they hold still.
+ * does, while a finger moves it (`deepSince`). Each is a small view of its own
+ * in a group that follows one of three slow twinkles, run on the native side,
+ * so nothing is drawn again while they twinkle. Under Reduce Motion they hold
+ * still, and so they do while another page is over the map.
  */
 function DeepSky({
   field,
@@ -151,7 +154,8 @@ function DeepSky({
   settled: MapView
 }): ReactNode {
   const layers = useMemo(() => deepStars(), [])
-  const beats = useBeats(!useMotionReduced())
+  const reduced = useMotionReduced()
+  const beats = useBeats(useFocused() && !reduced)
   return (
     <View style={StyleSheet.absoluteFill}>
       {layers.map((stars, layer) => {
@@ -185,6 +189,21 @@ function DeepSky({
   )
 }
 
+/**
+ * Whether the map's page is the one showing: a page under another stays
+ * mounted, and its sky should not twinkle there unseen.
+ */
+function useFocused(): boolean {
+  const [focused, setFocused] = useState(true)
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true)
+      return () => setFocused(false)
+    }, []),
+  )
+  return focused
+}
+
 /** The three twinkles (`DEEP_BEATS_MS`), each rising and falling for as long as the map is open; none under Reduce Motion. */
 function useBeats(twinkle: boolean): readonly Animated.Value[] | null {
   const [beats] = useState(() => DEEP_BEATS_MS.map(() => new Animated.Value(0)))
@@ -208,7 +227,12 @@ function useBeats(twinkle: boolean): readonly Animated.Value[] | null {
   return twinkle ? beats : null
 }
 
-/** One layer's stars, drawn for where the map last held still, with a quarter of the field around it. */
+/**
+ * One layer's stars, drawn for where the map last held still, with a quarter
+ * of the field around it. They are grouped by the twinkle they follow, and
+ * the group is what twinkles: one star an animated view was 380 views moved
+ * every frame, about 40 % of a phone's time on the simulator (2026-10-26).
+ */
 const DeepLayer = memo(function DeepLayer({
   stars,
   parallax,
@@ -222,32 +246,34 @@ const DeepLayer = memo(function DeepLayer({
   field: FieldSize
   beats: readonly Animated.Value[] | null
 }): ReactNode {
+  const placed = deepPlaces(stars, parallax, settled, field, 0.25)
   return (
     <>
-      {deepPlaces(stars, parallax, settled, field, 0.25).map(({ star, x, y, size }, index) => {
-        const low = star.opacity * 0.45
+      {DEEP_BEATS_MS.map((_, beat) => {
+        const own = placed.filter(({ star }) => star.beat === beat)
         const opacity = beats
-          ? beats[star.beat]!.interpolate({
-              inputRange: [0, 1],
-              outputRange: star.flip ? [star.opacity, low] : [low, star.opacity],
-            })
-          : star.opacity
+          ? beats[beat]!.interpolate({ inputRange: [0, 1], outputRange: [TWINKLE_LOW, 1] })
+          : 1
         return (
-          <Animated.View
-            key={index}
-            style={[
-              styles.deepStar,
-              {
-                left: x - size / 2,
-                top: y - size / 2,
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: star.tint,
-                opacity,
-              },
-            ]}
-          />
+          <Animated.View key={beat} style={[StyleSheet.absoluteFill, { opacity }]}>
+            {own.map(({ star, x, y, size }, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.deepStar,
+                  {
+                    left: x - size / 2,
+                    top: y - size / 2,
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                    backgroundColor: star.tint,
+                    opacity: star.opacity,
+                  },
+                ]}
+              />
+            ))}
+          </Animated.View>
         )
       })}
     </>

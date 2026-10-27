@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import type { View } from 'react-native'
 import { useUnistyles } from 'react-native-unistyles'
+import { useFocusEffect } from 'expo-router'
 import type { MapPlace, Song } from '@selfmp3/shared'
 import { tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
@@ -107,7 +108,8 @@ const TWINKLE_FRAME_MS = 40
  * The ground behind the songs: the night, its dust, and the deep sky (K3),
  * faint stars that are not songs, drifting a little as the map moves and
  * twinkling. On a canvas of its own, so a twinkle never draws the songs again.
- * Under Reduce Motion, or still as on Home's card, it does not twinkle.
+ * Under Reduce Motion, still as on Home's card, or under another page (which
+ * leaves the map mounted), it does not twinkle.
  */
 function DeepSky({
   field,
@@ -121,11 +123,18 @@ function DeepSky({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const ground = useGround(field)
   const reduced = useMotionReduced()
+  const [focused, setFocused] = useState(true)
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true)
+      return () => setFocused(false)
+    }, []),
+  )
   const layers = useMemo(() => (still ? [] : deepStars()), [still])
   const latest = useRef({ view, ground })
   const wake = useRef<(() => void) | null>(null)
   useEffect(() => {
-    const twinkle = !still && !reduced
+    const twinkle = !still && !reduced && focused
     let frame: number | null = null
     let drawn: { view: MapView | null; ground: HTMLCanvasElement | null; at: number } = {
       view: null,
@@ -150,7 +159,7 @@ function DeepSky({
       if (frame !== null) cancelAnimationFrame(frame)
       wake.current = null
     }
-  }, [field, layers, reduced, still])
+  }, [field, focused, layers, reduced, still])
   useLayoutEffect(() => {
     latest.current = { view, ground }
     wake.current?.()

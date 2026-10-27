@@ -108,8 +108,10 @@ nodes; 31 → 34 MB).
 drawn (a glow and a dot each) for the view the map last held still at and moved and scaled as a whole while a finger
 moves it; their sizes and covers are worked out again when it settles, and a cover that
 appears then fades in. The deep sky's stars are small views placed for the settled view and
-moved by `deepSince` while a finger moves the map; three looping `Animated` values on the
-native driver twinkle them, so nothing is drawn again for a twinkle. The stroke and the song
+moved by `deepSince` while a finger moves the map; they are grouped by the twinkle they
+follow, and three looping `Animated` values on the native driver fade the six groups a layer
+has. One animated view a star was 380 views moved every frame, about 40 % of the app's time on
+the simulator; grouped, the map costs what it did without a deep sky. The stroke and the song
 playing are drawn over it at screen size each frame.
 
 ### Gestures

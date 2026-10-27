@@ -454,8 +454,6 @@ export interface DeepStar {
   readonly tint: string
   /** Which of three twinkles it follows, so a few timers serve every star. */
   readonly beat: 0 | 1 | 2
-  /** Brightest where its twinkle is lowest, so the stars of one beat do not all pulse together. */
-  readonly flip: boolean
 }
 
 /** Each layer: how much of the map's movement it follows, and how many stars it holds. */
@@ -481,7 +479,6 @@ export function deepStars(): DeepStar[][] {
         opacity: 0.15 + next() * (layer === 0 ? 0.3 : 0.45),
         tint: tint < 0.2 ? '#ffd9b0' : tint < 0.4 ? '#b9c8ff' : '#eef1ff',
         beat: Math.floor(next() * 3) as 0 | 1 | 2,
-        flip: next() < 0.5,
       }
     }),
   )
@@ -518,10 +515,12 @@ export function deepPlaces(
   return out
 }
 
+/** A twinkle at its lowest, as a share of a star's own brightness. */
+export const TWINKLE_LOW = 0.45
+
 /** A deep star's opacity at a moment of its beat (0–1). */
 export function deepTwinkle(star: DeepStar, beat: number): number {
-  const level = star.flip ? 1 - beat : beat
-  return star.opacity * (0.45 + 0.55 * level)
+  return star.opacity * (TWINKLE_LOW + (1 - TWINKLE_LOW) * beat)
 }
 
 /** The three twinkles' lengths, a rise and a fall each, apart so they never line up. */

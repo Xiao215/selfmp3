@@ -190,7 +190,7 @@ export function DownloadTiles(): ReactNode {
       <Tile
         icon={<Wifi tone={prefs.autoOnWifi ? 'accent' : 'textMuted'} />}
         label="Wi-Fi downloads"
-        state={prefs.autoOnWifi ? 'New songs, by themselves' : 'Off'}
+        state={prefs.autoOnWifi ? 'On' : 'Off'}
         on={prefs.autoOnWifi}
         onPress={() => setPrefs({ autoOnWifi: !prefs.autoOnWifi })}
         testID="setting-auto-download"

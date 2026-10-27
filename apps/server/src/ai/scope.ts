@@ -30,7 +30,7 @@ export type Scope = z.infer<typeof ScopeField>
 
 /** How a form fills a scope, in the words every form uses. */
 export const SCOPE_WHEN =
-  'from names songs already in front of them instead of describing which songs: handle is "playing" for the song playing, or an earlier answer\'s handle for what it showed; picks are places in that answer\'s numbered list when they mean only some of it (1 for the first), else null. Otherwise from is null.'
+  'from names songs already in front of them instead of describing which songs: handle is "playing" for the song playing, or an earlier answer\'s handle for what it showed; picks are places in that answer\'s numbered list when they mean only some of it (1 for the first, and one place when they speak of one song), else null. Otherwise from is null.'
 
 /** What the handles can name on this request. */
 export interface Held {

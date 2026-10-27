@@ -241,7 +241,11 @@ const songs = action({
     const asked = filters ?? EVERYTHING
     const plan = steering ? { ...asked, size: asked.size ?? NEXT_SIZE } : asked
     const { understanding, unknown } = groundPlan(
-      { ...plan, name: name?.trim() || plan.name },
+      // Music like one song with nothing else said is named after that song.
+      {
+        ...plan,
+        name: name?.trim() || (!filters && likeSong ? `Like ${likeSong.title}` : plan.name),
+      },
       library,
       deps.tags(),
       deps.artistNames?.() ?? NO_JOINS,
@@ -377,7 +381,7 @@ const change = action({
  */
 const reply = action({
   name: 'reply',
-  when: 'a question about something an earlier answer showed that what it showed already answers: why a song is in a list (each song\'s reason is beside it, when it was given one), where a song is in it, what the list was. Fill "reply": say is the answer in at most three sentences, in the language of their newest words, from what the conversation shows and nothing else; from names the songs it is about the way songs are named by handle and place, or null. When what was shown cannot answer it, choose the action that can find out instead.',
+  when: 'a question about something an earlier answer showed that what it showed already answers: why a song is in a list (each song\'s reason is beside it, when it was given one), where a song is in it, what the list was. Fill "reply": say is the answer in at most three sentences, written in the language their newest words are in (not that of the song names, the list\'s name or the earlier turns), from what the conversation shows and nothing else; from names the songs it is about the way songs are named by handle and place, or null. When what was shown cannot answer it, choose the action that can find out instead.',
   fields: z.object({ say: z.string().min(1).max(600), from: ScopeField }),
   filters: 'unused',
   run: ({ deps, held }, { say, from }) => {
@@ -573,7 +577,7 @@ const library = action({
 const tidyUp = action({
   name: 'tidy',
   when:
-    'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"); what their songs are missing (an album, a year, a cover) filled in; or songs they have more than once. Fill "tidy": what is checkup when they only ask to check or clean up their names, spellings when they want each artist the library holds under more than one name made one name, fill when they want what is missing filled in, copies when they ask about songs they have twice or more, and change when they say what change they want made to the names; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script), and false for anything but a change; ' +
+    'anything about their songs\' names (titles, artists, albums): checked, fixed or cleaned up in general, or changed in a way they say ("give the 原神音乐 songs their official Chinese names", "write 周杰倫\'s albums in simplified Chinese", "take \'(Remastered)\' off the titles"); what their songs are missing (an album, a year, a cover) filled in; or songs they have more than once. Fill "tidy": what is checkup when they only ask to check or clean up their names, spellings when they want each artist the library holds under more than one name made one name, fill when they want what is missing filled in, copies when they ask about songs they have twice or more or which of the copies shown to keep, and change when they say what change they want made to the names; lookUp is true when the new names must come from outside the library (official, real or correct names, the real name of an album, the name the publisher uses in another language), false when the change is made from the names already there (take words off, change the script), and false for anything but a change; ' +
     SCOPE_WHEN +
     ' When they say which songs, or how many to change ("up to 300", "先换50首" is size 50), also fill "filters" with the filters that choose them (null for the whole library). Which of those songs still need the change ("the ones in English now") is not a filter: the request itself says it.',
   fields: z.object({

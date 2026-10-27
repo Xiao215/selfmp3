@@ -652,6 +652,7 @@ apps/app
   src/ui/                 components, icons, the Unistyles theme
   plugins/                config plugins run at prebuild time
   modules/key-commands/   the app's own Expo module: a hardware keyboard's keys (iOS)
+  modules/turn-cover/     the app's own Expo module: a cover over an iPad's turn (iOS)
   targets/widget/         the iOS widget's SwiftUI target
 ```
 

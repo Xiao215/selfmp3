@@ -1,5 +1,6 @@
 import { plural, formatBytes } from '@selfmp3/shared'
 import { firstName } from '../profile/profile.model'
+import type { DevicePlace } from '../settings/settings.model'
 import { STORAGE_ROUTE } from './storage.model'
 
 /**
@@ -53,6 +54,18 @@ export function afterWelcome(
  */
 export function keepEverySongByDefault(wide: boolean): boolean {
   return wide
+}
+
+/**
+ * Where "Download automatically on Wi-Fi" stands on a device nobody has
+ * answered for yet: off on a phone, as First sync starts it there. On by
+ * default, a phone that reached the library without the page — its library
+ * arriving before the page was up, or the app closed between sign-in and the
+ * page, which is never shown again — kept every song before anyone could say
+ * no (bug bash R2-m3).
+ */
+export function keepEverySongUnasked(place: DevicePlace): boolean {
+  return place !== 'phone'
 }
 
 /**

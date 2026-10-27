@@ -6,8 +6,8 @@
 # downloaded". With both off, a song removed by hand stays removed and cannot
 # play, and tapping it explains.
 #
-# Puts both settings back on at the end, so the other flows find the phone as
-# they expect it.
+# Puts streaming back on at the end, so the other flows find the phone as
+# they expect it. Wi-Fi downloads stay off, which is where a phone starts.
 appId: com.selfmp3.app
 ---
 - launchApp
@@ -38,8 +38,13 @@ appId: com.selfmp3.app
     element:
       id: 'setting-stream'
     direction: DOWN
-- tapOn:
-    id: 'setting-auto-download'
+# Off already on a phone nobody has turned it on for.
+- runFlow:
+    when:
+      visible: 'New songs, by themselves'
+    commands:
+      - tapOn:
+          id: 'setting-auto-download'
 - tapOn:
     id: 'setting-stream'
 
@@ -81,7 +86,5 @@ appId: com.selfmp3.app
     element:
       id: 'setting-stream'
     direction: DOWN
-- tapOn:
-    id: 'setting-auto-download'
 - tapOn:
     id: 'setting-stream'

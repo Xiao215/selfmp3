@@ -58,7 +58,7 @@ import {
 } from '../connection/useDoormanTrouble'
 import { Button } from '../ui/components/Button'
 import { BrandMark } from '../ui/components/BrandMark'
-import { Heart, Live, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
+import { Heart, More, Plus, Search, Tag as TagIcon } from '../ui/components/Icons'
 import { HueSwatches } from '../ui/components/HueSwatches'
 import { TagEditor } from '../ui/components/TagEditor'
 import { tip } from '../ui/tip'
@@ -446,7 +446,6 @@ function RailPlaylist({
         <Text style={[styles.playlistName, active && styles.labelOn]} numberOfLines={1}>
           {playlist.name}
         </Text>
-        {live ? <Live size={iconSize.sub} tone="textMuted" /> : null}
       </Press>
       {over ? <Text style={[styles.dropHint, styles.labelOn]}>Drop to add</Text> : null}
     </Animated.View>

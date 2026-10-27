@@ -15,7 +15,7 @@ import { ListHead, ListHeadName, listHeadText } from '../../ui/components/ListHe
 import { MoreMenu } from '../../ui/components/MoreMenu'
 import { PlayShuffle } from '../../ui/components/PlayShuffle'
 import { useListActions } from '../../ui/components/useListActions'
-import { goBack } from '../../ui/useBackTo'
+import { goBack, usePageBack } from '../../ui/useBackTo'
 import { useHeroGrow } from '../../ui/useHeroGrow'
 import { useSongColor } from '../../ui/useSongColor'
 import { useSelection } from '../../selection/useSelection'
@@ -48,6 +48,7 @@ export function LikedScreen(): ReactNode {
   const hero = useHeroGrow(wide)
   const heroRef = hero.heroRef
   const router = useRouter()
+  const backShown = usePageBack('/playlists').shown
   const listActions = useListActions(ids, {
     heroRef,
     selection,
@@ -62,10 +63,15 @@ export function LikedScreen(): ReactNode {
       art={null}
       topBar={
         <>
-          <BackButton
-            to="/playlists"
-            onPress={() => hero.back(() => goBack(router, '/playlists'))}
-          />
+          {/* None on a computer for Liked opened from the sidebar; the gap keeps ⋯ right. */}
+          {backShown ? (
+            <BackButton
+              to="/playlists"
+              onPress={() => hero.back(() => goBack(router, '/playlists'))}
+            />
+          ) : (
+            <View />
+          )}
           <MoreMenu
             name="Liked"
             items={listActions}

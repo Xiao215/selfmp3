@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   detectLyricsLanguage,
   lyricTextLines,
@@ -6,8 +6,8 @@ import {
   type LyricsLanguage,
   type Song,
 } from '@selfmp3/shared'
-import { ApiError, useLyrics, usePatchSong } from '@selfmp3/client'
-import { forgetNoWords, rememberNoWords, useNoWords } from './noWords'
+import { ApiError, useLyrics } from '@selfmp3/client'
+import { rememberNoWords, useNoWords } from './noWords'
 import { resolveSongWords, type SongWords } from './nowPlaying.model'
 import { setRomanizationOn, useRomanizationOn } from './romanizationPref'
 
@@ -32,17 +32,8 @@ export function useSongWords(song: Song): {
   language: LyricsLanguage
   romanizationOn: boolean
   setRomanization: (on: boolean) => void
-  /**
-   * Ask the lookup again: "Look for lyrics again" under a song's visual. The
-   * saved answer that it has none is cleared first — the server only looks a
-   * song like that up again once the flag is off — and the words asked for
-   * afresh, showing "Looking for lyrics…" meanwhile.
-   */
-  lookAgain: () => void
 } {
   const lyrics = useLyrics(song.id)
-  const patchSong = usePatchSong()
-  const [looking, setLooking] = useState(false)
   // Asked once a session, not on every play (`noWords.ts`).
   const askedAndNone = useNoWords(song.id)
 
@@ -61,11 +52,9 @@ export function useSongWords(song: Song): {
 
   const error = lyrics.error
   const words = resolveSongWords({
-    loading: lyrics.isLoading || looking,
+    loading: lyrics.isLoading,
     parsed,
-    // Asking again by hand is a fresh question, and it shows as one: the flag
-    // is on its way off and "Looking for lyrics…" belongs on screen meanwhile.
-    instrumental: (song.instrumental || askedAndNone) && !looking,
+    instrumental: song.instrumental || askedAndNone,
     romanizationOn,
     romanized,
     // Unanswered, not answered "none": offline, or the bucket refusing for the
@@ -80,18 +69,6 @@ export function useSongWords(song: Song): {
     if (none) rememberNoWords(song.id)
   }, [none, song.id])
 
-  const lookAgain = (): void => {
-    forgetNoWords(song.id)
-    setLooking(true)
-    // A library that cannot take the change (a cloud one) still asks again.
-    const cleared = song.instrumental
-      ? patchSong
-          .mutateAsync({ id: song.id, patch: { instrumental: false } })
-          .catch(() => undefined)
-      : Promise.resolve(undefined)
-    void cleared.then(() => lyrics.refetch()).finally(() => setLooking(false))
-  }
-
   return {
     words,
     language,
@@ -99,6 +76,5 @@ export function useSongWords(song: Song): {
     setRomanization: (on: boolean) => {
       if (language !== 'none') setRomanizationOn(language, on)
     },
-    lookAgain,
   }
 }

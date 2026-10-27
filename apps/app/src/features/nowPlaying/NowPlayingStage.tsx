@@ -38,6 +38,7 @@ import { ChevronDown, Collapse, Expand, Next } from '../../ui/components/Icons'
 import { SongMenu } from '../../ui/components/SongMenu'
 import { TagPicker } from '../../ui/components/TagPicker'
 import { SongAbout } from '../song/SongAbout'
+import { SongTogether } from '../song/SongTogether'
 import { songLink } from '../song/song.model'
 import {
   contextLine,
@@ -66,7 +67,7 @@ import { useSongWords } from './useSongWords'
 import { ArtistLinks } from './ArtistLinks'
 import { putAway } from './leaveNowPlaying'
 import { EmptyNowPlaying } from './EmptyNowPlaying'
-import { canRomanize, FindLyricsButton, RomanizeButton } from './LyricsTools'
+import { canRomanize, RomanizeButton } from './LyricsTools'
 import { SongTagsLine } from './SongTagsLine'
 import { HEAD_LEFT } from './stageHead'
 import { lyricsStatusText } from './stageLyrics.model'
@@ -460,12 +461,6 @@ function Stage({
   // Pushed over the page, as a tag or an artist is, so back comes to it again.
   const openSong = (): void => router.push(songLink(song.id))
 
-  // "Look for lyrics again" asks the lookup afresh, clearing the answer it
-  // saved that the song has none. Beside Visual and Details on the stage; in
-  // Focus, where the tabs are put away, at the top right where the romaji
-  // switch sits for a song with words.
-  const lookAgainPill = showVisual ? <FindLyricsButton onPress={lyrics.lookAgain} /> : null
-
   const tabList = (
     <Segmented
       tabs
@@ -671,12 +666,16 @@ function Stage({
           )
         ) : (
           <ScrollView contentContainerStyle={styles.about}>
-            <SongAbout
-              song={song}
-              plays
-              testID="now-playing-fix-metadata"
-              style={styles.aboutBody}
-            />
+            {/* You and the song first; what the file is, quietly, under it. */}
+            <View style={styles.aboutBody}>
+              <SongTogether song={song} />
+              <SongAbout
+                song={song}
+                plays={false}
+                sound={false}
+                testID="now-playing-fix-metadata"
+              />
+            </View>
           </ScrollView>
         )}
       </Moving>
@@ -704,12 +703,9 @@ function Stage({
             <Text style={styles.context} pointerEvents="none">
               {contextLine(player.queue.index, player.queue.items.length)}
             </Text>
-            {geometry.stacked ? null : (
-              <>
-                {tabList}
-                {lookAgainPill}
-              </>
-            )}
+            {/* Nothing beside the tabs that only one of them has: it pushed
+                them along as they were switched. */}
+            {geometry.stacked ? null : tabList}
             {/* Last at the top right, where the song's page keeps its ⋯. A
                 friend's song in a room has nothing in it here: the page
                 already says whose it is, and the bar has the rest. */}
@@ -732,13 +728,6 @@ function Stage({
       {tabsRow !== null ? (
         <Animated.View style={[styles.tools, chrome, { top: tabsRow, left: geometry.pad }]}>
           {tabList}
-          {lookAgainPill}
-        </Animated.View>
-      ) : null}
-
-      {focus && lookAgainPill ? (
-        <Animated.View style={[styles.tools, chrome, { top: top + 12, right: 66 }]}>
-          {lookAgainPill}
         </Animated.View>
       ) : null}
 
@@ -962,7 +951,7 @@ const styles = StyleSheet.create(theme => ({
   visual: { position: 'absolute', overflow: 'hidden', zIndex: 1 },
   visualFull: { left: 0, right: 0, top: 0, bottom: 0 },
   about: { paddingTop: space.md, paddingHorizontal: space.xs, paddingBottom: 40 },
-  aboutBody: { maxWidth: 600, paddingHorizontal: 18 },
+  aboutBody: { maxWidth: 720, paddingHorizontal: 18, gap: 36 },
   tools: { position: 'absolute', zIndex: 4, flexDirection: 'row', gap: space.tight },
   expandAt: { position: 'absolute', zIndex: 4 },
   expand: {

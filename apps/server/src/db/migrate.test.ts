@@ -173,7 +173,7 @@ describe('migrate', () => {
     db.exec(`
       INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
       INSERT INTO playlists (id, name, pinned) VALUES (1, 'Mix', 1), (4, 'Old', 0);
-      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (4, 1, 0);
+      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (1, 1, 0), (4, 1, 0);
       INSERT INTO import_jobs (id, url, playlist_id) VALUES ('j', 'u', 4);
     `)
     const before = db.prepare('SELECT * FROM playlists ORDER BY id').all()
@@ -183,7 +183,7 @@ describe('migrate', () => {
 
     expect(db.pragma('user_version', { simple: true })).toBe(latest)
     expect(db.prepare('SELECT * FROM playlists ORDER BY id').all()).toEqual(before)
-    expect(count(db, 'playlist_items')).toBe(1)
+    expect(count(db, 'playlist_items')).toBe(2)
     expect(db.pragma('foreign_key_check')).toEqual([])
     const made = (name: string) =>
       Number(db.prepare('INSERT INTO playlists (name) VALUES (?)').run(name).lastInsertRowid)
@@ -192,7 +192,7 @@ describe('migrate', () => {
     expect(made('Newer')).toBe(6)
     // Deleting still takes its songs and its import's link with it.
     db.prepare('DELETE FROM playlists WHERE id = 4').run()
-    expect(count(db, 'playlist_items')).toBe(0)
+    expect(count(db, 'playlist_items')).toBe(1)
     expect(db.prepare('SELECT playlist_id FROM import_jobs').get()).toEqual({ playlist_id: null })
   })
 
@@ -213,6 +213,9 @@ describe('migrate', () => {
     insert.run(3, 'Rain', rules(has(1)))
     insert.run(4, 'Everything', rules())
     insert.run(5, 'Broken', 'not json')
+    // The songs it holds, which it keeps once it stops following.
+    db.exec("INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A')")
+    db.exec('INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (1, 1, 0)')
     db.pragma('user_version = 48')
     migrate(db, createLogger('silent'))
 
@@ -225,6 +228,34 @@ describe('migrate', () => {
       { id: 4, kind: 'live', rules: rules() },
       { id: 5, kind: 'live', rules: 'not json' },
     ])
+  })
+
+  it('deletes kept playlists with no songs, but not a live one or one an import is filling', () => {
+    const db = new Database(':memory:')
+    db.pragma('foreign_keys = ON')
+    migrate(db, createLogger('silent'))
+    db.exec(`
+      INSERT INTO songs (id, path, title) VALUES (1, 'a.m4a', 'A');
+      INSERT INTO playlists (id, name, kind, uid) VALUES
+        (1, 'Kept', 'manual', 'u1'), (2, 'Emptied', 'manual', 'u2'), (3, 'Live', 'live', 'u3'),
+        (4, 'Importing', 'manual', 'u4'), (5, 'Imported', 'manual', 'u5');
+      INSERT INTO playlist_items (playlist_id, song_id, position) VALUES (1, 1, 0);
+      INSERT INTO import_jobs (id, url, status, playlist_id) VALUES
+        ('a', 'u', 'queued', 4), ('b', 'u', 'done', 5);
+    `)
+    db.pragma('user_version = 57')
+    migrate(db, createLogger('silent'))
+
+    const names = db.prepare('SELECT name FROM playlists ORDER BY id').pluck().all()
+    expect(names).toEqual(['Kept', 'Live', 'Importing'])
+    // Noted, so the bucket's older snapshot does not give them back.
+    expect(db.prepare('SELECT uid FROM removed_playlists ORDER BY uid').pluck().all()).toEqual([
+      'u2',
+      'u5',
+    ])
+    // And every later deletion is noted too.
+    db.prepare('DELETE FROM playlists WHERE id = 1').run()
+    expect(count(db, 'removed_playlists')).toBe(3)
   })
 
   it('gives an import job named by another build the queue’s own words, and holds it to them', () => {

@@ -11,7 +11,8 @@ import { PanelDenseContext } from './panel'
 import { contentA11y, panelA11y, Sheet, type LayerRole } from './Sheet'
 import { floating } from '../surfaces'
 import { CATCHER, rightClickThrough, type PopoverAnchor } from '../rightClick'
-import { ease, motionMs, nativeDriver } from '../motion'
+import { ease, motionMs, nativeDriver, timing } from '../motion'
+import { MOVE_MS } from '../motion.model'
 import { clamp } from '@selfmp3/shared'
 import { ScrollView } from './Scroll'
 
@@ -36,11 +37,11 @@ export function Popover({
   open,
   onClose,
   anchorRef,
-  title,
+  title: givenTitle,
   titleTone,
   subtitle,
   panelTitle,
-  children,
+  children: given,
   width = 240,
   placement = 'auto',
   align = 'end',
@@ -87,6 +88,11 @@ export function Popover({
   testID?: string
 }): ReactNode {
   const wide = useLayoutValue(layout => layout.wide)
+  // A caller drops its content the moment it closes — the tag picker's song
+  // goes to null — and the panel then left as an empty sliver. What it showed
+  // while open goes with it instead.
+  const children = useKeptWhileClosing(open, given)
+  const title = useKeptWhileClosing(open, givenTitle)
 
   if (!wide || !anchorRef) {
     return (
@@ -129,14 +135,33 @@ export function Popover({
 }
 
 /**
+ * What was shown while `open`, kept as it closes: in the render, so the frame
+ * that closes it already draws what it had.
+ */
+function useKeptWhileClosing<T>(open: boolean, value: T): T {
+  const [kept, setKept] = useState(value)
+  if (open && kept !== value) setKept(value)
+  return open ? value : kept
+}
+
+/**
  * How far the panel slides as it grows: a few points from the side it is
  * anchored to, so it reads as coming out of its control rather than sliding in
  * from nowhere.
  */
-const SLIDE = 4
+const SLIDE = 6
 
 /** How small the panel starts. Near enough to full size to read as a grow, not a zoom. */
-const START_SCALE = 0.94
+const START_SCALE = 0.9
+
+/**
+ * Where along the move the panel's surface has fully arrived, and where its
+ * content starts to: the surface comes out of the control first and the rows
+ * settle into it a beat after, and on the way out the rows go before the
+ * surface tucks back in.
+ */
+const SURFACE_IN = 0.35
+const CONTENT_FROM = 0.3
 
 /**
  * How long an opening waits for its panel to measure itself before it gives
@@ -188,6 +213,13 @@ function AnchoredPopover({
   // at the same size — a right-click on another row while one row's menu is
   // up — never measured itself again and stayed waiting off screen.
   const [opening, setOpening] = useState(0)
+  // The opening whose panel has reported its layout. A close forgets it, so a
+  // re-opening is not ready on the last one's measure: it started its grow at
+  // once, the view it was growing was then swapped for the new opening's, and
+  // the grow stopped where it was — a menu opened a second time stayed
+  // half-faded until it was opened again.
+  const [laidOut, setLaidOut] = useState(-1)
+  if (!open && laidOut !== -1) setLaidOut(-1)
   const [progress] = useState(() => new Animated.Value(0))
   const [mounted, setMounted] = useState(open)
   // The room it opens into, only while there is a panel to place: a closed
@@ -207,7 +239,7 @@ function AnchoredPopover({
    * first layout rather than from the press, on a view that is there to be
    * animated.
    */
-  const ready = anchor !== null && panelHeight > 0
+  const ready = anchor !== null && panelHeight > 0 && laidOut === opening
   // And one that never measures — no layout, or a control gone before it
   // could be measured — closes, so its control opens it afresh next time
   // rather than setting an open menu open again.
@@ -233,28 +265,38 @@ function AnchoredPopover({
   }, [open, anchorRef])
 
   /*
-   * Its own `Animated.timing` rather than `timing` from `ui/motion`: this one
-   * effect drives both directions from the same value and has to read
-   * `finished`, so that a close which is interrupted by the panel being opened
-   * again never unmounts the panel it has just re-opened. `motionMs` is how
-   * Reduce Motion reaches it: it lands at once, and the callback still runs.
-   * It leaves on `ease.in`, as everything on its way out does.
+   * It opens on the overshoot, which moves from its first frame — the spring,
+   * starting from rest, barely moved in its first few — and leaves on `ease.in`, as
+   * everything on its way out does. The leaving is its own `Animated.timing`
+   * rather than `timing` from `ui/motion`: it has to read `finished`, so that
+   * a close which is interrupted by the panel being opened again never
+   * unmounts the panel it has just re-opened. `motionMs` is how Reduce Motion
+   * reaches it: it lands at once, and the callback still runs.
    */
   // Whether it has been open since it last closed: one mounted closed — most
   // are — has nothing to close, and started a move on mount for nothing.
   const wasOpen = useRef(false)
   useEffect(() => {
     if (!open && !wasOpen.current) return
-    // Opening, it grows once its panel is placed (`ready`).
-    if (open && !ready) return
+    // Opening, it grows once its panel is placed (`ready`). A close still on
+    // its way is stopped where it is, unfinished, so it never unmounts the
+    // panel that is opening again; the grow goes on from there.
+    if (open && !ready) {
+      progress.stopAnimation()
+      return
+    }
     wasOpen.current = open
+    if (open) {
+      timing(progress, 1, MOVE_MS.panel, undefined, { easing: ease.overshoot })
+      return
+    }
     Animated.timing(progress, {
-      toValue: open ? 1 : 0,
-      duration: motionMs(open ? motion.base : motion.fast),
-      easing: open ? ease.out : ease.in,
+      toValue: 0,
+      duration: motionMs(motion.base),
+      easing: ease.in,
       useNativeDriver: nativeDriver,
     }).start(({ finished }) => {
-      if (finished && !open) setMounted(false)
+      if (finished) setMounted(false)
     })
   }, [open, ready, progress])
 
@@ -290,20 +332,49 @@ function AnchoredPopover({
           : 'below'
   const room = side === 'above' ? roomAbove : roomBelow
   const shownHeight = Math.min(panelHeight, room)
-  // Built once per side, not per render: the panel grows out of the corner
-  // nearest its control, so which way it slides is all that changes.
-  const grow = useMemo(
-    () => [
-      {
-        translateY: progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [side === 'above' ? SLIDE : -SLIDE, 0],
+  // Out of the control itself: from its middle, or from the point a
+  // right-click landed on, held to the panel's own width.
+  const originX = anchor ? clamp(anchor.x + anchor.width / 2 - left, 0, width) : 0
+  // Built once per side, not per render: the panel grows out of the edge
+  // nearest its control, so which way it slides is all that changes. The
+  // surface is there by `SURFACE_IN`; the content follows it from
+  // `CONTENT_FROM`, a few points nearer the control, and is gone first on the
+  // way out.
+  const { grow, surface, content } = useMemo(() => {
+    const toward = side === 'above' ? 1 : -1
+    return {
+      grow: [
+        {
+          translateY: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [toward * SLIDE, 0],
+          }),
+        },
+        { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }) },
+      ],
+      surface: progress.interpolate({
+        inputRange: [0, SURFACE_IN],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+      }),
+      content: {
+        opacity: progress.interpolate({
+          inputRange: [CONTENT_FROM, 1],
+          outputRange: [0, 1],
+          extrapolate: 'clamp',
         }),
+        transform: [
+          {
+            translateY: progress.interpolate({
+              inputRange: [CONTENT_FROM, 1],
+              outputRange: [(toward * SLIDE) / 2, 0],
+              extrapolate: 'clamp',
+            }),
+          },
+        ],
       },
-      { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [START_SCALE, 1] }) },
-    ],
-    [progress, side],
-  )
+    }
+  }, [progress, side])
 
   useOverlay(
     anchor ? (
@@ -319,6 +390,7 @@ function AnchoredPopover({
             // held to the room on its side.
             const height = event.nativeEvent.layout.height
             setPanelHeight(current => (current === 0 ? height : current))
+            setLaidOut(opening)
           }}
           style={[
             styles.panel,
@@ -335,21 +407,23 @@ function AnchoredPopover({
                     ? // Never past the top of the page, however short the room.
                       Math.max(safeTop + space.xs, anchor.y - shownHeight - space.xs)
                     : anchor.y + anchor.height + space.xs,
-              opacity: progress,
-              // Grows out of the corner nearest its control, so the panel reads
-              // as the button opening rather than a box appearing near it.
-              transformOrigin: `${side === 'above' ? 'bottom' : 'top'} ${startsAtControl ? 'left' : 'right'}`,
+              opacity: surface,
+              // Grows out of its control, so the panel reads as the button
+              // opening rather than a box appearing near it.
+              transformOrigin: `${originX}px ${side === 'above' ? '100%' : '0%'}`,
               transform: grow,
             },
           ]}
         >
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            style={panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 }}
-            {...contentA11y(role)}
-          >
-            <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
-          </ScrollView>
+          <Animated.View style={content}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={panelHeight === 0 ? undefined : { maxHeight: room - space.xs * 2 }}
+              {...contentA11y(role)}
+            >
+              <PanelDenseContext.Provider value={dense}>{children}</PanelDenseContext.Provider>
+            </ScrollView>
+          </Animated.View>
         </Animated.View>
       </>
     ) : null,

@@ -145,7 +145,7 @@ export function CoverRail({
             onFocus={() => setOpen(true)}
             onBlur={() => setOpen(false)}
             accessibilityRole="button"
-            accessibilityLabel={`Play ${item.song.title}`}
+            accessibilityLabel={item.song.title}
             accessibilityState={{ selected: index === shown }}
             style={[styles.railRow, open && index === shown && styles.railRowShown]}
             testID={`share-rail-${index}`}

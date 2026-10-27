@@ -911,7 +911,8 @@ the answer as **Up next**: Describe's pipeline as usual, with the playing song d
 the pick too, the playing song left out of the picks, and ten songs unless a number is said.
 The card's button is **Play next**, which puts them right after the playing song
 (`playNext`), so nothing that is playing stops; Add to Up next, everywhere else, adds at the
-end. Without a song playing, `next` falls back to the usual playlist answer.
+end. Without a song playing there is nothing for them to come after, so `next` plays them
+now, as "play …" does.
 
 Measured on the real library: about 10 s, "calmer" read as an energy range under the
 playing song's.

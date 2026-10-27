@@ -228,7 +228,8 @@ const songs = action({
     filters,
   ) => {
     const steering = next && playing !== undefined
-    const lead = steering ? 'next' : play ? 'play' : 'save'
+    // Up next with nothing playing has nothing to come after: what was wanted soon is played now.
+    const lead = steering ? 'next' : play || next ? 'play' : 'save'
     const library = deps.songs()
     // Songs already shown: exactly those, nothing picked.
     const pointed = scopeOf(from, held, library)

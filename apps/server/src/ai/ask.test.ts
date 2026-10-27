@@ -336,7 +336,7 @@ describe('ask', () => {
     ])
   })
 
-  it('does not lead with next when nothing is playing', async () => {
+  it('plays now what was wanted next when nothing is playing', async () => {
     const d = deps({
       'ask-route': [
         route({
@@ -354,7 +354,7 @@ describe('ask', () => {
         }),
       ],
     })
-    expect(await ask(d, 'queue some YOASOBI')).toMatchObject({ kind: 'songs', lead: 'save' })
+    expect(await ask(d, 'queue some YOASOBI')).toMatchObject({ kind: 'songs', lead: 'play' })
   })
 
   it('hands anything about tags to the tag review, with the request itself', async () => {

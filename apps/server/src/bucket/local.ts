@@ -25,15 +25,21 @@ import { CloudError, type CloudObject, type CloudPutOptions, type CloudStore } f
  * the first, `format.json`, is refused as a bucket that is not there. Making
  * the folder again on the way to a file built an empty stand-in the server
  * published into and let go of songs into, and their audio was nowhere once
- * the drive came back (R3-m10).
+ * the drive came back (R3-m10). Nor is `format.json` written into a folder
+ * that is gone once a library has been published into it (`published`): a
+ * pass that checks the bucket afresh, as publishing by hand does, would have
+ * made that same stand-in (R3-m10, R4).
  */
 export class LocalCloudStore implements CloudStore {
   readonly description: string
   readonly #root: string
+  /** Whether a library has been published into this folder: then it is never made again. */
+  readonly #published: () => boolean
 
-  constructor(root: string) {
+  constructor(root: string, options: { published?: () => boolean } = {}) {
     this.#root = path.resolve(root)
     this.description = `folder · ${this.#root}`
+    this.#published = options.published ?? (() => false)
   }
 
   /** Keys are relative and forward-slashed; nothing may climb out of the folder. */
@@ -87,6 +93,7 @@ export class LocalCloudStore implements CloudStore {
   async put(key: string, body: Buffer, _options: CloudPutOptions): Promise<void> {
     const file = this.#file(key)
     if (key !== FORMAT_KEY) await this.#mustBeThere()
+    else if (!fs.existsSync(this.#root) && this.#published()) throw this.#notThere()
     try {
       await fsp.mkdir(path.dirname(file), { recursive: true })
       // Whole or absent, like an object: written beside and renamed into place.

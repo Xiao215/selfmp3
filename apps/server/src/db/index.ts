@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import type { Config } from '../config.js'
@@ -55,36 +54,4 @@ export function openDatabase(config: Config, logger: Logger): Db {
  */
 export function transact<T>(db: Db, fn: () => T): T {
   return db.transaction(fn)()
-}
-
-/**
- * Less room than this on the data folder's disk is a full disk. Not zero: a
- * filled APFS volume still reports a megabyte or so free that no file can
- * have, and SQLite could not open in it.
- */
-const FULL_BELOW_BYTES = 16 * 1024 * 1024
-
-/**
- * Why the databases in `dir` could not be opened, when the reason is a full
- * disk: SQLite says only "disk I/O error" for a log it has no room to make,
- * and a server that will not start should name the disk and what to do.
- * Null when there is room, or the disk cannot be asked.
- */
-export function fullDiskProblem(
-  dir: string,
-  freeBytes: (dir: string) => number = bytesFreeAt,
-): string | null {
-  let free: number
-  try {
-    free = freeBytes(dir)
-  } catch {
-    return null
-  }
-  if (free >= FULL_BELOW_BYTES) return null
-  return `the disk holding ${dir} is full (${free} bytes free): free some space there and start the server again`
-}
-
-function bytesFreeAt(dir: string): number {
-  const stats = fs.statfsSync(dir)
-  return stats.bavail * stats.bsize
 }

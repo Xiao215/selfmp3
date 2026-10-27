@@ -369,7 +369,9 @@ default outside it), and a file dropped there by hand is an import too (`service
 at boot). The pass uploads what it finds. Once a song is wholly in the bucket — audio, cover,
 words, motion curve — and analysis is done with it, and the snapshot naming it is up, **the
 pass deletes the copy here** (`#letGo` in `services/cloudSync.ts`) — the audio, the words
-beside it, and the folder. From then on the server reads a song's words from the bucket like
+beside it, and the folder. Not while something may still be writing it: a copy is sent once it
+has been still for a minute, and deleted once it has been still for ten minutes and is the
+size and time it was when it was read and sent. From then on the server reads a song's words from the bucket like
 every other device (`fetchLyrics`; the lyrics routes, the search index and the romanization
 pass all go through `LyricsService.stored`), and the pass knows the bucket's words are current
 because nothing here can have changed them. A folder with nothing new in it is a folder with

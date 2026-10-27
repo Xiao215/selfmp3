@@ -236,7 +236,8 @@ under it the same rows a playlist draws (`ui/components/OrderedSongList.tsx`, sh
 playlist page): hold one to move it, Select songs to tick several, a row's ⋯ for the song.
 The order you put it in is the order it plays and saves in while the app is open. Different
 songs sends the picks it showed as `avoid` (`DescribeRequest`), and the server picks around
-them while anything else fits; a chip taken away first changes what it picks from. Answers
+them while anything else fits. A chip taken away picks again at once from what is left, with
+nothing avoided, so the songs shown that still fit can stay. Answers
 are kept in memory (`smart/answers.store.ts`); an address to one from before a reload says so
 and offers Search.
 

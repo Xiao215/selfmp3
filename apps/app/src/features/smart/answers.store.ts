@@ -22,8 +22,8 @@ interface KeptAnswer {
   /** The songs in the order you put them in, by this device's ids; null for the answer's own. */
   readonly order: readonly number[] | null
   /**
-   * What it understood with chips taken away and not yet picked again from;
-   * null when unchanged. Kept with the answer, so a change in words starts
+   * What it understood with chips taken away, while the songs for it are on
+   * their way (or could not come); null when unchanged. Kept with the answer, so a change in words starts
    * from what is shown and the next list opened does not inherit it.
    */
   readonly edited: Understanding | null
@@ -61,13 +61,20 @@ export function keepAnswer(text: string, result: DescribeResult): string {
   return id
 }
 
-/** The answer changed on its page (Change it, Different songs): the new songs, in their own order. */
-export function changeAnswer(id: string, result: DescribeResult): void {
+/**
+ * The answer changed on its page (Change it, Different songs, a chip taken
+ * away): the new songs, in their own order. Given what they were picked
+ * `from`, songs for an answer changed again since stay out: two chips taken
+ * away quickly keep the songs for both, whichever comes back last.
+ */
+export function changeAnswer(id: string, result: DescribeResult, from?: Understanding): void {
   const answer = answers.get(id)
-  if (answer) put({ ...answer, result, order: null, edited: null })
+  if (!answer) return
+  if (from && understandingOf(answer) !== from) return
+  put({ ...answer, result, order: null, edited: null })
 }
 
-/** A chip taken away on the answer's page: what Different songs and a change in words start from. */
+/** A chip taken away on the answer's page: what it picks again from, and a change in words starts from. */
 export function editAnswer(id: string, edited: Understanding): void {
   const answer = answers.get(id)
   if (answer) put({ ...answer, edited })

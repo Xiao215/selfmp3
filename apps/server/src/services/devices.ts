@@ -163,8 +163,8 @@ export class DeviceService {
    * none, there is nobody to tell, and the next to open is sent the version
    * here.
    */
-  connect(sink: EventSink, deviceId: string | null): () => void {
-    const unsubscribe = this.#hub.subscribe(sink, deviceId)
+  connect(sink: EventSink, deviceIds: readonly string[]): () => void {
+    const unsubscribe = this.#hub.subscribe(sink, deviceIds)
     this.#hub.send(sink, { type: 'devices', ...this.list() })
     const version = this.#libraryVersion()
     this.#hub.send(sink, { type: 'library', version })

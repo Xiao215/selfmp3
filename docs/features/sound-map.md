@@ -84,8 +84,13 @@ off; nothing counts them.
 - **What the tray holds** is drawn over the sky, each stroke in its own colour: a line's songs
   joined as a constellation in the order the line passes them (`chainAlong`), a loop as its
   dashed outline.
-- **On a computer,** the star under the pointer is ringed and named (title and artist)
-  before it is pressed.
+- **On a computer,** the song under the pointer is named before it is pressed. Close in,
+  where the stars are covers, its cover lifts into a dark card with its title and artist
+  beside it, on whichever side has room short of the tray's panel, and its own small title
+  under the cover gives way (H2, 2026-10-26: a round ring over a square cover with the title
+  twice read as clutter). Further out, the star is ringed and named in a small card beside
+  it. The same card shows for the song the pointer is on in the tray's list, and on a phone
+  for the row last pressed there.
 
 **Why a canvas in a browser.** The first page drew 1,500 views and moved each one as the map
 moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a
@@ -178,18 +183,23 @@ Each stroke adds to it; it holds every stroke since it was last cleared, each so
   where the length was, shown on hover or focus, where there is a pointer (the web), and a
   swipe left to **Leave out** where there is not; a screen reader has it as the row's action.
 - **The head**: the name (the strokes' names joined with " · "), with a pencil to type one of
-  its own, used by Save and Play; how many songs and how long; and a chevron that hides or
-  folds the list, nothing more.
+  its own, used by Save and Play; a dot in each stroke's colour, how many songs and how long;
+  and a chevron that folds the list or opens it, nothing more.
 - **The buttons** (C1): **Play**, **Save**, and **⋯** with Add to Up next, Shuffle and Clear
   what's drawn (with Undo).
-- **Folded**: the first three covers, the name, how many and how long, Save and Play.
+- **Folded**, on a phone: the first three covers, the name, how many and how long, Save and
+  Play. On a computer: the head alone, with Play beside the chevron (K4).
 
 **On a computer** it is a panel 376 points wide down the right of the map, from the top to
 the player bar, opened with the first stroke; the map is fitted and centred in what is left
 (`FieldInsets.right`), the head's tag chips stop short of it, + and − zoom about the middle
 of what is left, and the buttons stand to its left. The pointer on a row rings and names its
-star on the map as the pointer on a star does. Hidden, it folds to its one line at the foot
-of the same column.
+star on the map as the pointer on a star does. Folded (K4, 2026-10-26: a line at the foot
+that appeared and vanished with no motion read as broken), the card keeps its head where it
+was and the list folds up under it, its height and its fade sliding together (`Fold`); it
+unfolds the same way. The map glides with the room the panel gives back or takes: refitted
+if no hand has moved it, else moved by half the panel's width so what was in the middle
+stays there (`FieldControl.setInsets`).
 
 **On a phone** it stays folded at the foot until pulled up or pressed, and opens as a sheet
 half the screen high, its buttons under its head; the map's clear part shrinks to above it.

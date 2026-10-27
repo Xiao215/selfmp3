@@ -85,7 +85,7 @@ describe('DeviceService', () => {
     service.heartbeat(heartbeat('mac-00000001'))
 
     const sink = new BufferSink()
-    service.connect(sink, 'phone-000001')
+    service.connect(sink, ['phone-000001'])
     expect(sink.text).toContain('"type":"devices"')
     expect(sink.text).toContain('"mac-00000001"')
     expect(sink.text).toContain('"type":"library"')
@@ -102,8 +102,8 @@ describe('DeviceService', () => {
 
     const server = new BufferSink()
     const phone = new BufferSink()
-    service.connect(server, 'mac-00000001')
-    service.connect(phone, 'phone-000001')
+    service.connect(server, ['mac-00000001'])
+    service.connect(phone, ['phone-000001'])
 
     expect(service.command('mac-00000001', { type: 'pause' })).toBe(1)
     expect(server.text).toContain('"command":{"type":"pause"}')
@@ -145,7 +145,7 @@ describe('what the streams are told', () => {
     const { service, advance } = setup()
     service.heartbeat(heartbeat('mac-00000001'))
     const sink = new BufferSink()
-    service.connect(sink, 'phone-000001')
+    service.connect(sink, ['phone-000001'])
     expect(devicesFrames(sink)).toBe(1)
 
     // Ten seconds on, ten seconds further into the song: nothing new.
@@ -221,7 +221,7 @@ describe('the library-version watch', () => {
       })
       service.start()
       const sink = new BufferSink()
-      const close = service.connect(sink, 'phone')
+      const close = service.connect(sink, ['phone'])
 
       version = 2
       vi.advanceTimersByTime(2_000)
@@ -236,7 +236,7 @@ describe('the library-version watch', () => {
 
       // The next stream starts from the version as it is.
       const next = new BufferSink()
-      service.connect(next, 'phone')
+      service.connect(next, ['phone'])
       expect(next.text).toContain('"version":3')
       service.stop()
     } finally {

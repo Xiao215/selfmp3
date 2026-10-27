@@ -47,6 +47,23 @@ describe('LocalCloudStore', () => {
     await expect(store.list('audio/')).rejects.toMatchObject({ kind: 'missing' })
   })
 
+  it('does not make again a folder a library was published into, even for its format.json', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'selfmp3-folder-'))
+    roots.push(parent)
+    const root = path.join(parent, 'bucket')
+    let published = false
+    const store = new LocalCloudStore(root, { published: () => published })
+    await store.put(FORMAT_KEY, Buffer.from('{}'), json)
+    await store.put('audio/a.m4a', Buffer.from('aaa'), audio)
+    published = true
+    fs.rmSync(root, { recursive: true })
+
+    await expect(store.put(FORMAT_KEY, Buffer.from('{}'), json)).rejects.toMatchObject({
+      kind: 'missing',
+    })
+    expect(fs.existsSync(root)).toBe(false)
+  })
+
   it('refuses a file in a folder that is not a bucket', async () => {
     const { root, store } = bucket()
     fs.mkdirSync(root)

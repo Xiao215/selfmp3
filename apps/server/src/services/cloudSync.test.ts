@@ -9,6 +9,7 @@ import {
   CloudPlaysFileSchema,
   CloudSnapshotSchema,
   coverPackMembers,
+  FORMAT_KEY,
   formatHlc,
   logFile,
   logKey,
@@ -74,6 +75,9 @@ const sha = (content: string | Buffer): string => createHash('sha256').update(co
 /** Where a song's words go: one file, the text and its romanized lines (`wordsKey`). */
 const wordsKeyOf = (text: string, romanized: string[] | null = null): string =>
   `lyrics/${sha(JSON.stringify({ text, romanized }))}.words`
+
+/** Copies the tests write a moment before a pass are sent, and let go, at once. */
+const AT_ONCE = { send: 0, letGo: 0 }
 
 const CONNECT: CloudConnect = {
   endpoint: 's3.us-west-004.backblazeb2.com',
@@ -202,6 +206,7 @@ describe('CloudSyncService', () => {
       importPacing: { first: 40, steps: [{ from: 0, every: 120 }] },
       // A snapshot of nothing but enrichment is held this long, not ten minutes.
       enrichmentDeferMs: 10,
+      stillMs: AT_ONCE,
       // A second apart per call, so every snapshot gets a name of its own.
       now: () => new Date((clock += 1000)),
     }
@@ -242,7 +247,8 @@ describe('CloudSyncService', () => {
       duration: 200,
       sizeBytes: stat.size,
       mime: 'audio/mp4',
-      mtimeMs: Math.floor(stat.mtimeMs),
+      // As the sweep reads it: a later look at the copy compares with this.
+      mtimeMs: stat.mtime.getTime(),
       hasArt: false,
       artExt: null,
       lyricsKind: fields.lyrics === undefined ? 'none' : 'synced',
@@ -487,6 +493,7 @@ describe('CloudSyncService', () => {
       sync.stop()
 
       const again = new CloudSyncService({
+        stillMs: AT_ONCE,
         cloud,
         songs,
         tags,
@@ -586,7 +593,7 @@ describe('CloudSyncService', () => {
         duration: 200,
         sizeBytes: stat.size,
         mime: 'audio/mp4',
-        mtimeMs: Math.floor(stat.mtimeMs) + 1,
+        mtimeMs: stat.mtime.getTime(),
         lyricsKind: 'none',
       })
       await pass()
@@ -620,6 +627,7 @@ describe('CloudSyncService', () => {
       const withRomanizer = (answer: (text: string) => string[] | null) => {
         const asked = { count: 0 }
         const service = new CloudSyncService({
+          stillMs: AT_ONCE,
           cloud,
           songs,
           tags,
@@ -708,6 +716,7 @@ describe('CloudSyncService', () => {
       const withMotion = () => {
         const store = new MotionStore({ dataDir }, createLogger('silent'))
         const service = new CloudSyncService({
+          stillMs: AT_ONCE,
           cloud,
           songs,
           tags,
@@ -1989,6 +1998,7 @@ describe('CloudSyncService', () => {
         openStore: () => bucket,
         debounceMs: 5,
         now: () => new Date((clock += 1000)),
+        stillMs: AT_ONCE,
         ...changed,
       })
       extras.push(service)
@@ -2186,6 +2196,118 @@ describe('CloudSyncService', () => {
       bucket.comeBack()
       await service.syncNow()
       expect(here('B - Two/B - Two.m4a')).toBe(false)
+    })
+
+    /*
+     * A copy something is still writing: an encoder fed slowly writes in
+     * bursts, seconds apart. Read in a pause, sent and let go, the writer
+     * went on into a deleted file and the rest of the song was lost (bug
+     * bash R4 NEW: an hour-long song kept as 903 s).
+     */
+    describe('a copy still being written', () => {
+      const copy = (name: string): string => path.join(root, `${name}/${name}.m4a`)
+
+      it('sends it only as the sweep read it', async () => {
+        const service = lettingGo()
+        let readAgain = 0
+        service.onCopyChanged = () => readAgain++
+        const id = addSong('A - One', 'one')
+        analysed.add(id)
+        // Written to after the sweep read it.
+        fs.appendFileSync(copy('A - One'), ' and the rest')
+
+        await service.connect(CONNECT)
+        await service.whenIdle()
+
+        expect(bucket.keys('audio/')).toEqual([])
+        expect(here('A - One/A - One.m4a')).toBe(true)
+        expect(service.status().lastError).toBeNull()
+        // No watch event may say it changed: the sweep is asked to look.
+        expect(readAgain).toBe(1)
+      })
+
+      it('waits for it to be left alone before sending it, and comes back for it', async () => {
+        const service = lettingGo({ stillMs: { send: 300, letGo: 0 } })
+        const id = addSong('A - One', 'one')
+        analysed.add(id)
+
+        await service.connect(CONNECT)
+        await service.whenIdle()
+        expect(bucket.keys('audio/')).toEqual([])
+
+        await vi.waitFor(() => expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`]), {
+          timeout: 3_000,
+        })
+        await vi.waitFor(() => expect(here('A - One/A - One.m4a')).toBe(false), {
+          timeout: 3_000,
+        })
+      })
+
+      it('does not wait for a copy whose time is far ahead: that is a clock, not a writer', async () => {
+        const service = lettingGo({ stillMs: { send: 60_000, letGo: 60_000 } })
+        const name = 'A - One'
+        fs.mkdirSync(path.join(root, name), { recursive: true })
+        fs.writeFileSync(copy(name), 'one')
+        const ahead = new Date(Date.now() + 365 * 24 * 60 * 60_000)
+        fs.utimesSync(copy(name), ahead, ahead)
+        const stat = fs.statSync(copy(name))
+        const id = songs.insert({
+          path: `${name}/${name}.m4a`,
+          title: 'One',
+          artist: 'A',
+          album: '',
+          albumArtist: '',
+          trackNo: null,
+          year: null,
+          duration: 200,
+          sizeBytes: stat.size,
+          mime: 'audio/mp4',
+          mtimeMs: stat.mtime.getTime(),
+          hasArt: false,
+          artExt: null,
+          lyricsKind: 'none',
+          sourceUrl: null,
+        })
+        analysed.add(id)
+
+        await service.connect(CONNECT)
+        await service.whenIdle()
+
+        expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+        expect(here('A - One/A - One.m4a')).toBe(false)
+      })
+
+      it('lets it go only once it has been left alone a while', async () => {
+        const service = lettingGo({ stillMs: { send: 0, letGo: 400 } })
+        const id = addSong('A - One', 'one')
+        analysed.add(id)
+
+        await service.connect(CONNECT)
+        await service.whenIdle()
+        expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+        expect(here('A - One/A - One.m4a')).toBe(true)
+
+        await vi.waitFor(() => expect(here('A - One/A - One.m4a')).toBe(false), {
+          timeout: 3_000,
+        })
+      })
+
+      it('keeps it when it was written to after it was sent', async () => {
+        const service = lettingGo()
+        const id = addSong('A - One', 'one')
+        await service.connect(CONNECT)
+        await service.whenIdle()
+        expect(bucket.keys('audio/')).toEqual([`audio/${sha('one')}.m4a`])
+
+        let readAgain = 0
+        service.onCopyChanged = () => readAgain++
+        fs.appendFileSync(copy('A - One'), ' and the rest')
+        analysed.add(id)
+        await service.syncNow()
+
+        expect(fs.readFileSync(copy('A - One'), 'utf8')).toBe('one and the rest')
+        expect(readAgain).toBe(1)
+      })
     })
 
     it('keeps the copy of a song whose audio the bucket does not have, and sends it again', async () => {
@@ -2547,6 +2669,7 @@ describe('CloudSyncService', () => {
       sync.stop()
       const id = addSong('A - One', 'one')
       const watcher = new CloudSyncService({
+        stillMs: AT_ONCE,
         cloud,
         songs,
         tags,
@@ -2696,6 +2819,31 @@ describe('CloudSyncService', () => {
         expect.arrayContaining(['format.json', `audio/${sha('one')}.m4a`]),
       )
       expect(latest().songs).toHaveLength(1)
+    })
+
+    /*
+     * A folder standing in for the bucket that went away — its drive
+     * unplugged, the folder moved — and then published to by hand: checking
+     * the bucket afresh found no format.json and wrote one, making the folder
+     * again, and a new song was sent into it and its copy let go (R3-m10, R4).
+     */
+    it('does not make a folder bucket again that went away, when published to by hand', async () => {
+      const folder = path.join(dataDir, 'bucket')
+      addSong('A - One', 'one')
+      const service = makeSync({ cloudDir: folder, analysed: () => true })
+      extras.push(service)
+      service.start()
+      await service.whenIdle()
+      expect(fs.existsSync(path.join(folder, FORMAT_KEY))).toBe(true)
+
+      fs.renameSync(folder, path.join(dataDir, 'bucket-away'))
+      addSong('B - Two', 'two')
+      await service.syncNow({ verify: true })
+      await service.whenIdle()
+
+      expect(fs.existsSync(folder)).toBe(false)
+      expect(service.status().lastError).toMatch(/is not there/)
+      expect(fs.existsSync(path.join(root, 'B - Two/B - Two.m4a'))).toBe(true)
     })
 
     it('trusts what it knows between checks, so an ordinary pass lists nothing', async () => {
@@ -3423,6 +3571,7 @@ describe('CloudSyncService', () => {
       const storage = new LocalStorageDriver(root)
       const logger = createLogger('silent')
       const service = new CloudSyncService({
+        stillMs: AT_ONCE,
         cloud,
         songs,
         tags,

@@ -53,8 +53,8 @@ describe('EventHub', () => {
       writableLength: MAX_QUEUED_BYTES + 1,
     }
     const reading = new BufferSink()
-    hub.subscribe(stalled, 'stalled-0001')
-    hub.subscribe(reading, 'reading-0001')
+    hub.subscribe(stalled, ['stalled-0001'])
+    hub.subscribe(reading, ['reading-0001'])
     hub.broadcast({ type: 'library', version: 2 })
     expect(ended).toBe(true)
     expect(hub.size).toBe(1)
@@ -66,8 +66,8 @@ describe('EventHub', () => {
     const hub = new EventHub(logger)
     const a = new BufferSink()
     const b = new BufferSink()
-    hub.subscribe(a, 'device-aaaaaa')
-    hub.subscribe(b, null)
+    hub.subscribe(a, ['device-aaaaaa'])
+    hub.subscribe(b, [])
 
     hub.broadcast({ type: 'library', version: 2 })
 
@@ -82,9 +82,9 @@ describe('EventHub', () => {
     const phone = new BufferSink()
     const phoneTab2 = new BufferSink()
     const server = new BufferSink()
-    hub.subscribe(phone, 'phone-000001')
-    hub.subscribe(phoneTab2, 'phone-000001')
-    hub.subscribe(server, 'mac-00000001')
+    hub.subscribe(phone, ['phone-000001'])
+    hub.subscribe(phoneTab2, ['phone-000001'])
+    hub.subscribe(server, ['mac-00000001'])
 
     const delivered = hub.sendTo('phone-000001', {
       type: 'command',
@@ -100,6 +100,40 @@ describe('EventHub', () => {
     hub.stop()
   })
 
+  /*
+   * A browser keeps one stream for all its tabs (r1 M19: six streams took every
+   * connection it allows one address), so one stream answers for each of them.
+   */
+  it('delivers each device’s commands down a stream that carries several', () => {
+    const hub = new EventHub(logger)
+    const browser = new BufferSink()
+    hub.subscribe(browser, ['tab-0000001', 'tab-0000002'])
+
+    expect(
+      hub.sendTo('tab-0000002', {
+        type: 'command',
+        deviceId: 'tab-0000002',
+        command: { type: 'pause' },
+      }),
+    ).toBe(1)
+    expect(
+      hub.sendTo('tab-0000001', {
+        type: 'command',
+        deviceId: 'tab-0000001',
+        command: { type: 'pause' },
+      }),
+    ).toBe(1)
+    expect(
+      hub.sendTo('tab-0000003', {
+        type: 'command',
+        deviceId: 'tab-0000003',
+        command: { type: 'pause' },
+      }),
+    ).toBe(0)
+    expect(browser.text.match(/"pause"/g)).toHaveLength(2)
+    hub.stop()
+  })
+
   it('drops a subscriber whose sink throws, and honours unsubscribe', () => {
     const hub = new EventHub(logger)
     const dead: EventSink = {
@@ -108,8 +142,8 @@ describe('EventHub', () => {
       },
     }
     const alive = new BufferSink()
-    hub.subscribe(dead, 'dead-000001')
-    const unsubscribe = hub.subscribe(alive, 'alive-00001')
+    hub.subscribe(dead, ['dead-000001'])
+    const unsubscribe = hub.subscribe(alive, ['alive-00001'])
     expect(hub.size).toBe(1) // the dead one failed on its preamble
 
     hub.broadcast({ type: 'library', version: 1 })
@@ -131,8 +165,8 @@ describe('EventHub', () => {
       write: () => undefined,
       end: () => ended.push(name),
     })
-    hub.subscribe(sink('mac'), null)
-    hub.subscribe(sink('phone'), 'phone-00001')
+    hub.subscribe(sink('mac'), [])
+    hub.subscribe(sink('phone'), ['phone-00001'])
 
     hub.stop()
 
@@ -143,7 +177,7 @@ describe('EventHub', () => {
   it('stops twice without ending a stream twice', () => {
     const hub = new EventHub(logger)
     let ends = 0
-    hub.subscribe({ write: () => undefined, end: () => ends++ }, null)
+    hub.subscribe({ write: () => undefined, end: () => ends++ }, [])
 
     hub.stop()
     hub.stop()
@@ -160,7 +194,7 @@ describe('EventHub', () => {
           throw new Error('ERR_STREAM_DESTROYED')
         },
       },
-      null,
+      [],
     )
 
     expect(() => hub.stop()).not.toThrow()

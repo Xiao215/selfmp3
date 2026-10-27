@@ -52,10 +52,16 @@ import { contentTypeFor } from './paths.js'
  * doorman it names.
  */
 
-/** What answers the doorman's address: Electron's `net.fetch`, or a test's doorman. */
+/**
+ * What answers the doorman's address: Electron's `net.fetch`, or a test's
+ * doorman. Always asked with `cache: 'no-store'`: the `played` folder is this
+ * process's one copy of a song, and Chromium's HTTP cache keeping a second
+ * let a song go on playing after "Remove all" had cleared the folder, with
+ * the bucket capped and nothing counting the space it held.
+ */
 type Fetch = (
   url: string,
-  init: { method: string; headers: Headers; signal?: AbortSignal },
+  init: { method: string; headers: Headers; cache: 'no-store'; signal?: AbortSignal },
 ) => Promise<Response>
 
 interface StreamProxyOptions {
@@ -179,6 +185,7 @@ export function createStreamProxy({
       upstream = await fetch(`${current.doormanUrl}${DOORMAN_PATHS.file(key)}`, {
         method: init.method,
         headers,
+        cache: 'no-store',
         ...(init.signal ? { signal: init.signal } : {}),
       })
     } catch {
@@ -220,10 +227,8 @@ export function createStreamProxy({
       const value = upstream.headers.get(name)
       if (value !== null) headers.set(name, value)
     }
-    headers.set(
-      'Cache-Control',
-      upstream.status === 206 ? 'no-store' : 'private, max-age=31536000, immutable',
-    )
+    // Never held by the window either: the folder is the one copy (see `Fetch`).
+    headers.set('Cache-Control', 'no-store')
     return new Response(method === 'HEAD' ? null : upstream.body, {
       status: upstream.status,
       headers,

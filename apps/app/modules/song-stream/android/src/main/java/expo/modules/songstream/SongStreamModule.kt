@@ -68,6 +68,13 @@ class SongStreamModule : Module() {
     }
 
     /**
+     * The download of that song under way stopped and what came of it deleted,
+     * whoever was waiting on it told it did not arrive: the song fetched ahead
+     * when the queue moved past it, or one that would not play.
+     */
+    Function("cancel") { name: String -> SongProxy.cancel(name) }
+
+    /**
      * Every download under way stopped, and every song named so far forgotten:
      * the folder is being emptied, often on signing out, and an address the
      * player still holds must not go on relaying with the bearer it was named with.
@@ -109,6 +116,12 @@ private object SongProxy {
     val source = register(name, url, headers, directory) ?: return done(null)
     val arrival = arrival(name, source) ?: return done(fileSize(File(source.directory, name)))
     arrival.whenSettled(done)
+  }
+
+  fun cancel(name: String) {
+    // Left in `arrivals` until it settles, so a request meanwhile hears it end
+    // rather than starting a second download into the same `.part`.
+    synchronized(lock) { arrivals[name] }?.cancel()
   }
 
   fun stopAll() {

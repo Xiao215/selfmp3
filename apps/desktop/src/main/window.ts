@@ -2,6 +2,7 @@ import { join } from 'node:path'
 
 import { BrowserWindow, screen, shell } from 'electron'
 import { APP_ORIGIN } from '@selfmp3/desktop-bridge'
+import { DEFAULT_APP_URL, plainPageAt } from '@selfmp3/shared'
 
 import { MINIMUM_SIZE, openingBounds, rememberBounds } from './bounds.js'
 import { openingGround } from './ground.js'
@@ -77,23 +78,38 @@ export function createWindow({
    * turning this window into one. Without this, a docs link would navigate the
    * app away from itself with no way back.
    */
-  window_.webContents.setWindowOpenHandler(({ url }) => {
-    openOutside(url)
-    return { action: 'deny' }
-  })
   // Whole origins, so `app://selfmp3.example` or another port does not pass for the app.
   const ownOrigins = devUrl === null ? [APP_ORIGIN] : [APP_ORIGIN, new URL(devUrl).origin]
-  const isOwnPage = (url: string): boolean =>
-    ownOrigins.some(origin => url === origin || url.startsWith(`${origin}/`))
+  window_.webContents.setWindowOpenHandler(({ url }) => {
+    openOutside(outsideAddress(url, ownOrigins) ?? url)
+    return { action: 'deny' }
+  })
   window_.webContents.on('will-navigate', (event, url) => {
-    if (!isOwnPage(url)) {
+    const outside = outsideAddress(url, ownOrigins)
+    if (outside !== null) {
       event.preventDefault()
-      openOutside(url)
+      openOutside(outside)
     }
   })
 
   void window_.loadURL(devUrl ?? `${APP_ORIGIN}/`)
   return window_
+}
+
+/**
+ * Where a link the page follows goes instead of this window, or null for one
+ * of the app's own screens.
+ *
+ * The plain pages the export carries beside the app (the privacy policy, the
+ * bucket guide, PLAIN_PAGES) are served from the same origin but are not the
+ * app: one loaded here left a page of text with no way back short of a
+ * relaunch, since Home, Reload and New Window all stayed on it. They open
+ * where they are published, on the web.
+ */
+export function outsideAddress(url: string, ownOrigins: readonly string[]): string | null {
+  if (!ownOrigins.some(own => url === own || url.startsWith(`${own}/`))) return url
+  const path = new URL(url).pathname
+  return plainPageAt(path) === null ? null : `${DEFAULT_APP_URL}${path}`
 }
 
 /**

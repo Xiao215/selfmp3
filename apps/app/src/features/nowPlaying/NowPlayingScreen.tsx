@@ -694,7 +694,7 @@ function BreathingCover({
   const playing = usePlayerPlaying()
   // A swipe across the cover lets go as a press; only a tap opens the words.
   const touch = useTouchTravel()
-  // The app's own width, not the window's (`shell/rootWidth.ts`).
+  // The app's own width, not the window's (`shell/layoutSize.model.ts`).
   const { width } = useLayout()
   const window = useWindowDimensions()
   const [room, setRoom] = useState<CoverRoom | null>(null)

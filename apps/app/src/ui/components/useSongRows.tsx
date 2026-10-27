@@ -143,6 +143,10 @@ export function useSongRows({
       list.scrollToIndex({ index, viewPosition: 0.5, animated: false })
       return true
     },
+    endsAt: (songId, step) => {
+      const { ids } = latest.current
+      return ids.indexOf(songId) === (step === 1 ? ids.length - 1 : 0)
+    },
   })
   const onOpenTag = useCallback((tagId: number) => {
     const now = latest.current

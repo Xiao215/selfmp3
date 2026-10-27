@@ -561,6 +561,7 @@ function Overlay({
   lit,
   pulse,
   songs,
+  panel,
 }: SkyLayerProps): ReactNode {
   const art = useArt(128)
   const accent = useUnistyles().theme.colors.accent
@@ -573,6 +574,10 @@ function Overlay({
   const big = Math.max(22, now ? starLook(now, view.scale).side * 1.15 : 22)
   const litPlace = lit === null ? undefined : byId.get(lit)
   const litAt = litPlace ? at(litPlace) : null
+  const litSong = litPlace ? songs.get(litPlace.id) : undefined
+  // Its cover open enough to wear its own name card (H2), rather than a ring.
+  const litLook = litPlace ? starLook(litPlace, view.scale) : null
+  const litOpen = litLook !== null && litLook.share > 0.5
   const line = (places: readonly MapPlace[]): string =>
     places
       .map(place => {
@@ -640,7 +645,7 @@ function Overlay({
         {nowAt ? (
           <Circle cx={nowAt.x} cy={nowAt.y} r={big * 1.05} fill={accent} fillOpacity={0.25} />
         ) : null}
-        {litAt ? (
+        {litAt && !litOpen ? (
           <Circle
             cx={litAt.x}
             cy={litAt.y}
@@ -671,7 +676,68 @@ function Overlay({
           {nowUri ? <Image source={{ uri: nowUri }} style={styles.coverImage} /> : null}
         </View>
       ) : null}
+      {litPlace && litAt && litSong && litLook && litOpen ? (
+        <LitCard
+          song={litSong}
+          uri={art(litSong)}
+          glow={litPlace.glow}
+          at={litAt}
+          side={litLook.side}
+          clear={field.width - panel}
+          field={field}
+        />
+      ) : null}
     </>
+  )
+}
+
+/**
+ * The song pressed in the tray's list, close in: its cover lifted into a dark
+ * card with its title and artist (H2), on whichever side of its star has room.
+ */
+function LitCard({
+  song,
+  uri,
+  glow,
+  at,
+  side,
+  clear,
+  field,
+}: {
+  song: Song
+  uri: string | null | undefined
+  glow: string
+  at: { x: number; y: number }
+  side: number
+  /** Where the tray's panel begins: the words keep short of it. */
+  clear: number
+  field: FieldSize
+}): ReactNode {
+  const big = Math.max(52, Math.min(96, side * 1.3))
+  const edge = big / 2 + 4
+  const left = at.x + edge + 240 < clear
+  return (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.card,
+        left
+          ? { left: at.x - edge, top: at.y - edge }
+          : { right: field.width - at.x - edge, top: at.y - edge, flexDirection: 'row-reverse' },
+      ]}
+    >
+      <View style={[styles.cardCover, { width: big, height: big, backgroundColor: glow }]}>
+        {uri ? <Image source={{ uri }} style={styles.coverImage} /> : null}
+      </View>
+      <View style={styles.cardWords}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {song.title}
+        </Text>
+        <Text style={styles.cardArtist} numberOfLines={1}>
+          {song.artist}
+        </Text>
+      </View>
+    </View>
   )
 }
 
@@ -682,6 +748,21 @@ const styles = StyleSheet.create(() => ({
   coverFace: { overflow: 'hidden', borderWidth: 1 },
   coverImage: { width: '100%', height: '100%' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
+  card: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 4,
+    paddingRight: 16,
+    borderRadius: 14,
+    backgroundColor: 'rgba(31,34,44,0.96)',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+  },
+  cardCover: { borderRadius: 10, overflow: 'hidden' },
+  cardWords: { maxWidth: 220 },
+  cardTitle: { color: SKY_INK, fontSize: type.sub, fontWeight: '600' },
+  cardArtist: { color: 'rgba(244,245,249,0.68)', fontSize: type.small },
   coverName: {
     position: 'absolute',
     textAlign: 'center',

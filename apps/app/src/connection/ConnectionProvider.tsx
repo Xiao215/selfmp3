@@ -10,7 +10,7 @@ import { storageDue } from '../features/welcome/storage.model'
 import { networkModeFor } from '../offline/waitingEdits.model'
 import { clearConnection, loadConnection, saveConnection } from './storedConnection'
 import { useCloudLook } from './useCloudLook'
-import { useAskDoormanBack } from './useDoormanTrouble'
+import { useAskBucketBack, useAskDoormanBack } from './useDoormanTrouble'
 
 /**
  * Which server this phone talks to.
@@ -60,6 +60,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }): React
   // Not before the bucket is connected: there is nothing in it to ask about.
   useCloudLook(fromCloud && !needsStorage)
   useAskDoormanBack(fromCloud)
+  useAskBucketBack(fromCloud)
 
   /*
    * Forget everything cached for the previous server.

@@ -16,6 +16,12 @@ interface ListKeyActions {
    * any more (removed, filtered out), or the list cannot scroll to it.
    */
   readonly reveal: (songId: number) => boolean
+  /**
+   * Whether `songId` is the list's last song (`step` 1) or its first (-1): an
+   * arrow past it is the page's, to go on to what is beyond the list — the
+   * Ask under a search's one song (R2-m13).
+   */
+  readonly endsAt: (songId: number, step: 1 | -1) => boolean
 }
 
 /**

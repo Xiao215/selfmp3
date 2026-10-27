@@ -1,7 +1,7 @@
 import { messageOf } from '@selfmp3/shared'
 import { APP_NAME, APP_VERSION, loadConfig, type Config } from './config.js'
 import { createAdminApp } from './admin/app.js'
-import { fullDiskProblem } from './db/index.js'
+import { fullDiskProblem, keepRoomToStart } from './db/fullDisk.js'
 import { createHubApp } from './hub/app.js'
 import { Hub } from './hub/hub.js'
 import { speakHttp1 } from './http/outgoing.js'
@@ -173,8 +173,15 @@ function main(): void {
 /**
  * Every library's database, opened, or the reason it could not be in words
  * that say what to do: on a full disk SQLite's own is a bare "disk I/O error".
+ * On a full disk it opens them in the room kept aside for that, and says so.
  */
 function openHub(config: Config, logger: Logger): Hub {
+  if (keepRoomToStart(config.dataDir)) {
+    logger.warn(
+      `the disk holding ${config.dataDir} is full: started in the room kept aside for that. ` +
+        'Free some space there, or edits and imports will soon fail again.',
+    )
+  }
   try {
     return new Hub(config, logger)
   } catch (error) {

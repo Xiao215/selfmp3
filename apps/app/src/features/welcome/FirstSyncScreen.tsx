@@ -186,7 +186,11 @@ function Stack({
       ))}
       {rest > 0 ? (
         <View
-          style={[styles.more, shown.length > 0 && styles.stacked, { width: size, height: size }]}
+          style={[
+            styles.more,
+            shown.length > 0 && [styles.stacked, styles.moreStacked],
+            { minWidth: size, height: size },
+          ]}
         >
           <Text style={styles.moreText}>+{rest}</Text>
         </View>
@@ -195,19 +199,26 @@ function Stack({
   )
 }
 
+/** How far each cover in the stack, and the count after them, slides under the one before. */
+const STACK_OVERLAP = 18
+
 const styles = StyleSheet.create(theme => ({
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   cardWords: textColumn,
   summary: rowTitle(theme.colors),
   detail: { color: theme.colors.textSecondary, fontSize: type.sub },
   stack: { flexDirection: 'row' },
-  stacked: { marginLeft: -18 },
+  stacked: { marginLeft: -STACK_OVERLAP },
   more: {
+    paddingHorizontal: space.xs,
     borderRadius: radius.cover,
     backgroundColor: theme.colors.surface2,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // The last cover lies over the count's first STACK_OVERLAP points, so the
+  // count is centred in what shows: "+37" read "·37" with the "+" under it.
+  moreStacked: { paddingLeft: STACK_OVERLAP + space.xs },
   moreText: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   keep: { paddingHorizontal: space.tight, paddingVertical: space.xs },
   // At the foot of a phone, where a thumb is; under the switch on a computer.

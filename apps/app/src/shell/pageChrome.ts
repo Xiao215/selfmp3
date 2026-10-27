@@ -11,7 +11,7 @@ import { useValueStore } from '../state/useValueStore'
  * scrolling page for it. A page that owns the display must not keep a hole
  * where the bar would have been.
  *
- * Outside React, as the root's width is (`rootWidth.ts`): one flag, read by
+ * Outside React, as the layout's size is (`layoutSize.model.ts`): one flag, read by
  * every list, and a context around the whole app would redraw all of them
  * from the top whenever it changed.
  */

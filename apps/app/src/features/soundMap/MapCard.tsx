@@ -88,6 +88,7 @@ export function MapCard(): ReactNode {
               stroke={[]}
               playing={playing}
               lit={null}
+              panel={0}
               pulse={null}
               songs={songs}
               pointerRef={pointerRef}

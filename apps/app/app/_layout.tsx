@@ -40,8 +40,8 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { useLayoutFlags } from '../src/shell/useLayout'
-import { setRootWidth } from '../src/shell/rootWidth'
+import { setRootSize, useLayoutFlags } from '../src/shell/useLayout'
+import { useFontScale } from '../src/ui/textScale'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { useRoom } from '../src/features/room/room.store'
 import { pageHidesTabs, pageOwnsScreen, setPageChrome, setPageTabs } from '../src/shell/pageChrome'
@@ -193,8 +193,8 @@ export default function RootLayout(): ReactNode {
     // gestures under, and a handler mounted outside one never fires.
     <GestureHandlerRootView
       style={styles.root}
-      // The width every screen lays out by, measured here (`shell/rootWidth`).
-      onLayout={event => setRootWidth(event.nativeEvent.layout.width)}
+      // The size every screen lays out by, measured here (`shell/layoutSize.model.ts`).
+      onLayout={event => setRootSize(event.nativeEvent.layout)}
     >
       <SafeAreaProvider>
         {/* A narrow desktop window's traffic lights, as a phone's status bar. */}
@@ -392,8 +392,19 @@ function RootRoutes(): ReactNode {
     return { ...base, colors: { ...base.colors, background: surface } }
   }, [light, surface])
 
+  /*
+   * Built afresh when the text size changes. React Native lays every text out
+   * again for the new size, and the next render hands back the texts it
+   * measured before: each label kept the box of the old size, drawn at the
+   * new one, until the app was opened again — Home's greeting cut to the tops
+   * of its letters, the tags' names gone (bug bash R3-m8). New texts are
+   * measured at the size they are drawn. Where you are is the navigator's,
+   * which keeps it, and the music is the player's, above this.
+   */
+  const fontScale = useFontScale()
+
   return (
-    <Shell chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
+    <Shell key={fontScale} chrome={chrome} covered={covered} sidebar={!(stage && arriving)}>
       <ThemeProvider value={navTheme}>
         <Stack screenOptions={screenOptions} screenLayout={keepNearTop}>
           <Stack.Screen name="now-playing" options={nowPlaying} />

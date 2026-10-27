@@ -10,7 +10,9 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import type { Song } from '@selfmp3/shared'
-import { bucketHold, doormanTrouble } from '@selfmp3/replica'
+import { bucketHold, bucketRefusals, doormanTrouble } from '@selfmp3/replica'
+import { askBucketNow } from '../connection/bucketAsk.model'
+import { askBucketAgain } from '../ports/askBucketAgain'
 import { useBucketHold } from '../features/profile/useBucketHold'
 import {
   dataAnswer,
@@ -32,6 +34,7 @@ import {
 import { installedApp } from '../ports/install'
 import {
   clearRecent,
+  dropAhead,
   forgetRecent,
   keepRecentlyPlayed,
   promoteRecent,
@@ -150,6 +153,8 @@ interface DownloadsContextValue {
    * its copy. Resolves true once there is a copy here to play.
    */
   keepAhead: (songId: number) => Promise<boolean>
+  /** That song is not coming after all: its copy, if still arriving, is not wanted (`dropAhead`). */
+  dropAhead: (songId: number) => void
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
   /**
@@ -570,7 +575,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
 
   const checkPlay = useCallback(
     (songId: number, retry: () => void) => {
-      const block = blockFor(songId)
+      let block = blockFor(songId)
+      // Pressed a while after the bucket last refused, the song asks again
+      // itself, rather than being told no for the rest of the hold: the cap
+      // may have been raised (R2-M9). Refused again, it says so as before.
+      const now = Date.now()
+      if (
+        block === 'held' &&
+        askBucketNow('play', bucketHold('read', now), bucketRefusals('read'), now)
+      ) {
+        askBucketAgain()
+        block = blockFor(songId)
+      }
       if (block === null) return true
       setQuestion({ kind: 'play', block, songId, retry })
       return false
@@ -659,6 +675,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       removing,
       keepPlayed,
       keepAhead,
+      dropAhead,
       mayPlay,
       streamBlocked,
       playedIds,

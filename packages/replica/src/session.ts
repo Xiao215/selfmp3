@@ -83,6 +83,18 @@ type ClaimOutcome =
  * over one platform, and callers are meant to be free to take them apart. A
  * method type would promise a `this` that none of them has.
  */
+interface DoormanFetchOptions {
+  method?: string
+  json?: unknown
+  headers?: Record<string, string>
+  /**
+   * Sent through a hold on that kind of call: the one request that finds out
+   * whether it is over (`askBucketRead`), while the screens go on saying it
+   * stands until the answer says otherwise.
+   */
+  asking?: boolean
+}
+
 export interface CloudSessionApi {
   loadSession: () => Promise<CloudSession | null>
   saveSession: (session: CloudSession) => Promise<void>
@@ -116,7 +128,7 @@ export interface CloudSessionApi {
   doormanFetch: (
     session: CloudSession | null,
     path: string,
-    options?: { method?: string; json?: unknown; headers?: Record<string, string> },
+    options?: DoormanFetchOptions,
   ) => Promise<CloudResponse>
 }
 
@@ -165,7 +177,7 @@ export function createCloudSession(
   async function doormanFetch(
     session: CloudSession | null,
     path: string,
-    options: { method?: string; json?: unknown; headers?: Record<string, string> } = {},
+    options: DoormanFetchOptions = {},
   ): Promise<CloudResponse> {
     const method = options.method ?? 'GET'
     // Refused for the day: a read of the bucket inside the hold is refused
@@ -175,7 +187,7 @@ export function createCloudSession(
     // each by itself. Which a request is, is shared's `bucketCallOf`, read off
     // the same paths the requests are built with.
     const call = bucketCallOf(method, path)
-    const held = call ? bucketHold(call) : null
+    const held = call && !options.asking ? bucketHold(call) : null
     if (held) throw new DoormanError(502, BUCKET_CAP_CODE, held.message)
     // What the doorman passes on to the bucket, and of that what a refusal
     // for the day holds back: an edit, a play, a picture (reach.ts).
@@ -195,7 +207,7 @@ export function createCloudSession(
       return response
     } catch (error) {
       if (call && error instanceof DoormanError && error.code === BUCKET_CAP_CODE) {
-        holdBucket(error.message, call)
+        holdBucket(error.message, call, Date.now(), options.asking)
       }
       noteDoormanAnswer({ bucket, write, error })
       // Only the doorman's own refusal of the session ends it: the same

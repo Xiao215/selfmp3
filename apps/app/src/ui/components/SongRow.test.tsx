@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native'
 import type { Song, Tag } from '@selfmp3/shared'
 
-import { setRootWidth } from '../../shell/rootWidth'
+import { setRootSize } from '../../shell/useLayout'
 import { AccentProvider, useAccent } from '../accent'
 import { SongRow } from './SongRow'
 
@@ -209,17 +209,17 @@ describe('a row that is not playing', () => {
    * renders when that answer changes.
    */
   it('does not re-render while a window is resized within its width class', async () => {
-    await act(async () => setRootWidth(390))
+    await act(async () => setRootSize({ width: 390, height: 800 }))
     await render(<SongRow {...playlistRow()} />)
     const drawn = mockRowRenders
 
     for (const width of [400, 480, 600, 700]) {
-      await act(async () => setRootWidth(width))
+      await act(async () => setRootSize({ width, height: 800 }))
     }
     expect(mockRowRenders).toBe(drawn)
 
     // Across the breakpoint it is a different row, and it says so.
-    await act(async () => setRootWidth(1200))
+    await act(async () => setRootSize({ width: 1200, height: 800 }))
     expect(mockRowRenders).toBeGreaterThan(drawn)
   })
 })
@@ -233,7 +233,7 @@ describe('a row on a computer', () => {
    * animated value, not a render: the list's rows stay as they are.
    */
   it('springs under a press on its main target, without drawing the row again', async () => {
-    await act(async () => setRootWidth(1200))
+    await act(async () => setRootSize({ width: 1200, height: 800 }))
     await render(<SongRow {...playlistRow()} />)
     const drawn = mockRowRenders
     mockPresses.length = 0

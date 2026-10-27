@@ -28,6 +28,10 @@ import { resolveWithinRoot } from './paths.js'
  * that is the shared queue in `packages/client`, unchanged — only where the
  * bytes go and how they get there.
  *
+ * Every fetch here is `cache: 'no-store'`: the file on disk is the one copy.
+ * Chromium's HTTP cache keeping another let a song "Remove all" had deleted
+ * go on playing, from ~160 MB nothing counted.
+ *
  * Every path is built here from a kind and a name the schema has already
  * narrowed, and then fenced inside its directory anyway. The renderer is a web
  * page; this is the half with a filesystem.
@@ -85,6 +89,7 @@ export async function download(
     const ask = (from: number): Promise<Response> =>
       net.fetch(request.url, {
         headers: { ...request.headers, ...(from > 0 ? { Range: `bytes=${from}-` } : {}) },
+        cache: 'no-store',
         signal: controller.signal,
       })
 
@@ -191,7 +196,7 @@ export async function fetchTo(
   headers?: Record<string, string>,
 ): Promise<void> {
   const target = await writablePathFor(kind, name)
-  const response = await net.fetch(url, { headers: headers ?? {} })
+  const response = await net.fetch(url, { headers: headers ?? {}, cache: 'no-store' })
   if (!response.ok) throw new Error(await refusal(response, url))
   await replaceWith(target, Buffer.from(await response.arrayBuffer()))
 }
@@ -208,7 +213,7 @@ export async function unpackTo(
   headers: Record<string, string>,
   slices: readonly PackSlice[],
 ): Promise<void> {
-  const response = await net.fetch(url, { headers })
+  const response = await net.fetch(url, { headers, cache: 'no-store' })
   if (!response.ok) throw new Error(await refusal(response, url))
   const pack = Buffer.from(await response.arrayBuffer())
   for (const slice of slices) {

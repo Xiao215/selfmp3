@@ -331,6 +331,15 @@ export interface CloudLibraryApi {
    */
   cloudAudioKeyNow: (songId: number) => string | null | undefined
   /**
+   * Whether the bucket answers reads again, while they are refused for the
+   * day: one byte of one song's audio, the cheapest read there is. The
+   * library's own look only lists the bucket, which Backblaze caps apart, so it
+   * cannot say (R2-M9). Asked while the hold stands; answered, the hold on
+   * reads is let go, refused, held again (session.ts). False when it could not
+   * ask: no library loaded, or none of its songs in the bucket.
+   */
+  askBucketRead: (session: CloudSession) => Promise<boolean>
+  /**
    * How your library's songs sound (shared soundVectors.ts), by audio key,
    * from the pack the snapshot names; null before the server has heard any,
    * or with no library loaded. Read once per pack and kept in memory.
@@ -1271,6 +1280,21 @@ export function createCloudLibrary(
     return files[songId]?.audio ?? null
   }
 
+  async function askBucketRead(session: CloudSession): Promise<boolean> {
+    const files = replica?.view.files
+    const audio = files ? Object.values(files).find(file => file.audio)?.audio : undefined
+    if (!audio) return false
+    // Through the hold, which stands until the answer: the session lets it go
+    // or holds again, and the screens change only if that changes anything.
+    await sessionApi
+      .doormanFetch(session, DOORMAN_PATHS.file(audio), {
+        headers: { range: 'bytes=0-0' },
+        asking: true,
+      })
+      .catch(() => undefined)
+    return true
+  }
+
   function cloudArtistPictureNow(name: string): ArtistPictureKeys | null | undefined {
     const artists = replica?.view.artists
     if (!artists) return undefined
@@ -1455,6 +1479,7 @@ export function createCloudLibrary(
     cloudManifest,
     cloudRoomSongNow,
     cloudAudioKeyNow,
+    askBucketRead,
     cloudSoundVectors,
     cloudSoundMap,
     forgetCloudLibrary,

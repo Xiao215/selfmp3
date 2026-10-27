@@ -24,7 +24,7 @@ import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands, usePlayerProgress } from '../../player/PlayerProvider'
 import { pressed } from '../../player/roomTransport'
-import { setStageExit } from '../../shell/stageExit'
+import { setStageExit, useStageLeaving } from '../../shell/stageExit'
 import { setStageArriving } from '../../shell/stageArrival'
 import { stackMoves } from '../../ports/stackMoves'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -395,6 +395,7 @@ function Stage({
   })
   const onEscape = useCallback(() => escape.current(), [])
   useEscape(true, onEscape)
+  const leaving = useStageLeaving()
 
   const words = lyrics.words
   // A line held or right-clicked: Share from here, Play from here, Copy line.
@@ -483,6 +484,8 @@ function Stage({
 
   return (
     <Animated.View
+      // Going back down, it takes no touches (`stageExit.ts`).
+      pointerEvents={leaving ? 'none' : 'auto'}
       style={[
         styles.page,
         styles.stagePage,

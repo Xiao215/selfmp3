@@ -20,7 +20,7 @@ import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../..
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { pageFootNow, setPageFoot, usePageFoot } from '../../shell/pageFoot'
-import { setStageExit } from '../../shell/stageExit'
+import { setStageExit, useStageLeaving } from '../../shell/stageExit'
 import { Cover } from '../../ui/components/Cover'
 import { IconButton } from '../../ui/components/IconButton'
 import { ChevronDown, Moon, More, UpNext } from '../../ui/components/Icons'
@@ -367,10 +367,13 @@ function PhonePage({ song, onRemove }: { song: Song; onRemove: (song: Song) => v
   // whole songs later. It is read against the page's arrival, so a cover that
   // turns up after the page has risen is simply at rest.
   const [handed] = useState(takeCoverHandoff)
+  // Sinking away, it takes no touches (`stageExit.ts`).
+  const leaving = useStageLeaving()
 
   return (
     <Animated.View
       {...pan.panHandlers}
+      pointerEvents={leaving ? 'none' : 'auto'}
       style={[
         styles.shell,
         { backgroundColor: songColor.color, transform: [{ translateY: lift }] },

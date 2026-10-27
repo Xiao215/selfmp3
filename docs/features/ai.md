@@ -373,8 +373,10 @@ the value, never analysed or never played, goes last either way). A live playlis
 itself from its rules, so nothing is proposed for it: the answer (`none`) says what it holds,
 and for an add whether the songs meant are in it already ("All 17 of those songs are in chill
 · chinese already: it holds songs tagged 中文流行") or how many are not; when it follows tags,
-`try` offers the tag change that would put them in or take them out ("give the songs by 五月天
-the tag 中文流行"), which the `tags` action proposes. A sort says the order its rules keep. The device (`PlaylistSongsAnswer.tsx`)
+`try` offers the tag change that would put them in ("give the songs by 五月天 the tag
+中文流行"), which the `tags` action proposes. Taking songs out is only said, never offered as a
+press: the tag taken off would take them out of the tag's page and every list following it
+too, more than the request reached for. A sort says the order its rules keep. The device (`PlaylistSongsAnswer.tsx`)
 checks against the playlist as it is now — an add keeps songs not in it, a remove the ones
 still in it, a sort keeps a song added since at the end — and Undo puts back the songs and
 their order (a remove's Undo adds them, then restores the whole order).

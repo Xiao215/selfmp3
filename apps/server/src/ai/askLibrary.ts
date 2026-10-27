@@ -425,15 +425,12 @@ export function rulesWords(rules: SmartRules, tags: readonly Tag[]): string {
 }
 
 /** The songs an understanding chose, in words a request can carry: "the songs by 五月天". */
-function songsWords(understanding: Understanding, followed: readonly string[]): string {
+function songsWords(understanding: Understanding): string {
   const { artists, albums, anyTags } = understanding
   const places = [
     artists.length > 0 ? `by ${artists.join(' or ')}` : '',
     albums.length > 0 ? `on ${albums.join(' or ')}` : '',
-    // No place named: the playlist's own songs, which are the songs with its tags.
-    anyTags.length > 0 || followed.length > 0
-      ? `tagged ${(anyTags.length > 0 ? anyTags : followed).join(' or ')}`
-      : '',
+    anyTags.length > 0 ? `tagged ${anyTags.join(' or ')}` : '',
   ].filter(Boolean)
   const what = [understanding.brief, understanding.sound && `that sound ${understanding.sound}`]
     .filter(Boolean)
@@ -484,7 +481,7 @@ function liveEdit(
   )
   const byTags = followed.length > 0 && (rules?.rules ?? []).every(rule => rule.field === 'tag')
   const all = rules?.match === 'all'
-  const meant = songsWords(understanding, op === 'remove' ? followed : [])
+  const meant = songsWords(understanding)
   if (op === 'add') {
     const missing = fitting.filter(song => !members.has(song.id))
     if (!judged && fitting.length > 0 && missing.length === 0) {
@@ -507,16 +504,10 @@ function liveEdit(
     return none(`None of those songs are in ${playlist.name}: it holds ${holds}.`)
   }
   // Out of a playlist that takes any of its tags, a song goes only when it has none of them left.
-  const tries = byTags
-    ? [
-        all || followed.length === 1
-          ? `take the tag ${followed[0]} off ${meant}`
-          : `take the tags ${followed.join(', ')} off ${meant}`,
-      ]
-    : []
+  // That is said, never offered as a press: a tag taken off takes the songs out of the tag's own
+  // page and every other list following it too, which is more than "out of this playlist" asked.
   return none(
-    `${playlist.name} is live: it holds ${holds}, so a song leaves it by no longer matching that.${tries.length > 0 ? ' Taking its tags off them takes them out.' : ''}`,
-    tries,
+    `${playlist.name} is live: it holds ${holds}, so a song leaves it by no longer matching that.${byTags ? ` Taking ${followed.length === 1 ? `the tag ${followed[0]}` : `the tags ${followed.join(', ')}`} off them takes them out, and out of ${followed.length === 1 ? 'that tag' : 'those tags'} everywhere else too.` : ''}`,
   )
 }
 

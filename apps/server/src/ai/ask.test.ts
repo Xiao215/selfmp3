@@ -1055,7 +1055,7 @@ describe('ask about a playlist’s songs', () => {
     })
   })
 
-  it('offers the tag change that puts songs into a live playlist, or takes them out', async () => {
+  it('offers the tag change that puts songs into a live playlist, and only says what takes them out', async () => {
     const add = deps({
       'ask-route': [edit({ name: 'jpop live' }, { ...noFilters, artists: ['周杰倫'] })],
     })
@@ -1069,9 +1069,11 @@ describe('ask about a playlist’s songs', () => {
         edit({ name: 'jpop live', op: 'remove' }, { ...noFilters, brief: 'the slow ones' }),
       ],
     })
-    expect(await ask(remove, 'take the slow ones out of jpop live')).toMatchObject({
+    // Taking a tag off reaches past the playlist, so it is said, not offered as a press.
+    expect(await ask(remove, 'take the slow ones out of jpop live')).toEqual({
       kind: 'none',
-      try: ['take the tag jpop off the songs tagged jpop, the slow ones'],
+      say: 'jpop live is live: it holds songs tagged jpop, so a song leaves it by no longer matching that. Taking the tag jpop off them takes them out, and out of that tag everywhere else too.',
+      try: [],
     })
     // Nothing is proposed for a live playlist, so no model judges its songs.
     expect(remove.llm.asked.map(each => each.task)).toEqual(['ask-route'])

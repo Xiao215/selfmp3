@@ -15,6 +15,10 @@
  * - react-native-track-player+5.0.0-alpha0.patch gives the player its own
  *   method queue, so anything that still blocks inside it stops only the
  *   player.
+ * - react-native-track-player+5.0.0-alpha0+interruptions.patch: the end of a
+ *   call, an alarm or Siri starts again only a song that was playing when it
+ *   began. It used to play whenever iOS allowed, so a paused song started by
+ *   itself after a call.
  *
  * SwiftAudioEx is a CocoaPod, out of reach of npm, which is why the patches
  * are applied here rather than at `npm install`. A patch that is already in
@@ -27,10 +31,11 @@ const MARK = '# withPlayerPatches'
 
 const APPLY = `
     ${MARK}: apps/app/plugins/withPlayerPatches.js
-    {
-      'SwiftAudioEx' => 'SwiftAudioEx+1.1.0.patch',
-      'react-native-track-player' => 'react-native-track-player+5.0.0-alpha0.patch',
-    }.each do |pod, name|
+    [
+      ['SwiftAudioEx', 'SwiftAudioEx+1.1.0.patch'],
+      ['react-native-track-player', 'react-native-track-player+5.0.0-alpha0.patch'],
+      ['react-native-track-player', 'react-native-track-player+5.0.0-alpha0+interruptions.patch'],
+    ].each do |pod, name|
       dir = installer.sandbox.pod_dir(pod).to_s
       patch = File.expand_path("../patches/#{name}", __dir__)
       next if system('patch', '-p1', '-R', '-s', '-f', '--dry-run', '-d', dir, '-i', patch, out: File::NULL)

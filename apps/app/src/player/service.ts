@@ -67,9 +67,10 @@ export async function playbackService(): Promise<void> {
     void TrackPlayer.seekBy(-interval)
   })
 
-  TrackPlayer.addEventListener(Event.RemoteDuck, ({ paused, permanent }) => {
-    // A phone call or a navigation prompt. Permanent means the audio focus is
-    // gone for good, so pause rather than wait for a resume that never comes.
-    void (permanent || paused ? TrackPlayer.pause() : TrackPlayer.play())
-  })
+  // No RemoteDuck handler. A call, an alarm or Siri is the native player's
+  // own business (`autoHandleInterruptions` in setup.ts): on iOS it pauses
+  // when one begins and plays when it ends only if it was playing when it
+  // began (patches/react-native-track-player+5.0.0-alpha0+interruptions.patch),
+  // and on Android the player keeps its own audio focus. Playing here on the
+  // end as well started a paused song after every call.
 }

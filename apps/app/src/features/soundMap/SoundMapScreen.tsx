@@ -365,7 +365,7 @@ export function SoundMapScreen(): ReactNode {
     else if (takes.length > before.takes) control.keepClear(takes[takes.length - 1]!.path)
   }, [control, takes, trayOpen, wide])
   // On a phone the buttons stand over the folded tray, and the open sheet lies
-  // over them; on a computer they stand at the foot, left of the open panel.
+  // over them; on a computer they stand at the foot on the left, clear of the panel.
   const toolsBottom = wide || !holding ? 0 : folded + space.sm
   // The toasts rise above the tray and the buttons rather than cover Play or the pen.
   useEffect(() => {
@@ -432,7 +432,13 @@ export function SoundMapScreen(): ReactNode {
                   setHead(event.nativeEvent.layout.y + event.nativeEvent.layout.height)
                 }
               >
-                <PageHeader title="Sound map" back={{ to: '/', testID: 'sound-map-back' }} />
+                {/* On a computer the map is a place of its own in the sidebar, so it
+                    wears no ‹ however it was opened, Home's card included
+                    (Xiao, 2026-10-27); a phone has no sidebar and keeps one. */}
+                <PageHeader
+                  title="Sound map"
+                  back={wide ? undefined : { to: '/', testID: 'sound-map-back' }}
+                />
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -465,7 +471,7 @@ export function SoundMapScreen(): ReactNode {
             <View
               style={[
                 styles.tools,
-                wide && (panel ? styles.toolsBesideTray : styles.toolsWide),
+                wide ? styles.toolsWide : styles.toolsPhone,
                 { bottom: bottom + toolsBottom },
               ]}
               pointerEvents="box-none"
@@ -574,9 +580,11 @@ const styles = StyleSheet.create(theme => ({
   chipsPhone: { paddingHorizontal: space.gutter },
   chipsWide: { paddingHorizontal: space.gutterWide },
   topBesidePanel: { right: TRAY_PANEL_WIDTH + space.md },
-  tools: { position: 'absolute', right: space.md, gap: space.sm, zIndex: 1 },
-  toolsWide: { right: space.gutterWide },
-  toolsBesideTray: { right: TRAY_PANEL_WIDTH + space.md * 2 },
+  tools: { position: 'absolute', gap: space.sm, zIndex: 1 },
+  toolsPhone: { right: space.md },
+  // Down the left on a computer, where the tray's panel never comes: on the
+  // right they moved over each time it opened (Xiao, 2026-10-27).
+  toolsWide: { left: space.gutterWide },
   // Over the buttons once opened, as a sheet is.
   tray: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2 },
   // A column down the right, top to foot: the card at its top, folded to its head or open.

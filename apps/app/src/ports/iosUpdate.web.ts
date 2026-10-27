@@ -6,4 +6,5 @@ export const iosUpdate: IosUpdatePort = {
   build: Number.NaN,
   latest: () => Promise.resolve(null),
   install: () => Promise.resolve(),
+  leave: () => {},
 }

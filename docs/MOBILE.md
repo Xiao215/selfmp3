@@ -437,7 +437,13 @@ checks out all of history for it). An installed release build reads `ios.json` a
 when the release's build is larger, says so in a toast, at most once a day however many
 builds came out (`announcesIosBuild`); Settings' About card says
 whether it is up to date, checks on asking and installs (`features/settings/IosUpdate.tsx`).
-Install brings up the same iOS question as the page; the app's data stays. A new
+Install brings up the same iOS question as the page; the app's data stays. After iOS's
+own Install it downloads the build but puts it in only once self.mp3 has left the
+screen, and from inside the app nothing shows that. So a message stays up saying the
+build goes in from the Home Screen, and its **Home** steps back there
+(`modules/home-screen`), where the icon shows the progress. The app started again says
+"Updated to build …", or that the build has not gone in, with Install again and the
+install page in Safari. A new
 friend's iPhone needs a new build: an existing install keeps working, but the old build
 will not install on the new iPhone.
 
@@ -653,6 +659,7 @@ apps/app
   plugins/                config plugins run at prebuild time
   modules/key-commands/   the app's own Expo module: a hardware keyboard's keys (iOS)
   modules/turn-cover/     the app's own Expo module: a cover over an iPad's turn (iOS)
+  modules/home-screen/    the app's own Expo module: back to the Home Screen for an update (iOS)
   targets/widget/         the iOS widget's SwiftUI target
 ```
 

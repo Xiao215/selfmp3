@@ -234,7 +234,8 @@ Picked for you" over the list's own name, what it understood as chips), **Play**
 **Different songs** and **⋯** (Select songs, Play next, Add to Up next, Save as playlist), and
 under it the same rows a playlist draws (`ui/components/OrderedSongList.tsx`, shared with the
 playlist page): hold one to move it, Select songs to tick several, a row's ⋯ for the song.
-The order you put it in is the order it plays and saves in while the app is open. Different
+While Up next is this answer its Play is a Pause, and a Play that goes on where it was
+(`PlayShuffle`'s `playing`). The order you put it in is the order it plays and saves in while the app is open. Different
 songs sends the picks it showed as `avoid` (`DescribeRequest`), and the server picks around
 them while anything else fits. A chip taken away picks again at once from what is left, with
 nothing avoided, so the songs shown that still fit can stay. Answers

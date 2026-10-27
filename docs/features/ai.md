@@ -233,7 +233,9 @@ the line under it); words stand beside the songs they name, in a card of their o
 (`AnswerBody` `beside`), wrapping under them on a narrow window; anything else is drawn as
 that kind of answer always is (`AnswerBody.tsx`), up to 1100 wide; and while it is worked
 on, the question and its steps stand where the answer will be. The newest answer is shown
-as it is asked; pressing a line of the log shows that one.
+as it is asked; pressing a line of the log shows that one. The log follows the
+conversation: a new question, the answer shown and the field growing under it each scroll
+the line they are about into view, and scrolling back through it is left alone.
 
 On a phone the log is a page of its own. A question opens its answer full screen, as R1's
 stage drew it (the question in the middle with the step running now while it works), and
@@ -251,7 +253,13 @@ card opens the answer's page. A
 question over 500 characters is not sent: the field stops there, and one from Search says
 it is too long. An answer that failed says why when the server said ("Your server couldn’t
 reach the model.", with Open Settings where Settings can help); Try again is worked on as a
-new turn is, with its Stop, and the next question waits for it. On a phone the page owns the display, as Search does; on a computer
+new turn is, with its Stop, and the next question waits for it. A failed turn stays failed
+until Try again: nothing that asks the model (an Ask turn, a change, the Report's few
+sentences, Suggest tags, an import's names) is retried, asked again when the network comes
+back, or swept up with what is asked again when the server answers once more
+(`ASKS_MODEL`, `connection/refetchFailed.ts`). Each ask costs the model, and asked again
+behind the person's back a failed "skip this song" had come back half an hour later as a
+list of sixteen songs. On a phone the page owns the display, as Search does; on a computer
 it opens in the main column, and the palette's Ask row closes the palette and opens it.
 Asked while Search adds to a room (`?to=room`), song answers go to the room. A review's keys
 work from the field while it is empty.
@@ -415,7 +423,8 @@ rather than looking finished.
 
 A song answer can be changed in words after it is given — "10 首", "不要动漫的", "calmer".
 On the Ask page that is the page's one field while it wears the list's chip ("↳ these 19
-songs", B1, 2026-10-26); on the answer's own page it is a field under its head
+songs", B1, 2026-10-26; never cut short, and "this song" with "Change it…" beside it for a
+list of one); on the answer's own page it is a field under its head
 (`smart/ChangeIt.tsx`, "Change these songs…"). No suggested changes are offered: what to
 say is yours (Xiao, 2026-10-04).
 
@@ -573,6 +582,9 @@ and cannot say "古典 or 原神纯音乐, and calm".
    the sound's line over the whole library, resting songs left out, 25 standing in for a
    number nobody said, or why none were chosen. The answer page lists them under its head;
    a card with no songs says them in place of "No song of yours fits that".
+   Fewer songs than the size asked for, or under nine tenths of the length, the device
+   says in so many words (`describeNotes`): "Only 1 song, not the 15 you asked for: just 2
+   fit."
 
 Taking a chip away does not read the words again: the page picks again at once, sending the
 parts back, and only steps 2 to 4 run.
@@ -631,7 +643,10 @@ library has placed enough. The note says "Kept to 5 songs, as you asked. Ask aga
 
 The device draws it with `TagsReview.tsx` over `Review.tsx`, the list Tidy up's review
 uses too: what the library found starts ticked, the model's guesses wait with the
-sparkle, an add or a remove opens to its songs and any can be left out, ⌘↵ applies.
+sparkle, an add or a remove opens to its songs and any can be left out, ⌘↵ applies. A
+short card's line opens to its songs too ("白玫瑰 and 16 more → 粤语" is seventeen songs
+ticked), and a tidy row's new name has a line of its own under the old, so a long old name
+never pushes it out of sight on a phone.
 Everything on it is one count (`tagCounter`, X4 2026-10-25): songs, once each, when every
 change puts a tag on songs or takes one off — the title ("Tags for 5 songs"), what is
 ticked, each band and section, "Review all 5" and the button ("Tag 3 songs") — and changes

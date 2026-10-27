@@ -199,6 +199,44 @@ describe('describeNotes', () => {
       'One of them isn’t on this device yet.',
     ])
   })
+
+  it('says plainly when fewer songs came than were asked for', () => {
+    const asked = (size: number, fit: number, picked: number): DescribeResult => ({
+      understanding: { ...base, size },
+      fit,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: Array.from({ length: picked }, (_, at) => ({ songId: at + 1, why: null })),
+    })
+    // "about 15" that came back as one song.
+    expect(describeNotes(asked(15, 2, 1), 1)).toEqual([
+      'Picked 1 of the 2 that fit',
+      'Only 1 song, not the 15 you asked for: just 2 fit.',
+    ])
+    expect(describeNotes(asked(15, 2, 2), 2)[1]).toBe(
+      'Only 2 songs, not the 15 you asked for: no more fit.',
+    )
+    expect(describeNotes(asked(15, 40, 9), 9)[1]).toBe(
+      'Only 9 songs, not the 15 you asked for: the rest that fit didn’t suit it.',
+    )
+    expect(describeNotes(asked(15, 40, 15), 15)).toEqual(['Picked 15 of the 40 that fit'])
+  })
+
+  it('says a length that came short, songs never adding up to it exactly', () => {
+    const result: DescribeResult = {
+      understanding: { ...base, minutes: 120 },
+      fit: 8,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: [1, 2, 3, 4, 5, 6, 7, 8].map(songId => ({ songId, why: null })),
+    }
+    expect(describeNotes(result, 8, 32 * 60)[1]).toBe(
+      'Only 32 min, not the 2 hr you asked for: no more fit.',
+    )
+    expect(describeNotes(result, 8, 113 * 60)).toEqual(['8 songs fit'])
+  })
 })
 
 describe('tagIdsFor', () => {

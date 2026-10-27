@@ -237,8 +237,14 @@ export function answerSongs<S extends { readonly id: number }>(
  * the songs picked that this device does not have yet (`here` is how many
  * it shows), so a song missing here never reads as one it chose to leave out,
  * and whatever else made the songs fewer (the server's `notes`).
+ *
+ * Fewer than were asked for is said in so many words, after the first note
+ * (which a list's head says as its own count): "about 15" that came back as
+ * one song said only "picked from 2 that fit". A length is short when what
+ * came (`seconds`, when the songs are at hand) is under nine tenths of it,
+ * since songs never add up to it exactly.
  */
-export function describeNotes(result: DescribeResult, here: number): string[] {
+export function describeNotes(result: DescribeResult, here: number, seconds?: number): string[] {
   const notes: string[] = []
   const picked = Math.max(here, result.picks.length)
   notes.push(
@@ -246,6 +252,19 @@ export function describeNotes(result: DescribeResult, here: number): string[] {
       ? `${plural(picked, 'song', 'songs')} fit`
       : `Picked ${picked} of the ${result.fit} that fit`,
   )
+  const { size, minutes } = result.understanding
+  const why = picked === result.fit ? 'no more fit' : `the rest that fit didn’t suit it`
+  if (size !== null && size !== EVERY_SONG && picked < size) {
+    notes.push(
+      `Only ${plural(picked, 'song', 'songs')}, not the ${size} you asked for: ${
+        result.fit < size && picked < result.fit ? `just ${result.fit} fit` : why
+      }.`,
+    )
+  } else if (minutes !== null && seconds !== undefined && seconds < minutes * 60 * 0.9) {
+    notes.push(
+      `Only ${formatLongDuration(seconds)}, not the ${formatLongDuration(minutes * 60)} you asked for: ${why}.`,
+    )
+  }
   const away = picked - here
   if (away > 0) {
     notes.push(`${away === 1 ? 'One of them isn’t' : `${away} of them aren’t`} on this device yet.`)

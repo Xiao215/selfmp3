@@ -35,6 +35,7 @@ import { usePlayer } from '../../player/PlayerProvider'
 import { serverEvents } from '../../ports/events'
 import { useConnection } from '../../connection/ConnectionProvider'
 import { useServerSongIds } from '../../connection/useServerSongIds'
+import { refetchFailed } from '../../connection/refetchFailed'
 import { noServer } from '../../connection/via'
 import {
   deviceKind,
@@ -136,22 +137,6 @@ const RETRY_FAILED_MS = 30_000
 
 /** What a handoff that did not land says under why: the music never stopped. */
 const STILL_HERE = 'Still playing here.'
-
-/**
- * Ask again for whatever is on screen and failed: the library, Stats, a
- * playlist's songs. Nothing else refetched them — most queries here do not
- * refetch on focus — so a page that failed while the server was away kept its
- * error after it came back, though it promised to fill in.
- */
-function refetchFailed(client: ReturnType<typeof useQueryClient>): void {
-  void client.refetchQueries({
-    type: 'active',
-    // A refusal is an answer (a song with no words, a page that is not there),
-    // and asking again would only hear it again.
-    predicate: ({ state }) =>
-      state.status === 'error' && !(state.error instanceof ApiError && !state.error.isUnanswered),
-  })
-}
 
 export function useDeviceContext(): DevicesContextValue {
   const context = useContext(DevicesContext)

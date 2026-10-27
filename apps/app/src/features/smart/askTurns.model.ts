@@ -74,3 +74,21 @@ export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
 export function afterStop(typed: string, stopped: string): string {
   return typed.trim() === '' ? stopped : typed
 }
+
+/** Where a line sits in the log's lines, and what of them is in view. */
+interface Span {
+  readonly y: number
+  readonly height: number
+}
+
+/**
+ * Where the log scrolls to bring a line into view, with `room` around it, or
+ * null when it is in view already. A line above is brought to the top, one
+ * below — a new question, under the field — to the foot.
+ */
+export function scrollToShow(line: Span, view: Span, room: number): number | null {
+  if (line.y < view.y) return Math.max(0, line.y - room)
+  const end = line.y + line.height
+  if (end > view.y + view.height) return Math.max(0, end + room - view.height)
+  return null
+}

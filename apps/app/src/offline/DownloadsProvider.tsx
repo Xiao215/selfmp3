@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -157,6 +158,8 @@ interface DownloadsContextValue {
   dropAhead: (songId: number) => void
   /** Whether a song can start here now, without asking. */
   mayPlay: (songId: number) => boolean
+  /** Why a song cannot start here now, or null when it can. */
+  blockFor: (songId: number) => PlayBlock | null
   /**
    * A song not on this device cannot start now, whatever is tapped: a library
    * from the bucket with no connection, or with the bucket refusing reads for
@@ -481,7 +484,10 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
     excluded,
     songsById,
   })
-  useEffect(() => {
+  // Before any effect below this one runs: a child that asks `mayPlay` in its
+  // own effect, on the render where the network came back, must not be told
+  // the network is still gone (`usePlaybackMemory`).
+  useLayoutEffect(() => {
     rules.current = {
       network,
       prefs,
@@ -677,6 +683,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepAhead,
       dropAhead,
       mayPlay,
+      blockFor,
       streamBlocked,
       playedIds,
       checkPlay,
@@ -704,6 +711,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }): ReactN
       keepPlayed,
       keepAhead,
       mayPlay,
+      blockFor,
       streamBlocked,
       playedIds,
       checkPlay,

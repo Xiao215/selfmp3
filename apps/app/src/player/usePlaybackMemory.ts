@@ -8,6 +8,7 @@ import { usePlayer, type PlayerApi } from './PlayerProvider'
 import { createValueStore } from '../state/valueStore.model'
 import { useValueStore } from '../state/useValueStore'
 import {
+  comingBack,
   launchPlayback,
   parseSession,
   POSITION_KEY,
@@ -46,6 +47,12 @@ export function usePlaybackMemoryState(): PlaybackMemory {
  * The position is read from the player when it is written, not subscribed to:
  * this runs in the root shell, and subscribing re-rendered the whole frame on
  * every tick to copy a number nobody drew.
+ *
+ * Only once this launch has had a song of its own (`owns`): until then what is
+ * written down is the last launch's, still to be come back to, and the empty
+ * queue every launch starts with would write over it. Opened offline, the
+ * saved song could not load, and the next refresh wrote "nothing" over it for
+ * good (R4 web-cloud m1b).
  */
 function writeSession(player: PlayerApi): void {
   const session = sessionFromQueue(player.queue, player.getPosition(), player.source)
@@ -63,29 +70,33 @@ function writePosition(player: PlayerApi): void {
  * keeps writing it down while it plays (`session.model.ts`).
  *
  * The song is loaded paused, where it was: opening a page never starts audio
- * by itself. A song that could not start here without a question — not
- * downloaded in a cloud library on a phone, or offline — is left unloaded
- * rather than greeting the person with a dialog.
+ * by itself. Opened out of reach, it waits and comes back once its song can
+ * play; a song that could not start without a question is left unloaded
+ * rather than greeting the person with a dialog (`comingBack`).
  */
 export function usePlaybackMemory(): void {
   const player = usePlayer()
   const library = useLibrary()
-  const { mayPlay } = useDownloads()
+  const { blockFor, streamBlocked } = useDownloads()
   const { status } = useConnection()
   const { song: addressSong } = useGlobalSearchParams<{ song?: string }>()
   const restored = useRef(false)
+  // This launch has had a song in the player: what is written down is its own now.
+  const owns = useRef(false)
   const latest = useRef(player)
   useEffect(() => {
     latest.current = player
   }, [player])
 
-  // Once, when the library is known.
+  // Once, when the library is known; again while it waits for its song to be
+  // in reach, each time the reach changes (`streamBlocked`, not read here, is
+  // what changes when the bucket answers again).
   useEffect(() => {
     if (restored.current || status !== 'ready' || !library.data) return
-    restored.current = true
     const now = latest.current
     // Something is already loaded: a handoff, or a song started meanwhile.
     if (now.current) {
+      restored.current = true
       settle(null)
       return
     }
@@ -93,7 +104,12 @@ export function usePlaybackMemory(): void {
     const saved = withLatestPosition(parseSession(prefs.get(SESSION_KEY)), prefs.get(POSITION_KEY))
     const launch = launchPlayback(saved, addressSong, known)
     const songId = launch ? launch.queueIds[launch.index] : undefined
-    if (!launch || songId === undefined || !mayPlay(songId)) {
+    const step = songId === undefined ? 'leave' : comingBack(launch, blockFor(songId))
+    // Not settled while waiting: another device's song is out of reach too,
+    // and offering it first would race this one coming back.
+    if (step === 'wait') return
+    restored.current = true
+    if (step === 'leave' || !launch || songId === undefined) {
       settle(null)
       return
     }
@@ -105,17 +121,23 @@ export function usePlaybackMemory(): void {
       source: launch.source,
     })
     settle(songId)
-  }, [status, library.data, addressSong, mayPlay])
+  }, [status, library.data, addressSong, blockFor, streamBlocked])
 
   // Whenever the queue, the song or play/pause changes, and every few seconds
-  // while playing. Not before coming back, which would write over what is to
-  // be come back to with the empty queue every launch starts with.
+  // while playing. Not before this launch has had a song (`writeSession`).
+  // One played while coming back still waited is this launch's own: that is
+  // decided, and nothing comes back over it.
   const queue = player.queue
   const songId = player.current?.id ?? null
   const playing = player.isPlaying
   const source = player.source
   useEffect(() => {
-    if (!restored.current) return undefined
+    if (songId !== null) owns.current = true
+    if (!owns.current) return undefined
+    if (!restored.current) {
+      restored.current = true
+      settle(null)
+    }
     writeSession(latest.current)
     if (!playing) return undefined
     const timer = setInterval(() => writePosition(latest.current), SAVE_EVERY_MS)
@@ -128,7 +150,7 @@ export function usePlaybackMemory(): void {
       return undefined
     }
     const onHide = (): void => {
-      if (restored.current) writeSession(latest.current)
+      if (owns.current) writeSession(latest.current)
     }
     window.addEventListener('pagehide', onHide)
     return () => window.removeEventListener('pagehide', onHide)

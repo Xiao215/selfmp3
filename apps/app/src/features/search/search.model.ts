@@ -259,3 +259,21 @@ export function lyricHitsHere(
   }
   return here
 }
+
+/**
+ * What the field and an empty result say to a guest in a room — signed out,
+ * with no library to search and no Ask, which is a signed-in library's. A link
+ * is what they can add, while the room takes links from them (R4 rooms-a11y:
+ * Ask was offered, and pressing it led to the sign-in page).
+ */
+export function guestWords(linksOn: boolean): {
+  readonly placeholder: string
+  readonly nothing: string
+} {
+  return linksOn
+    ? {
+        placeholder: 'A YouTube or 网易云 link',
+        nothing: 'Paste a YouTube or 网易云 link to add it.',
+      }
+    : { placeholder: 'Search', nothing: 'Links are off in this room.' }
+}

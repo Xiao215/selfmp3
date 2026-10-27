@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
@@ -41,9 +41,9 @@ import { rowTitle, textColumn } from '../../ui/surfaces'
  * It says hello, shows the library coming down — its counts at once, then the
  * covers one by one — and asks one thing: whether to keep every song on this
  * device. That switch is Settings' "Download automatically on Wi-Fi", the same
- * preference through the same call, set here to where this kind of device
- * should start. Shown once per device; the root layout only sends a first
- * sign-in here.
+ * preference through the same call, starting where this kind of device should
+ * and written when the page is left. Shown once per device; the root layout
+ * only sends a first sign-in here.
  */
 
 /** How many covers are fetched at once while the page is open. */
@@ -54,26 +54,33 @@ export function FirstSyncScreen(): ReactNode {
   const { wide } = useLayoutFlags()
   const { fromCloud, status } = useConnection()
   const library = useLibrary()
-  const { prefs, setPrefs } = useDownloads()
+  const { setPrefs } = useDownloads()
   const name = useCloudSession().data?.name ?? null
 
   /*
-   * Once, on arrival: remember this device has seen the page, and start the
-   * switch where this kind of device should. Written at once rather than on
-   * Continue, so a phone does not begin downloading every song in the moment
-   * before the person reads the switch that says it will not.
+   * On arrival: remember this device has seen the page, and keep nothing
+   * while the switch is unanswered. The switch starts where this kind of
+   * device should, and what it says when the page is left — Start listening,
+   * or any other way out — is what is written. Written as on at once, a
+   * computer had downloaded the whole library before anyone could turn it off
+   * (R2-m3).
    *
    * Only with a library: the route is drawn for a moment before the root
    * layout turns a signed-out device away to Welcome, and that moment must not
    * count as having seen it.
    */
-  const [startsOn] = useState(() => keepEverySongByDefault(wide))
+  const [keepAll, setKeepAll] = useState(() => keepEverySongByDefault(wide))
+  const answer = useRef(keepAll)
+  useEffect(() => {
+    answer.current = keepAll
+  }, [keepAll])
   const signedIn = status === 'ready'
   useEffect(() => {
-    if (!signedIn) return
+    if (!signedIn) return undefined
     rememberFirstSyncSeen()
-    setPrefs({ autoOnWifi: startsOn })
-  }, [signedIn, setPrefs, startsOn])
+    setPrefs({ autoOnWifi: false })
+    return () => setPrefs({ autoOnWifi: answer.current })
+  }, [signedIn, setPrefs])
 
   const songs = useMemo(() => library.data?.songs ?? [], [library.data])
   const withArt = useMemo(() => songs.filter(song => song.hasArt), [songs])
@@ -138,8 +145,8 @@ export function FirstSyncScreen(): ReactNode {
       <ToggleRow
         label={keep.label}
         hint={keep.hint}
-        value={prefs.autoOnWifi}
-        onChange={autoOnWifi => setPrefs({ autoOnWifi })}
+        value={keepAll}
+        onChange={setKeepAll}
         testID="first-sync-keep"
         style={styles.keep}
       />
@@ -149,7 +156,10 @@ export function FirstSyncScreen(): ReactNode {
           testID="first-sync-continue"
           label="Start listening"
           width={wide ? 240 : undefined}
-          onPress={() => router.replace('/')}
+          onPress={() => {
+            setPrefs({ autoOnWifi: keepAll })
+            router.replace('/')
+          }}
         />
       </View>
     </OnboardingPage>

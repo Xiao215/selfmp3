@@ -73,6 +73,7 @@ export class SmartFeatures {
     songs: () => Song[]
     tags: () => Tag[]
     artistNames?: () => ArtistJoinNames
+    spellings?: AskDeps['spellings']
     sound?: AskDeps['sound']
     stats: (range: Stats['range'], top?: number) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
@@ -188,7 +189,7 @@ export function smartFeaturesFor(sources: {
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
   /** Artists' other names, which join one artist's spellings; left out by `eval.ts`. */
-  readonly names?: Pick<NamesRepository, 'joinNames'>
+  readonly names?: Pick<NamesRepository, 'joinNames' | 'spellings'>
   /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
   readonly sound?: AskDeps['sound']
   readonly stats: Pick<StatsRepository, 'build'>
@@ -212,6 +213,7 @@ export function smartFeaturesFor(sources: {
     songs: () => songs.all(),
     tags: () => tags.all(),
     artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
+    spellings: sources.names ? () => sources.names!.spellings() : undefined,
     sound: sources.sound,
     stats: (range, top) => stats.build(range, undefined, top ?? null),
     lyrics: query =>

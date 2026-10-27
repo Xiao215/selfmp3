@@ -574,7 +574,11 @@ which could only tag songs the request named and answered "tell me which ones" o
    to make, if the request names one you lack; which songs to look at against the focus
    (`without` it, `with` it, `all`, `untagged`, `none`); the artists named, if any; and
    whether this is a checkup ("tidy my tags": every tag, spellings of one tag, artists
-   tagged more than one way).
+   tagged more than one way). Ask sends the song playing along, and the plan's `from` says
+   when the request points at it ("tag this jpop") instead of describing songs: then that
+   song, and no other, is looked at (`ai/scope.ts`, the handle the agent's working set will
+   extend to earlier answers' songs). Nothing playing is said, never the whole library
+   instead. Before, "tag this one 粤语" with 白玫瑰 playing proposed five 刘德华 songs.
 2. **Ask the library first** (no model). A song with no tag takes the tag every tagged
    song on its album shares, or the one four in five of its artist's tagged songs share
    (two at the least); a tagged song missing a tag every other song on its album carries
@@ -582,11 +586,16 @@ which could only tag songs the request named and answered "tell me which ones" o
    "jpop") merge the smaller into the bigger. Only tags in question count.
 3. **Group** (no model) what is left by main artist, the tags the songs carry, and the
    script of the title, so 周杰倫 is judged once rather than 76 times and 林俊傑's English
-   songs apart from his Mandarin ones. A checkup looks only at songs without a tag and at
+   songs apart from his Mandarin ones. A group lists every song, numbered, with its album; a
+   group past 40 songs goes in parts. A checkup looks only at songs without a tag and at
    artists tagged more than one way.
-4. **Ask the model** (smart tier) about the groups, fifty to a call, in parallel: for each
-   group that should change, tags to add and tags to remove, how sure, and why in words
-   that do not name the artist (one reason speaks for a row of many artists).
+4. **Ask the model** (smart tier) about the groups, at most fifty groups and 400 songs to a
+   call, four calls at once: for each group that should change, tags to add and tags to
+   remove, how sure, and why in words that do not name the artist (one reason speaks for a
+   row of many artists). Where one artist's songs differ in what the script does not show,
+   it answers for some of the group's songs by number, once per set that changes
+   differently; each song takes the first answer about it. Before, all 17 of 陈奕迅's songs
+   were one block, Cantonese and Mandarin alike, and went "unsure" together.
 5. **Check**: tag names must be yours and in question, an add must be missing and a remove
    carried, a rename must not take a name in use, one change to a tag itself per tag, the
    only new tag is the one the request named (or, for untagged songs, one the library's
@@ -660,6 +669,30 @@ edit must name a song in its batch, once per field, with a value a song may have
 like the checkup's, all the model's, so none starts ticked. A batch that fails is left out and
 the note says how many songs; when every batch fails, the answer is the model's failure.
 
+What the model says goes above the changes only when it agrees with them: the words of the one
+batch that changed something, or, when nothing changed, why; with several batches changing,
+the card speaks alone. A reply written in other letters than the request (Chinese to an
+English request) is dropped (`inTheirLanguage`): shown a table of Chinese names, the model
+once answered an English request in Chinese, saying "no Yorushika here" above the change it made.
+
+**Which songs, for every `what`.** The router's `from` says when the request points at the song
+playing ("this title is wrong"): then that song is the only one, for a change, a checkup,
+copies or a fill. Otherwise the filters choose; a checkup with filters ("fix the names of my
+孙燕姿 songs") checks those songs alone, and places asked for that the library lacks are the
+answer ("Your library has no …"), never the whole library standing in. Before, that request
+ran the library-wide checkup and offered ZUTOMAYO's titles.
+
+**One artist under two names.** `what: spellings` ("some artists are in there twice under
+different names, fix that") can't go by batches: the two names are seldom in one. Code groups
+the library's artist names first (`nameGroups`): the same letters once case and marks are set
+aside, a Chinese or Japanese name and a Latin one its stored spelling matches (ヨルシカ,
+"yorushika"; あたらよ, "atara yo"), and a name among another's other names, saved or found.
+The model sees those groups alone, a few songs each, eighty to a call, and answers which names
+are one artist and which to keep; every name must be one of its group's, a name kept is never
+itself replaced. The changes are to `artist` and `albumArtist`, credit by credit. Before, the
+request went 60 songs a call over the whole library (43.7 s) and fixed Yorushika but not
+Atarayo.
+
 **Which songs, and how many.** A number they give ("先换 300 首") is the filters' `size`, the same
 "how many" every action reads (up to 2,000; a playlist's pick still stops at 200). Which of the
 chosen songs still need the change ("the ones in English now") is no filter: when the songs are
@@ -683,7 +716,7 @@ up names are kept a day per song. Tried on 2026-10-04 with the real model on six
 found, 10 changes (丹砂巍巍, 隙光浮影, 蔚蓝一梦, 璃月, 梦之咏叹 and their albums), the made-up one
 left alone.
 
-**Filling in what's missing.** The router's `tidy` part says `what`: `checkup`, `change`,
+**Filling in what's missing.** The router's `tidy` part says `what`: `checkup`, `change`, `spellings`,
 `fill` or `copies`. "Fill in what's missing" (and "the missing years of my YOASOBI songs",
 the filters choosing the songs) is `fill` (`ai/fill.ts`): the songs missing an album, a year
 or a cover, an album's songs together, the first 40 of them a request (MusicBrainz answers
@@ -715,13 +748,17 @@ cover; 晴天 got MusicBrainz's 2003; 3.6 s for the call.
 
 **Copies.** "Do I have any song twice?" is `copies` (`ai/copies.ts`), an answer of its own
 (`kind: 'copies'`). Code finds the songs that might be one recording, among the songs the
-filters chose: the same title once a video's words ("(Official Music Video)") are set aside,
-an artist in common and within 3 s; or, between songs the listening model has heard, within a
+filters chose: the same title once a video's words ("(Official Music Video)") and an English
+translation after it ("恋風 - Koikaze") are set aside, an artist in common — an artist's other
+names count, saved or found, so Lilas meets 幾田りら — and within 3 s; or, between songs the listening model has heard, within a
 second and sounding the same (0.97 or closer, [audio-intelligence.md](audio-intelligence.md))
 whatever they are called. A title with words the other lacks ("(Live)", "(Bayan)", "(II)") is
-another version unless the sound says otherwise, and only songs on one album or none count:
+another version unless the sound says otherwise, and only songs on one album or none count,
+or a single and an album within 2 s of each other (a single is an album named as its song):
 one recording kept on two albums — a theme on two soundtracks, a song and its best-of — is
-kept on purpose. Both are code because the model, judging, wandered: shown "Liyue" and
+kept on purpose, but a song released alone and then on its album is the same release twice.
+Before, 恋風 by 幾田りら (its single) and "恋風 - Koikaze" by Lilas (Laugh, 1.5 s longer) were
+never looked at. Both are code because the model, judging, wandered: shown "Liyue" and
 "Liyue (Bayan)" on one album with nothing else, and two soundtracks' theme sounding the same,
 it called both copies. Songs with nothing between
 them (the same names, album and length to the second) are copies without a model. The rest go

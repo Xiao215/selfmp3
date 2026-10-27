@@ -29,11 +29,14 @@ A cloud library draws it offline from a file in the bucket.
 stays, at the foot where the tab bar was (`pageHidesTabs`, `shell/pageChrome.ts`); on a
 computer the sidebar and the player bar stay. Over the sky, top left, the page's head as
 every page has it (`PageHeader`: the way back on a phone, and the name, with no count
-under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); bottom right the buttons (the song playing,
-the pen, and on a computer +, − and show all); once something is taken, the tray: on a phone
-at the foot, on a computer a panel down the right. The buttons hold their place: on a phone
-they stand over the folded tray and the opened tray lies over them as a sheet does; on a
-computer they stand to its left. The page is dark in either theme, since the
+under it, since how many songs are on the map is nothing to act on); under it the tags as chips (the lens); the buttons (the song playing,
+the pen, and on a computer +, − and show all) at the foot, on the right on a phone and on the
+left on a computer; once something is taken, the tray: on a phone at the foot, on a computer
+a panel down the right. The buttons hold their place: on a phone they stand over the folded
+tray and the opened tray lies over them as a sheet does; on a computer the panel never
+reaches them (2026-10-27: on the right they moved over each time it opened). On a computer
+the page wears no way back however it was opened, Home's card included, since the sidebar
+has a row for it (Xiao, 2026-10-27). The page is dark in either theme, since the
 sky is the point (`ScopedTheme name="dark"`). A song not heard yet has no place and is left
 off; nothing counts them.
 
@@ -212,7 +215,7 @@ Each stroke adds to it; it holds every stroke since it was last cleared, each so
 **On a computer** it is a panel 376 points wide down the right of the map, from the top to
 the player bar, opened with the first stroke; the map is fitted and centred in what is left
 (`FieldInsets.right`), the head's tag chips stop short of it, + and − zoom about the middle
-of what is left, and the buttons stand to its left. The pointer on a row rings and names its
+of what is left. The pointer on a row rings and names its
 star on the map as the pointer on a star does. Folded (K4, 2026-10-26: a line at the foot
 that appeared and vanished with no motion read as broken), the card keeps its head where it
 was and the list folds up under it, its height and its fade sliding together (`Fold`); it

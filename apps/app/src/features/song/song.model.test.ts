@@ -7,7 +7,10 @@ import {
   playSimilarOrder,
   songLink,
   songStory,
+  togetherCards,
+  togetherHead,
   unplayedLine,
+  usualTime,
   timeAgo,
 } from './song.model'
 
@@ -108,6 +111,7 @@ describe('songStory', () => {
     expect(story.strip?.bars).toHaveLength(7)
     expect(story.strip?.peak).toBe(1)
     expect(story.strip?.bars[1]).toBe(1)
+    expect(story.strip?.counts).toEqual([1, 4, 0, 0, 0, 0, 1])
     expect(story.strip?.caption).toBe('Weeks since 3 August')
   })
 
@@ -210,5 +214,93 @@ describe('the similar-songs shelf', () => {
   it('plays the chosen song first, then the rest in their order', () => {
     expect(playSimilarOrder([4, 7, 9, 2], 9)).toEqual([9, 4, 7, 2])
     expect(playSimilarOrder([4, 7], 4)).toEqual([4, 7])
+  })
+})
+
+describe('togetherHead', () => {
+  const song = { addedAt: at(7, 3, 10), playCount: 2 }
+  const history = (times: string[], msPlayed: number) => ({
+    songId: 1,
+    cameWith: null,
+    plays: times.length,
+    msPlayed,
+    firstPlayedAt: times[0] ?? null,
+    lastPlayedAt: times.at(-1) ?? null,
+    hours: hours(...times),
+  })
+
+  it('says how long it has been yours, the plays and the minutes, and when you play it', () => {
+    const late = [at(7, 5, 23), at(7, 9, 1), at(7, 12, 22, 30), at(8, 1, 14)]
+    expect(togetherHead(song, history(late, 45 * 60_000), NOW)).toEqual({
+      title: 'Yours since 3 August.',
+      line: '4 plays, 45 min together · mostly late at night',
+    })
+  })
+
+  it('counts the song record’s plays when no server answers', () => {
+    expect(togetherHead(song, null, NOW)).toEqual({
+      title: 'Yours since 3 August.',
+      line: '2 plays',
+    })
+  })
+
+  it('says a song was never played rather than counting nothing', () => {
+    expect(togetherHead({ ...song, playCount: 0 }, null, NOW)).toEqual({
+      title: 'Not played yet.',
+      line: 'Here since 3 August',
+    })
+  })
+})
+
+describe('usualTime', () => {
+  it('names the part of the day at least half the plays began in', () => {
+    expect(usualTime(hours(at(7, 1, 8), at(7, 2, 9), at(7, 3, 19), at(7, 4, 11)))).toBe(
+      'mostly in the morning',
+    )
+  })
+
+  it('puts the small hours with the night before', () => {
+    expect(usualTime(hours(at(7, 1, 2), at(7, 2, 3), at(7, 3, 23), at(7, 4, 13)))).toBe(
+      'mostly late at night',
+    )
+  })
+
+  it('says nothing of a song played at any hour, or only a few times', () => {
+    expect(usualTime(hours(at(7, 1, 8), at(7, 2, 13), at(7, 3, 19), at(7, 4, 23)))).toBeNull()
+    expect(usualTime(hours(at(7, 1, 23), at(7, 2, 23), at(7, 3, 23)))).toBeNull()
+  })
+})
+
+describe('togetherCards', () => {
+  const song = {
+    addedAt: at(7, 3, 10),
+    sourceUrl: 'https://music.youtube.com/watch?v=abc',
+    playCount: 2,
+    lastPlayedAt: at(8, 17, 23, 40),
+  }
+
+  it('names where it came from, and leaves the count to the head', () => {
+    expect(togetherCards(song, null, NOW)).toEqual([
+      { key: 'came', label: 'Came from', value: 'YouTube Music', sub: '' },
+      { key: 'last', label: 'Last', value: 'Yesterday, 23:40', sub: '' },
+    ])
+  })
+
+  it('names the friend it came with, and where they had it from', () => {
+    const history = {
+      songId: 1,
+      cameWith: { kind: 'link' as const, from: 'Mina' },
+      plays: 0,
+      msPlayed: 0,
+      firstPlayedAt: null,
+      lastPlayedAt: null,
+      hours: [],
+    }
+    expect(togetherCards(song, history, NOW)[0]).toEqual({
+      key: 'came',
+      label: 'Came from',
+      value: "Mina's link",
+      sub: 'first from YouTube Music',
+    })
   })
 })

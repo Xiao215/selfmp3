@@ -3,18 +3,17 @@ import { Text } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { radius, type, iconSize, space } from '@selfmp3/client'
 import { useLayoutValue } from '../../shell/useLayout'
-import { Refresh, Romanize } from '../../ui/components/Icons'
-import { tip } from '../../ui/tip'
+import { Romanize } from '../../ui/components/Icons'
 import { romanName } from './nowPlaying.model'
 import type { SongLyrics } from './useSongWords'
 import { Press } from '../../ui/components/Press'
 
 /*
- * The two small pills beside the words on Now Playing, on a phone and a
- * computer alike: the romaji or pinyin switch for words that have them, and
- * Find lyrics for a song that has none. Each layout puts them where it has
- * room; what they look like, say and do is here, once. The phone's had no
- * pressed state and no hint, and drew its ink a shade louder than the stage's.
+ * The small pill beside the words on Now Playing, on a phone and a computer
+ * alike: the romaji or pinyin switch for words that have them. Each layout
+ * puts it where it has room; what it looks like, says and does is here, once.
+ * The phone's had no pressed state and no hint, and drew its ink a shade
+ * louder than the stage's.
  */
 
 /** Whether these words come with romaji or pinyin to switch on. */
@@ -46,31 +45,6 @@ export function RomanizeButton({ lyrics }: { lyrics: SongLyrics }): ReactNode {
         color={on ? theme.colors.onPrimary : theme.colors.textSecondary}
       />
       <Text style={[styles.toolText, on && styles.toolTextOn]}>{name}</Text>
-    </Press>
-  )
-}
-
-/**
- * "Find lyrics": the lookup asked afresh, clearing the answer it saved that
- * the song has none (`useSongWords`'s `lookAgain`).
- */
-export function FindLyricsButton({ onPress }: { onPress: () => void }): ReactNode {
-  const { theme } = useUnistyles()
-  const dense = useLayoutValue(layout => layout.dense)
-  return (
-    <Press
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Look for lyrics again"
-      {...tip('Look for lyrics again')}
-      style={({ pressed }) => [
-        styles.tool,
-        dense && styles.toolDense,
-        pressed && styles.toolPressed,
-      ]}
-    >
-      <Refresh size={iconSize.sub} color={theme.colors.textSecondary} />
-      <Text style={styles.toolText}>Find lyrics</Text>
     </Press>
   )
 }

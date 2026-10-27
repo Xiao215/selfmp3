@@ -116,7 +116,6 @@ GET /api/songs/:id/lyrics
 - Only lrclib's exact match is believed about a track having no words. The
   fuzzy search fallback readily returns the karaoke version of a song with
   words, and a wrong flag would stop the song from ever being looked up again.
-- **Find lyrics** beside the words asks again and clears the flag.
 - `PATCH /api/songs/:id { instrumental: true | false }` sets or clears it by hand.
 
 ## Files

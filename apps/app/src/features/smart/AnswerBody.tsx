@@ -31,6 +31,7 @@ import { useSmartServer } from './useSmartServer'
 import { AnswerSongLine } from './AnswerSongLine'
 import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
 import { Press } from '../../ui/components/Press'
+import { ScrollView } from '../../ui/components/Scroll'
 
 /**
  * What one answer to Ask shows, by its kind (S1, docs/features/ai.md): every
@@ -152,12 +153,15 @@ export function AnswerBody({
             {plural(answer.plays, 'play', 'plays')} · {Math.round(answer.minutes)} min in{' '}
             {rangeWords(answer.range)}
           </AnswerHead>
-          {answer.items.map((item, index) => (
-            <AnswerLine key={item.label} numberOfLines={1}>
-              {index + 1}. {item.label}
-              <Text style={styles.muted}> · {plural(item.plays, 'play', 'plays')}</Text>
-            </AnswerLine>
-          ))}
+          {/* As many as were asked for, up to 50: a long list scrolls in its own space. */}
+          <ScrollView style={{ maxHeight: listHeight }}>
+            {answer.items.map((item, index) => (
+              <AnswerLine key={item.label} numberOfLines={1}>
+                {index + 1}. {item.label}
+                <Text style={styles.muted}> · {plural(item.plays, 'play', 'plays')}</Text>
+              </AnswerLine>
+            ))}
+          </ScrollView>
           <AnswerActions>
             <Button
               label="Open Stats"

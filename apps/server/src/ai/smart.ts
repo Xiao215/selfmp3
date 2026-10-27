@@ -74,7 +74,7 @@ export class SmartFeatures {
     tags: () => Tag[]
     artistNames?: () => ArtistJoinNames
     sound?: AskDeps['sound']
-    stats: (range: Stats['range']) => Stats
+    stats: (range: Stats['range'], top?: number) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
@@ -213,7 +213,7 @@ export function smartFeaturesFor(sources: {
     tags: () => tags.all(),
     artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
     sound: sources.sound,
-    stats: range => stats.build(range),
+    stats: (range, top) => stats.build(range, undefined, top ?? null),
     lyrics: query =>
       sources.lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
     wrapped: range => wrapped.build(range),
@@ -221,6 +221,7 @@ export function smartFeaturesFor(sources: {
       playlists.all().map(playlist => ({
         name: playlist.name,
         kind: playlist.kind,
+        rules: playlist.rules,
         songIds: () => playlists.songIds(playlist),
       })),
     notes: () => settings.get().smartNotes,

@@ -285,8 +285,14 @@ The list is a **registry** (`ai/askActions.ts`, `ASK_ACTIONS`). Each entry has a
 (a schema, or none when the request itself is all it needs), whether it reads Describe's
 filters (`required`, `optional`, `unused`), and `run`.
 The router's prompt (`routeSystem`) and the form the model fills (`routeForm`) are built
-from the list, and the router's own code is the same for every action: route, fall back to
-`none` when the chosen action is missing its fields or its required filters, run it.
+from the list, and the router's own code is the same for every action: route, run it. When
+the chosen action is missing its fields or its required filters, the router is asked once
+more, told what it left empty, and may choose `none` and say what it needs in the language of
+the newest words; still missing, the answer is `none` saying what could not be told. The route
+is not remembered: the same words are read again, so Try again can come out differently. The
+router sees each playlist with its kind, and a live one's rules in words ("live, holds songs
+tagged 中文流行", `rulesWords`). In a follow-up, the answer is written in the language of the
+newest words, whatever the earlier turns used.
 Adding an action is adding an entry. The form is one object with every action's part, the
 ones not chosen null, rather than one shape per action, because that is what an
 OpenAI-style `json_schema` endpoint takes reliably. An entry is the shape a tool has
@@ -295,14 +301,14 @@ is: what would change is the loop, not the actions.
 
 | Action | The words | What runs | Second call |
 |---|---|---|---|
-| `songs` | "play something calm for reading", "make a playlist of…" | Describe's steps 2–3 (the route *is* the plan) | the pick |
+| `songs` | "play something calm for reading", "make a playlist of…", "play my 20 most played" | Describe's steps 2–3 (the route *is* the plan); with an order (`sortBy`), the first songs in it, sorted in code (`songsInOrder`) | the pick; none for an order alone |
 | `playback` | "skip this song", "go back", "pause", "play the last song in Up next", "play the third song in the queue" | the device carries it out on its own player (Controlling what plays, below) | none |
 | `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index; when none of yours is it, `explore` instead, so a song you don't have is told about rather than a dead end | a pick of at most 5 |
 | `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags" | the tag review, with the request itself (Tags, below) | the plan, then the groups |
-| `stats` | "what did I play most last month" | the stats the Stats page shows; the model only chose the window and what about | none |
-| `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none |
+| `stats` | "what did I play most last month", "top 20 artists" | the stats the Stats page shows, as many as asked (ten unless a number is said, fifty at most); the model only chose the window, what about and how many | none |
+| `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none; for a meaning, every song judged (`songsThatAre`) |
 | `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too", "fill in what's missing", "do I have any song twice?" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something"); what is missing looked up (A4, "Filling in what's missing"); songs held twice (A4, "Copies") | the names pass, one call per 60 songs, or a call only where the catalogues or the copies need judging |
-| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code | a pick only when the words go past the filters |
+| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first" | the filters choose the songs; a sort is code; a live playlist is answered with its rules | a pick only when the words go past the filters |
 | `remember` | "from now on, Chinese names only" | a card that saves the note (Remembered preferences, below) | none |
 | `playlists` | "delete the chill playlists", "rename hi to 华语慢歌" | the names matched to yours (Playlists from the box, below) | none |
 | `explore` | "which albums do I have only part of" | the model looks things up with tools (Looking things up, below) | the tool loop |
@@ -356,7 +362,11 @@ the filters cannot say ("the ones named for rain", "the ones that aren't game mu
 Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
 so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
 the value, never analysed or never played, goes last either way). A live playlist fills
-itself from its tags and is answered with that. The device (`PlaylistSongsAnswer.tsx`)
+itself from its rules, so nothing is proposed for it: the answer (`none`) says what it holds,
+and for an add whether the songs meant are in it already ("All 17 of those songs are in chill
+· chinese already: it holds songs tagged 中文流行") or how many are not; when it follows tags,
+`try` offers the tag change that would put them in or take them out ("give the songs by 五月天
+the tag 中文流行"), which the `tags` action proposes. A sort says the order its rules keep. The device (`PlaylistSongsAnswer.tsx`)
 checks against the playlist as it is now — an add keeps songs not in it, a remove the ones
 still in it, a sort keeps a song added since at the end — and Undo puts back the songs and
 their order (a remove's Undo adds them, then restores the whole order).
@@ -367,8 +377,24 @@ their order (a remove's Undo adds them, then restores the whole order).
 in 中文流行": the `library` action. The router fills Describe's filters (none for the whole
 library, `size` for how many to list) and what to show — a count, the songs, or their
 artists, albums or tags — with an order when the words ask for one. Everything after is code
-(`libraryAnswer`): the count and length, the first fifty in order, and who, which albums and
-which tags they are in, most songs first. `stats` stays the listening; this is the library.
+(`libraryAnswer`): the count and length, the first songs in order, who, which albums and which
+tags they are in, most songs first (fifty of each), and how many different artists, albums
+and tags there are (`distinct`), so "周杰伦的专辑我有几张" heads "18 albums · 76 songs". A song
+counts for everyone its credit names, joined spellings as one, as the library's artists do:
+"陈致逸, HOYO-MiX" is a HOYO-MiX song too. `stats` stays the listening; this is the library.
+
+A question by meaning ("how many love songs do I have") cannot be counted in code, and a pick
+from a sample is not a count. The filters let songs in, then a model judges every one of
+them, 150 rows a call, the calls at once (`songsThatAre`, task `ask-judge`), and the ones it
+says are it are counted. Past 600 songs an even spread of 600 is judged and the count is
+scaled up: the answer's `judged` says how many of how many were read, and the card says
+"about" and that it is an estimate.
+
+Music to play in an order the library knows ("play my 20 most played", "the newest 30") is
+the `songs` action with `sortBy` and `order`, as a library question has: the songs the
+filters let in are sorted in code and the first ones played, as many or as long as asked,
+with no pick. Words only a model can judge are judged among the first 300 in the order, and
+what it chooses keeps the order.
 On the real library: YOASOBI 31, added this week 719 (the Genshin import), the longest one
 song of 1,337.
 

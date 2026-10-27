@@ -290,9 +290,10 @@ export class StatsRepository {
 
   /**
    * The stats for a range, with days and hours counted in `zone` (an IANA
-   * name, see `readerZone`): the reader's, not the server's.
+   * name, see `readerZone`): the reader's, not the server's. `top` is how many
+   * songs, artists and tags to rank when not the Stats page's 20, 10 and 10.
    */
-  build(range: StatsRange, zone = readerZone()): Stats {
+  build(range: StatsRange, zone = readerZone(), top: number | null = null): Stats {
     const clause = this.#window(range)
     const joined = this.#window(range, 'e.')
     const days = RANGE_DAYS[range]
@@ -371,7 +372,7 @@ export class StatsRepository {
            JOIN song_tags st ON st.song_id = e.song_id
            JOIN tags t ON t.id = st.tag_id
           WHERE ${joined}
-          GROUP BY t.id ORDER BY plays DESC, key LIMIT 10`,
+          GROUP BY t.id ORDER BY plays DESC, key LIMIT ${top ?? 10}`,
       )
       .all(params)
       .map(row => ({ key: row.key, plays: row.plays, minutes: toMinutes(row.ms) }))
@@ -392,7 +393,7 @@ export class StatsRepository {
                 COUNT(*) AS plays, COALESCE(SUM(e.ms_played), 0) AS ms
            FROM play_events e JOIN songs s ON s.id = e.song_id
           WHERE ${joined}
-          GROUP BY s.id ORDER BY plays DESC, s.title LIMIT 20`,
+          GROUP BY s.id ORDER BY plays DESC, s.title LIMIT ${top ?? 20}`,
       )
       .all(params)
       .map(row => ({
@@ -420,7 +421,7 @@ export class StatsRepository {
       longestStreakDays: streaks.longest,
       daily: filledDaily,
       hourly,
-      topArtists: topArtists(artistRows, 10, this.#shownAs()),
+      topArtists: topArtists(artistRows, top ?? 10, this.#shownAs()),
       topTags,
       topSongs,
     }

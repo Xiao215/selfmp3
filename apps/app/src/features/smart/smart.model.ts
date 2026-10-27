@@ -389,12 +389,19 @@ export function answerRecap(
               : answer.show === 'tags'
                 ? answer.tags
                 : null
-        return listed
-          ? `${plural(answer.count, 'song', 'songs')}, by ${answer.show}: ${listed
-              .slice(0, RECAP_SONGS)
-              .map(each => `${each.label} (${each.count})`)
-              .join('; ')}`
-          : `${plural(answer.count, 'song', 'songs')}: ${songs(answer.songIds)}`
+        const about = answer.judged && answer.judged.songs < answer.judged.of ? 'About ' : ''
+        const counted = `${about}${plural(answer.count, 'song', 'songs')}`
+        if (!listed) return `${counted}: ${songs(answer.songIds)}`
+        const distinct =
+          answer.show === 'albums'
+            ? answer.distinct.albums
+            : answer.show === 'tags'
+              ? answer.distinct.tags
+              : answer.distinct.artists
+        return `${counted} in ${distinct} ${answer.show}: ${listed
+          .slice(0, RECAP_SONGS)
+          .map(each => `${each.label} (${each.count})`)
+          .join('; ')}`
       }
       case 'stats':
         return `${plural(answer.plays, 'play', 'plays')}, ${Math.round(answer.minutes)} min in ${rangeWords(answer.range)}: ${answer.items

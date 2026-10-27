@@ -45,4 +45,17 @@ describe('an answer with chips taken away', () => {
     changeAnswer(id, result([4]))
     expect(keptAnswer(id)!.edited).toBeNull()
   })
+
+  it('keeps the songs for the last chip taken away, whichever comes back first', () => {
+    const id = keepAnswer('jukebox twice', result([1, 2]))
+    const first = { ...understanding, loved: null }
+    editAnswer(id, first)
+    const second = { ...first, albums: [] }
+    editAnswer(id, second)
+    changeAnswer(id, result([5]), first)
+    expect(keptAnswer(id)!.edited).toBe(second)
+    changeAnswer(id, result([6]), second)
+    expect(keptAnswer(id)!.result.picks.map(pick => pick.songId)).toEqual([6])
+    expect(keptAnswer(id)!.edited).toBeNull()
+  })
 })

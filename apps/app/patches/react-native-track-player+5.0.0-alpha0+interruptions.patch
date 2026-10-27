@@ -1,0 +1,144 @@
+--- a/ios/TrackPlayer.swift
++++ b/ios/TrackPlayer.swift
+@@ -21,6 +21,15 @@
+     private let audioSessionController = AudioSessionController.shared
+     private var shouldEmitProgressEvent: Bool = false
+     private var shouldResumePlaybackAfterInterruptionEnds: Bool = false
++    // What JavaScript last asked of the player: to play, or not. The system
++    // pausing it for a call, an alarm or Siri is not an ask, and leaves this
++    // alone; headphones coming out is the person's, and clears it.
++    private var askedToPlay = false
++    // Whether to play again when the interruption under way ends: what
++    // `askedToPlay` was when it began. The end used to play whenever iOS said
++    // it may, so a song paused before a call started by itself after it.
++    private var resumeAfterInterruption = false
++    private let interruptionLock = NSLock()
+     private var forwardJumpInterval: NSNumber? = nil;
+     private var backwardJumpInterval: NSNumber? = nil;
+     private var sessionCategory: AVAudioSession.Category = .playback
+@@ -42,6 +51,12 @@
+         player.event.currentItem.addListener(self, handleAudioPlayerCurrentItemChange)
+         player.event.secondElapse.addListener(self, handleAudioPlayerSecondElapse)
+         player.event.playWhenReadyChange.addListener(self, handlePlayWhenReadyChange)
++        NotificationCenter.default.addObserver(
++            self,
++            selector: #selector(handleRouteChange),
++            name: AVAudioSession.routeChangeNotification,
++            object: nil
++        )
+     }
+ 
+     deinit {
+@@ -55,27 +70,64 @@
+ 
+     // MARK: - AudioSessionControllerDelegate
+ 
++    // Every play or pause JavaScript asks for, so the end of an interruption
++    // knows what the person wanted. A pause while the interruption lasts is
++    // theirs too, and the song stays paused when it ends.
++    private func recordAsk(play: Bool) {
++        interruptionLock.lock()
++        defer { interruptionLock.unlock() }
++        askedToPlay = play
++        resumeAfterInterruption = false
++    }
++
++    @objc private func handleRouteChange(notification: Notification) {
++        guard
++            let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
++            AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable
++        else { return }
++        // Headphones out or a speaker gone: the system paused the player, and
++        // a call after that must not bring the music back on the speaker.
++        interruptionLock.lock()
++        askedToPlay = false
++        interruptionLock.unlock()
++    }
++
+     public func handleInterruption(type: InterruptionType) {
+         switch type {
+         case .began:
+-            // Interruption began, take appropriate actions (save state, update user interface)
++            // Asked to play, with a song still there to play: a finished
++            // queue or a failed song is not started again. A second
++            // interruption beginning before the first ends keeps the answer.
++            let unfinished: Bool
++            switch player.playerState {
++            case .ended, .failed, .stopped, .idle: unfinished = false
++            default: unfinished = true
++            }
++            interruptionLock.lock()
++            resumeAfterInterruption = resumeAfterInterruption || (askedToPlay && unfinished)
++            askedToPlay = false
++            interruptionLock.unlock()
++            player.pause()
+             emit(event: EventType.RemoteDuck, body: [
+                 "paused": true
+             ])
+         case let .ended(shouldResume):
+-            if shouldResume {
+-                if (shouldResumePlaybackAfterInterruptionEnds) {
+-                    player.play()
+-                }
+-                // Interruption Ended - playback should resume
++            interruptionLock.lock()
++            let resume = shouldResume && shouldResumePlaybackAfterInterruptionEnds && resumeAfterInterruption
++            resumeAfterInterruption = false
++            if resume { askedToPlay = true }
++            interruptionLock.unlock()
++            if resume {
++                player.play()
+                 emit(event: EventType.RemoteDuck, body: [
+                     "paused": false
+                 ])
+             } else {
+-                // Interruption Ended - playback should NOT resume
++                // Stays paused: it was paused before the interruption, or iOS
++                // says not to start again.
+                 emit(event: EventType.RemoteDuck, body: [
+                     "paused": true,
+-                    "permanent": true
++                    "permanent": !shouldResume
+                 ])
+             }
+         }
+@@ -459,6 +511,7 @@
+     public func reset(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+         if (rejectWhenNotInitialized(reject: reject)) { return }
+ 
++        recordAsk(play: false)
+         player.stop()
+         player.clear()
+         resolve(NSNull())
+@@ -467,6 +520,7 @@
+     @objc
+     public func play(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+         if (rejectWhenNotInitialized(reject: reject)) { return }
++        recordAsk(play: true)
+         player.play()
+         resolve(NSNull())
+     }
+@@ -475,6 +529,7 @@
+     public func pause(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+         if (rejectWhenNotInitialized(reject: reject)) { return }
+ 
++        recordAsk(play: false)
+         player.pause()
+         resolve(NSNull())
+     }
+@@ -482,6 +537,7 @@
+     @objc
+     public func setPlayWhenReady(playWhenReady: Bool, resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+         if (rejectWhenNotInitialized(reject: reject)) { return }
++        recordAsk(play: playWhenReady)
+         player.playWhenReady = playWhenReady
+         resolve(NSNull())
+     }
+@@ -496,6 +552,7 @@
+     public func stop(resolve: RCTPromiseResolveBlock, reject: RCTPromiseRejectBlock) {
+         if (rejectWhenNotInitialized(reject: reject)) { return }
+ 
++        recordAsk(play: false)
+         player.stop()
+         resolve(NSNull())
+     }

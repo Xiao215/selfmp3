@@ -65,13 +65,16 @@ device did meanwhile.
 
 ## Automatic downloads
 
-On the devices that keep songs — the phone app and the desktop app — on by default, per
-device. A browser tab streams and downloads nothing, so none of this applies there. Whenever
+On the devices that keep songs — the phone app and the desktop app — per device: on by
+default on a computer or an iPad, off on a phone, which plays from the bucket and keeps what
+it played. First sync asks the same question once (`keepEverySongUnasked` and
+`keepEverySongByDefault` in `firstSync.model.ts`), so a phone that never reaches that page
+downloads nothing nobody asked for. A browser tab streams and downloads nothing, so none of this applies there. Whenever
 something changes — a song imported, the app opened, the connection switching to Wi-Fi — the
 device works out what of the library it is missing and fetches it from the bucket, one song
 at a time.
 
-- **Download automatically on Wi-Fi** (on by default). A phone reports its connection type
+- **Download automatically on Wi-Fi** (off on a phone, on elsewhere). A phone reports its connection type
   (`connectionKind.ts`). A computer reports nothing, and is taken to be on Wi-Fi or a cable
   rather than refusing to download on a desk (`onWifi` in `syncPolicy.ts`). On mobile data
   it shows "12 not on this phone · on data · Download" and waits for a tap rather than

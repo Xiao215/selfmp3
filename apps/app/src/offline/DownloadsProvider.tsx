@@ -33,6 +33,8 @@ import {
   useSameArray,
 } from '@selfmp3/client'
 import { installedApp } from '../ports/install'
+import { thisPlace } from '../ports/place'
+import { keepEverySongUnasked } from '../features/welcome/firstSync.model'
 import {
   clearRecent,
   dropAhead,
@@ -181,7 +183,10 @@ const DownloadsContext = createContext<DownloadsContextValue | null>(null)
 
 const PREFS_KEY = 'downloads.prefs'
 const EXCLUDED_KEY = 'downloads.excluded'
-const DEFAULT_PREFS: DownloadPrefs = { autoOnWifi: true, streamUndownloaded: true }
+const DEFAULT_PREFS: DownloadPrefs = {
+  autoOnWifi: keepEverySongUnasked(thisPlace()),
+  streamUndownloaded: true,
+}
 
 function readPrefs(): DownloadPrefs {
   try {

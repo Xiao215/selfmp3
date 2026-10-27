@@ -8,6 +8,7 @@ import {
   helloLine,
   keepEverySongByDefault,
   keepEverySongCopy,
+  keepEverySongUnasked,
   stackRest,
   type LibrarySoFar,
 } from './firstSync.model'
@@ -46,6 +47,14 @@ describe('Keep every song', () => {
   it('starts off on a phone and on on a computer', () => {
     expect(keepEverySongByDefault(false)).toBe(false)
     expect(keepEverySongByDefault(true)).toBe(true)
+  })
+
+  it('keeps nothing on a phone nobody has answered for, as the page starts it', () => {
+    // A phone that never saw First sync downloaded the whole library (R2-m3).
+    expect(keepEverySongUnasked('phone')).toBe(keepEverySongByDefault(false))
+    expect(keepEverySongUnasked('phone')).toBe(false)
+    expect(keepEverySongUnasked('iPad')).toBe(true)
+    expect(keepEverySongUnasked('computer')).toBe(true)
   })
 
   it('names the device it keeps songs on', () => {

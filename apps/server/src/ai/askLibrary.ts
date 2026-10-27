@@ -26,7 +26,7 @@ import {
   type PlanOut,
 } from './describe.js'
 import { creditedArtists, songTable } from './library.js'
-import { LlmError, Remembered } from './llm.js'
+import { Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { tally } from './text.js'
 
@@ -173,8 +173,8 @@ export function libraryAnswer(
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
-  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
   const joins = deps.artistNames?.() ?? NO_JOINS
+  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags, joins)
   const shownAs = joinedNames(songs, joins)
   const byId = new Map(songs.map(song => [song.id, song]))
   const fitting = chosen
@@ -322,7 +322,12 @@ export async function songsInOrder(
   ).filter(song => !left.has(song.id))
   // Resting songs (shared rest.ts) stay out while anything else fits, as in any music to play.
   const awake = fitting.filter(song => !isResting(song, now))
-  if (awake.length > 0) fitting = awake
+  const notes: string[] = []
+  const resting = fitting.length - awake.length
+  if (awake.length > 0 && resting > 0) {
+    fitting = awake
+    notes.push(`Left out ${resting === 1 ? '1 song' : `${resting} songs`} you’ve set to rest.`)
+  }
   steps.done(
     fitting.length === 0
       ? undefined
@@ -346,7 +351,7 @@ export async function songsInOrder(
     const picks = [...found.picks].sort(
       (a, b) => (place.get(a.songId) ?? 0) - (place.get(b.songId) ?? 0),
     )
-    return { ...found, fit: fitting.length, picks }
+    return { ...found, fit: fitting.length, picks, notes: [...notes, ...found.notes] }
   }
   const target = understanding.minutes === null ? null : understanding.minutes * 60
   const size = Math.min(MAX_PICKS, understanding.size ?? DEFAULT_SIZE)
@@ -358,7 +363,7 @@ export async function songsInOrder(
     picks.push({ songId: song.id, why: null })
     seconds += song.duration
   }
-  return { understanding, fit: fitting.length, loosened: [], unknown, picks }
+  return { understanding, fit: fitting.length, loosened: [], unknown, picks, notes }
 }
 
 const RULE_OPS: Readonly<Record<string, string>> = {
@@ -458,7 +463,12 @@ function liveEdit(
       `${playlist.name} is live: it holds ${holds}, in the order its rules set${rules ? ` (by ${rules.orderBy}, ${rules.order === 'asc' ? 'lowest' : 'highest'} first)` : ''}.`,
     )
   }
-  const { understanding } = groundPlan(plan ?? EVERYTHING, songs, tags)
+  const { understanding } = groundPlan(
+    plan ?? EVERYTHING,
+    songs,
+    tags,
+    deps.artistNames?.() ?? NO_JOINS,
+  )
   const judged = understanding.brief !== null || understanding.sound !== null
   if (!chooses(understanding) && !judged) {
     return none(
@@ -552,7 +562,12 @@ export async function playlistSongs(
   }
 
   const adding = edit.op === 'add'
-  const { understanding, unknown } = groundPlan(plan ?? EVERYTHING, songs, tags)
+  const { understanding, unknown } = groundPlan(
+    plan ?? EVERYTHING,
+    songs,
+    tags,
+    deps.artistNames?.() ?? NO_JOINS,
+  )
   if (!chooses(understanding) && understanding.brief === null) {
     return none(
       adding
@@ -601,11 +616,6 @@ export async function playlistSongs(
     // A playlist's songs are edited whether or not they are resting.
     false,
   )
-  try {
-    return answer((await judging).picks, 'model')
-  } catch (caught) {
-    // Choosing none is an answer here: nothing in the playlist is what they meant.
-    if (caught instanceof LlmError && caught.kind === 'invalid') return answer([], 'model')
-    throw caught
-  }
+  // Choosing none is an answer here too: nothing in the playlist is what they meant.
+  return answer((await judging).picks, 'model')
 }

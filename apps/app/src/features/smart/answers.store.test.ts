@@ -27,6 +27,7 @@ const result = (songIds: number[]): DescribeResult => ({
   fit: songIds.length,
   loosened: [],
   unknown: [],
+  notes: [],
   picks: songIds.map(songId => ({ songId, why: null })),
 })
 

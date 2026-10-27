@@ -1,4 +1,4 @@
-import type { DescribeResult, RefineRequest } from '@selfmp3/shared'
+import { NO_JOINS, type DescribeResult, type RefineRequest } from '@selfmp3/shared'
 import {
   DEFAULT_SIZE,
   MAX_PICKS,
@@ -26,13 +26,13 @@ import { NO_STEPS, type Steps } from './progress.js'
  * picks again from the start.
  */
 
-const VERSION = 4
+const VERSION = 5
 
 const REFINE_SYSTEM = `You change the filters of a playlist someone already asked for, after they say what to change about it.
 
 You are given the library's shape, what they first asked, the filters as they stand now (JSON), and what they want changed. Reply with JSON only, in the schema given: the whole set of filters after the change.
 
-Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier changes the sound, or energy when a level was asked for; older or newer songs moves year; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change to the brief keeps what the brief already said unless the change contradicts it.
+Keep every filter the change does not touch exactly as it is, name included. Change only what their words ask: a number of songs is size; calmer or livelier changes the sound, or energy when a level was asked for; older or newer songs moves year; "no X" puts X in noTags when X is a tag, otherwise says it in brief; "more like Y" or "add some Y" adds a place. A change that keeps only the songs with some quality says that quality in brief, as something every song must have. A change to the brief keeps what the brief already said unless the change contradicts it.
 
 ${FILTERS_GUIDE}`
 
@@ -67,7 +67,7 @@ export async function refine(
       ).value,
   )
   steps.done('Read what to change')
-  const { understanding, unknown } = groundPlan(plan, songs, tags)
+  const { understanding, unknown } = groundPlan(plan, songs, tags, deps.artistNames?.() ?? NO_JOINS)
   // The songs shown that the changed filters still let in, while the taste is
   // the same: as many as the count asked for, or as long as the length. A new
   // place ("add some 周杰倫") or sound ("calmer") is a change of taste too: the
@@ -105,6 +105,7 @@ export async function refine(
       fit: fitting.size,
       loosened: [],
       unknown,
+      notes: [],
       picks: kept.map(songId => ({ songId, why: null })),
     }
   }

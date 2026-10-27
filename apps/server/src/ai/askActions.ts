@@ -6,6 +6,7 @@ import {
   AskSortSchema,
   AskStatsRangeSchema,
   editDistance,
+  NO_JOINS,
   type AskAnswer,
   type Song,
   type Stats,
@@ -189,7 +190,12 @@ const songs = action({
     const steering = next && playing !== undefined
     // Up next is a handful after this song, not a playlist's worth, unless a number was said.
     const plan = steering ? { ...filters!, size: filters!.size ?? NEXT_SIZE } : filters!
-    const { understanding, unknown } = groundPlan(plan, deps.songs(), deps.tags())
+    const { understanding, unknown } = groundPlan(
+      plan,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     // Steering from the song playing ("next", "more like this") leaves it out:
     // it is what they move on from. Asked for any other way ("make a list of
     // them" while one of them plays), it is one of the songs like any other.
@@ -238,7 +244,12 @@ const together = action({
   filters: 'optional',
   run: async ({ deps, text, steps }, _fields, filters) => {
     if (!filters) return { kind: 'together', describe: null }
-    const { understanding, unknown } = groundPlan(filters, deps.songs(), deps.tags())
+    const { understanding, unknown } = groundPlan(
+      filters,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     const describe = await narrowAndPick(deps, text, understanding, unknown, [], steps, null)
     return { kind: 'together', describe }
   },
@@ -377,7 +388,12 @@ const library = action({
     }
     // How a song sounds or what it is about cannot be counted in code: a model
     // judges each song the filters let in, and those it says are it are counted.
-    const { understanding } = groundPlan(filters, deps.songs(), deps.tags())
+    const { understanding } = groundPlan(
+      filters,
+      deps.songs(),
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     const judged = await songsThatAre(deps, text, understanding, steps)
     return libraryAnswer(deps, filters, question, judged)
   },
@@ -403,7 +419,12 @@ const tidyUp = action({
       return { kind: 'tidy', tidy: await tidy(deps, steps) }
     }
     const songs = deps.songs()
-    const { understanding, unknown } = groundPlan(filters ?? EVERYTHING, songs, deps.tags())
+    const { understanding, unknown } = groundPlan(
+      filters ?? EVERYTHING,
+      songs,
+      deps.tags(),
+      deps.artistNames?.() ?? NO_JOINS,
+    )
     // Places asked for and none of them here: that is the answer, never the whole library instead.
     const named = filters
       ? filters.anyTags.length + filters.artists.length + filters.albums.length

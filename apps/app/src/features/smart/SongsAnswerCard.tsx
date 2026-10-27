@@ -16,7 +16,7 @@ import { AddingToRoom } from '../room/RoomPicks'
 import type { ListSource } from '../lists/lists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
 import { keepAnswer, useKeptAnswer } from './answers.store'
-import { answerSongs } from './smart.model'
+import { answerSongs, describeNotes } from './smart.model'
 import { useSmartServer } from './useSmartServer'
 import { Press } from '../../ui/components/Press'
 import { rowTitle, textColumn, lineSub } from '../../ui/surfaces'
@@ -61,7 +61,14 @@ export function SongsAnswerCard({
   const room = useContext(AddingToRoom)
 
   if (ids.length === 0) {
-    return <Text style={styles.line}>No song of yours fits that. Try other words for it.</Text>
+    // Why there are none, when the answer says: a name it lacks, the songs
+    // that fit and none suited, or picks not on this device yet.
+    const why = describeNotes(result, 0).slice(1)
+    return (
+      <Text style={styles.line} testID="songs-answer-none">
+        {why.length > 0 ? why.join(' ') : 'No song of yours fits that. Try other words for it.'}
+      </Text>
+    )
   }
 
   const source: ListSource = {

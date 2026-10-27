@@ -28,8 +28,8 @@ every width, and `tablet.yaml` turns it on its side for the sidebar. What is lef
 - **Split View on the simulator, by hand, once more.** Landscape was checked on the iPad
   Pro 11-inch on 2026-09-19 (Home as `T06`, a tag page, Now Playing). Split View on
   2026-09-20 showed the hazard below for real — at about 600 points the app went on
-  drawing the sidebar and the stage — so `useLayout` now prefers the root view's measured
-  width (`shell/rootWidth.ts`); that wants confirming in Split View itself, which nothing
+  drawing the sidebar and the stage — so `useLayout` takes the root view's measured size
+  whenever it is newer than the window's (`shell/layoutSize.model.ts`); that wants confirming in Split View itself, which nothing
   here can enter. Notes for whoever does it: Maestro cannot turn an iPad and its taps land
   in the wrong place while one is turned (relaunch the app afterwards), so drive it by hand
   or by deep link (`xcrun simctl openurl <udid> selfmp3://tag/<name>` — which also pulls

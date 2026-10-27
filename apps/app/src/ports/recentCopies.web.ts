@@ -125,6 +125,8 @@ const browserRecentCopies = {
   forgetRecent: browserForgetRecent,
   clearRecent: browserClearRecent,
   keepRecentlyPlayed: browserKeepRecentlyPlayed,
+  // The service worker's fetch is the page's to finish; it is kept like any other.
+  dropAhead: (_songId: number): void => undefined,
 }
 
 const chosen: typeof browserRecentCopies = desktopRecentCopies ?? browserRecentCopies
@@ -135,3 +137,4 @@ export const promoteRecent = chosen.promoteRecent
 export const forgetRecent = chosen.forgetRecent
 export const clearRecent = chosen.clearRecent
 export const keepRecentlyPlayed = chosen.keepRecentlyPlayed
+export const dropAhead = chosen.dropAhead

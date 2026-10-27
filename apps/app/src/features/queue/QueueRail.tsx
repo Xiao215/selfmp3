@@ -79,11 +79,17 @@ export function QueueRail(): ReactNode {
   // render, so opening never paints a frame without it.
   const [mounted, setMounted] = useState(shown)
   if (shown && !mounted) setMounted(true)
-  const gone = useCallback(() => setMounted(false), [])
+  // Open before the rail was: the phone's sheet, and an iPad turned on its
+  // side. It stands where it already is rather than sliding in over the turn.
+  const [openBefore, setOpenBefore] = useState(shown)
+  const gone = useCallback(() => {
+    setMounted(false)
+    setOpenBefore(false)
+  }, [])
   const edits = useQueueEdits(mounted)
   useOnlySongEndNotice(edits.player)
 
-  return mounted ? <Rail shown={shown} onGone={gone} edits={edits} /> : null
+  return mounted ? <Rail shown={shown} open={openBefore} onGone={gone} edits={edits} /> : null
 }
 
 /**
@@ -145,10 +151,13 @@ interface RowActions {
 
 function Rail({
   shown,
+  open,
   onGone,
   edits,
 }: {
   shown: boolean
+  /** Already open when it came to be (`QueueRail`): it starts there. */
+  open: boolean
   onGone: () => void
   edits: ReturnType<typeof useQueueEdits>
 }): ReactNode {
@@ -396,8 +405,8 @@ function Rail({
    * JavaScript thread cannot stutter. Both run on every change, since which
    * one is drawn can change under them with the window's width.
    */
-  const [progress] = useState(() => new Animated.Value(0))
-  const [slid] = useState(() => new Animated.Value(0))
+  const [progress] = useState(() => new Animated.Value(open ? 1 : 0))
+  const [slid] = useState(() => new Animated.Value(open ? 1 : 0))
   useEffect(() => {
     if (shown) {
       spring(progress, 1, { native: false })

@@ -59,6 +59,12 @@ interface RecentFolder<Destination> {
   /** Free space on the disk, or null when it will not say. */
   free(): Promise<number | null>
   /**
+   * A download of this file under way stopped and what came of it deleted:
+   * whoever waits on it hears that it did not arrive. A phone's loopback
+   * server can (`songStream.ts`); left out, a download runs to its end.
+   */
+  cancel?(fileName: string): void
+  /**
    * Where to fetch a song's copy from, when this platform has somewhere better
    * than the bucket: the desktop shell has the song it just streamed on its
    * disk already. Left out, the bucket through the doorman (`sourceFor`).
@@ -78,15 +84,26 @@ export interface RecentCopies<Destination> {
    * now would delete the very file the download is about to want.
    */
   promoteRecent(songIds: readonly number[]): void
-  /** Removed by hand: no longer this budget's to count, and no longer here. */
+  /**
+   * Removed by hand, or a song that would not play: no longer this budget's
+   * to count, and no longer here — nor still arriving.
+   */
   forgetRecent(songIds: readonly number[]): void
   clearRecent(): void
   keepRecentlyPlayed(song: SongFile): Promise<void>
   /**
+   * The song fetched ahead of its turn (`keepRecentlyPlayed`) is no longer
+   * coming: another was chosen, or the queue moved past it. A download of it
+   * still under way stops and is not kept, rather than sharing the connection
+   * with the song now wanted (R2-m24); a copy already whole stays, its bytes
+   * paid for. Where a download cannot be stopped it runs on, and is kept.
+   */
+  dropAhead(songId: number): void
+  /**
    * The player's own stream of a song begun (a phone's `songStream.ts`): when
    * it is whole (`arrived`), it is kept as played now, not when it landed.
    */
-  streaming(songId: number): void
+  streaming(song: SongFile): void
   /**
    * A copy the player's own stream brought whole: the play already paid for
    * the bytes, so it is kept as if fetched for it — unless the song was removed
@@ -197,6 +214,16 @@ export function createRecentCopies<Destination>(
    * removed by hand, which is how a copy that lands after that is let go.
    */
   const asked = new Map<number, number>()
+  /** The file each song asked for is arriving as, by song: what to stop when it is not wanted after all. */
+  const arrivingAs = new Map<number, string>()
+
+  /** A download still under way, stopped and not kept when it lands. */
+  function stop(songId: number): void {
+    const fileName = arrivingAs.get(songId)
+    asked.delete(songId)
+    arrivingAs.delete(songId)
+    if (fileName !== undefined) folder.cancel?.(fileName)
+  }
 
   /**
    * A whole copy, written down as played when it was last asked for — or let
@@ -209,6 +236,7 @@ export function createRecentCopies<Destination>(
     const known = kept.get(song.id)
     const playedAt = asked.get(song.id) ?? (known?.fileName === fileName ? known.playedAt : null)
     asked.delete(song.id)
+    arrivingAs.delete(song.id)
     if (playedAt === null) {
       folder.delete(fileName)
       return
@@ -238,8 +266,8 @@ export function createRecentCopies<Destination>(
       const kept = load()
       let changed = false
       for (const songId of songIds) {
-        // Still arriving: not kept once it lands (`settle`).
-        asked.delete(songId)
+        // Still arriving: stopped where it can be, and not kept once it lands (`settle`).
+        stop(songId)
         if (!kept.has(songId)) continue
         drop(kept, songId)
         changed = true
@@ -250,6 +278,7 @@ export function createRecentCopies<Destination>(
     clearRecent() {
       folder.clear()
       asked.clear()
+      arrivingAs.clear()
       save(new Map())
     },
 
@@ -286,6 +315,7 @@ export function createRecentCopies<Destination>(
         if (bucketHold('read')) return
         // Signed in is the only case this is called in, so there is no server to name.
         const from = folder.source?.(song) ?? (await sourceFor(song, null))
+        arrivingAs.set(song.id, fileName)
         const bytes = await folder.fetch(fileName, from.url, from.headers)
         if (bytes === null) return
         await settle(song, fileName, bytes)
@@ -297,8 +327,13 @@ export function createRecentCopies<Destination>(
       }
     },
 
-    streaming(songId) {
-      asked.set(songId, Date.now())
+    dropAhead(songId) {
+      if (folder.cancel && arrivingAs.has(songId)) stop(songId)
+    },
+
+    streaming(song) {
+      asked.set(song.id, Date.now())
+      arrivingAs.set(song.id, fileNameFor(song))
     },
 
     arrived: (song, bytes) => settle(song, fileNameFor(song), bytes),

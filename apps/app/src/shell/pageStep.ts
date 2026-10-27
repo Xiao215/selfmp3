@@ -31,6 +31,24 @@ export function pageKey(pathname: string, wide: boolean, stackMoves = true): str
   return activeTab(pathname) ?? (pathname === '/search' ? '/search' : null)
 }
 
+/** The page `PageStep` last showed: what it was counted by, and under which layout. */
+export interface PageShown {
+  readonly key: string
+  readonly wide: boolean
+}
+
+/**
+ * Whether the page now shown is a step to another page, which steps in. Not
+ * when only the layout changed: an iPad turned across the breakpoint keeps its
+ * page, and a page pushed on a phone is counted by its tab where a computer
+ * counts it by itself, so the key changes without the page changing. Stepped
+ * in, the page drew nothing for the first frames of the upright layout
+ * (r1 m43, R2-m17).
+ */
+export function pageStepped(from: PageShown, to: PageShown): boolean {
+  return from.wide === to.wide && from.key !== to.key
+}
+
 /**
  * Which side the new page comes from on a phone: 1 from the right, -1 from
  * the left. Only the tabs have sides; a page pushed over one — Profile,

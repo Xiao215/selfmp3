@@ -52,6 +52,8 @@ export const MOVE_MS = {
   place: 340,
   /** The cover shrinking while paused (`M1`, 5); it grows back on the spring. */
   breath: 400,
+  /** A paused cover's slow breath once it has shrunk, each way, in and out (I2). */
+  restBreath: 2400,
   /** The play glyph turning into pause, and back (`M1`, 2): half out, half in. */
   swap: 180,
   /** A computer's Now Playing settling in, and lifting away before the route changes (`M3`, 2). */
@@ -74,6 +76,8 @@ export const MOVE_MS = {
    * back in over `motion.base`.
    */
   panel: 220,
+  /** A tag chip snapping in among a song's tags as the tag is added, on the overshoot (I2). */
+  chipIn: 260,
   /** A hover caption fading up, and away. */
   tooltip: 120,
   /** How long the pointer rests on a control before its caption appears. */

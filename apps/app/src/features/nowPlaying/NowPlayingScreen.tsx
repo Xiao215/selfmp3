@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, Image, PanResponder, Text, useWindowDimensions, View } from 'react-native'
+import {
+  Animated,
+  Easing,
+  Image,
+  PanResponder,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native'
 import { Guide, riseWith } from '../guide/Guide'
 import { useGuide, type GuideHandle, type GuideTarget } from '../guide/useGuide'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
@@ -16,7 +24,15 @@ import { ShareSheet } from '../share/ShareSheet'
 import { RoomPill, TogetherButton } from '../room/Together'
 import { usePlayer, usePlayerPlaying } from '../../player/PlayerProvider'
 import { useSongColor } from '../../ui/useSongColor'
-import { ease, motionMs, nativeDriver, spring, timing, useEntrance } from '../../ui/motion'
+import {
+  ease,
+  motionMs,
+  nativeDriver,
+  spring,
+  timing,
+  useEntrance,
+  useMotionReduced,
+} from '../../ui/motion'
 import { MOVE_MS, PULL } from '../../ui/motion.model'
 import { takeCoverHandoff, type CoverFrame } from '../../ui/coverHandoff'
 import { pageFootNow, setPageFoot, usePageFoot } from '../../shell/pageFoot'
@@ -53,6 +69,7 @@ import {
   backdropVeil,
   isVerticalPull,
   parseView,
+  PAUSED_BREATH,
   PAUSED_COVER_SCALE,
   swipeOutcome,
   type PhoneView,
@@ -671,8 +688,9 @@ type CoverTransform = (
 
 /**
  * The cover, which breathes (`M1`, move 5): smaller while paused and full size
- * playing, so the page says which it is without a glyph being read. Tapping
- * it opens the words, as a pull up does.
+ * playing, so the page says which it is without a glyph being read. Paused, it
+ * goes on breathing, slowly and a little (`PAUSED_BREATH`). Tapping it opens
+ * the words, as a pull up does.
  *
  * It takes whatever height the page leaves it, so on a short phone it is the
  * cover that gives way and nothing below it is pushed off the bottom.
@@ -723,6 +741,33 @@ function BreathingCover({
     else timing(breath, PAUSED_COVER_SCALE, MOVE_MS.breath, undefined, { easing: ease.out })
   }, [playing, breath])
 
+  // Paused and settled, a slow breath on top of the shrink; playing, or under
+  // Reduce Motion, it lets out and holds still.
+  const reduced = useMotionReduced()
+  const [rest] = useState(() => new Animated.Value(1))
+  useEffect(() => {
+    if (playing || reduced) {
+      rest.stopAnimation()
+      timing(rest, 1, MOVE_MS.breath, undefined, { easing: ease.out })
+      return
+    }
+    const half = (to: number): Animated.CompositeAnimation =>
+      Animated.timing(rest, {
+        toValue: to,
+        duration: MOVE_MS.restBreath,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: nativeDriver,
+      })
+    const loop = Animated.loop(Animated.sequence([half(PAUSED_BREATH), half(1)]))
+    // Once the shrink has landed, so the two are not one lurch.
+    const wait = setTimeout(() => loop.start(), MOVE_MS.breath)
+    return () => {
+      clearTimeout(wait)
+      loop.stop()
+    }
+  }, [playing, reduced, rest])
+  const breathing = useMemo(() => Animated.multiply(breath, rest), [breath, rest])
+
   /*
    * The cover's travel from the mini player's (`M2`, 1), as two numbers and a
    * ratio: the nearest this app comes to the board's shared element, and it
@@ -759,13 +804,14 @@ function BreathingCover({
     // grows into place where it is. The breath multiplies into the same scale
     // either way, so a play or a pause while the page is opening compounds with
     // it rather than fighting it.
-    if (travel === null) return [{ scale: Animated.multiply(breath, between(COVER_OPENS_AT, 1)) }]
+    if (travel === null)
+      return [{ scale: Animated.multiply(breathing, between(COVER_OPENS_AT, 1)) }]
     return [
       { translateX: between(travel.x, 0) },
       { translateY: between(travel.y, 0) },
-      { scale: Animated.multiply(breath, between(travel.scale, 1)) },
+      { scale: Animated.multiply(breathing, between(travel.scale, 1)) },
     ]
-  }, [breath, opening, travel])
+  }, [breathing, opening, travel])
 
   return (
     <View

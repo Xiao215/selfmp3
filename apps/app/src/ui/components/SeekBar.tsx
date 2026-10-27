@@ -7,6 +7,9 @@ import { usePlayerCommands, usePlayerProgress, usePlayingSongId } from '../../pl
 import { SEEK_STEP_SECONDS } from '../../player/progress.model'
 import { Scrubber } from './Scrubber'
 
+/** How far a scrub goes between the taps a finger feels on a phone. */
+const SEEK_DETENT_SECONDS = 10
+
 /**
  * The playing song's scrubber, with its times: Now Playing's thick track
  * with elapsed and what is left beneath it, or the player bar's thin one
@@ -48,6 +51,8 @@ export function SeekBar({
       hold={waiting === undefined}
       label="Seek"
       step={SEEK_STEP_SECONDS}
+      // A tap a second buzzed all the way along a phone's bar.
+      detents={SEEK_DETENT_SECONDS}
       valueText={at => `${formatDuration(at)} of ${formatDuration(duration)}`}
       size={inline ? 'small' : 'large'}
       color={color}

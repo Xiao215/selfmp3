@@ -8,9 +8,10 @@ import { space } from '@selfmp3/client'
 import { useAccent } from '../accent'
 import { spring } from '../motion'
 import { tip } from '../tip'
-import { filledTenths, valueAlong } from './scrubber.model'
+import { Detents, filledTenths, valueAlong } from './scrubber.model'
 import { ADJUST_ACTIONS } from './slider.model'
 import { browserKeys } from '../../ports/browserKeys'
+import { firmTap, lightTap } from '../../ports/haptics'
 
 /**
  * Closer than this to a seek, the player is taken to be there. Wide enough for
@@ -83,6 +84,9 @@ const THUMB_GRABBED = 1.2
  * let-go value showing until `value` catches up with it (`useSeekHold`).
  * `of` is what is being scrubbed, the song: a drag still held when it changes
  * is called off, rather than let go on the next song at the old one's place.
+ * `detents` is a stretch of the value a finger feels on a phone: a light tap
+ * each time a drag crosses into the next one, and a firmer one at either end
+ * (I2 of the Oct 27 review; a browser has no taps).
  */
 export function Scrubber({
   value,
@@ -103,6 +107,7 @@ export function Scrubber({
   style,
   around,
   of = null,
+  detents,
 }: {
   value: number
   max: number
@@ -134,6 +139,8 @@ export function Scrubber({
   around?: (bar: ReactNode, shown: number) => ReactNode
   /** What it scrubs, such as the song: a drag held across a change of it is dropped. */
   of?: number | string | null
+  /** How much of the value a finger feels as one step while dragging; none, no taps. */
+  detents?: number
 }): ReactNode {
   const accent = useAccent()
   const fill = color ?? accent.accent
@@ -153,6 +160,8 @@ export function Scrubber({
    */
   const [grab, setGrab] = useState<{ readonly of: typeof of } | null>(null)
   const grabGone = grab !== null && grab.of !== of
+  // The stretch the finger was last in, for `detents`: made once, as a drag's taps are not drawn.
+  const [feltAt] = useState(() => new Detents())
 
   // Rebuilt when the length or the end changes rather than reading refs:
   // PanResponder objects are cheap, and the alternative is a handler that
@@ -166,10 +175,17 @@ export function Scrubber({
     // it is always this view, and stays right as it moves round the screen.
     const valueAt = (x: number, y: number): number | null =>
       valueAlong(vertical ? length - y : x, length, max)
+    const feel = (at: number): void => {
+      if (!detents) return
+      const tap = feltAt.next(at, max, detents)
+      if (tap === 'firm') firmTap()
+      else if (tap === 'light') lightTap()
+    }
     const drag = (x: number, y: number): void => {
       if (grabGone) return
       const at = valueAt(x, y)
       if (at === null) return
+      feel(at)
       setDragging(at)
       onChange?.(at)
     }
@@ -186,6 +202,7 @@ export function Scrubber({
       onPanResponderMove: event => drag(event.nativeEvent.locationX, event.nativeEvent.locationY),
       onPanResponderRelease: event => {
         const at = valueAt(event.nativeEvent.locationX, event.nativeEvent.locationY)
+        feltAt.reset()
         setGrab(null)
         setDragging(null)
         if (at === null || grabGone) return
@@ -193,11 +210,12 @@ export function Scrubber({
         onCommit(at)
       },
       onPanResponderTerminate: () => {
+        feltAt.reset()
         setGrab(null)
         setDragging(null)
       },
     })
-  }, [length, max, vertical, onChange, onCommit, hold, holdAt, of, grabGone])
+  }, [length, max, vertical, onChange, onCommit, hold, holdAt, of, grabGone, detents, feltAt])
 
   const shown = (grabGone ? null : dragging) ?? held ?? value
   // A tenth of a per cent at a time (`filledTenths` says why).

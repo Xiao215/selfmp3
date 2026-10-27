@@ -8,3 +8,8 @@ import * as Haptics from 'expo-haptics'
 export function lightTap(): void {
   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined)
 }
+
+/** A firmer tap: the end of something under the finger, such as the start of a song while scrubbing. */
+export function firmTap(): void {
+  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined)
+}

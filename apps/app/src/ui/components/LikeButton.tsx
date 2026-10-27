@@ -6,6 +6,7 @@ import type { Song } from '@selfmp3/shared'
 import { isRoomTrackId, useToggleLoved } from '@selfmp3/client'
 import { ease, timing } from '../motion'
 import { MOVE_MS } from '../motion.model'
+import { lightTap } from '../../ports/haptics'
 import { useSongColor } from '../useSongColor'
 import { IconButton } from './IconButton'
 import { Heart } from './Icons'
@@ -17,8 +18,8 @@ import { Heart } from './Icons'
  * song in a room is not yours to like. Here it draws nothing for one.
  *
  * Liked, the heart pops — in a little, then past its size and back — and one
- * ring goes out from it in the song's own colour (O1, 2026-10-25). Unliking
- * just turns it back. Under Reduce Motion neither moves: `timing` lands at
+ * ring goes out from it in the song's own colour (O1, 2026-10-25), with a
+ * light tap on a phone (I2, 2026-10-27). Unliking just turns it back. Under Reduce Motion neither moves: `timing` lands at
  * once, where the heart is its own size and the ring is gone.
  *
  * Bare in a row of icons (the player bar); `filled`, on the control surface,
@@ -65,6 +66,7 @@ export function LikeButton({
     const liking = !song.loved
     toggleLoved.mutate({ id: song.id, loved: liking })
     if (!liking) return
+    lightTap()
     pop.setValue(0)
     ring.setValue(0)
     timing(pop, 1, MOVE_MS.likePop, undefined, { easing: Easing.linear })

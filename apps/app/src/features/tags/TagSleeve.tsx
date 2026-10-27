@@ -1,6 +1,6 @@
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Animated, View } from 'react-native'
+import { Animated, Easing, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import Svg, { Circle, Path } from 'react-native-svg'
 import type { Song } from '@selfmp3/shared'
@@ -8,12 +8,15 @@ import { darkPalette, radius, tagColors } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { Cover } from '../../ui/components/Cover'
 import { Play } from '../../ui/components/Icons'
-import { useFade } from '../../ui/motion'
+import { nativeDriver, useFade, useMotionReduced } from '../../ui/motion'
 import { MOVE_MS } from '../../ui/motion.model'
 import { artShadow } from '../../ui/surfaces'
 
 /** A tag's tile is this many times as wide as it is tall: the sleeve, and the record out of it. */
 export const SLEEVE_ASPECT = 1.6
+
+/** One turn of a playing record: 33⅓ to the minute. */
+const TURN_MS = 1800
 
 /** The record's grooves, as radii of a 100-wide disc. */
 const GROOVES = [46, 43, 40, 37, 34, 31, 28, 25, 22]
@@ -97,6 +100,10 @@ const RecordDisc = memo(function RecordDisc({
  * slides a little further out and turns, and Play shows on the label (pick G).
  * Rest is drawn by the layout; the move is only a transform, so a slow frame
  * cannot leave the record anywhere but where it belongs.
+ *
+ * `spinning` is this tag playing (I2 of the Oct 27 review): the record stands
+ * out of its sleeve and turns at a record's speed, and on a pause it finishes
+ * the turn it is on and stops. Under Reduce Motion it only stands out.
  */
 export const TagSleeve = memo(function TagSleeve({
   song,
@@ -104,6 +111,7 @@ export const TagSleeve = memo(function TagSleeve({
   name,
   width,
   out,
+  spinning = false,
 }: {
   /** Whose cover the sleeve wears; none for a tag with no songs. */
   song: Song | null
@@ -111,11 +119,14 @@ export const TagSleeve = memo(function TagSleeve({
   name: string
   width: number
   out: boolean
+  /** This tag is what is playing. */
+  spinning?: boolean
 }): ReactNode {
   const height = Math.round(width / SLEEVE_ASPECT)
   const disc = Math.round(height * 0.92)
   const art = useArt(height)
-  const shown = useFade(out, MOVE_MS.record, MOVE_MS.record)
+  const shown = useFade(out || spinning, MOVE_MS.record, MOVE_MS.record)
+  const spin = useSpin(spinning)
   const motionStyle = useMemo(
     () => ({
       transform: [
@@ -132,7 +143,9 @@ export const TagSleeve = memo(function TagSleeve({
     }),
     [shown],
   )
-  const glyph = useMemo(() => ({ opacity: shown }), [shown])
+  // Play on the label is for the pointer resting on it, never for a record already playing.
+  const pointed = useFade(out && !spinning, MOVE_MS.record, MOVE_MS.record)
+  const glyph = useMemo(() => ({ opacity: pointed }), [pointed])
   return (
     <View style={{ width, height }} pointerEvents="none">
       <Animated.View
@@ -142,8 +155,10 @@ export const TagSleeve = memo(function TagSleeve({
           motionStyle,
         ]}
       >
-        <Animated.View style={turn}>
-          <RecordDisc size={disc} label={tagColors(hue).dot} />
+        <Animated.View style={spin}>
+          <Animated.View style={turn}>
+            <RecordDisc size={disc} label={tagColors(hue).dot} />
+          </Animated.View>
         </Animated.View>
         <Animated.View style={[styles.glyph, glyph]}>
           <Play size={Math.max(12, Math.round(disc * 0.12))} color={tagColors(hue).onDot} />
@@ -162,6 +177,61 @@ export const TagSleeve = memo(function TagSleeve({
     </View>
   )
 })
+
+/**
+ * The turn of a record that is playing, as a transform: round and round while
+ * `on`, and when it goes off, on to the end of the turn it is in and still
+ * there, so it never snaps back to where it started.
+ */
+function useSpin(on: boolean): { transform: { rotate: Animated.AnimatedInterpolation<string> }[] } {
+  const reduced = useMotionReduced()
+  const [turn] = useState(() => new Animated.Value(0))
+  useEffect(() => {
+    if (!on || reduced) {
+      turn.stopAnimation(at => {
+        if (at === 0) return
+        Animated.timing(turn, {
+          toValue: 1,
+          duration: reduced ? 0 : Math.round((1 - at) * TURN_MS * 1.6),
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: nativeDriver,
+        }).start(({ finished }) => {
+          if (finished) turn.setValue(0)
+        })
+      })
+      return
+    }
+    // A loop plays each turn again from where it first started, so it starts
+    // from the top: a stop that was still easing out is cut short there.
+    let loop: Animated.CompositeAnimation | null = null
+    let gone = false
+    turn.stopAnimation(() => {
+      if (gone) return
+      turn.setValue(0)
+      loop = Animated.loop(
+        Animated.timing(turn, {
+          toValue: 1,
+          duration: TURN_MS,
+          easing: Easing.linear,
+          useNativeDriver: nativeDriver,
+        }),
+      )
+      loop.start()
+    })
+    return () => {
+      gone = true
+      loop?.stop()
+    }
+  }, [on, reduced, turn])
+  return useMemo(
+    () => ({
+      transform: [
+        { rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+      ],
+    }),
+    [turn],
+  )
+}
 
 const styles = StyleSheet.create(theme => ({
   disc: { position: 'absolute', borderRadius: radius.pill, ...artShadow(theme.colors, 'lean') },

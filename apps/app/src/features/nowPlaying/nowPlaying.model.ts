@@ -39,6 +39,12 @@ export function parseView(value: unknown): PhoneView {
 export const PAUSED_COVER_SCALE = 0.84
 
 /**
+ * How far a paused cover swells as it breathes, once it has shrunk: slow and
+ * small, so a paused page is still, not stopped (I2 of the Oct 27 review).
+ */
+export const PAUSED_BREATH = 1.025
+
+/**
  * The least a flick may travel and still count. How far a slow pull must go, and
  * how quick a flick has to be, are the caller's: they are `PULL` in
  * `ui/motion.model.ts`, the same two numbers a sheet's pull is let go by, and a

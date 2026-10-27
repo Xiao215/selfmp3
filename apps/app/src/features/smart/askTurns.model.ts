@@ -27,6 +27,8 @@ export interface Turn {
   readonly change: string | null
   /** The kept answer its songs are, once it has some to show; null for any other answer. */
   readonly list: string | null
+  /** What came of it, as Ask's log says it under the question (`logLine`); null until answered. */
+  readonly line: string | null
 }
 
 /** Whether words are more than Ask takes: they are never sent, and the turn says so. */

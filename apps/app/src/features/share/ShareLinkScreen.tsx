@@ -32,7 +32,7 @@ import {
   yoursOf,
 } from '@selfmp3/client'
 import { useConnection } from '../../connection/ConnectionProvider'
-import { usePlayerCommands, usePlayingSongId } from '../../player/PlayerProvider'
+import { usePlayerCommands, usePlayerPlaying, usePlayingSongId } from '../../player/PlayerProvider'
 import { setTrackSource } from '../../player/roomTracks'
 import { prefs } from '../../ports/prefs'
 import { ChromeSpacer } from '../../shell/ChromeSpacer'
@@ -139,6 +139,7 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   const signedIn = status === 'ready'
   const player = usePlayerCommands()
   const playing = usePlayingSongId()
+  const sounding = usePlayerPlaying()
   const index = useLibraryIndex()
   // The clock moves on while the page is open: the last day, and the end, arrive by themselves.
   const now = useMinute()
@@ -228,10 +229,16 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
     else player.playFrom(ids, at)
   }
 
-  // A list's song, picked from its covers: played there, or paused when it is the one playing.
+  // A list's song, picked from its covers. Picking never changes whether the
+  // music plays, as Next does not: while it plays, the song plays; paused, the
+  // list lands on it paused; before the list has played, the page moves to it.
+  // The song already loaded is Play's own press: played, or paused.
   const pick = (at: number): void => {
     setCued(at)
-    play(at)
+    const id = ids[at]
+    if (id === undefined) return
+    if (sounding || playing === id) play(at)
+    else if (playingAt !== undefined) player.playFrom(ids, at, { autoplay: false })
   }
   // Next and Previous: the player's own once it has the list, the cue's before.
   const step = (by: 1 | -1): void => {

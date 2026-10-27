@@ -2386,6 +2386,25 @@ describe('CloudSyncService', () => {
       expect(cloud.wasRemoved(uid('never'))).toBe(false)
     })
 
+    it('does not take a deleted playlist back from the bucket when told to look again', async () => {
+      const one = addSong('A - One', 'one')
+      const mix = playlists.create({ name: 'Mix', description: '', kind: 'manual', rules: null })
+      playlists.add(mix.id, [one])
+      await connect()
+      const mixUid = latest().playlists[0]?.uid ?? ''
+
+      // Deleted, and the bucket not yet told: its newest snapshot still lists
+      // the playlist, and a restart or *Publish now* reads it again.
+      playlists.delete(mix.id)
+      expect(cloud.wasPlaylistRemoved(mixUid)).toBe(true)
+      await sync.syncNow({ verify: true })
+      await sync.whenIdle()
+
+      expect(playlists.all()).toEqual([])
+      expect(latest().playlists).toEqual([])
+      expect(cloud.wasPlaylistRemoved(mixUid)).toBe(false)
+    })
+
     it('keeps a file in the bucket that another song still names', async () => {
       const service = lettingGo()
       const gone = addSong('A - One', 'same')

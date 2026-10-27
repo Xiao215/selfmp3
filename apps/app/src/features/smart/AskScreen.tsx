@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
 } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -33,6 +34,7 @@ import {
   useLibrary,
 } from '@selfmp3/client'
 import { ServerAway } from '../../connection/ServerAway'
+import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { usePlayer } from '../../player/PlayerProvider'
 import { fonts } from '../../ports/fonts'
@@ -78,7 +80,14 @@ import {
   understandingOf,
   useKeptAnswer,
 } from './answers.store'
-import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
+import {
+  afterStop,
+  beforeTurn,
+  retried,
+  scrollToShow,
+  tooLongToAsk,
+  type Turn,
+} from './askTurns.model'
 import { answerRecap, askSuggestions, logLine, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
@@ -217,6 +226,7 @@ export function AskScreen(): ReactNode {
   const [letGoOf, setLetGoOf] = useState<string | null>(null)
   const target = onLog ? null : (shownTurn?.list ?? null)
   const changing = useKeptAnswer(target !== null && target !== letGoOf ? target : undefined)
+  const changingSongs = changing ? changingCount(changing, server.onDevice) : 0
   // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
   const answerKeys = !typing && !working ? keys : null
 
@@ -323,7 +333,10 @@ export function AskScreen(): ReactNode {
         chip={
           changing
             ? {
-                label: changingLabel(changing, server.onDevice),
+                label:
+                  changingSongs === 1
+                    ? 'this song'
+                    : `these ${plural(changingSongs, 'song', 'songs')}`,
                 name: changing.result.understanding.name,
                 onLetGo: () => setLetGoOf(changing.id),
               }
@@ -332,7 +345,9 @@ export function AskScreen(): ReactNode {
         placeholder={
           changing
             ? // The chip already says which songs.
-              'Change them…'
+              changingSongs === 1
+              ? 'Change it…'
+              : 'Change them…'
             : turns.length === 0
               ? 'Ask anything…'
               : 'Ask a follow-up…'
@@ -445,6 +460,27 @@ function Log({
   const { wide } = useLayoutFlags()
   const { top } = useSafeAreaInsets()
   const frame = pageFrame(wide)
+  // The log follows the conversation: a new question, the answer shown, and
+  // the field growing under it each bring the line they are about into view
+  // (on a phone, the newest). Lines below the field went unseen from about
+  // the eleventh question on. Scrolling back through it is left alone.
+  const scroller = useRef<ScrollView>(null)
+  const lines = useRef(new Map<number, { y: number; height: number }>())
+  const view = useRef({ y: 0, height: 0 })
+  const toShow = shownId ?? turns.at(-1)?.id ?? null
+  const wanted = useRef<number | null>(null)
+  const reveal = useCallback(() => {
+    const id = wanted.current
+    const line = id === null ? undefined : lines.current.get(id)
+    if (!line || view.current.height === 0) return
+    wanted.current = null
+    const y = scrollToShow(line, view.current, space.sm)
+    if (y !== null) scroller.current?.scrollTo({ y, animated: true })
+  }, [])
+  useEffect(() => {
+    wanted.current = toShow
+    reveal()
+  }, [toShow, turns.length, reveal])
   return (
     <View style={[styles.log, wide && styles.logWide]} testID="ask-log">
       <View style={[styles.logHead, { paddingTop: top + frame.paddingTop }]}>
@@ -454,9 +490,21 @@ function Log({
         </Text>
       </View>
       <ScrollView
+        ref={scroller}
         style={styles.logLines}
         contentContainerStyle={styles.logLinesContent}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={64}
+        onScroll={event => {
+          view.current = { ...view.current, y: event.nativeEvent.contentOffset.y }
+        }}
+        onLayout={event => {
+          const { height } = event.nativeEvent.layout
+          if (height === view.current.height) return
+          view.current = { ...view.current, height }
+          wanted.current = toShow
+          reveal()
+        }}
       >
         {turns.map(turn => (
           <LogLine
@@ -464,6 +512,10 @@ function Log({
             turn={turn}
             shown={turn.id === shownId}
             onPress={() => onShow(turn.id)}
+            onLayout={({ nativeEvent: { layout } }) => {
+              lines.current.set(turn.id, { y: layout.y, height: layout.height })
+              if (turn.id === wanted.current) reveal()
+            }}
           />
         ))}
         {children}
@@ -478,10 +530,12 @@ function LogLine({
   turn,
   shown,
   onPress,
+  onLayout,
 }: {
   turn: Turn
   shown: boolean
   onPress: () => void
+  onLayout: (event: LayoutChangeEvent) => void
 }): ReactNode {
   const { theme } = useUnistyles()
   const server = useSmartServer()
@@ -499,6 +553,7 @@ function LogLine({
     <Press
       feedback="dim"
       onPress={onPress}
+      onLayout={onLayout}
       accessibilityRole="button"
       accessibilityState={{ selected: shown }}
       accessibilityLabel={`${turn.asked}: ${line}`}
@@ -560,14 +615,12 @@ function Stage({
   )
 }
 
-/** The chip's words: how many songs the field's words would change. */
-function changingLabel(
+/** How many songs the field's words would change: the songs its list shows, as the list counts them. */
+function changingCount(
   list: NonNullable<ReturnType<typeof keptAnswer>>,
   onDevice: (serverId: number) => number | undefined,
-): string {
-  // The songs its list shows, as the list counts them.
-  const count = list.order?.length ?? picksHere(list.result, onDevice).length
-  return count === 1 ? 'this song' : `these ${plural(count, 'song', 'songs')}`
+): number {
+  return list.order?.length ?? picksHere(list.result, onDevice).length
 }
 
 /** Under an empty field with the chip on: how to ask something new instead. */
@@ -706,7 +759,7 @@ const TurnStage = memo(function TurnStage({
       )
     },
     enabled: server.api !== null && !tooLong,
-    retry: false,
+    ...ASKS_MODEL,
     staleTime: Infinity,
   })
   // Asked again after it failed (Try again) is waiting too.
@@ -1113,9 +1166,9 @@ const styles = StyleSheet.create(theme => ({
     borderColor: theme.colors.surface3,
     ...floating(theme.colors),
   },
+  // Never cut short: "these 18 so…" hid the one thing the chip is there to say.
   chip: {
-    flexShrink: 1,
-    maxWidth: '45%',
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
@@ -1126,7 +1179,7 @@ const styles = StyleSheet.create(theme => ({
     borderRadius: radius.pill,
     backgroundColor: theme.colors.accentPill,
   },
-  chipText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.small },
+  chipText: { color: theme.colors.textPrimary, fontSize: type.small },
   input: {
     flex: 1,
     minWidth: 0,

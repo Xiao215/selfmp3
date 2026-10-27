@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -15,7 +15,7 @@ import {
   space,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
@@ -170,7 +170,7 @@ export function AnswerView({
           ? 'Picking again from what these let in…'
           : 'Changed. Different songs picks from what these let in.',
       ]
-    : describeNotes(result, ids.length).slice(1)
+    : describeNotes(result, ids.length, seconds).slice(1)
 
   const save = async (): Promise<void> => {
     const input = newPlaylist('manual', result.understanding.name)
@@ -295,15 +295,15 @@ export function AnswerView({
       }
       actions={
         <>
-          <PlayShuffle
+          <AnswerPlay
             name={`the songs picked for “${kept.text}”`}
+            answerId={kept.id}
             songIds={ids}
             // Changed and not yet picked again: what is shown is not the answer.
             disabled={edited !== null}
             heroRef={heroRef}
             onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
-            testPrefix="answer"
           />
           <Button
             label="Different songs"
@@ -348,6 +348,47 @@ export function AnswerView({
 
 /** Words asked run longer than a tag's name, so the words take a little more of the row. */
 const WIDE = { titles: { flexBasis: 260 } } as const
+
+/**
+ * The answer's Play and Shuffle, apart from the page so a play or a pause
+ * draws them again and not the list. While Up next is this answer its Play
+ * is a Pause, and a Play that goes on where it was.
+ */
+function AnswerPlay({
+  name,
+  answerId,
+  songIds,
+  disabled,
+  heroRef,
+  onPlay,
+  onShuffle,
+}: {
+  name: string
+  answerId: string
+  songIds: readonly number[]
+  disabled: boolean
+  heroRef: RefObject<View | null>
+  onPlay: () => void
+  onShuffle: () => void
+}): ReactNode {
+  const player = usePlayer()
+  const ours =
+    player.current !== null &&
+    player.source?.kind === 'answer' &&
+    player.source.answerId === answerId
+  return (
+    <PlayShuffle
+      name={name}
+      songIds={songIds}
+      disabled={disabled}
+      playing={ours ? player.isPlaying : undefined}
+      heroRef={heroRef}
+      onPlay={ours ? player.toggle : onPlay}
+      onShuffle={onShuffle}
+      testPrefix="answer"
+    />
+  )
+}
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },

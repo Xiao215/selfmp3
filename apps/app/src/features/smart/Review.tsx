@@ -111,8 +111,8 @@ export interface ReviewRowState {
  *
  * Five or fewer, given `short`, are not a review in bands at all (AD1): one
  * line per change under a title saying what they are, as a person would list
- * them. The bands, their notes and the ticked count are for a review big
- * enough to need sorting.
+ * them; a line on several songs still opens to them. The bands, their notes
+ * and the ticked count are for a review big enough to need sorting.
  *
  * Closing says what happened, for the conversation to keep: what applying
  * did (the words `onApply` gives back), or that nothing changed.
@@ -280,30 +280,26 @@ export function Review<T extends Reviewed>({
   // A handful of changes on Ask's card are one line each, and the keys stop on each.
   const shortCard = card && short && changes.length <= CARD_WHOLE ? short : null
   // Every place the keys can stop, in the order drawn.
-  const stops: Stop<T>[] = shortCard
-    ? changes.map((each): Stop<T> => ({
-        id: `change:${each.change.key}`,
-        kind: 'change',
-        here: each,
-      }))
-    : []
+  const stops: Stop<T>[] = []
+  const stopsOf = (each: T): void => {
+    stops.push({ id: `change:${each.change.key}`, kind: 'change', here: each })
+    if (!open.has(each.change.key)) return
+    const songs = shownOf(each)
+    for (const songId of songs) {
+      stops.push({ id: `song:${each.change.key}:${songId}`, kind: 'song', here: each, songId })
+    }
+    if (songs.length < each.songIds.length) {
+      stops.push({ id: `songs:${each.change.key}`, kind: 'songs', here: each })
+    }
+  }
+  if (shortCard) changes.forEach(stopsOf)
   for (const band of shortCard ? [] : bands) {
     stops.push({ id: `band:${band.by}`, kind: 'band', by: band.by })
     for (const section of band.sections) {
       const shown = allOf.has(section.title)
         ? section.changes
         : section.changes.slice(0, SECTION_SHOWS)
-      for (const each of shown) {
-        stops.push({ id: `change:${each.change.key}`, kind: 'change', here: each })
-        if (!open.has(each.change.key)) continue
-        const songs = shownOf(each)
-        for (const songId of songs) {
-          stops.push({ id: `song:${each.change.key}:${songId}`, kind: 'song', here: each, songId })
-        }
-        if (songs.length < each.songIds.length) {
-          stops.push({ id: `songs:${each.change.key}`, kind: 'songs', here: each })
-        }
-      }
+      shown.forEach(stopsOf)
       if (shown.length < section.changes.length) {
         stops.push({ id: `section:${section.title}`, kind: 'section', title: section.title })
       }
@@ -368,7 +364,6 @@ export function Review<T extends Reviewed>({
     }
     return false
   }
-  const lineByLine = shortCard !== null
   // Read through a ref, so the handler given once always sees the last draw's state.
   const keyRef = useRef(onKey)
   useEffect(() => {
@@ -381,13 +376,12 @@ export function Review<T extends Reviewed>({
       hints: [
         [['↑', '↓'], 'move'],
         [['space'], 'tick'],
-        // A short card's lines do not open to their songs.
-        ...(lineByLine ? [] : [[['→'], 'songs'] as const]),
+        [['→'], 'songs'],
         [[COMMAND, '↵'], keyWord],
       ],
     })
     return () => onKeys(null)
-  }, [onKeys, keyWord, lineByLine])
+  }, [onKeys, keyWord])
 
   // Keep the stop the keys are on in view.
   const nodes = useRef(new Map<string, unknown>())
@@ -402,14 +396,90 @@ export function Review<T extends Reviewed>({
     else nodes.current.delete(id)
   }
 
+  // A change on more than one song opens to them, a short card's line as much
+  // as a band's row: "白玫瑰 and 16 more → 粤语" is seventeen songs ticked.
+  const openButton = (each: T): ReactNode => {
+    if (each.songIds.length < 2) return null
+    const opened = open.has(each.change.key)
+    return (
+      <Press
+        feedback="dim"
+        onPress={() => {
+          setAt(null)
+          setOpen(toggle(open, each.change.key))
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={
+          opened ? 'Hide the songs' : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
+        }
+        hitSlop={hitSlopFor(OPEN)}
+        style={styles.open}
+        testID={`${testID}-open`}
+      >
+        {opened ? (
+          <ChevronDown size={iconSize.button} tone="textMuted" />
+        ) : (
+          <ChevronRight size={iconSize.button} tone="textMuted" />
+        )}
+      </Press>
+    )
+  }
+  const openedSongs = (each: T, flat = false): ReactNode => {
+    if (!open.has(each.change.key)) return null
+    const { change } = each
+    const on = isOn(each)
+    const songs = shownOf(each)
+    return (
+      <View style={[styles.songs, flat && styles.flatSongs]}>
+        {songs.map(songId => {
+          const song = songsById.get(songId)
+          if (!song) return null
+          const songStop = `song:${change.key}:${songId}`
+          const kept = on && !leftOut.has(leftOutKey(change.key, songId))
+          return (
+            <CheckRow
+              key={songId}
+              ref={place(songStop)}
+              checked={kept}
+              label={`${song.title}, ${artistOr(song.artist)}`}
+              onPress={() => {
+                setAt(null)
+                flipSong(each, songId)
+              }}
+              feedback="dim"
+              style={[styles.song, at === songStop && styles.at]}
+              testID={`${testID}-song`}
+            >
+              <SongLine
+                style={styles.songLine}
+                leading={<Checkbox checked={kept} />}
+                artUri={artFor(song)}
+                coverTitle={song.album || song.title}
+                title={song.title}
+                sub={songLine(song, each)}
+              />
+            </CheckRow>
+          )
+        })}
+        {songs.length < each.songIds.length ? (
+          <More
+            stop={`songs:${change.key}`}
+            indent={space.xs}
+            at={at}
+            place={place}
+            text={`Show ${Math.min(SONGS_MORE, each.songIds.length - songs.length)} more`}
+            onPress={() => showMore(each)}
+          />
+        ) : null}
+      </View>
+    )
+  }
+
   const drawRow = (each: T, flat = false): ReactNode => {
     const { change } = each
     const id = `change:${change.key}`
     const on = isOn(each)
     const full = fullyOn(each)
-    const many = each.songIds.length > 1
-    const opened = open.has(change.key)
-    const songs = shownOf(each)
     return (
       <View key={change.key}>
         <CheckRow
@@ -429,75 +499,9 @@ export function Review<T extends Reviewed>({
           <View style={styles.words}>
             {drawChange(each, { on, full, kept: keptSongs(each, leftOut) })}
           </View>
-          {many ? (
-            <Press
-              feedback="dim"
-              onPress={() => {
-                setAt(null)
-                setOpen(toggle(open, change.key))
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={
-                opened
-                  ? 'Hide the songs'
-                  : `Show the ${plural(each.songIds.length, 'song', 'songs')}`
-              }
-              hitSlop={hitSlopFor(OPEN)}
-              style={styles.open}
-              testID={`${testID}-open`}
-            >
-              {opened ? (
-                <ChevronDown size={iconSize.button} tone="textMuted" />
-              ) : (
-                <ChevronRight size={iconSize.button} tone="textMuted" />
-              )}
-            </Press>
-          ) : null}
+          {openButton(each)}
         </CheckRow>
-        {opened ? (
-          <View style={[styles.songs, flat && styles.flatSongs]}>
-            {songs.map(songId => {
-              const song = songsById.get(songId)
-              if (!song) return null
-              const songStop = `song:${change.key}:${songId}`
-              const kept = on && !leftOut.has(leftOutKey(change.key, songId))
-              return (
-                <CheckRow
-                  key={songId}
-                  ref={place(songStop)}
-                  checked={kept}
-                  label={`${song.title}, ${artistOr(song.artist)}`}
-                  onPress={() => {
-                    setAt(null)
-                    flipSong(each, songId)
-                  }}
-                  feedback="dim"
-                  style={[styles.song, at === songStop && styles.at]}
-                  testID={`${testID}-song`}
-                >
-                  <SongLine
-                    style={styles.songLine}
-                    leading={<Checkbox checked={kept} />}
-                    artUri={artFor(song)}
-                    coverTitle={song.album || song.title}
-                    title={song.title}
-                    sub={songLine(song, each)}
-                  />
-                </CheckRow>
-              )
-            })}
-            {songs.length < each.songIds.length ? (
-              <More
-                stop={`songs:${change.key}`}
-                indent={space.xs}
-                at={at}
-                place={place}
-                text={`Show ${Math.min(SONGS_MORE, each.songIds.length - songs.length)} more`}
-                onPress={() => showMore(each)}
-              />
-            ) : null}
-          </View>
-        ) : null}
+        {openedSongs(each, flat)}
       </View>
     )
   }
@@ -605,38 +609,41 @@ export function Review<T extends Reviewed>({
             const full = fullyOn(each)
             const song = shortCard.song(each)
             return (
-              <CheckRow
-                key={each.change.key}
-                ref={place(id)}
-                checked={full}
-                mixed={isOn(each)}
-                label={labelOf(each)}
-                onPress={() => {
-                  setAt(null)
-                  flip([each], !full)
-                }}
-                feedback="dim"
-                style={[styles.shortRow, at === id && styles.at]}
-                testID={`${testID}-change`}
-              >
-                <Checkbox checked={full} mixed={isOn(each) && !full} />
-                {song ? (
-                  <Cover
-                    uri={artFor(song)}
-                    title={song.album || song.title}
-                    size={coverSize.line}
-                  />
-                ) : null}
-                <View style={styles.words}>
-                  <View style={styles.shortLine}>
-                    {each.change.by === 'model' ? <Sparkle size={iconSize.tiny} /> : null}
-                    {shortCard.line(each)}
+              <View key={each.change.key}>
+                <CheckRow
+                  ref={place(id)}
+                  checked={full}
+                  mixed={isOn(each)}
+                  label={labelOf(each)}
+                  onPress={() => {
+                    setAt(null)
+                    flip([each], !full)
+                  }}
+                  feedback="dim"
+                  style={[styles.shortRow, at === id && styles.at]}
+                  testID={`${testID}-change`}
+                >
+                  <Checkbox checked={full} mixed={isOn(each) && !full} />
+                  {song ? (
+                    <Cover
+                      uri={artFor(song)}
+                      title={song.album || song.title}
+                      size={coverSize.line}
+                    />
+                  ) : null}
+                  <View style={styles.words}>
+                    <View style={styles.shortLine}>
+                      {each.change.by === 'model' ? <Sparkle size={iconSize.tiny} /> : null}
+                      {shortCard.line(each)}
+                    </View>
+                    <Text style={reviewText.meta} numberOfLines={2}>
+                      {shortCard.why(each)}
+                    </Text>
                   </View>
-                  <Text style={reviewText.meta} numberOfLines={2}>
-                    {shortCard.why(each)}
-                  </Text>
-                </View>
-              </CheckRow>
+                  {openButton(each)}
+                </CheckRow>
+                {openedSongs(each, true)}
+              </View>
             )
           })}
         </View>

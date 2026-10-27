@@ -8,6 +8,7 @@ import { Sheet } from '../../ui/components/Sheet'
 import { TagsReview } from './TagsReview'
 import { Working } from './Working'
 import { useSmartServer } from './useSmartServer'
+import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { reachedConnection, viaKey } from '../../connection/via'
 import { StatusLine } from '../../ui/components/StatusLine'
 
@@ -30,7 +31,7 @@ export function SuggestTagsSheet({
     queryKey: viaKey(via, 'ai', 'tags', 'untagged'),
     queryFn: () => server.api!.untaggedTags(),
     enabled: open && server.api !== null,
-    retry: false,
+    ...ASKS_MODEL,
     staleTime: STALE.tenMinutes,
   })
 

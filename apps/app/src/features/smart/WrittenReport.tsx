@@ -20,6 +20,7 @@ import { card, label } from '../../ui/surfaces'
 import { showFailure } from '../../ui/toast'
 import { useSmartServer } from './useSmartServer'
 import { useSmartOn } from './useSmartOn'
+import { ASKS_MODEL } from '../../connection/refetchFailed'
 import { reachedConnection, viaKey } from '../../connection/via'
 
 /**
@@ -39,7 +40,7 @@ export function WrittenReport({ range }: { range: WrappedRange }): ReactNode {
     queryKey: key,
     queryFn: () => server.api!.written(range),
     enabled: written && server.api !== null,
-    retry: false,
+    ...ASKS_MODEL,
     staleTime: STALE.halfHour,
   })
   const [again, setAgain] = useState(false)

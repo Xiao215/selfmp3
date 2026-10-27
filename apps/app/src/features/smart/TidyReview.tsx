@@ -314,12 +314,19 @@ function wordsOf(change: TidyHere['change']): ReactNode {
       </Text>
     )
   }
+  // The old name and the new each on a line of their own: in one, a long old
+  // name pushed the new one past the cut on a phone, and what was approved
+  // could not be read. The old may be cut; the new is what is ticked.
   return (
-    <Text style={reviewText.name} numberOfLines={2}>
-      <Text style={reviewText.gone}>{change.from}</Text>
-      <Text style={reviewText.arrow}>{'  →  '}</Text>
-      <Text style={reviewText.new}>{change.to}</Text>
-    </Text>
+    <>
+      <Text style={reviewText.name} numberOfLines={1}>
+        <Text style={reviewText.gone}>{change.from}</Text>
+      </Text>
+      <Text style={reviewText.name} numberOfLines={2}>
+        <Text style={reviewText.arrow}>{'→  '}</Text>
+        <Text style={reviewText.new}>{change.to}</Text>
+      </Text>
+    </>
   )
 }
 

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ASK_BEFORE_MAX, AskRequestSchema } from '@selfmp3/shared'
-import { afterStop, beforeTurn, retried, tooLongToAsk, type Turn } from './askTurns.model'
+import {
+  afterStop,
+  beforeTurn,
+  retried,
+  scrollToShow,
+  tooLongToAsk,
+  type Turn,
+} from './askTurns.model'
 
 const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   id,
@@ -55,5 +62,18 @@ describe('afterStop', () => {
     expect(afterStop('', 'calm songs')).toBe('calm songs')
     expect(afterStop('  ', 'calm songs')).toBe('calm songs')
     expect(afterStop('and some jazz', 'calm songs')).toBe('and some jazz')
+  })
+})
+
+describe('scrollToShow', () => {
+  const view = { y: 100, height: 300 }
+  it('leaves a line in view where it is', () => {
+    expect(scrollToShow({ y: 150, height: 50 }, view, 8)).toBeNull()
+  })
+
+  it('brings a line under the field up to the foot, and one above down to the top', () => {
+    expect(scrollToShow({ y: 420, height: 50 }, view, 8)).toBe(178)
+    expect(scrollToShow({ y: 40, height: 50 }, view, 8)).toBe(32)
+    expect(scrollToShow({ y: 4, height: 50 }, view, 8)).toBe(0)
   })
 })

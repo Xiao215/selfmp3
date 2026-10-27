@@ -56,7 +56,8 @@ export function SoundField({
   stroke: readonly MapPlace[]
   /** The song the pointer is on in the tray's list, ringed on the map. */
   lit: number | null
-  onPress: (spot: MapPlace) => void
+  /** A tap, and a finger's reach there: true when it played something, which the pulse marks. */
+  onPress: (spot: MapPlace, reach: number) => boolean
   onPathStart: (spot: MapPlace) => void
   onPathMove: (spot: MapPlace, reach: number) => void
   onPathEnd: () => void
@@ -80,9 +81,8 @@ export function SoundField({
       control.listen({
         show: setView,
         settle: setSettled,
-        press: (spot, point) => {
-          setPulse(point)
-          onPress(spot)
+        press: (spot, point, reach) => {
+          if (onPress(spot, reach)) setPulse(point)
         },
         hold: setHold,
         pathStart: onPathStart,

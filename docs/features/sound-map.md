@@ -108,7 +108,10 @@ with the other guides.
 ### What a stroke takes
 
 **Tap** plays the 25 songs nearest the spot, nearest first (`nearestSongs`), and Up next is
-named after the nearest song: "Near 晴る". A light ring marks where you pressed.
+named after the nearest song: "Near 晴る". A light ring marks where you pressed. A tap on
+empty sky, more than a reach and a half from every song, plays nothing and lets go of
+whatever the tray holds, as a tap beside a selection does anywhere; on a computer Escape
+does the same.
 
 **A line** takes every song within about a finger's width of it (28 points on screen,
 whatever the zoom: `pathReach`), in the order the line passes it, at most 40 spread evenly

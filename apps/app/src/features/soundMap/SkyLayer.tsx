@@ -601,7 +601,7 @@ function Overlay({
   const litPlace = lit === null ? undefined : byId.get(lit)
   const litAt = litPlace ? at(litPlace) : null
   const litSong = litPlace ? songs.get(litPlace.id) : undefined
-  // Its cover open enough to wear its own name card (H2), rather than a ring.
+  // Its cover open enough to be lit on a dimmed sky (H3), rather than ringed.
   const litLook = litPlace ? starLook(litPlace, view.scale) : null
   const litOpen = litLook !== null && litLook.share > 0.5
   const line = (places: readonly MapPlace[]): string =>
@@ -703,14 +703,14 @@ function Overlay({
         </View>
       ) : null}
       {litPlace && litAt && litSong && litLook && litOpen ? (
-        <LitCard
+        <LitSpot
           song={litSong}
           uri={art(litSong)}
           glow={litPlace.glow}
           at={litAt}
           side={litLook.side}
+          corner={litLook.corner}
           clear={field.width - panel}
-          field={field}
         />
       ) : null}
     </>
@@ -718,54 +718,68 @@ function Overlay({
 }
 
 /**
- * The song pressed in the tray's list, close in: its cover lifted into a dark
- * card with its title and artist (H2), on whichever side of its star has room.
+ * The song pressed in the tray's list, close in (H3): the sky dims under a
+ * veil and its cover alone is lit, a little larger, in a glow of its own
+ * colour, its title and artist under it, kept short of the tray's panel.
  */
-function LitCard({
+function LitSpot({
   song,
   uri,
   glow,
   at,
-  side,
+  side: open,
+  corner,
   clear,
-  field,
 }: {
   song: Song
   uri: string | null | undefined
   glow: string
   at: { x: number; y: number }
   side: number
+  corner: number
   /** Where the tray's panel begins: the words keep short of it. */
   clear: number
-  field: FieldSize
 }): ReactNode {
-  const big = Math.max(52, Math.min(96, side * 1.3))
-  const edge = big / 2 + 4
-  const left = at.x + edge + 240 < clear
+  const side = Math.max(52, open * 1.15)
+  const half = side / 2
+  const middle = Math.min(at.x, clear - SPOT_WORDS / 2 - 8)
   return (
-    <View
-      pointerEvents="none"
-      style={[
-        styles.card,
-        left
-          ? { left: at.x - edge, top: at.y - edge }
-          : { right: field.width - at.x - edge, top: at.y - edge, flexDirection: 'row-reverse' },
-      ]}
-    >
-      <View style={[styles.cardCover, { width: big, height: big, backgroundColor: glow }]}>
+    <>
+      <View pointerEvents="none" style={styles.spotVeil} />
+      <View
+        pointerEvents="none"
+        style={[
+          styles.spotCover,
+          {
+            left: at.x - half,
+            top: at.y - half,
+            width: side,
+            height: side,
+            borderRadius: corner * (side / open),
+            backgroundColor: glow,
+            boxShadow: `0 0 22px ${glow}`,
+          },
+        ]}
+      >
         {uri ? <Image source={{ uri }} style={styles.coverImage} /> : null}
       </View>
-      <View style={styles.cardWords}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
+      <View
+        pointerEvents="none"
+        style={[styles.spotWords, { left: middle - SPOT_WORDS / 2, top: at.y + half + 6 }]}
+      >
+        <Text style={styles.spotTitle} numberOfLines={1}>
           {song.title}
         </Text>
-        <Text style={styles.cardArtist} numberOfLines={1}>
+        <Text style={styles.spotArtist} numberOfLines={1}>
           {song.artist}
         </Text>
       </View>
-    </View>
+    </>
   )
 }
+
+/** How wide the lit song's name may run under it. */
+const SPOT_WORDS = 240
 
 const styles = StyleSheet.create(() => ({
   layer: { position: 'absolute', left: 0, top: 0 },
@@ -774,21 +788,18 @@ const styles = StyleSheet.create(() => ({
   coverFace: { overflow: 'hidden', borderWidth: 1 },
   coverImage: { width: '100%', height: '100%' },
   veil: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
-  card: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 4,
-    paddingRight: 16,
-    borderRadius: 14,
-    backgroundColor: 'rgba(31,34,44,0.96)',
-    boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
+  // Over the whole sky, under the lit cover: the rest dims to about a third.
+  spotVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(4,5,11,0.68)' },
+  spotCover: { position: 'absolute', overflow: 'hidden' },
+  spotWords: { position: 'absolute', width: SPOT_WORDS, alignItems: 'center' },
+  spotTitle: {
+    color: SKY_INK,
+    fontSize: type.sub,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowRadius: 6,
   },
-  cardCover: { borderRadius: 10, overflow: 'hidden' },
-  cardWords: { maxWidth: 220 },
-  cardTitle: { color: SKY_INK, fontSize: type.sub, fontWeight: '600' },
-  cardArtist: { color: 'rgba(244,245,249,0.68)', fontSize: type.small },
+  spotArtist: { color: 'rgba(244,245,249,0.72)', fontSize: type.small },
   coverName: {
     position: 'absolute',
     textAlign: 'center',

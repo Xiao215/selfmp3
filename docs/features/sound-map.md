@@ -85,12 +85,13 @@ off; nothing counts them.
   joined as a constellation in the order the line passes them (`chainAlong`), a loop as its
   dashed outline.
 - **On a computer,** the song under the pointer is named before it is pressed. Close in,
-  where the stars are covers, its cover lifts into a dark card with its title and artist
-  beside it, on whichever side has room short of the tray's panel, and its own small title
-  under the cover gives way (H2, 2026-10-26: a round ring over a square cover with the title
-  twice read as clutter). Further out, the star is ringed and named in a small card beside
-  it. The same card shows for the song the pointer is on in the tray's list, and on a phone
-  for the row last pressed there.
+  once its star has opened into its cover, it is lit (H3): the rest of the sky dims to
+  about a third (`SPOTLIGHT_DIM`), and its cover lifts a little in a glow of its own
+  colour, its title and artist under it, short of the tray's panel. (2026-10-26: a round
+  ring over a square cover with the title twice read as clutter; a dark name card, H2, was
+  built first and swapped for this.) Further out, the star is ringed and named in a small
+  card beside it. The same shows for the song the pointer is on in the tray's list, and on
+  a phone for the row last pressed there, where a veil over the sky does the dimming.
 
 **Why a canvas in a browser.** The first page drew 1,500 views and moved each one as the map
 moved; react-native-unistyles turns every distinct style into a CSS rule, so every place a

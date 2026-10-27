@@ -389,6 +389,14 @@ function draw(
   // opens into its cover, the most played first (`starLook`).
   const tile = tileSide(view.scale)
   const margin = tile + 24
+  // The star under the pointer, named before it is pressed; else the one the
+  // pointer is on in the tray's list. Once its cover is open it is lit and
+  // the rest of the sky dims round it (H3).
+  const under =
+    (pointer ? songUnder(points, at, pointer, Math.max(14, tile / 2 + 4)) : null) ??
+    (lit === null ? null : (byId.get(lit) ?? null))
+  const underOpen = under !== null && starLook(under, view.scale).share > 0.5
+  const shade = (point: SkyPoint): number => (underOpen && point !== under ? SPOTLIGHT_DIM : 1)
   const shown: { point: SkyPoint; x: number; y: number; look: StarLook }[] = []
   for (const point of points) {
     const spot = at(point)
@@ -402,7 +410,7 @@ function draw(
     }
     const look = starLook(point, view.scale)
     const reach = glowReach(point, look.r, view.scale, base)
-    const alpha = starAlpha(point, lens)
+    const alpha = starAlpha(point, lens) * shade(point)
     ctx.globalAlpha = alpha
     ctx.drawImage(glowOf(point.glow), spot.x - reach, spot.y - reach, reach * 2, reach * 2)
     if (look.star > 0.01) {
@@ -413,20 +421,16 @@ function draw(
       ctx.arc(spot.x, spot.y, look.r * CORE, 0, Math.PI * 2)
       ctx.fill()
     }
-    if (look.cover > 0.01) shown.push({ point, x: spot.x, y: spot.y, look })
+    // The lit cover is drawn last, over everything, by `spotlight`.
+    if (look.cover > 0.01 && !(underOpen && point === under)) {
+      shown.push({ point, x: spot.x, y: spot.y, look })
+    }
   }
-  // The star under the pointer, named before it is pressed; else the one the
-  // pointer is on in the tray's list.
-  const under =
-    (pointer ? songUnder(points, at, pointer, Math.max(14, tile / 2 + 4)) : null) ??
-    (lit === null ? null : (byId.get(lit) ?? null))
-  // Its cover open enough to wear its own name card (H2), rather than a ring.
-  const underOpen = under !== null && starLook(under, view.scale).share > 0.5
   // The most played on top.
   shown.sort((a, b) => a.point.bright - b.point.bright)
   for (const { point, x, y, look } of shown) {
     const song = songs.get(point.id)
-    const dim = lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1
+    const dim = (lens !== null && !point.tagIds.includes(lens) ? 0.15 : 1) * shade(point)
     const { side, corner } = look
     const half = side / 2
     // A cover keeps its star's light (K1): a glow behind it, a rim, its plays
@@ -463,8 +467,8 @@ function draw(
       ctx.arc(x + shine.dx, y + shine.dy, 1.6, 0, Math.PI * 2)
       ctx.fill()
     }
-    // Close enough, each open cover wears its name: the one pointed at wears its card instead.
-    if (song && look.share > 0.9 && tile >= NAMES_FROM && !(underOpen && point === under)) {
+    // Close enough, each open cover wears its name.
+    if (song && look.share > 0.9 && tile >= NAMES_FROM) {
       ctx.globalAlpha = look.cover * dim * 0.92
       ctx.fillStyle = SKY_INK
       ctx.font = `600 10px ${FONT}`
@@ -572,12 +576,20 @@ function draw(
     ctx.fill()
   }
 
-  // The song pointed at. Once its cover is open, the cover lifts into its own
-  // name card (H2); while it is still a star, the star is ringed and named beside it.
+  // The song pointed at. Once its cover is open, it is the one lit thing on a
+  // dimmed sky, its name under it (H3); while it is still a star, the star is
+  // ringed and named beside it.
   const song = under ? songs.get(under.id) : undefined
   if (under && song && underOpen) {
-    const side = starLook(under, view.scale).side
-    songCard(ctx, song, at(under), side, cover(song), under.glow, field.width - panel, field)
+    spotlight(
+      ctx,
+      song,
+      under,
+      at(under),
+      starLook(under, view.scale),
+      cover(song),
+      field.width - panel,
+    )
   } else if (under && song) {
     const spot = at(under)
     ctx.strokeStyle = SKY_INK
@@ -590,66 +602,65 @@ function draw(
 }
 
 /**
- * A cover pointed at, close in: lifted a little and set at the left end of a
- * dark card with its title and artist, one thing rather than a ring round the
- * cover and a label beside it. The cover stays on its star; the words go to
- * whichever side has the room, short of the tray's panel (`clear`).
+ * A cover pointed at, close in (H3): the rest of the sky has dimmed
+ * (`SPOTLIGHT_DIM`), and this one is lifted a little in a glow of its own
+ * colour, its title and artist under it, larger than a cover's own small
+ * name, kept short of the tray's panel (`clear`).
  */
-function songCard(
+function spotlight(
   ctx: CanvasRenderingContext2D,
   song: Song,
+  point: SkyPoint,
   spot: { x: number; y: number },
-  side: number,
+  look: StarLook,
   image: HTMLImageElement | null,
-  glow: string,
   clear: number,
-  field: FieldSize,
 ): void {
-  const big = Math.max(CARD_COVER.min, Math.min(CARD_COVER.max, side * 1.3))
-  const pad = 4
-  ctx.textAlign = 'left'
-  ctx.font = `600 13px ${FONT}`
-  const title = fitText(ctx, song.title, 220)
-  const titleWidth = ctx.measureText(title).width
-  ctx.font = `400 12px ${FONT}`
-  const line = fitText(ctx, song.artist, 220)
-  const words = Math.max(titleWidth, ctx.measureText(line).width)
-  const width = pad + big + 12 + words + 16
-  const height = big + pad * 2
-  const right = spot.x - big / 2 - pad + width <= clear - 8
-  const x = right ? spot.x - big / 2 - pad : spot.x + big / 2 + pad - width
-  const y = Math.max(8, Math.min(field.height - height - 8, spot.y - height / 2))
+  const side = Math.max(SPOTLIGHT_COVER, look.side * 1.15)
+  const half = side / 2
+  const halo = side * 1.6
+  ctx.globalAlpha = 0.9
+  ctx.drawImage(glowOf(point.glow), spot.x - halo, spot.y - halo, halo * 2, halo * 2)
+  ctx.globalAlpha = 1
   ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.55)'
-  ctx.shadowBlur = 24
-  ctx.shadowOffsetY = 8
-  ctx.fillStyle = 'rgba(31,34,44,0.96)'
+  ctx.shadowColor = withAlpha(point.glow, 0.6)
+  ctx.shadowBlur = 22
   ctx.beginPath()
-  ctx.roundRect(x, y, width, height, 14)
+  ctx.roundRect(spot.x - half, spot.y - half, side, side, look.corner * (side / look.side))
+  ctx.fillStyle = point.glow
   ctx.fill()
   ctx.restore()
-  const coverX = right ? x + pad : x + width - pad - big
-  roundRect(ctx, coverX, y + pad, big, 10)
   if (image) {
     ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(spot.x - half, spot.y - half, side, side, look.corner * (side / look.side))
     ctx.clip()
-    ctx.drawImage(image, coverX, y + pad, big, big)
+    ctx.drawImage(image, spot.x - half, spot.y - half, side, side)
     ctx.restore()
-  } else {
-    ctx.fillStyle = glow
-    ctx.fill()
   }
-  const textX = right ? coverX + big + 12 : x + 16
+  ctx.textAlign = 'center'
+  ctx.font = `600 13px ${FONT}`
+  const title = fitText(ctx, song.title, 220)
+  ctx.font = `400 12px ${FONT}`
+  const line = fitText(ctx, song.artist, 220)
+  const words = Math.max(ctx.measureText(title).width, ctx.measureText(line).width)
+  const x = Math.min(spot.x, clear - words / 2 - 8)
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.85)'
+  ctx.shadowBlur = 6
   ctx.fillStyle = SKY_INK
   ctx.font = `600 13px ${FONT}`
-  ctx.fillText(title, textX, y + height / 2 - 3)
-  ctx.fillStyle = 'rgba(244,245,249,0.68)'
+  ctx.fillText(title, x, spot.y + half + 18)
+  ctx.fillStyle = 'rgba(244,245,249,0.72)'
   ctx.font = `400 12px ${FONT}`
-  ctx.fillText(line, textX, y + height / 2 + 14)
+  ctx.fillText(line, x, spot.y + half + 34)
+  ctx.restore()
 }
 
-/** The cover in a song's card: a little larger than the tile, within reason. */
-const CARD_COVER = { min: 52, max: 96 }
+/** How bright the rest of the sky stays while a cover is lit. */
+const SPOTLIGHT_DIM = 0.3
+/** The lit cover is at least this wide. */
+const SPOTLIGHT_COVER = 52
 
 const FONT = '-apple-system, system-ui, "PingFang SC", "Hiragino Sans", sans-serif'
 /** Covers this wide wear their titles underneath. */

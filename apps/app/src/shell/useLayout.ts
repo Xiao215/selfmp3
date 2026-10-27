@@ -84,6 +84,12 @@ export function setRootSize(size: Size): void {
 }
 
 const readWidth = (): number => layoutSize.size.get().width
+const readSize = (): Size => layoutSize.size.get()
+
+/** The size the layout is decided from, and a render whenever it changes. */
+export function useLayoutSize(): Size {
+  return useSyncExternalStore(subscribeSize, readSize, readSize)
+}
 
 /** A finger, and a window taller than it is wide: an iPad held in portrait. */
 function readUpright(): boolean {

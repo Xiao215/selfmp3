@@ -40,13 +40,14 @@ import { afterWelcome } from '../src/features/welcome/firstSync.model'
 import { STORAGE_ROUTE } from '../src/features/welcome/storage.model'
 import { installedApp } from '../src/ports/install'
 import { storedFirstSync } from '../src/features/welcome/firstSyncMemory'
-import { setRootSize, useLayoutFlags } from '../src/shell/useLayout'
+import { setRootSize, useLayoutFlags, useLayoutSize } from '../src/shell/useLayout'
 import { useFontScale } from '../src/ui/textScale'
 import { opensSignedOut } from '../src/shell/fullScreen.model'
 import { useRoom } from '../src/features/room/room.store'
 import { pageHidesTabs, pageOwnsScreen, setPageChrome, setPageTabs } from '../src/shell/pageChrome'
 import { useStageArriving } from '../src/shell/stageArrival'
 import { modalCoversScreen } from '../src/ports/modalCoversScreen'
+import { useTurnCover } from '../src/ports/turnCover'
 import { listenForAppFocus } from '../src/ports/appFocus'
 import { onAppLeaving } from '../src/ports/appLeaving'
 import { sendingAsLeaving } from '../src/api/client'
@@ -433,8 +434,19 @@ function RootRoutes(): ReactNode {
           style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.surface0 }]}
         />
       ) : null}
+      <TurnCoverReport ground={surface} />
     </Shell>
   )
+}
+
+/**
+ * Tells an iPad's turn cover the page has been drawn for the window's new
+ * size (`ports/turnCover.ts`). A leaf of its own, after the pages, so the
+ * routes are not drawn again for every pixel a browser window is dragged.
+ */
+function TurnCoverReport({ ground }: { ground: string }): null {
+  useTurnCover(useLayoutSize(), ground)
+  return null
 }
 
 /** Light text over the dark theme, dark text over the light one, following a switch. */

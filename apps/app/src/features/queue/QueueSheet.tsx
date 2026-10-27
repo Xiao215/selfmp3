@@ -368,7 +368,9 @@ function SheetPanel({
   }
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+    // Shut and sinking, it takes no touches: a tap right after closing it
+    // played the row that was still under the finger (R2-m16).
+    <View style={StyleSheet.absoluteFill} pointerEvents={shown ? 'box-none' : 'none'}>
       <SheetBackdrop opacity={dim} onClose={closeQueueSheet} label="Close Up next" />
       <Animated.View
         testID="queue-sheet"

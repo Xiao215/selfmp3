@@ -138,6 +138,13 @@ const SLIDE = 4
 /** How small the panel starts. Near enough to full size to read as a grow, not a zoom. */
 const START_SCALE = 0.94
 
+/**
+ * How long an opening waits for its panel to measure itself before it gives
+ * up and closes: long past a slow build's worst, short enough that the control
+ * that opened it works again on the next press.
+ */
+const LAYOUT_WAIT_MS = 1500
+
 interface Anchor {
   x: number
   y: number
@@ -189,6 +196,30 @@ function AnchoredPopover({
   const screenHeight = useWindowValue(window => (mounted ? window.height : 0))
   if (open && !mounted) setMounted(true)
   useEscape(open, onClose, { layer: true })
+  /*
+   * Whether this opening's panel has measured itself, and so is placed where it
+   * can be seen. Until then it is not yet a layer: drawn off screen to be
+   * measured, with no click-catchers round it, not modal and taking no
+   * touches. An iPad once opened a ⋯ menu whose panel never showed while its
+   * catchers covered the window: the next tap only closed a menu nobody could
+   * see, and the page under it was hidden from VoiceOver (R2-m18). Now a panel
+   * that does not draw leaves nothing in the way, and the grow starts from its
+   * first layout rather than from the press, on a view that is there to be
+   * animated.
+   */
+  const ready = anchor !== null && panelHeight > 0
+  // And one that never measures — no layout, or a control gone before it
+  // could be measured — closes, so its control opens it afresh next time
+  // rather than setting an open menu open again.
+  const latestClose = useRef(onClose)
+  useEffect(() => {
+    latestClose.current = onClose
+  })
+  useEffect(() => {
+    if (!open || ready) return undefined
+    const late = setTimeout(() => latestClose.current(), LAYOUT_WAIT_MS)
+    return () => clearTimeout(late)
+  }, [open, ready])
 
   useEffect(() => {
     if (!open) return
@@ -214,6 +245,8 @@ function AnchoredPopover({
   const wasOpen = useRef(false)
   useEffect(() => {
     if (!open && !wasOpen.current) return
+    // Opening, it grows once its panel is placed (`ready`).
+    if (open && !ready) return
     wasOpen.current = open
     Animated.timing(progress, {
       toValue: open ? 1 : 0,
@@ -223,7 +256,7 @@ function AnchoredPopover({
     }).start(({ finished }) => {
       if (finished && !open) setMounted(false)
     })
-  }, [open, progress])
+  }, [open, ready, progress])
 
   // Right-aligned to the anchor, then pulled back inside the screen. A control
   // near the edge is the common case for these — a sort button sits at the end
@@ -275,53 +308,8 @@ function AnchoredPopover({
   useOverlay(
     anchor ? (
       <>
-        {/*
-          Everywhere but the control itself. A backdrop over the control would
-          take the pointer off its row, so a row's ⋯ would fade out under the
-          mouse; with a hole there the row keeps its hover, and pressing the
-          control again reaches the control, which closes what it opened. A
-          right-click outside closes it too, and is then a right-click on what
-          is under it — another row's menu opens at once — rather than the
-          browser's menu.
-        */}
-        {/* One of them is a Close button to a screen reader, the rest are not
-          there to it; none is a Tab stop, the keyboard has Escape. */}
-        <Pressable
-          style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          tabIndex={-1}
-          {...rightClickThrough(onClose)}
-          {...CATCHER}
-        />
-        <Pressable
-          style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
-          onPress={onClose}
-          {...UNSEEN}
-          {...rightClickThrough(onClose)}
-          {...CATCHER}
-        />
-        <Pressable
-          style={[
-            styles.catcher,
-            { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
-          ]}
-          onPress={onClose}
-          {...UNSEEN}
-          {...rightClickThrough(onClose)}
-          {...CATCHER}
-        />
-        <Pressable
-          style={[
-            styles.catcher,
-            { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
-          ]}
-          onPress={onClose}
-          {...UNSEEN}
-          {...rightClickThrough(onClose)}
-          {...CATCHER}
-        />
+        {/* Round the control once the panel is there to see (`ready`). */}
+        {ready ? <Catchers anchor={anchor} onClose={onClose} /> : null}
         <Animated.View
           key={opening}
           {...panelA11y(label, onClose)}
@@ -366,10 +354,65 @@ function AnchoredPopover({
       </>
     ) : null,
     mounted && anchor !== null,
-    open,
+    open && ready,
   )
 
   return null
+}
+
+/** The click-catchers round an open panel's control. */
+function Catchers({ anchor, onClose }: { anchor: Anchor; onClose: () => void }): ReactNode {
+  return (
+    <>
+      {/*
+        Everywhere but the control itself. A backdrop over the control would
+        take the pointer off its row, so a row's ⋯ would fade out under the
+        mouse; with a hole there the row keeps its hover, and pressing the
+        control again reaches the control, which closes what it opened. A
+        right-click outside closes it too, and is then a right-click on what
+        is under it — another row's menu opens at once — rather than the
+        browser's menu.
+      */}
+      {/* One of them is a Close button to a screen reader, the rest are not
+        there to it; none is a Tab stop, the keyboard has Escape. */}
+      <Pressable
+        style={[styles.catcher, { top: 0, left: 0, right: 0, height: Math.max(0, anchor.y) }]}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        tabIndex={-1}
+        {...rightClickThrough(onClose)}
+        {...CATCHER}
+      />
+      <Pressable
+        style={[styles.catcher, { top: anchor.y + anchor.height, left: 0, right: 0, bottom: 0 }]}
+        onPress={onClose}
+        {...UNSEEN}
+        {...rightClickThrough(onClose)}
+        {...CATCHER}
+      />
+      <Pressable
+        style={[
+          styles.catcher,
+          { top: anchor.y, left: 0, width: Math.max(0, anchor.x), height: anchor.height },
+        ]}
+        onPress={onClose}
+        {...UNSEEN}
+        {...rightClickThrough(onClose)}
+        {...CATCHER}
+      />
+      <Pressable
+        style={[
+          styles.catcher,
+          { top: anchor.y, left: anchor.x + anchor.width, right: 0, height: anchor.height },
+        ]}
+        onPress={onClose}
+        {...UNSEEN}
+        {...rightClickThrough(onClose)}
+        {...CATCHER}
+      />
+    </>
+  )
 }
 
 /** A click-catcher besides the first: neither a Tab stop nor anything to a screen reader. */

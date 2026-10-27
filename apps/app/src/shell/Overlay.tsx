@@ -48,10 +48,11 @@ interface Entry {
   id: string
   node: ReactNode
   modal: boolean
+  leaving: boolean
 }
 
 interface OverlayApi {
-  set: (id: string, node: ReactNode, modal: boolean) => void
+  set: (id: string, node: ReactNode, modal: boolean, leaving: boolean) => void
   remove: (id: string) => void
 }
 
@@ -64,14 +65,14 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
   // which is the order `useEscape` closes them in. Moving a re-rendered one
   // to the end would put whichever owner rendered last on top, so a popover
   // under a sheet would come over it the moment its screen re-rendered.
-  const set = useCallback((id: string, node: ReactNode, modal: boolean) => {
+  const set = useCallback((id: string, node: ReactNode, modal: boolean, leaving: boolean) => {
     setNodes(current => {
       const index = current.findIndex(entry => entry.id === id)
-      if (index === -1) return [...current, { id, node, modal }]
+      if (index === -1) return [...current, { id, node, modal, leaving }]
       const was = current[index]
-      if (was?.node === node && was?.modal === modal) return current
+      if (was?.node === node && was?.modal === modal && was?.leaving === leaving) return current
       const next = [...current]
-      next[index] = { id, node, modal }
+      next[index] = { id, node, modal, leaving }
       return next
     })
   }, [])
@@ -106,6 +107,7 @@ export function OverlayProvider({ children }: { children: ReactNode }): ReactNod
             <OverlayEntry
               key={entry.id}
               modal={entry.modal}
+              leaving={entry.leaving}
               onNode={node => {
                 if (node) entryNodes.current.set(entry.id, node)
                 else entryNodes.current.delete(entry.id)
@@ -147,13 +149,23 @@ function PressHold(): ReactNode {
   return useValueStore(held) ? <View style={StyleSheet.absoluteFill} testID="press-hold" /> : null
 }
 
-/** One layer in the host, which takes focus while it is modal. */
+/**
+ * One layer in the host, which takes focus while it is modal.
+ *
+ * On its way out it takes no touches: it is still drawn, sinking or fading,
+ * but a tap that lands on it goes to what is under it. A tap a moment after
+ * closing Up next played the closing sheet's row under the finger, and one
+ * after closing a song's menu added the song to the playlist that had been
+ * there (R2-m16).
+ */
 function OverlayEntry({
   modal,
+  leaving,
   onNode,
   children,
 }: {
   modal: boolean
+  leaving: boolean
   onNode: (node: View | null) => void
   children: ReactNode
 }): ReactNode {
@@ -166,7 +178,7 @@ function OverlayEntry({
         onNode(node)
       }}
       style={StyleSheet.absoluteFill}
-      pointerEvents="box-none"
+      pointerEvents={leaving ? 'none' : 'box-none'}
     >
       {children}
     </View>
@@ -185,10 +197,13 @@ const styles = StyleSheet.create({
  * Keyed by a stable id, so a re-render replaces the node rather than removing
  * and re-adding it — an animation part-way through survives.
  *
- * `modal` while it is a layer the user is in — open, not on its way out —
- * which hides the page from screen readers and holds the keyboard's focus.
+ * `open`, for a layer — a sheet, a popover, a dialog — says whether it is
+ * open or on its way out. Open, it is modal: the page is hidden from screen
+ * readers and the layer holds the keyboard's focus. On its way out it takes
+ * no touches (`OverlayEntry`). Left out for what is not a layer (a guide, a
+ * dragged row), which is neither.
  */
-export function useOverlay(node: ReactNode, active: boolean, modal = false): void {
+export function useOverlay(node: ReactNode, active: boolean, open?: boolean): void {
   const api = useContext(OverlayContext)
   const id = useId()
 
@@ -205,7 +220,7 @@ export function useOverlay(node: ReactNode, active: boolean, modal = false): voi
   // pinyin typed into the Search box would come out as "nninihnihanihao你好".
   useLayoutEffect(() => {
     if (!api) return
-    if (active) api.set(id, node, modal)
+    if (active) api.set(id, node, open === true, open === false)
     else api.remove(id)
   })
 

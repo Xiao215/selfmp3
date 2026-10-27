@@ -310,6 +310,7 @@ export class CloudRepository {
   readonly #forgetFile
   readonly #rememberRemoved
   readonly #wasRemoved
+  readonly #wasPlaylistRemoved
   readonly #untrash
   readonly #songWithAudio
   readonly #unsentOfSize
@@ -461,6 +462,9 @@ export class CloudRepository {
     this.#wasRemoved = db.prepare<[string], { n: number }>(
       'SELECT COUNT(*) AS n FROM removed_songs WHERE uid = ?',
     )
+    this.#wasPlaylistRemoved = db.prepare<[string], { n: number }>(
+      'SELECT COUNT(*) AS n FROM removed_playlists WHERE uid = ?',
+    )
     this.#untrash = db.prepare('DELETE FROM cloud_trash WHERE key = ?')
     this.#songWithAudio = db.prepare<[string], { id: number }>(
       `SELECT s.id FROM cloud_songs c JOIN songs s ON s.id = c.song_id
@@ -547,7 +551,7 @@ export class CloudRepository {
   /** Everything this server knows about one bucket: what it uploaded, and how far it read the logs. */
   #forgetUploads(): void {
     this.#db.exec(
-      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_sound_map; DELETE FROM cloud_plays; DELETE FROM cloud_cover_packs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs;',
+      'DELETE FROM cloud_songs; DELETE FROM cloud_artists; DELETE FROM cloud_sound; DELETE FROM cloud_sound_map; DELETE FROM cloud_plays; DELETE FROM cloud_cover_packs; DELETE FROM cloud_files; DELETE FROM cloud_log_cursors; DELETE FROM cloud_trash; DELETE FROM removed_songs; DELETE FROM removed_playlists;',
     )
   }
 
@@ -796,9 +800,17 @@ export class CloudRepository {
     return (this.#wasRemoved.get(uid)?.n ?? 0) > 0
   }
 
-  /** The snapshot without the removed songs is up: nothing can take them back on now. */
+  /**
+   * Whether this playlist was deleted here and the bucket has not been told
+   * yet: every deletion is noted, by the database itself (migration 58).
+   */
+  wasPlaylistRemoved(uid: string): boolean {
+    return (this.#wasPlaylistRemoved.get(uid)?.n ?? 0) > 0
+  }
+
+  /** The snapshot without the removed songs and playlists is up: nothing can take them back on now. */
   forgetRemoved(): void {
-    this.#db.exec('DELETE FROM removed_songs')
+    this.#db.exec('DELETE FROM removed_songs; DELETE FROM removed_playlists')
   }
 
   /**

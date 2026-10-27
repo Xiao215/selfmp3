@@ -161,35 +161,25 @@ function Play({ song, songId, onPlay, size }: SongProps & { size?: number }): Re
 
 /**
  * A list's steps either side of Play: Previous and Next, and on a phone
- * Shuffle too, where the rail that holds it on a computer is not.
+ * Shuffle too, where the rail that holds it on a computer is not. The same
+ * size on both, and in the middle under the bar.
  */
 function Steps(props: SongProps & { list: ShareSongList; phone: boolean }): ReactNode {
   const { list, phone } = props
   const { theme } = useUnistyles()
-  const step = phone ? 30 : 24
   return (
-    <View style={[styles.steps, phone && styles.phoneSteps]}>
+    <View style={[styles.steps, phone ? styles.phoneSteps : styles.stageSteps]}>
       {phone ? (
         <IconButton onPress={list.onShuffle} label="Shuffle" testID="share-shuffle">
           <Shuffle size={20} color={theme.colors.textSecondary} />
         </IconButton>
       ) : null}
-      <IconButton
-        onPress={list.onPrevious}
-        label="Previous"
-        size={phone ? 52 : undefined}
-        testID="share-previous"
-      >
-        <Prev size={step} color={theme.colors.textPrimary} />
+      <IconButton onPress={list.onPrevious} label="Previous" size={52} testID="share-previous">
+        <Prev size={30} color={theme.colors.textPrimary} />
       </IconButton>
-      <Play {...props} size={phone ? 64 : undefined} />
-      <IconButton
-        onPress={list.onNext}
-        label="Next"
-        size={phone ? 52 : undefined}
-        testID="share-next"
-      >
-        <Next size={step} color={theme.colors.textPrimary} />
+      <Play {...props} size={64} />
+      <IconButton onPress={list.onNext} label="Next" size={52} testID="share-next">
+        <Next size={30} color={theme.colors.textPrimary} />
       </IconButton>
       {/* Shuffle's width again on the other side, so Play sits in the middle. */}
       {phone ? <View style={styles.stepsBalance} /> : null}
@@ -287,10 +277,14 @@ function SongStage(props: SongProps): ReactNode {
             </Text>
           </View>
           <Seek song={song} loaded={loaded} />
-          <View style={styles.stageTransport}>
-            {list ? <Steps {...props} list={list} phone={false} /> : <Play {...props} />}
-            <View style={styles.stageWays}>{ways}</View>
-          </View>
+          {list ? (
+            <Steps {...props} list={list} phone={false} />
+          ) : (
+            <View style={styles.stageTransport}>
+              <Play {...props} />
+              <View style={styles.stageWays}>{ways}</View>
+            </View>
+          )}
           <View style={styles.stageFoot}>{foot}</View>
         </View>
 
@@ -578,6 +572,7 @@ const styles = StyleSheet.create(theme => ({
   context: { color: theme.colors.textSecondary, fontSize: type.small, fontWeight: '600' },
   steps: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   phoneSteps: { justifyContent: 'space-between' },
+  stageSteps: { justifyContent: 'center', gap: space.gutterWide },
   stepsBalance: { width: 44 },
   stageWays: { flex: 1, minWidth: 0 },
   stageFoot: { marginTop: 'auto', alignItems: 'flex-start' },

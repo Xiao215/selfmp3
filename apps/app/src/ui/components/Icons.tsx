@@ -459,12 +459,15 @@ export const Pencil = icon(() => (
   </>
 ))
 
-/** A dot sending out waves: a live playlist, which keeps itself up to date. */
-export const Live = icon(color => (
+/**
+ * A circle coming round to its own start: a live playlist, which keeps itself
+ * filled. One arrow on one round, so it is not Repeat's two arrows on a loop,
+ * nor the broadcast waves that read as a radio.
+ */
+export const Live = icon(() => (
   <>
-    <Circle cx="12" cy="12" r="2.6" fill={color} stroke="none" />
-    <Path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4" />
-    <Path d="M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2" />
+    <Path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" />
+    <Path d="M18.5 3.5v3.7h-3.7" />
   </>
 ))
 

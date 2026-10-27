@@ -27,7 +27,7 @@ export function TagChipRow({
   style,
   testID,
 }: {
-  /** Words before the chips: "Tag them", "Fills from". */
+  /** Words before the chips: "Tag them", "Keeps itself filled with songs tagged". */
   lead?: string
   /** The chosen tags, in the order drawn. */
   tags: readonly Tag[]

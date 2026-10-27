@@ -22,7 +22,7 @@ import { Button } from '../../ui/components/Button'
 import { StatusLine } from '../../ui/components/StatusLine'
 import { Chip } from '../../ui/components/Chip'
 import { useSmartOn } from '../smart/useSmartOn'
-import { DrawLine, ListMusic, Sparkle, Tag as TagIcon } from '../../ui/components/Icons'
+import { DrawLine, ListMusic, Live, Sparkle } from '../../ui/components/Icons'
 import { Sheet } from '../../ui/components/Sheet'
 import { followRules } from '../lists/followRules'
 import { combinedName, tagsWithIds, type TagMatch } from '../lists/lists.model'
@@ -51,8 +51,8 @@ type Kind = 'pick' | 'follow' | 'describe'
  * - **Pick songs**: a name, then picking its songs. It is only made when the
  *   first ones are confirmed, with them: a playlist exists once it has a song
  *   (docs/UI-MIGRATION.md, Phase 5), so cancelling leaves nothing behind.
- * - **Fills from tags**: the tags, then a name (theirs, to start with). It
- *   follows them and keeps itself filled; **Stop filling** on the playlist
+ * - **Live, from tags**: the tags, then a name (theirs, to start with). It
+ *   follows them and keeps itself filled; **Stop adding** on the playlist
  *   keeps every song.
  * - **Describe it**, when Ask is on: what you want to hear, then a name (the
  *   words, to start with), then the songs it picked from your own, each with a
@@ -261,9 +261,9 @@ export function NewPlaylist({ open, onClose }: { open: boolean; onClose: () => v
               testID="new-playlist-pick"
             />
             <Option
-              icon={<TagIcon size={iconSize.item} color={theme.colors.textSecondary} />}
-              title="Fills from tags"
-              sub="Grows as you tag songs"
+              icon={<Live size={iconSize.item} color={theme.colors.textSecondary} />}
+              title="Live, from tags"
+              sub="Keeps itself filled as you tag songs"
               onPress={() => choose('follow')}
               testID="new-playlist-follow"
             />

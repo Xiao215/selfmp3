@@ -185,9 +185,6 @@ export function ImportSearch({
           {current && !searching.searching && rows.length === kept ? (
             <Text style={styles.none}>Nothing found for “{query}”.</Text>
           ) : null}
-          {query === null && rows.length === 0 ? (
-            <Text style={styles.empty}>Pick songs here, then import them together.</Text>
-          ) : null}
         </TapAway>
       </ScrollView>
 
@@ -241,13 +238,6 @@ const styles = StyleSheet.create(theme => ({
   apart: { marginTop: space.roomy },
   more: { alignItems: 'flex-start' },
   none: { color: theme.colors.textSecondary, fontSize: type.sub, paddingVertical: space.sm },
-  empty: {
-    color: theme.colors.textMuted,
-    fontSize: type.sub,
-    textAlign: 'center',
-    marginVertical: 'auto',
-    paddingVertical: space.xl,
-  },
   looking: {
     flexDirection: 'row',
     alignItems: 'center',

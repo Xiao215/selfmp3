@@ -31,15 +31,15 @@ import { uniqueName, useLibrary } from '@selfmp3/client'
 
 /**
  * What a playlist that fills itself from tags is called, wherever it has to be
- * named in passing: under its title, on its row in a list.
+ * named in passing: by its mark, on its tile, under its title.
  *
- * A verb, not a category. "Live" and "auto" name a *kind* of playlist, which
- * then has to be explained somewhere and learned; "fills from tags" says what
- * happens, and it is the same word as the row that shows it and the button
- * that stops it — one thing to learn instead of three. Not "follows", which
- * reads as following a person (docs/features/lists.md).
+ * One short word on the mark, and the sentence where there is room for one:
+ * "Live" beside the loop on a tile and a page, "Keeps itself filled with
+ * songs tagged …" on the row that shows the tags (the word table, F1 of the
+ * Oct 27 review). "Fills from" alone needed explaining, and the broadcast mark
+ * it sat by read as a radio.
  */
-export const FOLLOWS_LABEL = 'fills from tags'
+export const FOLLOWS_LABEL = 'Live: keeps itself filled from tags'
 
 export type PlaylistSort = 'recent' | 'name' | 'added'
 
@@ -64,7 +64,7 @@ const songsWord = (count: number): string => plural(count, 'song', 'songs')
  *
  * The day is when it was last played, or when it was made if it never has
  * been — the same day the page sorts by, so the line says why a tile is where
- * it is. A playlist that fills itself says from what instead, "Fills from
+ * it is. A playlist that fills itself says so and from what instead, "Live ·
  * night, focus · 76 songs", under the round mark on its cover (I1).
  */
 export function playlistTileLine(
@@ -72,12 +72,12 @@ export function playlistTileLine(
   now: Date,
   /** The names of the tags a playlist that fills itself fills from; none for one you fill. */
   fillsFrom: readonly string[] = [],
-  /** Whether a song needs every one of them: "Fills from night & calm". */
+  /** Whether a song needs every one of them: "Live · night & calm". */
   match: 'any' | 'all' = 'any',
 ): string {
   if (fillsFrom.length > 0) {
     const names = fillsFrom.join(match === 'all' ? ' & ' : ', ')
-    return `Fills from ${names} · ${songsWord(playlist.songCount)}`
+    return `Live · ${names} · ${songsWord(playlist.songCount)}`
   }
   const day = relativeDay(playlist.lastPlayedAt ?? playlist.createdAt, now)
   return day ? `${songsWord(playlist.songCount)} · ${day}` : songsWord(playlist.songCount)

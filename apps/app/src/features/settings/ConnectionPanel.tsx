@@ -56,7 +56,8 @@ export function AccountRow(): ReactNode {
   const line = fromCloud
     ? (account?.email ?? 'Signed in with Google')
     : connection
-      ? withoutScheme(connection.baseUrl)
+      ? // The address itself is on the Account page it opens, with the token.
+        'Connected by address'
       : 'Not set'
   return (
     <Card flush>

@@ -13,7 +13,7 @@ import {
 /**
  * A playlist that fills from tags: saving one, editing it, and stopping.
  *
- * The one thing here that could lose somebody's music is **Stop filling**.
+ * The one thing here that could lose somebody's music is **Stop adding**.
  * A following playlist's songs are the answer to its tags and are stored
  * nowhere, so switching it off has to write them down first — and this is the
  * flow that proves it did, through the real server rather than against a
@@ -108,7 +108,7 @@ test.describe('a playlist that fills from tags', () => {
     }
   })
 
-  test('the Fills from row adds a tag, and Stop filling keeps every song', async ({ page }) => {
+  test('the live row adds a tag, and Stop adding keeps every song', async ({ page }) => {
     await openLibrary(page)
     await libraryReady(page)
     await skipIfNoLibrary(page)

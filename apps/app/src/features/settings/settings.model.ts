@@ -94,7 +94,7 @@ export const RECENT_DEVICE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 /**
  * Settings' device rows, split: this device, anything online, and anything
  * seen in the last week, one row each; everything else is the stale sessions
- * a browser leaves behind, said as one "N older sessions" row with Remove all
+ * a browser leaves behind, said as one "N old sign-ins" row with Clear
  * (E1, 2026-10-25). That is the rest of a name's folded copies too: of 76
  * "Mac · Chrome" rows only the newest is a device still in use.
  *

@@ -105,7 +105,7 @@ choosing between hues as far; the first swatch shows it before Create. Its name 
 chose, and "calm" came out the red "live" already was (X5, 2026-10-25). The sidebar shows the four tags used last; its TAGS header opens this
 page.
 
-Combining is not here: a tag's or an artist's page has **Combine with…** (`AddSheet.tsx`),
+Combining is not here: a tag's or an artist's page has **Mix in…** (`AddSheet.tsx`),
 which puts tags and artists together on `/combined` (docs/features/lists.md). The library's
 tag strip is the one place a tag is still a filter.
 
@@ -127,7 +127,7 @@ them (pick E1, 2026-10-25): when an artist's other names hold the name of an art
 fewer songs, the two are one artist everywhere — one page under the bigger name with the
 songs credited under either spelling, one row in Search found by either, one entry in Stats'
 top artists and the Report with the plays summed, one artist in Ask's view of the library
-and in **Combine with…**. The songs' own artist fields are never rewritten, and the other
+and in **Mix in…**. The songs' own artist fields are never rewritten, and the other
 spelling stays listed in Other names…; taking it out there parts them again. The address of
 the smaller one opens the joined page.
 

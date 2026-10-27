@@ -84,11 +84,11 @@ describe('the lines a playlist is described by', () => {
     expect(playlistTileLine(made, NOW)).toBe('1 song · Tuesday')
   })
 
-  it('says what a playlist fills from, joined with & when a song needs all of them', () => {
+  it('says a playlist is live and what it fills from, joined with & when a song needs all of them', () => {
     const fills = playlist('Night', { songCount: 6 })
-    expect(playlistTileLine(fills, NOW, ['night', 'calm'])).toBe('Fills from night, calm · 6 songs')
+    expect(playlistTileLine(fills, NOW, ['night', 'calm'])).toBe('Live · night, calm · 6 songs')
     expect(playlistTileLine(fills, NOW, ['night', 'calm'], 'all')).toBe(
-      'Fills from night & calm · 6 songs',
+      'Live · night & calm · 6 songs',
     )
   })
 
@@ -101,9 +101,7 @@ describe('the lines a playlist is described by', () => {
 
   it('says what a playlist that fills itself fills from', () => {
     const live = playlist('Long walks', { songCount: 76 })
-    expect(playlistTileLine(live, NOW, ['night', 'focus'])).toBe(
-      'Fills from night, focus · 76 songs',
-    )
+    expect(playlistTileLine(live, NOW, ['night', 'focus'])).toBe('Live · night, focus · 76 songs')
   })
 
   it('says how many are listed, and leaves the order to the dropdown', () => {

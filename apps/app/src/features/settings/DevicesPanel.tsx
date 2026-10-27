@@ -151,12 +151,8 @@ function DevicesList({
     [listed, deviceId, now],
   )
   // A browser registers itself afresh whenever its storage is cleared, which
-  // is where nearly all of these come from.
-  const olderKinds = new Set(
-    listed.filter(device => olderIds.includes(device.id)).map(device => device.kind),
-  )
-  const session = olderKinds.size === 1 && olderKinds.has('other') ? 'browser session' : 'session'
-  const olderLine = plural(olderIds.length, `older ${session}`, `older ${session}s`)
+  // is where nearly all of these come from: each was a sign-in once.
+  const olderLine = plural(olderIds.length, 'old sign-in', 'old sign-ins')
 
   const others = rows.filter(row => row.device.id !== deviceId)
   const finish = (): void => {
@@ -244,7 +240,12 @@ function DevicesList({
             </Text>
           </View>
           {live ? (
-            <Button label="Remove all" variant="text" onPress={() => onForget(olderIds)} />
+            <Button
+              label="Clear"
+              variant="text"
+              accessibilityLabel={`Clear ${olderLine}`}
+              onPress={() => onForget(olderIds)}
+            />
           ) : null}
         </View>
       ) : null}

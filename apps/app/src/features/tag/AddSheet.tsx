@@ -30,7 +30,7 @@ import { FlatList } from '../../ui/components/Scroll'
 import { SideScroll } from '../../ui/components/Shelf'
 
 /**
- * Combine with… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
+ * Mix in… (docs/ui-mock `P09`, docs/features/lists.md): the sheet that
  * puts tags and artists together.
  *
  * What is chosen sits on one row that scrolls sideways; under it a Tags and an
@@ -58,7 +58,7 @@ export function AddSheet({
 }): ReactNode {
   // Mounted fresh each opening, so the copy starts from what the page shows.
   return (
-    <Sheet open={open} onClose={onClose} title="Combine with…" width={520} testID="add-sheet">
+    <Sheet open={open} onClose={onClose} title="Mix in…" width={520} testID="add-sheet">
       {open ? <AddSheetBody chosen={chosen} onShow={onShow} match={match} /> : null}
     </Sheet>
   )

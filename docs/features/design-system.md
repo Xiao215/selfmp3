@@ -232,7 +232,10 @@ states, and the flows that assert them. Sentence case, plain words.
 | A whole playlist or tag | **Delete** | Remove |
 | A device in Settings | **Remove** | Forget |
 | Kept on this device | **On this phone** / **On this computer** (`onThisDevice`, `devicePlace`); the action stays **Download**, its undo is **Remove from this phone** | Downloaded, Offline, saved offline, kept |
-| A playlist that fills itself | **Fills from** [tags]; "Stop filling" | Follow tags, a tag to follow |
+| A playlist that fills itself | **Live** by its loop mark; its row "Keeps itself filled with songs tagged …"; "Stop adding" | Fills from, Stop filling, Follow tags, a broadcast mark |
+| Putting another tag or artist with this one | **Mix in…** | Combine with… |
+| A tag whose songs all sit in another | **Includes** [tag] (n), under the one it is in | Inside: |
+| The stale sign-ins a browser leaves in Devices | **N old sign-ins** · Clear | older sessions, Remove all |
 | A song's page | **Song details** (Now Playing's tab on a computer: **Details**) | About this song, About |
 | The weekly page | **Report**; "Open the report" ("Your week" may head a card) | Wrapped, View Report |
 | Where songs are stored | **your storage** (Backblaze only in its setup steps) | bucket, cloud, cloud library |

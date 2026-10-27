@@ -194,12 +194,12 @@ as three plain choices, then a name:
 
 - **Pick songs**: a name (New playlist, made unique), then picking songs (`AddSongsSheet`).
   It is made with the first songs confirmed, so cancelling leaves nothing.
-- **Fills from tags**: the tags, with what they hold now, then a name that starts as theirs.
+- **Live, from tags**: the tags, with what they hold now, then a name that starts as theirs.
   With two or more, **Any of them / All of them** says whether a song needs one or every one
   (C1); the name joins them with "or" or "&". It follows them (`followRules`, whose `match`
-  the server's rules and the replica's evaluation both read); **Stop filling** on its page
-  keeps every song as it is. Its tile and its Fills from row say "&" / "all of" when it needs
-  all.
+  the server's rules and the replica's evaluation both read); **Stop adding** on its page
+  keeps every song as it is. Its tile ("Live · …") and its row ("Keeps itself filled with
+  songs tagged …") say "&" / "all of" when it needs all.
 - **Describe it**, only while Ask is on: what you want to hear, then a name that starts as
   those words, then Ask's picks to keep ([ai.md](ai.md), "L2").
 
@@ -207,7 +207,7 @@ Back steps back inside the sheet; Cancel or a dismiss makes nothing.
 
 ## Tags together
 
-A tag's page is always that one tag (B1). **Combine with…** on its head (H1) opens the
+A tag's page is always that one tag (B1). **Mix in…** on its head (H1) opens the
 picker; what is picked opens as a page of its own, `/combined?tags=…&artists=…`, pushed on
 the tag page's own stack — Back comes back to the tag, and the Library tab's own filter is
 never touched (it is shared app-wide). Its chips are its address: one taken off or added
@@ -217,7 +217,7 @@ A combination **widens** (any of them) unless its head's one **Any / All** switc
 (C1, 2026-10-25): then it is the songs that carry every one of them (`placeSongs`, the
 address's `match=all`, the source's `match`). The chips keep their two shapes; there is no
 third chip state and no "leave out". An All combination is named with "&" ("night & calm"),
-an Any with "or", and Combine with…'s count follows the switch. Its ⋯ has **Keep as
+an Any with "or", and Mix in…'s count follows the switch. Its ⋯ has **Keep as
 playlist**, which makes a playlist that fills from those tags with the same Any / All, without
 playing them first (`useKeepPlaces`); with an artist among them it keeps the songs on show,
 as rules only follow tags. Up next's Save keeps the match too, and so does Recently played,

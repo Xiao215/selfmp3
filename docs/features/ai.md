@@ -478,7 +478,7 @@ read as no answer at all.
 ## L2 · New playlist, kind first
 
 New playlist (`NewPlaylist.tsx`) offers three kinds before anything is typed: **Pick
-songs**, **Fills from tags**, and **Describe it** when Ask is on. Describe it takes what you
+songs**, **Live, from tags**, and **Describe it** when Ask is on. Describe it takes what you
 want to hear, then a name that starts as those words, then runs Describe and shows its picks
 (`SongsAnswer`, with the name). The other two are ordinary playlists
 ([lists.md](lists.md), "New playlist").

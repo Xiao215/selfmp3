@@ -79,7 +79,7 @@ test.describe('tags as places', () => {
    * it opens the combination as a page of its own over it, so the tag page
    * never turns into something else, and Back finds it as it was.
    */
-  test('Combine with… opens the tags together over the tag’s page', async ({ page }) => {
+  test('Mix in… opens the tags together over the tag’s page', async ({ page }) => {
     const { songs, tags } = await libraryData(page)
     const used = mostPlayed(tags, songs).filter(tag =>
       songs.some(song => song.tagIds.includes(tag.id)),
@@ -91,7 +91,7 @@ test.describe('tags as places', () => {
     await page.goto(`/tag/${encodeURIComponent(first.name)}`)
     const name = page.locator('[data-testid="place-name"]:visible')
     await expect(name).toHaveText(first.name, { timeout: 30_000 })
-    // One tag: no chips to take off, no Save; Combine with… instead.
+    // One tag: no chips to take off, no Save; Mix in… instead.
     await expect(page.locator('[data-testid="place-add"]:visible')).toHaveCount(0)
     await expect(page.getByText('Save as playlist')).toHaveCount(0)
 

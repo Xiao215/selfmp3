@@ -327,9 +327,9 @@ export function SoundMapScreen(): ReactNode {
   }
 
   // What the page lays over the field, which fitting and flying keep clear of:
-  // its head; on a computer the tray's panel down the right (or, hidden, its
-  // folded line at the foot); on a phone the tray at the foot, folded, or open
-  // as a sheet half the screen high.
+  // its head; on a computer the tray's card down the right while it is open
+  // (folded, it is its head alone, beside the page's own); on a phone the tray
+  // at the foot, folded, or open as a sheet half the screen high.
   const [field, setField] = useState<{ width: number; height: number } | null>(null)
   const [head, setHead] = useState(0)
   const [tray, setTray] = useState(0)
@@ -339,7 +339,8 @@ export function SoundMapScreen(): ReactNode {
   const holding = takes.length > 0
   const panel = wide && holding && trayOpen
   const sheet = !wide && holding && trayOpen ? Math.round((field?.height ?? 0) * SHEET_SHARE) : 0
-  const trayRoom = !holding || panel ? 0 : trayOpen ? sheet : folded
+  // A computer's card folds to its head, at the top beside the page's own head: no room at the foot.
+  const trayRoom = !holding || wide ? 0 : trayOpen ? sheet : folded
   const panelRoom = panel ? TRAY_PANEL_WIDTH + space.md : 0
   useEffect(() => {
     control.setInsets({ top: head, bottom: bottom + trayRoom, right: panelRoom })
@@ -364,12 +365,12 @@ export function SoundMapScreen(): ReactNode {
     else if (takes.length > before.takes) control.keepClear(takes[takes.length - 1]!.path)
   }, [control, takes, trayOpen, wide])
   // On a phone the buttons stand over the folded tray, and the open sheet lies
-  // over them; on a computer they stand at the foot, left of the tray's column.
+  // over them; on a computer they stand at the foot, left of the open panel.
   const toolsBottom = wide || !holding ? 0 : folded + space.sm
   // The toasts rise above the tray and the buttons rather than cover Play or the pen.
   useEffect(() => {
-    setPageFoot(Math.max(panel ? 0 : tray, toolsBottom + tools) + space.md)
-  }, [panel, tray, toolsBottom, tools])
+    setPageFoot(Math.max(wide ? 0 : tray, toolsBottom + tools) + space.md)
+  }, [wide, tray, toolsBottom, tools])
 
   const shown = places.length > 0
 
@@ -411,6 +412,7 @@ export function SoundMapScreen(): ReactNode {
                 takes={takes}
                 stroke={stroke}
                 lit={lit}
+                panel={panelRoom}
                 onPress={onPress}
                 onPathStart={onPathStart}
                 onPathMove={onPathMove}
@@ -463,7 +465,7 @@ export function SoundMapScreen(): ReactNode {
             <View
               style={[
                 styles.tools,
-                wide && (holding ? styles.toolsBesideTray : styles.toolsWide),
+                wide && (panel ? styles.toolsBesideTray : styles.toolsWide),
                 { bottom: bottom + toolsBottom },
               ]}
               pointerEvents="box-none"
@@ -522,7 +524,7 @@ export function SoundMapScreen(): ReactNode {
                 style={[
                   wide ? styles.trayWide : styles.tray,
                   { bottom },
-                  panel && styles.panel,
+                  wide && styles.panel,
                   sheet > 0 && { height: sheet },
                 ]}
                 pointerEvents="box-none"
@@ -577,7 +579,7 @@ const styles = StyleSheet.create(theme => ({
   toolsBesideTray: { right: TRAY_PANEL_WIDTH + space.md * 2 },
   // Over the buttons once opened, as a sheet is.
   tray: { position: 'absolute', left: space.sm, right: space.sm, zIndex: 2 },
-  // A column down the right: the panel from top to foot, or folded at the foot.
+  // A column down the right, top to foot: the card at its top, folded to its head or open.
   trayWide: { position: 'absolute', right: space.md, width: TRAY_PANEL_WIDTH, zIndex: 2 },
   panel: { top: space.md },
 }))

@@ -59,6 +59,8 @@ export class FieldControl {
   #panFrom: { x: number; y: number } | null = null
   #wheelTimer: ReturnType<typeof setTimeout> | null = null
   #flight: number | null = null
+  /** Where the flight in progress is going, so a flight started on top of it begins from there. */
+  #heading: MapView | null = null
   #events: FieldEvents | null = null
   #bounds: MapBounds | undefined = undefined
   #drawing = false
@@ -87,8 +89,14 @@ export class FieldControl {
 
   /** What the page lays over the field's head, foot and right, which a fit keeps clear of. */
   setInsets(insets: FieldInsets): void {
+    const before = this.#insets
     this.#insets = insets
-    if (!this.#touched) this.fit(false)
+    // The tray's panel coming or going on a computer: the map glides with the
+    // room it leaves, rather than jumping, and what was in the middle stays there.
+    const view = this.#heading ?? this.#view
+    const slide = view !== null && before.right !== insets.right
+    if (!this.#touched) this.fit(slide)
+    else if (view && slide) this.#fly({ ...view, x: view.x + (before.right - insets.right) / 2 })
   }
 
   /** Where the songs are: what fitting shows. Fitted again only until a hand has moved it. */
@@ -132,7 +140,7 @@ export class FieldControl {
    * a stroke, the map slides (at the same scale) until the stroke is clear.
    */
   keepClear(places: readonly MapPlace[]): void {
-    const view = this.#view
+    const view = this.#heading ?? this.#view
     const field = this.#field
     if (!view || !field) return
     const target = keptClear(view, field, places, this.#insets)
@@ -263,11 +271,13 @@ export class FieldControl {
       this.#set(target, true)
       return
     }
+    this.#heading = target
     const start = Date.now()
     const frame = (): void => {
       const t = Math.min(1, (Date.now() - start) / FLY_MS)
       if (t >= 1) {
         this.#flight = null
+        this.#heading = null
         this.#set(target, true)
         return
       }
@@ -282,6 +292,7 @@ export class FieldControl {
     if (this.#flight === null) return
     cancelAnimationFrame(this.#flight)
     this.#flight = null
+    this.#heading = null
     this.#settle()
   }
 

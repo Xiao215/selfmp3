@@ -41,6 +41,7 @@ export function SoundField({
   takes,
   stroke,
   lit,
+  panel,
   onPress,
   onPathStart,
   onPathMove,
@@ -56,6 +57,8 @@ export function SoundField({
   stroke: readonly MapPlace[]
   /** The song the pointer is on in the tray's list, ringed on the map. */
   lit: number | null
+  /** How much of the field's right the tray's panel covers. */
+  panel: number
   /** A tap, and a finger's reach there: true when it played something, which the pulse marks. */
   onPress: (spot: MapPlace, reach: number) => boolean
   onPathStart: (spot: MapPlace) => void
@@ -172,6 +175,7 @@ export function SoundField({
             stroke={stroke}
             playing={playing}
             lit={lit}
+            panel={panel}
             pulse={pulse}
             songs={songs}
             pointerRef={fieldRef}

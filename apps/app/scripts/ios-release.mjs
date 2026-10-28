@@ -4,14 +4,14 @@ import { homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  INSTALL_PAGE_URL,
   IOS_ASSETS,
-  IOS_INSTALL_PAGE_URL,
   IOS_RELEASE_TAG,
-  REPOSITORY,
   iosAssetUrl,
   iphoneKey,
   renderIosManifest,
 } from '@selfmp3/shared'
+import { publishRolling, releaseCommit, run as runIn } from './rolling-release.mjs'
 
 /**
  * The iPhone app for friends: one ad hoc build, signed for every iPhone on the
@@ -35,14 +35,7 @@ const publish = args.has('--publish')
 /** The Xcode targets, by the bundle each signs. */
 const TARGETS = { selfmp3: 'com.selfmp3.app', SelfMp3Widget: 'com.selfmp3.app.widget' }
 
-const run = (command, list, options = {}) =>
-  execFileSync(command, list, {
-    cwd: options.cwd ?? app,
-    stdio: options.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
-    env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' },
-  })
-    ?.toString()
-    .trim()
+const run = (command, list, options = {}) => runIn(command, list, { cwd: app, ...options })
 
 const signingPath =
   process.env.SELFMP3_IOS_SIGNING ?? resolve(homedir(), '.ios-signing/release.json')
@@ -60,20 +53,8 @@ for (const bundle of Object.values(TARGETS)) {
   if (!signing.profiles?.[bundle]) throw new Error(`${signingPath} names no profile for ${bundle}.`)
 }
 
-const commit = run('git', ['rev-parse', 'HEAD'], { capture: true })
-const build = Number(run('git', ['rev-list', '--count', 'HEAD'], { capture: true }))
+const { commit, build } = releaseCommit(app, { publish })
 const { version } = JSON.parse(readFileSync(resolve(app, 'package.json'), 'utf8'))
-if (publish) {
-  if (run('git', ['status', '--porcelain'], { capture: true }) !== '') {
-    throw new Error('The checkout has changes; a published build is a commit as it is on main.')
-  }
-  run('git', ['fetch', '--quiet', 'origin', 'main'])
-  try {
-    run('git', ['merge-base', '--is-ancestor', commit, 'FETCH_HEAD'])
-  } catch {
-    throw new Error('HEAD is not on main yet; its build number would not follow main’s.')
-  }
-}
 console.log(`self.mp3 ${version} (${build}), ${commit.slice(0, 8)}`)
 
 if (!args.has('--skip-prebuild')) {
@@ -203,78 +184,13 @@ writeFileSync(
 console.log(`Built ${ipa}`)
 
 if (publish) {
-  const repo = `${REPOSITORY.owner}/${REPOSITORY.name}`
-  const notes = `self.mp3 ${version} (${build}) for iPhone, from ${commit.slice(0, 8)}. Installed from the install page, not from here: ${IOS_INSTALL_PAGE_URL}`
-  let exists = true
-  try {
-    run('gh', ['release', 'view', IOS_RELEASE_TAG, '--repo', repo], { capture: true })
-  } catch {
-    exists = false
-  }
-  if (exists) {
-    // The tag moves with each build; the release, and its files' addresses, stay.
-    run(
-      'gh',
-      [
-        'api',
-        '-X',
-        'PATCH',
-        `repos/${repo}/git/refs/tags/${IOS_RELEASE_TAG}`,
-        '-f',
-        `sha=${commit}`,
-        '-F',
-        'force=true',
-      ],
-      { capture: true },
-    )
-  } else {
-    // Never the latest release: the Mac app's updater reads that one (releases.ts).
-    run('gh', [
-      'release',
-      'create',
-      IOS_RELEASE_TAG,
-      '--repo',
-      repo,
-      '--target',
-      commit,
-      '--title',
-      'iPhone app',
-      '--notes',
-      notes,
-      '--prerelease',
-      '--latest=false',
-    ])
-  }
-  // ios.json last, so no installed app hears of a build before it can be downloaded.
-  run('gh', [
-    'release',
-    'upload',
-    IOS_RELEASE_TAG,
-    ipa,
-    resolve(out, IOS_ASSETS.manifest),
-    '--repo',
-    repo,
-    '--clobber',
-  ])
-  run('gh', [
-    'release',
-    'upload',
-    IOS_RELEASE_TAG,
-    resolve(out, IOS_ASSETS.latest),
-    '--repo',
-    repo,
-    '--clobber',
-  ])
-  run('gh', [
-    'release',
-    'edit',
-    IOS_RELEASE_TAG,
-    '--repo',
-    repo,
-    '--notes',
-    notes,
-    '--prerelease',
-    '--latest=false',
-  ])
+  const repo = publishRolling({
+    tag: IOS_RELEASE_TAG,
+    title: 'iPhone app',
+    notes: `self.mp3 ${version} (${build}) for iPhone, from ${commit.slice(0, 8)}. Installed from the install page, not from here: ${INSTALL_PAGE_URL}`,
+    commit,
+    files: [ipa, resolve(out, IOS_ASSETS.manifest)],
+    last: resolve(out, IOS_ASSETS.latest),
+  })
   console.log(`Published build ${build} to ${repo}, release ${IOS_RELEASE_TAG}.`)
 }

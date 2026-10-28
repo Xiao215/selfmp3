@@ -63,8 +63,9 @@ What exists is in [features/desktop-app.md](features/desktop-app.md).
 
 ## The phone
 
-- **Android.** A debug build has run on an emulator, but nothing has run on a physical
-  Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
+- **Android.** Debug and signed release builds have run on an emulator, and friends get
+  the APK from the install page (MOBILE.md, "Sharing the Android app"), but nothing has
+  run on a physical Android device; [MOBILE.md](MOBILE.md) says exactly what has and has not been seen.
 - **The widget on a real iPhone.** It builds and runs on the simulator; a signed build needs
   the App Group `group.com.selfmp3.app` registered in a paid Apple Developer account and
   `ios.appleTeamId` in `app.config.js` ([features/widget.md](features/widget.md), "Building

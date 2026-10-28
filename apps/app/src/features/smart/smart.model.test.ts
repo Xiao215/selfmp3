@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import type {
-  AskCard,
-  AskReply,
-  DescribeResult,
-  Playlist,
-  Song,
-  Tag,
-  TagChange,
-  TidyChange,
-  Understanding,
+import {
+  answerRecap,
+  objectsOf,
+  type AskCard,
+  type AskReply,
+  type DescribeResult,
+  type Playlist,
+  type Song,
+  type Tag,
+  type TagChange,
+  type TidyChange,
+  type Understanding,
 } from '@selfmp3/shared'
 import {
   answerSongs,
   askSuggestions,
-  answerRecap,
   askable,
   asksOnEnter,
   describeNotes,
@@ -42,7 +43,6 @@ import {
   tagsTitle,
   shortTidyApply,
   shortTidyTitle,
-  objectsOf,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -266,126 +266,6 @@ describe('askable', () => {
     expect(askable('발라')).toBe(true)
     expect(askable('歌')).toBe(false)
     expect(askable('a歌')).toBe(false)
-  })
-})
-
-describe('answerRecap', () => {
-  it('says only what was asked, not that it was done: the device says what came of it', () => {
-    const recap = answerRecap(one({ kind: 'playback', op: 'next', place: null }))
-    expect(recap).toBe('Asked to skip to the next song.')
-  })
-
-  it('says what a list was offered for, its songs left to its object', () => {
-    const describe = {
-      understanding: { ...base, name: 'Morning' },
-      picks: [{ songId: 4, why: 'bright' }],
-    } as unknown as DescribeResult
-    expect(answerRecap(one({ kind: 'songs', lead: 'save', describe, like: null }))).toBe(
-      'Offered 1 song (“Morning”) to keep as a playlist',
-    )
-  })
-})
-
-describe('objectsOf', () => {
-  const describe = {
-    understanding: { ...base, name: 'Rainy' },
-    fit: 9,
-    loosened: [],
-    unknown: [],
-    notes: [],
-    picks: [
-      { songId: 11, why: 'soft piano' },
-      { songId: 12, why: null },
-      { songId: 13, why: 'rain on glass' },
-    ],
-  } satisfies DescribeResult
-
-  it('gives a list its handle, songs in order with their reasons, and what it was for', () => {
-    const [object] = objectsOf(one({ kind: 'songs', lead: 'next', describe, like: 7 }), 3)
-    expect(object).toEqual({
-      handle: 't3.1',
-      kind: 'songs',
-      label: 'Rainy',
-      songIds: [11, 12, 13],
-      why: ['soft piano', null, 'rain on glass'],
-      playlist: null,
-      lead: 'next',
-      like: 7,
-      understanding: describe.understanding,
-    })
-  })
-
-  it('sends a list as it is shown now: moved on its page, its reasons kept with their songs', () => {
-    const now = { ...base, name: 'Rainy', size: 2 }
-    const [object] = objectsOf(
-      one({ kind: 'songs', lead: 'play', describe, like: null }),
-      1,
-      new Map([[0, { songIds: [13, 11], understanding: now }]]),
-    )
-    expect(object).toMatchObject({
-      songIds: [13, 11],
-      why: ['rain on glass', 'soft piano'],
-      understanding: now,
-    })
-  })
-
-  it('names the songs of a review and of a playlist edit, and nothing for words alone', () => {
-    const [tags] = objectsOf(
-      one({
-        kind: 'tags',
-        review: {
-          changes: [
-            {
-              key: 'a',
-              op: 'add',
-              tag: '夜',
-              isNew: true,
-              to: null,
-              songIds: [1, 2],
-              who: '',
-              why: '',
-              by: 'model',
-            },
-            {
-              key: 'b',
-              op: 'add',
-              tag: 'jpop',
-              isNew: false,
-              to: null,
-              songIds: [2, 3],
-              who: '',
-              why: '',
-              by: 'model',
-            },
-          ],
-          looked: 3,
-          asked: 'tag these',
-          unsure: [],
-          note: null,
-        },
-      }),
-      2,
-    )
-    expect(tags).toMatchObject({ handle: 't2.1', kind: 'tagChanges', songIds: [1, 2, 3] })
-    const [edit] = objectsOf(
-      one({
-        kind: 'playlistSongs',
-        playlist: 'gym',
-        op: 'add',
-        songs: [{ songId: 5, why: null }],
-        understanding: null,
-        by: 'rule',
-        sortBy: null,
-        order: 'asc',
-        unknown: [],
-      }),
-      4,
-    )
-    expect(edit).toMatchObject({ kind: 'playlistSongs', playlist: 'gym', songIds: [5] })
-    expect(objectsOf(one({ kind: 'clarify', question: 'Which?', options: ['a'] }), 5)).toEqual([])
-    expect(
-      objectsOf(one({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }), 6),
-    ).toEqual([])
   })
 })
 

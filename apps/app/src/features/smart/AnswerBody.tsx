@@ -2,7 +2,13 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { artistOr, plural, type AskCard as Answer, type AskReply } from '@selfmp3/shared'
+import {
+  artistOr,
+  plural,
+  rangeWords,
+  type AskCard as Answer,
+  type AskReply,
+} from '@selfmp3/shared'
 import { radius, space, type, textStyle, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -14,7 +20,7 @@ import { Check, Copy as CopyIcon } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import { foundSource } from '../lists/lists.model'
-import { cardHeading, rangeWords } from './smart.model'
+import { cardHeading } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaybackAnswer } from './PlaybackAnswer'

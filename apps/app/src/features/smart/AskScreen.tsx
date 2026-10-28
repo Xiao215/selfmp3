@@ -22,7 +22,18 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { AI_ERROR, ASK_TEXT_MAX, joinedArtists, plural, type AskReply } from '@selfmp3/shared'
+import {
+  AI_ERROR,
+  ASK_TEXT_MAX,
+  answerRecap,
+  beforeTurn,
+  joinedArtists,
+  objectsOf,
+  plural,
+  tooLongToAsk,
+  type AskReply,
+  type ShownList,
+} from '@selfmp3/shared'
 import {
   ApiError,
   failureText,
@@ -79,22 +90,8 @@ import {
   useKeptAnswer,
   useKeptAnswers,
 } from './answers.store'
-import {
-  afterStop,
-  beforeTurn,
-  retried,
-  scrollToShow,
-  tooLongToAsk,
-  type Turn,
-} from './askTurns.model'
-import {
-  answerRecap,
-  askSuggestions,
-  logLine,
-  objectsOf,
-  picksHere,
-  type ShownList,
-} from './smart.model'
+import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
+import { askSuggestions, logLine, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { StopButton } from './StopButton'

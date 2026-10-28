@@ -62,7 +62,7 @@ const PICK_VERSION = 4
  * A range, or null for none at all. A model told to leave a range alone writes null for the
  * whole of it as often as it writes both ends null, and the CLI behind cli-bridge checks the
  * form itself and has the model write every field again when it doesn't fit: that silent second
- * pass was 4–5 s on most mood requests (~/ask-eval-selfmp3/PERF.md, 2026-10-27). So both are taken.
+ * pass was 4–5 s on most mood requests (measured 2026-10-27). So both are taken.
  */
 const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() }).nullable()
 

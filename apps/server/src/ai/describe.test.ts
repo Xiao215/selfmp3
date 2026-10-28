@@ -1,6 +1,13 @@
 import { describe as group, expect, it } from 'vitest'
 import { NO_JOINS, type Understanding } from '@selfmp3/shared'
-import { describe, groundPicks, groundPlan, narrowAndPick, songsFitting } from './describe.js'
+import {
+  PlanOut,
+  describe,
+  groundPicks,
+  groundPlan,
+  narrowAndPick,
+  songsFitting,
+} from './describe.js'
 import { Remembered } from './llm.js'
 import { AskProgress } from './progress.js'
 import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
@@ -88,6 +95,13 @@ group('groundPlan', () => {
     )
     expect(understanding.albums).toEqual(['Best of Chopin'])
     expect(unknown).toEqual(['Jukebox'])
+  })
+
+  it('takes a range left out whole as no range, so the model never has to write it again', () => {
+    const plan = PlanOut.parse({ ...nothing, energy: null, bpm: null, year: null })
+    const { understanding } = groundPlan(plan, SONGS, TAGS, NO_JOINS)
+    const none = { min: null, max: null }
+    expect(understanding).toMatchObject({ energy: none, bpm: none, year: none })
   })
 
   it('reads an empty sound or brief as none', () => {

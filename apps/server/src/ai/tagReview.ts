@@ -50,7 +50,7 @@ const CALLS_AT_ONCE = 4
 /** The most groups looked at in one pass; past that, the biggest. */
 const MAX_GROUPS = 400
 
-const PlanOut = z.object({
+export const TagPlan = z.object({
   /** "Tidy my tags": nothing in particular, so the whole of them is checked. */
   checkup: z.boolean(),
   ops: z
@@ -132,6 +132,16 @@ interface TagReviewInput {
    * then those and no others. Null or left out: the songs the words describe.
    */
   readonly scope?: readonly Song[] | null
+  /**
+   * What the request is about, when the caller has read it already (Ask's
+   * agent): the review does not ask a model to read it again.
+   */
+  readonly plan?: z.infer<typeof TagPlan> | null
+  /**
+   * Tags to give every song of the scope, or take off them, exactly as asked:
+   * no judging at all, so "tag them 夜" tags exactly those songs.
+   */
+  readonly direct?: { readonly add: readonly string[]; readonly remove: readonly string[] } | null
 }
 
 /** Songs by one artist that carry the same tags, with titles in one script. */
@@ -461,6 +471,47 @@ class Gathered {
   }
 }
 
+/** "Tag them 夜": the songs given the tags or relieved of them, as asked, nothing judged. */
+function directly(
+  asked: NonNullable<TagReviewInput['direct']>,
+  scope: readonly Song[],
+  tags: readonly Tag[],
+  input: TagReviewInput,
+  gathered: Gathered,
+): TagReview {
+  const named = (name: string): Tag | undefined =>
+    tags.find(tag => tag.name.toLowerCase() === name.trim().toLowerCase())
+  const notes: string[] = []
+  for (const name of asked.add) {
+    const tag = named(name)
+    const clean = name.trim().replace(/\s+/g, ' ')
+    if (tag) {
+      const lacking = scope.filter(song => !song.tagIds.includes(tag.id))
+      if (lacking.length > 0) gathered.songs('add', tag.name, false, 'rule', lacking, 'As you asked')
+      else notes.push(`They are all tagged ${tag.name} already.`)
+    } else if (clean && clean.length <= TAG_NAME_MAX) {
+      gathered.songs('add', clean, true, 'rule', scope, 'As you asked')
+    }
+  }
+  for (const name of asked.remove) {
+    const tag = named(name)
+    if (!tag) {
+      notes.push(`You have no tag called ${name}.`)
+      continue
+    }
+    const carrying = scope.filter(song => song.tagIds.includes(tag.id))
+    if (carrying.length > 0) gathered.songs('remove', tag.name, false, 'rule', carrying, 'As you asked')
+    else notes.push(`None of them is tagged ${tag.name}.`)
+  }
+  return {
+    changes: gathered.changes(input.limit ?? null),
+    looked: scope.length,
+    asked: input.text,
+    unsure: [],
+    note: notes.length > 0 ? notes.join(' ') : null,
+  }
+}
+
 export async function tagReview(
   deps: TagReviewDeps,
   input: TagReviewInput,
@@ -481,7 +532,7 @@ export async function tagReview(
     whoOf(songs.filter(song => song.tagIds.includes(tag.id))) || 'no songs'
 
   // 1 · What the request is about. Without one, it is the untagged songs.
-  let plan: z.infer<typeof PlanOut> = {
+  let plan: z.infer<typeof TagPlan> = {
     checkup: false,
     ops: [],
     focus: [],
@@ -490,7 +541,10 @@ export async function tagReview(
     artists: [],
   }
   const scope = input.scope ?? null
-  if (input.text !== null) {
+  if (input.direct && scope) return directly(input.direct, scope, tags, input, gathered)
+  if (input.plan) {
+    plan = input.plan
+  } else if (input.text !== null) {
     steps.begin('Reading your tags')
     const artists = tally(songs.map(song => mainArtist(song.artist)))
       .slice(0, 300)
@@ -507,7 +561,7 @@ export async function tagReview(
             tier: 'smart',
             system: PLAN_SYSTEM,
             prompt,
-            schema: PlanOut,
+            schema: TagPlan,
           })
         ).value,
     )

@@ -5,19 +5,23 @@ import {
   AskStatsRangeSchema,
   joinedNames,
   NO_JOINS,
+  type Song,
+  type Stats,
   type TidyResult,
+  type Understanding,
 } from '@selfmp3/shared'
-import type { AskDeps } from './askActions.js'
-import { EVERYTHING, sortSongs } from './askLibrary.js'
+import { EVERYTHING, matchPlaylist, songsThatAre, sortSongs, type AskPlaylist } from './askLibrary.js'
 import { findCopies } from './copies.js'
-import { groundPlan, narrowAndPick } from './describe.js'
+import { DEFAULT_SIZE, MAX_PICKS, groundPlan, narrowAndPick, type DescribeDeps } from './describe.js'
 import { fillGaps } from './fill.js'
 import { haveTrack } from './getMusic.js'
 import { halfRemembered } from './halfRemembered.js'
 import { creditedArtists } from './library.js'
 import { tool, type LlmTool, type Remembered } from './llm.js'
+import type { CatalogueSearch, FindListings, FindNames } from './names.js'
+import type { MusicCatalogue } from './getMusic.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { tagReview } from './tagReview.js'
+import { tagReview, TagPlan } from './tagReview.js'
 import { bare, pool, tally } from './text.js'
 import { oneSpelling, tidy } from './tidy.js'
 import {
@@ -25,11 +29,35 @@ import {
   candidatesOf,
   FilterFields,
   nearNames,
+  filtersUnderstanding,
   ScopeArg,
   SetName,
   type WorkingSet,
   type Library,
 } from './workingSet.js'
+
+/** What Ask works with: the library, its listening, its playlists and the catalogues. */
+export interface AskDeps extends DescribeDeps {
+  /** The playlists, for "delete…", "rename…" (`matchPlaylist`) and their songs. */
+  readonly playlists?: () => readonly AskPlaylist[]
+  /** The listening in a range, with up to `top` songs, artists and tags (the Stats page's when left out). */
+  readonly stats: (range: Stats['range'], top?: number) => Stats
+  readonly lyrics: (query: string) => { songId: number; line: string }[]
+  /** The music catalogues, for names from outside the library (`names.ts`). */
+  readonly findNames?: FindNames
+  /** Every catalogue's listings for a song, for an album, a year or a cover it lacks. */
+  readonly findListings?: FindListings
+  /** How they want things done, for every request (Settings › Smart features). */
+  readonly notes?: () => readonly string[]
+  /** 网易云's search, for looking things up. */
+  readonly catalogue?: CatalogueSearch
+  /** Whether Ask may search the web: always, as the server runs it. */
+  readonly web?: () => boolean
+  /** 网易云's albums and songs, for music to import (`getMusic.ts`). */
+  readonly music?: MusicCatalogue
+  /** How each Chinese or Japanese name is spelt in Latin letters, for one artist's names made one. */
+  readonly spellings?: () => ReadonlyMap<string, readonly string[]>
+}
 
 /**
  * Ask's pipelines as tools a model calls (AGENT-DESIGN 2.3), over the songs
@@ -57,6 +85,7 @@ const ASK_TOOL_NAMES = [
   'listening',
   'lookup_names',
   'pick_by_taste',
+  'judge_each',
   'find_half_remembered',
   'propose_tags',
   'propose_names',
@@ -65,6 +94,8 @@ const ASK_TOOL_NAMES = [
 ] as const
 export type AskToolName = (typeof ASK_TOOL_NAMES)[number]
 
+/** What a set found by filters is called until a pick names it. */
+const FOUND = 'Songs found'
 /** The most groups `count_by` lists. */
 const GROUPS_SHOWN = 100
 /** The most proposal lines a proposing tool shows. */
@@ -119,27 +150,49 @@ export function askTools(
   const findSongs = tool({
     name: 'find_songs',
     description:
-      'Find songs of theirs and keep them as a set named `as`, which later calls can name in a scope, in this reply or the next. Every condition given must hold; leave the rest out. Artist, album and tag names are matched as the library spells them, across scripts and an artist’s other names; a name the library does not have matches no song and comes back under unmatched with the names nearest it, so look again with one of those rather than concluding it is missing. text matches words in a title, artist, album or lyrics; title only titles; lyrics only lyrics. words is with or without lyrics. scope starts from a set or ids instead of the whole library. sort and order put the set in an order and limit keeps that many from the front. The answer is the set’s size, its minutes and its first rows; offset shows later rows. When it comes to no songs, emptiedBy says which condition left none.',
+      'Find songs of theirs and keep them as a set named `as`, which later calls can name in a scope, in this reply or the next. Every condition given must hold; leave the rest out. Artist, album and tag names are matched as the library spells them, across scripts and an artist’s other names; a name the library does not have matches no song and comes back under unmatched with the names nearest it, so look again with one of those rather than concluding it is missing. text matches words in a title, artist, album or lyrics; title only titles; lyrics only lyrics. words is with or without lyrics. playlist keeps the songs in one of their playlists, in its order. scope starts from a set or ids instead of the whole library. sort and order put the set in an order and limit keeps that many from the front. The answer is the set’s size, its minutes and its first rows; offset shows later rows. When it comes to no songs, emptiedBy says which condition left none.',
     parameters: z.object({
       as: SetName,
       scope: ScopeArg.nullish(),
+      playlist: z.string().min(1).max(120).nullish(),
       ...FilterFields,
       sort: z.enum(AskSortSchema.options).nullish(),
       order: z.enum(AskOrderSchema.options).nullish(),
       limit: z.number().int().min(1).max(5000).nullish(),
       offset: z.number().int().min(0).nullish(),
     }),
-    run: ({ as, scope, sort, order, limit, offset, ...filters }) => {
+    run: ({ as, scope, playlist, sort, order, limit, offset, ...filters }) => {
       steps.begin(
         filters.text
           ? `Looking through your songs for “${filters.text}”`
           : 'Looking through your songs',
       )
-      const from = set.resolve(scope)
+      let from = set.resolve(scope)
+      if (playlist) {
+        const playlists = deps.playlists?.() ?? []
+        const name = matchPlaylist(playlist, playlists)
+        const found = playlists.find(each => each.name === name)
+        if (!found) {
+          throw new Error(
+            `No playlist is called “${playlist}”. Their playlists: ${playlists.map(each => `“${each.name}”`).join(', ') || 'none'}.`,
+          )
+        }
+        const inScope = new Set(from.songs.map(song => song.id))
+        const byId = new Map(library.songs.map(song => [song.id, song]))
+        const songs = found.songIds().flatMap(id => (inScope.has(id) ? (byId.get(id) ?? []) : []))
+        from = {
+          songs,
+          emptiedBy: songs.length === 0 ? `the playlist ${found.name} (holds none of them)` : null,
+          unmatched: from.unmatched,
+        }
+      }
       const found = from.emptiedBy ? from : applyFilters(from.songs, filters, library)
       let songs = sort ? sortSongs(found.songs, sort, order ?? 'desc') : found.songs
       if (limit) songs = songs.slice(0, limit)
-      set.put(as, songs, 'songs found')
+      set.put(as, songs, 'songs found', undefined, {
+        understanding: filtersUnderstanding(filters, library, FOUND),
+        emptiedBy: found.emptiedBy,
+      })
       steps.done()
       return set.view(as, {
         offset,
@@ -278,7 +331,7 @@ export function askTools(
   const pickByTaste = tool({
     name: 'pick_by_taste',
     description:
-      'Choose songs from a scope by judgement and keep them as a set named `as`: brief says what every song must be or what they are for, sound says in English how they should sound for the listening model (positive words only), count or minutes how many or how long, like a song they should sound close to, avoid songs to leave out. A model reads the songs against the brief. When none fit, the set is empty and notes say why: tell them rather than loosening. Notes also say what else made it fewer (songs set to rest, a default number).',
+      'Choose songs from a scope by judgement and keep them as a set named `as`: brief says what every song must be or what they are for, sound says in English how they should sound for the listening model (positive words only), count or minutes how many or how long (25 when neither is said), like a song they should sound close to, avoid songs to leave out. keep names songs already shown that stay first, in their places, when they are in the scope; only the rest is chosen around them, and none is chosen when they are enough. A model reads the songs against the brief. When none fit, the set is empty and notes say why: tell them rather than loosening. Notes also say what else made it fewer (songs set to rest, a default number).',
     parameters: z.object({
       as: SetName,
       from: ScopeArg,
@@ -288,52 +341,133 @@ export function askTools(
       minutes: z.number().int().min(1).max(1440).nullish(),
       like: ScopeArg.nullish(),
       avoid: ScopeArg.nullish(),
+      keep: ScopeArg.nullish(),
     }),
-    run: async ({ as, from, brief, sound, count, minutes, like, avoid }) => {
+    run: async ({ as, from, brief, sound, count, minutes, like, avoid, keep }) => {
       const scoped = set.resolve(from)
       const pool = scoped.songs
+      // What the songs were chosen from, for the answer's chips: the scope's filters or its set's.
+      const base: Understanding =
+        (from.filters ? filtersUnderstanding(from.filters, library, brief) : undefined) ??
+        (from.set && !from.pick && !from.ids ? set.metaOf(from.set).understanding : undefined) ??
+        groundPlan(EVERYTHING, library.songs, library.tags, library.names).understanding
+      const likeSong = like ? set.resolve(like).songs[0] : undefined
+      if (like && !likeSong) throw new Error('like names no song.')
+      const asked = { size: count ?? null, minutes: count ? null : (minutes ?? null) }
+      const generic = base.name === EVERYTHING.name || base.name === FOUND
+      const understanding: Understanding = {
+        ...base,
+        name: generic ? brief.slice(0, 60) : base.name,
+        brief,
+        sound: sound?.trim() || null,
+        ...asked,
+      }
       if (pool.length === 0) {
-        set.put(as, [], brief)
+        set.put(as, [], brief, undefined, { understanding, fit: 0, emptiedBy: scoped.emptiedBy })
         return set.view(as, {
           emptiedBy: scoped.emptiedBy ?? 'nothing to choose from',
           unmatched: scoped.unmatched,
         })
       }
-      const likeSong = like ? set.resolve(like).songs[0] : undefined
-      if (like && !likeSong) throw new Error('like names no song.')
-      const left = avoid ? set.resolve(avoid).songs.map(song => song.id) : []
-      const { understanding } = groundPlan(
-        {
-          ...EVERYTHING,
-          name: 'Chosen',
-          brief,
-          sound: sound?.trim() || null,
-          size: count ?? null,
-          minutes: count ? null : (minutes ?? null),
-        },
-        library.songs,
-        library.tags,
-        library.names,
-      )
+      const left = new Set(avoid ? set.resolve(avoid).songs.map(song => song.id) : [])
+      if (likeSong) left.add(likeSong.id)
+      // The songs shown that are still in the scope stay where they were; only the rest is chosen.
+      const inPool = new Set(pool.map(song => song.id))
+      const kept: Song[] = []
+      let rest = understanding
+      const keptWhy = keep?.set ? set.whyOf(keep.set) : new Map<number, string>()
+      if (keep) {
+        const target = asked.minutes === null ? null : asked.minutes * 60
+        const size = Math.min(MAX_PICKS, asked.size ?? DEFAULT_SIZE)
+        let seconds = 0
+        for (const song of set.resolve(keep).songs) {
+          if (!inPool.has(song.id) || left.has(song.id)) continue
+          if (target === null ? kept.length >= size : seconds >= target) break
+          kept.push(song)
+          seconds += song.duration
+        }
+        const enough = target === null ? kept.length >= size : seconds >= target - 30
+        if (enough) {
+          set.put(as, kept, brief, keptWhy, {
+            understanding,
+            fit: pool.length,
+            like: likeSong?.id ?? null,
+          })
+          return set.view(as, { notes: ['Kept the songs shown that still fit; none chosen anew.'] })
+        }
+        for (const song of kept) left.add(song.id)
+        rest = {
+          ...understanding,
+          size: target === null ? size - kept.length : null,
+          minutes: target === null ? null : Math.max(1, Math.ceil((target - seconds) / 60)),
+        }
+      }
       const found = await narrowAndPick(
         { ...deps, songs: () => pool },
         brief,
-        understanding,
+        rest,
         [],
-        left,
+        [...left],
         steps,
         likeSong?.id ?? null,
       )
       const byId = new Map(pool.map(song => [song.id, song]))
-      const picked = found.picks.flatMap(pick => byId.get(pick.songId) ?? [])
-      const why = new Map(
-        found.picks.flatMap(pick => (pick.why ? [[pick.songId, pick.why] as const] : [])),
-      )
-      set.put(as, picked, brief, why)
-      return set.view(as, {
-        notes: [...found.loosened.map(part => `Let go of ${part} to find any.`), ...found.notes],
-        ...(picked.length === 0 ? { emptiedBy: 'the pick chose none of them' } : {}),
+      const picked = [
+        ...kept,
+        ...found.picks.flatMap(pick =>
+          left.has(pick.songId) ? [] : (byId.get(pick.songId) ?? []),
+        ),
+      ]
+      const why = new Map<number, string>([
+        ...[...keptWhy].filter(([id]) => kept.some(song => song.id === id)),
+        ...found.picks.flatMap(pick => (pick.why ? [[pick.songId, pick.why] as const] : [])),
+      ])
+      const notes = [...found.loosened.map(part => `Let go of ${part} to find any.`), ...found.notes]
+      const emptied = picked.length === 0 ? { emptiedBy: 'the pick chose none of them' } : {}
+      set.put(as, picked, brief, why, {
+        understanding,
+        fit: found.fit,
+        loosened: found.loosened,
+        notes: found.notes,
+        like: likeSong?.id ?? null,
+        ...emptied,
       })
+      return set.view(as, { notes, ...emptied })
+    },
+  })
+
+  const judgeEach = tool({
+    name: 'judge_each',
+    description:
+      'Read every song of a scope against a brief, one by one, and keep the ones that are it as a set named `as`: for how many songs or which songs are something only listening or knowing the music can tell (what they are about, how they sound, their language when names do not show it). Unlike pick_by_taste it aims at no number: every song that is it is kept. Past 600 songs an even spread of 600 is read, and judged says how many of how many, so a count from it is an estimate.',
+    parameters: z.object({
+      as: SetName,
+      from: ScopeArg.nullish(),
+      brief: z.string().min(1).max(200),
+    }),
+    run: async ({ as, from, brief }) => {
+      const pool = set.resolve(from).songs
+      const { understanding } = groundPlan(
+        { ...EVERYTHING, name: brief.slice(0, 60), brief },
+        library.songs,
+        library.tags,
+        library.names,
+      )
+      const judged = await songsThatAre(
+        { ...deps, songs: () => [...pool] },
+        `${options.question}\n(What to judge: ${brief})`,
+        understanding,
+        steps,
+      )
+      const byId = new Map(pool.map(song => [song.id, song]))
+      set.put(
+        as,
+        judged.songIds.flatMap(id => byId.get(id) ?? []),
+        brief,
+        undefined,
+        { understanding, judged: { songs: judged.judged, of: judged.of } },
+      )
+      return { ...set.view(as), judged: `${judged.judged} of ${judged.of}` }
     },
   })
 
@@ -361,6 +495,7 @@ export function askTools(
         picks.flatMap(pick => byId.get(pick.songId) ?? []),
         brief,
         why,
+        { terms },
       )
       return set.view(as, {
         ...(picks.length === 0
@@ -378,19 +513,48 @@ export function askTools(
   const proposeTags = tool({
     name: 'propose_tags',
     description:
-      'Propose changes to their tags, kept under `as` for the answer to show; nothing is changed until they accept. request says what to do in their words: songs given a tag or taken out of one, a tag renamed, merged or deleted, the tags checked. scope limits it to those songs, and no others; without one the request says which. limit is the most songs to change. The answer lists the proposed changes.',
+      'Propose changes to their tags, kept under `as` for the answer to show; nothing is changed until they accept. With add or remove, every song of the scope is given those tags or has them taken off, exactly as asked, with no judging (a tag they lack is made). Otherwise the review judges: request says what to do in their words; focus the tags in question as they are spelled; songs which songs to look at against them (without: not carrying them yet; with: carrying them; all; untagged; none for changes to tags alone); ops renames, merges and deletes of tags; newTag a tag to make; artists only those artists’ songs; checkup true to check every tag. Give focus, songs and ops when you can tell them, and the review does not read the request again. scope limits it to those songs and no others. limit is the most songs to change. The answer lists the proposed changes.',
     parameters: z.object({
       as: SetName,
       request: z.string().min(1).max(400),
       scope: ScopeArg.nullish(),
+      add: z.array(z.string().min(1).max(80)).max(4).nullish(),
+      remove: z.array(z.string().min(1).max(80)).max(4).nullish(),
+      focus: z.array(z.string().min(1).max(80)).max(8).nullish(),
+      songs: z.enum(['without', 'with', 'all', 'untagged', 'none']).nullish(),
+      ops: TagPlan.shape.ops.nullish(),
+      newTag: z.string().min(1).max(80).nullish(),
+      artists: z.array(z.string().min(1).max(120)).max(12).nullish(),
+      checkup: z.boolean().nullish(),
       limit: z.number().int().min(1).max(5000).nullish(),
     }),
-    run: async ({ as, request, scope, limit }) => {
+    run: async args => {
+      const { as, request, scope, add, remove, focus, ops, newTag, artists, checkup, limit } = args
       const songs = scope ? set.resolve(scope).songs : null
       if (songs && songs.length === 0) throw new Error('The scope holds no songs.')
+      const direct = (add?.length ?? 0) + (remove?.length ?? 0) > 0
+      if (direct && !songs) throw new Error('add and remove need a scope: the songs to change.')
+      // The fields say what the review's own reading of the request would: it is not asked again.
+      const told =
+        focus || args.songs || ops || newTag || checkup
+          ? {
+              checkup: checkup ?? false,
+              ops: ops ?? [],
+              focus: focus ?? [],
+              newTag: newTag ?? null,
+              songs: args.songs ?? (focus && focus.length > 0 ? 'without' : 'all'),
+              artists: artists ?? [],
+            }
+          : null
       const review = await tagReview(
         deps,
-        { text: request, limit: limit ?? null, scope: songs },
+        {
+          text: request,
+          limit: limit ?? null,
+          scope: songs,
+          plan: told,
+          direct: direct ? { add: add ?? [], remove: remove ?? [] } : null,
+        },
         steps,
       )
       set.propose(as, { kind: 'tags', value: review })
@@ -561,6 +725,7 @@ export function askTools(
     listening,
     lookup_names: lookupNames,
     pick_by_taste: pickByTaste,
+    judge_each: judgeEach,
     find_half_remembered: findHalfRemembered,
     propose_tags: proposeTags,
     propose_names: proposeNames,

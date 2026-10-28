@@ -100,6 +100,13 @@ export interface LlmTool {
   readonly description: string
   readonly parameters: z.ZodType
   readonly run: (args: never) => unknown
+  /**
+   * The call that answers (a terminal tool, Ask's `respond`): when it runs
+   * without throwing, the task is done and its arguments are the answer, read
+   * with the task's schema; the calls after it in that reply are not run. When
+   * it throws, the error goes back like any tool's, for the model to mend.
+   */
+  readonly ends?: boolean
 }
 
 /** A tool, with its arguments' type read off its schema. */
@@ -108,6 +115,7 @@ export function tool<A>(entry: {
   description: string
   parameters: z.ZodType<A>
   run: (args: A) => unknown
+  ends?: boolean
 }): LlmTool {
   return entry
 }
@@ -213,7 +221,7 @@ async function runCall(
   tools: readonly LlmTool[],
   call: ToolCall,
   stop: AbortSignal | undefined,
-): Promise<{ content: string; failed: boolean }> {
+): Promise<{ content: string; failed: boolean; ended?: unknown }> {
   const failed = (error: string) => ({ content: JSON.stringify({ error }), failed: true })
   const found = tools.find(each => each.name === call.function.name)
   if (!found) return failed(`There is no tool called ${call.function.name}.`)
@@ -226,7 +234,9 @@ async function runCall(
   const parsed = found.parameters.safeParse(args)
   if (!parsed.success) return failed(`Wrong arguments: ${issuesOf(parsed.error)}`)
   try {
-    const result = JSON.stringify(await found.run(parsed.data as never)) ?? 'null'
+    const ran = await found.run(parsed.data as never)
+    if (found.ends) return { content: '{"ok":true}', failed: false, ended: args }
+    const result = JSON.stringify(ran) ?? 'null'
     return {
       content:
         result.length > RESULT_CHARS
@@ -523,11 +533,21 @@ export function openAiCompatible(
             tool_calls: reply.calls,
           })
           // In the order written: a later call may use what an earlier one made.
+          let ended: { value: unknown } | null = null
           for (const call of reply.calls) {
             const ran = await runCall(tools, call, request.signal)
             toolNames.push(call.function.name)
             if (ran.failed) failed++
             messages.push({ role: 'tool', tool_call_id: call.id, content: ran.content })
+            // The answering call ran: the task is done, whatever was written after it.
+            if (ran.ended !== undefined) {
+              ended = { value: ran.ended }
+              break
+            }
+          }
+          if (ended) {
+            text = JSON.stringify(ended.value)
+            break
           }
         }
         let problem: string

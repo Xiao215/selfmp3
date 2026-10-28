@@ -1,5 +1,6 @@
 import type { z } from 'zod/v4'
 import {
+  editDistance,
   formatDuration,
   isResting,
   joinedNames,
@@ -29,7 +30,7 @@ import {
 import { creditedArtists, songTable } from './library.js'
 import { Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { tally } from './text.js'
+import { bare, tally } from './text.js'
 
 /**
  * Two of Ask's answers that read the library rather than the listening
@@ -45,6 +46,33 @@ export interface AskPlaylist {
   readonly kind: 'manual' | 'live'
   readonly rules: SmartRules | null
   readonly songIds: () => readonly number[]
+}
+
+/**
+ * The playlist a name means, by its exact name, or null. Spelled the way
+ * people type a name they half remember — "chill chiense hype" is "chill ·
+ * chinese · hype" — but only ever one that exists: the same letters, or a few
+ * slips from them, and when two are equally near, neither.
+ */
+export function matchPlaylist(
+  name: string,
+  playlists: readonly { readonly name: string }[],
+): string | null {
+  const wanted = bare(name)
+  if (!wanted) return null
+  const exact = playlists.find(playlist => bare(playlist.name) === wanted)
+  if (exact) return exact.name
+  const slips = Math.max(2, Math.floor(wanted.length * 0.2))
+  const near = playlists
+    // Anything past `slips` comes back as `slips + 1`, which the filter drops.
+    .map(playlist => ({
+      name: playlist.name,
+      far: editDistance(wanted, bare(playlist.name), slips),
+    }))
+    .filter(each => each.far <= slips)
+    .sort((a, b) => a.far - b.far)
+  if (near.length === 0 || (near.length > 1 && near[0]!.far === near[1]!.far)) return null
+  return near[0]!.name
 }
 
 /** How many songs a library question lists at most: as many as a playlist answer holds. */

@@ -76,6 +76,8 @@ export const ScopeArg = z.object({
   set: z.string().min(1).max(24).nullish(),
   /** Places in the set's list, 1 for the first. */
   pick: z.array(z.number().int().min(1).max(5000)).max(200).nullish(),
+  /** Places in the set's list to leave out, 1 for the first. */
+  drop: z.array(z.number().int().min(1).max(5000)).max(200).nullish(),
   ids: z.array(z.number().int()).max(500).nullish(),
   filters: FiltersArg.nullish(),
 })
@@ -101,11 +103,34 @@ interface Resolved {
   readonly unmatched: readonly Unmatched[]
 }
 
+/**
+ * What a set was made as, for the answer built from it (`respond.ts`): what
+ * it understood, the song it sounds like, and what made it fewer than it
+ * could be. A set an earlier answer showed carries what that answer did.
+ */
+export interface SetMeta {
+  readonly understanding?: Understanding
+  readonly like?: number | null
+  readonly lead?: 'play' | 'save' | 'next' | null
+  /** How many songs fit before a pick chose among them. */
+  readonly fit?: number
+  readonly loosened?: readonly string[]
+  readonly unknown?: readonly string[]
+  readonly notes?: readonly string[]
+  /** A half-remembered song's search words. */
+  readonly terms?: readonly string[]
+  /** Judged by a model one by one: how many of how many were read. */
+  readonly judged?: { readonly songs: number; readonly of: number }
+  /** The condition that left none, when it is empty. */
+  readonly emptiedBy?: string | null
+}
+
 interface NamedSet {
   readonly songs: readonly Song[]
   readonly label: string
   /** Why each song is in it, where a pick said. */
   readonly why: ReadonlyMap<number, string>
+  readonly meta: SetMeta
 }
 
 /** A proposal a tool made, kept for the answer to name. */
@@ -334,6 +359,39 @@ export function applyFilters(songs: readonly Song[], filters: Filters, library: 
   return { songs: kept, emptiedBy, unmatched }
 }
 
+/**
+ * What a set found by filters understood, as Describe's chips draw it: the
+ * places and ranges that can be said as parts, names as the library spells
+ * them. Words in titles or lyrics have no part, so they are not among them.
+ */
+export function filtersUnderstanding(
+  filters: Filters,
+  library: Library,
+  name: string,
+): Understanding {
+  return groundPlan(
+    {
+      ...EVERYTHING,
+      name,
+      anyTags: filters.tags ?? [],
+      noTags: filters.notTags ?? [],
+      artists: filters.artist ?? [],
+      albums: filters.album ?? [],
+      energy: rangeOf(filters.energy),
+      bpm: rangeOf(filters.bpm),
+      year: rangeOf(filters.year),
+      words: filters.words ?? null,
+      loved: filters.loved ?? null,
+      playedWithinDays: filters.playedWithinDays ?? null,
+      notPlayedWithinDays: filters.notPlayedWithinDays ?? null,
+      addedWithinDays: filters.addedWithinDays ?? null,
+    },
+    library.songs,
+    library.tags,
+    library.names,
+  ).understanding
+}
+
 /** The handles a request comes with: the model may not name a set of its own after them. */
 const RESERVED = /^(playing|screen|t\d+\.\d+)$/
 
@@ -358,11 +416,21 @@ export class WorkingSet {
           return said ? [[id, said] as const] : []
         }),
       )
-      this.#keep(object.handle, songs, object.label, why)
+      this.#keep(object.handle, songs, object.label, why, {
+        understanding: object.understanding ?? undefined,
+        like: object.like,
+        lead: object.lead,
+      })
     }
     const screen = held.screen ? this.#sets.get(held.screen) : undefined
     if (screen && held.screen) {
-      this.#keep('screen', screen.songs, `on their screen: ${held.screen}`, screen.why)
+      this.#keep(
+        'screen',
+        screen.songs,
+        `on their screen: ${held.screen}`,
+        screen.why,
+        screen.meta,
+      )
     }
   }
 
@@ -371,9 +439,30 @@ export class WorkingSet {
     songs: readonly Song[],
     label: string,
     why: ReadonlyMap<number, string> = new Map(),
+    meta: SetMeta = {},
   ): void {
-    this.#sets.set(name, { songs, label, why })
+    this.#sets.set(name, { songs, label, why, meta })
     for (const song of songs) this.#allowed.add(song.id)
+  }
+
+  /** What a set was made as, or nothing for a name that is no set. */
+  metaOf(name: string): SetMeta {
+    return this.#sets.get(name)?.meta ?? {}
+  }
+
+  /** Why each of a set's songs is in it, where a pick said. */
+  whyOf(name: string): ReadonlyMap<number, string> {
+    return this.#sets.get(name)?.why ?? new Map()
+  }
+
+  /** A set's label: what it is, in a few words. */
+  labelOf(name: string): string | null {
+    return this.#sets.get(name)?.label ?? null
+  }
+
+  /** The names of the sets there are. */
+  names(): string[] {
+    return [...this.#sets.keys()]
   }
 
   /** The sets there are, each with how many songs, for a prompt. */
@@ -408,11 +497,12 @@ export class WorkingSet {
     songs: readonly Song[],
     label: string,
     why?: ReadonlyMap<number, string>,
+    meta?: SetMeta,
   ): void {
     if (RESERVED.test(name)) {
       throw new Error(`“${name}” names what the request came with; choose another name.`)
     }
-    this.#keep(name, songs, label, why)
+    this.#keep(name, songs, label, why, meta)
   }
 
   /** Whether the model may name this id: it was shown one, or a set holds it. */
@@ -465,17 +555,27 @@ export class WorkingSet {
       from = 'the library'
     }
     const places = scope.pick ?? []
-    if (places.length > 0) {
+    const dropped = scope.drop ?? []
+    if (places.length > 0 || dropped.length > 0) {
       if (!scope.set && ids.length === 0) {
-        throw new Error('Places (pick) count within a set or a list of ids: name it too.')
+        throw new Error('Places (pick, drop) count within a set or a list of ids: name it too.')
       }
-      const past = places.filter(place => place > songs.length)
+      const past = [...places, ...dropped].filter(place => place > songs.length)
       if (past.length > 0) {
         throw new Error(
           `${from} holds ${songs.length} ${songs.length === 1 ? 'song' : 'songs'}; there is no place ${past.join(', ')}.`,
         )
       }
-      songs = atPlaces(songs, places)
+      if (dropped.length > 0) {
+        const gone = new Set(dropped)
+        songs = songs.filter((_, index) => !gone.has(index + 1))
+        // Places picked count in the list as it was shown, before anything left out.
+      }
+      if (places.length > 0) {
+        const shownList = scope.set ? this.songsOf(scope.set) : ids.flatMap(id => this.#byId.get(id) ?? [])
+        const kept = new Set(songs.map(song => song.id))
+        songs = atPlaces(shownList, places).filter(song => kept.has(song.id))
+      }
     }
     if (scope.filters) {
       if (songs.length === 0) return { songs, emptiedBy: `${from} holds no songs`, unmatched: [] }

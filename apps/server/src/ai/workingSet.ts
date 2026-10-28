@@ -74,6 +74,8 @@ type Filters = z.infer<typeof FiltersArg>
 /** Which songs a tool works on: a set, places in it, ids, and filters over them. */
 export const ScopeArg = z.object({
   set: z.string().min(1).max(24).nullish(),
+  /** Several sets, their songs one after another, each song once. */
+  sets: z.array(z.string().min(1).max(24)).max(8).nullish(),
   /** Places in the set's list, 1 for the first. */
   pick: z.array(z.number().int().min(1).max(5000)).max(200).nullish(),
   /** Places in the set's list to leave out, 1 for the first. */
@@ -535,7 +537,19 @@ export class WorkingSet {
     const all = { songs: [...this.library.songs], emptiedBy: null, unmatched: [] }
     if (!scope) return all
     const ids = scope.ids ?? []
+    if (scope.sets && scope.sets.length > 0) {
+      if (scope.set || ids.length > 0) throw new Error('Give a set, sets or ids, not more than one.')
+      const seen = new Set<number>()
+      const songs = scope.sets
+        .flatMap(name => this.songsOf(name))
+        .filter(song => !seen.has(song.id) && seen.add(song.id))
+      return this.resolve({ ids: songs.map(song => song.id), pick: scope.pick, drop: scope.drop, filters: scope.filters })
+    }
     if (scope.set && ids.length > 0) throw new Error('Give a set or ids, not both.')
+    // Ids given and none of them: no songs, never the whole library.
+    if (!scope.set && scope.ids && ids.length === 0) {
+      return { songs: [], emptiedBy: 'no ids were given', unmatched: [] }
+    }
     let songs: Song[]
     let from: string
     if (scope.set) {

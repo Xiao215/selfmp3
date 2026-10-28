@@ -7,6 +7,8 @@ import {
   AskPlaybackOpSchema,
   AskSortSchema,
   AskStatsRangeSchema,
+  CJK,
+  NO_JOINS,
   type AskCard,
   type AskReply,
   type AskSort,
@@ -28,7 +30,7 @@ import { MAX_PICKS, groundPlan, songsFitting } from './describe.js'
 import { getMusic } from './getMusic.js'
 import type { Steps } from './progress.js'
 import { scriptOf } from './tagReview.js'
-import { CJK_OR_KANA, numbersIn } from './written.js'
+import { numbersIn } from './written.js'
 import { ScopeArg, type SetMeta, type WorkingSet } from './workingSet.js'
 
 /**
@@ -63,7 +65,7 @@ const Expect = z.object({
   minutes: z.number().int().min(1).max(1440).nullish(),
   artists: z.array(z.string().min(1).max(120)).max(12).nullish(),
   script: z.enum(['Chinese', 'Japanese', 'Korean', 'Latin']).nullish(),
-  order: z.object({ by: AskSortSchema, dir: AskOrderSchema }).nullish(),
+  order: z.object({ by: z.enum(AskSortSchema.options), dir: z.enum(AskOrderSchema.options) }).nullish(),
 })
 type Expect = z.infer<typeof Expect>
 
@@ -93,9 +95,9 @@ const CardArg = z.object({
   lead: z.enum(['play', 'save', 'next']).nullish(),
   title: z.string().min(1).max(60).nullish(),
   show: z.enum(['count', 'songs', 'artists', 'albums', 'tags']).nullish(),
-  sort: AskSortSchema.nullish(),
-  order: AskOrderSchema.nullish(),
-  range: AskStatsRangeSchema.nullish(),
+  sort: z.enum(AskSortSchema.options).nullish(),
+  order: z.enum(AskOrderSchema.options).nullish(),
+  range: z.enum(AskStatsRangeSchema.options).nullish(),
   about: z.enum(['songs', 'artists', 'tags', 'totals']).nullish(),
   limit: z.number().int().min(1).max(MAX_PICKS).nullish(),
   op: z
@@ -112,7 +114,7 @@ const CardArg = z.object({
   playlists: z.array(z.string().min(1).max(120)).max(20).nullish(),
   newName: z.string().min(1).max(80).nullish(),
   at: z.number().int().min(-1000).max(1000).nullish(),
-  place: AskPlaceSchema.nullish(),
+  place: z.enum(AskPlaceSchema.options).nullish(),
   text: z.string().min(1).max(1200).nullish(),
   album: z.boolean().nullish(),
   get: z.string().min(1).max(120).nullish(),
@@ -181,34 +183,7 @@ function notIn(song: Song, script: NonNullable<Expect['script']>): boolean {
     case 'Korean':
       return !scripts.has('Korean')
     case 'Latin':
-      return CJK_OR_KANA.test(`${song.title} ${song.artist}`)
-  }
-}
-
-function keyOf(song: Song, by: AskSort): number | string | null {
-  return sortSongs([song], by, 'asc').length ? sortKey(song, by) : null
-}
-
-function sortKey(song: Song, by: AskSort): number | string | null {
-  switch (by) {
-    case 'energy':
-      return song.audioFeatures?.energy ?? null
-    case 'bpm':
-      return song.audioFeatures?.bpm ?? null
-    case 'year':
-      return song.year
-    case 'title':
-      return song.title.toLowerCase()
-    case 'artist':
-      return song.artist.toLowerCase()
-    case 'addedAt':
-      return song.addedAt
-    case 'duration':
-      return song.duration
-    case 'plays':
-      return song.playCount
-    case 'lastPlayed':
-      return song.lastPlayedAt
+      return CJK.test(`${song.title} ${song.artist}`)
   }
 }
 
@@ -229,7 +204,7 @@ function checked(
   if (!expect) return { songs, problems, notes }
   const library = context.deps.songs()
   const tags = context.deps.tags()
-  const names = context.deps.artistNames?.()
+  const names = context.deps.artistNames?.() ?? NO_JOINS
   if (expect.artists && expect.artists.length > 0) {
     const { understanding, unknown } = groundPlan(
       { ...EVERYTHING, artists: expect.artists },
@@ -242,7 +217,7 @@ function checked(
     }
     if (understanding.artists.length > 0) {
       const theirs = new Set(
-        songsFitting(songs, tags, understanding, Date.now(), names).map(song => song.id),
+        songsFitting(songs, tags, understanding, context.deps.now?.() ?? Date.now(), names).map(song => song.id),
       )
       const others = songs.filter(song => !theirs.has(song.id))
       if (others.length > 0) {
@@ -346,7 +321,7 @@ function described(
   const library = context.deps.songs()
   const base: Understanding =
     meta.understanding ??
-    groundPlan(EVERYTHING, library, context.deps.tags(), context.deps.artistNames?.()).understanding
+    groundPlan(EVERYTHING, library, context.deps.tags(), context.deps.artistNames?.() ?? NO_JOINS).understanding
   const size = expect?.count ?? (expect?.minutes ? null : base.size)
   return {
     understanding: {
@@ -718,6 +693,10 @@ export async function respond(
       describe.notes.push(...said.filter(problem => !/^holds no songs/.test(problem)))
     }
   })
+  // A list that came to nothing and says nothing of why is no answer: left out when others stand.
+  const hollow = (card: AskCard): boolean =>
+    card.kind === 'songs' && card.describe.picks.length === 0 && card.describe.notes.length === 0
+  if (cards.some(card => !hollow(card))) cards = cards.filter(card => !hollow(card))
   cards = cards.length > 0 ? cards : [instead(say ?? 'I couldn’t put an answer together. Try saying it another way.')]
   // A question back stands alone; among other cards its question is said as words.
   if (cards.length > 1) {

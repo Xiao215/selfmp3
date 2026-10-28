@@ -17,47 +17,11 @@ import { evalWorld, runCases } from './run.js'
 
 const EXAMPLE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'example.cases.json')
 
-const NO_FILTERS = {
-  name: 'Aurora Lane',
-  anyTags: [],
-  artists: [],
-  albums: [],
-  noTags: [],
-  energy: { min: null, max: null },
-  bpm: { min: null, max: null },
-  year: { min: null, max: null },
-  words: null,
-  loved: null,
-  playedWithinDays: null,
-  notPlayedWithinDays: null,
-  addedWithinDays: null,
-  size: null,
-  minutes: null,
-  sound: null,
-  brief: null,
-}
-
-const route = (overrides: Record<string, unknown>) => ({
-  action: 'none',
-  filters: null,
-  songs: null,
-  change: null,
-  reply: null,
-  tags: null,
-  playback: null,
-  find: null,
-  stats: null,
-  playlists: null,
-  playlistSongs: null,
-  library: null,
-  tidy: null,
-  remember: null,
-  getMusic: null,
-  open: null,
-  say: null,
-  try: null,
-  ...overrides,
+/** One reply of Ask's agent: these tool calls, in order. */
+const calls = (...each: [string, unknown][]) => ({
+  calls: each.map(([name, args]) => ({ name, args })),
 })
+const respond = (cards: unknown[]): [string, unknown] => ['respond', { cards }]
 
 function library(): Database.Database {
   const db = new Database(':memory:')
@@ -103,14 +67,10 @@ function world(replies: Record<string, unknown[]>) {
 
 /** Fresh each time: the endpoint takes its replies off the lists. */
 const script = () => ({
-  'ask-route': [
-    route({
-      action: 'library',
-      filters: { ...NO_FILTERS, artists: ['Aurora Lane'] },
-      library: { from: null, show: 'count', sortBy: null, order: 'asc' },
-    }),
-    route({ action: 'playback', playback: { op: 'next', place: null } }),
-    route({ action: 'playback', playback: { op: 'next', place: null } }),
+  'ask-agent': [
+    calls(respond([{ kind: 'library', from: { filters: { artist: ['Aurora Lane'] } }, show: 'count' }])),
+    calls(respond([{ kind: 'playback', op: 'next' }])),
+    calls(respond([{ kind: 'playback', op: 'next' }])),
   ],
 })
 
@@ -123,7 +83,7 @@ describe('the eval harness', () => {
     expect(results.map(result => result.id)).toEqual(['ex-count', 'ex-skip'])
     const [count, skip] = results
     expect(count!.turns[0]).toMatchObject({ kinds: ['library'], error: null })
-    expect(count!.turns[0]!.calls.map(call => call.task)).toEqual(['ask-route'])
+    expect(count!.turns[0]!.calls.map(call => call.task)).toEqual(['ask-agent'])
     expect(count!.turns[0]!.checks.every(check => check.pass)).toBe(true)
     expect(count!.turns[0]!.checks.map(check => check.name)).toEqual(
       expect.arrayContaining(['cards', 'value:count', 'where', 'maxCalls']),
@@ -131,7 +91,7 @@ describe('the eval harness', () => {
     expect(skip!.turns.map(turn => turn.kinds)).toEqual([['playback'], ['playback']])
     // The song playing is found by its title; the follow-up is asked after the first turn.
     expect(skip!.turns[0]!.playing).toBe(3)
-    expect(llm.prompts['ask-route']![2]).toContain('skip this one')
+    expect(llm.prompts['ask-agent']![2]).toContain('skip this one')
   })
 
   it('fails a check that does not hold, and has the judge read each turn as text', async () => {
@@ -173,7 +133,7 @@ describe('the eval harness', () => {
       playing: null,
       screen: null,
       ms: 1000,
-      calls: [{ task: 'ask-route', ms: 900, ok: true }],
+      calls: [{ task: 'ask-agent', ms: 900, ok: true }],
       error: null,
       kinds: ['playback'],
       answer: null,

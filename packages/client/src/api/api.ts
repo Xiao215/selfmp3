@@ -443,18 +443,6 @@ export function createApi({ context, fetch }: ApiOptions) {
       avoid?: readonly number[]
     }) => request('POST', '/api/ai/describe', DescribeResultSchema, input),
 
-    /** An answer changed after it was given (`RefineRequest`). */
-    refineAnswer: (
-      input: {
-        text: string
-        understanding: Understanding
-        change: string
-        shown: readonly number[]
-        ticket?: string
-      },
-      signal?: ClientSignal,
-    ) => request('POST', '/api/ai/refine', DescribeResultSchema, input, signal),
-
     /** The Search box's Ask: one request, answered as a reply of a few words and its cards. */
     ask: (
       text: string,

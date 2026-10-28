@@ -109,7 +109,7 @@ export function answerShowing(id: string): DescribeResult | null {
 
 /**
  * The songs an answer shows, by the server's ids, in the order shown: what a
- * change keeps where it still fits (`/api/ai/refine`). The order you set is
+ * change keeps where it still fits (Change it asks with them on the screen). The order you set is
  * in this device's ids; the picks are the server's.
  */
 export function shownOnServer(

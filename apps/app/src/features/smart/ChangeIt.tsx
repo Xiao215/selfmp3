@@ -5,6 +5,13 @@ import { Animated, Text, TextInput, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useMutation } from '@tanstack/react-query'
 import { failureText, motion, radius, space, type, iconSize } from '@selfmp3/client'
+import {
+  ASK_OBJECT_SONGS,
+  ASK_TEXT_MAX,
+  type AskTurnInput,
+  type DescribeResult,
+  type Understanding,
+} from '@selfmp3/shared'
 import { useAccent } from '../../ui/accent'
 import { ChevronRight, Sparkle } from '../../ui/components/Icons'
 import { useFade } from '../../ui/motion'
@@ -21,7 +28,8 @@ import { NO_AUTOFILL } from '../../ui/noAutofill'
 /**
  * "Change it" (docs/features/ai.md): an answer to Ask changed in your own
  * words — "10 首", "不要动漫的", "calmer" — rather than asked again from
- * nothing, under the head of the answer's own page. In Ask itself the one
+ * nothing, under the head of the answer's own page. The words are asked as a
+ * follow-up with the list on the screen, and the reply's list takes its place. In Ask itself the one
  * field changes a list while it wears the list's chip (B1, 2026-10-26).
  *
  * One quiet field. While the change is worked on, the field itself says what
@@ -45,16 +53,20 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
       setTicket(name)
       const controller = new AbortController()
       stopping.current = controller
-      return server.api.refineAnswer(
-        {
-          text: answer.text,
-          understanding: understandingOf(answer),
-          change: words,
-          shown: shownOnServer(answer, server.onServer),
-          ticket: name,
-        },
+      // Asked as a follow-up about this list, on the screen: Ask keeps the songs that still fit.
+      const reply = await server.api.ask(
+        words,
+        { playing: null, screen: CHANGED },
+        name,
+        [changedTurn(answer.text, understandingOf(answer), answer.result, shownOnServer(answer, server.onServer))],
         controller.signal,
       )
+      const songs = reply.cards.find(card => card.kind === 'songs')
+      if (songs?.kind === 'songs') return songs.describe
+      const said = reply.cards.flatMap(card =>
+        card.kind === 'explore' ? [card.say] : card.kind === 'clarify' ? [card.question] : [],
+      )
+      throw new Error([reply.say, ...said].filter(Boolean).join(' ') || 'That didn’t change the songs.')
     },
     onSuccess: result => {
       changeAnswer(answerId, result)
@@ -104,6 +116,38 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
       ) : null}
     </View>
   )
+}
+
+/** The handle the list being changed goes as: the one turn before the change. */
+const CHANGED = 't1.1'
+
+/**
+ * The list on the page as the turn a change follows: what was asked, and the
+ * songs shown, by the server's ids in their order, with what the list was
+ * made from, so the songs that still fit stay where they are.
+ */
+function changedTurn(
+  asked: string,
+  understanding: Understanding,
+  result: DescribeResult,
+  shown: readonly number[],
+): AskTurnInput {
+  const why = new Map(result.picks.map(pick => [pick.songId, pick.why]))
+  const songIds = shown.slice(0, ASK_OBJECT_SONGS)
+  return {
+    asked: asked.slice(0, ASK_TEXT_MAX),
+    answered: `Showed ${songIds.length} songs (“${understanding.name}”)`,
+    objects: [
+      {
+        handle: CHANGED,
+        kind: 'songs',
+        label: understanding.name,
+        songIds,
+        why: songIds.map(id => (why.get(id) ?? null)?.slice(0, 140) ?? null),
+        understanding,
+      },
+    ],
+  }
 }
 
 /**

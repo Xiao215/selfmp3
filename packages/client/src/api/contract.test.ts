@@ -47,7 +47,6 @@ const CALLS: Calls = {
   applyMetadata: api => api.applyMetadata(1, {} as never),
   removeCover: api => api.removeCover(1),
   describePlaylist: api => api.describePlaylist({ text: 'calm', understanding: null }),
-  refineAnswer: api => api.refineAnswer({} as never),
   ask: api => api.ask('calm'),
   askProgress: api => api.askProgress('ticket'),
   askStop: api => api.askStop('ticket'),

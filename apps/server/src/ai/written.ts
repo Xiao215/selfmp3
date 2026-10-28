@@ -84,7 +84,7 @@ export function factsOf(wrapped: Wrapped): string {
 }
 
 /** The numbers a text holds: "1,342" is one, "14th" is 14, "09" is 9. */
-function numbersIn(text: string): number[] {
+export function numbersIn(text: string): number[] {
   return [...text.replace(/(\d),(\d{3})/g, '$1$2').matchAll(/\d+(?:\.\d+)?/g)].map(match =>
     Number(match[0]),
   )

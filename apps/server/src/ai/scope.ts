@@ -1,5 +1,4 @@
-import { z } from 'zod/v4'
-import type { AskObject, Song } from '@selfmp3/shared'
+import type { AskObject, Song, Understanding } from '@selfmp3/shared'
 
 /**
  * The songs a request points at rather than describes, named by a handle a
@@ -18,19 +17,12 @@ import type { AskObject, Song } from '@selfmp3/shared'
 /** The handle for the song playing on the asking device. */
 export const PLAYING = 'playing'
 
-/** A form's way to say which songs: a handle and places in it, or null for the songs the words describe. */
-export const ScopeField = z
-  .object({
-    handle: z.string().max(12),
-    /** Places in the handle's numbered list, 1 for the first; null for all of it. */
-    picks: z.array(z.number().int().min(1).max(200)).max(50).nullable(),
-  })
-  .nullable()
-export type Scope = z.infer<typeof ScopeField>
-
-/** How a form fills a scope, in the words every form uses. */
-export const SCOPE_WHEN =
-  'from names songs already in front of them instead of describing which songs: handle is "playing" for the song playing, or an earlier answer\'s handle for what it showed; picks are places in that answer\'s numbered list when they mean only some of it (1 for the first, and one place when they speak of one song), else null. Otherwise from is null.'
+/** Which songs: a handle and places in its list, or null for none named. */
+export type Scope = {
+  readonly handle: string
+  /** Places in the handle's numbered list, 1 for the first; null for all of it. */
+  readonly picks: readonly number[] | null
+} | null
 
 /** What the handles can name on this request. */
 export interface Held {
@@ -72,15 +64,30 @@ export function atPlaces<T>(list: readonly T[], places: readonly number[] | null
   return [...new Set(places)].flatMap(place => (place >= 1 ? (list[place - 1] ?? []) : []))
 }
 
-/** Why each song of an object is in it, by id, where the answer said. */
-function whyOf(object: AskObject): ReadonlyMap<number, string | null> {
-  return new Map(object.songIds.map((id, index) => [id, object.why[index] ?? null]))
-}
-
-/** Why a scope's songs fit, by id, from the object it names. */
-export function scopeWhy(from: Scope, held: Held): ReadonlyMap<number, string | null> {
-  const object = from && from.handle !== PLAYING ? heldObject(held, from.handle) : undefined
-  return object ? whyOf(object) : new Map()
+/** What a list was made from, in a line: what a change to it chooses again from. */
+function understoodWords(understanding: Understanding): string {
+  const range = (what: string, r: { min: number | null; max: number | null }): string =>
+    r.min === null && r.max === null ? '' : `${what} ${r.min ?? '…'}–${r.max ?? '…'}`
+  return [
+    understanding.artists.length > 0 ? `artists ${understanding.artists.join(', ')}` : '',
+    understanding.albums.length > 0 ? `albums ${understanding.albums.join(', ')}` : '',
+    understanding.anyTags.length > 0 ? `tags ${understanding.anyTags.join(', ')}` : '',
+    understanding.noTags.length > 0 ? `not tagged ${understanding.noTags.join(', ')}` : '',
+    range('energy', understanding.energy),
+    range('bpm', understanding.bpm),
+    range('year', understanding.year),
+    understanding.words ? `${understanding.words} lyrics` : '',
+    understanding.loved !== null ? (understanding.loved ? 'loved' : 'not loved') : '',
+    understanding.playedWithinDays ? `played within ${understanding.playedWithinDays} days` : '',
+    understanding.notPlayedWithinDays ? `not played within ${understanding.notPlayedWithinDays} days` : '',
+    understanding.addedWithinDays ? `added within ${understanding.addedWithinDays} days` : '',
+    understanding.size ? `${understanding.size} songs` : '',
+    understanding.minutes ? `${understanding.minutes} minutes` : '',
+    understanding.sound ? `sound “${understanding.sound}”` : '',
+    understanding.brief ? `brief “${understanding.brief}”` : '',
+  ]
+    .filter(Boolean)
+    .join('; ')
 }
 
 /** The most rows of an object a prompt lists. */
@@ -112,8 +119,10 @@ export function objectLines(object: AskObject, songs: ReadonlyMap<number, Song>)
     return [`  ${index + 1}. ${song.title} · ${song.artist || '-'}${said}`]
   })
   const more = object.songIds.length - LISTED
+  const understood = object.understanding ? understoodWords(object.understanding) : ''
   return [
     `${object.handle} — “${object.label}” (${what}), ${object.songIds.length} songs:`,
+    ...(understood ? [`  made from: ${understood}`] : []),
     ...rows,
     ...(more > 0 ? [`  …and ${more} more`] : []),
   ].join('\n')

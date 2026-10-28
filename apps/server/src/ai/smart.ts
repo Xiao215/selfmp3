@@ -11,7 +11,6 @@ import type {
   WrittenReport,
   DescribeResult,
   MetadataSuggestion,
-  RefineRequest,
   Stats,
   Song,
   Tag,
@@ -31,12 +30,11 @@ import type { WrappedRepository } from '../repositories/wrapped.js'
 import type { MetadataLookupService } from '../services/lookup.js'
 import type { NeteaseMusic } from '../services/netease.js'
 import { ask } from './ask.js'
-import type { AskDeps } from './askActions.js'
+import type { AskDeps } from './askTools.js'
 import type { AskPlaylist } from './askLibrary.js'
 import { AskProgress, type Seen } from './progress.js'
 import { describe, type DescribeInput } from './describe.js'
 import { fixSong } from './fixSong.js'
-import { refine } from './refine.js'
 import { noLlm, openAiCompatible, Remembered, type GenerateRequest, type Llm } from './llm.js'
 import { importNames } from './importNames.js'
 import {
@@ -114,11 +112,6 @@ export class SmartFeatures {
   /** Stop pressed on an Ask that may have outlasted its connection. */
   stopAsk(ticket: string): void {
     this.#progress.stop(ticket)
-  }
-
-  /** An answer changed after it was given (`refine.ts`). */
-  refine(request: RefineRequest, signal?: AbortSignal): Promise<DescribeResult> {
-    return refine(this.#stoppedBy(signal), request, this.#progress.track(request.ticket))
   }
 
   /** The model, for one answer: no more calls once nobody waits for it. */

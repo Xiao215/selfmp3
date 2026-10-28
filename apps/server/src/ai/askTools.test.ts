@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AskObject, Song, Stats } from '@selfmp3/shared'
-import type { AskDeps } from './askActions.js'
-import { askTools, libraryOf, type AskToolName } from './askTools.js'
+import { askTools, libraryOf, type AskDeps, type AskToolName } from './askTools.js'
 import { scriptedLlm, song, SONGS, TAGS } from './fixtures/library.js'
 import { Remembered, type Llm } from './llm.js'
 import type { Held } from './scope.js'

@@ -11,7 +11,6 @@ import {
   DescribeRequestSchema,
   ImportNamesRequestSchema,
   type ImportNames,
-  RefineRequestSchema,
   type AskReply,
   type AskProgress,
   type DescribeResult,
@@ -69,15 +68,6 @@ export function aiRoutes(container: Container): Router {
       return answering(
         container.smart.ask(body.text, body.context, body.ticket, body.before, whileWaited(res)),
       )
-    }),
-  )
-
-  /** An answer changed after it was given: "10 首", "calmer". */
-  router.post(
-    '/ai/refine',
-    route({ body: RefineRequestSchema }, ({ body, res }): Promise<DescribeResult> => {
-      allowed()
-      return answering(container.smart.refine(body, whileWaited(res)))
     }),
   )
 

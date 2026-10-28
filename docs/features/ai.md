@@ -185,10 +185,32 @@ climbed when the one below cannot answer:
   outside the table, a tag that does not exist, a rule on a field that does not exist,
   an empty pick.
 - The model's judgement itself (does "calm piano" give calm piano?) is an eval, not a unit
-  test. `apps/server/src/ai/eval.ts` asks the real endpoint about a copy of a real
-  library and prints what came back, for a person to read:
-  `npx tsx apps/server/src/ai/eval.ts <copy of selfmp3.db> describe "calm piano"` (also
-  `ask`, `tags`, `tidy`, `written`, and `import <rows file> ["list name"]` for Names at
+  test. The eval harness (`apps/server/src/ai/eval/`, AGENT-DESIGN 4) asks the real endpoint
+  whole conversations about a fresh, migrated copy of a real library, in process and wired
+  the way the server runs (`smartFeaturesFor`, with nothing remembered between turns), and
+  replays every follow-up the way the app sends it: the earlier turns with their objects and
+  the answer on the screen (`beforeTurn`, `answerRecap`, `objectsOf`, in packages/shared so
+  the app and the harness send the same). Each answer is checked in code (`checks.ts`: its
+  kinds, how many songs and minutes, the share of them a SQL condition over the copy lets
+  in, a count the database gives exactly, names, order, a follow-up acting on the songs it
+  pointed at, latency and model calls) and read by a judge (`judge.ts`, a strong model on
+  the same endpoint, one call per conversation: did it do every part, does it match the
+  library, does it say what it couldn't). `report.ts` writes
+  `<results>/<date>-<sha>-fast-<model>.smart-<model>.jsonl` with a summary beside it (pass
+  by class and by check, latency p50/p95, calls per turn, judge score) and how it moved from
+  the newest earlier run with the same models, regressions first:
+  `npx tsx apps/server/src/ai/eval/run.ts --fast sonnet --smart sonnet --judge opus` (also
+  `--only <ids>`, `--class <classes>`, `--repeat N`, `--concurrency N`, 2 by default as the
+  Pi's cli-bridge takes, `--against <results file>`, `--db`, `--cases`, `--endpoint`).
+  The cases and the library stay outside the repository, being a person's music (by default
+  `~/ask-eval-selfmp3/cases/*.json` and `prod.pristine.db`, which is only read); the
+  repository's own `example.cases.json` shows the format and `run.test.ts` runs it against
+  a scripted model. A case is turns with `text`, the song `playing` by title, the `screen`
+  (the newest list by default for a follow-up), `expect` and a `judge` sentence saying what a
+  right answer is with the facts it needs. Before its numbers are trusted the judge is held
+  to a person's verdicts on earlier answers (`--calibrate <labels.json>`, `calibrate.ts`).
+  One question of one feature, printed for a person: `--one describe "calm piano"` (also
+  `ask`, `tags`, `tidy`, `written` and `import <rows file> ["list name"]` for Names at
   import, a row a line as `title | artist | album`; "fill in what's missing" and "which
   songs do I have twice" go through `ask`). On a hub the database is a workspace's,
   `<data>/accounts/<id>/selfmp3.db`.
@@ -511,7 +533,7 @@ Whatever is typed in the Ask page's field is a new turn, asked after the convers
 before it (`AskRequest`): `before`, each earlier question with what was shown for it
 (`AskTurn`), and `context`, the song playing and the answer on the screen. A words answer
 is its words; a list or a review is a line the device writes (`answerRecap` in
-`smart.model.ts`: "Offered 12 songs (“…”) to play now", "Proposed 8 name changes: …"),
+packages/shared `askTurns.ts`: "Offered 12 songs (“…”) to play now", "Proposed 8 name changes: …"),
 and a playback answer what it came to on this device ("Nothing is playing.").
 
 What an answer showed goes back as **objects** (`AskObject`, AGENT-DESIGN 2.1;

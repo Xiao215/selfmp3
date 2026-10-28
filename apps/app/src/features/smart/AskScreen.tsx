@@ -25,8 +25,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   AI_ERROR,
   ASK_TEXT_MAX,
+  answerRecap,
+  beforeTurn,
   joinedArtists,
+  objectsOf,
   plural,
+  tooLongToAsk,
   type AskAnswer,
   type AskObject,
 } from '@selfmp3/shared'
@@ -86,15 +90,8 @@ import {
   understandingOf,
   useKeptAnswer,
 } from './answers.store'
-import {
-  afterStop,
-  beforeTurn,
-  retried,
-  scrollToShow,
-  tooLongToAsk,
-  type Turn,
-} from './askTurns.model'
-import { answerRecap, askSuggestions, logLine, objectsOf, picksHere } from './smart.model'
+import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
+import { askSuggestions, logLine, picksHere } from './smart.model'
 import { tagsMostPlayed } from '../tag/tag.model'
 import { waitingArtists } from '../tags/tags.model'
 import { StopButton } from './StopButton'

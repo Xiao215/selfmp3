@@ -87,8 +87,11 @@ export class SmartFeatures {
     web?: () => boolean
     music?: AskDeps['music']
     lookup?: MetadataLookup
+    /** Whether answers are kept a while for the same question; the eval asks afresh each time. */
+    remember?: boolean
   }) {
-    this.#deps = { ...deps, remembered: new Remembered() }
+    const { remember = true, ...rest } = deps
+    this.#deps = { ...rest, remembered: new Remembered(remember ? undefined : 0) }
   }
 
   describe(request: DescribeInput, signal?: AbortSignal): Promise<DescribeResult> {
@@ -181,15 +184,16 @@ export function setupFor(config: Pick<Config, 'ai'>): AiSetup {
 
 /**
  * The smart features over this library, wired the one way the server runs
- * them. `eval.ts` builds them here too, so what it prints is what a device
- * would be answered — catalogues, standing notes and the web included.
+ * them. The eval harness (`eval/run.ts`) builds them here too, so what it
+ * measures is what a device would be answered — catalogues, standing notes
+ * and the web included.
  */
 export function smartFeaturesFor(sources: {
   readonly config: Pick<Config, 'ai'>
   readonly logger: Logger
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
-  /** Artists' other names, which join one artist's spellings; left out by `eval.ts`. */
+  /** Artists' other names, which join one artist's spellings. */
   readonly names?: Pick<NamesRepository, 'joinNames' | 'spellings'>
   /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
   readonly sound?: AskDeps['sound']
@@ -200,16 +204,20 @@ export function smartFeaturesFor(sources: {
   readonly settings: Pick<SettingsRepository, 'get'>
   readonly netease: Pick<NeteaseMusic, 'search' | 'searchAlbums' | 'albumTracks'>
   readonly lookup: Pick<MetadataLookupService, 'lookup'>
-  /** Where each request is counted for the owner's admin page; left out by `eval.ts`. */
+  /** Where each request is counted for the owner's admin page; left out by the eval. */
   readonly metrics?: Pick<ServerMetrics, 'count'>
+  /** The model in place of the configured one: the eval's, watched for its calls, or a test's. */
+  readonly llm?: Llm
+  /** False for the eval, so a question asked again is answered again (`Remembered`). */
+  readonly remember?: boolean
 }): SmartFeatures {
   const { config, logger, songs, tags, stats, wrapped, playlists, settings, netease } = sources
   const lookup: MetadataLookup = query => sources.lookup.lookup(query)
   const catalogue = (words: string) => netease.search(words)
+  const llm = sources.llm ?? llmFor(config, logger)
   return new SmartFeatures({
-    llm: sources.metrics
-      ? counted(llmFor(config, logger), sources.metrics)
-      : llmFor(config, logger),
+    llm: sources.metrics ? counted(llm, sources.metrics) : llm,
+    remember: sources.remember ?? true,
     setup: setupFor(config),
     songs: () => songs.all(),
     tags: () => tags.all(),
@@ -266,7 +274,7 @@ function counted(llm: Llm, metrics: Pick<ServerMetrics, 'count'>): Llm {
 }
 
 /** The configured model, or the stand-in that says smart features are off. */
-function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
+export function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
   const { ai } = config
   if (!ai.baseUrl) return noLlm
   return openAiCompatible(

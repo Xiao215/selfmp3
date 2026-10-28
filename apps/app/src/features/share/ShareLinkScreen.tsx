@@ -104,7 +104,7 @@ function rememberAsked(id: string): void {
  * came from, and asking its sender again.
  */
 export function ShareLinkScreen(): ReactNode {
-  const params = useLocalSearchParams<{ id: string; key: string; t?: string }>()
+  const params = useLocalSearchParams<{ id: string; key: string; s?: string; t?: string }>()
   const id = ShareIdSchema.safeParse(params.id ?? '').success ? (params.id ?? null) : null
   const key = ShareKeySchema.safeParse(params.key ?? '').success ? (params.key ?? null) : null
   const { status } = useConnection()
@@ -121,7 +121,7 @@ export function ShareLinkScreen(): ReactNode {
     const wrongKey = !key || (error instanceof DoormanError && error.status === 403)
     return <GoneLink torn={!id || wrongKey} signedIn={status === 'ready'} />
   }
-  return <LinkPage link={link} t={params.t} />
+  return <LinkPage link={link} s={params.s} t={params.t} />
 }
 
 /**
@@ -130,9 +130,19 @@ export function ShareLinkScreen(): ReactNode {
  * Playing's own page (`ShareSong`): the stage on a computer, the phone's page
  * on a phone. A list, or a song that has ended, is one column: its covers,
  * its name, Play, and the ways on. Shared from a line (`?t=0:42`), its song
- * starts there, and the page shows the line.
+ * starts there, and the page shows the line. A list opens on the song its
+ * address names (`?s=<entry>`), and the address follows the page's song, so
+ * a copied address opens where it was.
  */
-function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): ReactNode {
+function LinkPage({
+  link,
+  s,
+  t,
+}: {
+  link: ShareLink
+  s: string | undefined
+  t: string | undefined
+}): ReactNode {
   const router = useRouter()
   const { theme } = useUnistyles()
   const { status } = useConnection()
@@ -176,16 +186,27 @@ function LinkPage({ link, t }: { link: ShareLink; t: string | undefined }): Reac
   const first = link.entries[0]
   const firstId = first ? roomTrackId(first.id) : 0
   // A list's song the page is about (R1, C): the one playing, or before
-  // that the one cued, the first until another is picked. A song's, its one.
+  // that the one cued, the address's until another is picked, else the
+  // first. A song's, its one.
   const trackAt = new Map(ids.map((id, at) => [id, at]))
   const playingAt = link.kind === 'list' && playing !== null ? trackAt.get(playing) : undefined
-  const [cued, setCued] = useState(0)
+  const [cued, setCued] = useState(() =>
+    Math.max(
+      0,
+      entries.findIndex(entry => entry.id === s),
+    ),
+  )
   // Kept on the song playing, so the page stays on it once the list stops.
   // Adjusted during render, as React has a value follow another.
   if (playingAt !== undefined && playingAt !== cued) setCued(playingAt)
   const shownAt = playingAt ?? Math.min(cued, Math.max(0, entries.length - 1))
   const shown = link.kind === 'list' && !ended ? (entries[shownAt] ?? first) : first
   const shownId = shown ? roomTrackId(shown.id) : 0
+  // The address names a list's song past the first, as Now Playing's names its song.
+  const named = link.kind === 'list' && !ended && shown && shownAt > 0 ? shown.id : undefined
+  useEffect(() => {
+    if (named !== s) router.setParams({ s: named })
+  }, [named, s, router])
   // From the link itself, not the player's tracks: those are filled after this
   // first draw. Your own copy's where you have the song, as the player plays it.
   const coverOf = (entry: ShareLink['entries'][number]): string | null => {

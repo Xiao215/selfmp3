@@ -137,6 +137,41 @@ describe("a share link's own address", () => {
     }
   })
 
+  it('carries the song a list opens on to the app, and shows its cover on the card', async () => {
+    const { h, me } = await made()
+    const SHA2 = 'cd'.repeat(32)
+    const other: RoomSong = {
+      ...SONG,
+      uid: SHA2.slice(0, 32),
+      title: '倔强',
+      audio: { key: `audio/${SHA2}.m4a`, size: 3, mime: 'audio/mp4' },
+      cover: { key: `covers/${SHA2}.jpg`, size: 7 },
+    }
+    h.bucket.put(`selfmp3/${other.cover?.key}`, 'other cover')
+    const response = await h.call('/v1/share', {
+      token: me,
+      json: { name: 'Mayday', kind: 'list', you: 'Xiao', songs: [SONG, other] },
+    })
+    const list = ShareLinkSchema.parse(await response.json())
+    const second = list.entries[1]?.id ?? ''
+    const path = `/l/${list.id}/${list.key}`
+    const app = `https://xiao215.github.io/selfmp3${path}`
+    const on = (query: string) =>
+      visit(h, `${path}${query}`, SAFARI).then(sent => sent.headers.get('location'))
+    expect(await on(`?s=${second}`)).toBe(`${app}?s=${second}`)
+    expect(await on(`?s=${second}&t=0:42`)).toBe(`${app}?s=${second}&t=0:42`)
+    for (const wrong of ['', 'nope', '../x', `${second}0`])
+      expect(await on(`?s=${wrong}`)).toBe(app)
+
+    const cover = async (query: string) => {
+      const card = tags(await (await visit(h, `${path}${query}`, DISCORD)).text())
+      const url = new URL(card['og:image'] ?? '')
+      return (await h.call(url.pathname + url.search)).text()
+    }
+    expect(await cover('')).toBe('cover')
+    expect(await cover(`?s=${second}`)).toBe('other cover')
+  })
+
   it('names the line a link was shared from on its card, or where it starts', async () => {
     const { h, link, me } = await made()
     await h.call('/v1/share', {

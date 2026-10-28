@@ -89,7 +89,10 @@ export function LikedScreen(): ReactNode {
       titles={
         <>
           <View style={listHeadText.nameRow}>
-            <Heart size={wide ? 22 : 16} filled color={theme.colors.danger} />
+            {/* As tall as the name's capitals; the icon's own margin given back. */}
+            <View style={styles.heart}>
+              <Heart size={HEART} filled color={theme.colors.danger} />
+            </View>
             <View style={listHeadText.nameShrink}>
               <ListHeadName name="Liked" testID="liked-name" />
             </View>
@@ -134,6 +137,11 @@ export function LikedScreen(): ReactNode {
   )
 }
 
+// The name is 46 on every screen; the heart fills 14 of its icon's 24 units
+// across, so 44 draws it about 26 wide, with 9 empty to each side.
+const HEART = 44
+
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },
+  heart: { marginHorizontal: -9 },
 }))

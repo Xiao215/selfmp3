@@ -311,7 +311,19 @@ export function applyFilters(songs: readonly Song[], filters: Filters, library: 
     const title = filters.title
     conditions.push({
       said: `title holding “${title}”`,
-      keep: among => among.filter(song => has(song.title, title)),
+      keep: among => {
+        const rank = (song: Song): number =>
+          song.title.trim().toLowerCase() === title.trim().toLowerCase()
+            ? 0
+            : song.title.toLowerCase().includes(title.trim().toLowerCase())
+              ? 1
+              : 2
+        return among
+          .filter(song => has(song.title, title))
+          .map((song, at) => ({ song, at, rank: rank(song) }))
+          .sort((a, b) => a.rank - b.rank || a.at - b.at)
+          .map(each => each.song)
+      },
     })
   }
   if (filters.text) {

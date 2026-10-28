@@ -18,7 +18,7 @@ import type { AskObject, Song, Understanding } from '@selfmp3/shared'
 export const PLAYING = 'playing'
 
 /** Which songs: a handle and places in its list, or null for none named. */
-export type Scope = {
+type Scope = {
   readonly handle: string
   /** Places in the handle's numbered list, 1 for the first; null for all of it. */
   readonly picks: readonly number[] | null
@@ -34,7 +34,7 @@ export interface Held {
 }
 
 /** The object a handle names, or undefined. */
-export function heldObject(held: Held, handle: string): AskObject | undefined {
+function heldObject(held: Held, handle: string): AskObject | undefined {
   return held.objects.find(object => object.handle === handle)
 }
 

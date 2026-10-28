@@ -136,6 +136,8 @@ export interface Responding {
   /** Everything the model was told or shown, where a number in its words must come from. */
   readonly seen: () => string
   readonly steps: Steps
+  /** No second try is left: the reply is accepted as well as it can be. */
+  readonly last?: boolean
 }
 
 /** A check that failed, said so the model can mend it. */
@@ -351,10 +353,11 @@ function described(
 }
 
 /** Why an empty card is empty, when anything says: the model's note, or how its set came to none. */
-function emptyReason(card: CardArg, meta: SetMeta): string | null {
-  return (
-    card.note ?? meta.emptiedBy ?? (meta.notes && meta.notes.length > 0 ? meta.notes[0]! : null)
-  )
+function emptyReason(card: CardArg, meta: SetMeta, last: boolean): string | null {
+  if (card.note) return card.note
+  // Its set's own reason was never seen when the answer was written beside the call that made it.
+  if (!last) return null
+  return meta.emptiedBy ?? (meta.notes && meta.notes.length > 0 ? meta.notes[0]! : null)
 }
 
 async function make(context: Responding, card: CardArg, index: number): Promise<Made> {
@@ -388,9 +391,11 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
         context,
         label,
       )
-      const reason = songs.length === 0 ? emptyReason(card, meta) : null
+      const reason = songs.length === 0 ? emptyReason(card, meta, context.last === true) : null
       if (songs.length === 0 && !reason) {
-        problems.push(`${label}: holds no songs. Say why in its note, or look again.`)
+        problems.push(
+          `${label}: holds no songs${meta.emptiedBy ? ` (${meta.emptiedBy})` : ''}. Look again another way, or say why in its note.`,
+        )
       }
       const name =
         card.title ??
@@ -421,7 +426,7 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
         )
       const { songs, meta, why } = scopeSongs(context, card.from)
       const problems: string[] = []
-      if (songs.length === 0 && !emptyReason(card, meta)) {
+      if (songs.length === 0 && !emptyReason(card, meta, context.last === true)) {
         problems.push(`${label}: holds no songs. Say why in its note, or answer in words.`)
       }
       return made(
@@ -680,6 +685,13 @@ function grounded(say: string, seen: string): { kept: string; strange: number[] 
   return { kept: kept.join(' ').trim(), strange }
 }
 
+/** Whether most of the letters in a text are Chinese, Japanese or Korean. */
+function mostlyCJK(text: string): boolean {
+  const letters = [...text].filter(char => /\p{L}/u.test(char))
+  const cjk = letters.filter(char => CJK.test(char))
+  return letters.length >= 4 && cjk.length > letters.length / 2
+}
+
 /** The numbers a reply's own cards hold, which its words may say. */
 function cardNumbers(cards: readonly AskCard[]): string {
   return cards
@@ -721,9 +733,10 @@ export async function respond(
 ): Promise<AskReply> {
   const problems: string[] = []
   const madeCards: Made[] = []
+  const trying = { ...context, last }
   for (const [index, card] of args.cards.entries()) {
     try {
-      madeCards.push(await make(context, card, index))
+      madeCards.push(await make(trying, card, index))
     } catch (caught) {
       const said = caught instanceof Error ? caught.message : String(caught)
       madeCards.push({
@@ -742,6 +755,15 @@ export async function respond(
   const say = args.say?.trim() || null
   const seen = `${context.seen()}\n${context.words}\n${cardNumbers(cards)}`
   const { kept, strange } = say ? grounded(say, seen) : { kept: null, strange: [] }
+  const written = [
+    say ?? '',
+    ...args.cards.flatMap(card => [card.text ?? '', card.question ?? '', card.note ?? '']),
+  ].join(' ')
+  if (!CJK.test(context.words) && mostlyCJK(written)) {
+    problems.push(
+      'Their words are not in Chinese or Japanese, but yours are: write say, text, notes and questions in the language of their newest words.',
+    )
+  }
   if (strange.length > 0) {
     problems.push(
       `say has ${strange.join(', ')}, which no result shows: say only numbers the results give, or none.`,

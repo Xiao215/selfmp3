@@ -61,7 +61,7 @@ Choosing songs:
 Cards (respond's cards, 1 to 4, in the order the request asks for its parts; several parts about the same songs act on the same set):
 - songs: from, lead (play: they want it now; save: they want it kept as a playlist, title its name; next: after the song playing), title.
 - find: from, the set find_half_remembered made: songs they half remember.
-- library: a question about what is in the library, counted in code: from (none for the whole library), show (count, songs, artists, albums, tags), sort, order, limit.
+- library: a question about what they have (how many, which, the most or least of something, whose, on which albums), counted in code; songs cards are for music to play or keep, never the answer to a question: from (none for the whole library), show (count, songs, artists, albums, tags), sort, order, limit.
 - stats: their listening: range (7d, 30d, 90d, 365d, all), about (songs, artists, tags, totals), limit.
 - tags, tidy, copies: proposal, the as of the propose call that made it.
 - playlist: op delete or rename (playlists, newName); create (newName, from); add or remove (playlists with one name, from: the songs); sort (playlists, sort, order). A live playlist fills itself from its rules; its card says so.

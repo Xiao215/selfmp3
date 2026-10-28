@@ -94,7 +94,7 @@ export const PickOut = z.object({
 })
 
 /** What each filter means and how to choose them; the router (ask.ts) is told the same. */
-export const FILTERS_GUIDE = `The filters:
+const FILTERS_GUIDE = `The filters:
 - anyTags: tag names, copied exactly from the library's tag list. A song is in if it has ANY of them.
 - artists: artist names, spelled as the library's artist list spells them. Also widens: a song by any of them is in too.
 - albums: album names, spelled as the library's album list spells them. Also widens: a song on any of them is in too.

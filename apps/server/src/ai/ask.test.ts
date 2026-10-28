@@ -511,6 +511,49 @@ describe('ask, checked before it reaches the device', () => {
     expect(reply.cards[0]).toMatchObject({ kind: 'explore', say: 'None of your songs is that.' })
   })
 
+  it('looks again when a list it never saw came to nothing, and takes what emptied it the second time', async () => {
+    const empty = calls(
+      ['find_songs', { as: 'x', artist: ['YOASOBI'], year: { min: 1990, max: 1991 } }],
+      respond({ cards: [{ kind: 'songs', from: { set: 'x' } }] }),
+    )
+    const d = deps({
+      'ask-agent': [empty, calls(respond({ cards: [{ kind: 'songs', from: { set: 'x' } }] }))],
+    })
+    const reply = await ask(d, 'yoasobi from 1990')
+    expect(toolResults(d.llm, 1).at(-1)).toContain(
+      'holds no songs (year 1990–1991 (left none of 2))',
+    )
+    const card = reply.cards[0]!
+    expect(card.kind === 'songs' && card.describe.notes).toEqual([
+      'year 1990–1991 (left none of 2)',
+    ])
+  })
+
+  it('wants its words in the language of theirs', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(respond({ cards: [{ kind: 'words', text: '这里不能打乱播放队列。' }] })),
+        calls(respond({ cards: [{ kind: 'words', text: 'Shuffle is in the player.' }] })),
+      ],
+    })
+    const reply = await ask(d, 'shuffle my queue')
+    expect(toolResults(d.llm, 1).at(-1)).toContain('language of their newest words')
+    expect(reply.cards[0]).toMatchObject({ say: 'Shuffle is in the player.' })
+  })
+
+  it('finds a title as it is written before one that only holds it', async () => {
+    const d = deps({
+      'ask-agent': [
+        calls(
+          ['find_songs', { as: 'q', title: 'Liyue' }],
+          respond({ cards: [{ kind: 'songs', from: { set: 'q', pick: [1] } }] }),
+        ),
+      ],
+    })
+    const reply = await ask(d, 'play Liyue')
+    expect(ids(reply)).toEqual([5])
+  })
+
   it('refuses a set, a place or an id it was never given', async () => {
     const d = deps({
       'ask-agent': [

@@ -2,23 +2,18 @@ import type { z } from 'zod/v4'
 import {
   editDistance,
   formatDuration,
-  isResting,
   joinedNames,
   NO_JOINS,
   ASK_CLARIFY_OPTIONS,
   type AskCard,
   type AskOrder,
   type AskSort,
-  type DescribePick,
-  type DescribeResult,
   type SmartRules,
   type Song,
   type Tag,
   type Understanding,
 } from '@selfmp3/shared'
 import {
-  DEFAULT_SIZE,
-  MAX_PICKS,
   PickOut,
   groundPicks,
   groundPlan,
@@ -325,82 +320,6 @@ export async function songsThatAre(
   const songIds = found.flat()
   steps.done(`${songIds.length} ${songIds.length === 1 ? 'is' : 'are'}`)
   return { songIds, judged: judging.length, of: fitting.length }
-}
-
-/** How many songs a pick in an order chooses from: the first in the order, a pick's table of them. */
-const IN_ORDER_POOL = 300
-
-/**
- * Songs to play in an order the library knows (the most played, the newest,
- * the longest): the songs the filters let in, sorted in code, and the first of
- * them, as many or as long as asked, with no model. Words only a model can
- * judge are judged among the first in the order, and what it chooses keeps the
- * order. When nothing fits, Describe answers, loosening the filters and saying so.
- */
-export async function songsInOrder(
-  deps: DescribeDeps,
-  text: string,
-  understanding: Understanding,
-  unknown: string[],
-  /** The song steered from, which is not one of them. */
-  avoid: readonly number[],
-  sort: { sortBy: AskSort; order: AskOrder },
-  steps: Steps = NO_STEPS,
-): Promise<DescribeResult> {
-  const now = deps.now?.() ?? Date.now()
-  steps.begin('Looking through your library')
-  const left = new Set(avoid)
-  let fitting = songsFitting(
-    deps.songs(),
-    deps.tags(),
-    understanding,
-    now,
-    deps.artistNames?.(),
-  ).filter(song => !left.has(song.id))
-  // Resting songs (shared rest.ts) stay out while anything else fits, as in any music to play.
-  const awake = fitting.filter(song => !isResting(song, now))
-  const notes: string[] = []
-  const resting = fitting.length - awake.length
-  if (awake.length > 0 && resting > 0) {
-    fitting = awake
-    notes.push(`Left out ${resting === 1 ? '1 song' : `${resting} songs`} you’ve set to rest.`)
-  }
-  steps.done(
-    fitting.length === 0
-      ? undefined
-      : `${fitting.length} ${fitting.length === 1 ? 'song fits' : 'songs fit'}`,
-  )
-  if (fitting.length === 0) return narrowAndPick(deps, text, understanding, unknown, avoid, steps)
-  const sorted = sortSongs(fitting, sort.sortBy, sort.order)
-  if (understanding.brief !== null || understanding.sound !== null) {
-    const pool = sorted.slice(0, IN_ORDER_POOL)
-    const found = await narrowAndPick(
-      { ...deps, songs: () => pool },
-      text,
-      understanding,
-      unknown,
-      [],
-      steps,
-      null,
-      false,
-    )
-    const place = new Map(pool.map((song, index) => [song.id, index]))
-    const picks = [...found.picks].sort(
-      (a, b) => (place.get(a.songId) ?? 0) - (place.get(b.songId) ?? 0),
-    )
-    return { ...found, fit: fitting.length, picks, notes: [...notes, ...found.notes] }
-  }
-  const target = understanding.minutes === null ? null : understanding.minutes * 60
-  const size = Math.min(MAX_PICKS, understanding.size ?? DEFAULT_SIZE)
-  const picks: DescribePick[] = []
-  let seconds = 0
-  for (const song of sorted) {
-    if (picks.length >= (target === null ? size : MAX_PICKS)) break
-    if (target !== null && seconds >= target) break
-    picks.push({ songId: song.id, why: null })
-    seconds += song.duration
-  }
-  return { understanding, fit: fitting.length, loosened: [], unknown, picks, notes }
 }
 
 const RULE_OPS: Readonly<Record<string, string>> = {

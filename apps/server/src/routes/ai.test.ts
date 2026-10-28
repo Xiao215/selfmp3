@@ -33,12 +33,8 @@ describe('smart features turned off in Settings', () => {
   let thinkingMs = 0
   /** What the model says about an import's names. */
   let importReply: unknown[] = []
-  /** What the router chooses for an Ask: a whole names checkup unless a test says otherwise. */
-  let routeReply: { action: string; say: string | null; tidy: unknown } = {
-    action: 'tidy',
-    say: null,
-    tidy: { what: 'checkup', lookUp: false },
-  }
+  /** What Ask's agent answers, in words and with no tool called. */
+  const agentReply = { say: null, cards: [{ kind: 'words', text: 'Nothing to change.' }] }
 
   beforeAll(async () => {
     model = http.createServer(async (request, response) => {
@@ -60,26 +56,7 @@ describe('smart features turned off in Settings', () => {
         response.end(JSON.stringify({ choices: [{ message: { content } }] }))
         return
       }
-      const content = JSON.stringify({
-        action: routeReply.action,
-        filters: null,
-        songs: null,
-        change: null,
-        reply: null,
-        tags: null,
-        playback: null,
-        find: null,
-        stats: null,
-        playlists: null,
-        playlistSongs: null,
-        library: null,
-        tidy: routeReply.tidy,
-        remember: null,
-        getMusic: null,
-        open: null,
-        say: routeReply.say,
-        try: null,
-      })
+      const content = JSON.stringify(agentReply)
       response.end(JSON.stringify({ choices: [{ message: { content } }] }))
     })
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve))
@@ -141,14 +118,12 @@ describe('smart features turned off in Settings', () => {
   })
 
   it('goes on with an Ask whose connection closed, and keeps its answer under the ticket', async () => {
-    routeReply = { action: 'none', say: 'Nothing to change.', tidy: null }
     thinkingMs = 300
     const ticket = 'phone-went-away-1'
     const hangUp = new AbortController()
     const asking = fetch(`${origin}/api/ai/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.authToken}` },
-      // Words of its own: the router's answer to the last ones is remembered.
       body: JSON.stringify({ text: 'check my album names', ticket }),
       signal: hangUp.signal,
     })

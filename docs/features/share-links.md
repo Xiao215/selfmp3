@@ -132,6 +132,11 @@ picks F1 and F2; one song laid out as Now Playing on 2026-10-24, picks A1 and B1
   is picked. Only the music: no Back, no Get them. _jpop · 7 of 100_ sits over the title,
   and Previous and Next beside Play step through the list's songs (before Play they only
   move the cue). The wash and the words follow the song.
+  - **Opening on a song.** The address can name one of its songs, `?s=<entry>`, and the
+    page opens on it instead of the first. The address follows the page's song (as Now
+    Playing's names its song), so in a browser a copied address opens where it was. Shared
+    while one of the list's songs plays, the sheet offers _Open on <song>_, on by default;
+    the doorman carries the `s` on to the app, and a chat's card shows that song's cover.
   - **On a computer** the songs are a rail of covers down the window's left edge, 76 points
     wide, with Shuffle at its head and the page's song ringed (`CoverRail`). Under the
     pointer it opens over the page to 320 with the list's name, _300 songs · 17 hr 26 min_
@@ -321,7 +326,7 @@ GET  /v1/share                                   → ShareSummary[] the links yo
 GET  /v1/share/received                          → ShareSummary[] the ones you opened
 GET  /v1/share/<id>?k=<key>&v=<device>           → ShareLink      a session is optional
 GET | HEAD /v1/share/<id>/files/<entry>/<part>?k=<key>   audio | cover | lyrics
-GET  /l/<id>/<key>[?t=0:42]                     a chat app: its card; anyone else: on to the app
+GET  /l/<id>/<key>[?s=<entry>][&t=0:42]        a chat app: its card; anyone else: on to the app
 POST /v1/share/<id>/ask?k=<key>      { name }    → ShareLink      once it has ended
 POST /v1/share/<id>/act              ShareAction → ShareLink | 204 renew | end | dismiss | forget
 ```

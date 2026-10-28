@@ -138,10 +138,17 @@ the tray are drawn over the sky and move with it.
 
 | | Phone | Computer |
 |---|---|---|
-| Move | one finger (or two) | drag, or scroll (a trackpad's two fingers, a mouse's wheel) |
-| Zoom | pinch; double tap zooms in | trackpad pinch, ⌘ / Ctrl + scroll, double click; +, − |
+| Move | one finger (or two) | drag, or a trackpad's two fingers |
+| Zoom | pinch; double tap zooms in | a mouse's wheel, trackpad pinch, ⌘ / Ctrl + scroll, double click; +, − |
 | Play what's there | tap | click |
 | Draw | hold still a moment, then drag; or the pen, for one stroke | the same, or Shift-drag |
+
+A mouse's wheel zooms, as a map's does, and a trackpad's two fingers move (Xiao, 2026-10-27:
+the wheel moved the map up and down). A browser sends both as the same wheel, so
+`wheel.model.ts` tells them apart: lines or pages, a Mac's notch (4.000244… points) or a
+large whole step are a mouse; sideways movement, Chrome's and Safari's older field at three
+times the new one, or small steps are a trackpad; and a gesture keeps the source it began
+with, so a trackpad's fast flick never turns into a zoom halfway.
 
 A map is moved with one finger everywhere else, so it is here (B1). Drawing waits for a
 hold: a ring fills under the still finger (from 90 ms, so a tap or a move never flickers

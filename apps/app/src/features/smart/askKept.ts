@@ -1,5 +1,5 @@
 import { ApiError, type Api } from '@selfmp3/client'
-import type { AskAnswer, AskContext, AskTurnInput } from '@selfmp3/shared'
+import type { AskContext, AskReply, AskTurnInput } from '@selfmp3/shared'
 import { countUse } from '../usage/usage'
 
 /** One Ask, as `askKept` sends it. */
@@ -36,7 +36,7 @@ export async function askKept(
   sent: AskSent,
   signal: AbortSignal,
   wait: (ms: number) => Promise<void> = pause,
-): Promise<AskAnswer> {
+): Promise<AskReply> {
   const { ticket } = sent
   const posting = new AbortController()
   const drop = (): void => {
@@ -45,7 +45,7 @@ export async function askKept(
   }
   signal.addEventListener('abort', drop, { once: true })
   try {
-    return await new Promise<AskAnswer>((resolve, reject) => {
+    return await new Promise<AskReply>((resolve, reject) => {
       let settled = false
       const settle = (finish: () => void): void => {
         if (settled) return

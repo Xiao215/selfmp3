@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_QUEUE, type AskAnswer, type QueueState } from '@selfmp3/shared'
+import { EMPTY_QUEUE, type AskCard, type QueueState } from '@selfmp3/shared'
 import { ordinal, playbackStep } from './playbackAnswer.model'
 
-type Playback = Extract<AskAnswer, { kind: 'playback' }>
+type Playback = Extract<AskCard, { kind: 'playback' }>
 
 const asked = (op: Playback['op'], place: number | null = null): Playback => ({
   kind: 'playback',

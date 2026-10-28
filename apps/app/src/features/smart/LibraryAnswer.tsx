@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { artistOr, formatLongDuration, plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, formatLongDuration, plural, type AskCard } from '@selfmp3/shared'
 import { space, type, useLibrary } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -30,7 +30,7 @@ export function LibraryAnswer({
   height,
   onDone,
 }: {
-  answer: Extract<AskAnswer, { kind: 'library' }>
+  answer: Extract<AskCard, { kind: 'library' }>
   /** The words asked, which name what plays from it. */
   text: string
   height: number
@@ -158,7 +158,7 @@ export function LibraryAnswer({
   )
 }
 
-type Library = Extract<AskAnswer, { kind: 'library' }>
+type Library = Extract<AskCard, { kind: 'library' }>
 
 /** Which of the counted lists a library answer shows. */
 function listed(

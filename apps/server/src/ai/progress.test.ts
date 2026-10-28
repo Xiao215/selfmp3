@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskReply } from '@selfmp3/shared'
 import { AskProgress, GONE_MS, type Steps } from './progress.js'
 
 describe('AskProgress', () => {
@@ -23,11 +23,11 @@ describe('AskProgress', () => {
 })
 
 describe('AskProgress.outlast', () => {
-  const answer: AskAnswer = { kind: 'none', say: 'Done.', try: [] }
+  const answer: AskReply = { say: 'Done.', cards: [{ kind: 'remember', note: 'Done.' }] }
 
   /** Work that waits for its signal or to be let finish. */
   function waiting(): {
-    work: (steps: Steps, signal: AbortSignal | undefined) => Promise<AskAnswer>
+    work: (steps: Steps, signal: AbortSignal | undefined) => Promise<AskReply>
     finish: () => void
     stopped: () => boolean
   } {
@@ -36,7 +36,7 @@ describe('AskProgress.outlast', () => {
     return {
       work: (_steps, given) => {
         signal = given
-        return new Promise<AskAnswer>((resolve, reject) => {
+        return new Promise<AskReply>((resolve, reject) => {
           finish = () => resolve(answer)
           given?.addEventListener('abort', () => reject(new Error('stopped')))
         })

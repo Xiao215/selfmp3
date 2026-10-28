@@ -187,10 +187,14 @@ export const ASK_ANSWERED_MAX = 2000
 export const ASK_BEFORE_MAX = 8
 /** The most songs an answer's object carries back, in its order. */
 export const ASK_OBJECT_SONGS = 200
+/** The most cards one reply holds. */
+export const ASK_CARDS_MAX = 4
+/** The most answers a question back offers. */
+export const ASK_CLARIFY_OPTIONS = 3
 
 /**
  * A handle names something an answer showed, for the rest of the conversation
- * (AGENT-DESIGN 2.1): `t3.1` is the third turn's first card. The device gives
+ * (AGENT-DESIGN 2.1): `t3.2` is the third turn's second card. The device gives
  * it, from where the turn stands on its page, so it stays the same however
  * many turns are sent after it.
  */
@@ -245,7 +249,7 @@ export type AskObject = z.infer<typeof AskObjectSchema>
 export const AskTurnSchema = z.object({
   asked: z.string().trim().min(1).max(ASK_TEXT_MAX),
   answered: z.string().trim().max(ASK_ANSWERED_MAX),
-  objects: z.array(AskObjectSchema).max(4).default([]),
+  objects: z.array(AskObjectSchema).max(ASK_CARDS_MAX).default([]),
 })
 export type AskTurn = z.infer<typeof AskTurnSchema>
 export type AskTurnInput = z.input<typeof AskTurnSchema>
@@ -450,7 +454,11 @@ export const AskPlaybackOpSchema = z.enum([
 ])
 export type AskPlaybackOp = z.infer<typeof AskPlaybackOpSchema>
 
-export const AskAnswerSchema = z.discriminatedUnion('kind', [
+/**
+ * One card of an Ask reply (`AskReply`): one thing the answer shows or
+ * proposes, each with its own button.
+ */
+export const AskCardSchema = z.discriminatedUnion('kind', [
   /** Songs to play now or keep: Describe's answer, and which of the two the words led with. */
   z.object({
     kind: z.literal('songs'),
@@ -608,12 +616,36 @@ export const AskAnswerSchema = z.discriminatedUnion('kind', [
     place: z.number().int().nullable(),
   }),
   /**
-   * Not something the box can do, and what to do instead: `try` is requests
-   * it can do that come closest, each one press away.
+   * A question back, when the words could mean things that would be answered
+   * differently: `options` are answers to it, in their words, each asked as
+   * the next turn when pressed. Always the reply's only card.
    */
-  z.object({ kind: z.literal('none'), say: z.string(), try: z.array(z.string()).default([]) }),
+  z.object({
+    kind: z.literal('clarify'),
+    question: z.string(),
+    options: z.array(z.string()).max(ASK_CLARIFY_OPTIONS),
+  }),
 ])
-export type AskAnswer = z.infer<typeof AskAnswerSchema>
+export type AskCard = z.infer<typeof AskCardSchema>
+
+/**
+ * What Ask answers (AGENT-DESIGN 2.4): a few words of its own, and the cards,
+ * in the order the request asked for them ("10 calm songs, then tag them 夜"
+ * is a songs card and a tags card). Each card is named by `t{turn}.{card}`
+ * for the rest of the conversation, 1 for the first card. A `clarify` card
+ * stands alone: a question back is not asked beside an answer.
+ */
+export const AskReplySchema = z
+  .object({
+    /** Its own words above the cards, or null when the cards say it all. */
+    say: z.string().nullable(),
+    cards: z.array(AskCardSchema).min(1).max(ASK_CARDS_MAX),
+  })
+  .refine(reply => reply.cards.length === 1 || reply.cards.every(card => card.kind !== 'clarify'), {
+    message: 'A question back is the only card of its reply',
+    path: ['cards'],
+  })
+export type AskReply = z.infer<typeof AskReplySchema>
 
 /**
  * How an Ask is going: its stages so far, the last one still running unless
@@ -627,8 +659,8 @@ export const AskProgressSchema = z.object({
   known: z.boolean(),
   /** Finished, one way or the other. */
   done: z.boolean(),
-  /** The answer, when finished and asked for with `answer=1`. */
-  answer: AskAnswerSchema.nullable(),
+  /** The reply, when finished and asked for with `answer=1`. */
+  answer: AskReplySchema.nullable(),
   /** Why it failed, said as an error response would say it. */
   failed: z.object({ status: z.number().int(), error: z.string(), code: z.string() }).nullable(),
 })

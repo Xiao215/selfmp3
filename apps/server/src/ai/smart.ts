@@ -2,6 +2,7 @@ import type {
   AiSetup,
   ArtistJoinNames,
   AskAnswer,
+  AskRequest,
   ImportNames,
   ImportNamesRequest,
   TidyResult,
@@ -73,8 +74,9 @@ export class SmartFeatures {
     songs: () => Song[]
     tags: () => Tag[]
     artistNames?: () => ArtistJoinNames
+    spellings?: AskDeps['spellings']
     sound?: AskDeps['sound']
-    stats: (range: Stats['range']) => Stats
+    stats: (range: Stats['range'], top?: number) => Stats
     lyrics: (query: string) => { songId: number; line: string }[]
     wrapped: (range: WrappedRange) => Wrapped
     playlists?: () => readonly AskPlaylist[]
@@ -95,14 +97,14 @@ export class SmartFeatures {
 
   ask(
     text: string,
-    playing: number | null = null,
+    where: AskRequest['context'] = { playing: null, screen: null },
     ticket?: string,
     before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
   ): Promise<AskAnswer> {
     return this.#progress.outlast(ticket, signal, (steps, stop) =>
-      ask(this.#stoppedBy(stop), text, playing, steps, before),
+      ask(this.#stoppedBy(stop), text, where, steps, before),
     )
   }
 
@@ -188,7 +190,7 @@ export function smartFeaturesFor(sources: {
   readonly songs: Pick<SongRepository, 'all'>
   readonly tags: Pick<TagRepository, 'all'>
   /** Artists' other names, which join one artist's spellings; left out by `eval.ts`. */
-  readonly names?: Pick<NamesRepository, 'joinNames'>
+  readonly names?: Pick<NamesRepository, 'joinNames' | 'spellings'>
   /** The listening model, for Ask's songs in the order they sound (sound/sound.ts). */
   readonly sound?: AskDeps['sound']
   readonly stats: Pick<StatsRepository, 'build'>
@@ -212,8 +214,9 @@ export function smartFeaturesFor(sources: {
     songs: () => songs.all(),
     tags: () => tags.all(),
     artistNames: sources.names ? () => sources.names!.joinNames() : undefined,
+    spellings: sources.names ? () => sources.names!.spellings() : undefined,
     sound: sources.sound,
-    stats: range => stats.build(range),
+    stats: (range, top) => stats.build(range, undefined, top ?? null),
     lyrics: query =>
       sources.lyricsSearch.search(query).map(row => ({ songId: row.song_id, line: row.line })),
     wrapped: range => wrapped.build(range),
@@ -221,6 +224,7 @@ export function smartFeaturesFor(sources: {
       playlists.all().map(playlist => ({
         name: playlist.name,
         kind: playlist.kind,
+        rules: playlist.rules,
         songIds: () => playlists.songIds(playlist),
       })),
     notes: () => settings.get().smartNotes,

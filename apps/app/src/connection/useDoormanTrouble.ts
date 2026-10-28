@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
-import { onlineManager, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { ApiError, queryKeys } from '@selfmp3/client'
+import { onlineManager, useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@selfmp3/client'
 import { DOORMAN_PATHS } from '@selfmp3/shared'
 import {
   bucketHold,
@@ -15,6 +15,7 @@ import { askBucketAgain } from '../ports/askBucketAgain'
 import { useTabHidden } from '../ports/tabHidden'
 import { library as cloudLibrary, session as cloudSession } from '../replica'
 import { ASK_BEFORE_END_MS, askBucketNow } from './bucketAsk.model'
+import { refetchFailed } from './refetchFailed'
 
 /**
  * Whether the doorman is answering a cloud library, as the last request found
@@ -74,19 +75,6 @@ export function useAskDoormanBack(fromCloud: boolean): void {
       stopHearing()
     }
   }, [kind, client])
-}
-
-/**
- * Whatever is on screen and failed for want of an answer: the library, a
- * playlist's songs. A refusal is an answer (a song with no words), and
- * asking again would only hear it again.
- */
-function refetchFailed(client: QueryClient): void {
-  void client.refetchQueries({
-    type: 'active',
-    predicate: ({ state }) =>
-      state.status === 'error' && !(state.error instanceof ApiError && !state.error.isUnanswered),
-  })
 }
 
 /** How often the edits a cloud library holds back are counted, while the foot shows. */

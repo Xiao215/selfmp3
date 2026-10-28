@@ -64,6 +64,8 @@ Who can sign in, built for a hundred people or more:
   aren't addresses.
 - The owners (`OWNER_EMAILS`) are marked and can't be removed.
 - The page shows addresses only. The doorman keeps no names or pictures for it.
+- A row just added says when they can sign in, a minute on: the doorman's list takes that
+  long to reach all of Cloudflare. Adding says so too.
 - Remove asks first, in the app's confirmation dialog.
 - **Anyone with a Google account** is a setting of its own. Turning it on asks first.
 

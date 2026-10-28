@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Tag } from '@selfmp3/shared'
-import { SONGS, TAGS, scriptedLlm } from './fixtures/library.js'
+import { SONGS, TAGS, scriptedLlm, song } from './fixtures/library.js'
 import { LlmError } from './llm.js'
 import {
+  callsOf,
   placeFromLibrary,
   groupSongs,
   missingFromAlbum,
@@ -27,6 +28,7 @@ const plan = (overrides: Record<string, unknown>) => ({
 
 const group = (g: string, overrides: Record<string, unknown> = {}) => ({
   g,
+  songs: [],
   add: [],
   remove: [],
   newTag: null,
@@ -133,7 +135,7 @@ describe('tagReview, the untagged songs', () => {
     expect(llm.asked.map(each => each.task)).toEqual(['tags-groups'])
     const prompt = llm.asked[0]!.prompt
     expect(prompt).toContain(
-      'g1 | 周杰倫 | 3 songs | no tags | titles in Chinese | albums: 七里香 2, 葉惠美 1',
+      'g1 | 周杰倫 | 3 songs | no tags | titles in Chinese | 1 七里香 (七里香); 2 外婆 (七里香); 3 晴天 (葉惠美)',
     )
     expect(prompt).not.toContain('Grande valse')
   })
@@ -304,6 +306,63 @@ describe('tagReview, a request', () => {
     const groups = llm.asked[1]!.prompt.split('Groups (')[1]!
     expect(groups).toContain('| Yorushika | 1 song | tags: jpop |')
     expect(groups).not.toContain('YOASOBI')
+  })
+})
+
+describe('tagReview, songs it points at and songs one by one', () => {
+  it('looks at the songs it is handed and no others', async () => {
+    const llm = scriptedLlm({
+      'tags-plan': [plan({ focus: ['jpop'], songs: 'without' })],
+      'tags-groups': [{ groups: [group('g1', { add: ['jpop'] })] }],
+    })
+    const result = await tagReview(
+      { llm, songs: () => SONGS, tags: () => TAGS },
+      { text: 'tag this jpop', scope: [byId(13)] },
+    )
+    expect(result.looked).toBe(1)
+    expect(result.changes).toEqual([
+      expect.objectContaining({ op: 'add', tag: 'jpop', songIds: [13] }),
+    ])
+    expect(llm.asked[0]!.prompt).toContain(
+      'The songs it is about:\nProstitution | Yorushika | Plagiarism | no tags',
+    )
+    expect(llm.asked[1]!.prompt).toContain('| Yorushika | 1 song | no tags |')
+  })
+
+  it('takes a change for some of a group’s songs, each song once', async () => {
+    const llm = scriptedLlm({
+      'tags-plan': [plan({ focus: ['中文流行'], songs: 'without', artists: ['周杰倫'] })],
+      'tags-groups': [
+        {
+          groups: [
+            group('g1', { songs: [1, 3, 9], add: ['中文流行'], why: 'Mandarin' }),
+            // Song 1 is answered already; a number the group lacks is no song.
+            group('g1', { songs: [1], remove: [], add: ['jpop'] }),
+            // The rest of the group: only song 2 is left.
+            group('g1', { add: ['中文流行'], sure: 'low', why: 'Maybe' }),
+          ],
+        },
+      ],
+    })
+    const result = await tagReview(
+      { llm, songs: () => SONGS, tags: () => TAGS },
+      { text: 'tag the 周杰倫 songs in Mandarin 中文流行' },
+    )
+    expect(result.changes).toEqual([
+      expect.objectContaining({ op: 'add', tag: '中文流行', songIds: [14, 16], why: 'Mandarin' }),
+    ])
+    expect(result.unsure).toEqual([{ songIds: [15], who: '周杰倫', why: 'Maybe' }])
+  })
+
+  it('lists a big group in parts, and keeps each call to a bounded number of songs', () => {
+    const many = Array.from({ length: 450 }, (_, at) =>
+      song(1000 + at, { title: `曲 ${at}`, artist: 'HOYO-MiX' }),
+    )
+    const groups = groupSongs(many)
+    expect(groups.map(each => each.songs.length)).toEqual([...Array(11).fill(40), 10])
+    expect(callsOf(groups).map(call => call.reduce((n, each) => n + each.songs.length, 0))).toEqual(
+      [400, 50],
+    )
   })
 })
 

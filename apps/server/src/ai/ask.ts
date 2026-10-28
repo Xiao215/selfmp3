@@ -1,11 +1,12 @@
 import { z } from 'zod/v4'
-import type { AskAnswer, AskTurn } from '@selfmp3/shared'
+import type { AskAnswer, AskRequest, AskTurn, Song } from '@selfmp3/shared'
 import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './askActions.js'
-import { none } from './askLibrary.js'
+import { none, rulesWords } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
+import { objectLines, type Held } from './scope.js'
 
 /**
  * S1 · the Search box's Ask (docs/features/ai.md).
@@ -22,13 +23,14 @@ import { NO_STEPS, type Steps } from './progress.js'
  * endpoint takes reliably.
  *
  * A follow-up is asked after the conversation before it (`followed`): each
- * earlier question with what was shown for it. The router and the action it
- * chooses answer the newest words, reading the rest as what they follow on
- * from — a question about what was just said, or a change to the request
- * before ("only the albums").
+ * earlier question with what was shown for it, and what each answer showed as
+ * objects named by handle (`t2.1`), their songs numbered. The router and the
+ * action it chooses answer the newest words, reading the rest as what they
+ * follow on from: a question about what was just said, a change to a list
+ * shown, or something done with songs an answer showed, named by handle and
+ * place (`scope.ts`) rather than described again. The answer on the device's
+ * screen (`context.screen`) is what words pointing at songs mean.
  */
-
-const VERSION = 19
 
 const FALLBACK =
   'Ask for music (a playlist, something to play now), to skip, pause or go back in what is playing, a song you half remember, changes to your tags or playlists, or a question about your library or your listening.'
@@ -45,18 +47,43 @@ type Route = Record<string, unknown> & {
  * The request as the router and the actions read it: what they say now, after
  * the conversation so far. Each earlier turn comes with what was shown for it,
  * so it is context and not asked again: the newest words are what is answered.
+ * What the answers showed is set out by handle, the one on their screen
+ * first, each with its songs numbered (`objectLines`), so a follow-up names
+ * them by handle and place.
  */
-export function followed(text: string, before: readonly AskTurn[]): string {
+export function followed(
+  text: string,
+  before: readonly AskTurn[],
+  screen: string | null = null,
+  songs: ReadonlyMap<number, Song> = new Map(),
+): string {
   if (before.length === 0) return text
+  const objects = before.flatMap(turn => turn.objects)
+  const onScreen = objects.find(object => object.handle === screen)
+  const shown = onScreen ? [onScreen, ...objects.filter(object => object !== onScreen)] : objects
   return [
     'Earlier in this conversation:',
     ...before.flatMap(turn => [
       `They asked: ${turn.asked}`,
       `You answered: ${turn.answered || '(nothing)'}`,
+      ...(turn.objects.length > 0
+        ? [`It showed: ${turn.objects.map(object => object.handle).join(', ')}`]
+        : []),
     ]),
+    ...(shown.length > 0
+      ? [
+          '',
+          'What the answers showed, by handle:',
+          ...shown.map(object => objectLines(object, songs)),
+        ]
+      : []),
+    '',
+    onScreen
+      ? `On their screen now: ${onScreen.handle}. Words that point at songs without saying where they are point at its songs.`
+      : 'Nothing from this conversation is on their screen now.',
     '',
     `Now they say: ${text}`,
-    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed.)',
+    '(Answer what they say now. The earlier turns are what it follows on from, not questions to answer again; when it changes something asked before, the answer is that earlier request changed. Songs an answer showed are named by its handle and their places in its list, never described again. Write anything for them in the language of what they say now, whatever language the earlier turns are in.)',
   ].join('\n')
 }
 
@@ -92,7 +119,7 @@ export function routeSystem(actions: readonly AskAction<unknown>[]): string {
 
 The actions:
 ${actions.map(each => `- ${each.name}: ${each.when}`).join('\n')}
-- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
+- none: anything else, including talk that is not a request, or a request missing what it needs. "say" is one plain sentence, in the language of their newest words, on what you can do instead, and "try" is up to two requests, in their language, that this box can do and that come closest to what they wanted (for "tag the good ones": "tag the songs that should be 中文流行"). Empty when nothing comes close. Never pretend to do something.
 
 "filters", for ${filtered.join(', ')}:
 ${FILTERS_GUIDE}`
@@ -104,59 +131,89 @@ const SYSTEM = routeSystem(ASK_ACTIONS)
 export async function ask(
   deps: AskDeps,
   text: string,
-  playingId: number | null = null,
+  /** The song playing on the device and the answer on its screen. */
+  where: AskRequest['context'] = { playing: null, screen: null },
   /** Told each stage as it begins, for the device's waiting steps (`progress.ts`). */
   steps: Steps = NO_STEPS,
   /** The conversation before this, when it follows up on an answer. */
   before: readonly AskTurn[] = [],
 ): Promise<AskAnswer> {
-  const request = withNotes(followed(text, before), deps.notes?.() ?? [])
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
+  const byId = new Map(songs.map(song => [song.id, song]))
+  const request = withNotes(followed(text, before, where.screen, byId), deps.notes?.() ?? [])
 
-  const playing = songs.find(song => song.id === playingId)
+  const playing = where.playing === null ? undefined : byId.get(where.playing)
+  // What the handles name: the song playing, and what each earlier answer showed.
+  const held: Held = { playing, objects: before.flatMap(turn => turn.objects) }
   // "This", for the router and for the pick: the song as the table draws a row.
   const nowPlaying = playing
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`
     : ''
   const playlists = deps.playlists?.() ?? []
-  const prompt = `${libraryShape(songs, tags, deps.artistNames?.())}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, exactly: ${playlists.map(playlist => playlist.name).join(' | ') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
-  steps.begin('Reading what you asked')
-  const route = await remembered.get(
-    Remembered.key('ask-route', VERSION, prompt),
-    async () =>
-      (
-        await deps.llm.generate({
-          task: 'ask-route',
-          tier: 'fast',
-          system: SYSTEM,
-          prompt,
-          schema: FORM,
-        })
-      ).value,
+  // Each playlist with its kind: a live one's songs come from its rules, said in words.
+  const playlistLines = playlists.map(
+    playlist =>
+      `- “${playlist.name}”: ${playlist.kind === 'live' && playlist.rules ? `live, holds ${rulesWords(playlist.rules, tags)}` : playlist.kind}`,
   )
+  const prompt = `${libraryShape(songs, tags, deps.artistNames?.())}\n\nTheir tags, exactly: ${tags.map(tag => tag.name).join(', ') || '(none)'}\n\nTheir playlists, each name exactly as quoted, and whether it is manual (songs put in by hand) or live (filled by its rules):\n${playlistLines.join('\n') || '(none)'}${nowPlaying}\n\nThe request:\n${request}`
+  // Not remembered: asked again, the same words are read again, so Try again can come out differently.
+  const route = (more = ''): Promise<Route> =>
+    deps.llm
+      .generate({
+        task: 'ask-route',
+        tier: 'fast',
+        system: SYSTEM,
+        prompt: prompt + more,
+        schema: FORM,
+      })
+      .then(answer => answer.value)
+  steps.begin('Reading what you asked')
+  let routed = await route()
+  let missing = missingFrom(routed)
+  if (missing) {
+    // An action without what it needs is not trusted: the model is asked once more, told what it left out.
+    routed = await route(
+      `\n\n(Your last answer chose ${routed.action} and left "${missing}" empty. Answer again with it filled in, or choose none and say, in the language of their newest words, what you need to know.)`,
+    )
+    missing = missingFrom(routed)
+  }
   steps.done('Read what you asked')
 
-  const chosen = ASK_ACTIONS.find(each => each.name === route.action)
-  // An action without what it needs is not trusted: it falls through to "none".
-  const fields = chosen?.fields ? route[chosen.name] : null
-  if (
-    !chosen ||
-    (chosen.fields && (fields === null || fields === undefined)) ||
-    (chosen.filters === 'required' && route.filters === null)
-  ) {
-    return none(route.say ?? FALLBACK, route.try ?? [])
+  const chosen = ASK_ACTIONS.find(each => each.name === routed.action)
+  if (!chosen || missing) {
+    // Asked twice and still without it: said, in the model's words when it gave any.
+    const unsure =
+      missing === 'filters'
+        ? 'I couldn’t tell which songs you mean. Say an artist, an album, a tag or a kind of music.'
+        : 'I couldn’t tell all of what you want done. Say it another way.'
+    return none(routed.say ?? (missing ? unsure : FALLBACK), routed.try ?? [])
   }
+  const fields = chosen.fields ? routed[chosen.name] : null
   const context: AskContext = {
     deps: { ...deps, remembered },
     text: request,
+    words: text,
+    before,
+    held,
     playing,
     nowPlaying,
     playlists,
     now,
     steps,
   }
-  return chosen.run(context, fields, chosen.filters === 'unused' ? null : route.filters)
+  return chosen.run(context, fields, chosen.filters === 'unused' ? null : routed.filters)
+}
+
+/** The part of the form the chosen action needs and the router left empty, or null. */
+function missingFrom(route: Route): string | null {
+  const chosen = ASK_ACTIONS.find(each => each.name === route.action)
+  if (!chosen) return null
+  if (chosen.fields && (route[chosen.name] === null || route[chosen.name] === undefined)) {
+    return chosen.name
+  }
+  if (chosen.filters === 'required' && route.filters === null) return 'filters'
+  return chosen.missing?.(route[chosen.name], route.filters) ?? null
 }

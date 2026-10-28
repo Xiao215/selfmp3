@@ -1,13 +1,13 @@
 import { ApiError, type Api } from '@selfmp3/client'
-import type { AskAnswer, AskTurn } from '@selfmp3/shared'
+import type { AskAnswer, AskContext, AskTurnInput } from '@selfmp3/shared'
 import { countUse } from '../usage/usage'
 
 /** One Ask, as `askKept` sends it. */
 export interface AskSent {
   readonly text: string
-  readonly playing: number | null
+  readonly context: AskContext
   readonly ticket: string
-  readonly before: readonly AskTurn[]
+  readonly before: readonly AskTurnInput[]
 }
 
 /** How often the server is asked whether the answer is done, while its response is on the way. */
@@ -56,7 +56,7 @@ export async function askKept(
       let lost: ApiError | null = null
 
       countUse('ask')
-      api.ask(sent.text, sent.playing, ticket, sent.before, posting.signal).then(
+      api.ask(sent.text, sent.context, ticket, sent.before, posting.signal).then(
         answer => settle(() => resolve(answer)),
         (caught: unknown) => {
           if (!signal.aborted && caught instanceof ApiError && caught.isOffline) lost = caught

@@ -40,6 +40,7 @@ import {
   tagsTitle,
   shortTidyApply,
   shortTidyTitle,
+  objectsOf,
 } from './smart.model'
 
 const TAGS: Tag[] = [
@@ -174,12 +175,14 @@ describe('describeNotes', () => {
       fit: 40,
       loosened: ['the energy'],
       unknown: ['Lo-fi'],
+      notes: ['Left out 2 songs you’ve set to rest.'],
       picks: [],
     }
     expect(describeNotes(result, 25)).toEqual([
       'Picked 25 of the 40 that fit',
       'Nothing fit all of it, so it let go of the energy.',
       'Your library has no Lo-fi.',
+      'Left out 2 songs you’ve set to rest.',
     ])
   })
 
@@ -189,12 +192,51 @@ describe('describeNotes', () => {
       fit: 5,
       loosened: [],
       unknown: [],
+      notes: [],
       picks: [1, 2, 3, 4, 5].map(songId => ({ songId, why: null })),
     }
     expect(describeNotes(result, 4)).toEqual([
       '5 songs fit',
       'One of them isn’t on this device yet.',
     ])
+  })
+
+  it('says plainly when fewer songs came than were asked for', () => {
+    const asked = (size: number, fit: number, picked: number): DescribeResult => ({
+      understanding: { ...base, size },
+      fit,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: Array.from({ length: picked }, (_, at) => ({ songId: at + 1, why: null })),
+    })
+    // "about 15" that came back as one song.
+    expect(describeNotes(asked(15, 2, 1), 1)).toEqual([
+      'Picked 1 of the 2 that fit',
+      'Only 1 song, not the 15 you asked for: just 2 fit.',
+    ])
+    expect(describeNotes(asked(15, 2, 2), 2)[1]).toBe(
+      'Only 2 songs, not the 15 you asked for: no more fit.',
+    )
+    expect(describeNotes(asked(15, 40, 9), 9)[1]).toBe(
+      'Only 9 songs, not the 15 you asked for: the rest that fit didn’t suit it.',
+    )
+    expect(describeNotes(asked(15, 40, 15), 15)).toEqual(['Picked 15 of the 40 that fit'])
+  })
+
+  it('says a length that came short, songs never adding up to it exactly', () => {
+    const result: DescribeResult = {
+      understanding: { ...base, minutes: 120 },
+      fit: 8,
+      loosened: [],
+      unknown: [],
+      notes: [],
+      picks: [1, 2, 3, 4, 5, 6, 7, 8].map(songId => ({ songId, why: null })),
+    }
+    expect(describeNotes(result, 8, 32 * 60)[1]).toBe(
+      'Only 32 min, not the 2 hr you asked for: no more fit.',
+    )
+    expect(describeNotes(result, 8, 113 * 60)).toEqual(['8 songs fit'])
   })
 })
 
@@ -222,10 +264,122 @@ describe('askable', () => {
   })
 })
 
-describe('answerRecap for playback', () => {
+describe('answerRecap', () => {
   it('says only what was asked, not that it was done: the device says what came of it', () => {
-    const recap = answerRecap({ kind: 'playback', op: 'next', place: null }, () => undefined)
+    const recap = answerRecap({ kind: 'playback', op: 'next', place: null })
     expect(recap).toBe('Asked to skip to the next song.')
+  })
+
+  it('says what a list was offered for, its songs left to its object', () => {
+    const describe = {
+      understanding: { ...base, name: 'Morning' },
+      picks: [{ songId: 4, why: 'bright' }],
+    } as unknown as DescribeResult
+    expect(answerRecap({ kind: 'songs', lead: 'save', describe, like: null })).toBe(
+      'Offered 1 song (“Morning”) to keep as a playlist',
+    )
+  })
+})
+
+describe('objectsOf', () => {
+  const describe = {
+    understanding: { ...base, name: 'Rainy' },
+    fit: 9,
+    loosened: [],
+    unknown: [],
+    notes: [],
+    picks: [
+      { songId: 11, why: 'soft piano' },
+      { songId: 12, why: null },
+      { songId: 13, why: 'rain on glass' },
+    ],
+  } satisfies DescribeResult
+
+  it('gives a list its handle, songs in order with their reasons, and what it was for', () => {
+    const [object] = objectsOf({ kind: 'songs', lead: 'next', describe, like: 7 }, 3)
+    expect(object).toEqual({
+      handle: 't3.1',
+      kind: 'songs',
+      label: 'Rainy',
+      songIds: [11, 12, 13],
+      why: ['soft piano', null, 'rain on glass'],
+      playlist: null,
+      lead: 'next',
+      like: 7,
+      understanding: describe.understanding,
+    })
+  })
+
+  it('sends a list as it is shown now: moved on its page, its reasons kept with their songs', () => {
+    const now = { ...base, name: 'Rainy', size: 2 }
+    const [object] = objectsOf({ kind: 'songs', lead: 'play', describe, like: null }, 1, {
+      songIds: [13, 11],
+      understanding: now,
+    })
+    expect(object).toMatchObject({
+      songIds: [13, 11],
+      why: ['rain on glass', 'soft piano'],
+      understanding: now,
+    })
+  })
+
+  it('names the songs of a review and of a playlist edit, and nothing for words alone', () => {
+    const [tags] = objectsOf(
+      {
+        kind: 'tags',
+        review: {
+          changes: [
+            {
+              key: 'a',
+              op: 'add',
+              tag: '夜',
+              isNew: true,
+              to: null,
+              songIds: [1, 2],
+              who: '',
+              why: '',
+              by: 'model',
+            },
+            {
+              key: 'b',
+              op: 'add',
+              tag: 'jpop',
+              isNew: false,
+              to: null,
+              songIds: [2, 3],
+              who: '',
+              why: '',
+              by: 'model',
+            },
+          ],
+          looked: 3,
+          asked: 'tag these',
+          unsure: [],
+          note: null,
+        },
+      },
+      2,
+    )
+    expect(tags).toMatchObject({ handle: 't2.1', kind: 'tagChanges', songIds: [1, 2, 3] })
+    const [edit] = objectsOf(
+      {
+        kind: 'playlistSongs',
+        playlist: 'gym',
+        op: 'add',
+        songs: [{ songId: 5, why: null }],
+        understanding: null,
+        by: 'rule',
+        sortBy: null,
+        order: 'asc',
+        unknown: [],
+      },
+      4,
+    )
+    expect(edit).toMatchObject({ kind: 'playlistSongs', playlist: 'gym', songIds: [5] })
+    expect(objectsOf({ kind: 'none', say: 'No.', try: [] }, 5)).toEqual([])
+    expect(
+      objectsOf({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }, 6),
+    ).toEqual([])
   })
 })
 
@@ -238,7 +392,7 @@ describe('logLine', () => {
         { songId: 2, why: null },
       ],
     } as unknown as DescribeResult
-    expect(logLine({ kind: 'songs', lead: 'play', describe })).toBe('2 songs · Ballads')
+    expect(logLine({ kind: 'songs', lead: 'play', describe, like: null })).toBe('2 songs · Ballads')
   })
 
   it('says words by their first line, cut short when long', () => {

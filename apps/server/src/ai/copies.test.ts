@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { candidateGroups, findCopies, keeper, titleKey } from './copies.js'
+import type { Song } from '@selfmp3/shared'
 import { endpointLlm, song } from './fixtures/library.js'
 
 const SONGS = [
@@ -54,6 +55,29 @@ describe('songs you have twice', () => {
     ])
     // Only groups with a song asked about.
     expect(candidateGroups(SONGS, new Set([7]), sound).groups).toHaveLength(1)
+  })
+
+  it('sets aside an English translation after a name too', () => {
+    expect(titleKey('恋風 - Koikaze')).toBe(titleKey('恋風'))
+  })
+
+  it('looks at a single and the album that took it in, by two names one artist goes by', () => {
+    const songs = [
+      song(1, { title: '恋風', artist: '幾田りら', album: '恋風', duration: 182.1 }),
+      song(2, { title: '恋風 - Koikaze', artist: 'Lilas', album: 'Laugh', duration: 183.6 }),
+      // The same theme on two soundtracks: kept on purpose, as ever.
+      song(3, { title: 'Theme', artist: 'HOYO-MiX', album: 'OST A', duration: 180 }),
+      song(4, { title: 'Theme', artist: 'HOYO-MiX', album: 'OST B', duration: 180 }),
+      // A single and an album take more than 2 s apart: another take.
+      song(5, { title: 'Hello', artist: 'C', album: 'Hello', duration: 190 }),
+      song(6, { title: 'Hello', artist: 'C', album: 'Album', duration: 192.5 }),
+    ]
+    const all = new Set(songs.map(each => each.id))
+    const joins = { artistNames: { 幾田りら: ['ikura', 'Lilas'] }, artistNamesFound: ['幾田りら'] }
+    const ids = (found: Song[][]) => found.map(group => group.map(each => each.id))
+    expect(ids(candidateGroups(songs, all, undefined, joins).groups)).toEqual([[1, 2]])
+    // Without the other names, Lilas is somebody else.
+    expect(candidateGroups(songs, all).groups).toEqual([])
   })
 
   it('keeps the copy with the most plays, then the bigger file', () => {

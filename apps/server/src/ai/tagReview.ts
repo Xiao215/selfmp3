@@ -12,7 +12,7 @@ import {
 import { tagCatalog } from './library.js'
 import { LlmError, llmFailureWords, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
-import { bare, chunks, tally } from './text.js'
+import { bare, chunks, pool, tally } from './text.js'
 
 /**
  * Tags (docs/features/ai.md): your tags put right, as changes to approve —
@@ -27,13 +27,26 @@ import { bare, chunks, tally } from './text.js'
  * request is about), and once over those songs in groups — by who they are
  * by, what they carry, and the script of their titles, so 林俊傑's English
  * songs are judged apart from his Mandarin ones and 周杰倫 is judged once, not
- * 76 times. Every name it returns is checked against the library.
+ * 76 times. A group lists each of its songs, so where one artist's songs
+ * differ in a way their script does not show (陳奕迅's Cantonese songs beside
+ * his Mandarin ones), the model answers for some of them. Every name it
+ * returns is checked against the library.
+ *
+ * A request may point at songs instead of describing them ("tag this one",
+ * "tag these 夜"): Ask's router names them by handle (`scope.ts`) and hands
+ * them over, and only they are looked at.
  */
 
-const VERSION = 1
+const VERSION = 3
 
-/** Groups per model call: about 60 tokens each, so a call stays small and quick. */
+/** Groups per model call, so a call stays small and quick. */
 const GROUPS_PER_CALL = 50
+/** Songs per model call across its groups: a title is a few tokens in, a number out. */
+const SONGS_PER_CALL = 400
+/** The most songs one group lists; a bigger one is split into parts this size. */
+const SONGS_PER_GROUP = 40
+/** Calls at once, so a big review does not run into the provider's rate limit. */
+const CALLS_AT_ONCE = 4
 /** The most groups looked at in one pass; past that, the biggest. */
 const MAX_GROUPS = 400
 
@@ -65,6 +78,8 @@ const GroupsOut = z.object({
     .array(
       z.object({
         g: z.string(),
+        /** The group's songs this is for, by number; empty for all of them. */
+        songs: z.array(z.number().int()).max(SONGS_PER_GROUP),
         add: z.array(z.string()).max(2),
         remove: z.array(z.string()).max(2),
         newTag: z.string().nullable(),
@@ -72,7 +87,7 @@ const GroupsOut = z.object({
         why: z.string().max(140),
       }),
     )
-    .max(GROUPS_PER_CALL),
+    .max(GROUPS_PER_CALL * 3),
 })
 
 const PLAN_SYSTEM = `You look after the tags in someone's own music library. You are given their tags, each with what it already holds, the artists in the library, and their request. Their tags are their own vocabulary: a tag means what it holds, not what the word usually means.
@@ -83,19 +98,22 @@ Reply with JSON only:
 - focus: the tags whose songs are in question, copied exactly (for a new tag, its name). Empty for a checkup, or when the request is only about renaming, merging or deleting.
 - newTag: the name of a tag the request wants that they do not have yet, else null.
 - songs: which songs to look at against the focus tags. without: songs that do not carry them yet ("songs that should be X", "tag … as X"). with: songs that carry them ("take X off …", "which X songs are wrong"). all: both. untagged: only songs with no tag. none: no songs, only ops. For a checkup, all.
-- artists: when the request names artists ("tag every 周杰倫 song …"), those names as the library spells them; else empty.`
+- artists: when the request names artists ("tag every 周杰倫 song …"), those names as the library spells them; else empty.
 
-const GROUPS_SYSTEM = `You look after the tags in someone's own music library. You are given their request, their tags with what each already holds, the tags in question, and groups of their songs. Each group is songs by one artist that carry the same tags and whose titles are in one script. Their tags are their own vocabulary: a song belongs in a tag by the same logic as the songs already there (language and scene, game or show, period, genre), not by what the word usually means.
+When the request is about songs listed under "The songs it is about", those are the only songs looked at, against the focus tags, and artists is empty.`
+
+const GROUPS_SYSTEM = `You look after the tags in someone's own music library. You are given their request, their tags with what each already holds, the tags in question, and groups of their songs. Each group is songs by one artist that carry the same tags and whose titles are in one script, each song numbered, with its album. Their tags are their own vocabulary: a song belongs in a tag by the same logic as the songs already there (language and scene, game or show, period, genre), not by what the word usually means.
 
 For each group that should change, reply with:
 - g: the group's id, exactly as given.
+- songs: the numbers of the group's songs the change is for, when it fits only some of them; empty when it fits the whole group. Judge each song on its own when the request turns on something one artist's songs can differ in, such as language, period or kind, and their titles and albums tell them apart. A group may be given more than once, once for each set of its songs that should change differently.
 - add: tags from the ones in question, copied exactly, that these songs should carry and do not. At most two.
 - remove: tags these songs carry, from the ones in question, that they should not. At most two.
 - newTag: a new tag's name only when told one may be made; else null.
 - sure: high when you know this artist and the fit is plain, medium when it is likely, low when you are guessing.
 - why: at most twelve plain words for the person about the kind of songs, without the artist's name, since one reason may speak for several artists ("Mandarin pop, like the rest of 中文流行").
 
-Leave out a group that is right as it is. Reply with JSON only.`
+Leave out a group, or a song, that is right as it is. Reply with JSON only.`
 
 interface TagReviewDeps {
   readonly llm: Llm
@@ -109,6 +127,11 @@ interface TagReviewInput {
   readonly text: string | null
   /** The most songs to change, when the request gives a number ("tag 5 of my untagged songs"). */
   readonly limit?: number | null
+  /**
+   * The songs the request points at, named by handle and resolved (`scope.ts`):
+   * then those and no others. Null or left out: the songs the words describe.
+   */
+  readonly scope?: readonly Song[] | null
 }
 
 /** Songs by one artist that carry the same tags, with titles in one script. */
@@ -215,7 +238,10 @@ export function sameNames(tags: readonly Tag[]): { tag: Tag; into: Tag }[] {
   })
 }
 
-/** Groups by who, what they carry, and the script of the title; biggest first. */
+/**
+ * Groups by who, what they carry, and the script of the title; biggest first.
+ * A group past `SONGS_PER_GROUP` songs goes in parts, so each can list its songs.
+ */
 export function groupSongs(songs: readonly Song[]): Group[] {
   const groups = new Map<string, Song[]>()
   for (const song of songs) {
@@ -224,6 +250,7 @@ export function groupSongs(songs: readonly Song[]): Group[] {
     push(groups, key, song)
   }
   return [...groups.values()]
+    .flatMap(group => chunks(group, SONGS_PER_GROUP))
     .sort((a, b) => b.length - a.length)
     .map((group, index) => ({
       ref: `g${index + 1}`,
@@ -234,9 +261,28 @@ export function groupSongs(songs: readonly Song[]): Group[] {
     }))
 }
 
+/** The most songs pointed at that the plan's prompt lists. */
+const POINTED_SHOWN = 40
+
+/** Songs pointed at, as the plan reads them: `title | artist | album | tags`. */
+function songLines(songs: readonly Song[], tags: readonly Tag[]): string {
+  const names = new Map(tags.map(tag => [tag.id, tag.name]))
+  const lines = songs
+    .slice(0, POINTED_SHOWN)
+    .map(
+      song =>
+        `${song.title} | ${song.artist || '-'} | ${song.album || '-'} | ${
+          song.tagIds.map(id => names.get(id) ?? '?').join(', ') || 'no tags'
+        }`,
+    )
+  const more = songs.length - POINTED_SHOWN
+  return more > 0 ? [...lines, `…and ${more} more`].join('\n') : lines.join('\n')
+}
+
 function groupLine(group: Group, names: ReadonlyMap<number, string>): string {
-  const albums = tally(group.songs.map(song => song.album).filter(Boolean))
-  const titles = group.songs.slice(0, 5).map(song => song.title)
+  const titles = group.songs.map(
+    (song, index) => `${index + 1} ${song.title}${song.album ? ` (${song.album})` : ''}`,
+  )
   return [
     group.ref,
     group.artist,
@@ -245,14 +291,29 @@ function groupLine(group: Group, names: ReadonlyMap<number, string>): string {
       ? `tags: ${group.tagIds.map(id => names.get(id) ?? '?').join(', ')}`
       : 'no tags',
     `titles in ${group.script}`,
-    albums.length
-      ? `albums: ${albums
-          .slice(0, 4)
-          .map(([name, n]) => `${name} ${n}`)
-          .join(', ')}`
-      : 'no album',
-    `e.g. ${titles.join(' / ')}`,
+    titles.join('; '),
   ].join(' | ')
+}
+
+/** Groups into calls: at most `GROUPS_PER_CALL` groups and `SONGS_PER_CALL` songs each. */
+export function callsOf(groups: readonly Group[]): Group[][] {
+  const calls: Group[][] = []
+  let call: Group[] = []
+  let size = 0
+  for (const group of groups) {
+    if (
+      call.length >= GROUPS_PER_CALL ||
+      (call.length > 0 && size + group.songs.length > SONGS_PER_CALL)
+    ) {
+      calls.push(call)
+      call = []
+      size = 0
+    }
+    call.push(group)
+    size += group.songs.length
+  }
+  if (call.length > 0) calls.push(call)
+  return calls
 }
 
 /** The changes as they gather: one per (what, tag, who found it), however many groups lead to it. */
@@ -428,13 +489,15 @@ export async function tagReview(
     songs: 'untagged',
     artists: [],
   }
+  const scope = input.scope ?? null
   if (input.text !== null) {
     steps.begin('Reading your tags')
     const artists = tally(songs.map(song => mainArtist(song.artist)))
       .slice(0, 300)
       .map(([name, n]) => `${name} ${n}`)
       .join(', ')
-    const prompt = `Their tags:\n${catalog}\n\nTheir artists, most songs first: ${artists}\n\nThe request:\n${input.text}`
+    const pointed = scope ? songLines(scope, tags) : ''
+    const prompt = `Their tags:\n${catalog}\n\nTheir artists, most songs first: ${artists}${pointed ? `\n\nThe songs it is about:\n${pointed}` : ''}\n\nThe request:\n${input.text}`
     plan = await remembered.get(
       Remembered.key('tags-plan', VERSION, prompt),
       async () =>
@@ -495,6 +558,7 @@ export async function tagReview(
   // Which songs are in question.
   const wantArtists = plan.artists.map(name => name.trim().toLowerCase()).filter(Boolean)
   const byArtist = (song: Song): boolean =>
+    scope !== null ||
     wantArtists.length === 0 ||
     wantArtists.some(
       name =>
@@ -503,7 +567,7 @@ export async function tagReview(
   const carries = (song: Song): boolean => focusIds.some(id => song.tagIds.includes(id))
   const lacks = (song: Song): boolean =>
     newTag !== null || focusIds.length === 0 || focusIds.some(id => !song.tagIds.includes(id))
-  const inQuestion = songs.filter(song => {
+  const inQuestion = (scope ?? songs).filter(song => {
     if (!byArtist(song)) return false
     switch (songsMode) {
       case 'none':
@@ -557,7 +621,7 @@ export async function tagReview(
   // library has placed as many songs as were asked for.
   let left =
     limit !== null && placed.size >= limit ? [] : inQuestion.filter(song => !placed.has(song.id))
-  if (checkup) {
+  if (checkup && scope === null) {
     // A checkup looks where something is likely off: songs with no tag, and
     // artists whose songs are tagged more than one way.
     const ways = new Map<string, Set<string>>()
@@ -603,40 +667,47 @@ export async function tagReview(
         : checkup
           ? `${input.text}\n(Check the groups' tags: songs missing a tag the rest of their kind carries, or carrying one that does not fit.)`
           : input.text
-    let answers: z.infer<typeof GroupsOut>[]
+    // In the calls' order, whichever answers first, so a change lists its songs the same way each time.
+    const answers: z.infer<typeof GroupsOut>[] = []
     try {
-      answers = await Promise.all(
-        chunks(groups, GROUPS_PER_CALL).map(chunk => {
-          const prompt = `The request:\n${request}\n\nTheir tags:\n${catalog}\n\nTags in question: ${inQuestionTags}\n${newRule}\n\nGroups (id | artist | songs | tags | script | albums | titles):\n${chunk.map(group => groupLine(group, names)).join('\n')}`
-          return remembered.get(
-            Remembered.key('tags-groups', VERSION, prompt),
-            async () =>
-              (
-                await deps.llm.generate({
-                  task: 'tags-groups',
-                  tier: 'smart',
-                  system: GROUPS_SYSTEM,
-                  prompt,
-                  schema: GroupsOut,
-                })
-              ).value,
-          )
-        }),
-      )
+      const calls = callsOf(groups).map((call, at) => ({ call, at }))
+      await pool(calls, CALLS_AT_ONCE, async ({ call, at }) => {
+        const prompt = `The request:\n${request}\n\nTheir tags:\n${catalog}\n\nTags in question: ${inQuestionTags}\n${newRule}\n\nGroups (id | artist | songs | tags | script | numbered titles, with album):\n${call.map(group => groupLine(group, names)).join('\n')}`
+        answers[at] = await remembered.get(
+          Remembered.key('tags-groups', VERSION, prompt),
+          async () =>
+            (
+              await deps.llm.generate({
+                task: 'tags-groups',
+                tier: 'smart',
+                system: GROUPS_SYSTEM,
+                prompt,
+                schema: GroupsOut,
+              })
+            ).value,
+        )
+      })
     } catch (caught) {
       // The library's own answers still stand when the model cannot be asked.
       if (!(caught instanceof LlmError) || input.text !== null) throw caught
-      answers = []
+      answers.length = 0
       notes.push(`${llmFailureWords[caught.kind]} Only what your library says by itself is here.`)
     }
 
-    // The check: groups it was shown, tags in question, the one new name.
+    // The check: groups it was shown, their own songs, each song once, tags
+    // in question, the one new name.
     const byRef = new Map(groups.map(group => [group.ref, group]))
-    const answered = new Set<string>()
-    for (const answer of answers.flatMap(each => each.groups)) {
+    const answered = new Set<number>()
+    for (const answer of answers.flatMap(each => each?.groups ?? [])) {
       const group = byRef.get(answer.g)
-      if (!group || answered.has(group.ref)) continue
-      answered.add(group.ref)
+      if (!group) continue
+      const picked =
+        answer.songs.length === 0
+          ? group.songs
+          : [...new Set(answer.songs)].flatMap(n => group.songs[n - 1] ?? [])
+      const songsOf = picked.filter(song => !answered.has(song.id))
+      if (songsOf.length === 0) continue
+      for (const song of songsOf) answered.add(song.id)
       const adds: { name: string; isNew: boolean }[] = []
       for (const name of answer.add) {
         const tag = named(name)
@@ -664,8 +735,8 @@ export async function tagReview(
         // Worth saying when it would have changed something, or when a song stays without a tag.
         if ((answer.sure === 'low' && changing) || input.text === null) {
           unsure.push({
-            songIds: group.songs.map(song => song.id),
-            who: whoOf(group.songs),
+            songIds: songsOf.map(song => song.id),
+            who: whoOf(songsOf),
             why: answer.why,
           })
         }
@@ -674,20 +745,21 @@ export async function tagReview(
       for (const add of adds) {
         if (gathered.deleted(add.name)) continue
         const target = gathered.mergedInto(add.name) ?? add.name
-        gathered.songs('add', target, add.isNew, 'model', group.songs, answer.why)
+        gathered.songs('add', target, add.isNew, 'model', songsOf, answer.why)
       }
       for (const tag of removes) {
         if (gathered.deleted(tag.name) || gathered.mergedInto(tag.name)) continue
-        gathered.songs('remove', tag.name, false, 'model', group.songs, answer.why)
+        gathered.songs('remove', tag.name, false, 'model', songsOf, answer.why)
       }
     }
-    // A group left out is right as it is; for songs without a tag, that is none fitting.
-    if (input.text === null) {
+    // A song left out is right as it is; for songs without a tag, that is none fitting.
+    if (input.text === null && answers.length > 0) {
       for (const group of groups) {
-        if (!answered.has(group.ref) && answers.length > 0) {
+        const left = group.songs.filter(song => !answered.has(song.id))
+        if (left.length > 0) {
           unsure.push({
-            songIds: group.songs.map(song => song.id),
-            who: whoOf(group.songs),
+            songIds: left.map(song => song.id),
+            who: whoOf(left),
             why: 'none of your tags fits',
           })
         }

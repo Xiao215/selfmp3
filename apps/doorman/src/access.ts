@@ -24,8 +24,12 @@ import { DAYS_KEPT, tallyOf } from './tally.js'
  * runs it, and an owner off the list would be an owner locked out.
  *
  * Asked on every signed-in request, so each Worker instance remembers the list
- * for a minute (boundedCache.ts). A change reaches the instance that made it at
- * once, and the others within the minute, as with signing out.
+ * for a minute (boundedCache.ts). Only a yes is taken from that copy: a no is
+ * asked of KV again first, so someone just added is let in as soon as KV has
+ * the change — at once where it was made, within about a minute elsewhere —
+ * rather than refused, or their new session turned away, by an instance that
+ * remembered the list from before. A removal takes up to the minute, as
+ * signing out does.
  */
 
 const ACCESS_KEY = 'access'
@@ -55,15 +59,20 @@ export class Access {
   /** Whether this Google address may sign in, and go on using a session it has. */
   async allows(email: string): Promise<boolean> {
     if (this.isOwner(email)) return true
-    const list = await this.#list()
-    return list.anyone || list.emails.includes(normal(email))
+    const address = normal(email)
+    const lets = (list: DoormanAccessUpdate) => list.anyone || list.emails.includes(address)
+    const cached = recall(this.#cache, ACCESS_KEY, this.#now())
+    if (cached && lets(cached)) return true
+    return lets(await this.#read())
   }
 
   /** Whether nobody at all may sign in, so a sign-in can say so before the trip to Google. */
   async nobody(): Promise<boolean> {
     if (this.#owners.size > 0) return false
-    const list = await this.#list()
-    return !list.anyone && list.emails.length === 0
+    const empty = (list: DoormanAccessUpdate) => !list.anyone && list.emails.length === 0
+    const cached = recall(this.#cache, ACCESS_KEY, this.#now())
+    if (cached && !empty(cached)) return false
+    return empty(await this.#read())
   }
 
   async read(): Promise<DoormanAccess> {
@@ -81,11 +90,13 @@ export class Access {
   }
 
   async #list(): Promise<DoormanAccessUpdate> {
-    const now = this.#now()
-    const cached = recall(this.#cache, ACCESS_KEY, now)
-    if (cached) return cached
+    return recall(this.#cache, ACCESS_KEY, this.#now()) ?? (await this.#read())
+  }
+
+  /** The list as KV has it, past this instance's copy, which it then replaces. */
+  async #read(): Promise<DoormanAccessUpdate> {
     const list = (await getRecord(this.#kv, ACCESS_KEY, DoormanAccessUpdateSchema)) ?? NOBODY
-    remember(this.#cache, ACCESS_KEY, list, now)
+    remember(this.#cache, ACCESS_KEY, list, this.#now())
     return list
   }
 }

@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -15,7 +15,7 @@ import {
   space,
 } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
-import { usePlayerCommands } from '../../player/PlayerProvider'
+import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { Button } from '../../ui/components/Button'
@@ -36,7 +36,7 @@ import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
 import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { changeAnswer, editAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { changeAnswer, editAnswer, keptAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
 import { AskedLabel, AskedTitle } from './AskedTitle'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
@@ -67,22 +67,36 @@ export function AnswerScreen(): ReactNode {
 }
 
 /**
+ * The answers already played as they came, by their kept id: played once
+ * however often they are drawn again (a hidden turn, the page drawn anew).
+ */
+const playedAsTheyCame = new Set<string>()
+
+/**
  * An answer's songs and head: its own page's, and Ask's stage when the answer
  * is a list (R1, 2026-10-26). On the stage the question is the title, in the
  * serif, and the list's own name joins the line under it; the corner holds
- * Ask's way back and what was said before, and Ask's field changes the list,
- * so it has no Change it of its own.
+ * Ask's way back and what was said before, and Ask's field asks about the
+ * list, so it has no Change it of its own.
+ *
+ * On the stage it does what the words led with ("Play now, rest proposes",
+ * 2026-10-27): a list asked to play starts playing as it comes, once, as a
+ * playback answer is carried out; a list asked to keep leads with one Save,
+ * as a playlist by its name, of exactly the songs shown.
  */
 export function AnswerView({
   id,
   asked,
   top,
+  lead: ledWith,
 }: {
   id: string | undefined
   /** On Ask's stage: what was asked, as the title. */
   asked?: string
   /** On Ask's stage: the way back and the trail, in the corner. */
   top?: ReactNode
+  /** On Ask's stage: what the words asked for the list, to play it now or keep it. */
+  lead?: 'play' | 'save'
 }): ReactNode {
   const router = useRouter()
   const { wide } = useLayoutFlags()
@@ -94,6 +108,7 @@ export function AnswerView({
   const byId = useSongsById()
   const artFor = useArt()
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
   const heroRef = useRef<View>(null)
   const fly = useFlyToUpNext()
 
@@ -135,6 +150,24 @@ export function AnswerView({
     onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer, asked.understanding),
   })
 
+  // Asked to play: played as it comes, from the first song, once.
+  const keptId = kept?.id
+  useEffect(() => {
+    if (ledWith !== 'play' || !keptId || ids.length === 0 || playedAsTheyCame.has(keptId)) return
+    const answer = keptAnswer(keptId)
+    if (!answer) return
+    playedAsTheyCame.add(keptId)
+    player.playFrom(ids, 0, {
+      source: {
+        kind: 'answer',
+        text: answer.text,
+        name: answer.result.understanding.name,
+        answerId: keptId,
+      },
+      whole: true,
+    })
+  }, [ledWith, keptId, ids, player])
+
   if (!kept || !result) {
     if (asked !== undefined) return null
     return (
@@ -170,7 +203,7 @@ export function AnswerView({
           ? 'Picking again from what these let in…'
           : 'Changed. Different songs picks from what these let in.',
       ]
-    : describeNotes(result, ids.length).slice(1)
+    : describeNotes(result, ids.length, seconds).slice(1)
 
   const save = async (): Promise<void> => {
     const input = newPlaylist('manual', result.understanding.name)
@@ -178,6 +211,7 @@ export function AnswerView({
     setSaving(true)
     try {
       const created = await createPlaylist({ input, songIds: ids })
+      setSaved(created.name)
       showToast(`Saved “${created.name}”`, 'good', {
         actions: [
           {
@@ -295,16 +329,31 @@ export function AnswerView({
       }
       actions={
         <>
-          <PlayShuffle
+          <AnswerPlay
             name={`the songs picked for “${kept.text}”`}
+            answerId={kept.id}
             songIds={ids}
             // Changed and not yet picked again: what is shown is not the answer.
             disabled={edited !== null}
             heroRef={heroRef}
             onPlay={() => player.playFrom(ids, 0, { source, whole: true })}
             onShuffle={() => player.playShuffled(ids, source)}
-            testPrefix="answer"
           />
+          {ledWith === 'save' ? (
+            <Button
+              label={
+                saved !== null
+                  ? `Saved “${saved}”`
+                  : saving
+                    ? 'Saving…'
+                    : `Save as “${result.understanding.name}”`
+              }
+              variant="primary"
+              disabled={ids.length === 0 || saving || saved !== null}
+              onPress={() => void save()}
+              testID="answer-save"
+            />
+          ) : null}
           <Button
             label="Different songs"
             disabled={!server.api}
@@ -348,6 +397,47 @@ export function AnswerView({
 
 /** Words asked run longer than a tag's name, so the words take a little more of the row. */
 const WIDE = { titles: { flexBasis: 260 } } as const
+
+/**
+ * The answer's Play and Shuffle, apart from the page so a play or a pause
+ * draws them again and not the list. While Up next is this answer its Play
+ * is a Pause, and a Play that goes on where it was.
+ */
+function AnswerPlay({
+  name,
+  answerId,
+  songIds,
+  disabled,
+  heroRef,
+  onPlay,
+  onShuffle,
+}: {
+  name: string
+  answerId: string
+  songIds: readonly number[]
+  disabled: boolean
+  heroRef: RefObject<View | null>
+  onPlay: () => void
+  onShuffle: () => void
+}): ReactNode {
+  const player = usePlayer()
+  const ours =
+    player.current !== null &&
+    player.source?.kind === 'answer' &&
+    player.source.answerId === answerId
+  return (
+    <PlayShuffle
+      name={name}
+      songIds={songIds}
+      disabled={disabled}
+      playing={ours ? player.isPlaying : undefined}
+      heroRef={heroRef}
+      onPlay={ours ? player.toggle : onPlay}
+      onShuffle={onShuffle}
+      testPrefix="answer"
+    />
+  )
+}
 
 const styles = StyleSheet.create(theme => ({
   screen: { flex: 1, backgroundColor: theme.colors.surface0 },

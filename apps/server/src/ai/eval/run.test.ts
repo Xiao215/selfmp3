@@ -68,7 +68,9 @@ function world(replies: Record<string, unknown[]>) {
 /** Fresh each time: the endpoint takes its replies off the lists. */
 const script = () => ({
   'ask-agent': [
-    calls(respond([{ kind: 'library', from: { filters: { artist: ['Aurora Lane'] } }, show: 'count' }])),
+    calls(
+      respond([{ kind: 'library', from: { filters: { artist: ['Aurora Lane'] } }, show: 'count' }]),
+    ),
     calls(respond([{ kind: 'playback', op: 'next' }])),
     calls(respond([{ kind: 'playback', op: 'next' }])),
   ],

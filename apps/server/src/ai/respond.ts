@@ -10,8 +10,8 @@ import {
   CJK,
   NO_JOINS,
   type AskCard,
+  type AskPlaybackOp,
   type AskReply,
-  type AskSort,
   type DescribeResult,
   type Song,
   type Understanding,
@@ -65,7 +65,9 @@ const Expect = z.object({
   minutes: z.number().int().min(1).max(1440).nullish(),
   artists: z.array(z.string().min(1).max(120)).max(12).nullish(),
   script: z.enum(['Chinese', 'Japanese', 'Korean', 'Latin']).nullish(),
-  order: z.object({ by: z.enum(AskSortSchema.options), dir: z.enum(AskOrderSchema.options) }).nullish(),
+  order: z
+    .object({ by: z.enum(AskSortSchema.options), dir: z.enum(AskOrderSchema.options) })
+    .nullish(),
 })
 type Expect = z.infer<typeof Expect>
 
@@ -101,15 +103,7 @@ const CardArg = z.object({
   about: z.enum(['songs', 'artists', 'tags', 'totals']).nullish(),
   limit: z.number().int().min(1).max(MAX_PICKS).nullish(),
   op: z
-    .enum([
-      'delete',
-      'rename',
-      'create',
-      'add',
-      'remove',
-      'sort',
-      ...AskPlaybackOpSchema.options,
-    ])
+    .enum(['delete', 'rename', 'create', 'add', 'remove', 'sort', ...AskPlaybackOpSchema.options])
     .nullish(),
   playlists: z.array(z.string().min(1).max(120)).max(20).nullish(),
   newName: z.string().min(1).max(80).nullish(),
@@ -167,9 +161,7 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 
 /** Which scripts a song's names are in: what code can tell of its language. */
 function scriptsOf(song: Song): Set<string> {
-  return new Set(
-    [song.title, song.artist, song.album].filter(Boolean).map(name => scriptOf(name)),
-  )
+  return new Set([song.title, song.artist, song.album].filter(Boolean).map(name => scriptOf(name)))
 }
 
 /** Whether a song's names say plainly it is not in this script. */
@@ -213,11 +205,15 @@ function checked(
       names,
     )
     if (unknown.length > 0) {
-      problems.push(`${label}: the library has no artist called ${unknown.join(' or ')}; look the name up.`)
+      problems.push(
+        `${label}: the library has no artist called ${unknown.join(' or ')}; look the name up.`,
+      )
     }
     if (understanding.artists.length > 0) {
       const theirs = new Set(
-        songsFitting(songs, tags, understanding, context.deps.now?.() ?? Date.now(), names).map(song => song.id),
+        songsFitting(songs, tags, understanding, context.deps.now?.() ?? Date.now(), names).map(
+          song => song.id,
+        ),
       )
       const others = songs.filter(song => !theirs.has(song.id))
       if (others.length > 0) {
@@ -248,7 +244,9 @@ function checked(
     const { by, dir } = expect.order
     const sorted = sortSongs(songs, by, dir)
     if (sorted.some((song, index) => song.id !== songs[index]!.id)) {
-      problems.push(`${label}: the songs are not in ${by} order, ${dir === 'asc' ? 'lowest' : 'highest'} first.`)
+      problems.push(
+        `${label}: the songs are not in ${by} order, ${dir === 'asc' ? 'lowest' : 'highest'} first.`,
+      )
       songs = sorted
     }
   }
@@ -321,7 +319,8 @@ function described(
   const library = context.deps.songs()
   const base: Understanding =
     meta.understanding ??
-    groundPlan(EVERYTHING, library, context.deps.tags(), context.deps.artistNames?.() ?? NO_JOINS).understanding
+    groundPlan(EVERYTHING, library, context.deps.tags(), context.deps.artistNames?.() ?? NO_JOINS)
+      .understanding
   const size = expect?.count ?? (expect?.minutes ? null : base.size)
   return {
     understanding: {
@@ -340,7 +339,9 @@ function described(
 
 /** Why an empty card is empty, when anything says: the model's note, or how its set came to none. */
 function emptyReason(card: CardArg, meta: SetMeta): string | null {
-  return card.note ?? meta.emptiedBy ?? (meta.notes && meta.notes.length > 0 ? meta.notes[0]! : null)
+  return (
+    card.note ?? meta.emptiedBy ?? (meta.notes && meta.notes.length > 0 ? meta.notes[0]! : null)
+  )
 }
 
 async function make(context: Responding, card: CardArg, index: number): Promise<Made> {
@@ -358,20 +359,31 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     case 'together': {
       if (!card.from) {
         if (card.kind === 'together') return made({ kind: 'together', describe: null })
-        return fail('a songs card needs from: the set or places it shows.', 'I couldn’t tell which songs you mean.')
+        return fail(
+          'a songs card needs from: the set or places it shows.',
+          'I couldn’t tell which songs you mean.',
+        )
       }
       const { songs: all, meta, why, label: setLabel } = scopeSongs(context, card.from)
       const lead = card.lead ?? meta.lead ?? 'play'
       // After the song playing, it is not one of them; with nothing playing, "next" plays now.
       const steering = lead === 'next' && context.playing !== undefined
       const pool = steering ? all.filter(song => song.id !== context.playing?.id) : all
-      const { songs, problems, notes } = checked(pool.slice(0, MAX_PICKS), card.expect, context, label)
+      const { songs, problems, notes } = checked(
+        pool.slice(0, MAX_PICKS),
+        card.expect,
+        context,
+        label,
+      )
       const reason = songs.length === 0 ? emptyReason(card, meta) : null
       if (songs.length === 0 && !reason) {
         problems.push(`${label}: holds no songs. Say why in its note, or look again.`)
       }
       const name =
-        card.title ?? meta.understanding?.name ?? (card.kind === 'together' ? 'For the room' : setLabel) ?? 'Songs'
+        card.title ??
+        meta.understanding?.name ??
+        (card.kind === 'together' ? 'For the room' : setLabel) ??
+        'Songs'
       const describe = described(context, songs, meta, why, name, card.expect, [
         ...(card.note && songs.length > 0 ? [card.note] : []),
         ...(songs.length === 0 && reason ? [reason] : []),
@@ -389,7 +401,11 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
       )
     }
     case 'find': {
-      if (!card.from) return fail('a find card needs from: the set of songs that could be it.', 'I couldn’t find it.')
+      if (!card.from)
+        return fail(
+          'a find card needs from: the set of songs that could be it.',
+          'I couldn’t find it.',
+        )
       const { songs, meta, why } = scopeSongs(context, card.from)
       const problems: string[] = []
       if (songs.length === 0 && !emptyReason(card, meta)) {
@@ -399,7 +415,9 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
         {
           kind: 'find',
           terms: [...(meta.terms ?? [])],
-          picks: songs.slice(0, MAX_PICKS).map(song => ({ songId: song.id, why: why.get(song.id) ?? null })),
+          picks: songs
+            .slice(0, MAX_PICKS)
+            .map(song => ({ songId: song.id, why: why.get(song.id) ?? null })),
         },
         problems,
       )
@@ -424,7 +442,9 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
       if (answer.kind !== 'library') return made(answer)
       return made({
         ...answer,
-        understanding: meta.understanding ? { ...meta.understanding, size: card.limit ?? null } : answer.understanding,
+        understanding: meta.understanding
+          ? { ...meta.understanding, size: card.limit ?? null }
+          : answer.understanding,
         unknown: [...(meta.unknown ?? [])],
       })
     }
@@ -465,7 +485,10 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
         )
       }
       if (proposal.kind !== card.kind) {
-        return fail(`${card.proposal} is a ${proposal.kind} proposal, not ${card.kind}.`, 'I couldn’t put that proposal together.')
+        return fail(
+          `${card.proposal} is a ${proposal.kind} proposal, not ${card.kind}.`,
+          'I couldn’t put that proposal together.',
+        )
       }
       if (proposal.kind === 'tags') return made({ kind: 'tags', review: proposal.value as never })
       if (proposal.kind === 'tidy') return made({ kind: 'tidy', tidy: proposal.value as never })
@@ -476,17 +499,25 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
     case 'playback': {
       const op = card.op
       if (!op || !(AskPlaybackOpSchema.options as readonly string[]).includes(op)) {
-        return fail(`op is one of ${AskPlaybackOpSchema.options.join(', ')}.`, 'I couldn’t tell what to do with the music.')
+        return fail(
+          `op is one of ${AskPlaybackOpSchema.options.join(', ')}.`,
+          'I couldn’t tell what to do with the music.',
+        )
       }
       if (op !== 'upNext') {
-        return made({ kind: 'playback', op: op as AskCard & never, place: null })
+        return made({ kind: 'playback', op: op as AskPlaybackOp, place: null })
       }
-      if (!card.at) return fail('upNext needs at: the place in Up next.', 'Say which song in Up next to play.')
+      if (!card.at)
+        return fail('upNext needs at: the place in Up next.', 'Say which song in Up next to play.')
       return made({ kind: 'playback', op: 'upNext', place: card.at })
     }
     case 'remember': {
       const note = (card.text ?? '').trim().replace(/\s+/g, ' ')
-      if (!note) return fail('remember needs text: the preference, as one short rule.', 'Say what to remember.')
+      if (!note)
+        return fail(
+          'remember needs text: the preference, as one short rule.',
+          'Say what to remember.',
+        )
       return made({ kind: 'remember', note })
     }
     case 'open':
@@ -494,7 +525,8 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
       return made({ kind: 'open', place: card.place, say: card.text ?? '' })
     case 'getMusic': {
       const words = card.text?.trim()
-      if (!words) return fail('getMusic needs text: what to search 网易云 for.', 'Say what music to get.')
+      if (!words)
+        return fail('getMusic needs text: what to search 网易云 for.', 'Say what music to get.')
       if (!deps.music) return made(instead('Finding music to import needs your server.'))
       const answer = await getMusic(
         { songs: deps.songs, music: deps.music },
@@ -513,7 +545,8 @@ async function make(context: Responding, card: CardArg, index: number): Promise<
       })
     }
     case 'clarify': {
-      if (!card.question) return fail('clarify needs a question.', 'Say a little more about what you want.')
+      if (!card.question)
+        return fail('clarify needs a question.', 'Say a little more about what you want.')
       return made({
         kind: 'clarify',
         question: card.question,
@@ -537,7 +570,10 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
     case 'create': {
       const name = (card.newName ?? asked[0] ?? card.title ?? '').trim()
       if (!card.from || !name) {
-        return problem('create needs from (its songs) and newName.', 'Say what to call it and which songs go in.')
+        return problem(
+          'create needs from (its songs) and newName.',
+          'Say what to call it and which songs go in.',
+        )
       }
       return make(context, { ...card, kind: 'songs', lead: 'save', title: name }, 0)
     }
@@ -557,11 +593,22 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
       if (card.op === 'rename') {
         const to = (card.newName ?? '').trim().replace(/\s+/g, ' ')
         if (names.length !== 1 || !to || to === names[0]) {
-          return problem('rename needs one playlist and a newName.', 'Say which one playlist to rename, and what to call it.')
+          return problem(
+            'rename needs one playlist and a newName.',
+            'Say which one playlist to rename, and what to call it.',
+          )
         }
-        return { card: { kind: 'playlists', op: 'rename', names, newName: to, unknown }, problems: [], notes: [] }
+        return {
+          card: { kind: 'playlists', op: 'rename', names, newName: to, unknown },
+          problems: [],
+          notes: [],
+        }
       }
-      return { card: { kind: 'playlists', op: 'delete', names, newName: null, unknown }, problems: [], notes: [] }
+      return {
+        card: { kind: 'playlists', op: 'delete', names, newName: null, unknown },
+        problems: [],
+        notes: [],
+      }
     }
     case 'add':
     case 'remove':
@@ -575,11 +622,18 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
         )
       }
       if (card.op === 'sort' && !card.sort) {
-        return problem('sort needs sort: what to put the songs in order by.', 'Say what to sort it by.')
+        return problem(
+          'sort needs sort: what to put the songs in order by.',
+          'Say what to sort it by.',
+        )
       }
-      const within = card.op === 'sort' ? null : card.from ? context.set.resolve(card.from).songs : null
+      const within =
+        card.op === 'sort' ? null : card.from ? context.set.resolve(card.from).songs : null
       if (card.op !== 'sort' && !within) {
-        return problem(`${card.op} needs from: the songs to ${card.op}.`, `Say which songs to ${card.op === 'add' ? 'add to' : 'take out of'} ${playlist.name}.`)
+        return problem(
+          `${card.op} needs from: the songs to ${card.op}.`,
+          `Say which songs to ${card.op === 'add' ? 'add to' : 'take out of'} ${playlist.name}.`,
+        )
       }
       const answer = await playlistSongs(
         deps,
@@ -593,7 +647,10 @@ async function playlistCard(context: Responding, card: CardArg, label: string): 
       return { card: answer, problems: [], notes: [] }
     }
     default:
-      return problem('op is delete, rename, create, add, remove or sort.', 'I couldn’t tell what to do with your playlists.')
+      return problem(
+        'op is delete, rename, create, add, remove or sort.',
+        'I couldn’t tell what to do with your playlists.',
+      )
   }
 }
 
@@ -689,7 +746,11 @@ export async function respond(
     if (card.kind === 'songs' || (card.kind === 'together' && card.describe)) {
       const describe = card.kind === 'songs' ? card.describe : card.describe!
       // The device says a list shorter than asked in words of its own (`describeNotes`).
-      const said = shortfall.filter(problem => !/^holds \d+ songs?, not the \d+ asked for\.$/.test(problem) && !/^plays \d+ minutes, not the \d+ asked for\.$/.test(problem))
+      const said = shortfall.filter(
+        problem =>
+          !/^holds \d+ songs?, not the \d+ asked for\.$/.test(problem) &&
+          !/^plays \d+ minutes, not the \d+ asked for\.$/.test(problem),
+      )
       describe.notes.push(...said.filter(problem => !/^holds no songs/.test(problem)))
     }
   })
@@ -697,11 +758,16 @@ export async function respond(
   const hollow = (card: AskCard): boolean =>
     card.kind === 'songs' && card.describe.picks.length === 0 && card.describe.notes.length === 0
   if (cards.some(card => !hollow(card))) cards = cards.filter(card => !hollow(card))
-  cards = cards.length > 0 ? cards : [instead(say ?? 'I couldn’t put an answer together. Try saying it another way.')]
+  cards =
+    cards.length > 0
+      ? cards
+      : [instead(say ?? 'I couldn’t put an answer together. Try saying it another way.')]
   // A question back stands alone; among other cards its question is said as words.
   if (cards.length > 1) {
     cards = cards.map(card =>
-      card.kind === 'clarify' ? { kind: 'explore', say: card.question, songIds: [], get: null } : card,
+      card.kind === 'clarify'
+        ? { kind: 'explore', say: card.question, songIds: [], get: null }
+        : card,
     )
   }
   let words = (strange.length > 0 ? kept : say) || null

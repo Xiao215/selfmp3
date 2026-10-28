@@ -10,9 +10,21 @@ import {
   type TidyResult,
   type Understanding,
 } from '@selfmp3/shared'
-import { EVERYTHING, matchPlaylist, songsThatAre, sortSongs, type AskPlaylist } from './askLibrary.js'
+import {
+  EVERYTHING,
+  matchPlaylist,
+  songsThatAre,
+  sortSongs,
+  type AskPlaylist,
+} from './askLibrary.js'
 import { findCopies } from './copies.js'
-import { DEFAULT_SIZE, MAX_PICKS, groundPlan, narrowAndPick, type DescribeDeps } from './describe.js'
+import {
+  DEFAULT_SIZE,
+  MAX_PICKS,
+  groundPlan,
+  narrowAndPick,
+  type DescribeDeps,
+} from './describe.js'
 import { fillGaps } from './fill.js'
 import { haveTrack } from './getMusic.js'
 import { halfRemembered } from './halfRemembered.js'
@@ -348,7 +360,7 @@ export function askTools(
       const pool = scoped.songs
       // What the songs were chosen from, for the answer's chips: the scope's filters or its set's.
       const base: Understanding =
-        (from.filters ? filtersUnderstanding(from.filters, library, brief) : undefined) ??
+        (from.filters ? filtersUnderstanding(from.filters, library, FOUND) : undefined) ??
         (from.set && !from.pick && !from.ids ? set.metaOf(from.set).understanding : undefined) ??
         groundPlan(EVERYTHING, library.songs, library.tags, library.names).understanding
       const likeSong = like ? set.resolve(like).songs[0] : undefined
@@ -422,7 +434,10 @@ export function askTools(
         ...[...keptWhy].filter(([id]) => kept.some(song => song.id === id)),
         ...found.picks.flatMap(pick => (pick.why ? [[pick.songId, pick.why] as const] : [])),
       ])
-      const notes = [...found.loosened.map(part => `Let go of ${part} to find any.`), ...found.notes]
+      const notes = [
+        ...found.loosened.map(part => `Let go of ${part} to find any.`),
+        ...found.notes,
+      ]
       const emptied = picked.length === 0 ? { emptiedBy: 'the pick chose none of them' } : {}
       set.put(as, picked, brief, why, {
         understanding,

@@ -102,8 +102,8 @@ The industry has settled on a short list of shapes for putting a model inside a 
 a **workflow**, where code fixes the steps and the model fills some of them; and an
 **agent**, where the model decides the next step in a loop with tools. The advice that
 holds up is to use the simplest one that does the job, because every step up costs
-latency, money and testability. Almost every feature here is a workflow; `explore` is the
-one agent.
+latency, money and testability. Almost every feature here is a workflow; Ask (S1) is the
+one agent, and its tools are those workflows.
 
 ```
                   ┌──────────── deterministic, testable, free ────────────┐
@@ -126,8 +126,8 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
   against their timeout. A task may ask for its JSON as text (`json: 'text'`: the schema in
   the system prompt, `response_format: json_object`), which through cli-bridge writes about
   half the output tokens of a `json_schema` and avoids the CLI's hidden re-ask (measured
-  2026-10-27: route p50 3.6 → 2.8 s); the route, the plans and explore do. `effort` goes as
-  `reasoning_effort`, `low` for the fast tier unless a task says. Quick tasks wait 30 s (route,
+  2026-10-27: a router's p50 3.6 → 2.8 s); Ask's agent and the plans do. `effort` goes as
+  `reasoning_effort`, `low` for the fast tier unless a task says. Quick tasks wait 30 s (the
   plans) and picks 60 s rather than the settings' 240. The log line carries each call's
   requests and tokens (in, out, cached), so a retry nobody asked for shows. No SDK: it is one
   `fetch`, like the server's other outbound calls.
@@ -177,25 +177,29 @@ climbed when the one below cannot answer:
   Describe needs (rules, maybe a title keyword) can be **planned in one structured reply and
   executed by the server**. That is the same capability as a tool call, at one round trip
   instead of several. Round trips matter here: each one is 2–5 s through cli-bridge.
-- The one feature that does loop is **`explore`** (Looking things up, below). The loop lives
-  in our runner (`llm.ts`) and speaks OpenAI's own `tools` together with `response_format`,
-  so it depends on no vendor's agent runtime. cli-bridge also accepts `mcp_servers` and
-  `max_turns`, which would let Claude Code run the loop itself; nothing here uses them, and
-  they are refused for `gemini-*` models.
+- The one feature that does loop is **Ask** (S1, below). The loop lives in our runner
+  (`llm.ts`) and speaks OpenAI's own `tools` together with `response_format`, so it depends
+  on no vendor's agent runtime. cli-bridge also accepts `mcp_servers` and `max_turns`, which
+  would let Claude Code run the loop itself; nothing here uses them, and they are refused for
+  `gemini-*` models.
 - **The loop** (`llm.ts`): the calls of one reply run one after another in the order the model
   wrote them, so a later call can use what an earlier one made, and a plan of several steps
   costs one round (cli-bridge returns several tool calls in one reply). A call that fails
   (wrong arguments, a set that does not exist, an id it was never shown) goes back as that
-  call's result, `{"error": …}`, for the model to read and correct; only a stop is thrown.
-  After its rounds or its `budgetMs`, the tools are no longer offered (`tool_choice: none`) and
-  the model answers with what it has. The log line names the tools called and how many failed.
+  call's result, `{"error": …}`, for the model to read and correct; only a stop is thrown. A
+  tool may be the one that answers (`ends`, Ask's `respond`): once it runs without throwing,
+  the task is done with its arguments as the answer, and the calls written after it are not
+  run. After its rounds or its `budgetMs`, the tools are no longer offered (`tool_choice:
+  none`) and the model answers with what it has, in the task's schema. The log line names the
+  tools called and how many failed.
 - **The tools** (`askTools.ts`) are Ask's pipelines with typed arguments, over one request's
   **working set** (`workingSet.ts`, AGENT-DESIGN 2.2): named lists of songs. It starts with
   `playing` (the song playing), each earlier answer's handle (`t2.1`, what it showed) and
   `screen` (the answer on their screen); a tool that finds songs keeps them under a name the
   model gives (`as`). Every argument that takes songs is a scope, `{ set, pick, ids, filters }`:
-  a set, places in its list (1 for the first, counted in code by `scope.ts`'s `atPlaces`, the
-  same as a router's handle and picks), ids, and filters over them. Ids are only ever ones the
+  a set (or `sets`, one after another), places in its list (`pick`, 1 for the first, or `drop`,
+  the places left out, counted in code by `scope.ts`'s `atPlaces`), ids, and filters over them.
+  Ids given and none of them are no songs, never the whole library. Ids are only ever ones the
   model was shown in a result or that a set holds. A song list comes back compact: the set's
   name, count and minutes, its first 30 rows `id|title|artist|album|year|tags|energy|len|plays`
   (and why, when a pick said), names it did not know with the nearest the library has
@@ -204,21 +208,22 @@ climbed when the one below cannot answer:
 
   | Tool | Wraps | Model inside |
   |---|---|---|
-  | `find_songs({as, scope, text, title, artist[], album[], tags[], notTags[], energy, bpm, year, words, lyrics, loved, playedWithinDays, notPlayedWithinDays, addedWithinDays, sort, order, limit, offset})` | `groundPlan` (other names, script fold, a slip), `songsFitting`, lyrics search, `sortSongs`; every condition must hold | none |
+  | `find_songs({as, scope, playlist, text, title, artist[], album[], tags[], notTags[], energy, bpm, year, words, lyrics, loved, playedWithinDays, notPlayedWithinDays, addedWithinDays, sort, order, limit, offset})` | `groundPlan` (other names, script fold, a slip), `songsFitting`, lyrics search, a playlist's songs (`matchPlaylist`), `sortSongs`; every condition must hold | none |
   | `count_by({scope, by: artist/album/tag/year, limit})` | `creditedArtists` with joined names: a song counts once per artist | none |
   | `listening({range, about: songs/artists/tags/totals, limit, scope})` | `stats(range, top)`, up to 100; a scope adds up its own songs' plays | none |
   | `lookup_names({kind: artist/album/tag/playlist, query})` | `normalizeForMatch` + other names + `editDistance` | none |
-  | `pick_by_taste({as, from, brief, sound, count/minutes, like, avoid})` | `narrowAndPick` over the scope; an empty pick is an empty set and its notes | smart |
+  | `pick_by_taste({as, from, brief, sound, count/minutes, like, avoid, keep})` | `narrowAndPick` over the scope; an empty pick is an empty set and its notes; `keep`'s songs that are in the scope stay first in their places and only the rest is picked (Change it, below) | smart |
+  | `judge_each({as, from, brief})` | `songsThatAre`: every song read against the brief, a count by meaning (an even 600 past that, said) | smart |
   | `find_half_remembered({as, terms, brief})` | `halfRemembered.ts` (the find action's) | smart |
-  | `propose_tags({as, request, scope, limit})` | `tagReview` over the scope; the review is kept under `as` | smart |
+  | `propose_tags({as, request, scope, add, remove, focus, songs, ops, newTag, artists, checkup, limit})` | `tagReview` over the scope, kept under `as`: `add`/`remove` change exactly the scope's songs with nothing judged; `focus`, `songs` and `ops` are what the review's plan would have read, so it is not asked | smart (the groups) |
   | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
   | `album_tracks({albums: [{album, artist}] ≤8})` | 网易云 album search + track list, each track matched with `haveTrack` (`getMusic.ts`): how many, which are theirs, which they lack | none |
   | `catalogue({words})` | 网易云 song search | none |
 
   Each description is written as general instructions (no sample requests), and each answer
   is bounded: 30 rows, 100 groups, 20 proposal lines, 60 track titles, 24k characters at
-  most. The tools return data for the model; what the person sees is built by the caller
-  from the sets and proposals left behind. Nothing writes.
+  most. The tools return data for the model; what the person sees is built by `respond`
+  from the sets and proposals left behind (S1, below). Nothing writes.
 - **Skills** are Claude Code's packaging of instructions loaded on demand. The equivalent
   here is a task's own system prompt, which is already loaded only by its task.
 - **MCP** is the right way to let *other* assistants (Claude Desktop, Claude Code) ask
@@ -347,11 +352,9 @@ from stays as it is.
 
 **A reply holds several cards** (AGENT-DESIGN 2.4, `AskReply`): `say`, a few words of its
 own or null, and `cards`, one to four in the order the request asked for them ("10 calm
-songs, then tag them 夜" is a songs card and a tags card). Every route that answers Ask sends
-the reply: `POST /api/ai/ask`, and `GET /api/ai/ask/progress?answer=1` for one collected by
-its ticket. The router still chooses one action, so today's replies are that action's one
-card and no words of its own; the agent (Stage 5) will send several through its `respond`
-tool. The page draws a reply as one column (`AnswerBody`): its words, then each card in
+songs, then tag them 夜" is a songs card and a tags card, over the same songs). Every route
+that answers Ask sends the reply: `POST /api/ai/ask`, and `GET /api/ai/ask/progress?answer=1`
+for one collected by its ticket. The page draws a reply as one column (`AnswerBody`): its words, then each card in
 order. With more than one card each sits under a quiet heading of what it is (`cardHeading`:
 "Songs to play", "Tag changes", "To remember"), tone on tone as the cards always are, so the
 reply reads as parts of one answer rather than a chat. A list among other cards is its card
@@ -374,7 +377,7 @@ and up to three options in the asker's language. Each option is a button that as
 as the next turn, as if typed (`ClarifyAnswer.tsx`); the field is there for any other answer.
 It replaced the old dead-end answer and its suggestions (2026-10-27).
 
-Words answers (`explore`, `open`, a reply's `say`, a question back) can be selected in part:
+Words answers (a words card, `explore` in the app, `open`, a reply's `say`, a question back) can be selected in part:
 on iOS they are a read-only system text view (`ports/selectableText.tsx`), since a
 selectable `Text` there copies only the whole; `explore` also has Copy for all of it.
 
@@ -384,71 +387,87 @@ title in its tint, the equaliser over the cover) and ▶ is a pause inside a rin
 as the song goes (Xiao picked A1 B1 C1, 2026-10-24). Pressing the playing row opens Now
 Playing; seeking stays there.
 
-Asking is a **router** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`): one call (fast
-tier) reads the request against rung 2 and chooses one action from a fixed list, filling in
-what that action needs, as JSON. Then the action runs as code.
+Asking is an **agent** (`apps/server/src/ai/ask.ts`, `POST /api/ai/ask`; AGENT-DESIGN 2.5–2.6,
+Stage 5, 2026-10-28): one model on the smart tier reads the request and answers it by calling
+Ask's tools (Tools, skills, MCP, above) and then `respond`, which makes the reply. Its system
+prompt never changes (so the endpoint caches it): what the library is, the three rules, sets and
+scopes, how to plan, how to choose songs, the card kinds, when to ask back — general
+instructions, no sample requests and no rule for one request (Xiao's rule for every prompt).
+What it is shown each time: the library's shape (rung 2), the tags exactly, each playlist with
+its kind and a live one's rules in words ("live, holds songs tagged 中文流行", `rulesWords`), the
+song playing as a table row, the sets the request came with (`playing`, each earlier answer's
+handle, `screen`), the conversation before with each object's songs numbered and what a list was
+made from (`followed`, `objectLines`), standing preferences, and the newest words. The call
+also asks the endpoint for web search.
 
-The list is a **registry** (`ai/askActions.ts`, `ASK_ACTIONS`). Each entry has a name, a
-`when` paragraph telling the router when to choose it and what to fill in, its own fields
-(a schema, or none when the request itself is all it needs), whether it reads Describe's
-filters (`required`, `optional`, `unused`), and `run`.
-The router's prompt (`routeSystem`) and the form the model fills (`routeForm`) are built
-from the list, and the router's own code is the same for every action: route, run it. When
-the chosen action is missing its fields or its required filters, the router is asked once
-more, told what it left empty, and may choose its way out and say what it needs in the
-language of the newest words; still missing, the answer says what could not be told. The
-router's way out (the last choice in its form, never a card) becomes a question back (`clarify`): its
-sentence the question and the requests it offers the options; with none to offer it is only
-its words (an `explore` card with no songs, `instead` in `askLibrary.ts`). The route
-is not remembered: the same words are read again, so Try again can come out differently. The
-router sees each playlist with its kind, and a live one's rules in words ("live, holds songs
-tagged 中文流行", `rulesWords`). In a follow-up, the answer is written in the language of the
-newest words, whatever the earlier turns used.
-Adding an action is adding an entry. The form is one object with every action's part, the
-ones not chosen null, rather than one shape per action, because that is what an
-OpenAI-style `json_schema` endpoint takes reliably. An entry is the shape a tool has
-(name, description, parameters), so a model that calls tools can be handed the list as it
-is: what would change is the loop, not the actions.
+It **plans ahead**: the calls it can foresee go in one reply, in order, chained by the sets they
+name, ending with `respond` when it does not need to see their results — "calm piano for
+reading" is `find_songs → pick_by_taste → respond` in one round, and "10 calm Japanese songs and
+tag them 夜" adds `propose_tags` with `add` over the picked set, in the same round. It takes
+another round only to see something: how the library spells a name, whether anything was found,
+a number to say. At most four rounds and 60 s of them; then the tools are withdrawn and it writes
+`respond`'s arguments as its answer, accepted as well as they can be. The request is not
+remembered: the same words are read again, so Try again can come out differently. Effort is the
+endpoint's own (MEASURED_EFFORT).
 
-| Action | The words | What runs | Second call |
-|---|---|---|---|
-| `songs` | "play something calm for reading", "make a playlist of…", "play my 20 most played"; after a list, "play the 3rd one", "save it as Morning", "more like the 2nd one" | Describe's steps 2–3 (the route *is* the plan); with an order (`sortBy`), the first songs in it, sorted in code (`songsInOrder`); with `from`, exactly the songs an answer showed, none picked; with `like`, ordered by how close they sound to that song | the pick; none for an order alone or for songs shown |
-| `change` | after a list: "not 晴天", "10 首", "calmer" | the songs named taken out (`drop`), or Change it's refine (`refine.ts`) from what the list understood, the songs that still fit kept; it keeps its lead and the song it sounds like | none for a drop; the refine plan |
-| `reply` | "why is 大海 in here" | the router's own sentences, from what was shown (each song's why is in the prompt), with the songs it is about | none |
-| `playback` | "skip this song", "go back", "pause", "play the last song in Up next", "play the third song in the queue" | the device carries it out on its own player (Controlling what plays, below) | none |
-| `find` | "the song about grandma's tea" | its terms, in every language the library uses, matched against titles, artists, albums and the lyrics index; when none of yours is it, `explore` instead, so a song you don't have is told about rather than a dead end | a pick of at most 5 |
-| `tags` | "tag the songs that should be 中文流行", "merge j-anime into jpop", "tidy my tags", "tag these 夜" | the tag review, with the request itself and the songs `from` names (Tags, below) | the plan, then the groups |
-| `stats` | "what did I play most last month", "top 20 artists" | the stats the Stats page shows, as many as asked (ten unless a number is said, fifty at most); the model only chose the window, what about and how many | none |
-| `library` | "how many YOASOBI songs do I have", "my longest song" | Describe's filters over the library, counted and sorted in code (`askLibrary.ts`) | none; for a meaning, every song judged (`songsThatAre`) |
-| `tidy` | "any songs with wrong metadata?", "give the 原神音乐 songs their official Chinese names, albums too", "fill in what's missing", "do I have any song twice?" | a checkup: Tidy up's rules and its names pass; a change they say: the filters choose the songs (A4, "Asked for something"); what is missing looked up (A4, "Filling in what's missing"); songs held twice (A4, "Copies") | the names pass, one call per 60 songs, or a call only where the catalogues or the copies need judging |
-| `playlistSongs` | "add the YOASOBI songs to gym", "take the slow ones out of chill", "sort genshin calmest first", "add these to gym" | the filters choose the songs, or `from` names them; a sort is code; a live playlist is answered with its rules | a pick only when the words go past the filters |
-| `remember` | "from now on, Chinese names only" | a card that saves the note (Remembered preferences, below) | none |
-| `playlists` | "delete the chill playlists", "rename hi to 华语慢歌" | the names matched to yours (Playlists from the box, below) | none |
-| `explore` | "which albums do I have only part of" | the model looks things up with tools (Looking things up, below) | the tool loop |
-| `getMusic` | "download 春泥棒", "get the rest of the Liyue OST" | 网易云 searched, what you already have marked (Getting music, below) | none |
-| `open` | "where do I paste a Spotify link", "take me to my stats" | a sentence and a button to the place | none |
-| *(way out)* | anything else | a question back (`clarify`): what the box can do instead, and up to two requests it can do, each a press away; or only the words when nothing comes close | none |
+**`respond`** (`ai/respond.ts`) takes `say` and one to four cards, sparse: each card names its
+kind and only the fields that kind reads, and points at what it shows — a set or places in one,
+a proposal by the name a propose call kept it under, a playlist, an op. Everything the device
+draws is built in code from those, never copied from the model's words:
 
-Each action's answer is one card of the reply, of the kind it names (`playback`'s is
-`playback`, `reply`'s and the way out's with nothing to offer are `explore`, `change`'s is
-`songs`); `clarify` is the one card no action makes but the way out.
+| Card | What it names | What is built |
+|---|---|---|
+| `songs` | `from`, `lead` (play, save, next), `title` | Describe's answer of the set: its songs and each one's why, what it understood (the pick's brief and sound, the filters' places), how many fit, its notes; next leaves out the song playing, and with nothing playing plays now |
+| `find` | `from`, the set `find_half_remembered` made | the candidates, best first, with the search words |
+| `library` | `from` (none for the whole library), `show`, `sort`, `order`, `limit` | `libraryAnswer` over the set: count, length, songs in order, artists (credited, joined spellings as one), albums, tags and how many different of each; a set `judge_each` made counts as judged |
+| `stats` | `range`, `about`, `limit` | the Stats page's numbers, ten unless said, fifty at most |
+| `tags`, `tidy`, `copies` | `proposal` | the review a propose call kept |
+| `playlist` | `op` delete or rename (`playlists`, `newName`); create (a songs card to save); add, remove (`from`); sort (`sort`, `order`) | names matched with `matchPlaylist`; songs in or out of a manual playlist checked against it; a live one answered with its rules (Playlists from the box, below) |
+| `playback` | `op`, `at` for a place in Up next | done on the device (Controlling what plays) |
+| `remember`, `open`, `getMusic`, `together` | a note; a place and a sentence; words to search and whether an album; songs for the room or none | as before (Remembered preferences, Getting music, Listening together) |
+| `words` | `text`, `from`, `get` | an answer in words with the songs it is about (kind `explore`), for questions about music itself and anything said rather than shown |
+| `clarify` | `question`, up to three `options` | a question back, alone |
+
+Each card may carry `expect`: what the request requires of its songs — how many, how long, by
+whom, the script of their names, the order. The model declares it; code checks it. `respond`
+checks four things before anything reaches the device: (1) grounding — every set, place, id,
+proposal and playlist exists and was shown or held; (2) `expect` against the card's actual songs
+(the count and minutes, the artists through their credits and other names, a script the names
+plainly are not, the order by the library's own values); (3) an empty card says why (its note,
+or the condition that left none); (4) every number in `say` is one the request, the conversation
+or a tool's result holds (`written.ts`'s rule). The first failure goes back to the model as the
+call's error, saying what is wrong; it mends the call or answers with what there is. The second
+time the reply is accepted as well as it can be: songs past the number asked for, by another
+artist or plainly in another script are left out, an order is put right in code, a sentence of
+`say` with a number nothing showed is dropped, a list that came to nothing and says nothing is
+left out beside other cards, and what is still short is the card's note — a list shorter than
+asked the device says in its own words (`describeNotes`).
+
+A **question back** (`clarify`) comes only when the readings of the words would give materially
+different answers and no lookup can tell which; otherwise the agent acts on the likeliest reading
+and says the assumption in `say`. A request the box cannot do is said in words, with where in
+the app it is done. Before 2026-10-28 Ask was a router: one fast-tier call chose one action from
+a registry (`askActions.ts`) and filled in its part of one big form, so a request of two parts
+lost its second, a name that matched nothing could not be looked into, and "this" reached only
+some actions; `explore` was the one action that looked things up with tools, and `refine.ts`
+changed a list. All three are gone: the agent is explore, and Change it is a follow-up.
+
+MEASURED_LINE
 
 Every card is a proposal with its own button (`AnswerBody.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
 review's Apply, Open Stats, a found song to play, Play these. The one exception is
 `playback`, which is done as it arrives.
 
-A dead end is not one: the way out is a question back whose options are at most two requests
-in the asker's language that the box can do and that come closest ("tag the good ones" →
-"tag the songs that should be 中文流行"). Each is a button that asks its words.
+A request the box cannot do is said in words, with where in the app it is done when the app
+does it; nothing is offered in its place that was not asked for.
 
 While it works, the wait says what is happening (`ai/progress.ts`): the device names its
 request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
 answers with the stages so far in plain words and real numbers — "Read what you asked",
 "67 songs fit", "Choosing 25 that suit it"; for a half-remembered song "Looking for … in
 titles and lyrics", "Choosing the one you mean"; for Tidy up "Reading the names of 1,340
-songs". The answer itself still comes back as one response. Measured on the real library:
-a route 2.3–3.5 s; with the pick, a playlist in 10 s and a found song in 5 s.
+songs". The answer itself still comes back as one response.
 
 An Ask outlasts its connection (`outlast` in `ai/progress.ts`, `askKept.ts` on the device). A
 phone sent to the background loses the connection though nobody stopped asking, so a closed
@@ -460,8 +479,8 @@ server has said it is done and the response is late. Stop, new words and a close
 
 ## Playlists from the box
 
-"Delete the chill chinese hype and chill chinese playlists", "rename hi to 华语慢歌": the
-router's `playlists` action. The model is shown the playlists' exact names and copies the
+"Delete the chill chinese hype and chill chinese playlists", "rename hi to 华语慢歌": a
+`playlist` card with `op` delete or rename. The model is shown the playlists' exact names and copies the
 ones meant; the server matches each against them (`matchPlaylist`: spacing, dots and case
 ignored, a slip or two forgiven, a tie or nothing near is no match), so a misspelling finds
 the playlist and no invented name ever reaches the device. The answer
@@ -471,19 +490,19 @@ its name, its songs in their order, and its tags to fill from. A rename shows ol
 undoes to the old name. Playlists only: deleting a tag strips it from songs, which is not
 undone as simply.
 
-A playlist's songs are the `playlistSongs` action (`ai/askLibrary.ts`): add, remove or sort
-one manual playlist, found by `matchPlaylist` too. Add and remove choose their songs with
-Describe's filters — among the library's songs not in it, or among its own — and when the
-filters say it all, every song they let in is the answer, ticked, with no second call. Words
-the filters cannot say ("the ones named for rain", "the ones that aren't game music") go to
-Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
-so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
+A playlist's songs are a `playlist` card with `op` add, remove or sort (`playlistSongs` in
+`ai/askLibrary.ts`), one manual playlist found by `matchPlaylist` too. Add and remove take the
+songs of a set the agent made: `find_songs` with conditions (a playlist's own songs are its
+`playlist` condition), and `pick_by_taste` over them for words conditions cannot say ("the
+ones named for rain", "the ones that aren't game music"), its picks waiting with the sparkle;
+nothing is loosened, so a remove never reaches past what was asked. An add keeps only the songs
+not in it yet, a remove only those in it. A sort is code (`sortSongs`: a song without
 the value, never analysed or never played, goes last either way). A live playlist fills
 itself from its rules, so nothing is proposed for it: the answer says what it holds,
 and for an add whether the songs meant are in it already ("All 17 of those songs are in chill
 · chinese already: it holds songs tagged 中文流行") or how many are not; when it follows tags,
 it is a question back whose option is the tag change that would put them in ("give the
-songs by 五月天 the tag 中文流行"), which the `tags` action proposes. Taking songs out is only said, never offered as a
+songs by 五月天 the tag 中文流行"), which a tags card proposes. Taking songs out is only said, never offered as a
 press: the tag taken off would take them out of the tag's page and every list following it
 too, more than the request reached for. A sort says the order its rules keep. The device (`PlaylistSongsAnswer.tsx`)
 checks against the playlist as it is now — an add keeps songs not in it, a remove the ones
@@ -493,9 +512,9 @@ their order (a remove's Undo adds them, then restores the whole order).
 ## Questions about your library
 
 "How many YOASOBI songs do I have", "what did I add this week", "my longest song", "who is
-in 中文流行": the `library` action. The router fills Describe's filters (none for the whole
-library, `size` for how many to list) and what to show — a count, the songs, or their
-artists, albums or tags — with an order when the words ask for one. Everything after is code
+in 中文流行": a `library` card. The agent names the songs as a set (`find_songs`, or none for
+the whole library), what to show — a count, the songs, or their artists, albums or tags — and
+an order and how many when the words ask for them. Everything after is code
 (`libraryAnswer`): the count and length, the first songs in order, who, which albums and which
 tags they are in, most songs first (fifty of each), and how many different artists, albums
 and tags there are (`distinct`), so "周杰伦的专辑我有几张" heads "18 albums · 76 songs". A song
@@ -503,17 +522,14 @@ counts for everyone its credit names, joined spellings as one, as the library's 
 "陈致逸, HOYO-MiX" is a HOYO-MiX song too. `stats` stays the listening; this is the library.
 
 A question by meaning ("how many love songs do I have") cannot be counted in code, and a pick
-from a sample is not a count. The filters let songs in, then a model judges every one of
-them, 150 rows a call, the calls at once (`songsThatAre`, task `ask-judge`), and the ones it
+from a sample is not a count. `judge_each` reads every song of its scope instead, 150 rows a call, the calls at once (`songsThatAre`, task `ask-judge`), and the ones it
 says are it are counted. Past 600 songs an even spread of 600 is judged and the count is
 scaled up: the answer's `judged` says how many of how many were read, and the card says
 "about" and that it is an estimate.
 
 Music to play in an order the library knows ("play my 20 most played", "the newest 30") is
-the `songs` action with `sortBy` and `order`, as a library question has: the songs the
-filters let in are sorted in code and the first ones played, as many or as long as asked,
-with no pick. Words only a model can judge are judged among the first 300 in the order, and
-what it chooses keeps the order.
+`find_songs` with `sort`, `order` and `limit` and a songs card over it: sorted in code and the
+first ones played, with no pick.
 On the real library: YOASOBI 31, added this week 719 (the Genshin import), the longest one
 song of 1,337.
 
@@ -525,7 +541,8 @@ Genshin pieces thirty songs, fifty-four minutes. The server sizes the pick by th
 songs' own average length, asks the model once more for the rest when it stops short, makes
 up anything still missing from the fitting songs in the table's stable order, and leaves
 off a last song that runs well past. Change it does the same with the songs already there
-kept: "扩展到2小时" after 40 minutes keeps them and fills the rest.
+kept: "扩展到2小时" after 40 minutes keeps them and fills the rest. A songs card's `expect`
+holds the length asked, so the device says a list that falls short.
 
 While an answer is on its way after every stage is done, the wait says "Getting it ready"
 rather than looking finished.
@@ -539,72 +556,67 @@ for a list of one), where Ask decides it is a change; on the answer's own page i
 (`smart/ChangeIt.tsx`, "Change these songs…"). No suggested changes are offered: what to
 say is yours (Xiao, 2026-10-04).
 
-`POST /api/ai/refine` (`ai/refine.ts`) gets what was first asked, the filters as they stand,
-the change, and the songs shown. One fast-tier call returns the filters changed, everything
-the change did not touch kept. The songs shown that still fit stay in their places, and only
-the rest is picked (Describe's step 3, around them), so "10 首" after two songs keeps those
-two and adds eight. A change to the brief is a change of taste and picks again from the
-start. Its stages report through the same ticket as Ask's.
+A change is a follow-up like any other (Follow-ups, below), with the list as the screen's
+object, and the agent answers it with a new songs card. Songs named go by `drop`, the rest
+untouched. Otherwise the list is chosen again with `pick_by_taste` from what it was made from
+— each object carries what it understood, and the prompt says it under the list ("made from:
+tags jpop; sound “calm piano”; brief “for reading”") — with `keep` naming the list: the songs
+shown that are still in the scope stay in their places and only the rest is picked, so "10
+首" after two songs keeps those two and adds eight, and none is picked when they are enough.
+A change of taste ("calmer", "add some 周杰倫") picks again from the start. The changed list
+keeps what the list was for: an Up next list stays Up next, still ordered by how close the
+songs sound to the song it was asked to sound like (`like`).
 
-Said in Ask's field, a change is a follow-up like any other (Follow-ups, below): the router
-reads it with the list as the screen's object and chooses `change`, which runs this same
-refine on the server from what the list understood (sent back in its object), or takes out
-the songs named by their places and keeps the rest untouched. The changed list keeps what
-the list was for: an Up next list stays Up next, still ordered by how close the songs sound to
-the song it was asked to sound like. Its answer is a turn of its own, kept beside the one it
-changed (`smart/answers.store.ts`), so an earlier line of the log shows the list as it was. On
-the answer's own page the field itself says what is happening while it works, in the same
-place, so nothing moves; when it lands, the list there is the new one (Different songs does
-the same). Until 2026-10-26 a song card in Ask had its own Change it under it, beside the
-page's field, and a trail of versions above that; until 2026-10-27 the chip sent the words
-straight to `/api/ai/refine`, so "play the 3rd one" or "add these to gym" came back as the
-list changed (Xiao's "Ask decides").
+In Ask's field its answer is a turn of its own, kept beside the one it changed
+(`smart/answers.store.ts`), so an earlier line of the log shows the list as it was. On the
+answer's own page, Change it asks Ask the same way: the words, with the list as the one turn
+before and on the screen (`changedTurn` in `ChangeIt.tsx`), and the reply's list takes the
+page's place; a reply with no list says its words under the field. The field itself says what
+is happening while it works, in the same place, so nothing moves (Different songs does the
+same). Until 2026-10-26 a song card in Ask had its own Change it under it, beside the page's
+field, and a trail of versions above that; until 2026-10-27 the chip sent the words straight
+to `/api/ai/refine`, so "play the 3rd one" or "add these to gym" came back as the list
+changed (Xiao's "Ask decides"); until 2026-10-28 a change was its own call (`refine.ts`, one
+fast-tier plan of the filters changed), which is gone with the router.
 
-## Looking things up (`explore`)
+## Looking things up
 
-For a question the fixed actions can't put as filters ("which albums do I have only part of",
-"what is Liyue called in Chinese, and do I have it"), and any question about music itself
-(a song, an artist, who sang it), the router chooses `explore`
-(`explore.ts`), the first user of Ask's tools (Tools, skills, MCP, above). The model gets the
-library's shape, the sets the request came with (`playing`, earlier answers' handles,
-`screen`) and the tools that look: `find_songs`, `count_by`, `listening`, `lookup_names`,
-`pick_by_taste`, `find_half_remembered`, `album_tracks` and `catalogue`, not the ones that
-propose. At most 6 rounds and 120 s of looking; the call also asks the endpoint for web
-search (`web_search_options`). Its system prompt says how sets and scopes work and to plan
-the calls a question needs into one reply when none needs another's result first. About
-music itself the model answers from what it knows as well, saying when that is from memory,
-and says whether you have it. The answer is a few sentences and the songs it is about, as
-ids and/or a set's name; every id is checked to be one it was shown or a set holds. "Which
-albums do I have only part of" reads the albums' track lists (`album_tracks`), which the old
-three tools could not.
+A question the library's conditions can't put ("which albums do I have only part of", "what is
+Liyue called in Chinese, and do I have it"), and any question about music itself (a song, an
+artist, who sang it), is the agent looking with its tools and answering in a `words` card: a few
+sentences and the songs they are about, every one a song it was shown or a set holds, and `get`
+for one song or album they don't have. "Which albums do I have only part of" reads the albums'
+track lists (`album_tracks`). About music itself it answers from what it knows as well, saying
+when that is from memory, and says whether you have it. Until 2026-10-28 this was the router's
+`explore` action (`explore.ts`), the first user of Ask's tools.
 
 ## Getting music (`getMusic`)
 
-"把千岩旷望剩下的歌下载了", "download 春泥棒" route to `getMusic`: the router gives the words to
-search a catalogue for and whether it is an album or a song (`getMusic.ts`). 网易云 is searched
+"把千岩旷望剩下的歌下载了", "download 春泥棒" are a `getMusic` card: the agent gives the words to
+search a catalogue for and whether it is an album (`getMusic.ts`, run as the card is made). 网易云 is searched
 (`cloudsearch/pc`, albums or songs); for an album each of the first four is read song by song,
 and each song counts as yours when one of your songs is the same recording with the same title
 (`sameRecording` + `sameTitle`: an album holds many songs by one artist of about one length, so
 the artist alone would count wrongly). The card lists them ("40 songs · you have 4"), and
 Import opens with the one chosen (`/import?url=`), whose review shows what you have and finds a
-song 网易云 only previews on YouTube instead. No model call beyond the router: 3–6 s.
+song 网易云 only previews on YouTube instead. No model call beyond the agent's.
 
 ## Searching the web
 
 Part of smart features, with no switch of its own (Xiao, 2026-10-24: smart features on means
-the model may look things up). Two things may search: `explore` (the call carries `web_search_options`), and the names pass for songs no
+the model may look things up). Two things may search: Ask's agent (the call carries `web_search_options`), and the names pass for songs no
 catalogue has, a second model call per 15 songs with web search (at most 150 songs), whose
 names are the model's and wait unticked, with a note saying the web was searched. The
 endpoint does the searching: cli-bridge runs Claude Code's WebSearch and WebFetch for that
-request only; an endpoint without web search ignores the option. Tried 2026-10-04: an
-explore question took 26 s and said where its answer came from.
+request only; an endpoint without web search ignores the option. Tried 2026-10-04: a question
+looked up took 26 s and said where its answer came from.
 
 ## Remembered preferences
 
-"From now on, Chinese names only" routes to `remember`, a card that saves the note when you
+"From now on, Chinese names only" is a `remember` card, that saves the note when you
 press Remember (`smartNotes` in the settings, at most 30). Every Ask after carries them under
 the request (`withNotes` in `ask.ts`: "Their standing preferences (follow them unless these
-words say otherwise)"), so the router and the action read them. Settings › Smart features lists
+words say otherwise)"), so the agent reads them with the request. Settings › Smart features lists
 them, each with Remove.
 
 ## Follow-ups
@@ -634,14 +646,18 @@ showed songs is the screen's while it is shown.
 The server sets the turns out and asks for the newest (`followed` in `ask.ts`: "Earlier in
 this conversation: They asked … You answered … It showed: t1.1", then each object with its
 songs numbered, at most 40 rows, the screen's first, "On their screen now: t2.1", and "Now
-they say …"). The router answers by handle: every action that takes songs has a `from`
-scope — a handle and places in its list, 1 for the first, or `playing` for the song playing
-— resolved in code (`scope.ts`, `scopeOf`) to songs the library has, so an id the device sent
-that is not one of them, or a place past the list's end, names nothing, and a handle that
-names nothing is said rather than the whole library used. `songs` with `from` is exactly
-those songs, to play, keep or queue; `like` is the song to sound like; `change` changes a
-list; `reply` answers from what was shown; `tags`, `tidy`, `library` and `playlistSongs`
-look at those songs and no others. A long conversation sends only its newest eight turns
+they say …"); a list's object also says what it was made from. Each object is a set of the
+working set under its handle, the screen's again as `screen` and the song playing as
+`playing` (`workingSet.ts`), so the agent names them as it names its own: a handle and places
+in its list (`pick`, `drop`), resolved in code to songs the library has, so an id the device
+sent that is not one of them, or a place past the list's end, names nothing, and a handle that
+names nothing is an error the agent reads rather than the whole library used. A songs card
+over one is exactly those songs, to play, keep or queue; `like` is the song to sound like; a
+change chooses again around them (Change it); a question about what was shown is answered in
+words from it; tags, names, library questions and playlist edits take them as their scope and
+look at no others. Words that point at songs mean the screen's, or the song playing when they
+speak of what is playing; one song of a list offered as candidates ("play it" after a find) is
+its first. A long conversation sends only its newest eight turns
 (`ASK_BEFORE_MAX`), and the one on the screen wherever it is. Replies are written in the
 language of the newest words. Until 2026-10-24 only the earlier questions were sent, as one
 request to "answer all of it together"; until 2026-10-27 lists went back as ten titles, so a
@@ -699,7 +715,7 @@ and cannot say "古典 or 原神纯音乐, and calm".
    go. A song not analysed yet does not pass an energy range, so a request about unanalysed
    songs loosens the energy and leaves "slow" to the pick.
 3. **Listen** (the listening model, no language model), only when the plan has a sound, or
-   the router says they want music like the song playing (`like`): the songs that fit are
+   Ask says they want music like a song (`like`): the songs that fit are
    put in the order they sound like it, best first. Over the whole library (no tags or
    artists asked for) a sound also keeps only the songs within 0.06 of the best match, so
    "violin songs" with six violin pieces answers six, not those six and nineteen near
@@ -742,8 +758,11 @@ tags`, which is the same review aimed at the songs without a tag (`GET
 which could only tag songs the request named and answered "tell me which ones" otherwise
 (Xiao, 2026-10-04).
 
-1. **Plan** (smart tier, Ask only): the tags with what each holds, the artists, and the
-   request. It returns renames, merges and deletes; the tags in question (`focus`); a tag
+1. **Plan** (smart tier, Ask only, and only when the agent did not say it already: its
+   `propose_tags` call may give the focus, which songs, the renames, merges and deletes, and
+   the artists, and then the review asks no plan; with `add` or `remove` it changes exactly
+   the scope's songs and asks nothing at all): the tags with what each holds, the artists, and
+   the request. It returns renames, merges and deletes; the tags in question (`focus`); a tag
    to make, if the request names one you lack; which songs to look at against the focus
    (`without` it, `with` it, `all`, `untagged`, `none`); the artists named, if any; and
    whether this is a checkup ("tidy my tags": every tag, spellings of one tag, artists
@@ -778,7 +797,7 @@ which could only tag songs the request named and answered "tell me which ones" o
    and the reason that covers the most of them.
 
 **How many.** A number they give ("tag 5 of my untagged songs") is the filters' `size`, the
-"how many" every action reads: the router fills only that for `tags`. The review then
+"how many": `propose_tags`'s `limit`. The review then
 changes that many songs at the most, the library's own answers first and the model's after,
 a song already in kept in a second change too; the model is not asked at all when the
 library has placed enough. The note says "Kept to 5 songs, as you asked. Ask again for more."
@@ -803,7 +822,7 @@ Without a model, the untagged songs still get what the library says, with a note
 
 ## A4 · Tidy up (names)
 
-Asked for in the Search box ("any songs with wrong metadata?"; the router's `tidy` action);
+Asked for in the Search box ("any songs with wrong metadata?"; `propose_names` and a tidy card);
 Library has no button of its own for it. The song names that look wrong, each as a change to approve: a field, what
 it is struck through, what it would be, and how many songs. Nothing writes until Apply,
 which is one ordinary edit per song (`POST /api/songs/bulk/edit`, on the server and on a
@@ -836,7 +855,7 @@ all, and the review says so under its list ("3 songs have no album, 10 no year a
 cover.") with **✦ Fill them in**, which asks "Fill in what's missing" in the same box. The
 count is code and free; nothing is looked up until it is pressed.
 
-**Asked for something.** The router's `tidy` part says whether the words only ask for a
+**Asked for something.** `propose_names`'s `what` says whether the words only ask for a
 checkup. When they say a change ("give the 原神音乐 songs their official Chinese names, albums
 too"), the steps above don't run: the filters choose the songs, which go to the model with
 the request itself, 60 songs a call (title, artist, album, album artist; an album's songs
@@ -851,7 +870,7 @@ the card speaks alone. A reply written in other letters than the request (Chines
 English request) is dropped (`inTheirLanguage`): shown a table of Chinese names, the model
 once answered an English request in Chinese, saying "no Yorushika here" above the change it made.
 
-**Which songs, for every `what`.** The router's `from` says when the request points at the song
+**Which songs, for every `what`.** Its `scope` says when the request points at the song
 playing ("this title is wrong"): then that song is the only one, for a change, a checkup,
 copies or a fill. Otherwise the filters choose; a checkup with filters ("fix the names of my
 孙燕姿 songs") checks those songs alone, and places asked for that the library lacks are the
@@ -877,7 +896,7 @@ more than that number, or more than one batch are about to be looked up, a fast 
 on, keeping a song whenever it can't tell (and a whole batch it can't answer). The number is
 counted from those, in album order, and the note says how many are left for asking again.
 
-**Names from the catalogues.** The router's `lookUp` says when the new names must come from
+**Names from the catalogues.** Its `lookUp` says when the new names must come from
 outside the library ("official Chinese names", an album's real name). Then each song is looked
 up first (`names.ts`): 网易云's search (`cloudsearch/pc`; its names are the publisher's, often in
 two languages: "丹砂巍巍 Wordless Cliffs"), and MusicBrainz and iTunes for a song 网易云 lacks. An
@@ -892,7 +911,7 @@ up names are kept a day per song. Tried on 2026-10-04 with the real model on six
 found, 10 changes (丹砂巍巍, 隙光浮影, 蔚蓝一梦, 璃月, 梦之咏叹 and their albums), the made-up one
 left alone.
 
-**Filling in what's missing.** The router's `tidy` part says `what`: `checkup`, `change`, `spellings`,
+**Filling in what's missing.** `what` is one of `checkup`, `change`, `spellings`,
 `fill` or `copies`. "Fill in what's missing" (and "the missing years of my YOASOBI songs",
 the filters choosing the songs) is `fill` (`ai/fill.ts`): the songs missing an album, a year
 or a cover, an album's songs together, the first 40 of them a request (MusicBrainz answers
@@ -1011,7 +1030,7 @@ out; then it was turned round too.
 
 Ask while a song plays: "something calmer like this next", "more like this after". The
 Search box sends the song that was playing when it was asked (`playing`, the server's id,
-translated with `useSmartServer().onServer`), and the router is shown it as a table row
+translated with `useSmartServer().onServer`), and the agent is shown it as a table row
 under "Now playing", so "this" has an artist, tags, energy and tempo. Its `next` flag leads
 the answer as **Up next**: Describe's pipeline as usual, with the playing song described to
 the pick too, the playing song left out of the picks, and ten songs unless a number is said.
@@ -1026,7 +1045,7 @@ playing song's.
 ## Controlling what plays
 
 "Skip this song", "go back", "start this again", "pause", "carry on", "play the last song in
-Up next", "play the third song in the queue": the router chooses `playback` and fills an `op`
+Up next", "play the third song in the queue": a `playback` card with an `op`
 (`next`, `previous`, `restart`, `pause`, `resume` or `upNext`) and, for `upNext`, a `place`
 in Up next counted the way the words did, 1 for the first and -1 for the last. The server
 never sees the queue: the answer is only what was asked for, and the device that asked finds
@@ -1046,7 +1065,7 @@ restarts it — and going back, like a song in Up next, plays the song it lands 
 ## Listening together
 
 "Start a room", "open a jam with some upbeat songs" and "songs for the room: something chill"
-make the router choose `together` (docs/features/listen-together.md). When the words say what
+are a `together` card (docs/features/listen-together.md). When the words say what
 music, it fills the filters and the songs are picked as Describe picks them. When they only
 ask for the room, there are no filters and no songs. The answer is `{ kind: 'together',
 describe }`, the same whether or not the device is in a room, because only the device knows

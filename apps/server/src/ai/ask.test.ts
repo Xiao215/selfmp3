@@ -84,7 +84,6 @@ const calls = (...each: [string, unknown][]) => ({
   calls: each.map(([name, args]) => ({ name, args })),
 })
 const respond = (args: unknown): [string, unknown] => ['respond', args]
-const NOTHING = { playing: null, screen: null }
 
 /** What the model read back from the tools, by request, as the endpoint received it. */
 function toolResults(llm: ReturnType<typeof endpointLlm>, request: number): string[] {
@@ -127,11 +126,21 @@ describe('ask, music to play or keep', () => {
       'ask-agent': [
         calls(
           ['find_songs', { as: 'chopin', tags: ['古典'] }],
-          ['pick_by_taste', { as: 'calm', from: { set: 'chopin' }, brief: 'for reading', count: 2 }],
+          [
+            'pick_by_taste',
+            { as: 'calm', from: { set: 'chopin' }, brief: 'for reading', count: 2 },
+          ],
           respond({ say: null, cards: [{ kind: 'songs', from: { set: 'calm' }, lead: 'play' }] }),
         ),
       ],
-      'describe-pick': [{ picks: [{ n: 1, why: 'slow piano' }, { n: 2, why: 'gentle' }] }],
+      'describe-pick': [
+        {
+          picks: [
+            { n: 1, why: 'slow piano' },
+            { n: 2, why: 'gentle' },
+          ],
+        },
+      ],
     })
     const reply = await ask(d, 'calm piano for reading')
     expect(AskReplySchema.parse(reply)).toEqual(reply)
@@ -160,7 +169,12 @@ describe('ask, music to play or keep', () => {
           ['find_songs', { as: 'top', sort: 'energy', order: 'desc', limit: 3 }],
           respond({
             cards: [
-              { kind: 'songs', from: { set: 'top' }, lead: 'play', expect: { count: 3, order: { by: 'energy', dir: 'desc' } } },
+              {
+                kind: 'songs',
+                from: { set: 'top' },
+                lead: 'play',
+                expect: { count: 3, order: { by: 'energy', dir: 'desc' } },
+              },
             ],
           }),
         ),
@@ -187,7 +201,9 @@ describe('ask, music to play or keep', () => {
     })
     const reply = await ask(d, 'save yoasobi as Morning, and queue them')
     expect(reply.cards[0]).toMatchObject({ kind: 'songs', lead: 'save' })
-    expect(reply.cards[0]!.kind === 'songs' && reply.cards[0]!.describe.understanding.name).toBe('Morning')
+    expect(reply.cards[0]!.kind === 'songs' && reply.cards[0]!.describe.understanding.name).toBe(
+      'Morning',
+    )
     expect(reply.cards[1]).toMatchObject({ kind: 'songs', lead: 'play' })
   })
 
@@ -196,7 +212,15 @@ describe('ask, music to play or keep', () => {
       'ask-agent': [
         calls(
           ['find_songs', { as: 'kind', tags: ['jpop'] }],
-          ['pick_by_taste', { as: 'calmer', from: { set: 'kind' }, brief: 'calmer than this', like: { set: 'playing' } }],
+          [
+            'pick_by_taste',
+            {
+              as: 'calmer',
+              from: { set: 'kind' },
+              brief: 'calmer than this',
+              like: { set: 'playing' },
+            },
+          ],
           respond({ cards: [{ kind: 'songs', from: { set: 'calmer' }, lead: 'next' }] }),
         ),
       ],
@@ -217,23 +241,44 @@ describe('ask, several parts', () => {
         calls(
           ['find_songs', { as: 'jp', tags: ['jpop'] }],
           ['pick_by_taste', { as: 'calm', from: { set: 'jp' }, brief: 'calm', count: 2 }],
-          ['propose_tags', { as: 'night', request: 'tag them 夜', scope: { set: 'calm' }, add: ['夜'] }],
+          [
+            'propose_tags',
+            { as: 'night', request: 'tag them 夜', scope: { set: 'calm' }, add: ['夜'] },
+          ],
           respond({
             cards: [
-              { kind: 'songs', from: { set: 'calm' }, lead: 'play', expect: { count: 2, script: 'Japanese' } },
+              {
+                kind: 'songs',
+                from: { set: 'calm' },
+                lead: 'play',
+                expect: { count: 2, script: 'Japanese' },
+              },
               { kind: 'tags', proposal: 'night' },
             ],
           }),
         ),
       ],
-      'describe-pick': [{ picks: [{ n: 1, why: 'soft' }, { n: 2, why: 'quiet' }] }],
+      'describe-pick': [
+        {
+          picks: [
+            { n: 1, why: 'soft' },
+            { n: 2, why: 'quiet' },
+          ],
+        },
+      ],
     })
     const reply = await ask(d, '2 calm japanese songs and tag them 夜')
     expect(reply.cards.map(card => card.kind)).toEqual(['songs', 'tags'])
     const tags = reply.cards[1]!
     if (tags.kind !== 'tags') throw new Error('tags')
     expect(tags.review.changes).toEqual([
-      expect.objectContaining({ op: 'add', tag: '夜', isNew: true, by: 'rule', songIds: ids(reply) }),
+      expect.objectContaining({
+        op: 'add',
+        tag: '夜',
+        isNew: true,
+        by: 'rule',
+        songIds: ids(reply),
+      }),
     ])
     expect(d.llm.sent['tags-plan']).toBeUndefined()
     expect(d.llm.sent['tags-groups']).toBeUndefined()
@@ -243,12 +288,33 @@ describe('ask, several parts', () => {
     const d = deps({
       'ask-agent': [
         calls(
-          ['propose_tags', { as: 'zh', request: 'tag the songs that should be 中文流行', focus: ['中文流行'], songs: 'without', artists: ['周杰倫'] }],
+          [
+            'propose_tags',
+            {
+              as: 'zh',
+              request: 'tag the songs that should be 中文流行',
+              focus: ['中文流行'],
+              songs: 'without',
+              artists: ['周杰倫'],
+            },
+          ],
           respond({ cards: [{ kind: 'tags', proposal: 'zh' }] }),
         ),
       ],
       'tags-groups': [
-        { groups: [{ g: 'g1', songs: [], add: ['中文流行'], remove: [], newTag: null, sure: 'high', why: 'Mandarin pop' }] },
+        {
+          groups: [
+            {
+              g: 'g1',
+              songs: [],
+              add: ['中文流行'],
+              remove: [],
+              newTag: null,
+              sure: 'high',
+              why: 'Mandarin pop',
+            },
+          ],
+        },
       ],
     })
     const reply = await ask(d, 'tag the songs that should be 中文流行')
@@ -264,10 +330,18 @@ describe('ask, following up', () => {
   it('acts on a place in an earlier list by its handle, after the song playing', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'songs', from: { set: 't1.1', pick: [3] }, lead: 'next' }] })),
+        calls(
+          respond({ cards: [{ kind: 'songs', from: { set: 't1.1', pick: [3] }, lead: 'next' }] }),
+        ),
       ],
     })
-    const reply = await ask(d, 'play the 3rd one next', { playing: 1, screen: 't1.1' }, undefined, before)
+    const reply = await ask(
+      d,
+      'play the 3rd one next',
+      { playing: 1, screen: 't1.1' },
+      undefined,
+      before,
+    )
     expect(reply.cards[0]).toMatchObject({ kind: 'songs', lead: 'next' })
     expect(ids(reply)).toEqual([9])
     const prompt = d.llm.prompts['ask-agent']![0]!
@@ -276,9 +350,15 @@ describe('ask, following up', () => {
   })
 
   it('plays the first of the candidates a find showed when asked to play it', async () => {
-    const found = [turn('the jay chou one about grandma', [shown('t1.1', [15, 14], { kind: 'find' })])]
+    const found = [
+      turn('the jay chou one about grandma', [shown('t1.1', [15, 14], { kind: 'find' })]),
+    ]
     const d = deps({
-      'ask-agent': [calls(respond({ cards: [{ kind: 'songs', from: { set: 'screen', pick: [1] }, lead: 'play' }] }))],
+      'ask-agent': [
+        calls(
+          respond({ cards: [{ kind: 'songs', from: { set: 'screen', pick: [1] }, lead: 'play' }] }),
+        ),
+      ],
     })
     const reply = await ask(d, 'play it', { playing: null, screen: 't1.1' }, undefined, found)
     expect(ids(reply)).toEqual([15])
@@ -286,9 +366,19 @@ describe('ask, following up', () => {
 
   it('leaves out the songs named and keeps the rest in their places', async () => {
     const d = deps({
-      'ask-agent': [calls(respond({ cards: [{ kind: 'songs', from: { set: 'screen', drop: [2] }, lead: 'play' }] }))],
+      'ask-agent': [
+        calls(
+          respond({ cards: [{ kind: 'songs', from: { set: 'screen', drop: [2] }, lead: 'play' }] }),
+        ),
+      ],
     })
-    const reply = await ask(d, 'not 夜に駆ける', { playing: null, screen: 't1.1' }, undefined, before)
+    const reply = await ask(
+      d,
+      'not 夜に駆ける',
+      { playing: null, screen: 't1.1' },
+      undefined,
+      before,
+    )
     expect(ids(reply)).toEqual([7, 9])
   })
 
@@ -301,8 +391,19 @@ describe('ask, following up', () => {
     const d = deps({
       'ask-agent': [
         calls(
-          ['pick_by_taste', { as: 'more', from: { filters: { tags: ['jpop'] } }, brief: 'japanese songs', count: 3, keep: { set: 'screen' } }],
-          respond({ cards: [{ kind: 'songs', from: { set: 'more' }, lead: 'play', expect: { count: 3 } }] }),
+          [
+            'pick_by_taste',
+            {
+              as: 'more',
+              from: { filters: { tags: ['jpop'] } },
+              brief: 'japanese songs',
+              count: 3,
+              keep: { set: 'screen' },
+            },
+          ],
+          respond({
+            cards: [{ kind: 'songs', from: { set: 'more' }, lead: 'play', expect: { count: 3 } }],
+          }),
         ),
       ],
       'describe-pick': [{ picks: [{ n: 1, why: 'also jpop' }] }],
@@ -317,7 +418,12 @@ describe('ask, following up', () => {
   })
 
   it('takes the earlier turns as context and answers the newest words', () => {
-    const text = followed('and the 2nd one?', before, 't1.1', new Map(SONGS.map(song => [song.id, song])))
+    const text = followed(
+      'and the 2nd one?',
+      before,
+      't1.1',
+      new Map(SONGS.map(song => [song.id, song])),
+    )
     expect(text).toContain('They asked: some yoasobi')
     expect(text).toContain('t1.1 — “Shown” (songs, offered to play), 3 songs:')
     expect(text).toContain('Now they say: and the 2nd one?')
@@ -331,9 +437,24 @@ describe('ask, checked before it reaches the device', () => {
       'ask-agent': [
         calls(
           ['find_songs', { as: 'jp', tags: ['jpop'] }],
-          respond({ say: 'Here are 3 songs.', cards: [{ kind: 'songs', from: { set: 'jp' }, expect: { count: 2, artists: ['YOASOBI'] } }] }),
+          respond({
+            say: 'Here are 3 songs.',
+            cards: [
+              { kind: 'songs', from: { set: 'jp' }, expect: { count: 2, artists: ['YOASOBI'] } },
+            ],
+          }),
         ),
-        calls(respond({ cards: [{ kind: 'songs', from: { set: 'jp', pick: [1, 2] }, expect: { count: 2, artists: ['YOASOBI'] } }] })),
+        calls(
+          respond({
+            cards: [
+              {
+                kind: 'songs',
+                from: { set: 'jp', pick: [1, 2] },
+                expect: { count: 2, artists: ['YOASOBI'] },
+              },
+            ],
+          }),
+        ),
       ],
     })
     const reply = await ask(d, 'two yoasobi songs')
@@ -343,7 +464,9 @@ describe('ask, checked before it reaches the device', () => {
   })
 
   it('accepts the second try as well as it can: songs past the number or by others left out', async () => {
-    const wrong = respond({ cards: [{ kind: 'songs', from: { set: 'jp' }, expect: { count: 1, artists: ['YOASOBI'] } }] })
+    const wrong = respond({
+      cards: [{ kind: 'songs', from: { set: 'jp' }, expect: { count: 1, artists: ['YOASOBI'] } }],
+    })
     const d = deps({
       'ask-agent': [calls(['find_songs', { as: 'jp', tags: ['jpop'] }], wrong), calls(wrong)],
     })
@@ -354,8 +477,19 @@ describe('ask, checked before it reaches the device', () => {
   it('refuses a number in its words that no result shows', async () => {
     const d = deps({
       'ask-agent': [
-        calls(['count_by', { by: 'artist', scope: { filters: { artist: ['YOASOBI'] } } }], respond({ say: 'You have 99 YOASOBI songs.', cards: [{ kind: 'library', from: { filters: { artist: ['YOASOBI'] } } }] })),
-        calls(respond({ say: 'You have 2 YOASOBI songs.', cards: [{ kind: 'library', from: { filters: { artist: ['YOASOBI'] } } }] })),
+        calls(
+          ['count_by', { by: 'artist', scope: { filters: { artist: ['YOASOBI'] } } }],
+          respond({
+            say: 'You have 99 YOASOBI songs.',
+            cards: [{ kind: 'library', from: { filters: { artist: ['YOASOBI'] } } }],
+          }),
+        ),
+        calls(
+          respond({
+            say: 'You have 2 YOASOBI songs.',
+            cards: [{ kind: 'library', from: { filters: { artist: ['YOASOBI'] } } }],
+          }),
+        ),
       ],
     })
     const reply = await ask(d, 'how many yoasobi songs do i have')
@@ -379,7 +513,14 @@ describe('ask, checked before it reaches the device', () => {
   it('refuses a set, a place or an id it was never given', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'songs', from: { set: 'nope' } }, { kind: 'songs', from: { ids: [3] } }] })),
+        calls(
+          respond({
+            cards: [
+              { kind: 'songs', from: { set: 'nope' } },
+              { kind: 'songs', from: { ids: [3] } },
+            ],
+          }),
+        ),
         calls(respond({ cards: [{ kind: 'words', text: 'Say which songs.' }] })),
       ],
     })
@@ -392,20 +533,37 @@ describe('ask, checked before it reaches the device', () => {
   it('asks back on its own, and never beside an answer', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b'] }, { kind: 'stats' }] })),
-        calls(respond({ cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b', 'c'] }] })),
+        calls(
+          respond({
+            cards: [
+              { kind: 'clarify', question: 'Which one?', options: ['a', 'b'] },
+              { kind: 'stats' },
+            ],
+          }),
+        ),
+        calls(
+          respond({
+            cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b', 'c'] }],
+          }),
+        ),
       ],
     })
     const reply = await ask(d, 'the good one')
     expect(toolResults(d.llm, 1).at(-1)).toContain('A clarify card stands alone')
-    expect(reply).toEqual({ say: null, cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b', 'c'] }] })
+    expect(reply).toEqual({
+      say: null,
+      cards: [{ kind: 'clarify', question: 'Which one?', options: ['a', 'b', 'c'] }],
+    })
   })
 
   it('reads a tool’s error, mends the call, and goes on', async () => {
     const d = deps({
       'ask-agent': [
         calls(['find_songs', { as: 'x', scope: { set: 'gone' } }]),
-        calls(['find_songs', { as: 'x', artist: ['Yorushika'] }], respond({ cards: [{ kind: 'songs', from: { set: 'x' } }] })),
+        calls(
+          ['find_songs', { as: 'x', artist: ['Yorushika'] }],
+          respond({ cards: [{ kind: 'songs', from: { set: 'x' } }] }),
+        ),
       ],
     })
     const reply = await ask(d, 'yorushika')
@@ -421,11 +579,20 @@ describe('ask, checked before it reaches the device', () => {
         look,
         look,
         look,
-        { say: 'Here they are.', cards: [{ kind: 'songs', from: { filters: { artist: ['YOASOBI'] } } }] },
+        {
+          say: 'Here they are.',
+          cards: [{ kind: 'songs', from: { filters: { artist: ['YOASOBI'] } } }],
+        },
       ],
     })
     const reply = await ask(d, 'yoasobi')
-    expect(d.llm.sent['ask-agent']!.map(each => each.tool_choice)).toEqual(['auto', 'auto', 'auto', 'auto', 'none'])
+    expect(d.llm.sent['ask-agent']!.map(each => each.tool_choice)).toEqual([
+      'auto',
+      'auto',
+      'auto',
+      'auto',
+      'none',
+    ])
     expect(ids(reply)).toEqual([7, 8])
     expect(reply.say).toBe('Here they are.')
   })
@@ -436,20 +603,31 @@ describe('ask, every kind of answer', () => {
     const d = deps({
       'ask-agent': [
         calls(
-          ['find_half_remembered', { as: 'it', terms: ['外婆', 'grandma'], brief: 'about his grandma' }],
+          [
+            'find_half_remembered',
+            { as: 'it', terms: ['外婆', 'grandma'], brief: 'about his grandma' },
+          ],
           respond({ cards: [{ kind: 'find', from: { set: 'it' } }] }),
         ),
       ],
       'ask-find': [{ picks: [{ n: 1, why: 'about grandma' }] }],
     })
     const reply = await ask(d, 'the jay chou one about grandma')
-    expect(reply.cards[0]).toMatchObject({ kind: 'find', terms: ['外婆', 'grandma'], picks: [{ songId: 15, why: 'about grandma' }] })
+    expect(reply.cards[0]).toMatchObject({
+      kind: 'find',
+      terms: ['外婆', 'grandma'],
+      picks: [{ songId: 15, why: 'about grandma' }],
+    })
   })
 
   it('counts the library in code: how many, how long, who, and how many different', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'library', from: { filters: { tags: ['古典'] } }, show: 'artists' }] })),
+        calls(
+          respond({
+            cards: [{ kind: 'library', from: { filters: { tags: ['古典'] } }, show: 'artists' }],
+          }),
+        ),
       ],
     })
     const reply = await ask(d, 'who is in 古典')
@@ -477,7 +655,9 @@ describe('ask, every kind of answer', () => {
 
   it('answers the listening from the plays, as many as asked', async () => {
     const d = deps({
-      'ask-agent': [calls(respond({ cards: [{ kind: 'stats', range: '30d', about: 'songs', limit: 1 }] }))],
+      'ask-agent': [
+        calls(respond({ cards: [{ kind: 'stats', range: '30d', about: 'songs', limit: 1 }] })),
+      ],
     })
     const reply = await ask(d, 'my top song this month')
     expect(reply.cards[0]).toEqual({
@@ -493,18 +673,46 @@ describe('ask, every kind of answer', () => {
   it('proposes playlists deleted or renamed by their real names, and says when none is called that', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'playlist', op: 'delete', playlists: ['chill chiense hype', 'chill chinese'] }, { kind: 'playlist', op: 'rename', playlists: ['runing'], newName: '跑步' }] })),
-        calls(respond({ cards: [{ kind: 'playlist', op: 'delete', playlists: ['nothing like it'] }] })),
-        calls(respond({ cards: [{ kind: 'playlist', op: 'delete', playlists: ['nothing like it'] }] })),
+        calls(
+          respond({
+            cards: [
+              {
+                kind: 'playlist',
+                op: 'delete',
+                playlists: ['chill chiense hype', 'chill chinese'],
+              },
+              { kind: 'playlist', op: 'rename', playlists: ['runing'], newName: '跑步' },
+            ],
+          }),
+        ),
+        calls(
+          respond({ cards: [{ kind: 'playlist', op: 'delete', playlists: ['nothing like it'] }] }),
+        ),
+        calls(
+          respond({ cards: [{ kind: 'playlist', op: 'delete', playlists: ['nothing like it'] }] }),
+        ),
       ],
     })
     const reply = await ask(d, 'delete the chill playlists and rename running to 跑步')
     expect(reply.cards).toEqual([
-      { kind: 'playlists', op: 'delete', names: ['chill · chinese · hype', 'chill · chinese'], newName: null, unknown: [] },
+      {
+        kind: 'playlists',
+        op: 'delete',
+        names: ['chill · chinese · hype', 'chill · chinese'],
+        newName: null,
+        unknown: [],
+      },
       { kind: 'playlists', op: 'rename', names: ['running'], newName: '跑步', unknown: [] },
     ])
     const none = await ask(d, 'delete nothing like it')
-    expect(none.cards).toEqual([{ kind: 'explore', say: 'No playlist here is called “nothing like it”.', songIds: [], get: null }])
+    expect(none.cards).toEqual([
+      {
+        kind: 'explore',
+        say: 'No playlist here is called “nothing like it”.',
+        songIds: [],
+        get: null,
+      },
+    ])
   })
 
   it('adds songs to a manual playlist, leaving out those in it, and says how a live one fills itself', async () => {
@@ -512,16 +720,25 @@ describe('ask, every kind of answer', () => {
       'ask-agent': [
         calls(
           ['find_songs', { as: 'y', artist: ['YOASOBI', 'Yorushika'] }],
-          respond({ cards: [{ kind: 'playlist', op: 'add', playlists: ['running'], from: { set: 'y' } }] }),
+          respond({
+            cards: [{ kind: 'playlist', op: 'add', playlists: ['running'], from: { set: 'y' } }],
+          }),
         ),
         calls(
           ['find_songs', { as: 'g', tags: ['原神纯音乐'] }],
-          respond({ cards: [{ kind: 'playlist', op: 'add', playlists: ['genshin'], from: { set: 'g' } }] }),
+          respond({
+            cards: [{ kind: 'playlist', op: 'add', playlists: ['genshin'], from: { set: 'g' } }],
+          }),
         ),
       ],
     })
     const add = await ask(d, 'add yoasobi and yorushika to running')
-    expect(add.cards[0]).toMatchObject({ kind: 'playlistSongs', playlist: 'running', op: 'add', songs: [{ songId: 8 }, { songId: 13 }] })
+    expect(add.cards[0]).toMatchObject({
+      kind: 'playlistSongs',
+      playlist: 'running',
+      op: 'add',
+      songs: [{ songId: 8 }, { songId: 13 }],
+    })
     const toLive = await ask(d, 'add the genshin songs to genshin')
     expect(toLive.cards[0]).toMatchObject({ kind: 'explore' })
     expect(JSON.stringify(toLive.cards[0])).toContain('in genshin already')
@@ -529,16 +746,41 @@ describe('ask, every kind of answer', () => {
 
   it('sorts a playlist in code', async () => {
     const d = deps({
-      'ask-agent': [calls(respond({ cards: [{ kind: 'playlist', op: 'sort', playlists: ['running'], sort: 'energy', order: 'asc' }] }))],
+      'ask-agent': [
+        calls(
+          respond({
+            cards: [
+              {
+                kind: 'playlist',
+                op: 'sort',
+                playlists: ['running'],
+                sort: 'energy',
+                order: 'asc',
+              },
+            ],
+          }),
+        ),
+      ],
     })
     const reply = await ask(d, 'sort running calmest first')
-    expect(reply.cards[0]).toMatchObject({ kind: 'playlistSongs', op: 'sort', songs: [{ songId: 14 }, { songId: 9 }, { songId: 7 }] })
+    expect(reply.cards[0]).toMatchObject({
+      kind: 'playlistSongs',
+      op: 'sort',
+      songs: [{ songId: 14 }, { songId: 9 }, { songId: 7 }],
+    })
   })
 
   it('hands playback to the device, and asks which song in Up next when no place is said', async () => {
     const d = deps({
       'ask-agent': [
-        calls(respond({ cards: [{ kind: 'playback', op: 'next' }, { kind: 'playback', op: 'upNext', at: -1 }] })),
+        calls(
+          respond({
+            cards: [
+              { kind: 'playback', op: 'next' },
+              { kind: 'playback', op: 'upNext', at: -1 },
+            ],
+          }),
+        ),
         calls(respond({ cards: [{ kind: 'playback', op: 'upNext' }] })),
         calls(respond({ cards: [{ kind: 'playback', op: 'upNext' }] })),
       ],
@@ -549,7 +791,10 @@ describe('ask, every kind of answer', () => {
       { kind: 'playback', op: 'upNext', place: -1 },
     ])
     const vague = await ask(d, 'play the one in up next')
-    expect(vague.cards[0]).toMatchObject({ kind: 'explore', say: 'Say which song in Up next to play.' })
+    expect(vague.cards[0]).toMatchObject({
+      kind: 'explore',
+      say: 'Say which song in Up next to play.',
+    })
   })
 
   it('offers to remember, sends somewhere, opens a room, and answers in words with the songs it is about', async () => {
@@ -580,16 +825,17 @@ describe('ask, every kind of answer', () => {
   })
 
   it('shows the model the playlists with their kind and rules, the sets, and the standing notes', async () => {
-    const d = deps(
-      { 'ask-agent': [calls(respond({ cards: [{ kind: 'words', text: 'Hi.' }] }))] },
-      ['Chinese names only'],
-    )
+    const d = deps({ 'ask-agent': [calls(respond({ cards: [{ kind: 'words', text: 'Hi.' }] }))] }, [
+      'Chinese names only',
+    ])
     await ask(d, 'hi', { playing: 7, screen: null })
     const prompt = d.llm.prompts['ask-agent']![0]!
     expect(prompt).toContain('- “genshin”: live, holds songs tagged 原神纯音乐')
     expect(prompt).toContain('- “running”: manual, 3 songs')
     expect(prompt).toContain('- playing: 1 song, the song playing (“アイドル” · YOASOBI)')
-    expect(prompt).toContain('Their standing preferences (follow them unless these words say otherwise):\n- Chinese names only')
+    expect(prompt).toContain(
+      'Their standing preferences (follow them unless these words say otherwise):\n- Chinese names only',
+    )
     expect(withNotes('x', [])).toBe('x')
   })
 })

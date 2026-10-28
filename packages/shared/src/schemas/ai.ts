@@ -287,6 +287,8 @@ export const AskSortSchema = z.enum([
   'duration',
   'plays',
   'lastPlayed',
+  /** An album's own order: by album, then track number. */
+  'track',
 ])
 export type AskSort = z.infer<typeof AskSortSchema>
 

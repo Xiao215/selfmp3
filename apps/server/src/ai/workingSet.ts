@@ -210,6 +210,28 @@ const rangeWords = (what: string, range: { min: number | null; max: number | nul
   `${what} ${range.min ?? '…'}–${range.max ?? '…'}`
 
 /**
+ * The artists asked for, with every artist of the library that goes by one
+ * of the same names: its other names, saved or found, so Yorushika brings
+ * ヨルシカ though the two were never joined.
+ */
+function alsoKnownAs(
+  found: readonly string[],
+  given: readonly string[],
+  library: Library,
+): string[] {
+  if (found.length === 0) return [...found]
+  const candidates = candidatesOf(library, 'artist')
+  const spelt = (each: Candidate): string[] =>
+    [each.name, ...(each.also ?? [])].map(name => normalizeForMatch(name)).filter(Boolean)
+  const wanted = new Set([
+    ...given.map(name => normalizeForMatch(name)),
+    ...candidates.filter(each => found.includes(each.name)).flatMap(spelt),
+  ])
+  const more = candidates.filter(each => spelt(each).some(name => wanted.has(name)))
+  return [...new Set([...found, ...more.map(each => each.name)])]
+}
+
+/**
  * The songs among these that every given condition holds for. Names are the
  * library's own once folded (Describe's `groundPlan`: other names, script,
  * a slip); a name it has none of matches no song, and is said with the
@@ -244,7 +266,12 @@ export function applyFilters(songs: readonly Song[], filters: Filters, library: 
   const conditions: { said: string; keep: (among: readonly Song[]) => Song[] }[] = []
 
   const places = [
-    { kind: 'artist', given: asked.artists, found: understanding.artists, key: 'artists' },
+    {
+      kind: 'artist',
+      given: asked.artists,
+      found: alsoKnownAs(understanding.artists, asked.artists, library),
+      key: 'artists',
+    },
     { kind: 'album', given: asked.albums, found: understanding.albums, key: 'albums' },
     { kind: 'tag', given: asked.anyTags, found: understanding.anyTags, key: 'anyTags' },
   ] as const
@@ -374,7 +401,7 @@ export function filtersUnderstanding(
   return groundPlan(
     {
       ...EVERYTHING,
-      name,
+      name: name.trim().slice(0, 60) || 'Songs',
       anyTags: filters.tags ?? [],
       noTags: filters.notTags ?? [],
       artists: filters.artist ?? [],
@@ -426,13 +453,7 @@ export class WorkingSet {
     }
     const screen = held.screen ? this.#sets.get(held.screen) : undefined
     if (screen && held.screen) {
-      this.#keep(
-        'screen',
-        screen.songs,
-        `on their screen: ${held.screen}`,
-        screen.why,
-        screen.meta,
-      )
+      this.#keep('screen', screen.songs, `on their screen: ${held.screen}`, screen.why, screen.meta)
     }
   }
 
@@ -538,12 +559,18 @@ export class WorkingSet {
     if (!scope) return all
     const ids = scope.ids ?? []
     if (scope.sets && scope.sets.length > 0) {
-      if (scope.set || ids.length > 0) throw new Error('Give a set, sets or ids, not more than one.')
+      if (scope.set || ids.length > 0)
+        throw new Error('Give a set, sets or ids, not more than one.')
       const seen = new Set<number>()
       const songs = scope.sets
         .flatMap(name => this.songsOf(name))
         .filter(song => !seen.has(song.id) && seen.add(song.id))
-      return this.resolve({ ids: songs.map(song => song.id), pick: scope.pick, drop: scope.drop, filters: scope.filters })
+      return this.resolve({
+        ids: songs.map(song => song.id),
+        pick: scope.pick,
+        drop: scope.drop,
+        filters: scope.filters,
+      })
     }
     if (scope.set && ids.length > 0) throw new Error('Give a set or ids, not both.')
     // Ids given and none of them: no songs, never the whole library.
@@ -586,7 +613,9 @@ export class WorkingSet {
         // Places picked count in the list as it was shown, before anything left out.
       }
       if (places.length > 0) {
-        const shownList = scope.set ? this.songsOf(scope.set) : ids.flatMap(id => this.#byId.get(id) ?? [])
+        const shownList = scope.set
+          ? this.songsOf(scope.set)
+          : ids.flatMap(id => this.#byId.get(id) ?? [])
         const kept = new Set(songs.map(song => song.id))
         songs = atPlaces(shownList, places).filter(song => kept.has(song.id))
       }

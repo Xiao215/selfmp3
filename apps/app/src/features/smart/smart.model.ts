@@ -845,6 +845,8 @@ export function sortWords(by: AskSort, order: AskOrder): string {
       return up ? 'least played first' : 'most played first'
     case 'lastPlayed':
       return up ? 'longest unplayed first' : 'most recently played first'
+    case 'track':
+      return up ? 'in album order' : 'in album order, last track first'
   }
 }
 

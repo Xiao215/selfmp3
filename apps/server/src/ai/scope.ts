@@ -79,7 +79,9 @@ function understoodWords(understanding: Understanding): string {
     understanding.words ? `${understanding.words} lyrics` : '',
     understanding.loved !== null ? (understanding.loved ? 'loved' : 'not loved') : '',
     understanding.playedWithinDays ? `played within ${understanding.playedWithinDays} days` : '',
-    understanding.notPlayedWithinDays ? `not played within ${understanding.notPlayedWithinDays} days` : '',
+    understanding.notPlayedWithinDays
+      ? `not played within ${understanding.notPlayedWithinDays} days`
+      : '',
     understanding.addedWithinDays ? `added within ${understanding.addedWithinDays} days` : '',
     understanding.size ? `${understanding.size} songs` : '',
     understanding.minutes ? `${understanding.minutes} minutes` : '',

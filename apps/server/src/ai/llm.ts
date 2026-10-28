@@ -538,6 +538,13 @@ export function openAiCompatible(
             const ran = await runCall(tools, call, request.signal)
             toolNames.push(call.function.name)
             if (ran.failed) failed++
+            if (ran.failed && process.env['SELFMP3_DEBUG_TOOLS'])
+              console.error(
+                'TOOLERR',
+                call.function.name,
+                call.function.arguments.slice(0, 600),
+                ran.content.slice(0, 600),
+              )
             messages.push({ role: 'tool', tool_call_id: call.id, content: ran.content })
             // The answering call ran: the task is done, whatever was written after it.
             if (ran.ended !== undefined) {

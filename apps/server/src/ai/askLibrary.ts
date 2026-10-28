@@ -121,6 +121,9 @@ function keyOf(song: Song, by: AskSort): number | string | null {
       return song.playCount
     case 'lastPlayed':
       return song.lastPlayedAt
+    case 'track':
+      // Albums apart, then each in its own order; a song without a number goes last on its album.
+      return `${song.album.toLowerCase()}\u0000${String(song.trackNo ?? 9999).padStart(4, '0')}`
   }
 }
 

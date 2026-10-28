@@ -487,7 +487,8 @@ function directly(
     const clean = name.trim().replace(/\s+/g, ' ')
     if (tag) {
       const lacking = scope.filter(song => !song.tagIds.includes(tag.id))
-      if (lacking.length > 0) gathered.songs('add', tag.name, false, 'rule', lacking, 'As you asked')
+      if (lacking.length > 0)
+        gathered.songs('add', tag.name, false, 'rule', lacking, 'As you asked')
       else notes.push(`They are all tagged ${tag.name} already.`)
     } else if (clean && clean.length <= TAG_NAME_MAX) {
       gathered.songs('add', clean, true, 'rule', scope, 'As you asked')
@@ -500,7 +501,8 @@ function directly(
       continue
     }
     const carrying = scope.filter(song => song.tagIds.includes(tag.id))
-    if (carrying.length > 0) gathered.songs('remove', tag.name, false, 'rule', carrying, 'As you asked')
+    if (carrying.length > 0)
+      gathered.songs('remove', tag.name, false, 'rule', carrying, 'As you asked')
     else notes.push(`None of them is tagged ${tag.name}.`)
   }
   return {

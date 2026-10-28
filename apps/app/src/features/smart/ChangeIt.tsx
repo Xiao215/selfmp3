@@ -58,7 +58,14 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
         words,
         { playing: null, screen: CHANGED },
         name,
-        [changedTurn(answer.text, understandingOf(answer), answer.result, shownOnServer(answer, server.onServer))],
+        [
+          changedTurn(
+            answer.text,
+            understandingOf(answer),
+            answer.result,
+            shownOnServer(answer, server.onServer),
+          ),
+        ],
         controller.signal,
       )
       const songs = reply.cards.find(card => card.kind === 'songs')
@@ -66,7 +73,9 @@ export function ChangeIt({ answerId }: { answerId: string }): ReactNode {
       const said = reply.cards.flatMap(card =>
         card.kind === 'explore' ? [card.say] : card.kind === 'clarify' ? [card.question] : [],
       )
-      throw new Error([reply.say, ...said].filter(Boolean).join(' ') || 'That didn’t change the songs.')
+      throw new Error(
+        [reply.say, ...said].filter(Boolean).join(' ') || 'That didn’t change the songs.',
+      )
     },
     onSuccess: result => {
       changeAnswer(answerId, result)

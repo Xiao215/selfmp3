@@ -67,6 +67,7 @@ for that person's use only: for a server that friends use too, see
 | `SELFMP3_AI_MODEL_FAST` | Planning and small jobs. Default `sonnet` |
 | `SELFMP3_AI_MODEL_SMART` | Picking and judging. Default `sonnet` |
 | `SELFMP3_AI_TIMEOUT_SECONDS` | Per call. Default 240 |
+| `SELFMP3_AI_CONCURRENCY` | Requests in flight to the endpoint at once, for the whole server; the rest wait here in order. Default 2, cli-bridge's own limit |
 
 The two model names are **tiers**, not vendors: a task asks for `fast` or `smart` and never
 names a model, so moving to another provider is three environment variables. Both default
@@ -118,8 +119,11 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
   side, because "the model was asked for JSON" is not "the model returned valid JSON". An
   invalid reply gets one repair turn (the validation error goes back to the model) and then
   fails cleanly. A call may also offer `tools` (run on the server, six rounds unless the
-  task says otherwise), ask for `webSearch`, and carry a `signal` that drops it once nobody
-  is waiting. No SDK: it is one `fetch`, like the server's other outbound calls.
+  task says otherwise, and `budgetMs` of time), ask for `webSearch`, and carry a `signal`
+  that drops it once nobody is waiting. Requests to one endpoint pass a gate
+  (`SELFMP3_AI_CONCURRENCY`, 2), so the calls a pipeline or a tool makes at once queue in
+  the server, first come first served, not inside cli-bridge where the wait would count
+  against their timeout. No SDK: it is one `fetch`, like the server's other outbound calls.
 - **Tasks.** Each model call is a task with four parts kept side by side: a *system prompt*
   that never changes between requests (so a provider can cache it), a *context builder*
   that chooses what the model sees, an *output schema*, and a *check* that grounds the
@@ -171,6 +175,43 @@ climbed when the one below cannot answer:
   so it depends on no vendor's agent runtime. cli-bridge also accepts `mcp_servers` and
   `max_turns`, which would let Claude Code run the loop itself; nothing here uses them, and
   they are refused for `gemini-*` models.
+- **The loop** (`llm.ts`): the calls of one reply run one after another in the order the model
+  wrote them, so a later call can use what an earlier one made, and a plan of several steps
+  costs one round (cli-bridge returns several tool calls in one reply). A call that fails
+  (wrong arguments, a set that does not exist, an id it was never shown) goes back as that
+  call's result, `{"error": …}`, for the model to read and correct; only a stop is thrown.
+  After its rounds or its `budgetMs`, the tools are no longer offered (`tool_choice: none`) and
+  the model answers with what it has. The log line names the tools called and how many failed.
+- **The tools** (`askTools.ts`) are Ask's pipelines with typed arguments, over one request's
+  **working set** (`workingSet.ts`, AGENT-DESIGN 2.2): named lists of songs. It starts with
+  `playing` (the song playing), each earlier answer's handle (`t2.1`, what it showed) and
+  `screen` (the answer on their screen); a tool that finds songs keeps them under a name the
+  model gives (`as`). Every argument that takes songs is a scope, `{ set, pick, ids, filters }`:
+  a set, places in its list (1 for the first, counted in code by `scope.ts`'s `atPlaces`, the
+  same as a router's handle and picks), ids, and filters over them. Ids are only ever ones the
+  model was shown in a result or that a set holds. A song list comes back compact: the set's
+  name, count and minutes, its first 30 rows `id|title|artist|album|year|tags|energy|len|plays`
+  (and why, when a pick said), names it did not know with the nearest the library has
+  (`unmatched`), and the condition that left none (`emptiedBy`); nothing is loosened behind its
+  back.
+
+  | Tool | Wraps | Model inside |
+  |---|---|---|
+  | `find_songs({as, scope, text, title, artist[], album[], tags[], notTags[], energy, bpm, year, words, lyrics, loved, playedWithinDays, notPlayedWithinDays, addedWithinDays, sort, order, limit, offset})` | `groundPlan` (other names, script fold, a slip), `songsFitting`, lyrics search, `sortSongs`; every condition must hold | none |
+  | `count_by({scope, by: artist/album/tag/year, limit})` | `creditedArtists` with joined names: a song counts once per artist | none |
+  | `listening({range, about: songs/artists/tags/totals, limit, scope})` | `stats(range, top)`, up to 100; a scope adds up its own songs' plays | none |
+  | `lookup_names({kind: artist/album/tag/playlist, query})` | `normalizeForMatch` + other names + `editDistance` | none |
+  | `pick_by_taste({as, from, brief, sound, count/minutes, like, avoid})` | `narrowAndPick` over the scope; an empty pick is an empty set and its notes | smart |
+  | `find_half_remembered({as, terms, brief})` | `halfRemembered.ts` (the find action's) | smart |
+  | `propose_tags({as, request, scope, limit})` | `tagReview` over the scope; the review is kept under `as` | smart |
+  | `propose_names({as, what: checkup/change/spellings/fill/copies, request, lookUp, scope, limit})` | `tidy`, `oneSpelling`, `fillGaps`, `findCopies`; kept under `as` | smart / fast |
+  | `album_tracks({albums: [{album, artist}] ≤8})` | 网易云 album search + track list, each track matched with `haveTrack` (`getMusic.ts`): how many, which are theirs, which they lack | none |
+  | `catalogue({words})` | 网易云 song search | none |
+
+  Each description is written as general instructions (no sample requests), and each answer
+  is bounded: 30 rows, 100 groups, 20 proposal lines, 60 track titles, 24k characters at
+  most. The tools return data for the model; what the person sees is built by the caller
+  from the sets and proposals left behind. Nothing writes.
 - **Skills** are Claude Code's packaging of instructions loaded on demand. The equivalent
   here is a task's own system prompt, which is already loaded only by its task.
 - **MCP** is the right way to let *other* assistants (Claude Desktop, Claude Code) ask
@@ -466,15 +507,18 @@ list changed (Xiao's "Ask decides").
 For a question the fixed actions can't put as filters ("which albums do I have only part of",
 "what is Liyue called in Chinese, and do I have it"), and any question about music itself
 (a song, an artist, who sang it), the router chooses `explore`
-(`explore.ts`). The model gets the library's shape and tools, run on the server through
-`llm.ts`'s tool loop (OpenAI `tools` with `response_format`, at most 8 rounds):
-`search_songs` (words in title, artist, album or lyrics; a tag; an artist; an album; a page of
-rows with ids), `library_counts` (songs per artist, album, tag or year), and `search_catalogue`
-(网易云's search). The call also asks the endpoint for web search (`web_search_options`).
-About music itself the model answers from what it knows as well, saying when that is from
-memory, and says whether you have it. The answer is a few sentences and the songs it is
-about; every id is checked to be one of yours. Tried 2026-10-04 with the real model through cli-bridge: 9 s
-and 17 s, two to three tool calls each.
+(`explore.ts`), the first user of Ask's tools (Tools, skills, MCP, above). The model gets the
+library's shape, the sets the request came with (`playing`, earlier answers' handles,
+`screen`) and the tools that look: `find_songs`, `count_by`, `listening`, `lookup_names`,
+`pick_by_taste`, `find_half_remembered`, `album_tracks` and `catalogue`, not the ones that
+propose. At most 6 rounds and 120 s of looking; the call also asks the endpoint for web
+search (`web_search_options`). Its system prompt says how sets and scopes work and to plan
+the calls a question needs into one reply when none needs another's result first. About
+music itself the model answers from what it knows as well, saying when that is from memory,
+and says whether you have it. The answer is a few sentences and the songs it is about, as
+ids and/or a set's name; every id is checked to be one it was shown or a set holds. "Which
+albums do I have only part of" reads the albums' track lists (`album_tracks`), which the old
+three tools could not.
 
 ## Getting music (`getMusic`)
 

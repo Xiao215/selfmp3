@@ -147,7 +147,11 @@ export async function ask(
 
   const playing = where.playing === null ? undefined : byId.get(where.playing)
   // What the handles name: the song playing, and what each earlier answer showed.
-  const held: Held = { playing, objects: before.flatMap(turn => turn.objects) }
+  const held: Held = {
+    playing,
+    objects: before.flatMap(turn => turn.objects),
+    screen: where.screen,
+  }
   // "This", for the router and for the pick: the song as the table draws a row.
   const nowPlaying = playing
     ? `\n\nNow playing: ${songTable([playing], tags, now).replace(/^#1 \| /, '')}`

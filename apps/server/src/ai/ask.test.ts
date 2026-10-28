@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Stats } from '@selfmp3/shared'
 import { ask, followed, routeForm, routeSystem, withNotes } from './ask.js'
-import { ASK_ACTIONS, matchPlaylist, songsMatching } from './askActions.js'
+import { ASK_ACTIONS, matchPlaylist } from './askActions.js'
+import { songsMatching } from './halfRemembered.js'
 import { SONGS, TAGS, scriptedLlm, song } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')

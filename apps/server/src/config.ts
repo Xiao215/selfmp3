@@ -228,6 +228,8 @@ const ConfigSchema = z.object({
       modelSmart: z.string().trim().min(1).default('sonnet'),
       /** Long, because a model behind the claude CLI starts a process per call. */
       timeoutSeconds: z.coerce.number().int().min(5).max(900).default(240),
+      /** Requests in flight to the endpoint at once; cli-bridge runs two. */
+      concurrency: z.coerce.number().int().min(1).max(32).default(2),
     })
     .default({}),
 
@@ -329,6 +331,7 @@ function readEnv(): unknown {
       modelFast: env['SELFMP3_AI_MODEL_FAST'] || undefined,
       modelSmart: env['SELFMP3_AI_MODEL_SMART'] || undefined,
       timeoutSeconds: env['SELFMP3_AI_TIMEOUT_SECONDS'] || undefined,
+      concurrency: env['SELFMP3_AI_CONCURRENCY'] || undefined,
     },
     doormanUrl: env['SELFMP3_DOORMAN_URL'] ?? undefined,
     logLevel: env['SELFMP3_LOG_LEVEL'] || undefined,

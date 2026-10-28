@@ -23,21 +23,19 @@ import {
   type AskPlaylist,
 } from './askLibrary.js'
 import {
-  PickOut,
-  groundPicks,
   groundPlan,
   narrowAndPick,
   songsFitting,
   type DescribeDeps,
   type PlanOut,
 } from './describe.js'
-import { songTable } from './library.js'
-import { Remembered } from './llm.js'
+import type { Remembered } from './llm.js'
 import type { CatalogueSearch, FindListings, FindNames } from './names.js'
 import { findCopies } from './copies.js'
 import { fillGaps } from './fill.js'
 import type { Steps } from './progress.js'
 import { explore } from './explore.js'
+import { halfRemembered } from './halfRemembered.js'
 import { getMusic, type MusicCatalogue } from './getMusic.js'
 import { refine } from './refine.js'
 import {
@@ -168,41 +166,11 @@ export function matchPlaylist(
   return near[0]!.name
 }
 
-/** The most songs a "find" is chosen from. */
-const MAX_FOUND = 150
-const FIND_SIZE = 5
-const FIND_VERSION = 1
 /** How many songs "after this" adds to Up next when no number is said (A8). */
 const NEXT_SIZE = 10
 /** How many songs, artists or tags a listening question lists when no number is said, and at most. */
 const STATS_SIZE = 10
 const STATS_MOST = 50
-
-/** Songs whose title, artist or album holds a term, then ones whose lyrics do, once each. */
-export function songsMatching(
-  terms: readonly string[],
-  songs: readonly Song[],
-  lyrics: AskDeps['lyrics'],
-): { song: Song; line: string | null }[] {
-  const wanted = terms.map(term => term.trim().toLowerCase()).filter(Boolean)
-  const found = new Map<number, { song: Song; line: string | null }>()
-  for (const song of songs) {
-    const text = `${song.title} ${song.artist} ${song.album}`.toLowerCase()
-    if (wanted.some(term => text.includes(term))) found.set(song.id, { song, line: null })
-  }
-  const byId = new Map(songs.map(song => [song.id, song]))
-  for (const term of wanted) {
-    for (const hit of lyrics(term)) {
-      const song = byId.get(hit.songId)
-      if (song && (found.get(song.id)?.line ?? null) === null) {
-        found.set(song.id, { song, line: hit.line })
-      }
-    }
-  }
-  return [...found.values()].slice(0, MAX_FOUND)
-}
-
-const FIND_SYSTEM = `Someone is looking for one song in their own library that they half remember. You are given what they remember and a numbered table of candidate songs (with a lyric line where one matched). Reply with JSON only: picks, at most ${FIND_SIZE}, best first, each the song's number (n) and why it fits in at most ten plain words. Only choose songs that plausibly are the one they mean; if none are, return no picks. Never use a number that is not in the table.`
 
 const songs = action({
   name: 'songs',
@@ -449,38 +417,10 @@ const find = action({
     brief: z.string().max(200),
   }),
   filters: 'unused',
-  run: async ({ deps, text, now, steps }, { terms, brief }) => {
-    const quoted = terms
-      .slice(0, 3)
-      .map(term => `“${term}”`)
-      .join(', ')
-    steps.begin(`Looking for ${quoted} in titles and lyrics`)
-    const found = songsMatching(terms, deps.songs(), deps.lyrics)
-    steps.done(found.length === 0 ? 'None of yours matched' : `${found.length} could be it`)
+  run: async ({ deps, text, now, held, steps }, { terms, brief }) => {
+    const { picks } = await halfRemembered(deps, { text, terms, brief, now }, steps)
     // Not one of theirs: what they named is looked up instead, so they hear what it is.
-    if (found.length === 0) return explore(deps, text, steps)
-    steps.begin('Choosing the one you mean')
-    const table = found.map(each => each.song)
-    const lines = songTable(table, deps.tags(), now)
-      .split('\n')
-      .map((line, index) => (found[index]!.line ? `${line} | lyric: ${found[index]!.line}` : line))
-    const prompt = `What they remember: ${brief}\nTheir words: ${text}\n\nThe table (number | title | artist | album | year | tags | energy | tempo | length | words | plays | lyric):\n${lines.join('\n')}`
-    const answer = await deps.remembered.get(
-      Remembered.key('ask-find', FIND_VERSION, prompt),
-      async () =>
-        (
-          await deps.llm.generate({
-            task: 'ask-find',
-            tier: 'smart',
-            system: FIND_SYSTEM,
-            prompt,
-            schema: PickOut,
-          })
-        ).value,
-    )
-    steps.done()
-    const picks = groundPicks(answer.picks, table, FIND_SIZE)
-    return picks.length > 0 ? { kind: 'find', terms, picks } : explore(deps, text, steps)
+    return picks.length > 0 ? { kind: 'find', terms, picks } : explore(deps, text, steps, held)
   },
 })
 
@@ -706,7 +646,7 @@ const lookInto = action({
   when: 'a question or request that needs looking through their songs, the music catalogues or the web, and that no action above can do with its filters: which albums they have only part of, what a song or album is called in another language, what game or show a song is from, whether they have something, comparing artists or albums; and any question about music itself, a song, an artist or an album, whether or not it is in their library, a name on its own included. Nothing else to fill: the request itself is used. Prefer this to "none" whenever looking things up could answer it.',
   fields: null,
   filters: 'unused',
-  run: async ({ deps, text, steps }) => explore(deps, text, steps),
+  run: async ({ deps, text, held, steps }) => explore(deps, text, steps, held),
 })
 
 const getMusicAction = action({

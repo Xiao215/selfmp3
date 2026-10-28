@@ -37,6 +37,8 @@ export interface Held {
   readonly playing: Song | undefined
   /** What the earlier answers showed, sent back by the device. */
   readonly objects: readonly AskObject[]
+  /** The handle of the answer on their screen, when one is. */
+  readonly screen?: string | null
 }
 
 /** The object a handle names, or undefined. */
@@ -57,10 +59,17 @@ export function scopeOf(from: Scope, held: Held, songs: readonly Song[]): readon
   const object = heldObject(held, from.handle)
   if (!object) return []
   const byId = new Map(songs.map(song => [song.id, song]))
-  const ids = from.picks
-    ? [...new Set(from.picks)].flatMap(place => object.songIds[place - 1] ?? [])
-    : object.songIds
-  return ids.flatMap(id => byId.get(id) ?? [])
+  return atPlaces(object.songIds, from.picks).flatMap(id => byId.get(id) ?? [])
+}
+
+/**
+ * The items at places in a list, 1 for the first, once each and in the order
+ * named; a place past the end names nothing. Null places: the whole list.
+ * Every way of naming "the 3rd one" comes here, a handle's list or a set's.
+ */
+export function atPlaces<T>(list: readonly T[], places: readonly number[] | null): T[] {
+  if (places === null) return [...list]
+  return [...new Set(places)].flatMap(place => (place >= 1 ? (list[place - 1] ?? []) : []))
 }
 
 /** Why each song of an object is in it, by id, where the answer said. */

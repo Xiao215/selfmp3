@@ -275,6 +275,7 @@ function llmFor(config: Pick<Config, 'ai'>, logger: Logger): Llm {
       apiKey: ai.apiKey || null,
       models: { fast: ai.modelFast, smart: ai.modelSmart },
       timeoutMs: ai.timeoutSeconds * 1000,
+      concurrency: ai.concurrency,
     },
     { logger },
   )

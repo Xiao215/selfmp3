@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
 import { createLogger } from '../logger.js'
-import { jsonSchemaOf, LlmError, openAiCompatible, parseReply, Remembered, tool } from './llm.js'
+import { endpointLlm } from './fixtures/library.js'
+import {
+  Gate,
+  jsonSchemaOf,
+  LlmError,
+  openAiCompatible,
+  parseReply,
+  Remembered,
+  tool,
+} from './llm.js'
 
 const logger = createLogger('silent')
 const Answer = z.object({ n: z.number().int(), why: z.string() })
@@ -223,5 +232,97 @@ describe('tools', () => {
     expect(value).toEqual({ n: 2, why: 'enough' })
     expect(sent.map(each => each.body['tool_choice'])).toEqual(['auto', 'none'])
     expect(sent[0]!.body['web_search_options']).toBeUndefined()
+  })
+
+  it('runs one reply’s calls in the order written, a later one seeing what an earlier one made', async () => {
+    const made = new Map<string, string>()
+    const keep = tool({
+      name: 'keep',
+      description: 'Keep a word',
+      parameters: z.object({ as: z.string(), word: z.string() }),
+      run: ({ as, word }) => void made.set(as, word),
+    })
+    const read = tool({
+      name: 'read',
+      description: 'Read a kept word',
+      parameters: z.object({ from: z.string() }),
+      run: ({ from }) => {
+        const word = made.get(from)
+        if (word === undefined) throw new Error(`nothing kept as ${from}`)
+        return word
+      },
+    })
+    const { fetch, calls: sent } = fakeFetch(
+      calls(
+        { name: 'read', args: '{"from":"a"}' },
+        { name: 'keep', args: '{"as":"a","word":"rain"}' },
+        { name: 'read', args: '{"from":"a"}' },
+      ),
+      reply('{"n": 1, "why": "rain"}'),
+    )
+    const llm = openAiCompatible(settings, { fetch, logger })
+    await llm.generate({ ...request, tools: [keep, read] })
+    const messages = sent[1]!.body['messages'] as { role: string; content: string }[]
+    // The first read came before the keep, so it failed, and said so to the model.
+    expect(messages.filter(m => m.role === 'tool').map(m => m.content)).toEqual([
+      '{"error":"nothing kept as a"}',
+      'null',
+      '"rain"',
+    ])
+  })
+
+  it('offers no more calls once its time is spent', async () => {
+    const { fetch, calls: sent } = fakeFetch(reply('{"n": 1, "why": "late"}'))
+    const llm = openAiCompatible(settings, { fetch, logger })
+    await llm.generate({ ...request, tools: [search], budgetMs: 0 })
+    expect(sent[0]!.body['tool_choice']).toBe('none')
+  })
+})
+
+describe('Gate', () => {
+  it('lets at most its size through at once, the rest in the order they came', async () => {
+    const gate = new Gate(2)
+    let inFlight = 0
+    let most = 0
+    const order: number[] = []
+    const work = (n: number) => async () => {
+      inFlight++
+      most = Math.max(most, inFlight)
+      await new Promise(resolve => setTimeout(resolve, 5))
+      order.push(n)
+      inFlight--
+      return n
+    }
+    const done = await Promise.all([1, 2, 3, 4, 5].map(n => gate.run(work(n))))
+    expect(done).toEqual([1, 2, 3, 4, 5])
+    expect(most).toBe(2)
+    expect(order).toEqual([1, 2, 3, 4, 5])
+    expect(gate.queued).toBe(0)
+  })
+
+  it('lets a wait be given up, and the turn goes to the next', async () => {
+    const gate = new Gate(1)
+    let release = () => {}
+    const first = gate.run(() => new Promise<void>(resolve => (release = resolve)))
+    const stop = new AbortController()
+    const given = gate.run(async () => 'never', stop.signal)
+    const third = gate.run(async () => 'third')
+    expect(gate.queued).toBe(2)
+    stop.abort()
+    await expect(given).rejects.toThrow('stopped while waiting')
+    expect(gate.queued).toBe(1)
+    release()
+    await first
+    expect(await third).toBe('third')
+  })
+
+  it('queues an endpoint’s requests here, past its limit', async () => {
+    const one = endpointLlm({ t: [{ n: 1 }, { n: 2 }, { n: 3 }] }, { concurrency: 1, delayMs: 5 })
+    const two = endpointLlm({ t: [{ n: 1 }, { n: 2 }, { n: 3 }] }, { concurrency: 2, delayMs: 5 })
+    const asked = { ...request, task: 't', schema: z.object({ n: z.number() }) }
+    await Promise.all([1, 2, 3].map(() => one.generate(asked)))
+    await Promise.all([1, 2, 3].map(() => two.generate(asked)))
+    expect(one.most()).toBe(1)
+    expect(two.most()).toBe(2)
   })
 })

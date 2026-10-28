@@ -43,8 +43,11 @@ export interface MusicCatalogue {
 
 type GetMusic = Extract<AskAnswer, { kind: 'getMusic' }>
 
-/** Whether some song of yours is this catalogue track. */
-function have(songs: readonly Song[], track: Track): boolean {
+/** The song of yours that is this catalogue track, if one is. */
+export function haveTrack(
+  songs: readonly Song[],
+  track: Pick<Track, 'title' | 'artist' | 'album' | 'duration'>,
+): Song | undefined {
   const listed = {
     source: '网易云' as const,
     title: track.title,
@@ -52,7 +55,7 @@ function have(songs: readonly Song[], track: Track): boolean {
     album: track.album,
     seconds: track.duration || null,
   }
-  return songs.some(song => sameRecording(song, listed) && sameTitle(song, listed))
+  return songs.find(song => sameRecording(song, listed) && sameTitle(song, listed))
 }
 
 export async function getMusic(
@@ -81,7 +84,7 @@ export async function getMusic(
           url: album.url,
           cover: album.cover,
           tracks: tracks.length || album.tracks,
-          have: tracks.filter(track => have(songs, track)).length,
+          have: tracks.filter(track => haveTrack(songs, track)).length,
         }
       }),
     )
@@ -100,7 +103,7 @@ export async function getMusic(
       url: track.url,
       cover: track.thumbnail,
       tracks: 1,
-      have: have(songs, track) ? 1 : 0,
+      have: haveTrack(songs, track) ? 1 : 0,
     })),
   }
 }

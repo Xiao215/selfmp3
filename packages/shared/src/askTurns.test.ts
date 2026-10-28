@@ -2,18 +2,25 @@ import { describe, expect, it } from 'vitest'
 import {
   ASK_BEFORE_MAX,
   AskRequestSchema,
+  type AskCard,
+  type AskReply,
   type DescribeResult,
   type Understanding,
 } from './index.js'
 import { answerRecap, beforeTurn, objectsOf, tooLongToAsk } from './askTurns.js'
 
-const turn = (id: number, patch: Partial<Parameters<typeof beforeTurn>[0][number]> = {}) => ({
+type AskedTurn = Parameters<typeof beforeTurn>[0][number]
+
+const turn = (id: number, patch: Partial<AskedTurn> = {}): AskedTurn => ({
   asked: `question ${id}`,
-  answered: `answer ${id}` as string | null,
-  outcome: null as string | null,
-  objects: [] as Parameters<typeof beforeTurn>[0][number]['objects'],
+  answered: `answer ${id}`,
+  outcomes: {},
+  objects: [],
   ...patch,
 })
+
+/** A reply of one card. */
+const one = (card: AskCard): AskReply => ({ say: null, cards: [card] })
 
 const base: Understanding = {
   name: 'Calm',
@@ -36,10 +43,18 @@ const base: Understanding = {
 }
 
 describe('beforeTurn', () => {
-  it('is every turn before, with what came of a proposal', () => {
-    const turns = [turn(1, { outcome: 'Fixed 3 songs' }), turn(2), turn(3, { answered: null })]
+  it('is every turn before, with what came of its proposals', () => {
+    const turns = [
+      turn(1, { outcomes: { 0: 'Fixed 3 songs', 1: 'Closed. Nothing changed.' } }),
+      turn(2),
+      turn(3, { answered: null }),
+    ]
     expect(beforeTurn(turns, 2)).toEqual([
-      { asked: 'question 1', answered: 'answer 1\nThen: Fixed 3 songs', objects: [] },
+      {
+        asked: 'question 1',
+        answered: 'answer 1\nThen: Fixed 3 songs; Closed. Nothing changed.',
+        objects: [],
+      },
       { asked: 'question 2', answered: 'answer 2', objects: [] },
     ])
   })
@@ -96,7 +111,7 @@ describe('beforeTurn', () => {
 
 describe('answerRecap', () => {
   it('says only what was asked, not that it was done: the device says what came of it', () => {
-    const recap = answerRecap({ kind: 'playback', op: 'next', place: null })
+    const recap = answerRecap(one({ kind: 'playback', op: 'next', place: null }))
     expect(recap).toBe('Asked to skip to the next song.')
   })
 
@@ -105,7 +120,7 @@ describe('answerRecap', () => {
       understanding: { ...base, name: 'Morning' },
       picks: [{ songId: 4, why: 'bright' }],
     } as unknown as DescribeResult
-    expect(answerRecap({ kind: 'songs', lead: 'save', describe, like: null })).toBe(
+    expect(answerRecap(one({ kind: 'songs', lead: 'save', describe, like: null }))).toBe(
       'Offered 1 song (“Morning”) to keep as a playlist',
     )
   })
@@ -126,7 +141,7 @@ describe('objectsOf', () => {
   } satisfies DescribeResult
 
   it('gives a list its handle, songs in order with their reasons, and what it was for', () => {
-    const [object] = objectsOf({ kind: 'songs', lead: 'next', describe, like: 7 }, 3)
+    const [object] = objectsOf(one({ kind: 'songs', lead: 'next', describe, like: 7 }), 3)
     expect(object).toEqual({
       handle: 't3.1',
       kind: 'songs',
@@ -142,10 +157,11 @@ describe('objectsOf', () => {
 
   it('sends a list as it is shown now: moved on its page, its reasons kept with their songs', () => {
     const now = { ...base, name: 'Rainy', size: 2 }
-    const [object] = objectsOf({ kind: 'songs', lead: 'play', describe, like: null }, 1, {
-      songIds: [13, 11],
-      understanding: now,
-    })
+    const [object] = objectsOf(
+      one({ kind: 'songs', lead: 'play', describe, like: null }),
+      1,
+      new Map([[0, { songIds: [13, 11], understanding: now }]]),
+    )
     expect(object).toMatchObject({
       songIds: [13, 11],
       why: ['rain on glass', 'soft piano'],
@@ -155,7 +171,7 @@ describe('objectsOf', () => {
 
   it('names the songs of a review and of a playlist edit, and nothing for words alone', () => {
     const [tags] = objectsOf(
-      {
+      one({
         kind: 'tags',
         review: {
           changes: [
@@ -187,12 +203,12 @@ describe('objectsOf', () => {
           unsure: [],
           note: null,
         },
-      },
+      }),
       2,
     )
     expect(tags).toMatchObject({ handle: 't2.1', kind: 'tagChanges', songIds: [1, 2, 3] })
     const [edit] = objectsOf(
-      {
+      one({
         kind: 'playlistSongs',
         playlist: 'gym',
         op: 'add',
@@ -202,13 +218,13 @@ describe('objectsOf', () => {
         sortBy: null,
         order: 'asc',
         unknown: [],
-      },
+      }),
       4,
     )
     expect(edit).toMatchObject({ kind: 'playlistSongs', playlist: 'gym', songIds: [5] })
-    expect(objectsOf({ kind: 'none', say: 'No.', try: [] }, 5)).toEqual([])
+    expect(objectsOf(one({ kind: 'clarify', question: 'Which?', options: ['a'] }), 5)).toEqual([])
     expect(
-      objectsOf({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }, 6),
+      objectsOf(one({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }), 6),
     ).toEqual([])
   })
 })

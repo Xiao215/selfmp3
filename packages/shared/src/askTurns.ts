@@ -3,9 +3,10 @@ import {
   ASK_BEFORE_MAX,
   ASK_OBJECT_SONGS,
   ASK_TEXT_MAX,
-  type AskAnswer,
+  type AskCard,
   type AskObject,
   type AskPlaybackOp,
+  type AskReply,
   type AskStatsRange,
   type AskTurn,
   type DescribeResult,
@@ -15,7 +16,7 @@ import { plural } from './format.js'
 
 /**
  * An Ask conversation as a device sends it back (docs/features/ai.md,
- * "Follow-ups"): each answer's recap in words and its objects by handle, and
+ * "Follow-ups"): each reply's recap in words and its objects by handle, and
  * the turns a follow-up is asked after. Here rather than in the app because
  * the server's eval harness (apps/server/src/ai/eval) replays conversations
  * exactly the way the app sends them, and two copies would drift.
@@ -24,10 +25,10 @@ import { plural } from './format.js'
 /** A turn as `beforeTurn` reads it: the app's own carries more. */
 interface AskedTurn {
   readonly asked: string
-  /** What its answer showed, in words (`answerRecap`); null until it is answered. */
+  /** What its reply showed, in words (`answerRecap`); null until it is answered. */
   readonly answered: string | null
-  /** What came of a proposal once it was acted on or put aside ("Fixed 31 songs"). */
-  readonly outcome: string | null
+  /** What came of each proposal in its reply once it was acted on, by the card's place. */
+  readonly outcomes: Readonly<Record<number, string>>
   readonly objects: readonly AskObject[]
 }
 
@@ -38,8 +39,8 @@ export function tooLongToAsk(asked: string): boolean {
 
 /**
  * The conversation the turn at `index` is asked after (F1): each turn before
- * it with what was shown for it and its objects, and what came of a proposal
- * once it did. A long conversation sends only its newest turns, as many as
+ * it with what was shown for it and its objects, and what came of its
+ * proposals once they did. A long conversation sends only its newest turns, as many as
  * the server hears, and the one whose answer is on the screen (`screen`, a
  * handle) wherever it is, so "these" can be acted on however long ago it was
  * asked; a question too long to have been asked is left out, and a recap cut
@@ -58,9 +59,11 @@ export function beforeTurn(
       ? [onScreen, ...asked.slice(-(ASK_BEFORE_MAX - 1))]
       : newest
   return sent.map(turn => {
-    const answered = turn.outcome
-      ? `${turn.answered ?? ''}\nThen: ${turn.outcome}`
-      : (turn.answered ?? '')
+    const outcomes = Object.values(turn.outcomes)
+    const answered =
+      outcomes.length > 0
+        ? `${turn.answered ?? ''}\nThen: ${outcomes.join('; ')}`
+        : (turn.answered ?? '')
     return {
       asked: turn.asked,
       answered:
@@ -104,95 +107,112 @@ const RECAP_CHANGES = 10
 const RECAP_MAX = 2000
 
 /**
- * What an answer showed, in words, for the follow-ups after it (F1): the
- * model hears what it said before, so it answers what is asked now rather
- * than everything again. Words answers are their words; lists and reviews
- * are a line saying what they offered. The songs themselves go as the turn's
- * objects (`objectsOf`), by id, so the recap does not name them.
+ * What a reply showed, in words, for the follow-ups after it (F1): the model
+ * hears what it said before, so it answers what is asked now rather than
+ * everything again. Its own words first, then a line for each card in order:
+ * words are their words, lists and reviews a line saying what they offered,
+ * a playback card what it came to on this device (`carried`, by the card's
+ * place) once it has. The songs themselves go as the turn's objects
+ * (`objectsOf`), by id, so the recap does not name them.
  */
-export function answerRecap(answer: AskAnswer): string {
+export function answerRecap(
+  reply: AskReply,
+  carried: Readonly<Record<number, string>> = {},
+): string {
+  const recap = [
+    reply.say,
+    ...reply.cards.map((card, index) =>
+      card.kind === 'playback' && carried[index] !== undefined ? carried[index] : cardRecap(card),
+    ),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
+}
+
+/** One card of a reply, in words for the model (`answerRecap`). */
+function cardRecap(answer: AskCard): string {
   const picked = (result: DescribeResult): string =>
     `${plural(result.picks.length, 'song', 'songs')} (“${result.understanding.name}”)`
-  const recap = ((): string => {
-    switch (answer.kind) {
-      case 'songs':
-        return `Offered ${picked(answer.describe)} ${LEAD_WORDS[answer.lead]}`
-      case 'together':
-        return answer.describe
-          ? `Offered a listening room with ${picked(answer.describe)}`
-          : 'Offered to open a listening room.'
-      case 'find':
-        return `Found ${plural(answer.picks.length, 'song', 'songs')} that could be it`
-      case 'explore':
-        return answer.say
-      case 'tags':
-        return `Proposed ${plural(answer.review.changes.length, 'tag change', 'tag changes')}: ${answer.review.changes
+  switch (answer.kind) {
+    case 'songs':
+      return `Offered ${picked(answer.describe)} ${LEAD_WORDS[answer.lead]}`
+    case 'together':
+      return answer.describe
+        ? `Offered a listening room with ${picked(answer.describe)}`
+        : 'Offered to open a listening room.'
+    case 'find':
+      return `Found ${plural(answer.picks.length, 'song', 'songs')} that could be it`
+    case 'explore':
+      return answer.say
+    case 'tags':
+      return `Proposed ${plural(answer.review.changes.length, 'tag change', 'tag changes')}: ${answer.review.changes
+        .slice(0, RECAP_CHANGES)
+        .map(change => `${change.op} ${change.tag}${change.to ? ` → ${change.to}` : ''}`)
+        .join('; ')}`
+    case 'tidy':
+      return [
+        answer.tidy.reply,
+        `Proposed ${plural(answer.tidy.changes.length, 'name change', 'name changes')}: ${answer.tidy.changes
           .slice(0, RECAP_CHANGES)
-          .map(change => `${change.op} ${change.tag}${change.to ? ` → ${change.to}` : ''}`)
-          .join('; ')}`
-      case 'tidy':
-        return [
-          answer.tidy.reply,
-          `Proposed ${plural(answer.tidy.changes.length, 'name change', 'name changes')}: ${answer.tidy.changes
-            .slice(0, RECAP_CHANGES)
-            .map(change => `${change.from} → ${change.to}`)
-            .join('; ')}`,
-        ]
-          .filter(Boolean)
-          .join('\n')
-      case 'copies':
-        return `Found ${plural(answer.copies.copies.length, 'song', 'songs')} they have more than once.`
-      case 'remember':
-        return `Offered to remember: ${answer.note}`
-      case 'getMusic':
-        return `Found on 网易云: ${answer.items
-          .map(item => `${item.title} — ${item.artist} (${item.have} of ${item.tracks} theirs)`)
-          .join('; ')}`
-      case 'playlists':
-        return answer.op === 'delete'
-          ? `Proposed deleting the playlists ${answer.names.join(', ')}`
-          : `Proposed renaming ${answer.names.join(', ')} to ${answer.newName ?? ''}`
-      case 'playlistSongs':
-        return answer.op === 'sort'
-          ? `Proposed putting ${answer.playlist} in order by ${answer.sortBy ?? 'name'}`
-          : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}`
-      case 'library': {
-        const listed =
-          answer.show === 'artists'
-            ? answer.artists
-            : answer.show === 'albums'
-              ? answer.albums
-              : answer.show === 'tags'
-                ? answer.tags
-                : null
-        const about = answer.judged && answer.judged.songs < answer.judged.of ? 'About ' : ''
-        const counted = `${about}${plural(answer.count, 'song', 'songs')}`
-        if (!listed) return counted
-        const distinct =
-          answer.show === 'albums'
-            ? answer.distinct.albums
+          .map(change => `${change.from} → ${change.to}`)
+          .join('; ')}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    case 'copies':
+      return `Found ${plural(answer.copies.copies.length, 'song', 'songs')} they have more than once.`
+    case 'remember':
+      return `Offered to remember: ${answer.note}`
+    case 'getMusic':
+      return `Found on 网易云: ${answer.items
+        .map(item => `${item.title} — ${item.artist} (${item.have} of ${item.tracks} theirs)`)
+        .join('; ')}`
+    case 'playlists':
+      return answer.op === 'delete'
+        ? `Proposed deleting the playlists ${answer.names.join(', ')}`
+        : `Proposed renaming ${answer.names.join(', ')} to ${answer.newName ?? ''}`
+    case 'playlistSongs':
+      return answer.op === 'sort'
+        ? `Proposed putting ${answer.playlist} in order by ${answer.sortBy ?? 'name'}`
+        : `Proposed ${answer.op === 'add' ? 'adding' : 'taking out'} ${plural(answer.songs.length, 'song', 'songs')} ${answer.op === 'add' ? 'to' : 'from'} ${answer.playlist}`
+    case 'library': {
+      const listed =
+        answer.show === 'artists'
+          ? answer.artists
+          : answer.show === 'albums'
+            ? answer.albums
             : answer.show === 'tags'
-              ? answer.distinct.tags
-              : answer.distinct.artists
-        return `${counted} in ${distinct} ${answer.show}: ${listed
-          .slice(0, RECAP_CHANGES)
-          .map(each => `${each.label} (${each.count})`)
-          .join('; ')}`
-      }
-      case 'stats':
-        return `${plural(answer.plays, 'play', 'plays')}, ${Math.round(answer.minutes)} min in ${rangeWords(answer.range)}: ${answer.items
-          .map(item => `${item.label} (${item.plays})`)
-          .join('; ')}`
-      case 'open':
-        return answer.say
-      case 'playback':
-        // What it came to is the device's to say (`PlaybackAnswer`); until then, only what was asked.
-        return `Asked to ${PLAYBACK_ASKED[answer.op]}.`
-      case 'none':
-        return answer.say
+              ? answer.tags
+              : null
+      const about = answer.judged && answer.judged.songs < answer.judged.of ? 'About ' : ''
+      const counted = `${about}${plural(answer.count, 'song', 'songs')}`
+      if (!listed) return counted
+      const distinct =
+        answer.show === 'albums'
+          ? answer.distinct.albums
+          : answer.show === 'tags'
+            ? answer.distinct.tags
+            : answer.distinct.artists
+      return `${counted} in ${distinct} ${answer.show}: ${listed
+        .slice(0, RECAP_CHANGES)
+        .map(each => `${each.label} (${each.count})`)
+        .join('; ')}`
     }
-  })()
-  return recap.length > RECAP_MAX ? `${recap.slice(0, RECAP_MAX - 1)}…` : recap
+    case 'stats':
+      return `${plural(answer.plays, 'play', 'plays')}, ${Math.round(answer.minutes)} min in ${rangeWords(answer.range)}: ${answer.items
+        .map(item => `${item.label} (${item.plays})`)
+        .join('; ')}`
+    case 'open':
+      return answer.say
+    case 'playback':
+      // What it came to is the device's to say (`PlaybackAnswer`); until then, only what was asked.
+      return `Asked to ${PLAYBACK_ASKED[answer.op]}.`
+    case 'clarify':
+      return answer.options.length > 0
+        ? `Asked them: ${answer.question} (offered: ${answer.options.join('; ')})`
+        : `Asked them: ${answer.question}`
+  }
 }
 
 /** What a song answer was offered for, after its name in a recap. */
@@ -205,20 +225,34 @@ const LEAD_WORDS: Readonly<Record<'play' | 'save' | 'next', string>> = {
 /** The longest an object's label is. */
 const LABEL_MAX = 120
 
+/** A list's songs as shown now (moved on its page, changed since), and what it understands now. */
+export interface ShownList {
+  readonly songIds: readonly number[]
+  readonly understanding: Understanding
+}
+
 /**
- * What an answer showed, as objects a follow-up can name by handle (F1,
- * AGENT-DESIGN 2.1): its songs by the server's ids in the order shown, each
- * with the reason it was given, and for a list what it understood and what
- * it was for. The handle is `t{turn}.1`, `turn` its place on the page, 1 for
- * the first: an answer is one card today. `shown` is a list's songs as shown
- * now (moved on its page, changed since), `understanding` what it understands
- * now; an answer that showed no songs has none.
+ * What a reply showed, as objects a follow-up can name by handle (F1,
+ * AGENT-DESIGN 2.1): one for each card that showed songs, its songs by the
+ * server's ids in the order shown, each with the reason it was given, and for
+ * a list what it understood and what it was for. The handle is
+ * `t{turn}.{card}`: `turn` the turn's place on the page and `card` the
+ * card's in the reply, 1 for the first of each. `shown` is each list as it
+ * is now, by its card's place in `reply.cards`; a card that showed no songs
+ * has no object.
  */
 export function objectsOf(
-  answer: AskAnswer,
+  reply: AskReply,
   turn: number,
-  shown?: { songIds: readonly number[]; understanding: Understanding },
+  shown: ReadonlyMap<number, ShownList> = new Map(),
 ): AskObject[] {
+  return reply.cards.flatMap((card, index) =>
+    cardObjects(card, `t${turn}.${index + 1}`, shown.get(index)),
+  )
+}
+
+/** One card's object, under its handle (`objectsOf`). */
+function cardObjects(answer: AskCard, handle: string, shown: ShownList | undefined): AskObject[] {
   const object = (
     kind: AskObject['kind'],
     label: string,
@@ -229,7 +263,7 @@ export function objectsOf(
     if (kept.length === 0) return []
     return [
       {
-        handle: `t${turn}.1`,
+        handle,
         kind,
         label: label.length > LABEL_MAX ? `${label.slice(0, LABEL_MAX - 1)}…` : label,
         songIds: kept.map(song => song.songId),
@@ -305,7 +339,7 @@ export function objectsOf(
     case 'playlists':
     case 'open':
     case 'playback':
-    case 'none':
+    case 'clarify':
       return []
   }
 }

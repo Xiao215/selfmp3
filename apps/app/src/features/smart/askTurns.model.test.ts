@@ -8,9 +8,10 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   screen: null,
   before: [],
   answered: `answer ${id}`,
-  outcome: null,
+  outcomes: {},
   objects: [],
   list: null,
+  listHandle: null,
   line: null,
   ...patch,
 })

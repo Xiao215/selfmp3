@@ -1,13 +1,14 @@
 import {
-  PLAYBACK_ASKED,
   EVERY_SONG,
-  rangeWords,
+  PLAYBACK_ASKED,
   plural,
+  rangeWords,
   formatLongDuration,
   tidyValue,
 } from '@selfmp3/shared'
 import type {
-  AskAnswer,
+  AskCard,
+  AskReply,
   AskOrder,
   AskSort,
   BulkEditSongs,
@@ -317,15 +318,27 @@ export function asksOnEnter(text: string, matches: number): boolean {
 const LOG_LINE_MAX = 90
 
 /**
- * An answer as one line of Ask's log (S1, 2026-10-27): what came of it, for a
+ * A reply as one line of Ask's log (S1, 2026-10-27): what came of it, for a
  * person and short — how many songs and their name, what is waiting to be
- * looked over, or the start of what was said. `answerRecap` is the model's.
+ * looked over, or the start of what was said — a part for each card, in
+ * order. `told` is what a card came to on this device, by its place: a
+ * proposal done with ("Fixed 31 songs"), a playback card carried out.
+ * `answerRecap` is the model's.
  */
-export function logLine(answer: AskAnswer): string {
-  const first = (said: string): string => {
-    const line = said.split('\n')[0]?.trim() ?? ''
-    return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
-  }
+export function logLine(reply: AskReply, told: Readonly<Record<number, string>> = {}): string {
+  const line = reply.cards.map((card, index) => told[index] ?? cardLine(card)).join(' + ')
+  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+}
+
+/** The first line of some words, cut to fit the log. */
+function firstLine(said: string): string {
+  const line = said.split('\n')[0]?.trim() ?? ''
+  return line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX - 1)}…` : line
+}
+
+/** One card's part of the log's line (`logLine`). */
+function cardLine(answer: AskCard): string {
+  const first = firstLine
   const songs = (count: number): string => plural(count, 'song', 'songs')
   switch (answer.kind) {
     case 'songs':
@@ -338,8 +351,9 @@ export function logLine(answer: AskAnswer): string {
       return plural(answer.picks.length, 'song found', 'songs found')
     case 'explore':
     case 'open':
-    case 'none':
       return first(answer.say)
+    case 'clarify':
+      return first(answer.question)
     case 'tags':
       return `${plural(answer.review.changes.length, 'tag change', 'tag changes')} to look over`
     case 'tidy':
@@ -362,6 +376,49 @@ export function logLine(answer: AskAnswer): string {
       return `${plural(answer.plays, 'play', 'plays')} in ${rangeWords(answer.range)}`
     case 'playback':
       return `Asked to ${PLAYBACK_ASKED[answer.op]}`
+  }
+}
+
+/**
+ * A card's quiet heading in a reply of several (`AnswerBody`), so each part
+ * of the reply reads as a part of it: "Songs to play", "Tag changes". Null
+ * for words, which need none, and for a question back, always alone.
+ */
+export function cardHeading(card: AskCard): string | null {
+  switch (card.kind) {
+    case 'songs':
+      return card.lead === 'play'
+        ? 'Songs to play'
+        : card.lead === 'save'
+          ? 'Songs to keep'
+          : 'To play next'
+    case 'together':
+      return 'Listening together'
+    case 'find':
+      return 'Could be it'
+    case 'tags':
+      return 'Tag changes'
+    case 'tidy':
+      return 'Name changes'
+    case 'copies':
+      return 'Songs you have twice'
+    case 'remember':
+      return 'To remember'
+    case 'getMusic':
+      return 'To get'
+    case 'playlists':
+    case 'playlistSongs':
+      return 'Playlists'
+    case 'library':
+      return 'In your library'
+    case 'stats':
+      return 'Your listening'
+    case 'playback':
+      return 'Playing'
+    case 'explore':
+    case 'open':
+    case 'clarify':
+      return null
   }
 }
 
@@ -797,7 +854,7 @@ export function sortWords(by: AskSort, order: AskOrder): string {
  * is the new order with any song added since kept at the end.
  */
 export function playlistEditHere(
-  answer: Extract<AskAnswer, { kind: 'playlistSongs' }>,
+  answer: Extract<AskCard, { kind: 'playlistSongs' }>,
   onDevice: (serverId: number) => number | undefined,
   current: readonly number[],
 ): { songIds: number[]; why: Map<number, string> } {

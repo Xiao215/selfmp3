@@ -1,12 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskReply } from '@selfmp3/shared'
 import { sha256 } from '../../util/hash.js'
 import type { Llm } from '../llm.js'
 import { loadCases, songNamed } from './cases.js'
 import {
-  answerWords,
+  replyWords,
   judgeConversation,
   JUDGE_VERSION,
   type JudgedTurn,
@@ -104,7 +104,7 @@ export async function calibrate(
           screen: at > 0 && now?.screen !== 'none' ? 'the songs of the answer before' : null,
           meant: now?.judge ?? null,
           answer: answer
-            ? answerWords(answer, world.song)
+            ? replyWords(answer, world.song)
             : `(failed: ${JSON.stringify(turn.answer)})`,
         }
       })
@@ -146,14 +146,15 @@ export async function calibrate(
 }
 
 /**
- * An old runner's answer as an answer again: its songs back to ids (a song
- * since renamed gets an id no song has, and reads as missing) and the parts
- * older answers did not have yet filled in.
+ * An old runner's answer as a reply again: one card, its songs back to ids (a
+ * song since renamed gets an id no song has, and reads as missing), the parts
+ * older answers did not have yet filled in, and the `none` answer that
+ * replies have no more as the words it said.
  */
-function oldAnswer(answer: unknown, byLabel: ReadonlyMap<string, number>): AskAnswer {
+function oldAnswer(answer: unknown, byLabel: ReadonlyMap<string, number>): AskReply {
   const id = (value: unknown): unknown =>
     typeof value === 'string' ? (byLabel.get(value) ?? -1) : value
-  return JSON.parse(JSON.stringify(answer), (key, value: unknown) => {
+  const card = JSON.parse(JSON.stringify(answer), (key, value: unknown) => {
     if (key === 'songId' || key === 'keep' || key === 'like') return id(value)
     if (key === 'songIds' && Array.isArray(value)) return value.map(id)
     if (value !== null && typeof value === 'object' && 'picks' in value && 'understanding' in value)
@@ -162,6 +163,12 @@ function oldAnswer(answer: unknown, byLabel: ReadonlyMap<string, number>): AskAn
       return { judged: null, distinct: null, ...value }
     if (value !== null && typeof value === 'object' && 'kind' in value && value.kind === 'songs')
       return { like: null, ...value }
+    if (value !== null && typeof value === 'object' && 'kind' in value && value.kind === 'none') {
+      const { say, try: instead } = value as unknown as { say: string; try?: string[] }
+      const tried = instead?.length ? `\nSuggests: ${instead.join(' | ')}` : ''
+      return { kind: 'explore', say: `Says it can't: ${say}${tried}`, songIds: [], get: null }
+    }
     return value
-  }) as AskAnswer
+  }) as AskReply['cards'][number]
+  return { say: null, cards: [card] }
 }

@@ -1,19 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useMutation } from '@tanstack/react-query'
 import { formatLongDuration, plural, type Understanding } from '@selfmp3/shared'
-import {
-  failureText,
-  type,
-  useCreatePlaylist,
-  useLibrary,
-  textStyle,
-  tracking,
-  space,
-} from '@selfmp3/client'
+import { failureText, type, useLibrary, textStyle, tracking, space } from '@selfmp3/client'
 import { useArt } from '../../offline/useArt'
 import { usePlayer, usePlayerCommands } from '../../player/PlayerProvider'
 import { useSelection } from '../../selection/useSelection'
@@ -29,14 +21,13 @@ import { MissingPage } from '../../ui/components/MissingPage'
 import { OrderedSongList } from '../../ui/components/OrderedSongList'
 import { useListActions } from '../../ui/components/useListActions'
 import { useListSelectionBar } from '../../ui/components/useListSelectionBar'
-import { showFailure, showToast } from '../../ui/toast'
 import { useSongsById } from '../../ui/songsById'
 import { useSongColor } from '../../ui/useSongColor'
 import type { ListSource } from '../lists/lists.model'
 import { PlaylistCover } from '../playlists/PlaylistCover'
-import { newPlaylist } from '../playlists/playlists.model'
 import { useFlyToUpNext } from '../queue/useFlyToUpNext'
-import { changeAnswer, editAnswer, keptAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { changeAnswer, editAnswer, reorderAnswer, useKeptAnswer } from './answers.store'
+import { usePlayAsItComes, useSaveAnswer } from './useAnswerLead'
 import { AskedLabel, AskedTitle } from './AskedTitle'
 import { ChangeIt } from './ChangeIt'
 import { answerSongs, describeNotes, parts } from './smart.model'
@@ -67,12 +58,6 @@ export function AnswerScreen(): ReactNode {
 }
 
 /**
- * The answers already played as they came, by their kept id: played once
- * however often they are drawn again (a hidden turn, the page drawn anew).
- */
-const playedAsTheyCame = new Set<string>()
-
-/**
  * An answer's songs and head: its own page's, and Ask's stage when the answer
  * is a list (R1, 2026-10-26). On the stage the question is the title, in the
  * serif, and the list's own name joins the line under it; the corner holds
@@ -81,34 +66,39 @@ const playedAsTheyCame = new Set<string>()
  *
  * On the stage it does what the words led with ("Play now, rest proposes",
  * 2026-10-27): a list asked to play starts playing as it comes, once, as a
- * playback answer is carried out; a list asked to keep leads with one Save,
- * as a playlist by its name, of exactly the songs shown.
+ * playback answer is carried out (`playNow`, the first such list of a
+ * reply); a list asked to keep leads with one Save, as a playlist by its
+ * name, of exactly the songs shown. Beside a reply's other cards it has no
+ * title of its own: the cards stand under the question.
  */
 export function AnswerView({
   id,
   asked,
+  said,
   top,
   lead: ledWith,
+  playNow = false,
 }: {
   id: string | undefined
-  /** On Ask's stage: what was asked, as the title. */
-  asked?: string
+  /** On Ask's stage: what was asked, as the title; null beside a reply's cards, which carry it. */
+  asked?: string | null
+  /** On Ask's stage: the reply's own words, when it had some, under the title. */
+  said?: string | null
   /** On Ask's stage: the way back and the trail, in the corner. */
   top?: ReactNode
   /** On Ask's stage: what the words asked for the list, to play it now or keep it. */
   lead?: 'play' | 'save'
+  /** On Ask's stage: played as it comes. */
+  playNow?: boolean
 }): ReactNode {
   const router = useRouter()
   const { wide } = useLayoutFlags()
   const kept = useKeptAnswer(id)
   const server = useSmartServer()
   const player = usePlayerCommands()
-  const { mutateAsync: createPlaylist } = useCreatePlaylist()
   const { data: library } = useLibrary()
   const byId = useSongsById()
   const artFor = useArt()
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState<string | null>(null)
   const heroRef = useRef<View>(null)
   const fly = useFlyToUpNext()
 
@@ -150,23 +140,8 @@ export function AnswerView({
     onSuccess: (answer, asked) => changeAnswer(asked.answerId, answer, asked.understanding),
   })
 
-  // Asked to play: played as it comes, from the first song, once.
-  const keptId = kept?.id
-  useEffect(() => {
-    if (ledWith !== 'play' || !keptId || ids.length === 0 || playedAsTheyCame.has(keptId)) return
-    const answer = keptAnswer(keptId)
-    if (!answer) return
-    playedAsTheyCame.add(keptId)
-    player.playFrom(ids, 0, {
-      source: {
-        kind: 'answer',
-        text: answer.text,
-        name: answer.result.understanding.name,
-        answerId: keptId,
-      },
-      whole: true,
-    })
-  }, [ledWith, keptId, ids, player])
+  usePlayAsItComes(kept?.id, ids, playNow)
+  const { save, saving, saved } = useSaveAnswer(result, ids)
 
   if (!kept || !result) {
     if (asked !== undefined) return null
@@ -205,29 +180,6 @@ export function AnswerView({
       ]
     : describeNotes(result, ids.length, seconds).slice(1)
 
-  const save = async (): Promise<void> => {
-    const input = newPlaylist('manual', result.understanding.name)
-    if (!input || ids.length === 0 || saving) return
-    setSaving(true)
-    try {
-      const created = await createPlaylist({ input, songIds: ids })
-      setSaved(created.name)
-      showToast(`Saved “${created.name}”`, 'good', {
-        actions: [
-          {
-            label: 'Open',
-            onPress: () =>
-              router.navigate({ pathname: '/playlists/[id]', params: { id: String(created.id) } }),
-          },
-        ],
-      })
-    } catch (caught) {
-      showFailure(`Couldn’t save “${input.name}”`, caught)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const head = (
     <ListHead
       wide={wide}
@@ -263,10 +215,16 @@ export function AnswerView({
       cover={<PlaylistCover songIds={ids} size={wide ? 176 : 196} />}
       titles={
         <>
-          {asked !== undefined ? (
+          {asked === null ? (
+            // Beside a reply's cards: the cards carry the question, the list its name.
+            <Text style={listHeadText.name} numberOfLines={2} testID="answer-name">
+              {result.understanding.name}
+            </Text>
+          ) : asked !== undefined ? (
             <>
               <AskedLabel label="You asked" />
               <AskedTitle asked={asked} testID="answer-name" />
+              {said ? <Text style={styles.said}>{said}</Text> : null}
             </>
           ) : (
             <>
@@ -285,7 +243,7 @@ export function AnswerView({
             </>
           )}
           <Text style={listHeadText.summary}>
-            {asked !== undefined ? `${result.understanding.name} · ` : ''}
+            {typeof asked === 'string' ? `${result.understanding.name} · ` : ''}
             {plural(ids.length, 'song', 'songs')}
             {ids.length > 0 ? ` · ${formatLongDuration(seconds)}` : ''}
             {result.fit > result.picks.length ? ` · picked from ${result.fit} that fit` : ''}
@@ -448,4 +406,5 @@ const styles = StyleSheet.create(theme => ({
   nameLong: { ...textStyle('page'), letterSpacing: tracking.page },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, paddingTop: space.tight },
   note: { color: theme.colors.textMuted, fontSize: type.small },
+  said: { color: theme.colors.textPrimary, ...textStyle('body') },
 }))

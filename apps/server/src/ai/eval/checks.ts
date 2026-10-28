@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3'
 import { z } from 'zod'
-import { detectScript, type AskAnswer } from '@selfmp3/shared'
+import { detectScript, type AskCard, type AskReply } from '@selfmp3/shared'
 
 /**
  * What a turn of an eval case expects, and the checks that hold an answer to
@@ -60,7 +60,7 @@ export const ExpectSchema = z
     /** The cards' kinds in order; a list is any one of them. */
     cards: z.array(z.union([z.string(), z.array(z.string())])).optional(),
     card: z.array(CardExpectSchema).optional(),
-    /** Kinds that must not come; `none` unless `cards` names it. */
+    /** Kinds that must not come; `clarify` unless `cards` names it. */
     noKinds: z.array(z.string()).optional(),
     maxMs: z.number().optional(),
     /** The most model calls the turn may make. */
@@ -69,24 +69,27 @@ export const ExpectSchema = z
   .strict()
 type Expect = z.infer<typeof ExpectSchema>
 
-/**
- * One thing an answer showed, the way the design's reply envelope will carry
- * it (AGENT-DESIGN 2.4): today an answer is one card, so this is where the
- * envelope's cards come in once Stage 3 lands, and nothing else changes.
- */
+/** One card of a reply (AGENT-DESIGN 2.4), with its songs as the checks read them. */
 interface Card {
   readonly kind: string
   /** Its songs, in the order shown. */
   readonly songIds: readonly number[]
   /** How many songs it is about: a library answer counts more than it lists. */
   readonly count: number
-  readonly answer: AskAnswer
+  readonly answer: AskCard
 }
 
-export function cardsOf(answer: AskAnswer): Card[] {
-  const card = (songIds: readonly number[], count = songIds.length): Card[] => [
-    { kind: answer.kind, songIds, count, answer },
-  ]
+export function cardsOf(reply: AskReply): Card[] {
+  return reply.cards.map(cardOf)
+}
+
+function cardOf(answer: AskCard): Card {
+  const card = (songIds: readonly number[], count = songIds.length): Card => ({
+    kind: answer.kind,
+    songIds,
+    count,
+    answer,
+  })
   const unique = (ids: readonly number[]) => [...new Set(ids)]
   switch (answer.kind) {
     case 'songs':
@@ -116,7 +119,7 @@ export function cardsOf(answer: AskAnswer): Card[] {
     case 'playlists':
     case 'open':
     case 'playback':
-    case 'none':
+    case 'clarify':
       return card([])
   }
 }
@@ -187,9 +190,9 @@ export function checkTurn(db: Database.Database, expect: Expect, answered: Answe
   }
   const unwanted =
     expect.noKinds ??
-    (expect.cards?.some(want => (Array.isArray(want) ? want : [want]).includes('none'))
+    (expect.cards?.some(want => (Array.isArray(want) ? want : [want]).includes('clarify'))
       ? []
-      : ['none'])
+      : ['clarify'])
   const bad = kinds.filter(kind => unwanted.includes(kind))
   if (bad.length > 0) add('noKinds', false, `answered ${bad.join(', ')}`)
   if (expect.maxMs !== undefined)

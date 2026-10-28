@@ -162,7 +162,7 @@ describe('smart features turned off in Settings', () => {
     expect(progress).toMatchObject({
       done: true,
       failed: null,
-      answer: { kind: 'none', say: 'Nothing to change.' },
+      answer: { say: null, cards: [{ kind: 'explore', say: 'Nothing to change.' }] },
     })
   })
 

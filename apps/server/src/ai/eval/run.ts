@@ -34,7 +34,13 @@ import { llmFor, smartFeaturesFor, type SmartFeatures } from '../smart.js'
 import { calibrate } from './calibrate.js'
 import { loadCases, songNamed, type EvalCase } from './cases.js'
 import { cardsOf, checkTurn, withEvalFunctions } from './checks.js'
-import { answerWords, judgeConversation, type SongWords, type TurnToJudge } from './judge.js'
+import {
+  cardWords,
+  judgeConversation,
+  replyWords,
+  type SongWords,
+  type TurnToJudge,
+} from './judge.js'
 import { one } from './one.js'
 import {
   diff,
@@ -190,7 +196,12 @@ async function conversation(
   judge: Llm | null,
 ): Promise<CaseResult> {
   const { db, smart, song } = world
-  const asked: { asked: string; answered: string; outcome: null; objects: AskObject[] }[] = []
+  const asked: {
+    asked: string
+    answered: string
+    outcomes: Record<number, string>
+    objects: AskObject[]
+  }[] = []
   const turns: TurnResult[] = []
   for (const [at, turn] of each.turns.entries()) {
     const playing = turn.playing === undefined ? null : songNamed(db, turn.playing)
@@ -224,11 +235,11 @@ async function conversation(
     asked.push({
       asked: turn.text,
       answered: answer ? answerRecap(answer) : NOT_ANSWERED,
-      outcome: null,
+      outcomes: {},
       objects: answer ? objectsOf(answer, at + 1) : [],
     })
     const cards = answer ? cardsOf(answer) : []
-    const words = answer ? answerWords(answer, song) : `(failed: ${error})`
+    const words = answer ? replyWords(answer, song) : `(failed: ${error})`
     turns.push({
       text: turn.text,
       playing,
@@ -246,7 +257,7 @@ async function conversation(
         calls: calls.length,
         playing,
         screen: onScreen?.songIds ?? null,
-        words: card => answerWords(card.answer, song),
+        words: card => [answer?.say, cardWords(card.answer, song)].filter(Boolean).join('\n'),
       }),
       judge: null,
     })

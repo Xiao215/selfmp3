@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskReply } from '@selfmp3/shared'
 import type { Check } from './checks.js'
 import type { JudgedTurn } from './judge.js'
 
@@ -25,7 +25,7 @@ export interface TurnResult {
   /** Why there was no answer, when there was none. */
   readonly error: string | null
   readonly kinds: readonly string[]
-  readonly answer: AskAnswer | null
+  readonly answer: AskReply | null
   /** The answer as the judge read it. */
   readonly words: string
   readonly checks: readonly Check[]

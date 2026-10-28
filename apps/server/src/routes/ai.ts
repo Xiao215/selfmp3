@@ -12,7 +12,7 @@ import {
   ImportNamesRequestSchema,
   type ImportNames,
   RefineRequestSchema,
-  type AskAnswer,
+  type AskReply,
   type AskProgress,
   type DescribeResult,
   type Ok,
@@ -64,7 +64,7 @@ export function aiRoutes(container: Container): Router {
 
   router.post(
     '/ai/ask',
-    route({ body: AskRequestSchema }, ({ body, res }): Promise<AskAnswer> => {
+    route({ body: AskRequestSchema }, ({ body, res }): Promise<AskReply> => {
       allowed()
       return answering(
         container.smart.ask(body.text, body.context, body.ticket, body.before, whileWaited(res)),

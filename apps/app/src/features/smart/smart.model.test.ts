@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type {
-  DescribeResult,
-  Playlist,
-  Song,
-  Tag,
-  TagChange,
-  TidyChange,
-  Understanding,
+import {
+  answerRecap,
+  objectsOf,
+  type AskCard,
+  type AskReply,
+  type DescribeResult,
+  type Playlist,
+  type Song,
+  type Tag,
+  type TagChange,
+  type TidyChange,
+  type Understanding,
 } from '@selfmp3/shared'
 import {
   answerSongs,
@@ -65,6 +69,9 @@ const base: Understanding = {
   sound: null,
   brief: null,
 }
+
+/** A reply of one card and no words of its own, as the router answers today. */
+const one = (card: AskCard): AskReply => ({ say: null, cards: [card] })
 
 describe('parts', () => {
   it('draws each part as a chip, a tag with its hue', () => {
@@ -271,16 +278,110 @@ describe('logLine', () => {
         { songId: 2, why: null },
       ],
     } as unknown as DescribeResult
-    expect(logLine({ kind: 'songs', lead: 'play', describe, like: null })).toBe('2 songs · Ballads')
+    expect(logLine(one({ kind: 'songs', lead: 'play', describe, like: null }))).toBe(
+      '2 songs · Ballads',
+    )
   })
 
   it('says words by their first line, cut short when long', () => {
-    expect(logLine({ kind: 'none', say: 'Not sure.\nTry asking for a tag.', try: [] })).toBe(
-      'Not sure.',
-    )
-    const line = logLine({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null })
+    expect(
+      logLine(
+        one({ kind: 'explore', say: 'Not sure.\nTry asking for a tag.', songIds: [], get: null }),
+      ),
+    ).toBe('Not sure.')
+    const line = logLine(one({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null }))
     expect(line).toHaveLength(90)
     expect(line.endsWith('…')).toBe(true)
+  })
+})
+
+describe('a reply of several cards', () => {
+  const calm = {
+    understanding: { ...base, name: 'Calm' },
+    fit: 4,
+    loosened: [],
+    unknown: [],
+    notes: [],
+    picks: [
+      { songId: 21, why: 'quiet' },
+      { songId: 22, why: null },
+    ],
+  } satisfies DescribeResult
+  const night = {
+    kind: 'tags',
+    review: {
+      changes: [
+        {
+          key: 'a',
+          op: 'add',
+          tag: '夜',
+          isNew: true,
+          to: null,
+          songIds: [21, 22],
+          who: '',
+          why: '',
+          by: 'model',
+        },
+      ],
+      looked: 2,
+      asked: 'tag them 夜',
+      unsure: [],
+      note: null,
+    },
+  } satisfies AskCard
+  const reply: AskReply = {
+    say: 'Two calm songs, and 夜 for both.',
+    cards: [
+      { kind: 'songs', lead: 'play', describe: calm, like: null },
+      { kind: 'remember', note: 'Calm in the evening' },
+      night,
+    ],
+  }
+
+  it('gives each card that showed songs its own handle, by its place in the reply', () => {
+    const objects = objectsOf(
+      reply,
+      4,
+      new Map([[0, { songIds: [22, 21], understanding: calm.understanding }]]),
+    )
+    expect(objects.map(object => [object.handle, object.kind, object.songIds])).toEqual([
+      ['t4.1', 'songs', [22, 21]],
+      ['t4.3', 'tagChanges', [21, 22]],
+    ])
+  })
+
+  it('tells the model its words, then each card in order', () => {
+    expect(answerRecap(reply).split('\n')).toEqual([
+      'Two calm songs, and 夜 for both.',
+      'Offered 2 songs (“Calm”) to play now',
+      'Offered to remember: Calm in the evening',
+      'Proposed 1 tag change: add 夜',
+    ])
+  })
+
+  it('puts what a playback card came to in its place', () => {
+    const skipped: AskReply = {
+      say: null,
+      cards: [{ kind: 'playback', op: 'next', place: null }],
+    }
+    expect(answerRecap(skipped, { 0: 'Nothing is playing.' })).toBe('Nothing is playing.')
+  })
+
+  it('logs a part for each card, what came of one in its place', () => {
+    expect(logLine(reply)).toBe(
+      '2 songs · Calm + Something to remember + 1 tag change to look over',
+    )
+    expect(logLine(reply, { 2: 'Tagged 2 songs' })).toBe(
+      '2 songs · Calm + Something to remember + Tagged 2 songs',
+    )
+  })
+
+  it('logs a question back by the question', () => {
+    expect(
+      logLine(
+        one({ kind: 'clarify', question: 'Which gym?\nYou have two.', options: ['gym', 'gym 2'] }),
+      ),
+    ).toBe('Which gym?')
   })
 })
 

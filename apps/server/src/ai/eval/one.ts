@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { WrappedRangeSchema } from '@selfmp3/shared'
-import { answerWords } from './judge.js'
+import { cardWords, replyWords } from './judge.js'
 import type { EvalWorld } from './run.js'
 
 /**
@@ -23,19 +23,19 @@ export async function one(world: EvalWorld, kind: string, words: readonly string
   switch (kind) {
     case 'ask': {
       const playing = process.env['PLAYING'] ? Number(process.env['PLAYING']) : null
-      console.log(answerWords(await smart.ask(words.join(' '), { playing, screen: null }), song))
+      console.log(replyWords(await smart.ask(words.join(' '), { playing, screen: null }), song))
       return
     }
     case 'describe': {
       const result = await smart.describe({ text: words.join(' '), understanding: null })
-      console.log(answerWords({ kind: 'songs', lead: 'play', describe: result, like: null }, song))
+      console.log(cardWords({ kind: 'songs', lead: 'play', describe: result, like: null }, song))
       return
     }
     case 'tags':
-      console.log(answerWords({ kind: 'tags', review: await smart.untaggedTags() }, song))
+      console.log(cardWords({ kind: 'tags', review: await smart.untaggedTags() }, song))
       return
     case 'tidy':
-      console.log(answerWords({ kind: 'tidy', tidy: await smart.tidy() }, song))
+      console.log(cardWords({ kind: 'tidy', tidy: await smart.tidy() }, song))
       return
     case 'written': {
       const result = await smart.written(WrappedRangeSchema.parse(words[0] ?? 'month'))

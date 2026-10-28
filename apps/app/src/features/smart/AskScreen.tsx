@@ -31,8 +31,8 @@ import {
   objectsOf,
   plural,
   tooLongToAsk,
-  type AskAnswer,
-  type AskObject,
+  type AskReply,
+  type ShownList,
 } from '@selfmp3/shared'
 import {
   ApiError,
@@ -59,7 +59,7 @@ import { usePageBack } from '../../ui/useBackTo'
 import { BackButton } from '../../ui/components/BackButton'
 import { Button } from '../../ui/components/Button'
 import { IconButton } from '../../ui/components/IconButton'
-import { Check, ChevronRight, Sparkle, X } from '../../ui/components/Icons'
+import { ChevronRight, Sparkle, X } from '../../ui/components/Icons'
 import { Chip } from '../../ui/components/Chip'
 import { Kbd } from '../../ui/components/Kbd'
 import { Press } from '../../ui/components/Press'
@@ -75,11 +75,10 @@ import { PlaylistCover } from '../playlists/PlaylistCover'
 import { roomTitle } from '../room/room.model'
 import { useRoom } from '../room/room.store'
 import { AddingToRoom } from '../room/RoomPicks'
-import { AnswerBody } from './AnswerBody'
+import { AnswerBody, TAKES_KEYS } from './AnswerBody'
 import { AskedLabel, AskedTitle } from './AskedTitle'
 import { AnswerView } from './AnswerScreen'
-import { AnswerActions, CLOSED } from './AnswerParts'
-import { SelectableText } from '../../ports/selectableText'
+import { AnswerActions } from './AnswerParts'
 import type { AnswerKeys } from './answerKeys'
 import { askKept } from './askKept'
 import { forgetThread, keepThread, keptThread } from './askThread.store'
@@ -89,6 +88,7 @@ import {
   shownOnServer,
   understandingOf,
   useKeptAnswer,
+  useKeptAnswers,
 } from './answers.store'
 import { afterStop, retried, scrollToShow, type Turn } from './askTurns.model'
 import { askSuggestions, logLine, picksHere } from './smart.model'
@@ -121,6 +121,9 @@ function askKey(
 /** Names each turn, across the app's life: two pages' turns never share one. */
 let nextTurn = 1
 
+/** What a turn's reply came to, as `TurnStage` tells the page. */
+type Answered = Pick<Turn, 'answered' | 'list' | 'listHandle' | 'line' | 'objects'>
+
 /** What a turn that failed was answered with, for the turns after it. */
 const FAILED = '(This could not be answered.)'
 
@@ -129,20 +132,6 @@ const FIRST_STEPS = [
   { doing: 'Reading what you asked', done: 'Read what you asked' },
   { doing: 'Working on the answer', after: 3000 },
 ]
-
-/**
- * Answers that are a proposal: once acted on or put aside (Apply, Close, Not
- * now), the turn folds to the line it was answered with. The rest stay as
- * they are, since playing a song from an answer is not the end of it.
- */
-const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
-  'tags',
-  'tidy',
-  'copies',
-  'remember',
-  'playlists',
-  'playlistSongs',
-])
 
 /**
  * Ask (docs/features/ai.md, "The Ask page"): `/ask?q=…` from Search's Enter or
@@ -157,7 +146,9 @@ const SETTLES: ReadonlySet<AskAnswer['kind']> = new Set([
  * it is worked on, the question and its steps where the answer will be.
  * Pressing a line of the log puts that answer there. On a phone the log is a
  * page of its own: a new question opens its answer full screen, and its ‹
- * comes back to the log. Every turn stays drawn, hidden when it is not the
+ * comes back to the log. A reply of several cards stands as one column of
+ * them, each under its heading (`AnswerBody`); a list among them opens on the
+ * stage in their place, its ‹ back to the cards. Every turn stays drawn, hidden when it is not the
  * one shown, so a question still being answered is not given up by looking
  * at another.
  *
@@ -195,9 +186,10 @@ export function AskScreen(): ReactNode {
     screen,
     before: beforeTurn(was, was.length, screen),
     answered: null,
-    outcome: null,
+    outcomes: {},
     objects: [],
     list: null,
+    listHandle: null,
     line: null,
   })
   const opened = typeof params.q === 'string' ? params.q.trim() : ''
@@ -238,7 +230,9 @@ export function AskScreen(): ReactNode {
   // The answer on the screen, by its object's handle: the list while it wears
   // the chip, or any other answer that showed songs.
   const screen =
-    onLog || (target !== null && !changing) ? null : (shownTurn?.objects[0]?.handle ?? null)
+    onLog || (target !== null && !changing)
+      ? null
+      : (shownTurn?.listHandle ?? shownTurn?.objects[0]?.handle ?? null)
   // The answer's keys (a review's ticks) while the field has nothing typed: letters are a follow-up.
   const answerKeys = !typing && !working ? keys : null
 
@@ -267,24 +261,15 @@ export function AskScreen(): ReactNode {
     askNow.current = ask
   })
   const askFromAnswer = useCallback((words: string) => askNow.current(words), [])
-  const answered = useCallback(
-    (
-      id: number,
-      recap: string,
-      list: string | null,
-      line: string | null,
-      objects: readonly AskObject[],
-    ) => {
-      setTurns(was =>
-        was.map(turn =>
-          turn.id === id ? { ...turn, answered: recap, list, line, objects } : turn,
-        ),
-      )
-    },
-    [],
-  )
-  const settle = useCallback((id: number, outcome: string) => {
-    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, outcome } : turn)))
+  const answered = useCallback((id: number, came: Answered) => {
+    setTurns(was => was.map(turn => (turn.id === id ? { ...turn, ...came } : turn)))
+  }, [])
+  const settle = useCallback((id: number, card: number, outcome: string) => {
+    setTurns(was =>
+      was.map(turn =>
+        turn.id === id ? { ...turn, outcomes: { ...turn.outcomes, [card]: outcome } } : turn,
+      ),
+    )
   }, [])
   // Try again: the turn is worked on again, with its Stop, and the next question waits for it.
   const retry = useCallback((id: number) => setTurns(was => retried(was, id)), [])
@@ -555,7 +540,7 @@ function LogLine({
     ? (list.order ?? picksHere(list.result, server.onDevice).map(pick => pick.songId))
     : []
   const waiting = turn.answered === null
-  const line = waiting ? 'Working on it…' : (turn.outcome ?? turn.line ?? 'Couldn’t answer that')
+  const line = waiting ? 'Working on it…' : (turn.line ?? 'Couldn’t answer that')
   return (
     <Press
       feedback="dim"
@@ -588,7 +573,7 @@ function LogLine({
   )
 }
 
-/** An answer that is not a list: its way back at the top on a phone, the rest scrolling under it. */
+/** An answer that is not only a list: its way back at the top on a phone, the rest scrolling under it. */
 function Stage({
   top,
   hidden = false,
@@ -711,14 +696,8 @@ const TurnStage = memo(function TurnStage({
   top: ReactNode
   via: string | null
   listHeight: number
-  onAnswered: (
-    id: number,
-    recap: string,
-    list: string | null,
-    line: string | null,
-    objects: readonly AskObject[],
-  ) => void
-  onSettle: (id: number, outcome: string) => void
+  onAnswered: (id: number, came: Answered) => void
+  onSettle: (id: number, card: number, outcome: string) => void
   /** Try again, before it is asked again. */
   onRetry: (id: number) => void
   onAsk: (words: string) => void
@@ -735,7 +714,7 @@ const TurnStage = memo(function TurnStage({
   // and its answer collected if the response is lost (`askKept`). A new one
   // each time: a Stop meant for one request must not reach the next.
   const [ticket, setTicket] = useState<string | null>(null)
-  const answer = useQuery<AskAnswer>({
+  const answer = useQuery<AskReply>({
     queryKey: askKey(
       via,
       turn.id,
@@ -767,77 +746,132 @@ const TurnStage = memo(function TurnStage({
   const waiting = !tooLong && (answer.isPending || (answer.isError && answer.isFetching))
   const live = useAskProgress(ticket, waiting)
   const data = answer.data
-  // A list changed in words (Change it) is told as it is now shown, not as it first came.
-  const keptId = data?.kind === 'songs' ? keepAnswer(turn.asked, data.describe) : undefined
-  const kept = useKeptAnswer(keptId)
-  const shown = useMemo(
-    () => (data?.kind === 'songs' && kept ? { ...data, describe: kept.result } : data),
-    [data, kept],
+  // Each songs card is an answer kept on its own (`answers.store`), by its place.
+  const keptIds = useMemo(
+    () =>
+      data?.cards.map(card =>
+        card.kind === 'songs' ? keepAnswer(turn.asked, card.describe) : undefined,
+      ) ?? [],
+    [data, turn.asked],
   )
-  // A playback answer is told as what it came to on this device ("Nothing is playing.").
-  const [carried, setCarried] = useState<string | null>(null)
+  const keptAnswers = useKeptAnswers()
+  // A list changed in words (Change it) is told as it is now shown, not as it first came.
+  const shown = useMemo(() => {
+    if (!data) return undefined
+    const cards = data.cards.map((card, index) => {
+      const kept = keptIds[index] === undefined ? undefined : keptAnswers.get(keptIds[index])
+      return card.kind === 'songs' && kept ? { ...card, describe: kept.result } : card
+    })
+    return { ...data, cards }
+  }, [data, keptIds, keptAnswers])
+  // Each list as it is shown now, by its card's place: what the follow-ups name.
+  const shownLists = useMemo(() => {
+    const lists = new Map<number, ShownList>()
+    keptIds.forEach((id, index) => {
+      const kept = id === undefined ? undefined : keptAnswers.get(id)
+      if (kept) {
+        lists.set(index, {
+          songIds: shownOnServer(kept, server.onServer),
+          understanding: understandingOf(kept),
+        })
+      }
+    })
+    return lists
+  }, [keptIds, keptAnswers, server.onServer])
+  // A playback card is told as what it came to on this device ("Nothing is playing."), by its place.
+  const [carried, setCarried] = useState<Readonly<Record<number, string>>>({})
+  const carriedOut = useCallback(
+    (index: number, came: string) => setCarried(was => ({ ...was, [index]: came })),
+    [],
+  )
+  // The lists that stand on the stage: one to play or keep, with songs, not for a room.
+  const stageLists = data
+    ? data.cards.flatMap((card, index) => {
+        const id = keptIds[index]
+        return card.kind === 'songs' &&
+          card.lead !== 'next' &&
+          !room &&
+          id !== undefined &&
+          card.describe.picks.length > 0
+          ? [{ id, index, lead: card.lead }]
+          : []
+      })
+    : []
+  // A reply that is one list is the list itself; among other cards, one is opened by pressing it.
+  const alone = data?.cards.length === 1 ? (stageLists[0] ?? null) : null
+  const [opened, setOpened] = useState<string | null>(null)
+  const openedList = stageLists.find(each => each.id === opened) ?? null
+  const onStageList = alone ?? openedList
+  // Its list: the one on the stage, or the reply's first; what the field's chip changes.
+  const listed = onStageList ?? stageLists[0] ?? null
   const recap = waiting
     ? null
     : shown
-      ? shown.kind === 'playback' && carried !== null
-        ? carried
-        : answerRecap(shown)
+      ? answerRecap(shown, carried)
       : answer.isError || tooLong
         ? FAILED
         : null
-  // Its list, once it has songs to show: the stage's, and what the field's chip changes.
-  const list =
-    keptId !== undefined && data?.kind === 'songs' && data.describe.picks.length > 0 ? keptId : null
-  // What the log says under the question.
-  const line = waiting
-    ? null
-    : shown
-      ? shown.kind === 'playback' && carried !== null
-        ? carried
-        : logLine(shown)
-      : null
-  // What it showed, for the follow-ups to name by handle: a list as it is shown now.
+  // What the log says under the question: a part per card, what came of each in its place.
+  const line = waiting || !shown ? null : logLine(shown, { ...carried, ...turn.outcomes })
+  // What it showed, for the follow-ups to name by handle: each list as it is shown now.
   const objects = useMemo(
-    () =>
-      recap === null || !shown
-        ? []
-        : objectsOf(
-            shown,
-            number,
-            kept
-              ? {
-                  songIds: shownOnServer(kept, server.onServer),
-                  understanding: understandingOf(kept),
-                }
-              : undefined,
-          ),
-    [recap, shown, number, kept, server.onServer],
+    () => (recap === null || !shown ? [] : objectsOf(shown, number, shownLists)),
+    [recap, shown, number, shownLists],
   )
+  const list = listed?.id ?? null
+  const listHandle = listed ? `t${number}.${listed.index + 1}` : null
   useEffect(() => {
     if (
       recap !== null &&
       (recap !== turn.answered ||
         list !== turn.list ||
+        listHandle !== turn.listHandle ||
         line !== turn.line ||
         JSON.stringify(objects) !== JSON.stringify(turn.objects))
     ) {
-      onAnswered(turn.id, recap, list, line, objects)
+      onAnswered(turn.id, { answered: recap, list, listHandle, line, objects })
     }
-  }, [recap, list, line, objects, turn, onAnswered])
-  const settled = turn.outcome !== null
-  // Only the newest answer's keys work, and only while it is shown whole.
+  }, [recap, list, listHandle, line, objects, turn, onAnswered])
+  // Done with when every review in it is: only the newest answer's keys work, and only while one is open.
+  const settled =
+    data !== undefined &&
+    data.cards.every(
+      (card, index) => !TAKES_KEYS.has(card.kind) || turn.outcomes[index] !== undefined,
+    )
   useEffect(() => {
     if (!onKeys || settled) return undefined
     return () => onKeys(null)
   }, [onKeys, settled])
+  const settleCard = useCallback(
+    (index: number, outcome: string) => onSettle(turn.id, index, outcome),
+    [onSettle, turn.id],
+  )
 
-  const settles = data !== undefined && SETTLES.has(data.kind)
-  // A list to play is the list itself on the stage; one played next, or for
-  // a room, keeps its card, whose button says so.
-  if (list !== null && data?.kind === 'songs' && data.lead !== 'next' && !room) {
+  // A list on the stage is the list itself: the reply's only card, or one opened from among its cards.
+  if (onStageList !== null && data) {
     return (
       <View style={[styles.stage, !onStage && styles.hidden]} testID={`ask-turn-${turn.id}`}>
-        <AnswerView key={list} id={list} asked={turn.asked} top={top} lead={data.lead} />
+        <AnswerView
+          key={onStageList.id}
+          id={onStageList.id}
+          asked={turn.asked}
+          said={alone ? data.say : null}
+          top={
+            alone ? (
+              top
+            ) : (
+              // Back to the reply's cards, on a phone and a computer alike.
+              <BackButton
+                to="/search"
+                always
+                onPress={() => setOpened(null)}
+                testID="ask-to-reply"
+              />
+            )
+          }
+          lead={onStageList.lead}
+          playNow={alone !== null && onStageList.lead === 'play'}
+        />
       </View>
     )
   }
@@ -886,24 +920,22 @@ const TurnStage = memo(function TurnStage({
                 </AnswerActions>
               ) : null}
             </View>
-          ) : turn.outcome !== null && data ? (
-            <Outcome answer={data} outcome={turn.outcome} />
           ) : data ? (
-            <View testID={`ask-answer-${data.kind}`}>
-              <AnswerBody
-                answer={data}
-                text={turn.asked}
-                // A proposal acted on or put aside becomes what came of it; anything
-                // else stays to come back to.
-                onDone={outcome => (settles && outcome ? onSettle(turn.id, outcome) : undefined)}
-                onOpenPage={() => undefined}
-                listHeight={listHeight}
-                onKeys={latest && !settled ? onKeys : undefined}
-                onAsk={onAsk}
-                onCarriedOut={setCarried}
-                beside={wide}
-              />
-            </View>
+            <AnswerBody
+              reply={data}
+              text={turn.asked}
+              outcomes={turn.outcomes}
+              // A proposal acted on or put aside becomes what came of it; anything
+              // else stays to come back to.
+              onSettle={settleCard}
+              onOpenPage={() => undefined}
+              listHeight={listHeight}
+              onKeys={latest && !settled ? onKeys : undefined}
+              onAsk={onAsk}
+              onCarriedOut={carriedOut}
+              onOpenList={setOpened}
+              beside={wide}
+            />
           ) : null}
         </View>
       )}
@@ -932,30 +964,6 @@ function isTextField(target: unknown): boolean {
     element.tagName === 'INPUT' ||
     element.tagName === 'TEXTAREA' ||
     element.isContentEditable === true
-  )
-}
-
-/**
- * A proposal once it is done with (S1): what the model said stays as it was,
- * and the review gives way to one line on what came of it, ticked when
- * something was done.
- */
-function Outcome({ answer, outcome }: { answer: AskAnswer; outcome: string }): ReactNode {
-  const { theme } = useUnistyles()
-  const said = answer.kind === 'tidy' ? answer.tidy.reply : null
-  const done = outcome !== CLOSED
-  return (
-    <View style={styles.outcome}>
-      {said ? <SelectableText style={styles.said}>{said}</SelectableText> : null}
-      <View style={styles.outcomeLine} testID="ask-turn-outcome">
-        {done ? (
-          <View style={styles.tick}>
-            <Check size={iconSize.tiny} color={theme.colors.onPrimary} />
-          </View>
-        ) : null}
-        <Text style={done ? styles.outcomeDone : styles.outcomeClosed}>{outcome}</Text>
-      </View>
-    </View>
   )
 }
 
@@ -1156,19 +1164,6 @@ const styles = StyleSheet.create(theme => ({
   suggestionsLabel: { color: theme.colors.textMuted, fontSize: type.small },
   suggestion: { alignItems: 'flex-start' },
   failed: { gap: space.sm },
-  outcome: { gap: space.md },
-  said: { color: theme.colors.textPrimary, ...textStyle('body') },
-  outcomeLine: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  tick: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.pill,
-    backgroundColor: theme.colors.good,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outcomeDone: { color: theme.colors.textPrimary, ...textStyle('body') },
-  outcomeClosed: { color: theme.colors.textSecondary, ...textStyle('body') },
   // The field floats over the thread's fading foot (C1), with room under it
   // before the player bar or the phone's edge.
   dock: {

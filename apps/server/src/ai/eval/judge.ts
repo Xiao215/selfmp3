@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { plural, type AskAnswer, type DescribeResult } from '@selfmp3/shared'
+import { plural, type AskCard, type AskReply, type DescribeResult } from '@selfmp3/shared'
 import { sha256 } from '../../util/hash.js'
 import type { Llm } from '../llm.js'
 
@@ -40,7 +40,7 @@ const SONGS_SHOWN = 40
 export const JUDGE_VERSION = () => sha256(SYSTEM).slice(0, 8)
 
 const SYSTEM = [
-  'You grade answers from Ask, the assistant in a personal music library app. A person types a request; the app answers with one proposal: songs to play now, play next or keep as a playlist, tag or name changes to approve, songs to add to or take out of a playlist, a count or list from the library, listening stats, a playback control, or words. Nothing changes until the person approves it.',
+  'You grade answers from Ask, the assistant in a personal music library app. A person types a request; the app replies with a few words of its own and one or more cards, in the order the request asked for them. A card is songs to play now, play next or keep as a playlist, tag or name changes to approve, songs to add to or take out of a playlist, a count or list from the library, listening stats, a playback control, words, or a question back when the request could mean different things. Nothing changes until the person approves it.',
   'You get a conversation: each turn with what was asked, the song playing if any, whether an earlier answer\'s songs were on the screen (what "these" and "the 3rd one" point at), what a right answer would be with the library facts it needs, and the answer drawn as text. Songs are drawn as title · artist · album · tags, with the reason the app gave.',
   'Grade every turn on three questions. One: did it do every part of what was asked in this turn, read with the turns before it — the right kind of action, the amount asked for, the songs or things named, the order. Two: does it match the library and the facts given — the right artist, language, mood or era, right numbers, nothing invented. Three: where it did less than asked or could not do something, does it say so plainly, and is what it says true.',
   'A turn passes when the person who asked would be satisfied: it did what was meant, at most with small flaws. It fails when it did something else, did only part without saying so, got the songs or facts materially wrong, or proposes a change that would harm the library. Saying the app cannot do something passes only when that is true and it points to where in the app it can be done, or to what comes closest; a refusal that does neither fails, and so does refusing what the app could do. A proposal to approve counts as doing it.',
@@ -93,8 +93,16 @@ export async function judgeConversation(
   })
 }
 
-/** An answer as text, for the judge and for a person reading the results. */
-export function answerWords(answer: AskAnswer, song: SongWords): string {
+/** A reply as text, for the judge and for a person reading the results: its words, then each card. */
+export function replyWords(reply: AskReply, song: SongWords): string {
+  const cards = reply.cards.map((card, at) =>
+    reply.cards.length > 1 ? `Card ${at + 1}. ${cardWords(card, song)}` : cardWords(card, song),
+  )
+  return [reply.say ? `Said: ${reply.say}` : null, ...cards].filter(Boolean).join('\n')
+}
+
+/** One card as text. */
+export function cardWords(answer: AskCard, song: SongWords): string {
   const songs = (ids: readonly number[], why?: readonly (string | null)[]): string => {
     const lines = ids
       .slice(0, SONGS_SHOWN)
@@ -226,8 +234,8 @@ export function answerWords(answer: AskAnswer, song: SongWords): string {
       return `Points to the ${answer.place} page: ${answer.say}`
     case 'playback':
       return `Playback: ${answer.op}${answer.place === null ? '' : ` (Up next place ${answer.place})`}`
-    case 'none':
-      return `Says it can't: ${answer.say}${answer.try.length ? `\nSuggests: ${answer.try.join(' | ')}` : ''}`
+    case 'clarify':
+      return `Asks back: ${answer.question}${answer.options.length ? `\nOffers: ${answer.options.join(' | ')}` : ''}`
   }
 }
 

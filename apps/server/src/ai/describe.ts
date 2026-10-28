@@ -55,10 +55,18 @@ function lengthWords(seconds: number): string {
  */
 const MAX_CANDIDATES = 300
 
-const PLAN_VERSION = 7
+const PLAN_VERSION = 8
 const PICK_VERSION = 4
 
-const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() })
+/**
+ * A range, or null for none at all. A model told to leave a range alone writes null for the
+ * whole of it as often as it writes both ends null, and the CLI behind cli-bridge checks the
+ * form itself and has the model write every field again when it doesn't fit: that silent second
+ * pass was 4–5 s on most mood requests (measured 2026-10-27). So both are taken.
+ */
+const RangeOut = z.object({ min: z.number().nullable(), max: z.number().nullable() }).nullable()
+
+const NO_RANGE = { min: null, max: null }
 
 /** What the plan returns: an Understanding, kept in step with the shared one. */
 export const PlanOut = z.object({
@@ -423,6 +431,9 @@ export function groundPlan(
     .join('; ')
   const understanding = UnderstandingSchema.parse({
     ...plan,
+    energy: plan.energy ?? NO_RANGE,
+    bpm: plan.bpm ?? NO_RANGE,
+    year: plan.year ?? NO_RANGE,
     // A model writes "" for nothing as often as it writes null.
     sound: plan.sound?.trim() || null,
     brief: brief.slice(0, 200) || null,

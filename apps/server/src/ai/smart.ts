@@ -1,7 +1,7 @@
 import type {
   AiSetup,
   ArtistJoinNames,
-  AskAnswer,
+  AskReply,
   AskRequest,
   ImportNames,
   ImportNamesRequest,
@@ -105,7 +105,7 @@ export class SmartFeatures {
     before: readonly AskTurn[] = [],
     /** Fires when the device's connection closes: with a ticket, the answer goes on a while without it. */
     signal?: AbortSignal,
-  ): Promise<AskAnswer> {
+  ): Promise<AskReply> {
     return this.#progress.outlast(ticket, signal, (steps, stop) =>
       ask(this.#stoppedBy(stop), text, where, steps, before),
     )

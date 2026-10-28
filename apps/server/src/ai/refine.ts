@@ -10,7 +10,7 @@ import {
   type DescribeDeps,
 } from './describe.js'
 import { libraryShape } from './library.js'
-import { Remembered } from './llm.js'
+import { QUICK_MS, Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
 /**
@@ -66,6 +66,8 @@ export async function refine(
         await deps.llm.generate({
           task: 'refine-plan',
           tier: 'fast',
+          json: 'text',
+          timeoutMs: QUICK_MS,
           system: REFINE_SYSTEM,
           prompt,
           schema: PlanOut,

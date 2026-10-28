@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod/v4'
-import { createLogger } from '../logger.js'
+import { createLogger, type Logger } from '../logger.js'
 import { endpointLlm } from './fixtures/library.js'
 import {
+  asksForText,
   Gate,
   jsonSchemaOf,
   LlmError,
@@ -276,6 +277,93 @@ describe('tools', () => {
     const llm = openAiCompatible(settings, { fetch, logger })
     await llm.generate({ ...request, tools: [search], budgetMs: 0 })
     expect(sent[0]!.body['tool_choice']).toBe('none')
+  })
+})
+
+describe('how a call is asked for', () => {
+  /** A logger that keeps what it is told. */
+  function keeping() {
+    const lines: { message: string; fields: unknown }[] = []
+    const log = (message: string, fields?: unknown) => void lines.push({ message, fields })
+    const logger: Logger = {
+      debug: log,
+      info: log,
+      warn: log,
+      error: log,
+      child: () => logger,
+    }
+    return { logger, lines }
+  }
+
+  it('asks for JSON as text with the schema in the prompt, and still checks and repairs it', async () => {
+    const { fetch, calls } = fakeFetch(reply('{"n": "two"}'), reply('{"n": 2, "why": "calm"}'))
+    const llm = openAiCompatible(settings, { fetch, logger })
+    const { value } = await llm.generate({ ...request, json: 'text' })
+    expect(value).toEqual({ n: 2, why: 'calm' })
+    const body = calls[0]!.body
+    expect(body['response_format']).toEqual({ type: 'json_object' })
+    const system = (body['messages'] as { content: string }[])[0]!.content
+    expect(system).toBe(asksForText('sys', 'test-task', jsonSchemaOf(Answer)))
+    expect(system).toContain(JSON.stringify(jsonSchemaOf(Answer)))
+    const repair = (calls[1]!.body['messages'] as { role: string; content: string }[]).at(-1)!
+    expect(repair.content).toContain('does not match the required JSON schema')
+  })
+
+  it('asks the fast tier to think little, unless the task says', async () => {
+    const { fetch, calls } = fakeFetch(
+      reply('{"n": 1, "why": "a"}'),
+      reply('{"n": 1, "why": "a"}'),
+      reply('{"n": 1, "why": "a"}'),
+    )
+    const llm = openAiCompatible(settings, { fetch, logger })
+    await llm.generate(request)
+    await llm.generate({ ...request, tier: 'smart' })
+    await llm.generate({ ...request, tier: 'smart', effort: 'high' })
+    expect(calls.map(each => each.body['reasoning_effort'])).toEqual(['low', undefined, 'high'])
+  })
+
+  it('logs every request’s tokens, a repair’s too', async () => {
+    const used = (content: string, out: number) =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content } }],
+          usage: {
+            prompt_tokens: 100,
+            completion_tokens: out,
+            prompt_tokens_details: { cached_tokens: 80 },
+          },
+        }),
+      )
+    const { fetch } = fakeFetch(used('nope', 7), used('{"n": 1, "why": "a"}', 9))
+    const { logger: kept, lines } = keeping()
+    await openAiCompatible(settings, { fetch, logger: kept }).generate(request)
+    expect(lines.find(line => line.message === 'model call')?.fields).toMatchObject({
+      attempts: 2,
+      requests: 2,
+      tokensIn: 200,
+      tokensOut: 16,
+      tokensCached: 160,
+    })
+  })
+
+  it('waits no longer than the task says, nor than the settings', async () => {
+    const waited: number[] = []
+    const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
+      const signal = init!.signal!
+      const started = Date.now()
+      await new Promise(resolve => signal.addEventListener('abort', resolve))
+      waited.push(Date.now() - started)
+      throw new Error('timed out')
+    }
+    const llm = openAiCompatible({ ...settings, timeoutMs: 60 }, { fetch, logger })
+    await expect(llm.generate({ ...request, timeoutMs: 20 })).rejects.toMatchObject({
+      kind: 'unreachable',
+    })
+    await expect(llm.generate({ ...request, timeoutMs: 5000 })).rejects.toMatchObject({
+      kind: 'unreachable',
+    })
+    expect(waited[0]).toBeLessThan(55)
+    expect(waited[1]).toBeLessThan(1000)
   })
 })
 

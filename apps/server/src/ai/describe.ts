@@ -22,7 +22,7 @@ import {
 } from '@selfmp3/shared'
 import { hasWords, libraryShape, songTable } from './library.js'
 import { normalizeForMatch } from '../services/youtubeMatch.js'
-import { Remembered, type Llm } from './llm.js'
+import { QUICK_MS, PICK_MS, Remembered, type Llm } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
 /**
@@ -492,6 +492,8 @@ export async function describe(
           await deps.llm.generate({
             task: 'describe-plan',
             tier: 'fast',
+            json: 'text',
+            timeoutMs: QUICK_MS,
             system: PLAN_SYSTEM,
             prompt,
             schema: PlanOut,
@@ -652,6 +654,7 @@ export async function narrowAndPick(
           await deps.llm.generate({
             task: 'describe-pick',
             tier: 'smart',
+            timeoutMs: PICK_MS,
             system: PICK_SYSTEM,
             prompt,
             schema: PickOut,

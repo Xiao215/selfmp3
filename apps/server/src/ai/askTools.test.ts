@@ -400,6 +400,33 @@ describe('album_tracks', () => {
     expect(set.allowed(15)).toBe(true)
   })
 
+  it('counts a track theirs when only the script of its title differs', async () => {
+    const theirs = song(50, {
+      title: '聽媽媽的話',
+      artist: '周杰倫',
+      album: '依然范特西',
+      duration: 266,
+    })
+    const listed = {
+      albums: async () => [
+        { id: 'fantasy', url: 'u', title: '依然范特西', artist: '周杰伦', tracks: 2, cover: null },
+      ],
+      albumTracks: async () =>
+        ['听妈妈的话', '千里之外'].map(title => ({
+          title,
+          artist: '周杰伦',
+          album: '依然范特西',
+          duration: 265,
+          url: 'u',
+          thumbnail: null,
+        })),
+      songs: async () => [],
+    }
+    const { call } = toolsFor(depsWith(scriptedLlm({}), { music: listed }, [...SONGS, theirs]))
+    const [album] = await call('album_tracks', { albums: [{ album: '依然范特西' }] })
+    expect(album).toMatchObject({ have: 1, theirs: ['50|聽媽媽的話'], lacking: ['千里之外'] })
+  })
+
   it('is not offered when 网易云 cannot be reached', () => {
     const { tools } = toolsFor()
     expect(tools.map(each => each.name)).not.toContain('album_tracks')

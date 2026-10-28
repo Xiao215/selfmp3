@@ -243,9 +243,13 @@ export function endpointLlm(
   let most = 0
   const fetch = async (_url: string, init?: RequestInit): Promise<Response> => {
     const body = JSON.parse(String(init?.body)) as Sent & {
-      response_format: { json_schema: { name: string } }
+      response_format: { json_schema?: { name: string } }
     }
-    const task = body.response_format.json_schema.name
+    // The schema's name, or for JSON asked as text, the name the prompt gives it.
+    const task =
+      body.response_format.json_schema?.name ??
+      /JSON Schema \("([^"]+)"\)/.exec(body.messages[0]?.content ?? '')?.[1] ??
+      '(unnamed)'
     ;(prompts[task] ??= []).push(body.messages.find(each => each.role === 'user')?.content ?? '')
     ;(sent[task] ??= []).push(body)
     inFlight++

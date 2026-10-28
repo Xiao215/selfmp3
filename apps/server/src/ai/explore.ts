@@ -28,6 +28,8 @@ const VERSION = 5
 const ROUNDS = 6
 /** Time to look, after which it answers with what it has. */
 const BUDGET_MS = 120_000
+/** One round's longest wait. */
+const ROUND_MS = 90_000
 const MAX_SONGS = 50
 
 /** The tools explore offers: every one that looks, none that proposes. */
@@ -101,6 +103,8 @@ export async function explore(
         schema: Out,
         tools: askTools({ ...deps, remembered }, set, { question: text, only: LOOKING, steps }),
         maxRounds: ROUNDS,
+        json: 'text',
+        timeoutMs: ROUND_MS,
         budgetMs: BUDGET_MS,
         webSearch: web,
       })

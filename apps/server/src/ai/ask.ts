@@ -4,7 +4,7 @@ import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './as
 import { none, rulesWords } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
-import { Remembered } from './llm.js'
+import { QUICK_MS, Remembered } from './llm.js'
 import { NO_STEPS, type Steps } from './progress.js'
 import { objectLines, type Held } from './scope.js'
 
@@ -169,6 +169,8 @@ export async function ask(
       .generate({
         task: 'ask-route',
         tier: 'fast',
+        json: 'text',
+        timeoutMs: QUICK_MS,
         system: SYSTEM,
         prompt: prompt + more,
         schema: FORM,

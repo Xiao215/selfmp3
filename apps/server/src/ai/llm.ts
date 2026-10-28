@@ -18,6 +18,14 @@ import { sha256 } from '../util/hash.js'
  * Every reply is parsed and checked against the task's schema here, whatever
  * the endpoint promised: asking for JSON is not receiving it. A reply that
  * fails gets one repair turn with the validation error, then the call fails.
+ * So a task may ask for its JSON as text (`json: 'text'`): the schema goes in
+ * the system prompt and `response_format` is plain `json_object`. Through
+ * cli-bridge that is the faster way: a `json_schema` there becomes a tool the
+ * model fills in, at about twice the output tokens, and re-asked out of our
+ * sight when it does not fit (~/ask-eval-selfmp3/PERF.md, 2026-10-27). A
+ * task says how hard the model should think (`effort`, sent as
+ * `reasoning_effort`); the fast tier thinks little unless it says otherwise.
+ * Each call's tokens are logged, so a retry nobody asked for shows.
  *
  * A task may offer tools (`LlmTool`): the model calls them, they run here and
  * their results go back, a few rounds at most, and then it answers in the
@@ -45,6 +53,7 @@ import { sha256 } from '../util/hash.js'
  */
 
 type Tier = 'fast' | 'smart'
+type Effort = 'low' | 'medium' | 'high'
 
 interface LlmSettings {
   /** Up to and including `/v1`. */
@@ -64,8 +73,15 @@ export interface GenerateRequest<T> {
   readonly system: string
   readonly prompt: string
   readonly schema: z.ZodType<T>
-  /** Shorter than the settings' for a call someone is watching, like Settings' test. */
+  /**
+   * Each request's longest wait, shorter than the settings' for a call that
+   * should be quick (a route, a plan) or that someone is watching.
+   */
   readonly timeoutMs?: number
+  /** How the JSON is asked for: in `response_format` (the default), or as text, the schema in the prompt. */
+  readonly json?: 'schema' | 'text'
+  /** How hard the model thinks: `low` unless said for the fast tier, the endpoint's own for smart. */
+  readonly effort?: Effort
   /** What the model may look up before it answers, run here (`tool`). */
   readonly tools?: readonly LlmTool[]
   /** Rounds of tool calls before it must answer. */
@@ -97,6 +113,13 @@ export function tool<A>(entry: {
 }
 
 const DEFAULT_ROUNDS = 6
+/**
+ * How long a call that should be quick may take: one that writes a short form
+ * (a route, a plan) takes 2–9 s, so past this it has failed, not slowed down.
+ */
+export const QUICK_MS = 30_000
+/** How long a pick from a table may take: 5–12 s measured. */
+export const PICK_MS = 60_000
 /** Requests in flight to one endpoint at once, when the settings do not say. */
 const DEFAULT_CONCURRENCY = 2
 /** The most of one tool result sent back, so one big answer cannot fill the context. */
@@ -159,7 +182,17 @@ type ChatMessage =
     }
   | { readonly role: 'tool'; readonly tool_call_id: string; readonly content: string }
 
+/** What a reply says it cost, where the endpoint says (cli-bridge does). */
+const UsageSchema = z
+  .object({
+    prompt_tokens: z.number().optional(),
+    completion_tokens: z.number().optional(),
+    prompt_tokens_details: z.object({ cached_tokens: z.number().optional() }).nullish(),
+  })
+  .nullish()
+
 const ChatReplySchema = z.object({
+  usage: UsageSchema,
   choices: z
     .array(
       z.object({
@@ -280,6 +313,31 @@ function gateFor(url: string, size: number): Gate {
   return gate
 }
 
+/** What one request is: its messages and how the reply's JSON is asked for. */
+interface Sending {
+  readonly task: string
+  readonly model: string
+  readonly messages: readonly ChatMessage[]
+  /** The schema for `response_format`, or null for JSON as text. */
+  readonly schema: Record<string, unknown> | null
+  readonly timeoutMs: number
+  readonly offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean }
+  readonly effort: Effort | undefined
+  readonly stop: AbortSignal | undefined
+}
+
+/** A reply: its text, its tool calls, and the tokens it cost. */
+interface Replied {
+  readonly content: string
+  readonly calls: ToolCall[]
+  readonly tokens: { readonly in: number; readonly out: number; readonly cached: number }
+}
+
+/** A system prompt that asks for JSON as text, with the schema it must fit (`json: 'text'`). */
+export function asksForText(system: string, task: string, schema: Record<string, unknown>): string {
+  return `${system}\n\nReply with one JSON object and nothing else, no code fence, fitting this JSON Schema ("${task}"):\n${JSON.stringify(schema)}`
+}
+
 /** The JSON Schema a request carries: no `$schema` key, which some endpoints refuse. */
 export function jsonSchemaOf(schema: z.ZodType): Record<string, unknown> {
   const { $schema: _ignored, ...rest } = z.toJSONSchema(schema) as Record<string, unknown>
@@ -315,18 +373,11 @@ export function openAiCompatible(
   const url = `${settings.baseUrl.replace(/\/+$/, '')}/chat/completions`
   const gate = gateFor(url, Math.max(1, settings.concurrency ?? DEFAULT_CONCURRENCY))
 
-  async function ask(
-    task: string,
-    model: string,
-    messages: readonly ChatMessage[],
-    schema: Record<string, unknown>,
-    timeoutMs: number,
-    offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean },
-    stop: AbortSignal | undefined,
-  ): Promise<{ content: string; calls: ToolCall[] }> {
+  async function ask(sending: Sending): Promise<Replied> {
+    const { task, stop } = sending
     if (stop?.aborted) throw stopped(task)
     try {
-      return await gate.run(() => send(task, model, messages, schema, timeoutMs, offer, stop), stop)
+      return await gate.run(() => send(sending), stop)
     } catch (caught) {
       if (stop?.aborted) throw stopped(task)
       throw caught
@@ -334,15 +385,16 @@ export function openAiCompatible(
   }
 
   /** One request, sent once the gate lets it through, and its reply read. */
-  async function send(
-    task: string,
-    model: string,
-    messages: readonly ChatMessage[],
-    schema: Record<string, unknown>,
-    timeoutMs: number,
-    offer: { tools: readonly LlmTool[]; callable: boolean; webSearch: boolean },
-    stop: AbortSignal | undefined,
-  ): Promise<{ content: string; calls: ToolCall[] }> {
+  async function send({
+    task,
+    model,
+    messages,
+    schema,
+    timeoutMs,
+    offer,
+    effort,
+    stop,
+  }: Sending): Promise<Replied> {
     let response: Response
     try {
       response = await fetchImpl(url, {
@@ -354,10 +406,13 @@ export function openAiCompatible(
         body: JSON.stringify({
           model,
           messages,
-          response_format: {
-            type: 'json_schema',
-            json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
-          },
+          response_format: schema
+            ? {
+                type: 'json_schema',
+                json_schema: { name: task.replace(/[^a-zA-Z0-9_-]/g, '_'), strict: true, schema },
+              }
+            : { type: 'json_object' },
+          ...(effort ? { reasoning_effort: effort } : {}),
           ...(offer.tools.length > 0
             ? {
                 tools: offer.tools.map(each => ({
@@ -400,7 +455,16 @@ export function openAiCompatible(
     if (!reply.success)
       throw new LlmError('invalid', 'The model sent something that is not a chat reply')
     const { message } = reply.data.choices[0]!
-    return { content: message.content ?? '', calls: message.tool_calls ?? [] }
+    const usage = reply.data.usage
+    return {
+      content: message.content ?? '',
+      calls: message.tool_calls ?? [],
+      tokens: {
+        in: usage?.prompt_tokens ?? 0,
+        out: usage?.completion_tokens ?? 0,
+        cached: usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      },
+    }
   }
 
   return {
@@ -408,10 +472,17 @@ export function openAiCompatible(
       const started = Date.now()
       const model = settings.models[request.tier]
       const schema = jsonSchemaOf(request.schema)
+      const asText = request.json === 'text'
+      const effort = request.effort ?? (request.tier === 'fast' ? 'low' : undefined)
       const messages: ChatMessage[] = [
-        { role: 'system', content: request.system },
+        {
+          role: 'system',
+          content: asText ? asksForText(request.system, request.task, schema) : request.system,
+        },
         { role: 'user', content: request.prompt },
       ]
+      // Every request's tokens, the hidden ones included: what the call cost.
+      const tokens = { in: 0, out: 0, cached: 0, requests: 0 }
       const tools = request.tools ?? []
       const maxRounds = request.maxRounds ?? DEFAULT_ROUNDS
       let rounds = 0
@@ -426,15 +497,20 @@ export function openAiCompatible(
         let text: string
         // The model's tool calls, run and answered, until it replies or runs out of rounds.
         for (;;) {
-          const reply = await ask(
-            request.task,
+          const reply = await ask({
+            task: request.task,
             model,
             messages,
-            schema,
-            request.timeoutMs ?? settings.timeoutMs,
-            { tools, callable: mayCall(), webSearch: request.webSearch === true },
-            request.signal,
-          )
+            schema: asText ? null : schema,
+            timeoutMs: Math.min(request.timeoutMs ?? settings.timeoutMs, settings.timeoutMs),
+            offer: { tools, callable: mayCall(), webSearch: request.webSearch === true },
+            effort,
+            stop: request.signal,
+          })
+          tokens.in += reply.tokens.in
+          tokens.out += reply.tokens.out
+          tokens.cached += reply.tokens.cached
+          tokens.requests++
           if (reply.calls.length === 0 || !mayCall()) {
             text = reply.content
             break
@@ -466,6 +542,11 @@ export function openAiCompatible(
               model,
               ms,
               attempts: attempt,
+              requests: tokens.requests,
+              tokensIn: tokens.in,
+              tokensOut: tokens.out,
+              tokensCached: tokens.cached,
+              ...(asText ? { json: 'text' } : {}),
               ...(tools.length > 0
                 ? { rounds, toolCalls: called, tools: toolNames, toolErrors: failed }
                 : {}),

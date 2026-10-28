@@ -123,7 +123,14 @@ request ──▶ build context ──▶ model call ──▶ check ──▶ f
   that drops it once nobody is waiting. Requests to one endpoint pass a gate
   (`SELFMP3_AI_CONCURRENCY`, 2), so the calls a pipeline or a tool makes at once queue in
   the server, first come first served, not inside cli-bridge where the wait would count
-  against their timeout. No SDK: it is one `fetch`, like the server's other outbound calls.
+  against their timeout. A task may ask for its JSON as text (`json: 'text'`: the schema in
+  the system prompt, `response_format: json_object`), which through cli-bridge writes about
+  half the output tokens of a `json_schema` and avoids the CLI's hidden re-ask (measured
+  2026-10-27: route p50 3.6 → 2.8 s); the route, the plans and explore do. `effort` goes as
+  `reasoning_effort`, `low` for the fast tier unless a task says. Quick tasks wait 30 s (route,
+  plans) and picks 60 s rather than the settings' 240. The log line carries each call's
+  requests and tokens (in, out, cached), so a retry nobody asked for shows. No SDK: it is one
+  `fetch`, like the server's other outbound calls.
 - **Tasks.** Each model call is a task with four parts kept side by side: a *system prompt*
   that never changes between requests (so a provider can cache it), a *context builder*
   that chooses what the model sees, an *output schema*, and a *check* that grounds the

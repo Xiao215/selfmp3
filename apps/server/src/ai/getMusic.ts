@@ -1,4 +1,5 @@
 import type { AskAnswer, Song } from '@selfmp3/shared'
+import { normalizeForMatch } from '../services/youtubeMatch.js'
 import { sameRecording, sameTitle, within } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
 
@@ -55,7 +56,19 @@ export function haveTrack(
     album: track.album,
     seconds: track.duration || null,
   }
-  return songs.find(song => sameRecording(song, listed) && sameTitle(song, listed))
+  // As written, or once script is set aside: 网易云 writes 周杰倫's 聽媽媽的話 as 周杰伦's 听妈妈的话.
+  const fold = <T extends { title: string; artist: string }>(names: T): T => ({
+    ...names,
+    title: normalizeForMatch(names.title) || names.title,
+    artist: normalizeForMatch(names.artist) || names.artist,
+  })
+  // Folded, the whole title must be the same: a cover's mark (翻自) is folded away with the rest.
+  const folded = fold(listed)
+  return songs.find(song => {
+    if (sameRecording(song, listed) && sameTitle(song, listed)) return true
+    const ours = fold(song)
+    return ours.title === folded.title && sameRecording(ours, folded)
+  })
 }
 
 export async function getMusic(

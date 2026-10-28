@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, plural, type AskCard } from '@selfmp3/shared'
 import { space } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { SongLine } from '../../ui/components/SongLine'
@@ -18,7 +18,7 @@ export function GetMusicAnswer({
   answer,
   onDone,
 }: {
-  answer: Extract<AskAnswer, { kind: 'getMusic' }>
+  answer: Extract<AskCard, { kind: 'getMusic' }>
   onDone: () => void
 }): ReactNode {
   const router = useRouter()

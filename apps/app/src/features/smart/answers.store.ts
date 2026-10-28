@@ -13,6 +13,10 @@ import type { DescribeResult, Understanding } from '@selfmp3/shared'
  * A change said in Ask's field is an answer of its own, kept beside the one it
  * changed (B1, 2026-10-26): the thread is the trail of versions. One made on
  * the answer's page (its Change it, Different songs) changes that answer.
+ *
+ * What is kept is a card, not a reply: each songs card of a reply is an answer
+ * of its own, with its own page, order and changes, however many lists the
+ * reply holds.
  */
 interface KeptAnswer {
   readonly id: string
@@ -45,8 +49,10 @@ function put(answer: KeptAnswer): void {
 }
 
 /**
- * Keep an answer and say where its page is. The same answer asked twice is
- * kept once: one changed since on its page is still the one it came as.
+ * Keep an answer — a songs card's songs — and say where its page is. The same
+ * card drawn twice is kept once: one changed since on its page is still the
+ * one it came as. Two cards of one reply are two answers, though asked in the
+ * same words.
  */
 export function keepAnswer(text: string, result: DescribeResult): string {
   for (const [id, first] of firsts) {
@@ -121,6 +127,15 @@ function subscribe(listener: () => void): () => void {
   return () => {
     listeners.delete(listener)
   }
+}
+
+/** Every answer kept, as they are now: for a reply whose lists are as many as its cards. */
+export function useKeptAnswers(): ReadonlyMap<string, KeptAnswer> {
+  return useSyncExternalStore(
+    subscribe,
+    () => answers,
+    () => answers,
+  )
 }
 
 export function useKeptAnswer(id: string | undefined): KeptAnswer | null {

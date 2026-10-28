@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AskCard,
+  AskReply,
   DescribeResult,
   Playlist,
   Song,
@@ -67,6 +69,9 @@ const base: Understanding = {
   sound: null,
   brief: null,
 }
+
+/** A reply of one card and no words of its own, as the router answers today. */
+const one = (card: AskCard): AskReply => ({ say: null, cards: [card] })
 
 describe('parts', () => {
   it('draws each part as a chip, a tag with its hue', () => {
@@ -266,7 +271,7 @@ describe('askable', () => {
 
 describe('answerRecap', () => {
   it('says only what was asked, not that it was done: the device says what came of it', () => {
-    const recap = answerRecap({ kind: 'playback', op: 'next', place: null })
+    const recap = answerRecap(one({ kind: 'playback', op: 'next', place: null }))
     expect(recap).toBe('Asked to skip to the next song.')
   })
 
@@ -275,7 +280,7 @@ describe('answerRecap', () => {
       understanding: { ...base, name: 'Morning' },
       picks: [{ songId: 4, why: 'bright' }],
     } as unknown as DescribeResult
-    expect(answerRecap({ kind: 'songs', lead: 'save', describe, like: null })).toBe(
+    expect(answerRecap(one({ kind: 'songs', lead: 'save', describe, like: null }))).toBe(
       'Offered 1 song (“Morning”) to keep as a playlist',
     )
   })
@@ -296,7 +301,7 @@ describe('objectsOf', () => {
   } satisfies DescribeResult
 
   it('gives a list its handle, songs in order with their reasons, and what it was for', () => {
-    const [object] = objectsOf({ kind: 'songs', lead: 'next', describe, like: 7 }, 3)
+    const [object] = objectsOf(one({ kind: 'songs', lead: 'next', describe, like: 7 }), 3)
     expect(object).toEqual({
       handle: 't3.1',
       kind: 'songs',
@@ -312,10 +317,11 @@ describe('objectsOf', () => {
 
   it('sends a list as it is shown now: moved on its page, its reasons kept with their songs', () => {
     const now = { ...base, name: 'Rainy', size: 2 }
-    const [object] = objectsOf({ kind: 'songs', lead: 'play', describe, like: null }, 1, {
-      songIds: [13, 11],
-      understanding: now,
-    })
+    const [object] = objectsOf(
+      one({ kind: 'songs', lead: 'play', describe, like: null }),
+      1,
+      new Map([[0, { songIds: [13, 11], understanding: now }]]),
+    )
     expect(object).toMatchObject({
       songIds: [13, 11],
       why: ['rain on glass', 'soft piano'],
@@ -325,7 +331,7 @@ describe('objectsOf', () => {
 
   it('names the songs of a review and of a playlist edit, and nothing for words alone', () => {
     const [tags] = objectsOf(
-      {
+      one({
         kind: 'tags',
         review: {
           changes: [
@@ -357,12 +363,12 @@ describe('objectsOf', () => {
           unsure: [],
           note: null,
         },
-      },
+      }),
       2,
     )
     expect(tags).toMatchObject({ handle: 't2.1', kind: 'tagChanges', songIds: [1, 2, 3] })
     const [edit] = objectsOf(
-      {
+      one({
         kind: 'playlistSongs',
         playlist: 'gym',
         op: 'add',
@@ -372,13 +378,13 @@ describe('objectsOf', () => {
         sortBy: null,
         order: 'asc',
         unknown: [],
-      },
+      }),
       4,
     )
     expect(edit).toMatchObject({ kind: 'playlistSongs', playlist: 'gym', songIds: [5] })
-    expect(objectsOf({ kind: 'none', say: 'No.', try: [] }, 5)).toEqual([])
+    expect(objectsOf(one({ kind: 'clarify', question: 'Which?', options: ['a'] }), 5)).toEqual([])
     expect(
-      objectsOf({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }, 6),
+      objectsOf(one({ kind: 'explore', say: 'None of yours.', songIds: [], get: null }), 6),
     ).toEqual([])
   })
 })
@@ -392,16 +398,110 @@ describe('logLine', () => {
         { songId: 2, why: null },
       ],
     } as unknown as DescribeResult
-    expect(logLine({ kind: 'songs', lead: 'play', describe, like: null })).toBe('2 songs · Ballads')
+    expect(logLine(one({ kind: 'songs', lead: 'play', describe, like: null }))).toBe(
+      '2 songs · Ballads',
+    )
   })
 
   it('says words by their first line, cut short when long', () => {
-    expect(logLine({ kind: 'none', say: 'Not sure.\nTry asking for a tag.', try: [] })).toBe(
-      'Not sure.',
-    )
-    const line = logLine({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null })
+    expect(
+      logLine(
+        one({ kind: 'explore', say: 'Not sure.\nTry asking for a tag.', songIds: [], get: null }),
+      ),
+    ).toBe('Not sure.')
+    const line = logLine(one({ kind: 'explore', say: 'x'.repeat(200), songIds: [], get: null }))
     expect(line).toHaveLength(90)
     expect(line.endsWith('…')).toBe(true)
+  })
+})
+
+describe('a reply of several cards', () => {
+  const calm = {
+    understanding: { ...base, name: 'Calm' },
+    fit: 4,
+    loosened: [],
+    unknown: [],
+    notes: [],
+    picks: [
+      { songId: 21, why: 'quiet' },
+      { songId: 22, why: null },
+    ],
+  } satisfies DescribeResult
+  const night = {
+    kind: 'tags',
+    review: {
+      changes: [
+        {
+          key: 'a',
+          op: 'add',
+          tag: '夜',
+          isNew: true,
+          to: null,
+          songIds: [21, 22],
+          who: '',
+          why: '',
+          by: 'model',
+        },
+      ],
+      looked: 2,
+      asked: 'tag them 夜',
+      unsure: [],
+      note: null,
+    },
+  } satisfies AskCard
+  const reply: AskReply = {
+    say: 'Two calm songs, and 夜 for both.',
+    cards: [
+      { kind: 'songs', lead: 'play', describe: calm, like: null },
+      { kind: 'remember', note: 'Calm in the evening' },
+      night,
+    ],
+  }
+
+  it('gives each card that showed songs its own handle, by its place in the reply', () => {
+    const objects = objectsOf(
+      reply,
+      4,
+      new Map([[0, { songIds: [22, 21], understanding: calm.understanding }]]),
+    )
+    expect(objects.map(object => [object.handle, object.kind, object.songIds])).toEqual([
+      ['t4.1', 'songs', [22, 21]],
+      ['t4.3', 'tagChanges', [21, 22]],
+    ])
+  })
+
+  it('tells the model its words, then each card in order', () => {
+    expect(answerRecap(reply).split('\n')).toEqual([
+      'Two calm songs, and 夜 for both.',
+      'Offered 2 songs (“Calm”) to play now',
+      'Offered to remember: Calm in the evening',
+      'Proposed 1 tag change: add 夜',
+    ])
+  })
+
+  it('puts what a playback card came to in its place', () => {
+    const skipped: AskReply = {
+      say: null,
+      cards: [{ kind: 'playback', op: 'next', place: null }],
+    }
+    expect(answerRecap(skipped, { 0: 'Nothing is playing.' })).toBe('Nothing is playing.')
+  })
+
+  it('logs a part for each card, what came of one in its place', () => {
+    expect(logLine(reply)).toBe(
+      '2 songs · Calm + Something to remember + 1 tag change to look over',
+    )
+    expect(logLine(reply, { 2: 'Tagged 2 songs' })).toBe(
+      '2 songs · Calm + Something to remember + Tagged 2 songs',
+    )
+  })
+
+  it('logs a question back by the question', () => {
+    expect(
+      logLine(
+        one({ kind: 'clarify', question: 'Which gym?\nYou have two.', options: ['gym', 'gym 2'] }),
+      ),
+    ).toBe('Which gym?')
   })
 })
 

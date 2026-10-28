@@ -46,7 +46,7 @@ import {
   MetadataLookupResponseSchema,
   MetadataSuggestionSchema,
   AiSetupSchema,
-  AskAnswerSchema,
+  AskReplySchema,
   AskProgressSchema,
   TidyResultSchema,
   ImportNamesSchema,
@@ -455,7 +455,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       signal?: ClientSignal,
     ) => request('POST', '/api/ai/refine', DescribeResultSchema, input, signal),
 
-    /** The Search box's Ask: one request, routed to one thing the app can do. */
+    /** The Search box's Ask: one request, answered as a reply of a few words and its cards. */
     ask: (
       text: string,
       /** The song playing and the answer on the screen, by the server's ids and handles. */
@@ -464,7 +464,7 @@ export function createApi({ context, fetch }: ApiOptions) {
       /** The conversation before this, when it follows up on an answer. */
       before: readonly AskTurnInput[] = [],
       signal?: ClientSignal,
-    ) => request('POST', '/api/ai/ask', AskAnswerSchema, { text, context, ticket, before }, signal),
+    ) => request('POST', '/api/ai/ask', AskReplySchema, { text, context, ticket, before }, signal),
 
     /**
      * How an Ask named by `ticket` is going, while its answer is on the way;

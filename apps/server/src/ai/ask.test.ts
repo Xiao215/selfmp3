@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import type { Stats } from '@selfmp3/shared'
-import { ask, followed, routeForm, routeSystem, withNotes } from './ask.js'
+import { AskReplySchema, type Stats } from '@selfmp3/shared'
+import { ask as askReply, followed, routeForm, routeSystem, withNotes } from './ask.js'
 import { ASK_ACTIONS, matchPlaylist, songsMatching } from './askActions.js'
 import { SONGS, TAGS, scriptedLlm, song } from './fixtures/library.js'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
+
+/**
+ * Ask's reply, as the router makes it: one card and no words of its own. The
+ * tests read the card.
+ */
+async function ask(...args: Parameters<typeof askReply>) {
+  const reply = await askReply(...args)
+  expect(reply.say).toBeNull()
+  expect(reply.cards).toHaveLength(1)
+  return reply.cards[0]!
+}
+
+/** A dead end with nothing to offer: only its words. */
+const words = (say: string) => ({ kind: 'explore', say, songIds: [], get: null })
 
 /** The song playing, as the device sends it, with nothing on its screen. */
 const whilePlaying = (id: number) => ({ playing: id, screen: null })
@@ -164,12 +178,13 @@ describe('ask, about playlists', () => {
       names: ['hi'],
       newName: '华语慢歌',
     })
-    expect(await ask(rename(['hi'], null), 'rename hi')).toMatchObject({ kind: 'none' })
-    expect(await ask(rename(['nothing'], 'x'), 'rename nothing')).toEqual({
-      kind: 'none',
-      say: 'No playlist here is called “nothing”.',
-      try: [],
+    expect(await ask(rename(['hi'], null), 'rename hi')).toMatchObject({
+      kind: 'explore',
+      songIds: [],
     })
+    expect(await ask(rename(['nothing'], 'x'), 'rename nothing')).toEqual(
+      words('No playlist here is called “nothing”.'),
+    )
   })
 
   it('shows the model the playlists it may name, each with its kind and a live one’s rules', async () => {
@@ -589,11 +604,9 @@ describe('ask', () => {
     const answer = await ask(d, 'fix the names of my YOASOBI songs')
     expect(answer).toMatchObject({ kind: 'tidy', tidy: { looked: 2 } })
     expect(d.llm.asked[1]!.prompt).not.toContain('周杰倫')
-    expect(await ask(d, 'fix the names of my 孙燕姿 songs')).toEqual({
-      kind: 'none',
-      say: 'Your library has no 孙燕姿.',
-      try: [],
-    })
+    expect(await ask(d, 'fix the names of my 孙燕姿 songs')).toEqual(
+      words('Your library has no 孙燕姿.'),
+    )
   })
 
   it('changes the song playing and no other, when the request points at it', async () => {
@@ -611,7 +624,7 @@ describe('ask', () => {
     expect(answer.tidy.changes.map(each => each.songIds)).toEqual([[8]])
     expect(answer.tidy.looked).toBe(1)
     expect(await ask(d, 'this title should end with a !')).toMatchObject({
-      kind: 'none',
+      kind: 'explore',
       say: 'Nothing is playing to look at.',
     })
   })
@@ -792,7 +805,7 @@ describe('ask', () => {
       ],
     })
     expect(await ask(broken, 'hm')).toMatchObject({
-      kind: 'none',
+      kind: 'explore',
       say: expect.stringContaining('which songs you mean'),
     })
     expect(broken.llm.asked[1]!.prompt).toContain('left "filters" empty')
@@ -949,7 +962,7 @@ describe('the router, built from the actions', () => {
       when: 'they want everything shuffled.',
       fields: null,
       filters: 'unused' as const,
-      run: () => ({ kind: 'none' as const, say: 'shuffled', try: [] }),
+      run: () => ({ kind: 'remember' as const, note: 'shuffled' }),
     }
     const actions = [...ASK_ACTIONS, shuffle]
     expect(routeSystem(actions)).toContain('- shuffle: they want everything shuffled.')
@@ -1135,18 +1148,16 @@ describe('ask about a playlist’s songs', () => {
       songs: [{ songId: 14 }, { songId: 9 }, { songId: 7 }],
     })
     const live = deps({ 'ask-route': [edit({ name: 'genshin', op: 'sort', sortBy: 'energy' })] })
-    expect(await ask(live, 'sort genshin')).toMatchObject({ kind: 'none' })
+    expect(await ask(live, 'sort genshin')).toMatchObject({ kind: 'explore', songIds: [] })
   })
 
   it('says when the songs to add to a live playlist are in it already, by the tag it follows', async () => {
     const d = deps({
       'ask-route': [edit({ name: 'jpop live' }, { ...noFilters, artists: ['YOASOBI'] })],
     })
-    expect(await ask(d, 'add the yoasobi songs to jpop live')).toEqual({
-      kind: 'none',
-      say: 'All 2 of those songs are in jpop live already: it holds songs tagged jpop.',
-      try: [],
-    })
+    expect(await ask(d, 'add the yoasobi songs to jpop live')).toEqual(
+      words('All 2 of those songs are in jpop live already: it holds songs tagged jpop.'),
+    )
   })
 
   it('offers the tag change that puts songs into a live playlist, and only says what takes them out', async () => {
@@ -1154,9 +1165,10 @@ describe('ask about a playlist’s songs', () => {
       'ask-route': [edit({ name: 'jpop live' }, { ...noFilters, artists: ['周杰倫'] })],
     })
     expect(await ask(add, 'add jay chou to jpop live')).toEqual({
-      kind: 'none',
-      say: 'jpop live is live: it holds songs tagged jpop, so a song goes in by matching that, and 3 of those songs do not yet. Giving them its tag puts them in.',
-      try: ['give the songs by 周杰倫 the tag jpop'],
+      kind: 'clarify',
+      question:
+        'jpop live is live: it holds songs tagged jpop, so a song goes in by matching that, and 3 of those songs do not yet. Giving them its tag puts them in.',
+      options: ['give the songs by 周杰倫 the tag jpop'],
     })
     const remove = deps({
       'ask-route': [
@@ -1164,11 +1176,11 @@ describe('ask about a playlist’s songs', () => {
       ],
     })
     // Taking a tag off reaches past the playlist, so it is said, not offered as a press.
-    expect(await ask(remove, 'take the slow ones out of jpop live')).toEqual({
-      kind: 'none',
-      say: 'jpop live is live: it holds songs tagged jpop, so a song leaves it by no longer matching that. Taking the tag jpop off them takes them out, and out of that tag everywhere else too.',
-      try: [],
-    })
+    expect(await ask(remove, 'take the slow ones out of jpop live')).toEqual(
+      words(
+        'jpop live is live: it holds songs tagged jpop, so a song leaves it by no longer matching that. Taking the tag jpop off them takes them out, and out of that tag everywhere else too.',
+      ),
+    )
     // Nothing is proposed for a live playlist, so no model judges its songs.
     expect(remove.llm.asked.map(each => each.task)).toEqual(['ask-route'])
   })
@@ -1176,7 +1188,7 @@ describe('ask about a playlist’s songs', () => {
   it('asks which songs when the words choose none', async () => {
     const d = deps({ 'ask-route': [edit({}, noFilters)] })
     expect(await ask(d, 'add songs to running')).toMatchObject({
-      kind: 'none',
+      kind: 'explore',
       say: 'Say which songs to add to running: an artist, an album, a tag, or a kind of song.',
     })
   })
@@ -1226,11 +1238,9 @@ describe('ask, about the music playing', () => {
 
   it('asks which song when the place says none', async () => {
     for (const place of [null, 0]) {
-      expect(await ask(control({ op: 'upNext', place }), 'play the song in Up next')).toEqual({
-        kind: 'none',
-        say: 'Say which song in Up next to play.',
-        try: [],
-      })
+      expect(await ask(control({ op: 'upNext', place }), 'play the song in Up next')).toEqual(
+        words('Say which song in Up next to play.'),
+      )
     }
   })
 
@@ -1253,10 +1263,48 @@ describe('a dead end', () => {
       ],
     })
     expect(await ask(d, 'tag the good ones')).toEqual({
-      kind: 'none',
-      say: 'Say which songs.',
-      try: ['tag the songs that should be jpop'],
+      kind: 'clarify',
+      question: 'Say which songs.',
+      options: ['tag the songs that should be jpop'],
     })
+  })
+
+  it('says only its words when it has nothing to offer', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'none', say: 'I can’t do that.', try: [' '] })],
+    })
+    expect(await ask(d, 'make me a coffee')).toEqual(words('I can’t do that.'))
+  })
+})
+
+describe('the reply', () => {
+  it('holds the router’s one card, with no words of its own, and is what the route sends', async () => {
+    const d = deps({
+      'ask-route': [route({ action: 'remember', remember: { note: 'Chinese names' } })],
+    })
+    const reply = await askReply(d, 'from now on, Chinese names')
+    expect(reply).toEqual({ say: null, cards: [{ kind: 'remember', note: 'Chinese names' }] })
+    expect(AskReplySchema.parse(reply)).toEqual(reply)
+  })
+
+  it('takes up to four cards in the order asked, and a question back only on its own', () => {
+    const remember = { kind: 'remember', note: 'x' }
+    const clarify = { kind: 'clarify', question: 'Which one?', options: ['a', 'b'] }
+    expect(AskReplySchema.safeParse({ say: 'Both.', cards: [remember, remember] }).success).toBe(
+      true,
+    )
+    expect(AskReplySchema.safeParse({ say: null, cards: [clarify] }).success).toBe(true)
+    expect(AskReplySchema.safeParse({ say: null, cards: [clarify, remember] }).success).toBe(false)
+    expect(AskReplySchema.safeParse({ say: null, cards: [] }).success).toBe(false)
+    expect(AskReplySchema.safeParse({ say: null, cards: Array(5).fill(remember) }).success).toBe(
+      false,
+    )
+    expect(
+      AskReplySchema.safeParse({
+        say: null,
+        cards: [{ ...clarify, options: ['a', 'b', 'c', 'd'] }],
+      }).success,
+    ).toBe(false)
   })
 })
 
@@ -1438,10 +1486,8 @@ describe('ask, acting on what an earlier answer showed', () => {
         }),
       ],
     })
-    expect(await ask(d, 'play that one', onScreen, undefined, before)).toEqual({
-      kind: 'none',
-      say: 'Those songs aren’t in your library any more.',
-      try: [],
-    })
+    expect(await ask(d, 'play that one', onScreen, undefined, before)).toEqual(
+      words('Those songs aren’t in your library any more.'),
+    )
   })
 })

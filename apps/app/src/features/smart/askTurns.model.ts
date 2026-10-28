@@ -23,20 +23,27 @@ export interface Turn {
    * asked: a later recap is not a new question.
    */
   readonly before: readonly AskTurn[]
-  /** What its answer showed, in words, for the turns after it; null until it is answered. */
+  /** What its reply showed, in words, for the turns after it; null until it is answered. */
   readonly answered: string | null
   /**
-   * What came of a proposal once it was acted on or put aside ("Fixed 31
-   * songs", `CLOSED`): the turn keeps the model's words and this line (S1).
+   * What came of each proposal in its reply once it was acted on or put aside
+   * ("Fixed 31 songs", `CLOSED`), by the card's place: the card keeps the
+   * model's words and this line (S1).
    */
-  readonly outcome: string | null
+  readonly outcomes: Readonly<Record<number, string>>
   /**
-   * What its answer showed, as objects the turns after it name by handle
-   * (`objectsOf`); empty until it is answered, and for an answer of words.
+   * What its reply showed, as objects the turns after it name by handle
+   * (`objectsOf`), a card's each; empty until it is answered, and for a reply of words.
    */
   readonly objects: readonly AskObject[]
-  /** The kept answer its songs are, once it has some to show; null for any other answer. */
+  /**
+   * The kept answer of the list its reply shows on the stage — its first list
+   * to play or keep, or the one opened beside the cards — once it has songs;
+   * null when it shows none. What the field's chip means.
+   */
   readonly list: string | null
+  /** That list's object's handle (`t2.1`): what the chip puts on the screen. */
+  readonly listHandle: string | null
   /** What came of it, as Ask's log says it under the question (`logLine`); null until answered. */
   readonly line: string | null
 }
@@ -48,8 +55,8 @@ export function tooLongToAsk(asked: string): boolean {
 
 /**
  * The conversation the turn at `index` is asked after (F1): each turn before
- * it with what was shown for it and its objects, and what came of a proposal
- * once it did. A long conversation sends only its newest turns, as many as
+ * it with what was shown for it and its objects, and what came of its
+ * proposals once they did. A long conversation sends only its newest turns, as many as
  * the server hears, and the one whose answer is on the screen (`screen`, a
  * handle) wherever it is, so "these" can be acted on however long ago it was
  * asked; a question too long to have been asked is left out, and a recap cut
@@ -68,9 +75,11 @@ export function beforeTurn(
       ? [onScreen, ...asked.slice(-(ASK_BEFORE_MAX - 1))]
       : newest
   return sent.map(turn => {
-    const answered = turn.outcome
-      ? `${turn.answered ?? ''}\nThen: ${turn.outcome}`
-      : (turn.answered ?? '')
+    const outcomes = Object.values(turn.outcomes)
+    const answered =
+      outcomes.length > 0
+        ? `${turn.answered ?? ''}\nThen: ${outcomes.join('; ')}`
+        : (turn.answered ?? '')
     return {
       asked: turn.asked,
       answered:
@@ -84,7 +93,9 @@ export function beforeTurn(
 
 /** A turn asked again (Try again): waiting for its answer, as a new one is. */
 export function retried(turns: readonly Turn[], id: number): readonly Turn[] {
-  return turns.map(turn => (turn.id === id ? { ...turn, answered: null, objects: [] } : turn))
+  return turns.map(turn =>
+    turn.id === id ? { ...turn, answered: null, outcomes: {}, objects: [] } : turn,
+  )
 }
 
 /**

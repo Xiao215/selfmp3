@@ -4,7 +4,8 @@ import {
   isResting,
   joinedNames,
   NO_JOINS,
-  type AskAnswer,
+  ASK_CLARIFY_OPTIONS,
+  type AskCard,
   type AskOrder,
   type AskSort,
   type DescribePick,
@@ -141,15 +142,20 @@ function chooses(understanding: Understanding): boolean {
   )
 }
 
-/** Not something the box can do, with what it can do instead. */
-export const none = (say: string, tries: readonly string[] = []): AskAnswer => ({
-  kind: 'none',
-  say,
-  try: tries
+/**
+ * Not something the box can do as asked, said: a question back whose options
+ * are the requests it can do that come closest, each asked when pressed, or
+ * only the words when there is nothing to offer.
+ */
+export function instead(say: string, options: readonly string[] = []): AskCard {
+  const offered = options
     .map(each => each.trim())
     .filter(Boolean)
-    .slice(0, 2),
-})
+    .slice(0, ASK_CLARIFY_OPTIONS)
+  return offered.length > 0
+    ? { kind: 'clarify', question: say, options: offered }
+    : { kind: 'explore', say, songIds: [], get: null }
+}
 
 /** The songs a model judged to be what was asked about, and how many of how many it read. */
 interface Judged {
@@ -169,7 +175,7 @@ export function libraryAnswer(
   },
   /** The songs, when a model judged them (`songsThatAre`) rather than the filters alone. */
   chosen?: Judged,
-): AskAnswer {
+): AskCard {
   const songs = deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
@@ -451,14 +457,14 @@ function liveEdit(
   op: 'add' | 'remove' | 'sort',
   /** The songs pointed at, when the request named them by handle. */
   within: readonly Song[] | null = null,
-): AskAnswer {
+): AskCard {
   const songs = within ?? deps.songs()
   const tags = deps.tags()
   const now = deps.now?.() ?? Date.now()
   const rules = playlist.rules
   const holds = rules ? rulesWords(rules, tags) : 'the songs its rules choose'
   if (op === 'sort') {
-    return none(
+    return instead(
       `${playlist.name} is live: it holds ${holds}, in the order its rules set${rules ? ` (by ${rules.orderBy}, ${rules.order === 'asc' ? 'lowest' : 'highest'} first)` : ''}.`,
     )
   }
@@ -470,7 +476,7 @@ function liveEdit(
   )
   const judged = understanding.brief !== null || understanding.sound !== null
   if (!within && !chooses(understanding) && !judged) {
-    return none(
+    return instead(
       `${playlist.name} is live: it holds ${holds}. Say which songs you mean: an artist, an album, a tag, or a kind of song.`,
     )
   }
@@ -487,7 +493,7 @@ function liveEdit(
   if (op === 'add') {
     const missing = fitting.filter(song => !members.has(song.id))
     if (!judged && fitting.length > 0 && missing.length === 0) {
-      return none(
+      return instead(
         `${fitting.length === 1 ? 'That song is' : `All ${fitting.length} of those songs are`} in ${playlist.name} already: it holds ${holds}.`,
       )
     }
@@ -496,19 +502,19 @@ function liveEdit(
       : all
         ? [`give ${meant} the tags ${followed.join(' and ')}`]
         : followed.map(tag => `give ${meant} the tag ${tag}`)
-    return none(
+    return instead(
       `${playlist.name} is live: it holds ${holds}, so a song goes in by matching that${judged ? '' : `, and ${missing.length === 1 ? '1 of those songs does' : `${missing.length} of those songs do`} not yet`}.${tries.length > 0 ? ' Giving them its tag puts them in.' : ''}`,
       tries,
     )
   }
   const inIt = fitting.filter(song => members.has(song.id))
   if (!judged && inIt.length === 0) {
-    return none(`None of those songs are in ${playlist.name}: it holds ${holds}.`)
+    return instead(`None of those songs are in ${playlist.name}: it holds ${holds}.`)
   }
   // Out of a playlist that takes any of its tags, a song goes only when it has none of them left.
   // That is said, never offered as a press: a tag taken off takes the songs out of the tag's own
   // page and every other list following it too, which is more than "out of this playlist" asked.
-  return none(
+  return instead(
     `${playlist.name} is live: it holds ${holds}, so a song leaves it by no longer matching that.${byTags ? ` Taking ${followed.length === 1 ? `the tag ${followed[0]}` : `the tags ${followed.join(', ')}`} off them takes them out, and out of ${followed.length === 1 ? 'that tag' : 'those tags'} everywhere else too.` : ''}`,
   )
 }
@@ -527,7 +533,7 @@ export async function playlistSongs(
    * them.
    */
   within: readonly Song[] | null = null,
-): Promise<AskAnswer> {
+): Promise<AskCard> {
   if (playlist.kind === 'live') return liveEdit(deps, playlist, plan, edit.op, within)
   const songs = deps.songs()
   const tags = deps.tags()
@@ -540,7 +546,7 @@ export async function playlistSongs(
 
   if (edit.op === 'sort') {
     if (!edit.sortBy) {
-      return none(
+      return instead(
         'Say what to sort it by: energy, tempo, title, artist, length, plays, or when they were added.',
       )
     }
@@ -568,7 +574,7 @@ export async function playlistSongs(
     deps.artistNames?.() ?? NO_JOINS,
   )
   if (!within && !chooses(understanding) && understanding.brief === null) {
-    return none(
+    return instead(
       adding
         ? `Say which songs to add to ${playlist.name}: an artist, an album, a tag, or a kind of song.`
         : `Say which songs to take out of ${playlist.name}: an artist, an album, a tag, or a kind of song.`,
@@ -581,7 +587,7 @@ export async function playlistSongs(
   ).filter(song => !pointed || pointed.has(song.id))
   const fitting = songsFitting(pool, tags, understanding, now, deps.artistNames?.())
   if (within && fitting.length === 0) {
-    return none(
+    return instead(
       adding
         ? `${within.length === 1 ? 'That song is' : `All ${within.length} of those songs are`} in ${playlist.name} already.`
         : `None of those songs are in ${playlist.name}.`,
@@ -590,7 +596,7 @@ export async function playlistSongs(
   const answer = (
     chosen: { songId: number; why: string | null }[],
     by: 'rule' | 'model',
-  ): AskAnswer => ({
+  ): AskCard => ({
     kind: 'playlistSongs',
     playlist: playlist.name,
     op: edit.op,

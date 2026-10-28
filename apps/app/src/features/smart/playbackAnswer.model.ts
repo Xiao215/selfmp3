@@ -1,4 +1,4 @@
-import { plural, queueSections, type AskAnswer, type QueueState } from '@selfmp3/shared'
+import { plural, queueSections, type AskCard, type QueueState } from '@selfmp3/shared'
 
 /**
  * Ask's playback answer ("skip this song", "play the last song in Up next")
@@ -46,7 +46,7 @@ function placeWords(place: number): string {
  * Going back and a song in Up next are a jump, which plays it.
  */
 export function playbackStep(
-  answer: Extract<AskAnswer, { kind: 'playback' }>,
+  answer: Extract<AskCard, { kind: 'playback' }>,
   queue: QueueState,
   isPlaying: boolean,
   titleOf: (songId: number) => string | null,

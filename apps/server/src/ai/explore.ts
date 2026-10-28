@@ -5,7 +5,7 @@ import {
   NO_JOINS,
   splitArtists,
   type ArtistJoinNames,
-  type AskAnswer,
+  type AskCard,
   type Song,
   type Tag,
 } from '@selfmp3/shared'
@@ -193,7 +193,7 @@ export async function explore(
   deps: ExploreDeps,
   text: string,
   steps: Steps = NO_STEPS,
-): Promise<Extract<AskAnswer, { kind: 'explore' }>> {
+): Promise<Extract<AskCard, { kind: 'explore' }>> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const web = deps.web?.() ?? false

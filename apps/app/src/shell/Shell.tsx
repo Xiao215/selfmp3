@@ -17,7 +17,7 @@ import { CoverFlight } from '../ui/components/CoverFlight'
 import { MiniPlayer } from '../ui/components/MiniPlayer'
 import { SELECTION_BAR_SPACE, selectionBarLift } from '../ui/components/SelectionBar'
 import { ResumeToast } from '../features/devices/ResumeToast'
-import { IosUpdateNotice } from '../features/settings/IosUpdate'
+import { AppUpdateNotice } from '../features/settings/AppUpdate'
 import { CommandPalette } from '../features/commandPalette/CommandPalette'
 import { NewPlaylist } from '../features/playlists/NewPlaylist'
 import { PlaybackNotices } from '../offline/PlaybackNotices'
@@ -560,7 +560,7 @@ function Toasts({ left = 0 }: { left?: number }): ReactNode {
       pointerEvents="box-none"
     >
       <ResumeToast />
-      <IosUpdateNotice />
+      <AppUpdateNotice />
       <ToastHost />
     </Animated.View>
   )

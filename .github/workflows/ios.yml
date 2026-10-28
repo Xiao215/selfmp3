@@ -6,7 +6,7 @@
 # within the hour rather than the next morning (Xiao, 2026-10-26). One build at
 # a time: while one runs, GitHub keeps only the newest push waiting and drops
 # the ones before it, so a busy day is a few builds, the last one main's. The
-# app says so in a toast at most once a day (`announcesIosBuild`). Nightly
+# app says so in a toast at most once a day (`announcesBuild`). Nightly
 # too, which builds only when the app has changed since the build on the
 # release; and at once from "Run workflow". The signing is the repository's
 # secrets, set from a Mac that has it by apps/app/scripts/ios-signing-secrets.mjs.

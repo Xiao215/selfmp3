@@ -1,36 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  IOS_INSTALL_LINK,
-  IOS_INSTALL_PAGE_URL,
-  fetchIosLatest,
-  iosAssetUrl,
-  announcesIosBuild,
-  IOS_ANNOUNCE_GAP_MS,
-  IOS_INSTALL_WATCH_MS,
-  iosInstallOutcome,
-  isNewerIosBuild,
-  iphoneKey,
-  renderIosManifest,
-  type IosLatest,
-} from './iosApp.js'
-
-const latest = (build: number): IosLatest => ({
-  version: '1.0.0',
-  build,
-  commit: 'abc1234',
-  publishedAt: '2026-10-24T00:00:00Z',
-  devices: [],
-})
-
-const answer = (status: number, body: unknown = {}): typeof fetch =>
-  (() => Promise.resolve(new Response(JSON.stringify(body), { status }))) as typeof fetch
+import { IOS_INSTALL_LINK, iosAssetUrl, iphoneKey, renderIosManifest } from './iosApp.js'
 
 describe('the iPhone app for friends', () => {
   it('keeps every build at one address, on its own release', () => {
     expect(iosAssetUrl('selfmp3.ipa')).toBe(
       'https://github.com/Xiao215/selfmp3/releases/download/ios/selfmp3.ipa',
     )
-    expect(IOS_INSTALL_PAGE_URL).toBe('https://xiao215.github.io/selfmp3/install/')
   })
 
   it('installs through the manifest, its address encoded whole', () => {
@@ -44,39 +19,6 @@ describe('the iPhone app for friends', () => {
     expect(key).toMatch(/^[0-9a-f]{64}$/)
     expect(await iphoneKey('00008140-00094d0436f3001c')).toBe(key)
     expect(key).not.toContain('00008140')
-  })
-
-  it('offers a build only when it is later than this one', () => {
-    expect(isNewerIosBuild(latest(120), 119)).toBe(true)
-    expect(isNewerIosBuild(latest(120), 120)).toBe(false)
-    expect(isNewerIosBuild(latest(120), 121)).toBe(false)
-    expect(isNewerIosBuild(null, 1)).toBe(false)
-    expect(isNewerIosBuild(latest(120), Number.NaN)).toBe(false)
-  })
-
-  it('tells, on starting again, whether the build handed to iOS went in', () => {
-    const tried = { build: 120, at: 0 }
-    expect(iosInstallOutcome(tried, 120, 60_000)).toBe('in')
-    expect(iosInstallOutcome(tried, 121, 60_000)).toBe('in')
-    expect(iosInstallOutcome(tried, 119, 60_000)).toBe('not-in')
-    expect(iosInstallOutcome(tried, 119, IOS_INSTALL_WATCH_MS + 1)).toBeNull()
-    expect(iosInstallOutcome(null, 119, 0)).toBeNull()
-    expect(iosInstallOutcome(tried, Number.NaN, 0)).toBeNull()
-  })
-
-  it('says a newer build is ready at most once a day, and each build once', () => {
-    const day = IOS_ANNOUNCE_GAP_MS
-    expect(announcesIosBuild(120, null, 0)).toBe(true)
-    expect(announcesIosBuild(121, { build: 120, at: 0 }, day - 1)).toBe(false)
-    expect(announcesIosBuild(121, { build: 120, at: 0 }, day)).toBe(true)
-    expect(announcesIosBuild(120, { build: 120, at: 0 }, day * 3)).toBe(false)
-  })
-
-  it('reads the release’s build, and takes no release or a strange answer as none', async () => {
-    await expect(fetchIosLatest(answer(200, latest(7)))).resolves.toEqual(latest(7))
-    await expect(fetchIosLatest(answer(404))).resolves.toBeNull()
-    await expect(fetchIosLatest(answer(200, { build: 'seven' }))).resolves.toBeNull()
-    await expect(fetchIosLatest(answer(503))).rejects.toThrow('503')
   })
 
   it('writes a manifest that names the app and escapes what it quotes', () => {

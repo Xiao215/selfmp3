@@ -10,7 +10,7 @@ import { Button } from '../../ui/components/Button'
 import { Check } from '../../ui/components/Icons'
 import { card } from '../../ui/surfaces'
 import { showFailure } from '../../ui/toast'
-import { useIosUpdateStatus, versionLabel } from './IosUpdate'
+import { useAppUpdateStatus, versionLabel } from './AppUpdate'
 
 /** Where an update check has got to, as the About card says it. */
 export interface UpdateStatus {
@@ -28,14 +28,14 @@ export interface UpdateStatus {
 /**
  * Settings' first card (B, 2026-10-26): which self.mp3 this is, and whether a
  * newer one is waiting. The app's mark, its name and version, and — where
- * this copy can be replaced, the desktop app and an iPhone's shared build —
+ * this copy can be replaced, the desktop app and a phone's shared build —
  * one line on the update check with the one thing to do about it. A browser
  * tab is whatever the server last sent, so it has the version alone.
  */
 export function AboutCard(): ReactNode {
-  const ios = useIosUpdateStatus()
+  const phone = useAppUpdateStatus()
   const desktop = useDesktopUpdateStatus()
-  const status = ios ?? desktop
+  const status = phone ?? desktop
   return (
     <View style={styles.card} testID="settings-about">
       <View style={styles.mark}>

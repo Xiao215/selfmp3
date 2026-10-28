@@ -21,7 +21,9 @@ emulator.** On 2026-10-24 a debug build (`assembleDebug`, arm64-v8a, the SDK
 from Homebrew's `android-commandlinetools` cask) compiled — the track-player
 alpha included — and on an API 36 emulator it signed in to a fake doorman,
 showed the library and streamed and played a bucket song through the loopback
-server. Nothing has run on an Android phone, and the rest of the Android claims
+server. On 2026-10-27 a signed release build (arm64, 53 MB) ran on the same
+emulator, and updated itself over the running app from a newer build on a stand-in
+release. Nothing has run on an Android phone, and the rest of the Android claims
 in this file are still read out of the generated project or reasoned about.
 Treat the first build on a phone as the real test. What to check on a phone before calling a build good is in
 [PREPROD.md](PREPROD.md).
@@ -340,8 +342,8 @@ even unlisted, is not an option: guideline 5.2.3 refuses apps that download medi
 other services.)
 
 **A friend** opens `/install/` beside the web app (`install/index.html`), in Safari
-(`packages/shared/src/installPage.ts`; opened anywhere else — WeChat's browser, Chrome,
-a computer — it says where to open it instead):
+(`packages/shared/src/installPage.ts`, the page both phones install from; opened
+anywhere else — WeChat's browser, Chrome, a computer — it says where to open it instead):
 
 1. They type their name and tap **Get my iPhone ID**, which installs a profile service
    from the doorman (`apps/doorman/src/device.ts`). The iPhone hands over its UDID, the
@@ -435,8 +437,8 @@ signs without the widget's App Group, for profiles made before it was assigned.
 **Updates.** The build number is main's commit count (`app.config.js`; the workflow
 checks out all of history for it). An installed release build reads `ios.json` and,
 when the release's build is larger, says so in a toast, at most once a day however many
-builds came out (`announcesIosBuild`); Settings' About card says
-whether it is up to date, checks on asking and installs (`features/settings/IosUpdate.tsx`).
+builds came out (`announcesBuild`); Settings' About card says
+whether it is up to date, checks on asking and installs (`features/settings/AppUpdate.tsx`).
 Install brings up the same iOS question as the page; the app's data stays. After iOS's
 own Install it downloads the build but puts it in only once self.mp3 has left the
 screen, and from inside the app nothing shows that. So a message stays up saying the
@@ -532,16 +534,90 @@ cd apps/app
 npx expo run:android --variant release
 ```
 
-Expo signs it with the generated debug keystore, which is fine for a phone you
-own and useless for the Play Store.
+Without the app's key (below) it is signed with the debug keystore prebuild
+generates, which is fine for a phone you own; a build to share with friends is
+signed with the key.
+
+### Sharing the Android app
+
+Friends install an APK they download from the install page. Android lets any phone
+install an app from outside the Play Store once the person allows their browser to
+install apps, so there is none of the iPhone's machinery: no list of phones, no
+profiles, no expiry, no admin page. (The Play Store is not an option, for the same
+reason as the App Store: it refuses apps that download from YouTube.)
+
+**A friend** opens `/install/` on their phone. The page is both phones' and shows the
+one it is opened on (`#android` or `#iphone` names one outright, for a link sent from a
+computer; WeChat's browser and computers are told where to open it). **Download
+self.mp3** fetches `selfmp3.apk` from the `android` release; opening the download brings
+up Android's installer, which the first time asks to let the browser install apps.
+
+**The key.** Android installs an update only over an app signed with the same key, so
+every shared build is signed with one key, for good: a build signed with another cannot
+update an installed app, and installing it means uninstalling first, losing everything
+kept on the phone. The key is a PKCS#12 keystore in `~/.android-signing`, described by
+`~/.android-signing/release.json`:
+
+```json
+{
+  "storeFile": "/Users/<you>/.android-signing/selfmp3-release.p12",
+  "storePassword": "…",
+  "keyAlias": "selfmp3",
+  "keyPassword": "…"
+}
+```
+
+**Back it up somewhere that is not this Mac.** There is no getting it back.
+`plugins/withReleaseSigning.js` hands it to Gradle as properties; without them a release
+build keeps the debug keystore. Made once with:
+
+```bash
+keytool -genkeypair -storetype PKCS12 -keystore ~/.android-signing/selfmp3-release.p12 \
+  -alias selfmp3 -keyalg RSA -keysize 4096 -validity 36500 -dname "CN=self.mp3, O=self.mp3"
+```
+
+**GitHub builds it.** `.github/workflows/android.yml` runs when the iPhone workflow does
+(every push to main that changes the app, nightly when it changed, and **Run workflow**),
+on Linux, with the SDK the runner has. It signs with two repository secrets, set from
+the Mac with the key:
+
+```bash
+base64 -i ~/.android-signing/selfmp3-release.p12 | gh secret set ANDROID_KEYSTORE
+jq -r .storePassword ~/.android-signing/release.json | gh secret set ANDROID_KEYSTORE_PASSWORD
+```
+
+**Or by hand,** from a commit on main, with `ANDROID_HOME` set:
+
+```bash
+cd apps/app
+npm run release:android -- --publish
+```
+
+Either way, `scripts/android-release.mjs` prebuilds, builds the release APK for arm64
+only (every Android phone of recent years; the other three architectures would double
+the download), checks it carries the key's certificate, and puts `selfmp3.apk` and
+`android.json` on the `android` release, a prerelease that is never the latest. Leave out
+`--publish` to build without uploading: the files land in `apps/app/build/android`.
+
+**Updates.** The versionCode is main's commit count, as the iPhone's build number is, and
+Android refuses to put a smaller one over a larger. An installed release build reads
+`android.json` and offers a newer build the way the iPhone app does
+(`features/settings/AppUpdate.tsx`). Install downloads the APK into the cache and opens
+Android's installer with it (`src/ports/appUpdate.ts`, through `expo-intent-launcher`;
+the manifest's `REQUEST_INSTALL_PACKAGES` is what lets it), which the first time asks to
+let self.mp3 install apps. Putting the build in ends the app, so the installer closing
+with self.mp3 still running means it did not go in, and the app says so. On Android 16
+that is what the first time looks like: once self.mp3 is allowed, the installer has
+already gone, and the message's Install brings it back with "Do you want to update this
+app?" (checked on an API 36 emulator, 2026-10-27, against a stand-in for the release).
 
 ### What could break the first Android build
 
 Ranked by likelihood:
 
 1. **react-native-track-player 5.0.0-alpha0 compiling at all.** It did, in a
-   debug build on 2026-10-24, and played on an emulator; a release build has
-   not been tried. See [Why the track-player alpha](#why-the-track-player-alpha).
+   debug build on 2026-10-24, and played on an emulator; a release build
+   compiled and launched on 2026-10-27, but has not played a song yet. See [Why the track-player alpha](#why-the-track-player-alpha).
 2. **Expo packages a patch behind** what the SDK now expects. Run
    `npx expo install --check` first and accept the patches: patch releases
    during an SDK's life are mostly build and prebuild fixes.
@@ -557,7 +633,7 @@ Ranked by likelihood:
 
 Settled on an emulator (2026-10-24): the debug Gradle build and its C++, the
 app launching, and a streamed song playing. Still unknown, because it needs a
-phone: a release build, audio focus, lock-screen controls, downloads, and
+phone: playing in a release build, audio focus, lock-screen controls, downloads, and
 everything in [Android Auto](#android-auto).
 
 ### expo-doctor

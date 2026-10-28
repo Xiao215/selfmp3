@@ -291,19 +291,32 @@ function scopeSongs(
 ): { songs: Song[]; meta: SetMeta; why: ReadonlyMap<number, string>; label: string | null } {
   const resolved = context.set.resolve(from)
   // A whole set is what it was made as; a part of it keeps only each song's reason.
-  const whole = Boolean(from?.set) && !from?.pick && !from?.drop && !from?.ids && !from?.filters
   const set = from?.set ?? null
+  // Places in a set still answer what it understood; ids or filters over it are another list.
+  const within = Boolean(set) && !from?.ids && !from?.filters
   return {
     songs: resolved.songs,
-    meta: set ? (whole ? context.set.metaOf(set) : partOf(context.set.metaOf(set))) : {},
+    meta: set
+      ? within
+        ? partOf(context.set.metaOf(set), Boolean(from?.pick || from?.drop))
+        : {}
+      : {},
     why: set ? context.set.whyOf(set) : new Map(),
     label: set ? context.set.labelOf(set) : null,
   }
 }
 
-/** What a part of a set keeps of what the set was made as. */
-function partOf(meta: SetMeta): SetMeta {
-  return { like: meta.like, lead: meta.lead, terms: meta.terms }
+/** What the songs of a set, or some of them by place, keep of what it was made as. */
+function partOf(meta: SetMeta, part: boolean): SetMeta {
+  if (!part) return meta
+  return {
+    like: meta.like,
+    lead: meta.lead,
+    terms: meta.terms,
+    understanding: meta.understanding
+      ? { ...meta.understanding, size: null, minutes: null }
+      : undefined,
+  }
 }
 
 /** A list's answer, as Describe gives one: what it understood, how many fit, and the songs. */

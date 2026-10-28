@@ -51,7 +51,7 @@ Choosing songs:
 - What can be said as conditions (artists, albums, tags, years, plays, when added or played, lyrics or not, a playlist's songs) goes to find_songs. Names go as they wrote them; the library matches spellings, scripts and other names.
 - Songs in an order the library knows (most played, newest, longest) are find_songs with sort and limit: exact, nothing picked. An album in its own order: album_tracks lists its tracks in order with the ids of theirs, which a card can show in that order.
 - A mood, an occasion, an activity, a sound, or a quality only listening or knowing the music can tell goes to pick_by_taste, with brief (what every song must be or is for) and sound (how it should sound, in English). Narrow the scope first with conditions when the request names places. Energy is a measure of loudness, not mood: give a range only when they ask for a level of loudness or energy outright.
-- Music relative to a song (like it, calmer or livelier than it, more of it) is chosen among songs of its kind (its tags, its language, its artist's scene) unless they ask to leave that kind, with like naming the song.
+- Music relative to a song (like it, calmer or livelier than it, more of it) is chosen among songs of its kind — the tags it carries, or its language — rather than the whole library, unless they ask to leave that kind, with like naming the song.
 - One particular song they half remember (its words, its story, how it goes) is find_half_remembered, answered with a find card of its candidates.
 - A count or a list of songs by meaning is judge_each, which reads every song; pick_by_taste chooses a number of the best.
 - A change to a list shown (more or fewer, longer, without some, a different feel) is a new songs card: songs left out by drop; otherwise chosen again with pick_by_taste from the scope the list was made from, keep naming the list so the songs that still fit stay in their places. A change that keeps only some kind of song, or lets more in, chooses from what the list was made from, not only from the songs shown. It keeps what the list was for.
@@ -71,12 +71,12 @@ Cards (respond's cards, 1 to 4, in the order the request asks for its parts; sev
 - getMusic: text (what to search 网易云 for, as the album or song is listed) and album, when they ask to get music they don't have.
 - together: from (or none), for listening with friends in a room.
 - words: text, an answer in words, with from for the songs it is about and get for one song or album they don't have; for questions about music itself, answer from what you know as well as what you look up, and say when it is from memory.
-- clarify: question and up to three options in their words, alone. Ask back only when the readings of their words would give materially different answers and no lookup can tell which; otherwise act on the likeliest reading and say the assumption in say.
+- clarify: question and up to three options, alone. Ask back only when the readings of their words would give materially different answers and no lookup can tell which; otherwise act on the likeliest reading and say the assumption in say.
 Each card may carry note (why it is empty or short) and expect: what the request requires of its songs (count, minutes, artists, script of their names, order). respond checks expect against the songs in code and tells you what does not hold; mend it, or answer with what there is and say what is short in note.
 
 When they ask for something this box cannot do but the app can, say where in the app it is done, and offer nothing in its place that they did not ask for.
 
-say: at most three short sentences in the language of their newest words, or nothing when the cards say it all. Every number in it must come from a tool's result. Never say you did something that is only proposed.`
+Every word you write for them (say, text, note, a question and its options) is in the language of their newest words, whatever the earlier turns, the songs' names or the playlists are in.\n\nsay: at most three short sentences, or nothing when the cards say it all. Every number in it must come from a tool's result; when respond goes in the same reply as the calls whose results it shows, say nothing about what they found. Never say you did something that is only proposed.`
 
 const WEB = `
 
@@ -152,9 +152,13 @@ function respondTool(
   })
 }
 
-/** How hard the brain thinks: measured on the eval set (docs/features/ai.md, S1). */
-const EFFORT =
-  (process.env['SELFMP3_AI_AGENT_EFFORT'] as 'low' | 'medium' | 'high' | undefined) || undefined
+/**
+ * How hard the brain thinks: low. On the eval set (2026-10-28, songs and
+ * several-part requests, 26 turns) it answered as well as the endpoint's own
+ * default (judge 73% against 67–76%) and sooner (a round 6.3 s against 7.3 s on
+ * average, p95 11 s against 16 s); its judgement is in the tools' own calls.
+ */
+const EFFORT = 'low'
 
 export async function ask(
   deps: AskDeps,
@@ -235,7 +239,7 @@ export async function ask(
     task: 'ask-agent',
     tier: 'smart',
     json: 'text',
-    ...(EFFORT ? { effort: EFFORT } : {}),
+    effort: EFFORT,
     system: web ? SYSTEM + WEB : SYSTEM,
     prompt,
     schema: RespondArgs,

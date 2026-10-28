@@ -160,6 +160,7 @@ describe('ask, music to play or keep', () => {
     // One round, and the brain is the smart tier with JSON as text.
     expect(d.llm.sent['ask-agent']).toHaveLength(1)
     expect(d.llm.sent['ask-agent']![0]!.messages[0]!.content).toContain('JSON Schema ("ask-agent")')
+    expect(d.llm.sent['ask-agent']![0]).toMatchObject({ reasoning_effort: 'low' })
   })
 
   it('plays the first songs in an order exactly, sorted in code with no pick', async () => {

@@ -45,8 +45,14 @@ describe('smart features turned off in Settings', () => {
       asked++
       let body = ''
       for await (const chunk of request) body += String(chunk)
-      const task = (JSON.parse(body) as { response_format: { json_schema: { name: string } } })
-        .response_format.json_schema.name
+      const sent = JSON.parse(body) as {
+        response_format: { json_schema?: { name: string } }
+        messages: { content: string }[]
+      }
+      // The schema's name, or for JSON asked as text, the name its prompt gives it.
+      const task =
+        sent.response_format.json_schema?.name ??
+        /JSON Schema \("([^"]+)"\)/.exec(sent.messages[0]?.content ?? '')?.[1]
       await new Promise(resolve => setTimeout(resolve, thinkingMs))
       response.writeHead(200, { 'Content-Type': 'application/json' })
       if (task === 'import-names') {

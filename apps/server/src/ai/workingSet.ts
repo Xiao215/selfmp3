@@ -68,8 +68,8 @@ export const FilterFields = {
   notPlayedWithinDays: z.number().int().min(1).max(3650).nullish(),
   addedWithinDays: z.number().int().min(1).max(3650).nullish(),
 }
-export const FiltersArg = z.object(FilterFields)
-export type Filters = z.infer<typeof FiltersArg>
+const FiltersArg = z.object(FilterFields)
+type Filters = z.infer<typeof FiltersArg>
 
 /** Which songs a tool works on: a set, places in it, ids, and filters over them. */
 export const ScopeArg = z.object({
@@ -109,7 +109,7 @@ interface NamedSet {
 }
 
 /** A proposal a tool made, kept for the answer to name. */
-export interface Proposal {
+interface Proposal {
   readonly kind: 'tags' | 'tidy' | 'copies'
   readonly value: unknown
 }

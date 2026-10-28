@@ -51,7 +51,7 @@ import {
  */
 
 /** The tools there are, by name. */
-export const ASK_TOOL_NAMES = [
+const ASK_TOOL_NAMES = [
   'find_songs',
   'count_by',
   'listening',

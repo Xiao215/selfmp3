@@ -7,7 +7,7 @@ import {
   AskStatsRangeSchema,
   editDistance,
   NO_JOINS,
-  type AskAnswer,
+  type AskCard,
   type AskTurn,
   type DescribeResult,
   type Song,
@@ -16,7 +16,7 @@ import {
 import {
   EVERYTHING,
   libraryAnswer,
-  none,
+  instead,
   playlistSongs,
   songsInOrder,
   songsThatAre,
@@ -122,12 +122,12 @@ export interface AskAction<F> {
    */
   missing?(fields: F, filters: Plan | null): string | null
   /** A method, so an entry fits the list whatever its fields are. */
-  run(context: AskContext, fields: F, filters: Plan | null): AskAnswer | Promise<AskAnswer>
+  run(context: AskContext, fields: F, filters: Plan | null): AskCard | Promise<AskCard>
 }
 
 /** What is said when a handle names no songs here, rather than reaching for the whole library. */
-function pointedAtNothing(from: NonNullable<Scope>): AskAnswer {
-  return none(
+function pointedAtNothing(from: NonNullable<Scope>): AskCard {
+  return instead(
     from.handle === PLAYING
       ? 'Nothing is playing to look at.'
       : 'Those songs aren’t in your library any more.',
@@ -305,7 +305,7 @@ const change = action({
   filters: 'unused',
   run: async ({ deps, words, before, held, steps }, { from, drop }) => {
     const object = heldObject(held, from)
-    if (!object) return none('Say which list to change.')
+    if (!object) return instead('Say which list to change.')
     const all = { handle: from, picks: null }
     const shown = scopeOf(all, held, deps.songs()) ?? []
     if (shown.length === 0) return pointedAtNothing(all)
@@ -364,7 +364,7 @@ const reply = action({
  * or songs for the room they are in. The device knows which — only it knows
  * whether it is in a room — so the answer is the same either way: the songs
  * the words asked for, if any, and the device offers to start a room with
- * them or add them to the room (AskAnswer's `together`).
+ * them or add them to the room (AskCard's `together`).
  */
 const together = action({
   name: 'together',
@@ -388,7 +388,7 @@ const together = action({
 const MAX_PLACE = 1000
 
 /**
- * The music playing, controlled: the device carries it out (AskAnswer's
+ * The music playing, controlled: the device carries it out (AskCard's
  * `playback`), since only it knows what is playing and what is in its Up next.
  * Nothing about the queue is sent here; a place in Up next is counted the way
  * the words say it, from the front or from the back, and the device finds it.
@@ -404,7 +404,7 @@ const playback = action({
   run: (_context, { op, place }) => {
     if (op !== 'upNext') return { kind: 'playback', op, place: null }
     // "The song in Up next" with no place is not one the device can find.
-    if (place === null || place === 0) return none('Say which song in Up next to play.')
+    if (place === null || place === 0) return instead('Say which song in Up next to play.')
     return { kind: 'playback', op, place }
   },
 })
@@ -548,7 +548,7 @@ const tidyUp = action({
     const found =
       understanding.anyTags.length + understanding.artists.length + understanding.albums.length
     if (scope === null && named > 0 && found === 0) {
-      return none(`Your library has no ${unknown.join(' or ')}.`)
+      return instead(`Your library has no ${unknown.join(' or ')}.`)
     }
     const chosen =
       scope ?? songsFitting(songs, deps.tags(), understanding, now, deps.artistNames?.())
@@ -582,7 +582,7 @@ const remember = action({
   filters: 'unused',
   run: (_context, { note }) => {
     const said = note.trim().replace(/\s+/g, ' ')
-    return said ? { kind: 'remember', note: said } : none('Say what to remember.')
+    return said ? { kind: 'remember', note: said } : instead('Say what to remember.')
   },
 })
 
@@ -600,7 +600,7 @@ const playlists = action({
     const names = [...new Set(matched.flatMap(each => each.found ?? []))]
     const unknown = matched.filter(each => each.found === null).map(each => each.name)
     if (names.length === 0) {
-      return none(
+      return instead(
         asked.length > 0
           ? `No playlist here is called ${asked.map(name => `“${name}”`).join(' or ')}.`
           : 'Say which playlists you mean.',
@@ -609,7 +609,7 @@ const playlists = action({
     if (op === 'rename') {
       const to = (newName ?? '').trim().replace(/\s+/g, ' ')
       if (names.length !== 1 || !to || to === names[0]) {
-        return none('Say which one playlist to rename, and what to call it.')
+        return instead('Say which one playlist to rename, and what to call it.')
       }
       return { kind: 'playlists', op, names, newName: to, unknown }
     }
@@ -634,7 +634,7 @@ const playlistEdit = action({
   run: ({ deps, text, held, playlists, steps }, edit, filters) => {
     const name = matchPlaylist(edit.name, playlists)
     const playlist = playlists.find(each => each.name === name)
-    if (!playlist) return none(`No playlist here is called “${edit.name}”.`)
+    if (!playlist) return instead(`No playlist here is called “${edit.name}”.`)
     const scope = edit.op === 'sort' ? null : scopeOf(edit.from, held, deps.songs())
     if (edit.from && scope?.length === 0) return pointedAtNothing(edit.from)
     return playlistSongs(deps, playlist, text, filters, edit, steps, scope)
@@ -655,9 +655,9 @@ const getMusicAction = action({
   fields: z.object({ words: z.string().min(1).max(120), kind: z.enum(['album', 'song']) }),
   filters: 'unused',
   run: async ({ deps, steps }, wanted) => {
-    if (!deps.music) return none('Finding music to import needs your server.')
+    if (!deps.music) return instead('Finding music to import needs your server.')
     const answer = await getMusic({ songs: deps.songs, music: deps.music }, wanted, steps)
-    return answer.items.length > 0 ? answer : none(`网易云 has nothing for “${wanted.words}”.`)
+    return answer.items.length > 0 ? answer : instead(`网易云 has nothing for “${wanted.words}”.`)
   },
 })
 

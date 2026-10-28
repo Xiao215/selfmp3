@@ -275,12 +275,12 @@ log of what was asked, one line each, the newest last — the question, and unde
 came of it (`logLine`: "14 songs · YOASOBI & 幾田りら", "5 songs · Ballads",
 "2 name changes to look over", the start of what was said), with the list's covers or a
 spinner beside it — and the field at the log's foot, under the conversation it continues.
-On the right, the answer you're on, always filled: a list is the list itself (the answer's
-page, `AnswerView`, with the question as its title in the serif and the list's own name in
-the line under it); words stand beside the songs they name, in a card of their own
-(`AnswerBody` `beside`), wrapping under them on a narrow window; anything else is drawn as
-that kind of answer always is (`AnswerBody.tsx`), up to 1100 wide; and while it is worked
-on, the question and its steps stand where the answer will be. The newest answer is shown
+On the right, the answer you're on, always filled: a reply that is one list is the list
+itself (the answer's page, `AnswerView`, with the question as its title in the serif and the
+list's own name in the line under it); words stand beside the songs they name, in a card of
+their own (`AnswerBody` `beside`), wrapping under them on a narrow window; anything else is
+drawn as that kind of answer always is (`AnswerBody.tsx`), up to 1100 wide; and while it is
+worked on, the question and its steps stand where the answer will be. The newest answer is shown
 as it is asked; pressing a line of the log shows that one. The log follows the
 conversation: a new question, the answer shown and the field growing under it each scroll
 the line they are about into view, and scrolling back through it is left alone.
@@ -323,16 +323,38 @@ what came of it ("Fixed 31 songs", "Closed. Nothing changed."), and the turn kee
 model's words and that line (S1), which the next follow-up is told too. An answer you play
 from stays as it is.
 
+**A reply holds several cards** (AGENT-DESIGN 2.4, `AskReply`): `say`, a few words of its
+own or null, and `cards`, one to four in the order the request asked for them ("10 calm
+songs, then tag them 夜" is a songs card and a tags card). Every route that answers Ask sends
+the reply: `POST /api/ai/ask`, and `GET /api/ai/ask/progress?answer=1` for one collected by
+its ticket. The router still chooses one action, so today's replies are that action's one
+card and no words of its own; the agent (Stage 5) will send several through its `respond`
+tool. The page draws a reply as one column (`AnswerBody`): its words, then each card in
+order. With more than one card each sits under a quiet heading of what it is (`cardHeading`:
+"Songs to play", "Tag changes", "To remember"), tone on tone as the cards always are, so the
+reply reads as parts of one answer rather than a chat. A list among other cards is its card
+(`SongsAnswerCard`): pressing it opens the list on the stage in the cards' place, on a
+computer and a phone alike, and its ‹ comes back to the cards. Each card is settled on its
+own: a review done with folds to what came of it while its siblings stay; only the first
+review still open takes the keys; the log's line has a part for each card ("6 songs · 周杰倫
+at night + 1 tag change to look over"), what came of one in its place.
+
 A list does what the words led with (Xiao, "Play now, rest proposes", 2026-10-27): asked to
 play — a list, one song from one, "play it" — it starts playing as it comes, once however
-often it is drawn again, as a playback answer is carried out (`AnswerView`'s `lead`); asked
-to keep ("save it as Morning"), its head leads with one **Save as “Morning”** that makes the
-playlist of exactly the songs shown. Adding to a playlist, tags and names stay proposals,
-each with its one button.
+often it is drawn again, as a playback answer is carried out (`usePlayAsItComes`); in a
+reply of several, only its first list asked to play does. Asked to keep ("save it as
+Morning"), its head leads with one **Save as “Morning”** that makes the playlist of exactly
+the songs shown, and as a card among others, its card's Save does (`useSaveAnswer`). Adding
+to a playlist, tags and names stay proposals, each with its one button.
 
-Words answers (`explore`, `none`, `open`) can be selected in part: on iOS they are a
-read-only system text view (`ports/selectableText.tsx`), since a selectable `Text` there
-copies only the whole; `explore` also has Copy for all of it.
+**A question back** (`clarify`) is a card of its own, always a reply's only card: a question,
+and up to three options in the asker's language. Each option is a button that asks its words
+as the next turn, as if typed (`ClarifyAnswer.tsx`); the field is there for any other answer.
+It replaced the old dead-end answer and its suggestions (2026-10-27).
+
+Words answers (`explore`, `open`, a reply's `say`, a question back) can be selected in part:
+on iOS they are a read-only system text view (`ports/selectableText.tsx`), since a
+selectable `Text` there copies only the whole; `explore` also has Copy for all of it.
 
 A song an answer names (`AnswerSongLine`) plays from ▶; while it is the song playing, its
 row is marked as Library's rows are (the cover's colour washing in from the right, the
@@ -351,8 +373,11 @@ filters (`required`, `optional`, `unused`), and `run`.
 The router's prompt (`routeSystem`) and the form the model fills (`routeForm`) are built
 from the list, and the router's own code is the same for every action: route, run it. When
 the chosen action is missing its fields or its required filters, the router is asked once
-more, told what it left empty, and may choose `none` and say what it needs in the language of
-the newest words; still missing, the answer is `none` saying what could not be told. The route
+more, told what it left empty, and may choose its way out and say what it needs in the
+language of the newest words; still missing, the answer says what could not be told. The
+router's way out (the last choice in its form, never a card) becomes a question back (`clarify`): its
+sentence the question and the requests it offers the options; with none to offer it is only
+its words (an `explore` card with no songs, `instead` in `askLibrary.ts`). The route
 is not remembered: the same words are read again, so Try again can come out differently. The
 router sees each playlist with its kind, and a live one's rules in words ("live, holds songs
 tagged 中文流行", `rulesWords`). In a follow-up, the answer is written in the language of the
@@ -380,16 +405,20 @@ is: what would change is the loop, not the actions.
 | `explore` | "which albums do I have only part of" | the model looks things up with tools (Looking things up, below) | the tool loop |
 | `getMusic` | "download 春泥棒", "get the rest of the Liyue OST" | 网易云 searched, what you already have marked (Getting music, below) | none |
 | `open` | "where do I paste a Spotify link", "take me to my stats" | a sentence and a button to the place | none |
-| `none` | anything else | what the box can do instead, and up to two requests it can do, each a press away | none |
+| *(way out)* | anything else | a question back (`clarify`): what the box can do instead, and up to two requests it can do, each a press away; or only the words when nothing comes close | none |
 
-Every answer is a proposal with its own button (`AnswerBody.tsx`): a song answer is a card
+Each action's answer is one card of the reply, of the kind it names (`playback`'s is
+`playback`, `reply`'s and the way out's with nothing to offer are `explore`, `change`'s is
+`songs`); `clarify` is the one card no action makes but the way out.
+
+Every card is a proposal with its own button (`AnswerBody.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag
 review's Apply, Open Stats, a found song to play, Play these. The one exception is
 `playback`, which is done as it arrives.
 
-A dead end is not one: `none` carries `try`, at most two requests in the asker's language
-that the box can do and that come closest ("tag the good ones" → "tag the songs that should
-be 中文流行"). Each is a button that puts its words in the box and asks them.
+A dead end is not one: the way out is a question back whose options are at most two requests
+in the asker's language that the box can do and that come closest ("tag the good ones" →
+"tag the songs that should be 中文流行"). Each is a button that asks its words.
 
 While it works, the wait says what is happening (`ai/progress.ts`): the device names its
 request with a `ticket` and asks `GET /api/ai/ask/progress` twice a second, and the server
@@ -428,11 +457,11 @@ the filters cannot say ("the ones named for rain", "the ones that aren't game mu
 Describe's pick over the songs that pass them, waiting with the sparkle; nothing is loosened,
 so a remove never reaches past what was asked. A sort is code (`sortSongs`: a song without
 the value, never analysed or never played, goes last either way). A live playlist fills
-itself from its rules, so nothing is proposed for it: the answer (`none`) says what it holds,
+itself from its rules, so nothing is proposed for it: the answer says what it holds,
 and for an add whether the songs meant are in it already ("All 17 of those songs are in chill
 · chinese already: it holds songs tagged 中文流行") or how many are not; when it follows tags,
-`try` offers the tag change that would put them in ("give the songs by 五月天 the tag
-中文流行"), which the `tags` action proposes. Taking songs out is only said, never offered as a
+it is a question back whose option is the tag change that would put them in ("give the
+songs by 五月天 the tag 中文流行"), which the `tags` action proposes. Taking songs out is only said, never offered as a
 press: the tag taken off would take them out of the tag's page and every list following it
 too, more than the request reached for. A sort says the order its rules keep. The device (`PlaylistSongsAnswer.tsx`)
 checks against the playlist as it is now — an add keeps songs not in it, a remove the ones
@@ -560,19 +589,23 @@ them, each with Remove.
 
 Whatever is typed in the Ask page's field is a new turn, asked after the conversation
 before it (`AskRequest`): `before`, each earlier question with what was shown for it
-(`AskTurn`), and `context`, the song playing and the answer on the screen. A words answer
-is its words; a list or a review is a line the device writes (`answerRecap` in
-`smart.model.ts`: "Offered 12 songs (“…”) to play now", "Proposed 8 name changes: …"),
-and a playback answer what it came to on this device ("Nothing is playing.").
+(`AskTurn`), and `context`, the song playing and the answer on the screen. What was shown is
+told per reply (`answerRecap` in `smart.model.ts`): its own words, then a line for each card
+in order — a words card its words, a list or a review a line the device writes ("Offered 12
+songs (“…”) to play now", "Proposed 8 name changes: …"), a question back what it asked and
+offered, a playback card what it came to on this device ("Nothing is playing.") — and what
+came of each proposal done with ("Then: Fixed 31 songs; Closed. Nothing changed.").
 
-What an answer showed goes back as **objects** (`AskObject`, AGENT-DESIGN 2.1;
-`objectsOf`): a handle, `t3.1` for the third turn's answer (its place on the page, so it
-stays the same however many turns are sent), a kind and a label, its songs by the server's
+What a reply showed goes back as **objects** (`AskObject`, AGENT-DESIGN 2.1;
+`objectsOf`), one for each card that showed songs: a handle, `t3.2` for the third turn's
+second card (the turn's place on the page and the card's in its reply, so it stays the same
+however many turns are sent), a kind and a label, its songs by the server's
 ids in the order shown (at most 200) with each one's reason, and for a list what it was for
 (`lead`), the song it sounds like (`like`) and what it understood as it stands now. The
-server keeps no conversation: the device already holds the ids (`answers.store`,
-`askKept`), and a list changed or moved on its page is sent as it is now. The chip on a
-list ("↳ these 19 songs") puts its handle in `context.screen`; its ×, or ⌫ in the empty
+server keeps no conversation: the device already holds the ids (`answers.store`, which keeps
+each songs card as an answer of its own, and `askKept`), and a list changed or moved on its
+page is sent as it is now. The chip on a list ("↳ these 19 songs": the list on the stage, or
+a reply's first list) puts its card's handle in `context.screen`; its ×, or ⌫ in the empty
 field, lets it go, and the words are asked with nothing on the screen. Any other answer that
 showed songs is the screen's while it is shown.
 
@@ -975,8 +1008,8 @@ Up next", "play the third song in the queue": the router chooses `playback` and 
 (`next`, `previous`, `restart`, `pause`, `resume` or `upNext`) and, for `upNext`, a `place`
 in Up next counted the way the words did, 1 for the first and -1 for the last. The server
 never sees the queue: the answer is only what was asked for, and the device that asked finds
-the song in its own Up next (`playbackAnswer.model.ts`). An `upNext` with no place is a
-`none` ("Say which song in Up next to play").
+the song in its own Up next (`playbackAnswer.model.ts`). An `upNext` with no place is said
+("Say which song in Up next to play").
 
 It is the one answer carried out without a button (`PlaybackAnswer.tsx`, through
 `usePlayerCommands()`), since it is what the buttons beside the music already do, and a line

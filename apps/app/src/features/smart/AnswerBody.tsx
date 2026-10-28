@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { artistOr, plural, type AskAnswer as Answer } from '@selfmp3/shared'
+import { artistOr, plural, type AskCard as Answer, type AskReply } from '@selfmp3/shared'
 import { radius, space, type, textStyle, iconSize } from '@selfmp3/client'
 import { ROW_COVER_SIZE } from '../../offline/coverStore'
 import { useArt } from '../../offline/useArt'
@@ -10,11 +10,11 @@ import { usePlayerCommands } from '../../player/PlayerProvider'
 import { copyText } from '../../ports/clipboard'
 import { SelectableText } from '../../ports/selectableText'
 import { Button } from '../../ui/components/Button'
-import { Copy as CopyIcon, Sparkle } from '../../ui/components/Icons'
+import { Check, Copy as CopyIcon } from '../../ui/components/Icons'
 import { useSongsById } from '../../ui/songsById'
 import { showToast } from '../../ui/toast'
 import { foundSource } from '../lists/lists.model'
-import { rangeWords } from './smart.model'
+import { cardHeading, rangeWords } from './smart.model'
 import { GetMusicAnswer } from './GetMusicAnswer'
 import { LibraryAnswer } from './LibraryAnswer'
 import { PlaybackAnswer } from './PlaybackAnswer'
@@ -29,17 +29,154 @@ import { CopiesReview } from './CopiesReview'
 import type { AnswerKeys } from './answerKeys'
 import { useSmartServer } from './useSmartServer'
 import { AnswerSongLine } from './AnswerSongLine'
-import { AnswerActions, AnswerHead, AnswerLine } from './AnswerParts'
-import { Press } from '../../ui/components/Press'
+import { AnswerActions, AnswerHead, AnswerLine, CLOSED } from './AnswerParts'
+import { ClarifyAnswer } from './ClarifyAnswer'
+import { label } from '../../ui/surfaces'
 import { ScrollView } from '../../ui/components/Scroll'
 
 /**
- * What one answer to Ask shows, by its kind (S1, docs/features/ai.md): every
- * answer is a proposal with its own button, and nothing changes until it is
- * pressed — except controlling what plays ("skip this song"), which is done at
- * once. A turn of the Ask page (`AskScreen`) draws one under what was asked.
+ * Answers that are a proposal: once acted on or put aside (Apply, Close, Not
+ * now), the card folds to the line it was answered with. The rest stay as
+ * they are, since playing a song from an answer is not the end of it.
+ */
+const SETTLES: ReadonlySet<Answer['kind']> = new Set([
+  'tags',
+  'tidy',
+  'copies',
+  'remember',
+  'playlists',
+  'playlistSongs',
+])
+
+/** Cards a computer's keys work on while the field is empty: the reviews. */
+export const TAKES_KEYS: ReadonlySet<Answer['kind']> = new Set([
+  'tags',
+  'tidy',
+  'copies',
+  'playlistSongs',
+])
+
+/**
+ * What one reply to Ask shows (S1, docs/features/ai.md): its own words, then
+ * each card in the order asked. A turn of the Ask page (`AskScreen`) draws it
+ * under what was asked.
+ *
+ * Several cards read as parts of one answer, not a chat: one column, each
+ * card under a quiet heading of what it is (`cardHeading`), tone on tone as
+ * the cards always are. A proposal done with folds to what came of it
+ * (`outcomes`, by the card's place), its siblings left as they are. Only the
+ * first list asked to play plays as it comes, and only the first review
+ * still open takes the computer's keys.
  */
 export function AnswerBody({
+  reply,
+  text,
+  outcomes,
+  onSettle,
+  onOpenPage,
+  listHeight,
+  onKeys,
+  onAsk,
+  onCarriedOut,
+  onOpenList,
+  beside = false,
+}: {
+  reply: AskReply
+  text: string
+  /** What came of each proposal done with, by its card's place. */
+  outcomes: Readonly<Record<number, string>>
+  /** A proposal acted on or put aside: what came of it ("Fixed 31 songs", `CLOSED`). */
+  onSettle: (index: number, outcome: string) => void
+  onOpenPage: () => void
+  listHeight: number
+  onKeys?: (keys: AnswerKeys | null) => void
+  onAsk?: (text: string) => void
+  /** A playback card, once done: what it came to, in its line. */
+  onCarriedOut?: (index: number, said: string) => void
+  /** A list among other cards opens on the stage, by its kept id, rather than as a page. */
+  onOpenList?: (keptId: string) => void
+  /** Room to the side (Ask on a computer): words with the songs they name beside them. */
+  beside?: boolean
+}): ReactNode {
+  const several = reply.cards.length > 1
+  const playsNow = reply.cards.findIndex(card => card.kind === 'songs' && card.lead === 'play')
+  const takesKeys = reply.cards.findIndex(
+    (card, index) => TAKES_KEYS.has(card.kind) && outcomes[index] === undefined,
+  )
+  return (
+    <View style={styles.reply}>
+      {reply.say ? <Words text={reply.say} copy={false} testID="ask-reply-say" /> : null}
+      {reply.cards.map((card, index) => {
+        const heading = several ? cardHeading(card) : null
+        const outcome = outcomes[index]
+        return (
+          <View
+            // A reply's cards never move: their places are their names (`t2.1`).
+            key={index}
+            style={styles.part}
+            testID={`ask-answer-${card.kind}`}
+          >
+            {heading ? (
+              <Text style={styles.heading} accessibilityRole="header">
+                {heading}
+              </Text>
+            ) : null}
+            {outcome !== undefined ? (
+              <Outcome answer={card} outcome={outcome} />
+            ) : (
+              <AnswerCard
+                answer={card}
+                text={text}
+                onDone={done =>
+                  SETTLES.has(card.kind) && done ? onSettle(index, done) : undefined
+                }
+                onOpenPage={onOpenPage}
+                listHeight={listHeight}
+                onKeys={index === takesKeys ? onKeys : undefined}
+                onAsk={onAsk}
+                onCarriedOut={onCarriedOut && (said => onCarriedOut(index, said))}
+                playNow={index === playsNow}
+                onOpenList={several ? onOpenList : undefined}
+                beside={beside}
+              />
+            )}
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+/**
+ * A proposal once it is done with (S1): what the model said stays as it was,
+ * and the review gives way to one line on what came of it, ticked when
+ * something was done.
+ */
+function Outcome({ answer, outcome }: { answer: Answer; outcome: string }): ReactNode {
+  const { theme } = useUnistyles()
+  const said = answer.kind === 'tidy' ? answer.tidy.reply : null
+  const done = outcome !== CLOSED
+  return (
+    <View style={styles.outcome}>
+      {said ? <SelectableText style={styles.answer}>{said}</SelectableText> : null}
+      <View style={styles.outcomeLine} testID="ask-turn-outcome">
+        {done ? (
+          <View style={styles.tick}>
+            <Check size={iconSize.tiny} color={theme.colors.onPrimary} />
+          </View>
+        ) : null}
+        <Text style={done ? styles.outcomeDone : styles.outcomeClosed}>{outcome}</Text>
+      </View>
+    </View>
+  )
+}
+
+/**
+ * One card of a reply, by its kind: every card is a proposal with its own
+ * button, and nothing changes until it is pressed — except controlling what
+ * plays ("skip this song"), which is done at once, and a list asked to play.
+ */
+function AnswerCard({
   answer,
   text,
   onDone,
@@ -48,25 +185,37 @@ export function AnswerBody({
   onKeys,
   onAsk,
   onCarriedOut,
-  beside = false,
+  playNow,
+  onOpenList,
+  beside,
 }: {
   answer: Answer
   text: string
-  /** Done with the answer: a proposal says what came of it ("Fixed 31 songs", `CLOSED`). */
+  /** Done with the card: a proposal says what came of it ("Fixed 31 songs", `CLOSED`). */
   onDone: (outcome?: string) => void
   onOpenPage: () => void
   listHeight: number
   onKeys?: (keys: AnswerKeys | null) => void
   onAsk?: (text: string) => void
-  /** A playback answer, once done: what it came to, in its line. */
   onCarriedOut?: (said: string) => void
-  /** Room to the side (Ask on a computer): words with the songs they name beside them. */
-  beside?: boolean
+  /** The reply's first list asked to play: played as it comes. */
+  playNow: boolean
+  onOpenList?: (keptId: string) => void
+  beside: boolean
 }): ReactNode {
   const router = useRouter()
   switch (answer.kind) {
     case 'songs':
-      return <SongsAnswerCard answer={answer} text={text} onPlayed={onDone} onOpen={onOpenPage} />
+      return (
+        <SongsAnswerCard
+          answer={answer}
+          text={text}
+          onPlayed={onDone}
+          onOpen={onOpenPage}
+          playNow={playNow}
+          onOpenHere={onOpenList}
+        />
+      )
     case 'together':
       return <TogetherAnswer answer={answer} text={text} onDone={onDone} onOpen={onOpenPage} />
     case 'find':
@@ -188,36 +337,8 @@ export function AnswerBody({
           </AnswerActions>
         </>
       )
-    case 'none':
-      return (
-        <>
-          <Words text={answer.say} copy={false} testID="ask-none-say" />
-          {onAsk && answer.try.length > 0 ? (
-            <View style={styles.tries}>
-              <Text style={styles.muted}>Try</Text>
-              {answer.try.map(each => (
-                <Press
-                  key={each}
-                  onPress={() => onAsk(each)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ask: ${each}`}
-                  wrap={styles.tryPlace}
-                  style={styles.try}
-                  testID="ask-try"
-                >
-                  {/* Its own size, however long the words beside it wrap. */}
-                  <View style={styles.tryIcon}>
-                    <Sparkle size={iconSize.sub} />
-                  </View>
-                  <Text style={styles.tryText} numberOfLines={2}>
-                    {each}
-                  </Text>
-                </Press>
-              ))}
-            </View>
-          ) : null}
-        </>
-      )
+    case 'clarify':
+      return <ClarifyAnswer answer={answer} onAsk={onAsk} />
   }
 }
 
@@ -354,17 +475,19 @@ const styles = StyleSheet.create(theme => ({
   words: { gap: space.xs },
   wordsActions: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   muted: { color: theme.colors.textMuted, fontSize: type.small, fontWeight: '400' },
-  tries: { gap: space.tight, marginTop: space.xs },
-  tryPlace: { alignSelf: 'flex-start', maxWidth: '100%' },
-  try: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingVertical: 7,
-    paddingHorizontal: space.md,
+  reply: { gap: space.xl },
+  part: { gap: space.sm },
+  heading: label(theme.colors),
+  outcome: { gap: space.md },
+  outcomeLine: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  tick: {
+    width: 20,
+    height: 20,
     borderRadius: radius.pill,
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.good,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tryIcon: { flexShrink: 0 },
-  tryText: { flexShrink: 1, color: theme.colors.textPrimary, fontSize: type.sub },
+  outcomeDone: { color: theme.colors.textPrimary, ...textStyle('body') },
+  outcomeClosed: { color: theme.colors.textSecondary, ...textStyle('body') },
 }))

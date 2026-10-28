@@ -60,3 +60,16 @@ describe('an answer with chips taken away', () => {
     expect(keptAnswer(id)!.edited).toBeNull()
   })
 })
+
+describe('the lists of one reply', () => {
+  it('are kept one per card, though asked in the same words, and each once however often drawn', () => {
+    const calm = result([1, 2])
+    const loud = result([3])
+    const first = keepAnswer('calm then loud', calm)
+    const second = keepAnswer('calm then loud', loud)
+    expect(first).not.toBe(second)
+    expect(keepAnswer('calm then loud', calm)).toBe(first)
+    changeAnswer(second, result([4]))
+    expect(keptAnswer(first)!.result.picks.map(pick => pick.songId)).toEqual([1, 2])
+  })
+})

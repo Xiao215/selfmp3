@@ -1,7 +1,7 @@
 import { z } from 'zod/v4'
-import type { AskAnswer, AskRequest, AskTurn, Song } from '@selfmp3/shared'
+import type { AskCard, AskReply, AskRequest, AskTurn, Song } from '@selfmp3/shared'
 import { ASK_ACTIONS, type AskAction, type AskContext, type AskDeps } from './askActions.js'
-import { none, rulesWords } from './askLibrary.js'
+import { instead, rulesWords } from './askLibrary.js'
 import { FILTERS_GUIDE, PlanOut } from './describe.js'
 import { libraryShape, songTable } from './library.js'
 import { QUICK_MS, Remembered } from './llm.js'
@@ -17,6 +17,12 @@ import { objectLines, type Held } from './scope.js'
  * are both built from that list, so this file is the same whatever the
  * actions are: route, check that the chosen action got what it needs and is
  * switched on, run it. Every answer is a proposal: nothing here writes.
+ *
+ * The answer is a reply (`AskReply`): words of its own and up to four cards,
+ * each named `t{turn}.{card}` for the rest of the conversation. The router
+ * still chooses one action, so a reply here is that action's one card and no
+ * words of its own; a way out (`none`) is a question back whose options are
+ * the requests that come closest, or only its words when it has none.
  *
  * The form is one object with every action's part, those not chosen null,
  * rather than one shape per action: it is what an OpenAI-style json_schema
@@ -137,7 +143,19 @@ export async function ask(
   steps: Steps = NO_STEPS,
   /** The conversation before this, when it follows up on an answer. */
   before: readonly AskTurn[] = [],
-): Promise<AskAnswer> {
+): Promise<AskReply> {
+  const card = await routeAndRun(deps, text, where, steps, before)
+  return { say: null, cards: [card] }
+}
+
+/** The router's one action, run: the reply's one card. */
+async function routeAndRun(
+  deps: AskDeps,
+  text: string,
+  where: AskRequest['context'],
+  steps: Steps,
+  before: readonly AskTurn[],
+): Promise<AskCard> {
   const remembered = deps.remembered ?? new Remembered()
   const songs = deps.songs()
   const tags = deps.tags()
@@ -195,7 +213,7 @@ export async function ask(
       missing === 'filters'
         ? 'I couldn’t tell which songs you mean. Say an artist, an album, a tag or a kind of music.'
         : 'I couldn’t tell all of what you want done. Say it another way.'
-    return none(routed.say ?? (missing ? unsure : FALLBACK), routed.try ?? [])
+    return instead(routed.say ?? (missing ? unsure : FALLBACK), routed.try ?? [])
   }
   const fields = chosen.fields ? routed[chosen.name] : null
   const context: AskContext = {

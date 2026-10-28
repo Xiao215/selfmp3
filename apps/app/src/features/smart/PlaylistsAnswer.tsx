@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
 import { useQueryClient } from '@tanstack/react-query'
-import { plural, type AskAnswer, type Library } from '@selfmp3/shared'
+import { plural, type AskCard, type Library } from '@selfmp3/shared'
 import { clientApi, failureText, queryKeys, radius, space, type, useLibrary } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { Checkbox, CheckRow } from '../../ui/components/Checkbox'
@@ -26,7 +26,7 @@ export function PlaylistsAnswer({
   answer,
   onDone,
 }: {
-  answer: Extract<AskAnswer, { kind: 'playlists' }>
+  answer: Extract<AskCard, { kind: 'playlists' }>
   /** Done with: what was done, or that nothing changed. */
   onDone: (outcome?: string) => void
 }): ReactNode {

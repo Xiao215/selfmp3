@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet, useUnistyles } from 'react-native-unistyles'
 import { useRouter } from 'expo-router'
-import { plural, type AskAnswer } from '@selfmp3/shared'
+import { plural, type AskCard } from '@selfmp3/shared'
 import { iconSize, radius, space, type } from '@selfmp3/client'
 import { Button } from '../../ui/components/Button'
 import { ChevronRight, People } from '../../ui/components/Icons'
@@ -31,7 +31,7 @@ export function TogetherAnswer({
   onDone,
   onOpen,
 }: {
-  answer: Extract<AskAnswer, { kind: 'together' }>
+  answer: Extract<AskCard, { kind: 'together' }>
   text: string
   /** Search has done its job: the sheet opens over the page underneath. */
   onDone: () => void

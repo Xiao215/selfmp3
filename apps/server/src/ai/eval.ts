@@ -76,34 +76,34 @@ const titleOf = new Map(songs.all().map(song => [song.id, `${song.title} · ${so
 if (what === 'ask') {
   // PLAYING=<song id> asks as if that song were playing (A8).
   const playing = process.env['PLAYING'] ? Number(process.env['PLAYING']) : null
-  const answer = await smart.ask(words.join(' '), { playing, screen: null })
-  if (answer.kind === 'tags') {
-    printTagReview(answer.review)
-    process.exit(0)
+  const reply = await smart.ask(words.join(' '), { playing, screen: null })
+  if (reply.say) console.log(reply.say)
+  // Each card in turn: a review as its rows, anything else as JSON with its songs named.
+  for (const answer of reply.cards) {
+    if (answer.kind === 'tags') printTagReview(answer.review)
+    else if (answer.kind === 'tidy') printTidy(answer.tidy)
+    else if (answer.kind === 'copies') printCopies(answer.copies)
+    else {
+      const shown =
+        'describe' in answer
+          ? { ...answer, describe: answer.describe && { ...answer.describe, picks: undefined } }
+          : answer
+      console.log(
+        JSON.stringify(
+          shown,
+          (key, value: unknown) =>
+            key === 'songIds' && Array.isArray(value) ? `${value.length} songs` : value,
+          2,
+        ),
+      )
+      const picks =
+        answer.kind === 'songs' ? answer.describe.picks : answer.kind === 'find' ? answer.picks : []
+      for (const pick of picks) {
+        console.log(`- ${titleOf.get(pick.songId)}  (${pick.why ?? 'fits'})`)
+      }
+    }
   }
-  if (answer.kind === 'tidy') {
-    printTidy(answer.tidy)
-    process.exit(0)
-  }
-  if (answer.kind === 'copies') {
-    printCopies(answer.copies)
-    process.exit(0)
-  }
-  const shown =
-    'describe' in answer
-      ? { ...answer, describe: { ...answer.describe, picks: undefined } }
-      : answer
-  console.log(
-    JSON.stringify(
-      shown,
-      (key, value: unknown) =>
-        key === 'songIds' && Array.isArray(value) ? `${value.length} songs` : value,
-      2,
-    ),
-  )
-  const picks =
-    answer.kind === 'songs' ? answer.describe.picks : answer.kind === 'find' ? answer.picks : []
-  for (const pick of picks) console.log(`- ${titleOf.get(pick.songId)}  (${pick.why ?? 'fits'})`)
+  if (reply.cards.some(card => ['tags', 'tidy', 'copies'].includes(card.kind))) process.exit(0)
 } else if (what === 'describe') {
   const result = await smart.describe({ text: words.join(' '), understanding: null })
   console.log(JSON.stringify({ ...result, picks: undefined }, null, 2))

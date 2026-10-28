@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import type { AskAnswer } from '@selfmp3/shared'
+import type { AskCard } from '@selfmp3/shared'
 import type { AskDeps } from './askActions.js'
 import { askTools, libraryOf, type AskToolName } from './askTools.js'
 import { libraryShape } from './library.js'
@@ -77,7 +77,7 @@ export async function explore(
   steps: Steps = NO_STEPS,
   /** The song playing and what earlier answers showed: the sets it starts with. */
   held: Held = NOTHING_HELD,
-): Promise<Extract<AskAnswer, { kind: 'explore' }>> {
+): Promise<Extract<AskCard, { kind: 'explore' }>> {
   const remembered = deps.remembered ?? new Remembered()
   const library = libraryOf(deps)
   const set = new WorkingSet(library, held)

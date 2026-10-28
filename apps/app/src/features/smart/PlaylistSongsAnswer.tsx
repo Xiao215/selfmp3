@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Text, View } from 'react-native'
 import { StyleSheet } from 'react-native-unistyles'
-import { artistOr, plural, type AskAnswer } from '@selfmp3/shared'
+import { artistOr, plural, type AskCard } from '@selfmp3/shared'
 import {
   space,
   useAddToPlaylist,
@@ -20,7 +20,7 @@ import { keptSongs, parts, playlistEditHere, sortWords, type Reviewed } from './
 import { useSmartServer } from './useSmartServer'
 import { AnswerActions, AnswerHead, AnswerLine, AnswerNote, CLOSED } from './AnswerParts'
 
-type Answer = Extract<AskAnswer, { kind: 'playlistSongs' }>
+type Answer = Extract<AskCard, { kind: 'playlistSongs' }>
 
 /**
  * Ask's answer to "add … to", "take … out of" and "sort" one playlist

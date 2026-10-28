@@ -16,18 +16,27 @@ const turn = (id: number, patch: Partial<Turn> = {}): Turn => ({
   screen: null,
   before: [],
   answered: `answer ${id}`,
-  outcome: null,
+  outcomes: {},
   objects: [],
   list: null,
+  listHandle: null,
   line: null,
   ...patch,
 })
 
 describe('beforeTurn', () => {
-  it('is every turn before, with what came of a proposal', () => {
-    const turns = [turn(1, { outcome: 'Fixed 3 songs' }), turn(2), turn(3, { answered: null })]
+  it('is every turn before, with what came of its proposals', () => {
+    const turns = [
+      turn(1, { outcomes: { 0: 'Fixed 3 songs', 1: 'Closed. Nothing changed.' } }),
+      turn(2),
+      turn(3, { answered: null }),
+    ]
     expect(beforeTurn(turns, 2)).toEqual([
-      { asked: 'question 1', answered: 'answer 1\nThen: Fixed 3 songs', objects: [] },
+      {
+        asked: 'question 1',
+        answered: 'answer 1\nThen: Fixed 3 songs; Closed. Nothing changed.',
+        objects: [],
+      },
       { asked: 'question 2', answered: 'answer 2', objects: [] },
     ])
   })

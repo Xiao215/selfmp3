@@ -1,4 +1,4 @@
-import type { AskAnswer, Song } from '@selfmp3/shared'
+import type { AskCard, Song } from '@selfmp3/shared'
 import { normalizeForMatch } from '../services/youtubeMatch.js'
 import { sameRecording, sameTitle, within } from './names.js'
 import { NO_STEPS, type Steps } from './progress.js'
@@ -42,7 +42,7 @@ export interface MusicCatalogue {
   readonly songs: (words: string) => Promise<readonly Track[]>
 }
 
-type GetMusic = Extract<AskAnswer, { kind: 'getMusic' }>
+type GetMusic = Extract<AskCard, { kind: 'getMusic' }>
 
 /** The song of yours that is this catalogue track, if one is. */
 export function haveTrack(

@@ -296,7 +296,7 @@ ${pageIcons('../')}
 <header class="hero">
 <img class="icon" src="../icons/icon-180.png" alt="" width="96" height="96">
 <h1>self.mp3</h1>
-<p class="lede">Your music, on <em class="ios">your iPhone.</em><em class="android">your phone.</em></p>
+<p class="lede">Your music, on <em class="ios">your iPhone.</em><em class="android">your Android.</em></p>
 <div class="switch" role="group" aria-label="Your phone">
 <button type="button" data-phone="ios" aria-pressed="true">iPhone</button>
 <button type="button" data-phone="android" aria-pressed="false">Android</button>

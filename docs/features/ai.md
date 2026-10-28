@@ -407,8 +407,9 @@ tag them 夜" adds `propose_tags` with `add` over the picked set, in the same ro
 another round only to see something: how the library spells a name, whether anything was found,
 a number to say. At most four rounds and 60 s of them; then the tools are withdrawn and it writes
 `respond`'s arguments as its answer, accepted as well as they can be. The request is not
-remembered: the same words are read again, so Try again can come out differently. Effort is the
-endpoint's own (MEASURED_EFFORT).
+remembered: the same words are read again, so Try again can come out differently. Effort is `low`:
+on the eval's songs and several-part requests it answered as well as the endpoint's default
+and sooner (a round 6.3 s against 7.3 s on average, p95 11 s against 16 s).
 
 **`respond`** (`ai/respond.ts`) takes `say` and one to four cards, sparse: each card names its
 kind and only the fields that kind reads, and points at what it shows — a set or places in one,
@@ -452,7 +453,11 @@ lost its second, a name that matched nothing could not be looked into, and "this
 some actions; `explore` was the one action that looked things up with tools, and `refine.ts`
 changed a list. All three are gone: the agent is explore, and Change it is a follow-up.
 
-MEASURED_LINE
+Measured 2026-10-28 on the eval set (80 conversations, 104 turns, a copy of the real library,
+sonnet through cli-bridge, judged by opus): 81 turns passed both the code checks and the judge
+(78%) against the router's 79 (76%); several-part requests 4 of 5 against 1; latency per turn
+p50 4.8 s and p95 14.8 s against 9.3 s and 34.6 s. Most turns take one round: one agent call,
+plus the pick or review the tools make (1.5 model calls a turn on average).
 
 Every card is a proposal with its own button (`AnswerBody.tsx`): a song answer is a card
 with ▶ that opens as its own page (docs/features/lists.md, "Ask's song answer"), the tag

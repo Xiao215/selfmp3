@@ -154,3 +154,31 @@ describe('a long YouTube Music description, cut', () => {
     expect(cutDescription('short', 4000)).toBe('short')
   })
 })
+
+describe('a request YouTube never answers', () => {
+  it('is given up on, and the caller’s own stop still stops it', async () => {
+    const { withTimeout } = await import('./downloader.js')
+    const never = ((_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+      })) as typeof fetch
+    await expect(withTimeout(never, 20)('https://www.youtube.com/')).rejects.toThrow(
+      /did not answer/,
+    )
+    const stop = new AbortController()
+    const asked = withTimeout(never, 60_000)('https://www.youtube.com/', { signal: stop.signal })
+    stop.abort(new Error('stopped'))
+    await expect(asked).rejects.toThrow('stopped')
+  })
+})
+
+describe('how long a minter is kept', () => {
+  it('is four fifths of its token’s life, and never past six hours', async () => {
+    const { minterLifetimeMs } = await import('./poToken.js')
+    expect(minterLifetimeMs({ ttlSeconds: 3600 })).toBe(2_880_000)
+    expect(minterLifetimeMs({ ttlSeconds: 43_200 })).toBe(6 * 60 * 60 * 1000)
+    // The page's minter in the sandbox says nothing of its token.
+    expect(minterLifetimeMs({ mint: () => Promise.resolve('') })).toBe(6 * 60 * 60 * 1000)
+    expect(minterLifetimeMs(null)).toBe(6 * 60 * 60 * 1000)
+  })
+})

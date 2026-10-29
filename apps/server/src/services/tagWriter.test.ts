@@ -138,6 +138,18 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
     expect(probe(song).picture).toBe(false)
   })
 
+  it('tags the file without a cover ffmpeg cannot read', async () => {
+    // A page that answered 200 where a picture was meant to be.
+    const download = () =>
+      Promise.resolve({ contentType: 'text/html', data: Buffer.from('<html>not a picture</html>') })
+    const writer = new TagWriter({ download, logger: createLogger('silent') })
+
+    expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
+    const { tags, picture } = probe(song)
+    expect(tags).toMatchObject({ title: '晴天', artist: '周杰倫', album: '葉惠美' })
+    expect(picture).toBe(false)
+  })
+
   it('leaves a file it cannot read as it was, and says so', async () => {
     fs.writeFileSync(song, 'not audio')
     const writer = new TagWriter({ logger: createLogger('silent') })

@@ -101,3 +101,18 @@ export async function createPoMinter(fetch: YtFetch): Promise<PoMinter> {
     throw error
   }
 }
+
+/** The longest a minter is kept, whatever YouTube says: its player script changes too. */
+const MAX_MINTER_MS = 6 * 60 * 60 * 1000
+
+/**
+ * How long a minter can be used for: four fifths of what YouTube said its
+ * integrity token lasts, so it is made again before YouTube starts refusing
+ * the tokens it mints — never more than six hours, and six hours for a
+ * minter that does not say.
+ */
+export function minterLifetimeMs(minter: object | null): number {
+  // A session's minter may be the page's (sandbox/frame.ts), which says nothing of its token.
+  const ttl = minter && 'ttlSeconds' in minter ? minter.ttlSeconds : null
+  return typeof ttl === 'number' && ttl > 0 ? Math.min(ttl * 800, MAX_MINTER_MS) : MAX_MINTER_MS
+}

@@ -8,7 +8,7 @@ import {
   type Library,
 } from '@selfmp3/shared'
 import { TIMED_OUT } from '../connection/reach.js'
-import { createApi } from './api.js'
+import { createApi, enqueuedBeforeFailing } from './api.js'
 
 /**
  * Answers from this device's copy of a cloud library. The replica hands back
@@ -316,5 +316,37 @@ describe('a bulk edit whose answer runs out of time', () => {
       status: 0,
     })
     expect(sent).toHaveLength(1)
+  })
+
+  it('says what it queued before a later part failed, leases and all', async () => {
+    const items = Array.from({ length: IMPORT_ENQUEUE_MAX + 1 }, (_, i) => ({
+      url: `https://www.youtube.com/watch?v=song${i}`,
+      title: `Song ${i}`,
+      artist: '',
+      album: '',
+      thumbnail: null,
+      duration: 0,
+    }))
+    let part = 0
+    const api = createApi({
+      context: () => ({
+        transport: null,
+        fromCloud: true,
+        cloudRequest: () => {
+          part += 1
+          if (part === 2) return Promise.reject(new Error('the bucket went away'))
+          const device = { lease: 'lease-1', jobIds: ['job-1'], seconds: 300 }
+          return Promise.resolve({ jobs: [], skipped: 0, playlistId: null, device })
+        },
+      }),
+      fetch: () => Promise.reject(new Error('no server in a cloud library')),
+    })
+
+    const failure = await api
+      .importEnqueue({ items, tagIds: [], playlistId: null, fetchOnDevice: true })
+      .catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(Error)
+    expect(enqueuedBeforeFailing(failure)?.leases.map(lease => lease.lease)).toEqual(['lease-1'])
+    expect(enqueuedBeforeFailing(new Error('plain'))).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { isYtProxyUrl } from '@selfmp3/shared'
 import type { DeviceFile, VideoFacts, YouTubeCore } from '../keptSongs.js'
-import { createPoMinter, type PoMinter } from '../poToken.js'
+import { createPoMinter, minterLifetimeMs, type PoMinter } from '../poToken.js'
 import type { YtFetch } from '../transport.js'
 import { isMessage, type FrameMessage, type PageMessage } from './protocol.js'
 
@@ -50,11 +50,27 @@ export function openSandbox(options: {
    * frame asks, kept for every song after; one that failed to start is let go.
    */
   let minter: Promise<PoMinter> | null = null
+  /** When its tokens stop being worth anything (`minterLifetimeMs`), and BotGuard is run again. */
+  let staleAt = Number.POSITIVE_INFINITY
   const mint = async (message: Extract<FrameMessage, { kind: 'mint' }>): Promise<void> => {
-    minter ??= createPoMinter(options.fetch).catch((error: unknown) => {
+    if (minter && Date.now() > staleAt) {
+      const old = minter
       minter = null
-      throw error
-    })
+      void old.then(made => made.close()).catch(() => undefined)
+    }
+    minter ??= (() => {
+      staleAt = Number.POSITIVE_INFINITY
+      return createPoMinter(options.fetch).then(
+        made => {
+          staleAt = Date.now() + minterLifetimeMs(made)
+          return made
+        },
+        (error: unknown) => {
+          minter = null
+          throw error
+        },
+      )
+    })()
     try {
       post({ kind: 'minted', id: message.id, token: await (await minter).mint(message.binding) })
     } catch (error) {

@@ -1,4 +1,4 @@
-import type { Api } from '@selfmp3/client'
+import { enqueuedBeforeFailing, type Api } from '@selfmp3/client'
 import type { ImportEnqueue, ImportEnqueueResult, ImportPreview } from '@selfmp3/shared'
 import {
   deviceBudget,
@@ -56,7 +56,15 @@ export async function enqueueImport(
   // Refused for rate a moment ago, and told to hand back: the server has these.
   const waiting = deviceHandBackOn() && refusing(deviceBudget, Date.now())
   const onDevice = youtube !== null && !waiting && !api.answersFromCloud()
-  const result = await api.importEnqueue(onDevice ? { ...request, fetchOnDevice: true } : request)
+  let result
+  try {
+    result = await api.importEnqueue(onDevice ? { ...request, fetchOnDevice: true } : request)
+  } catch (error) {
+    // A later part of a big import failed: the parts before it are queued, and their songs are this device's.
+    const enqueued = enqueuedBeforeFailing(error)
+    for (const lease of enqueued?.leases ?? []) deviceImports.take(api, lease, enqueued?.jobs ?? [])
+    throw error
+  }
   for (const lease of result.leases) deviceImports.take(api, lease, result.jobs)
   return result
 }

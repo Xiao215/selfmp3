@@ -96,7 +96,12 @@ export class TagWriter {
     const output = `${file}.tagged`
     const cover = coverUrl ? await this.#fetchCover(coverUrl, `${file}.cover`) : null
     try {
-      const result = await run('ffmpeg', tagArgs(file, output, tags, cover), { timeoutMs: 60_000 })
+      let result = await run('ffmpeg', tagArgs(file, output, tags, cover), { timeoutMs: 60_000 })
+      // A picture ffmpeg cannot read (a page that answered 200, a format it does not take): the tags go in without it.
+      if (result.code !== 0 && cover) {
+        this.#logger.debug('the cover would not go in; tagging without it', { file })
+        result = await run('ffmpeg', tagArgs(file, output, tags, null), { timeoutMs: 60_000 })
+      }
       if (result.code !== 0) {
         this.#logger.warn('could not tag a file', { file, stderr: result.stderr.slice(-400) })
         return false

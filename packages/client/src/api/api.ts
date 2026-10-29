@@ -96,6 +96,7 @@ import {
   type DeviceCommand,
   type DeviceHeartbeat,
   type ImportEnqueue,
+  type ImportEnqueueResult,
   type ImportFindRequest,
   type ImportPreviewItem,
   type OfflineScope,
@@ -260,6 +261,22 @@ export interface ApiOptions {
 }
 
 export type Api = ReturnType<typeof createApi>
+
+/**
+ * What an import too big for one enqueue had queued before a later part
+ * failed: those songs are in the queue, and the device's are held for it
+ * under these leases. Carried on the error, so the device still takes them.
+ */
+interface EnqueuedBeforeFailing {
+  readonly jobs: ImportEnqueueResult['jobs']
+  readonly leases: readonly NonNullable<ImportEnqueueResult['device']>[]
+}
+
+/** What `importEnqueue` had queued before the error it threw, if it had. */
+export function enqueuedBeforeFailing(error: unknown): EnqueuedBeforeFailing | null {
+  if (typeof error !== 'object' || error === null || !('enqueued' in error)) return null
+  return (error as { enqueued: EnqueuedBeforeFailing }).enqueued
+}
 
 export function createApi({ context, fetch }: ApiOptions) {
   /**
@@ -630,9 +647,17 @@ export function createApi({ context, fetch }: ApiOptions) {
       for (let at = IMPORT_ENQUEUE_MAX; at < input.items.length; at += IMPORT_ENQUEUE_MAX) {
         const items = input.items.slice(at, at + IMPORT_ENQUEUE_MAX)
         const into = answer.playlistId
-        const next = await enqueue(
-          into === null ? { ...input, items } : { ...input, items, playlistId: into },
-        )
+        let next: ImportEnqueueResult
+        try {
+          next = await enqueue(
+            into === null ? { ...input, items } : { ...input, items, playlistId: into },
+          )
+        } catch (error) {
+          const enqueued: EnqueuedBeforeFailing = { jobs: answer.jobs, leases }
+          throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+            enqueued,
+          })
+        }
         if (next.device) leases.push(next.device)
         answer = {
           jobs: [...answer.jobs, ...next.jobs],

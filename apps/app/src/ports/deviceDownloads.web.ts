@@ -32,7 +32,11 @@ let downloader: Promise<DeviceYouTube | null> | null = null
  * `window.chrome`. Firefox and Safari do not, and have no self.mp3 extension
  * (docs/features/browser-extension.md) — Settings leaves their switches out.
  */
-const extensionBrowser = typeof window !== 'undefined' && 'chrome' in window
+const extensionBrowser =
+  typeof window !== 'undefined' &&
+  'chrome' in window &&
+  // Chrome on a phone gives a page `window.chrome` too, and runs no extensions.
+  !/Android|iPhone|iPad/i.test(navigator.userAgent)
 
 /**
  * Settings' card for this: in a browser the extension runs in, and not in the

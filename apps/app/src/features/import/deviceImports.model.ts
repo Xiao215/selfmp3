@@ -304,6 +304,7 @@ export class DeviceImports {
   async #renew(batch: Batch): Promise<void> {
     const active = batch.active
     let held: Set<string>
+    let order: string[]
     try {
       // What this device still means to download: a job it let go of and the
       // server did not hear about (a start or a release lost) goes to the server now.
@@ -314,6 +315,7 @@ export class DeviceImports {
         holding,
       )
       held = new Set(answer.held)
+      order = answer.held
     } catch {
       // The server did not answer this once; the lease outlasts a few of these.
       return
@@ -321,6 +323,10 @@ export class DeviceImports {
     for (let index = batch.waiting.length - 1; index >= 0; index--) {
       if (!held.has(batch.waiting[index] ?? '')) batch.waiting.splice(index, 1)
     }
+    // In the queue's order, which the server names them in: a song moved up
+    // with "Import next" is the next this device downloads.
+    const place = new Map(order.map((id, index) => [id, index]))
+    batch.waiting.sort((a, b) => (place.get(a) ?? 0) - (place.get(b) ?? 0))
     if (active && !held.has(active.id)) active.stop.abort()
     if (batch.current && !active && !held.has(batch.current)) batch.currentTakenBack = true
     this.#finishIfDone(batch)

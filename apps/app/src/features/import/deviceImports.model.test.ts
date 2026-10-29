@@ -68,6 +68,8 @@ function harness(options: {
   let tick: () => void = () => undefined
   const slept: number[] = []
   const renewedHolding: string[][] = []
+  /** The order the server names what it holds in, when a test has changed it. */
+  let order: string[] | null = null
   /** Whether the lease was still being renewed as each file went to the server. */
   const renewingAtUpload: boolean[] = []
   let renewing = false
@@ -76,7 +78,7 @@ function harness(options: {
     importDeviceRenew: (lease, progress, holding) => {
       calls.push(`renew ${progress.map(each => `${each.id}@${each.percent}`).join(',')}`)
       renewedHolding.push([...holding])
-      return Promise.resolve({ held: [...held] })
+      return Promise.resolve({ held: order ? order.filter(id => held.has(id)) : [...held] })
     },
     importDeviceStart: (lease, id) => {
       calls.push(`start ${id}`)
@@ -137,6 +139,7 @@ function harness(options: {
     renew: () => tick(),
     drop: (id: string) => held.delete(id),
     holdNothing: () => (held = new Set()),
+    reorder: (ids: string[]) => (order = ids),
     take: () =>
       imports.take(
         api,
@@ -440,5 +443,32 @@ describe('DeviceImports', () => {
       [],
     )
     expect(h.budget()?.tokens).toBeLessThan(0)
+  })
+
+  it('downloads next a song the server moved up the queue', async () => {
+    let finish: (file: DeviceFile) => void = () => undefined
+    const h = harness({
+      ids: ['a', 'b', 'c'],
+      download: () => new Promise(resolve => (finish = resolve)),
+    })
+    h.take()
+    await vi.waitFor(() => expect(h.calls).toContain('download a'))
+    // "Import next" on c: the server names what this device holds in the queue's new order.
+    h.reorder(['a', 'c', 'b'])
+    h.renew()
+    await vi.waitFor(() => expect(h.renewedHolding.length).toBe(1))
+    await Promise.resolve()
+    finish(FILE)
+    await vi.waitFor(() =>
+      expect(h.calls.filter(call => call.startsWith('download'))).toHaveLength(2),
+    )
+    expect(h.calls.filter(call => call.startsWith('download'))).toEqual([
+      'download a',
+      'download c',
+    ])
+    finish(FILE)
+    await vi.waitFor(() => expect(h.calls).toContain('download b'))
+    finish(FILE)
+    await h.imports.settled()
   })
 })

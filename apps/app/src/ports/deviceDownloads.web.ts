@@ -8,6 +8,7 @@ import {
 import type { DeviceFile } from '@/features/import/deviceImports.model'
 import { noteRefusal, takeTurn, type DeviceYouTube } from '@/features/import/devicePreview.model'
 import { appPath } from './appPath'
+import { installedApp } from './install'
 
 /**
  * Downloading a song in this tab (docs/features/client-download.md): the
@@ -29,7 +30,19 @@ let downloader: Promise<DeviceYouTube | null> | null = null
  * `window.chrome`. Firefox and Safari do not, and have no self.mp3 extension
  * (docs/features/browser-extension.md) — Settings leaves their switches out.
  */
-export const extensionBrowser = typeof window !== 'undefined' && 'chrome' in window
+const extensionBrowser = typeof window !== 'undefined' && 'chrome' in window
+
+/**
+ * Settings' card for this: in a browser the extension runs in, and not in the
+ * installed Mac app, which draws this page from an address the extension
+ * does not talk to.
+ */
+export const downloadsHere = {
+  available: extensionBrowser && !installedApp,
+  title: 'In this browser',
+  place: 'browser',
+  hint: 'With the self.mp3 extension, YouTube songs are looked up, heard and downloaded in this browser, and your server adds them.',
+}
 /** When the last look found no way to YouTube, so the next look can wait a while. */
 let missedAt = 0
 /** Why the last look found none, said once until the reason changes. */
@@ -75,6 +88,11 @@ export function deviceDownloader(): Promise<DeviceYouTube | null> {
     }
   })()
   return downloader
+}
+
+/** Look for the extension now, and open the sandbox if it answers: the Import screen calls this as it opens. */
+export function warmDeviceDownloads(): void {
+  void deviceDownloader()
 }
 
 /**

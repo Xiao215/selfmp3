@@ -5,6 +5,7 @@ import {
   deviceDownloader,
   deviceListenUrl,
   uploadDeviceFile,
+  warmDeviceDownloads,
 } from '@/ports/deviceDownloads'
 import { DeviceImports } from './deviceImports.model'
 import { previewOnDevice, refusing, singleVideo } from './devicePreview.model'
@@ -33,6 +34,11 @@ const deviceImports = new DeviceImports({
 watchDeviceDownloads(() => {
   if (!deviceDownloadsOn()) void deviceImports.letGo('downloading in this browser was turned off')
 })
+
+/** Get this device ready to download, when it downloads at all: the Import screen opening. */
+export function warmImports(): void {
+  if (deviceDownloadsOn()) warmDeviceDownloads()
+}
 
 /**
  * Queue an import, with this device downloading its YouTube songs when it

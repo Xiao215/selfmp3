@@ -20,6 +20,7 @@ dist-pages/
 public/sw.js
 # The YouTube sandbox frame's script, bundled by build:ytsandbox (docs/features/client-download.md).
 public/yt-sandbox.js
+public/yt-webview.js
 
 # The privacy policy, the bucket guide and the iPhone app's install page with its fonts,
 # written from packages/shared/src/privacy.ts, bucketGuide.ts and installPage.ts by

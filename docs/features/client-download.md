@@ -1,17 +1,23 @@
-# Downloading songs in the browser
+# Downloading songs in the browser, or on the phone
 
 When you import from the web app in Chrome with the self.mp3 extension
-installed, the YouTube songs are downloaded by your browser instead of by the
-server — and a single video is also looked up and listened to in the browser,
-so the server never asks YouTube about it at all. The server still does
-everything after the download — tags, lyrics,
-cover, library, bucket — exactly as for a song it downloaded itself. Nothing
-changes anywhere else: on a phone, in the Mac app, in a browser without the
-extension, or when no server answers, the server downloads as before. It can
-be turned off in Settings (below).
+installed, or from the phone app, the YouTube songs are downloaded by your
+browser or phone instead of by the server — and a single video is also looked
+up and listened to there, so the server never asks YouTube about it at all.
+The server still does everything after the download — tags, lyrics, cover,
+library, bucket — exactly as for a song it downloaded itself. Nothing changes
+anywhere else: in the Mac app, in a browser without the extension, or when no
+server answers, the server downloads as before. It can be turned off in
+Settings (below).
+
+A phone is where this helps most: on mobile data it is on another network from
+the server, so its downloads count against a different address (_On a phone_,
+below).
 
 **Where:** the download code is `packages/ytclient`, run in a sandbox frame
-(`src/sandbox/`, bundled into `apps/app/public/yt-sandbox.js`); the app drives it
+(`src/sandbox/`, bundled into `apps/app/public/yt-sandbox.js`) in a browser, and
+in a hidden WebView on a phone (`src/webview/`, bundled into
+`apps/app/public/yt-webview.js`, held by `src/ports/youtubePage.tsx`); the app drives it
 from `apps/app/src/features/import/deviceImports*.ts`, `devicePreview.model.ts`,
 `devicePrefs.ts` and `src/ports/deviceDownloads*.ts`;
 the extension forwards its requests in `apps/extension/src/background/ytProxy.ts`;
@@ -89,9 +95,10 @@ would be the one listening.
 
 ## Settings
 
-Two switches in the app, under **Settings → Advanced → In this browser**, kept
-on the device (`devicePrefs.ts`) and shown only in a browser tab the extension
-runs in — Chrome and the browsers made from it, not Safari or Firefox:
+Two switches in the app, under **Settings → Advanced → In this browser** (on a
+phone, **On this device**), kept on the device (`devicePrefs.ts`) and shown on a
+phone and in a browser tab the extension runs in — Chrome and the browsers made
+from it, not Safari or Firefox:
 
 - **Download songs here** (on): whether this browser looks up, plays and
   downloads YouTube songs at all. Off, the server does all of it, as before.
@@ -111,8 +118,46 @@ refusal halves the browser's pace for good, as a server's does, and only a
 person puts it back.
 
 And one in the extension's own options page: **Use my YouTube sign-in** (off),
-under *Signed in* below. It lives in the extension because the extension is
+under _Signed in_ below. It lives in the extension because the extension is
 what would send the sign-in; no page can turn it on.
+
+## On a phone
+
+A phone app is not a web page, so nothing stops it asking YouTube, and it needs
+no extension. youtubei.js, the player script and BotGuard run in a WebView the
+app keeps out of sight (`YouTubePage`), whose page is given YouTube's own
+address (`https://www.youtube.com/`): its requests are YouTube's page asking its
+own site, and the media and BotGuard's servers answer it as they answer
+YouTube's player. Nothing is forwarded, and BotGuard runs in the page itself —
+the page is at the address its verdict is about, which the browser's sandbox
+frame is not.
+
+- **Kept apart.** The WebView is a browser of its own: it shares no cookies with
+  the app and holds no self.mp3 session, and the app talks to it only by
+  messages (`packages/ytclient/src/webview/protocol.ts`) — describe this video,
+  download that one; the facts come back, or the file in base64 chunks. It
+  follows no link away from its page.
+- **Brought up to date with the web app.** The page's script is the web app's
+  `yt-webview.js`, loaded from its address, so a change YouTube makes is met
+  by publishing the web app, not by a new build of the phone's. Until the web
+  app with that file is published, the phone finds no page and the server
+  downloads, as before.
+- **Opened as Import opens**, not when the app starts: loading the script and
+  BotGuard's first run are a few seconds of a phone's time, and most launches
+  import nothing. A look-up, a listen or an import never waits for it: until
+  the page says it is ready, the server takes that one. A page that does not
+  load within 30 seconds is not tried again for a minute.
+- **In the foreground.** iOS stops the app's JavaScript and the WebView soon
+  after the app leaves the screen; the lease runs out and the server takes the
+  songs, as for a closed tab. A page the system closes is opened again at the
+  next ask.
+- **Its own budget**, kept with the phone's other small things (`prefs.ts`),
+  and the same two switches in **Settings → Advanced → On this device**.
+
+Checked in Chromium with the page served at YouTube's address and no extension
+(`npx playwright test -c packages/ytclient/verify webview`): described and
+downloaded whole, 5.8 MB in about 3 seconds (2026-10-28). **Not yet tried in
+iOS's or Android's own WebView** on a phone.
 
 ## Finding the extension
 
@@ -127,14 +172,14 @@ page its way to an extension as the page loads, so that takes one reload.
 The device never fails a song. Whatever it cannot do, it hands back, and the
 server downloads that song itself with yt-dlp:
 
-| What happened | What the app does |
-|---|---|
-| The download failed | Hands that song back (`/import/device/release`) and goes on to the next |
-| The server refused the file | The same |
+| What happened                                            | What the app does                                                                                                                                          |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The download failed                                      | Hands that song back (`/import/device/release`) and goes on to the next                                                                                    |
+| The server refused the file                              | The same                                                                                                                                                   |
 | YouTube refused this browser for rate ("not a bot", 429) | Hands back **every** song still waiting, and stays away from YouTube for 15 minutes — or, with the second switch off, waits the 15 minutes out and goes on |
-| You closed the tab, or the computer slept | Nothing: the lease runs out and the server takes the songs |
-| You cancelled or removed the song | The next renewal says the server no longer holds it, and the app stops |
-| The server restarted | A download in progress stays the device's; nothing is lost |
+| You closed the tab, or the computer slept                | Nothing: the lease runs out and the server takes the songs                                                                                                 |
+| You cancelled or removed the song                        | The next renewal says the server no longer holds it, and the app stops                                                                                     |
+| The server restarted                                     | A download in progress stays the device's; nothing is lost                                                                                                 |
 
 The app renews its lease every minute. A lease is five minutes because a
 background tab's timers can be slowed to once a minute.
@@ -191,29 +236,29 @@ addresses only,
 and **without your YouTube cookies** unless you turned the sign-in on — and
 then only for the player request, as above. One rule rewrites the `Origin` header on the
 extension's requests to YouTube's API and video servers, because YouTube refuses
-any other origin. See *What it asks Chrome for* in
+any other origin. See _What it asks Chrome for_ in
 [browser-extension.md](browser-extension.md).
 
 ## What we found while building it (2026-10-13)
 
 YouTube changes these from month to month; check the date before relying on them.
 
-| Finding | Detail |
-|---|---|
-| YouTube refuses requests that do not come from youtube.com | Its API answered 403 to `Origin: chrome-extension://…` and to `localhost`, hence the header rule |
-| …except BotGuard, which wants the page's own | With the rewrite, YouTube issued no integrity token. The rule leaves BotGuard's requests alone |
-| The anti-bot token is per video | A token made for the session was refused like none at all. yt-dlp's PO Token Guide says the same |
-| Only one YouTube client gives whole files | `VISIONOS` (Apple Vision Pro). `MWEB` and `YTMUSIC` stopped after 1 MB; `WEB` only offers SABR, a streaming format this does not speak |
-| An occasional 403 | 4 of the first 26 downloads. Asking for a fresh link and resuming at the same byte fixes it |
-| Speed | Under a second for a 3–6 MB song, after 1–2 seconds to start a session |
-| Metro and youtubei.js | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. It is bundled by esbuild into the sandbox frame now, and not in the app at all |
-| A static `regexFilter` rule stops the extension loading | Three `urlFilter` rules do the same job |
-| BotGuard in the sandbox frame (2026-10-18) | YouTube issued no integrity token for its answer, with or without storage the frame could use. It runs in the page instead |
-| A whole review in the browser (2026-10-14) | Looked up in 2.6 s, playing 4.9 s after the press, imported with no second download — and the server's log shows no preview and no listen, only the library check, the queue and the file |
+| Finding                                                    | Detail                                                                                                                                                                                                                         |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| YouTube refuses requests that do not come from youtube.com | Its API answered 403 to `Origin: chrome-extension://…` and to `localhost`, hence the header rule                                                                                                                               |
+| …except BotGuard, which wants the page's own               | With the rewrite, YouTube issued no integrity token. The rule leaves BotGuard's requests alone                                                                                                                                 |
+| The anti-bot token is per video                            | A token made for the session was refused like none at all. yt-dlp's PO Token Guide says the same                                                                                                                               |
+| Only one YouTube client gives whole files                  | `VISIONOS` (Apple Vision Pro). `MWEB` and `YTMUSIC` stopped after 1 MB; `WEB` only offers SABR, a streaming format this does not speak                                                                                         |
+| An occasional 403                                          | 4 of the first 26 downloads. Asking for a fresh link and resuming at the same byte fixes it                                                                                                                                    |
+| Speed                                                      | Under a second for a 3–6 MB song, after 1–2 seconds to start a session                                                                                                                                                         |
+| Metro and youtubei.js                                      | Metro could not load youtubei.js's own modules ("Cannot access 'Platform' before initialization"); the prebuilt `youtubei.js/web.bundle` works. It is bundled by esbuild into the sandbox frame now, and not in the app at all |
+| A static `regexFilter` rule stops the extension loading    | Three `urlFilter` rules do the same job                                                                                                                                                                                        |
+| BotGuard in the sandbox frame (2026-10-18)                 | YouTube issued no integrity token for its answer, with or without storage the frame could use. It runs in the page instead                                                                                                     |
+| A whole review in the browser (2026-10-14)                 | Looked up in 2.6 s, playing 4.9 s after the press, imported with no second download — and the server's log shows no preview and no listen, only the library check, the queue and the file                                      |
 
 ## Trying it
 
-In the app: load `apps/extension/dist` in Chrome (*Load unpacked*), open the web
+In the app: load `apps/extension/dist` in Chrome (_Load unpacked_), open the web
 app on `localhost:4601` (`npm run dev:web`) or the GitHub Pages address, and
 import a YouTube link. The browser's console says `[device import] …` for what
 it downloaded, or why the server is downloading instead.
@@ -238,7 +283,10 @@ and open `http://localhost:4602`.
   its file into the bucket instead, but that needs a new kind of change in the
   sync log and a place in the bucket for files waiting to be added.
 - **The Mac app.** It runs the same page, but from `app://selfmp3`, which the
-  extension does not talk to. Its own shell could forward the requests instead.
+  extension does not talk to. Its own shell could host the phone's page in a
+  window of its own, as the phone's WebView does.
+- **In the background on a phone.** Downloads stop when the app leaves the
+  screen (_On a phone_); the server takes over.
 - **Firefox and Safari.** Neither lets a web page talk to an extension directly.
 - **Playlists, searches, albums and channels** are still read by the server.
   It asks YouTube Music's own API for them, which it does not pace, so moving

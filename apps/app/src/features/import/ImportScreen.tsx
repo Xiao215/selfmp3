@@ -69,7 +69,7 @@ import { isComposing } from '../../shell/composing'
 import { textBoxGrows } from '../../ports/textBoxGrows'
 import { MOVE_MS } from '../../ui/motion.model'
 import { useRowMotion } from '../../ui/rowMotion'
-import { previewImport } from './deviceImports'
+import { previewImport, warmImports } from './deviceImports'
 import { QueueRing } from './QueueRing'
 import { ImportCover } from './ImportCover'
 import { draftFor, useImportDraft } from './importDraft'
@@ -141,6 +141,8 @@ export function ImportScreen({
   /** "Show all" under Earlier today: the whole history is read only then. */
   const [showAll, setShowAll] = useState(false)
   const source = useImportSource(via, { history: showAll })
+  // A phone's YouTube page takes a moment to load: it starts as the screen opens, not at the first link.
+  useEffect(() => warmImports(), [])
   const { api, library, tools, refetchTools, queue, history } = source
   const params = useLocalSearchParams<{
     url?: string

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { resetRatchet } from '@selfmp3/shared'
 import { Button } from '../../ui/components/Button'
 import { Toggle } from '../../ui/components/Toggle'
-import { deviceBudget } from '../../ports/deviceDownloads'
+import { deviceBudget, downloadsHere } from '../../ports/deviceDownloads'
 import { paceNote } from '../import/devicePreview.model'
 import {
   setDeviceDownloads,
@@ -13,39 +13,39 @@ import {
 import { Card, Row } from './SettingsParts'
 
 /**
- * Downloading in this browser (docs/features/client-download.md): this tab's
- * own switches, kept on this device, beside the server's Importing above.
- * Where to turn on the YouTube sign-in is the extension's own options page:
- * it is the extension that would send it, and no page should be able to.
+ * Downloading on this device (docs/features/client-download.md): a browser
+ * tab's or a phone's own switches, kept on the device, beside the server's
+ * Importing above. Where to turn on the YouTube sign-in is the extension's
+ * own options page: it is the extension that would send it, and no page
+ * should be able to.
  */
-export function BrowserImportsPanel(): ReactNode {
+export function DeviceImportsPanel(): ReactNode {
   const downloads = useDeviceDownloads()
   const handBack = useDeviceHandBack()
+  const { title, place, hint } = downloadsHere
   // Read as the panel draws: a refusal lands while downloading, not while Settings is open.
-  const [pace, setPace] = useState(() => paceNote(deviceBudget.get(), Date.now()))
+  const [pace, setPace] = useState(() => paceNote(deviceBudget.get(), Date.now(), place))
   const resetPace = (): void => {
     const state = deviceBudget.get()
     if (state) deviceBudget.save(resetRatchet(state, Date.now()))
-    setPace(paceNote(deviceBudget.get(), Date.now()))
+    setPace(paceNote(deviceBudget.get(), Date.now(), place))
   }
+  const takeOver = `Let the server take over when YouTube slows this ${place} down`
   return (
-    <Card title="In this browser">
-      <Row
-        label="Download songs here"
-        hint="With the self.mp3 extension, YouTube songs are looked up, heard and downloaded in this browser, and your server adds them."
-      >
+    <Card title={title}>
+      <Row label="Download songs here" hint={hint}>
         <Toggle value={downloads} onChange={setDeviceDownloads} label="Download songs here" />
       </Row>
       <Row
-        label="Let the server take over when YouTube slows this browser down"
-        hint="Off, this browser waits out YouTube's pause, 15 minutes from each refusal, and finishes the songs itself."
+        label={takeOver}
+        hint={`Off, this ${place} waits out YouTube's pause, 15 minutes from each refusal, and finishes the songs itself.`}
         last={pace === null}
       >
         <Toggle
           value={handBack}
           onChange={setDeviceHandBack}
           disabled={!downloads}
-          label="Let the server take over when YouTube slows this browser down"
+          label={takeOver}
         />
       </Row>
       {pace !== null ? (

@@ -10,14 +10,13 @@ import { ScrollView } from '../../ui/components/Scroll'
 import { pageFrame } from '../../ui/surfaces'
 import { useLayoutFlags } from '../../shell/useLayout'
 import { loginItem } from '../../ports/loginItem'
-import { extensionBrowser } from '../../ports/deviceDownloads'
-import { installedApp } from '../../ports/install'
+import { downloadsHere } from '../../ports/deviceDownloads'
 import { macApp } from '../../ports/macApp'
 import { useMenuCommands } from '../../ports/menuKeys'
-import { BrowserImportsPanel } from './BrowserImportsPanel'
 import { AccountCards } from './ConnectionPanel'
 import { Confirmations } from './Confirmations'
 import { DesktopPanel } from './DesktopPanel'
+import { DeviceImportsPanel } from './DeviceImportsPanel'
 import { GetAppPanel } from './GetAppPanel'
 import { ImportingPanel } from './ImportingPanel'
 import { LibraryPanel } from './LibraryPanel'
@@ -72,8 +71,8 @@ export function AdvancedScreen(): ReactNode {
     <SettingsPage title="Advanced">
       <LibraryPanel />
       <ImportingPanel />
-      {/* This tab's own downloading (docs/features/client-download.md): only where the extension runs. */}
-      {!installedApp && extensionBrowser ? <BrowserImportsPanel /> : null}
+      {/* This device's own downloading (docs/features/client-download.md): a phone, or a tab the extension runs in. */}
+      {downloadsHere.available ? <DeviceImportsPanel /> : null}
       {loginItem.available ? <DesktopPanel /> : null}
       {macApp.offered ? <GetAppPanel /> : null}
       {shortcuts ? <ShortcutsPanel items={shortcuts} /> : null}

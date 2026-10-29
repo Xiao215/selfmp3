@@ -37,7 +37,7 @@ export interface YouTubeCore {
   download(url: string, onProgress: (percent: number) => void): Promise<DeviceFile>
 }
 
-export interface DeviceDownloader {
+interface DeviceDownloader {
   /** What the player says of the video at `url`, without downloading it. */
   describe(url: string): Promise<VideoFacts>
   download(

@@ -42,6 +42,21 @@ export function warmImports(): void {
 }
 
 /**
+ * How long Import or a look-up waits for this device's downloader before
+ * going to the server: its first look (the extension, the sandbox) can take
+ * many seconds when something is slow, and a person pressed a button.
+ * The look goes on; the next press finds it done.
+ */
+const WAIT_FOR_DEVICE_MS = 1500
+
+function deviceDownloaderSoon(): ReturnType<typeof deviceDownloader> {
+  return Promise.race([
+    deviceDownloader(),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), WAIT_FOR_DEVICE_MS)),
+  ])
+}
+
+/**
  * Queue an import, with this device downloading its YouTube songs when it
  * can (docs/features/client-download.md): only when a server answers — the
  * file has to go to one — and the extension carries this tab's requests to
@@ -52,7 +67,7 @@ export async function enqueueImport(
   request: ImportEnqueue,
 ): Promise<ImportEnqueueResult> {
   // Whether this device can download at all first: on a phone it cannot, and nothing else is asked.
-  const youtube = deviceDownloadsOn() ? await deviceDownloader() : null
+  const youtube = deviceDownloadsOn() ? await deviceDownloaderSoon() : null
   // Refused for rate a moment ago, and told to hand back: the server has these.
   const waiting = deviceHandBackOn() && refusing(deviceBudget, Date.now())
   const onDevice = youtube !== null && !waiting && !api.answersFromCloud()
@@ -82,7 +97,7 @@ export async function previewImport(
   lookUp: Pick<Api, 'importPreview'> = api,
 ): Promise<ImportPreview> {
   // Whether this device can ask YouTube at all first: on a phone it cannot, and nothing else is asked.
-  const youtube = deviceDownloadsOn() ? await deviceDownloader() : null
+  const youtube = deviceDownloadsOn() ? await deviceDownloaderSoon() : null
   const onDevice = youtube !== null && !api.answersFromCloud()
   const video = onDevice ? singleVideo(input) : null
   if (youtube && video) {

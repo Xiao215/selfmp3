@@ -18,6 +18,31 @@ import {
  */
 export type YtFetch = typeof fetch
 
+/**
+ * How long one request to YouTube may take, its body included: a megabyte
+ * on a slow phone connection is well inside it, a connection that stalled
+ * without being reset is not.
+ */
+export const YOUTUBE_REQUEST_MS = 120_000
+
+/** `fetch`, each request of it stopped after `ms` — and whenever its caller stops it. */
+export function withTimeout(fetch: YtFetch, ms: number): YtFetch {
+  return (input, init = {}) => {
+    const stop = new AbortController()
+    const timer = setTimeout(() => {
+      stop.abort(new Error(`YouTube did not answer within ${Math.round(ms / 1000)} seconds`))
+    }, ms)
+    const outer = init.signal
+    if (outer?.aborted) stop.abort(outer.reason)
+    else outer?.addEventListener('abort', () => stop.abort(outer.reason), { once: true })
+    // The timer outlives the answer on purpose: the body is read after it, and stopping a read done is nothing.
+    return fetch(input, { ...init, signal: stop.signal }).catch((error: unknown) => {
+      clearTimeout(timer)
+      throw error
+    })
+  }
+}
+
 /** The part of a `chrome.runtime.Port` the page uses. */
 export interface PagePort {
   postMessage(message: YtProxyPageMessage): void

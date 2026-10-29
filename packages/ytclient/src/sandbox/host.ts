@@ -1,7 +1,7 @@
 import { isYtProxyUrl } from '@selfmp3/shared'
 import type { DeviceFile, VideoFacts, YouTubeCore } from '../keptSongs.js'
 import { createPoMinter, minterLifetimeMs, type PoMinter } from '../poToken.js'
-import type { YtFetch } from '../transport.js'
+import { withTimeout, YOUTUBE_REQUEST_MS, type YtFetch } from '../transport.js'
 import { isMessage, type FrameMessage, type PageMessage } from './protocol.js'
 
 /**
@@ -60,7 +60,8 @@ export function openSandbox(options: {
     }
     minter ??= (() => {
       staleAt = Number.POSITIVE_INFINITY
-      return createPoMinter(options.fetch).then(
+      // BotGuard's requests given up on as every other is: one that stalls would hold every song up.
+      return createPoMinter(withTimeout(options.fetch, YOUTUBE_REQUEST_MS)).then(
         made => {
           staleAt = Date.now() + minterLifetimeMs(made)
           return made

@@ -188,6 +188,24 @@ describe.skipIf(!hasFfmpeg())('a song a device downloaded', { timeout: 60_000 },
     expect(await job(jobId)).toMatchObject({ status: 'queued', step: 'waiting' })
   })
 
+  it('downloads everything itself when it has no ffmpeg to measure a device’s file with', async () => {
+    const status = container.ytdlp.status.bind(container.ytdlp)
+    container.ytdlp.status = async () => ({ ...(await status()), ffmpeg: false })
+    try {
+      const response = await post('/import/enqueue', {
+        items: [
+          { url: 'https://www.youtube.com/watch?v=9bZkp7q19f0', title: 'Gangnam', duration: 3 },
+        ],
+        fetchOnDevice: true,
+      })
+      const result = ImportEnqueueResultSchema.parse(await response.json())
+      expect(result.device).toBeNull()
+      await call('POST', `/import/jobs/${result.jobs[0]?.id}/cancel`)
+    } finally {
+      container.ytdlp.status = status
+    }
+  })
+
   it('follows the device’s download', async () => {
     expect((await post('/import/device/start', { lease, id: jobId })).status).toBe(200)
     const renewed = await post('/import/device/renew', {

@@ -157,7 +157,7 @@ describe('a long YouTube Music description, cut', () => {
 
 describe('a request YouTube never answers', () => {
   it('is given up on, and the caller’s own stop still stops it', async () => {
-    const { withTimeout } = await import('./downloader.js')
+    const { withTimeout } = await import('./transport.js')
     const never = ((_input: unknown, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))

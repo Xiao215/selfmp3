@@ -2,7 +2,7 @@ import { youtubeVideoId } from '@selfmp3/shared'
 import { createSession, describeVideo, downloadAudio, type YtSession } from './download.js'
 import { minterLifetimeMs, type PoMinter } from './poToken.js'
 import type { DeviceFile, YouTubeCore } from './keptSongs.js'
-import type { YtFetch } from './transport.js'
+import { withTimeout, YOUTUBE_REQUEST_MS, type YtFetch } from './transport.js'
 
 /**
  * youtubei.js, ready to describe and download (docs/features/client-download.md):
@@ -23,37 +23,12 @@ import type { YtFetch } from './transport.js'
  */
 const MAX_DESCRIPTION_BYTES = 4000
 
-/**
- * How long one request to YouTube may take, its body included: a megabyte
- * on a slow phone connection is well inside it, a connection that stalled
- * without being reset is not.
- */
-const REQUEST_MS = 120_000
-
-/** `fetch`, each request of it stopped after `ms` — and whenever its caller stops it. */
-export function withTimeout(fetch: YtFetch, ms: number): YtFetch {
-  return (input, init = {}) => {
-    const stop = new AbortController()
-    const timer = setTimeout(() => {
-      stop.abort(new Error(`YouTube did not answer within ${Math.round(ms / 1000)} seconds`))
-    }, ms)
-    const outer = init.signal
-    if (outer?.aborted) stop.abort(outer.reason)
-    else outer?.addEventListener('abort', () => stop.abort(outer.reason), { once: true })
-    // The timer outlives the answer on purpose: the body is read after it, and stopping a read done is nothing.
-    return fetch(input, { ...init, signal: stop.signal }).catch((error: unknown) => {
-      clearTimeout(timer)
-      throw error
-    })
-  }
-}
-
 export function createYouTubeCore(
   fetch: YtFetch,
   options: { minter?: Pick<PoMinter, 'mint'> } = {},
 ): YouTubeCore {
   // Every request given up on after a while: one that never answers would hold up every song after it.
-  const guarded = withTimeout(fetch, REQUEST_MS)
+  const guarded = withTimeout(fetch, YOUTUBE_REQUEST_MS)
   let session: Promise<YtSession> | null = null
   /** When the session's PO tokens stop being worth anything (`minterLifetimeMs`), and it is made again. */
   let staleAt = Number.POSITIVE_INFINITY

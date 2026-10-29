@@ -203,7 +203,9 @@ export class DeviceImports {
     try {
       await batch.api.importDeviceStart(batch.lease, id)
     } catch {
-      // Not held any more — cancelled or taken back while it waited. Nothing to do.
+      // Not held any more (cancelled, taken back) — or the start never got
+      // there. Let go of it either way: a release of a job gone is nothing.
+      await this.#release(batch, id, 'this device could not start on it')
       return
     }
 

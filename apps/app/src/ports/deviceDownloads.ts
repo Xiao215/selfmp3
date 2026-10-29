@@ -182,12 +182,22 @@ function forget(videoId: string): void {
   }
 }
 
+/** How long sending one song may take: a few megabytes, on the slowest connection worth waiting for. */
+const UPLOAD_MS = 5 * 60_000
+
 /** The file, as the body itself, described in the two headers the server reads. */
 export async function uploadDeviceFile(
   target: { url: string; headers: Record<string, string> },
   file: DeviceFile,
 ): Promise<{ status: number; message: string }> {
+  // A send that stalls is given up on: the device's whole queue waits on it.
+  const stop = new AbortController()
+  const timer = setTimeout(
+    () => stop.abort(new Error('the server did not take the file in time')),
+    UPLOAD_MS,
+  )
   const response = await fetch(target.url, {
+    signal: stop.signal,
     method: 'PUT',
     headers: {
       ...target.headers,
@@ -198,6 +208,7 @@ export async function uploadDeviceFile(
     body: file.bytes,
   })
   const answer = (await response.json().catch(() => null)) as { error?: unknown } | null
+  clearTimeout(timer)
   return {
     status: response.status,
     message: typeof answer?.error === 'string' ? answer.error : '',

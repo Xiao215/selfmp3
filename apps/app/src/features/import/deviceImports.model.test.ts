@@ -370,4 +370,19 @@ describe('DeviceImports', () => {
     // The lease was kept up all through the wait, up to the file.
     expect(h.renewingAtUpload).toEqual([true])
   })
+
+  it('lets go of a song whose start did not reach the server, and goes on', async () => {
+    const h = harness({ ids: ['a', 'b'] })
+    // The server answers the start for a with an error: gone, or never heard.
+    h.drop('a')
+    h.take()
+    await h.imports.settled()
+    expect(h.calls).toEqual([
+      'start a',
+      'release a: this device could not start on it',
+      'start b',
+      'download b',
+      'upload b',
+    ])
+  })
 })

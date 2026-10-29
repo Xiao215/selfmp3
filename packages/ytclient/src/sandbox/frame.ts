@@ -65,12 +65,31 @@ const mints = new Map<
   { resolve: (token: string) => void; reject: (error: Error) => void }
 >()
 
+/**
+ * How long a token from the page may take: BotGuard's first run is a few
+ * requests, each given up on after two minutes in the page; past this one the
+ * session is not left waiting for good.
+ */
+const MINT_MS = 5 * 60_000
+
 /** PO tokens from the page, which runs BotGuard where it can attest (protocol.ts). */
 const pageMinter = {
   mint: (binding: string): Promise<string> =>
     new Promise<string>((resolve, reject) => {
       const id = nextMint++
-      mints.set(id, { resolve, reject })
+      const timer = setTimeout(() => {
+        if (mints.delete(id)) reject(new Error('the page made no PO token in time'))
+      }, MINT_MS)
+      mints.set(id, {
+        resolve: token => {
+          clearTimeout(timer)
+          resolve(token)
+        },
+        reject: error => {
+          clearTimeout(timer)
+          reject(error)
+        },
+      })
       send({ kind: 'mint', id, binding })
     }),
 }

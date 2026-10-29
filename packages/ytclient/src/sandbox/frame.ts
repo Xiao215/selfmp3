@@ -1,4 +1,6 @@
-// First, before youtubei.js runs a line: it reads storage as it loads.
+// First of all: that this is the sandbox the app made, and not the same page framed by anyone else.
+import './guard.js'
+// Then, before youtubei.js runs a line: it reads storage as it loads.
 import './storage.js'
 import { createYouTubeCore } from '../downloader.js'
 import type { YtFetch } from '../transport.js'

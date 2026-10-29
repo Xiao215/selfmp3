@@ -203,6 +203,13 @@ YouTube's addresses, through the extension. The page asks the frame to describe
 or download a video and gets the facts or the file back. The app's own bundle
 no longer contains youtubei.js at all; it imports `@selfmp3/ytclient/host`.
 
+The frame's page is published with the web app, so any site could frame it
+without a sandbox, where it would have the app's origin and the site would be
+the one answering its requests. Its first line (`sandbox/guard.ts`) stops it
+anywhere but an opaque origin (`self.origin === 'null'`), before anything else
+runs — checked in Chromium: framed plainly it stops and says nothing, framed by
+the app it starts.
+
 **BotGuard is the one exception, and still runs in the page.** Run in the frame,
 it gave an answer YouTube would not issue an integrity token for (2026-10-18):
 BotGuard reports the environment it runs in, and a frame with no origin is not

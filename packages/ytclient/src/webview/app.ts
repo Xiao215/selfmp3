@@ -106,7 +106,12 @@ export function createWebViewCore(post: (message: AppMessage) => void): WebViewC
             waiting.reject(new Error(`the page sent ${at} of the song's ${message.size} bytes`))
             return
           }
-          waiting.resolve({ bytes, mimeType: 'audio/mp4', sha256: message.sha256, meta: message.meta })
+          waiting.resolve({
+            bytes,
+            mimeType: 'audio/mp4',
+            sha256: message.sha256,
+            meta: message.meta,
+          })
           return
         }
         case 'failed':

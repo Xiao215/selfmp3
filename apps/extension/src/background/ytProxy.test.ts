@@ -13,13 +13,16 @@ import { ytProxy, type ProxyPort } from './ytProxy.js'
 
 const APP = 'http://localhost:4602/'
 
-function fakePort(options: { name?: string; page?: string } = {}) {
+function fakePort(options: { name?: string; page?: string; origin?: string } = {}) {
   const sent: YtProxyExtensionMessage[] = []
   let onMessage: (message: unknown) => void = () => undefined
   let onDisconnect: () => void = () => undefined
   const port: ProxyPort & { disconnected: boolean } = {
     name: options.name ?? YT_PROXY_PORT,
-    sender: { url: options.page ?? `${APP}index.html` },
+    sender: {
+      url: options.page ?? `${APP}index.html`,
+      origin: options.origin ?? new URL(options.page ?? APP).origin,
+    },
     disconnected: false,
     postMessage: message => sent.push(message),
     disconnect: () => {
@@ -129,6 +132,14 @@ describe('ytProxy', () => {
 
   it('hangs up on a page it was not told to serve', () => {
     const { port } = fakePort({ page: 'https://example.com/' })
+    ytProxy({ fetch: vi.fn(), pages: [APP] })(port)
+    expect(port.disconnected).toBe(true)
+  })
+
+  it('hangs up on a sandboxed frame at the app’s own address', () => {
+    // Any site can frame the app's sandbox page with sandbox="allow-scripts":
+    // the address is the app's, the origin is opaque.
+    const { port } = fakePort({ page: `${APP}yt-sandbox.html`, origin: 'null' })
     ytProxy({ fetch: vi.fn(), pages: [APP] })(port)
     expect(port.disconnected).toBe(true)
   })

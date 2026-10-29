@@ -24,7 +24,7 @@ import {
 /** The part of a `chrome.runtime.Port` this uses, so a test can stand in for one. */
 export interface ProxyPort {
   readonly name: string
-  readonly sender?: { readonly url?: string }
+  readonly sender?: { readonly url?: string; readonly origin?: string }
   postMessage(message: YtProxyExtensionMessage): void
   disconnect(): void
   readonly onMessage: { addListener(listener: (message: unknown) => void): void }
@@ -52,9 +52,19 @@ export function ytProxy(deps: {
 }): (port: ProxyPort) => void {
   return port => {
     if (port.name !== YT_PROXY_PORT) return
-    // The page's whole address, not its origin: the app's path, not the site it is on.
+    // The page's whole address, for the app's path rather than the site it
+    // is on — and its origin too. A sandboxed frame keeps the address it was
+    // loaded from but has an opaque origin ("null"): any site can frame the
+    // app's sandbox page so, and run its own code at that address. The app's
+    // page connects from its real origin; nothing sandboxed ever does.
     const page = port.sender?.url
-    if (!page || !isYtProxyPage(page, deps.pages)) {
+    const origin = port.sender?.origin
+    if (
+      !page ||
+      !isYtProxyPage(page, deps.pages) ||
+      !origin ||
+      !deps.pages.some(allowed => new URL(allowed).origin === origin)
+    ) {
       port.disconnect()
       return
     }

@@ -1,4 +1,4 @@
-// First of all: that this is the sandbox the app made, and not the same page framed by anyone else.
+// First of all: sandboxed, and framed by the app's own page (guard.ts) — or nothing runs.
 import './guard.js'
 // Then, before youtubei.js runs a line: it reads storage as it loads.
 import './storage.js'

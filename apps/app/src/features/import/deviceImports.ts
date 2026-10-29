@@ -4,6 +4,7 @@ import {
   deviceBudget,
   deviceDownloader,
   deviceListenUrl,
+  downloadsHere,
   uploadDeviceFile,
   warmDeviceDownloads,
 } from '@/ports/deviceDownloads'
@@ -96,9 +97,12 @@ export async function previewImport(
 
 /**
  * Where a review's song plays from: this device's own download when it can
- * make one, else `server` — the server's listen address for it.
+ * make one, else `server` — the server's listen address for it. Where this
+ * device downloads nothing (switched off, or Safari and Firefox, with no
+ * extension) the address comes at once rather than as a promise: a browser
+ * may refuse to play what was not started inside the tap.
  */
-export async function listenSource(url: string, server: () => string): Promise<string> {
-  if (!deviceDownloadsOn()) return server()
-  return (await deviceListenUrl(url)) ?? server()
+export function listenSource(url: string, server: () => string): string | Promise<string> {
+  if (!deviceDownloadsOn() || !downloadsHere.available) return server()
+  return deviceListenUrl(url).then(own => own ?? server())
 }

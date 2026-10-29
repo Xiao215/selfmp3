@@ -56,6 +56,8 @@ function harness(options: {
   handBack?: boolean
   /** The device's "Download songs here", read each time it is asked. */
   wanted?: () => boolean
+  /** Called each time the device waits, as a renewal would land meanwhile. */
+  onSleep?: () => void
 }) {
   const calls: string[] = []
   let held = new Set(options.ids)
@@ -64,6 +66,9 @@ function harness(options: {
   let tick: () => void = () => undefined
   const slept: number[] = []
   const renewedHolding: string[][] = []
+  /** Whether the lease was still being renewed as each file went to the server. */
+  const renewingAtUpload: boolean[] = []
+  let renewing = false
 
   const api: DeviceImportsApi = {
     importDeviceRenew: (lease, progress, holding) => {
@@ -93,6 +98,7 @@ function harness(options: {
   const imports = new DeviceImports({
     downloader: () => Promise.resolve(options.downloader === false ? null : downloader),
     upload: target => {
+      renewingAtUpload.push(renewing)
       calls.push(`upload ${target.url.slice('https://server/'.length)}`)
       held.delete(target.url.slice('https://server/'.length))
       return Promise.resolve({ status: options.uploadStatus ?? 202, message: 'no' })
@@ -101,12 +107,15 @@ function harness(options: {
     now: () => now,
     sleep: ms => {
       slept.push(ms)
+      options.onSleep?.()
       now += ms
       return Promise.resolve()
     },
     every: (_ms, fn) => {
       tick = fn
+      renewing = true
       return () => {
+        renewing = false
         tick = () => undefined
       }
     },
@@ -120,6 +129,7 @@ function harness(options: {
     calls,
     slept,
     renewedHolding,
+    renewingAtUpload,
     budget: () => budget,
     renew: () => tick(),
     drop: (id: string) => held.delete(id),
@@ -339,5 +349,25 @@ describe('DeviceImports', () => {
     await vi.waitFor(() => expect(h.calls).toContain('download c'))
     finish(FILE)
     await h.imports.settled()
+  })
+
+  it('keeps renewing while its last song waits out a refusal, when told not to hand back', async () => {
+    let refused = false
+    const h: ReturnType<typeof harness> = harness({
+      ids: ['a'],
+      handBack: false,
+      // A renewal lands while the song waits its turn.
+      onSleep: () => h.renew(),
+      download: () => {
+        if (refused) return Promise.resolve(FILE)
+        refused = true
+        return Promise.reject(new Error("Sign in to confirm you're not a bot"))
+      },
+    })
+    h.take()
+    await h.imports.settled()
+    expect(h.calls.filter(call => call.startsWith('upload'))).toEqual(['upload a'])
+    // The lease was kept up all through the wait, up to the file.
+    expect(h.renewingAtUpload).toEqual([true])
   })
 })

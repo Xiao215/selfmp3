@@ -281,7 +281,10 @@ export class ImportQueueService {
     progress: readonly { id: string; percent: number }[],
     holding?: readonly string[],
   ): string[] {
-    return this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress, holding)
+    const held = this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress, holding)
+    // A job the device has let go of (`holding`) is the queue's now, and it may be idle.
+    if (holding) this.kick()
+    return held
   }
 
   /** The device has started downloading one of its jobs. */

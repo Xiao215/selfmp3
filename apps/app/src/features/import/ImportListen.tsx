@@ -132,9 +132,13 @@ export function useListen(
     // so the song heard is the song imported without asking YouTube again.
     wanted.current = track.url
     const server = mediaUrlFor(connection)
-    void listenSource(track.url, () => server.importListen(track.url)).then(source => {
-      if (wanted.current === track.url) audio.play(source)
-    })
+    const source = listenSource(track.url, () => server.importListen(track.url))
+    if (typeof source === 'string') audio.play(source)
+    else {
+      void source.then(own => {
+        if (wanted.current === track.url) audio.play(own)
+      })
+    }
     colourIn(track)
   }
 

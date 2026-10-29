@@ -117,22 +117,34 @@ export function ytProxy(deps: {
         if (response.body) {
           // Reads come in whatever sizes the network gave; messages go out in
           // chunks of at most YT_PROXY_CHUNK_BYTES.
+          // What has come is kept as the parts it came in, and joined once per chunk sent.
           const reader = response.body.getReader()
-          let pending = new Uint8Array(0)
+          let parts: Uint8Array[] = []
+          let pending = 0
+          const flush = (size: number): void => {
+            const out = new Uint8Array(size)
+            let filled = 0
+            while (filled < size) {
+              const part = parts[0]
+              if (!part) break
+              const take = Math.min(part.length, size - filled)
+              out.set(part.subarray(0, take), filled)
+              filled += take
+              if (take === part.length) parts.shift()
+              else parts[0] = part.subarray(take)
+            }
+            pending -= size
+            send({ type: 'chunk', id, data: bytesToBase64(out) })
+          }
           for (;;) {
             const { done, value } = await reader.read()
             if (done) break
-            const joined = new Uint8Array(pending.length + value.length)
-            joined.set(pending)
-            joined.set(value, pending.length)
-            let offset = 0
-            for (; joined.length - offset >= YT_PROXY_CHUNK_BYTES; offset += YT_PROXY_CHUNK_BYTES) {
-              const data = bytesToBase64(joined.subarray(offset, offset + YT_PROXY_CHUNK_BYTES))
-              send({ type: 'chunk', id, data })
-            }
-            pending = joined.slice(offset)
+            parts.push(value)
+            pending += value.length
+            while (pending >= YT_PROXY_CHUNK_BYTES) flush(YT_PROXY_CHUNK_BYTES)
           }
-          if (pending.length > 0) send({ type: 'chunk', id, data: bytesToBase64(pending) })
+          if (pending > 0) flush(pending)
+          parts = []
         }
         send({ type: 'end', id })
       } catch (error) {

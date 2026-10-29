@@ -142,9 +142,7 @@ export class DeviceImports {
     if (batch.waiting.length === 0) return
     batch.stopRenewing = this.#deps.every(RENEW_MS, () => void this.#renew(batch))
     this.#batches.push(batch)
-    this.#running ??= this.#work().finally(() => {
-      this.#running = null
-    })
+    this.#running ??= this.#work()
   }
 
   /**
@@ -160,20 +158,32 @@ export class DeviceImports {
     while (this.#running) await this.#running
   }
 
+  /**
+   * The worker. It lets itself go (`#running`) in the same step that finds
+   * nothing left: a `.finally` a step later left a gap in which a batch taken
+   * found a worker still there, and none came for it.
+   */
   async #work(): Promise<void> {
-    for (;;) {
-      const batch = this.#batches.find(each => each.waiting.length > 0)
-      if (!batch) return
-      const id = batch.waiting.shift()
-      if (id !== undefined) {
-        batch.current = id
-        try {
-          await this.#one(batch, id)
-        } finally {
-          batch.current = null
+    // Not a step of its own before `take` has kept it as `#running`.
+    await Promise.resolve()
+    try {
+      for (;;) {
+        const batch = this.#batches.find(each => each.waiting.length > 0)
+        // `finally` runs as this returns: nothing between the look and the letting go.
+        if (!batch) return
+        const id = batch.waiting.shift()
+        if (id !== undefined) {
+          batch.current = id
+          try {
+            await this.#one(batch, id)
+          } finally {
+            batch.current = null
+          }
         }
+        this.#finishIfDone(batch)
       }
-      this.#finishIfDone(batch)
+    } finally {
+      this.#running = null
     }
   }
 
@@ -307,7 +317,8 @@ export class DeviceImports {
   }
 
   #finishIfDone(batch: Batch): void {
-    if (batch.waiting.length > 0 || batch.active) return
+    // `current`: a song waiting its turn (a pause after a refusal is fifteen minutes) is still this batch's.
+    if (batch.waiting.length > 0 || batch.active || batch.current) return
     batch.stopRenewing()
     const index = this.#batches.indexOf(batch)
     if (index !== -1) this.#batches.splice(index, 1)

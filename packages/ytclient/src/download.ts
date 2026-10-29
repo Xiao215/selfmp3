@@ -265,7 +265,7 @@ export async function downloadAudio(
           attempts,
         }
       } catch (error) {
-        if (options.signal?.aborted) throw error
+        if (options.signal?.aborted || error instanceof TooMany) throw error
         failed(client, error instanceof Error ? error.message : String(error))
         // Only a refused link is worth another; anything else would fail the same way.
         if (!(error instanceof Refused)) break
@@ -286,6 +286,14 @@ class GiveUp extends Error {}
 
 /** YouTube refused a link part way: the same client, asked again, may give one that works. */
 class Refused extends Error {}
+
+/**
+ * YouTube said too many: nothing more is asked of it, by this client or any
+ * other — each new link would be another request on an address it is
+ * already holding back. The words are a rate limit's (`isRateLimited`), so
+ * whoever downloads takes it for one.
+ */
+class TooMany extends Error {}
 
 /**
  * The rest of the file, a range at a time, into `file` — so a refusal part way
@@ -313,11 +321,10 @@ async function fetchRanges(
     })
     if (!response.ok) {
       await response.body?.cancel()
-      // Said in the words a rate limit is known by (`isRateLimited`), so it is taken for one.
-      const said = response.status === 429 ? ' Too Many Requests' : ''
-      throw new Refused(
-        `YouTube answered ${response.status}${said} at byte ${start} of ${total} (${pot})`,
-      )
+      if (response.status === 429) {
+        throw new TooMany(`YouTube answered 429 Too Many Requests at byte ${start} of ${total}`)
+      }
+      throw new Refused(`YouTube answered ${response.status} at byte ${start} of ${total} (${pot})`)
     }
     const part = new Uint8Array(await response.arrayBuffer())
     if (part.length !== end - start + 1) {

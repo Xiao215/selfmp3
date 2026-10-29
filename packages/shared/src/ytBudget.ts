@@ -214,5 +214,7 @@ export function isRateLimited(message: string): boolean {
     'the page needs to be reloaded',
     '/sorry/',
     'unusual traffic',
+    // youtubei.js's words for a 429 on an InnerTube request (a device's).
+    'status code 429',
   ].some(phrase => lower.includes(phrase))
 }

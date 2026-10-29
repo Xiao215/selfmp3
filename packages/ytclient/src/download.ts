@@ -266,6 +266,10 @@ export async function downloadAudio(
         }
       } catch (error) {
         if (options.signal?.aborted || error instanceof TooMany) throw error
+        // A 429 on the player request is the same answer as one on the media: no other client is asked.
+        if (error instanceof Error && /status code 429/.test(error.message)) {
+          throw new TooMany(`YouTube answered 429 Too Many Requests to ${client}'s player request`)
+        }
         failed(client, error instanceof Error ? error.message : String(error))
         // Only a refused link is worth another; anything else would fail the same way.
         if (!(error instanceof Refused)) break

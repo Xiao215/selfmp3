@@ -104,7 +104,12 @@ export function ytProxy(deps: {
         // off YouTube is not read, let alone handed back.
         if (response.url && !isYtProxyUrl(response.url)) {
           controller.abort()
-          send({ type: 'error', id, message: 'YouTube redirected somewhere else' })
+          // Google's "unusual traffic" page is a refusal for rate, and is said as one (`isRateLimited`).
+          const sorry = new URL(response.url).pathname.startsWith('/sorry/')
+          const message = sorry
+            ? 'YouTube redirected to /sorry/ (unusual traffic)'
+            : 'YouTube redirected somewhere else'
+          send({ type: 'error', id, message })
           return
         }
         send({

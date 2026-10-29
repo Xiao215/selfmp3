@@ -144,6 +144,8 @@ export function useListen(
         return
       }
       waiting.paused = !waiting.paused
+      // Asked to play again: the song makes room, as it does for any preview.
+      if (!waiting.paused) makeRoom()
       setListening(current =>
         current ? { ...current, status: waiting.paused ? 'paused' : 'loading' } : current,
       )

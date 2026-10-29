@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { musicCredits } from '@selfmp3/shared'
+import { isRateLimited, musicCredits } from '@selfmp3/shared'
 import { describeVideo, downloadAudio, type YtSession } from './download.js'
 
 /**
@@ -119,6 +119,24 @@ describe('a description cut to fit its header', () => {
 })
 
 describe('a download YouTube says is too many', () => {
+  it('stops at a 429 on the player request too, in words taken for a refusal', async () => {
+    const { session: s, asked } = session({ value: false })
+    ;(s.innertube as unknown as { getBasicInfo: unknown }).getBasicInfo = (
+      _videoId: string,
+      { client }: { client: string },
+    ) => {
+      asked.push(client)
+      return Promise.reject(
+        new Error(
+          'Request to https://www.youtube.com/youtubei/v1/player failed with status code 429',
+        ),
+      )
+    }
+    const failure = downloadAudio(s, 'aaaaaaaaaaa').catch((error: unknown) => error as Error)
+    expect(isRateLimited((await failure).message)).toBe(true)
+    expect(asked).toEqual(['VISIONOS'])
+  })
+
   it('stops at the first 429: no fresh link, no other client', async () => {
     const { session: s, asked } = session({ value: false })
     ;(s as unknown as { fetch: unknown }).fetch = () =>

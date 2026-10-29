@@ -6,6 +6,7 @@ import {
   YT_PROXY_CHUNK_BYTES,
   YT_PROXY_PAGES,
   YT_PROXY_PORT,
+  isRateLimited,
   type YtProxyExtensionMessage,
 } from '@selfmp3/shared'
 import { ytProxy, type ProxyPort } from './ytProxy.js'
@@ -111,6 +112,19 @@ describe('ytProxy', () => {
     await settled(sent, 3)
 
     expect(sent).toEqual([{ type: 'error', id: 3, message: expect.any(String) }])
+  })
+
+  it('says a redirect to Google’s /sorry/ page in the words of a refusal for rate', async () => {
+    const answer = new Response('captcha')
+    Object.defineProperty(answer, 'url', { value: 'https://www.google.com/sorry/index?continue=x' })
+    const { port, sent, send } = fakePort()
+    ytProxy({ fetch: () => Promise.resolve(answer), pages: [APP] })(port)
+
+    send(request(5, 'https://www.youtube.com/youtubei/v1/player'))
+    await settled(sent, 5)
+
+    const [said] = sent
+    expect(said?.type === 'error' && isRateLimited(said.message)).toBe(true)
   })
 
   it('hangs up on a page it was not told to serve', () => {

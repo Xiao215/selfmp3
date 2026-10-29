@@ -12,11 +12,13 @@ import { installedApp } from './install'
 
 /**
  * Downloading a song in this tab (docs/features/client-download.md): the
- * self.mp3 extension carries the requests to YouTube, and youtubei.js runs in
- * the sandbox frame (`public/yt-sandbox.html`), never in this page — YouTube's
- * player script and BotGuard are code YouTube sends, and this page holds the
- * person's self.mp3 session. Asked once whether the extension answers; a tab
- * without it imports as it always has, through the server.
+ * self.mp3 extension carries the requests to YouTube, and youtubei.js and
+ * YouTube's player script run in the sandbox frame (`public/yt-sandbox.html`),
+ * not in this page, which holds the person's self.mp3 session. BotGuard is
+ * the one exception: it runs here, since YouTube issues no token for a frame
+ * with no origin of its own (docs/features/client-download.md, "The sandbox").
+ * Asked once whether the extension answers; a tab without it imports as it
+ * always has, through the server.
  *
  * The installed Mac app draws this same page, but from `app://selfmp3`, which
  * the extension does not talk to: it finds no extension and goes through the

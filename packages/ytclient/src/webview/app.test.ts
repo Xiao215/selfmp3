@@ -3,7 +3,13 @@ import { bytesToBase64 } from '@selfmp3/shared'
 import { createWebViewCore } from './app.js'
 import type { AppMessage, PageMessage } from './protocol.js'
 
-const META = { description: '', title: 'Song', author: 'Artist', durationSeconds: 3 }
+const META = {
+  description: '',
+  title: 'Song',
+  author: 'Artist',
+  durationSeconds: 3,
+  thumbnail: null,
+}
 
 function page() {
   const asked: AppMessage[] = []

@@ -157,6 +157,42 @@ describe('ImportRepository, jobs a device holds', () => {
     expect(imports.byId(held)).toMatchObject({ status: 'running', step: 'downloading' })
   })
 
+  it('hands the server what the device no longer means to download', () => {
+    const [first, second] = imports.enqueue(
+      [
+        item('https://www.youtube.com/watch?v=aaaaaaaaaaa'),
+        item('https://www.youtube.com/watch?v=bbbbbbbbbbb'),
+      ],
+      [],
+      null,
+      { lease: 'lease-1', seconds: 300, fetcherFor: () => 'device' },
+    )
+    // The device dropped the first (its start was lost on the way) and still has the second.
+    expect(imports.renewLease('lease-1', 300, [], [second!.id])).toEqual([second!.id])
+    expect(imports.fetcherOf(first!.id)).toEqual({ fetcher: 'server', lease: null })
+    expect(imports.claimNext()?.id).toBe(first!.id)
+  })
+
+  it('lets go of nothing for a device that does not say what it holds', () => {
+    const { held } = enqueueForDevice()
+    expect(imports.renewLease('lease-1', 300, [])).toEqual([held])
+  })
+
+  it('puts a song resumed after it was called off on a device back with the server', () => {
+    const { held } = enqueueForDevice()
+    expect(imports.cancel(held)).toBe(true)
+    expect(imports.retry(held)).toBe(true)
+    expect(imports.fetcherOf(held)).toEqual({ fetcher: 'server', lease: null })
+    // The device that held it renews, and it is not among what it holds.
+    expect(imports.renewLease('lease-1', 300, [])).toEqual([])
+    expect(imports.claimNext()?.id).toBe(held)
+  })
+
+  it('does not wake for a lease that has run out already', () => {
+    enqueueForDevice(0)
+    expect(imports.nextLeaseEnd()).toBeNull()
+  })
+
   it('says when the soonest lease runs out', () => {
     expect(imports.nextLeaseEnd()).toBeNull()
     enqueueForDevice(300)

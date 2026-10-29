@@ -7,6 +7,7 @@ import { Transform, type Readable } from 'node:stream'
 import {
   messageOf,
   isSquareCoverUrl,
+  musicCredits,
   releaseOf,
   sanitizeFilename,
   type ImportDeviceFileMeta,
@@ -167,6 +168,8 @@ export class ImportQueueService {
 
   /** Called once at boot: requeue anything a crash left mid-flight. */
   start(): void {
+    // A device's file still waiting when the server last stopped: its job is the server's again.
+    void sweepDeviceFiles(stagingDir(this.#config))
     const orphaned = this.#imports.resetOrphaned()
     if (orphaned > 0) this.#logger.info('requeued interrupted jobs', { count: orphaned })
     this.#imports.pruneOlderThanDays(KEEP_FINISHED_JOBS_DAYS)
@@ -273,8 +276,12 @@ export class ImportQueueService {
   // --- Jobs a device downloads (docs/features/client-download.md) -------------
 
   /** Keep a device's lease, with how far its downloads have got; the jobs it still holds. */
-  deviceRenew(lease: string, progress: readonly { id: string; percent: number }[]): string[] {
-    return this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress)
+  deviceRenew(
+    lease: string,
+    progress: readonly { id: string; percent: number }[],
+    holding?: readonly string[],
+  ): string[] {
+    return this.#imports.renewLease(lease, DEVICE_LEASE_SECONDS, progress, holding)
   }
 
   /** The device has started downloading one of its jobs. */
@@ -338,7 +345,8 @@ export class ImportQueueService {
       if (!(seconds > 0)) {
         return { ok: false, status: 422, message: 'there is no audio in that file' }
       }
-      const expected = job.duration || input.meta.durationSeconds
+      // The video's own length first: a listing's (a Spotify row's, say) may be another cut's.
+      const expected = input.meta.durationSeconds || job.duration
       if (expected > 0 && Math.abs(seconds - expected) > Math.max(3, expected * 0.03)) {
         return {
           ok: false,
@@ -726,38 +734,56 @@ export class ImportQueueService {
     meta: ImportDeviceFileMeta,
     seconds: number,
   ): Promise<number> {
-    // The same tidying the server gives a video's own title and channel.
-    const probed = toProbedTrack(
-      { title: meta.title, uploader: meta.author, duration: meta.durationSeconds },
-      job.url,
-    )
-    const title = job.title.trim() || probed.title
-    const artist = job.artist.trim() || probed.artist
-    if (!title.trim()) throw new Error('could not work out a title for this track')
-    if (title !== job.title || artist !== job.artist) {
-      this.#update(job.id, { title, artist })
-    }
+    let handedOver = false
+    try {
+      // The same tidying the server gives a video's own title and channel, and
+      // a YouTube Music track's credits, as yt-dlp reads them from its description.
+      const credits = musicCredits(meta.description)
+      const probed = toProbedTrack(
+        {
+          title: meta.title,
+          uploader: meta.author,
+          duration: meta.durationSeconds,
+          ...(credits
+            ? { track: credits.track, artist: credits.artist, album: credits.album }
+            : {}),
+        },
+        job.url,
+      )
+      const title = job.title.trim() || probed.title
+      const artist = job.artist.trim() || probed.artist
+      const album = job.album.trim() || probed.album
+      if (!title.trim()) throw new Error('could not work out a title for this track')
+      if (title !== job.title || artist !== job.artist || album !== job.album) {
+        this.#update(job.id, { title, artist, album })
+      }
 
-    const release = releaseOf(meta.description)
-    const tools = await this.#ytdlp.status()
-    return this.#addToLibrary(job, settings, signal, {
-      stagedPath,
-      name: sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled',
-      title,
-      artist,
-      album: job.album,
-      duration: job.duration || seconds,
-      thumbnail: job.thumbnail,
-      // Tagging needs ffmpeg, as yt-dlp's does; without it the file goes as it came.
-      tags: tools.ffmpeg
-        ? {
-            title: title.trim(),
-            artist: artist.trim(),
-            album: job.album.trim(),
-            date: release.date ?? (release.year ? String(release.year) : null),
-          }
-        : null,
-    })
+      const release = releaseOf(meta.description)
+      const tools = await this.#ytdlp.status()
+      handedOver = true
+      return await this.#addToLibrary(job, settings, signal, {
+        stagedPath,
+        name: sanitizeFilename(artist.trim() ? `${artist} - ${title}` : title) || 'untitled',
+        title,
+        artist,
+        album,
+        duration: job.duration || seconds,
+        // A job with no cover of its own (a search's row, say) takes the video's.
+        thumbnail: job.thumbnail ?? meta.thumbnail,
+        // Tagging needs ffmpeg, as yt-dlp's does; without it the file goes as it came.
+        tags: tools.ffmpeg
+          ? {
+              title: title.trim(),
+              artist: artist.trim(),
+              album: album.trim(),
+              date: release.date ?? (release.year ? String(release.year) : null),
+            }
+          : null,
+      })
+    } finally {
+      // Past the hand-over the file is #addToLibrary's to remove; before it, nobody else will.
+      if (!handedOver) await fsp.rm(stagedPath, { force: true }).catch(() => undefined)
+    }
   }
 
   /**
@@ -998,6 +1024,18 @@ const WHOLE_SONG_SHARE = 0.8
  */
 function uniqueBaseName(base: string, jobId: string): string {
   return `${base} [${jobId.slice(0, 8)}]`
+}
+
+/**
+ * Remove what devices left in staging (`device-…`): kept only in memory while
+ * they wait (`#deviceFiles`), so after a restart nothing will add them.
+ */
+async function sweepDeviceFiles(staging: string): Promise<void> {
+  for (const name of await safeReaddir(staging)) {
+    if (name.startsWith('device-')) {
+      await fsp.rm(path.join(staging, name), { force: true }).catch(() => undefined)
+    }
+  }
 }
 
 async function safeReaddir(dir: string): Promise<string[]> {

@@ -148,6 +148,8 @@ export interface DownloadedAudio {
   readonly durationSeconds: number
   /** The video's description: a YouTube Music track's says when it came out (`releaseOf`). */
   readonly description: string
+  /** The largest still the player names, or null. */
+  readonly thumbnail: string | null
   readonly attempts: readonly Attempt[]
 }
 
@@ -181,14 +183,20 @@ async function describeWith(
   if (playability?.status !== 'OK') {
     throw new Error(`${playability?.status ?? 'no status'}: ${playability?.reason ?? ''}`.trim())
   }
-  const largest = [...(info.basic_info.thumbnail ?? [])].sort((a, b) => b.width - a.width)[0]
   return {
     title: info.basic_info.title ?? '',
     author: info.basic_info.author ?? '',
     durationSeconds: info.basic_info.duration ?? 0,
     description: info.basic_info.short_description ?? '',
-    thumbnail: largest?.url ?? null,
+    thumbnail: largestStill(info.basic_info.thumbnail),
   }
+}
+
+/** The widest of a player's stills, by its address. */
+function largestStill(
+  stills: readonly { url: string; width: number }[] | undefined,
+): string | null {
+  return [...(stills ?? [])].sort((a, b) => b.width - a.width)[0]?.url ?? null
 }
 
 export async function downloadAudio(
@@ -253,6 +261,7 @@ export async function downloadAudio(
           author: info.basic_info.author ?? '',
           durationSeconds: info.basic_info.duration ?? 0,
           description: info.basic_info.short_description ?? '',
+          thumbnail: largestStill(info.basic_info.thumbnail),
           attempts,
         }
       } catch (error) {

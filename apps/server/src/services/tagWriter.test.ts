@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -91,9 +93,9 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
       ...['-hide_banner', '-loglevel', 'error', '-y'],
       ...['-f', 'lavfi', '-i', 'color=red:s=64x64', '-frames:v', '1', cover],
     ])
-    const bytes = fs.readFileSync(cover)
-    const fetch = (() => Promise.resolve(new Response(bytes))) as typeof globalThis.fetch
-    const writer = new TagWriter({ fetch, logger: createLogger('silent') })
+    const data = fs.readFileSync(cover)
+    const download = () => Promise.resolve({ contentType: 'image/png', data })
+    const writer = new TagWriter({ download, logger: createLogger('silent') })
 
     expect(await writer.write(song, TAGS, 'https://lh3.googleusercontent.com/abc=w544')).toBe(true)
 
@@ -110,9 +112,8 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
   })
 
   it('tags the file without a cover that did not come', async () => {
-    const fetch = (() =>
-      Promise.resolve(new Response('', { status: 404 }))) as typeof globalThis.fetch
-    const writer = new TagWriter({ fetch, logger: createLogger('silent') })
+    const download = () => Promise.resolve(null)
+    const writer = new TagWriter({ download, logger: createLogger('silent') })
 
     expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
 
@@ -121,20 +122,20 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
     expect(picture).toBe(false)
   })
 
-  it('does not read a cover larger than any cover', async () => {
-    const big = new Response(new Uint8Array(16), {
-      headers: { 'content-length': String(64 * 1024 * 1024) },
+  it('fetches no cover from this machine, whatever address the review gave', async () => {
+    let asked = 0
+    const local = http.createServer((_request, response) => {
+      asked++
+      response.end('secret')
     })
-    let read = false
-    Object.defineProperty(big, 'arrayBuffer', {
-      value: () => ((read = true), Promise.reject(new Error('read'))),
-    })
-    const fetch = (() => Promise.resolve(big)) as typeof globalThis.fetch
-    const writer = new TagWriter({ fetch, logger: createLogger('silent') })
+    await new Promise<void>(resolve => local.listen(0, '127.0.0.1', resolve))
+    const { port } = local.address() as AddressInfo
+    const writer = new TagWriter({ logger: createLogger('silent') })
 
-    expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)
+    expect(await writer.write(song, TAGS, `http://127.0.0.1:${port}/cover.jpg`)).toBe(true)
+    await new Promise<void>(resolve => local.close(() => resolve()))
+    expect(asked).toBe(0)
     expect(probe(song).picture).toBe(false)
-    expect(read).toBe(false)
   })
 
   it('leaves a file it cannot read as it was, and says so', async () => {

@@ -57,8 +57,14 @@ const CANCELLABLE = `(status = 'queued' OR (status = 'running' AND step IN ('wai
 /** What calling a job off writes. */
 export const CANCELLED = `status = 'cancelled', step = 'finished', updated_at = datetime('now')`
 
-/** What putting a job back in the queue writes: from the top, with no reason left on it. */
-const REQUEUED = `status = 'queued', step = 'waiting', error = NULL, progress = NULL, updated_at = datetime('now')`
+/**
+ * What putting a job back in the queue writes: from the top, with no reason
+ * left on it — and the server's, whatever device held it before. A song
+ * called off while a device held it and then resumed was otherwise still
+ * under that lease, renewed by the device that had let it go.
+ */
+const REQUEUED = `status = 'queued', step = 'waiting', error = NULL, progress = NULL,
+                  lease_id = NULL, lease_until = NULL, fetcher = 'server', updated_at = datetime('now')`
 
 /**
  * A job a device holds (docs/features/client-download.md): one it said it
@@ -330,9 +336,11 @@ export class ImportRepository {
       `UPDATE import_jobs SET ${TO_SERVER}
         WHERE status = 'running' AND lease_id IS NOT NULL AND lease_until <= datetime('now')`,
     )
+    // Leases still to run out: one run out already is the queue's to take now, not to wake for.
     this.#leaseEnd = db.prepare<[], { until: string | null }>(
       `SELECT MIN(lease_until) AS until FROM import_jobs
-        WHERE lease_id IS NOT NULL AND status IN ('queued','running')`,
+        WHERE lease_id IS NOT NULL AND status IN ('queued','running')
+          AND lease_until > datetime('now')`,
     )
   }
 
@@ -592,15 +600,27 @@ export class ImportRepository {
    * Keep a device's lease for `seconds` more, write how far its downloads
    * have got, and name the jobs it still holds. A job cancelled, removed or
    * taken back since is not among them, and an expired lease holds nothing.
+   *
+   * `holding`, when the device says it, is what it still means to download:
+   * any other job under the lease is one it has let go of without saying so
+   * (a start or a release that did not reach the server), and goes to the
+   * server now rather than when the whole batch is done.
    */
   renewLease(
     lease: string,
     seconds: number,
     progress: readonly { id: string; percent: number }[],
+    holding?: readonly string[],
   ): string[] {
     const run = this.#db.transaction(() => {
       for (const { id, percent } of progress) {
         this.#progressOnDevice.run({ id, lease, percent: Math.floor(percent) })
+      }
+      if (holding) {
+        const kept = new Set(holding)
+        for (const { id } of this.#held.all(lease)) {
+          if (!kept.has(id)) this.#release.run({ id, lease })
+        }
       }
       this.#renew.run({ lease, seconds })
       return this.#held.all(lease).map(row => row.id)

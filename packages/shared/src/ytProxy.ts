@@ -13,9 +13,11 @@ import { DEFAULT_APP_URL } from './cloud.js'
  * these schemas.
  *
  * A carrier like this hands the page a cross-origin `fetch`, so what it will
- * carry is held to YouTube's own hosts, and it never sends cookies: without
- * them it can do nothing a server-side proxy could not, and a script that got
- * into the page cannot act as the person on YouTube.
+ * carry is held to YouTube's own hosts, and it sends no cookies: without them
+ * it can do nothing a server-side proxy could not, and a script that got into
+ * the page cannot act as the person on YouTube. The one exception is the
+ * person's own: "Use my YouTube sign-in", off unless they turn it on in the
+ * extension, and then only on the player request (`signsIn`).
  */
 
 /** The port's name: `chrome.runtime.connect(EXTENSION_ID, { name })`. */
@@ -36,7 +38,9 @@ export const YT_PROXY_CHUNK_BYTES = 1024 * 1024
  * extension checking it again, and the manifest's test holds the two together.
  *
  * Port 4601 is `npm run dev:web`; 4602 is the client download harness
- * (packages/ytclient).
+ * (packages/ytclient). The extension's release zip leaves both out of its
+ * manifest (apps/extension/scripts/zip.mjs), and Chrome keeps every other
+ * page from connecting.
  */
 export const YT_PROXY_PAGES: readonly string[] = [
   `${DEFAULT_APP_URL}/`,

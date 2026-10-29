@@ -314,6 +314,12 @@ export const ImportDeviceRenewSchema = z.object({
     .array(z.object({ id: z.string(), percent: z.number().min(0).max(100) }))
     .max(500)
     .default([]),
+  /**
+   * Every job the device still means to download, the one under way among
+   * them. Any other the lease holds goes to the server. Left out by a device
+   * that predates it, and nothing is let go.
+   */
+  holding: z.array(z.string()).max(2000).optional(),
 })
 export type ImportDeviceRenew = z.infer<typeof ImportDeviceRenewSchema>
 
@@ -349,6 +355,8 @@ export const ImportDeviceFileMetaSchema = z.object({
   title: z.string().max(300).default(''),
   author: z.string().max(300).default(''),
   durationSeconds: z.number().nonnegative().default(0),
+  /** The largest still the player names: the cover, for a job that came with none. */
+  thumbnail: z.string().url().max(2000).nullable().default(null),
 })
 export type ImportDeviceFileMeta = z.infer<typeof ImportDeviceFileMetaSchema>
 

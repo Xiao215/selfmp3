@@ -31,7 +31,13 @@ function job(id: string): ImportJob {
 const FILE: DeviceFile = {
   bytes: new Uint8Array([1, 2, 3]),
   sha256: 'ab'.repeat(32),
-  meta: { description: '', title: 'Song', author: 'Aurora Lane', durationSeconds: 180 },
+  meta: {
+    description: '',
+    title: 'Song',
+    author: 'Aurora Lane',
+    durationSeconds: 180,
+    thumbnail: null,
+  },
 }
 
 /**
@@ -57,10 +63,12 @@ function harness(options: {
   let budget = options.budget ?? null
   let tick: () => void = () => undefined
   const slept: number[] = []
+  const renewedHolding: string[][] = []
 
   const api: DeviceImportsApi = {
-    importDeviceRenew: (lease, progress) => {
+    importDeviceRenew: (lease, progress, holding) => {
       calls.push(`renew ${progress.map(each => `${each.id}@${each.percent}`).join(',')}`)
+      renewedHolding.push([...holding])
       return Promise.resolve({ held: [...held] })
     },
     importDeviceStart: (lease, id) => {
@@ -111,6 +119,7 @@ function harness(options: {
     imports,
     calls,
     slept,
+    renewedHolding,
     budget: () => budget,
     renew: () => tick(),
     drop: (id: string) => held.delete(id),
@@ -309,5 +318,26 @@ describe('DeviceImports', () => {
     expect(h.calls.filter(call => !call.startsWith('renew'))).toEqual([
       'release a: this device no longer downloads from YouTube',
     ])
+  })
+
+  it('tells the server, each time it renews, what it still means to download', async () => {
+    let finish: (file: DeviceFile) => void = () => undefined
+    const h = harness({
+      ids: ['a', 'b', 'c'],
+      download: () => new Promise(resolve => (finish = resolve)),
+    })
+    h.take()
+    await vi.waitFor(() => expect(h.calls).toContain('download a'))
+    h.renew()
+    // The one under way and the two still to come; nothing else is this device's.
+    expect(h.renewedHolding.at(-1)).toEqual(['a', 'b', 'c'])
+    finish(FILE)
+    await vi.waitFor(() => expect(h.calls).toContain('download b'))
+    h.renew()
+    expect(h.renewedHolding.at(-1)).toEqual(['b', 'c'])
+    finish(FILE)
+    await vi.waitFor(() => expect(h.calls).toContain('download c'))
+    finish(FILE)
+    await h.imports.settled()
   })
 })

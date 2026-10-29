@@ -14,8 +14,14 @@ import type { YtFetch } from './transport.js'
  * downloads (keptSongs.ts).
  */
 
-/** What a description is cut to, as the server's file route takes it. */
-const MAX_DESCRIPTION = 5000
+/**
+ * What a description is cut to, in UTF-8 bytes. It goes in a header
+ * (meta.ts), base64'd, and Node takes 16 KiB of headers in all — a proxy in
+ * front, 8 KiB a header: 5000 characters of Japanese lyrics were three times
+ * that. What is read from it (a release date, a YouTube Music track's
+ * credits) is at its start.
+ */
+const MAX_DESCRIPTION_BYTES = 4000
 
 export function createYouTubeCore(
   fetch: YtFetch,
@@ -57,12 +63,27 @@ export function createYouTubeCore(
           .map(byte => byte.toString(16).padStart(2, '0'))
           .join(''),
         meta: {
-          description: audio.description.slice(0, MAX_DESCRIPTION),
+          description: cutToBytes(audio.description, MAX_DESCRIPTION_BYTES),
           title: audio.title.slice(0, 300),
           author: audio.author.slice(0, 300),
           durationSeconds: audio.durationSeconds,
+          thumbnail: audio.thumbnail && audio.thumbnail.length <= 2000 ? audio.thumbnail : null,
         },
       }
     },
   }
+}
+
+/** `text`, cut at a character so its UTF-8 is at most `max` bytes. */
+export function cutToBytes(text: string, max: number): string {
+  const encoder = new TextEncoder()
+  if (encoder.encode(text).length <= max) return text
+  let used = 0
+  let out = ''
+  for (const character of text) {
+    used += encoder.encode(character).length
+    if (used > max) break
+    out += character
+  }
+  return out
 }

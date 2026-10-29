@@ -647,10 +647,15 @@ export function createApi({ context, fetch }: ApiOptions) {
     // --- songs this device downloads itself (docs/features/client-download.md)
 
     /** Keep the lease on the jobs this device holds, with how far each download has got. */
-    importDeviceRenew: (lease: string, progress: readonly { id: string; percent: number }[]) =>
+    importDeviceRenew: (
+      lease: string,
+      progress: readonly { id: string; percent: number }[],
+      holding: readonly string[],
+    ) =>
       request('POST', '/api/import/device/renew', ImportDeviceRenewResultSchema, {
         lease,
         progress,
+        holding,
       }),
 
     importDeviceStart: (lease: string, id: string) =>

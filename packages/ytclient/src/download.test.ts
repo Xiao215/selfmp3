@@ -104,3 +104,15 @@ describe('which clients a download asks', () => {
     expect(asked).toEqual(['VISIONOS'])
   })
 })
+
+describe('a description cut to fit its header', () => {
+  it('is cut by its bytes, at a whole character', async () => {
+    const { cutToBytes } = await import('./downloader.js')
+    const lyrics = '夜に駆ける'.repeat(2000)
+    const cut = cutToBytes(lyrics, 4000)
+    expect(new TextEncoder().encode(cut).length).toBeLessThanOrEqual(4000)
+    expect(lyrics.startsWith(cut)).toBe(true)
+    expect(cut.length).toBe(1333)
+    expect(cutToBytes('short', 4000)).toBe('short')
+  })
+})

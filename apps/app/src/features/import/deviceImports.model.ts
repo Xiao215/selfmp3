@@ -51,6 +51,8 @@ export interface DeviceImportsApi {
   importDeviceRenew(
     lease: string,
     progress: readonly { id: string; percent: number }[],
+    /** Every job this device still means to download; the server takes the rest. */
+    holding: readonly string[],
   ): Promise<{ held: string[] }>
   importDeviceStart(lease: string, id: string): Promise<unknown>
   importDeviceRelease(lease: string, id: string, reason: string): Promise<unknown>
@@ -106,6 +108,8 @@ interface Batch {
   readonly waiting: string[]
   /** The download under way, and how to stop it. */
   active: { id: string; percent: number; stop: AbortController } | null
+  /** The job being seen to — waiting its turn, starting, downloading or sending — if any. */
+  current: string | null
   stopRenewing: () => void
 }
 
@@ -132,6 +136,7 @@ export class DeviceImports {
       jobs: new Map(jobs.filter(job => held.has(job.id)).map(job => [job.id, job])),
       waiting: lease.jobIds.filter(id => jobs.some(job => job.id === id)),
       active: null,
+      current: null,
       stopRenewing: () => undefined,
     }
     if (batch.waiting.length === 0) return
@@ -160,7 +165,14 @@ export class DeviceImports {
       const batch = this.#batches.find(each => each.waiting.length > 0)
       if (!batch) return
       const id = batch.waiting.shift()
-      if (id !== undefined) await this.#one(batch, id)
+      if (id !== undefined) {
+        batch.current = id
+        try {
+          await this.#one(batch, id)
+        } finally {
+          batch.current = null
+        }
+      }
       this.#finishIfDone(batch)
     }
   }
@@ -259,9 +271,13 @@ export class DeviceImports {
     const active = batch.active
     let held: Set<string>
     try {
+      // What this device still means to download: a job it let go of and the
+      // server did not hear about (a start or a release lost) goes to the server now.
+      const holding = batch.current ? [batch.current, ...batch.waiting] : [...batch.waiting]
       const answer = await batch.api.importDeviceRenew(
         batch.lease,
         active ? [{ id: active.id, percent: Math.min(99, active.percent) }] : [],
+        holding,
       )
       held = new Set(answer.held)
     } catch {

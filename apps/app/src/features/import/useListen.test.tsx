@@ -13,8 +13,15 @@ const mockAudio = {
   stop: jest.fn(),
   seek: jest.fn(),
   dispose: jest.fn(),
-  subscribe: () => () => undefined,
+  subscribe: (
+    listener: (state: { status: string; currentTime: number; duration: number }) => void,
+  ) => {
+    mockReport = listener
+    return () => undefined
+  },
 }
+let mockReport: (state: { status: string; currentTime: number; duration: number }) => void = () =>
+  undefined
 jest.mock('../../ports/listen', () => ({ createListenAudio: () => mockAudio }))
 jest.mock('../../player/PlayerProvider', () => ({
   usePlayerCommands: () => ({ toggle: () => undefined }),
@@ -67,5 +74,19 @@ describe('a song heard from this device’s own download', () => {
     await act(async () => result.current.toggle(TRACK))
     await act(async () => mockArrive('blob:own'))
     expect(mockAudio.play).toHaveBeenCalledWith('blob:own')
+  })
+
+  it('stops the song before, and does not take its reports for this one’s', async () => {
+    const { result } = await renderHook(() =>
+      useListen(undefined, { importCoverTone: () => Promise.reject(new Error('none')) }),
+    )
+    await act(async () => result.current.toggle(TRACK))
+    expect(mockAudio.stop).toHaveBeenCalled()
+    // The song before, still reporting as it stops.
+    await act(async () => mockReport({ status: 'playing', currentTime: 30, duration: 200 }))
+    expect(result.current.listening?.status).toBe('loading')
+    await act(async () => result.current.toggle(TRACK))
+    await act(async () => mockReport({ status: 'playing', currentTime: 31, duration: 200 }))
+    expect(result.current.listening?.status).toBe('paused')
   })
 })

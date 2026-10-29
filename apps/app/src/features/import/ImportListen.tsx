@@ -94,6 +94,9 @@ export function useListen(
   useEffect(() => {
     if (!audio) return
     const unsubscribe = audio.subscribe(state => {
+      // While this device's download is on its way nothing of it is loaded:
+      // what the player says is of the song before, or of stopping it.
+      if (pending.current) return
       position.set(state.currentTime)
       setListening(current => (current ? followAudio(current, state) : current))
     })
@@ -160,6 +163,8 @@ export function useListen(
     } else {
       const coming = { url: track.url, paused: false, source: null as string | null }
       pending.current = coming
+      // The song previewing before is not heard over the wait for this one.
+      audio.stop()
       void source.then(own => {
         if (wanted.current !== track.url || pending.current !== coming) return
         if (coming.paused) {

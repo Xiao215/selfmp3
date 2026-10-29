@@ -127,5 +127,8 @@ export async function previewImport(
  */
 export function listenSource(url: string, server: () => string): string | Promise<string> {
   if (!deviceDownloadsOn() || !downloadsHere.available) return server()
-  return deviceListenUrl(url).then(own => own ?? server())
+  // As Import waits: a moment for the downloader, then the server's.
+  return deviceDownloaderSoon().then(async youtube =>
+    youtube ? ((await deviceListenUrl(url)) ?? server()) : server(),
+  )
 }

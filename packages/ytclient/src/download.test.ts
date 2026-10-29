@@ -137,6 +137,23 @@ describe('a download YouTube says is too many', () => {
     expect(asked).toEqual(['VISIONOS'])
   })
 
+  it('stops at Google’s unusual-traffic page too: no other client is asked', async () => {
+    const { session: s, asked } = session({ value: false })
+    ;(s.innertube as unknown as { getBasicInfo: unknown }).getBasicInfo = (
+      _videoId: string,
+      { client }: { client: string },
+    ) => {
+      asked.push(client)
+      return Promise.reject(
+        new Error(
+          'the extension could not fetch that: YouTube redirected to /sorry/ (unusual traffic)',
+        ),
+      )
+    }
+    await expect(downloadAudio(s, 'aaaaaaaaaaa')).rejects.toThrow(/unusual traffic/)
+    expect(asked).toEqual(['VISIONOS'])
+  })
+
   it('stops at the first 429: no fresh link, no other client', async () => {
     const { session: s, asked } = session({ value: false })
     ;(s as unknown as { fetch: unknown }).fetch = () =>

@@ -1,5 +1,4 @@
 import fsp from 'node:fs/promises'
-import path from 'node:path'
 import { messageOf } from '@selfmp3/shared'
 import { fetchPublic } from '../http/publicWeb.js'
 import type { Logger } from '../logger.js'
@@ -27,6 +26,13 @@ export interface FileTags {
   readonly album: string
   /** `YYYY-MM-DD` or `YYYY`, or null to leave the date out. */
   readonly date: string | null
+}
+
+/** The pictures a cover is taken as, by content type, and the name each is written under. */
+const PICTURE_EXTENSIONS: Readonly<Record<string, string>> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
 }
 
 /** A cover is a picture of a few hundred kilobytes; anything far past that is not one. */
@@ -57,7 +63,9 @@ export function tagArgs(
     '-y',
     '-i',
     input,
-    ...(cover ? ['-i', cover, '-map', '0:a', '-map', '1:v'] : ['-map', '0:a']),
+    // Read as a picture and nothing else: ffmpeg otherwise picks a reader by the
+    // name or the bytes, and a playlist or a concat list reads other files.
+    ...(cover ? ['-f', 'image2', '-i', cover, '-map', '0:a', '-map', '1:v'] : ['-map', '0:a']),
     '-c:a',
     'copy',
     ...(cover ? ['-c:v', 'mjpeg', '-disposition:v:0', 'attached_pic'] : []),
@@ -122,8 +130,12 @@ export class TagWriter {
     try {
       const got = await this.#download(url)
       if (!got?.data || got.data.length === 0) return null
-      // ffmpeg tells the picture's format by its bytes; the name only has to be one.
-      const file = `${base}${path.extname(new URL(url).pathname) || '.jpg'}`
+      // Named by what the server said it is, as covers.ts names one — never by
+      // the address, which is the client's: a picture, or no cover at all.
+      const extension =
+        PICTURE_EXTENSIONS[got.contentType.split(';')[0]?.trim().toLowerCase() ?? '']
+      if (!extension) return null
+      const file = `${base}${extension}`
       await fsp.writeFile(file, got.data)
       return file
     } catch (error) {

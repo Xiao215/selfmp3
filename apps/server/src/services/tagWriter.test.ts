@@ -30,6 +30,8 @@ describe('tagArgs', () => {
     const args = tagArgs('in.m4a', 'out.m4a', TAGS, 'cover.webp')
     expect(args).toEqual(
       expect.arrayContaining([
+        '-f',
+        'image2',
         '-i',
         'cover.webp',
         '-map',
@@ -138,10 +140,26 @@ describe.skipIf(!hasFfmpeg())('TagWriter, with ffmpeg', () => {
     expect(probe(song).picture).toBe(false)
   })
 
+  it('takes no cover that is not said to be a picture, whatever its address', async () => {
+    const download = () =>
+      Promise.resolve({
+        contentType: 'application/vnd.apple.mpegurl',
+        data: Buffer.from('#EXTM3U\nfile:/etc/hostname\n'),
+      })
+    const writer = new TagWriter({ download, logger: createLogger('silent') })
+
+    expect(await writer.write(song, TAGS, 'https://example.com/x.m3u8')).toBe(true)
+    expect(probe(song).picture).toBe(false)
+    expect(fs.readdirSync(dir).sort()).toEqual(['song.m4a'])
+  })
+
   it('tags the file without a cover ffmpeg cannot read', async () => {
     // A page that answered 200 where a picture was meant to be.
     const download = () =>
-      Promise.resolve({ contentType: 'text/html', data: Buffer.from('<html>not a picture</html>') })
+      Promise.resolve({
+        contentType: 'image/jpeg',
+        data: Buffer.from('<html>not a picture</html>'),
+      })
     const writer = new TagWriter({ download, logger: createLogger('silent') })
 
     expect(await writer.write(song, TAGS, 'https://i.ytimg.com/vi/x/hqdefault.jpg')).toBe(true)

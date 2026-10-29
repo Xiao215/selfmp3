@@ -300,6 +300,13 @@ and open `http://localhost:4602`.
 
 ## Not done
 
+- **Google's /sorry/ page reached by a redirect.** The extension says a
+  redirect to it as a refusal for rate, but only if Chrome lets the answer
+  through: the extension may reach `www.google.com/js/th/` and no other part
+  of that host, so a redirect from YouTube to `/sorry/` most likely fails as
+  a fetch, and the song goes to the server as an ordinary failure. Letting
+  it through would mean asking for more of google.com than BotGuard needs.
+
 - **Without a server.** When no server answers, the import goes into the bucket
   as a link, as before, and the server downloads it later. A device could upload
   its file into the bucket instead, but that needs a new kind of change in the

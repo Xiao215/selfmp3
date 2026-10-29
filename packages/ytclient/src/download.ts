@@ -5,6 +5,7 @@
  * initialization". Bundled into one file, there is no circle left to order.
  */
 import { Innertube, Platform } from 'youtubei.js/web.bundle'
+import { isRateLimited } from '@selfmp3/shared'
 import { createPoMinter, type PoMinter } from './poToken.js'
 import type { VideoFacts } from './keptSongs.js'
 import type { YtFetch } from './transport.js'
@@ -266,10 +267,13 @@ export async function downloadAudio(
         }
       } catch (error) {
         if (options.signal?.aborted || error instanceof TooMany) throw error
-        // A 429 on the player request is the same answer as one on the media: no other client is asked.
-        if (error instanceof Error && /status code 429/.test(error.message)) {
+        // A refusal for rate anywhere (a 429 on the player request, Google's
+        // "unusual traffic") is the same answer as one on the media: no other client is asked.
+        const said = error instanceof Error ? error.message : String(error)
+        if (/status code 429/.test(said)) {
           throw new TooMany(`YouTube answered 429 Too Many Requests to ${client}'s player request`)
         }
+        if (isRateLimited(said)) throw new TooMany(said)
         failed(client, error instanceof Error ? error.message : String(error))
         // Only a refused link is worth another; anything else would fail the same way.
         if (!(error instanceof Refused)) break
